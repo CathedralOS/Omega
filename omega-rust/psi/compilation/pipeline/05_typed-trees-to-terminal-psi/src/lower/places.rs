@@ -1389,7 +1389,26 @@ impl<'a> Lowering<'a> {
     /// (`terminal_psi::StructuralQualificationChange`). A routed domain's row
     /// names the route this machine issues it by. `as =D` keeps the type, so
     /// it is the operand itself.
-    fn requalify(&mut self, operand: &Expression, expression: &Expression) -> Evaluation<Located> {
+    ///
+    /// A reference displays its domains on its referent (domains.md,
+    /// "Mutable views"), as the memberships beneath its one `Referent` step,
+    /// and a cast changes those the same way.
+    ///
+    /// `clauses` are what `value as +D` proves for a domain with predicates
+    /// (`ExpressionKind::Establish`), each over the plain value at
+    /// `self_place()`. They become the invariant of the cast's block, stated
+    /// over its parameter, so the edge into it owes them of the operand
+    /// (control_flow.md: "Every arrival proves the predicate under
+    /// simultaneous destination-parameter to actual-argument substitution")
+    /// and everything after knows them of the result, as `prove_membership`
+    /// does for a scalar.
+    fn requalify(
+        &mut self,
+        operand: &Expression,
+        expression: &Expression,
+        clauses: &[semantic_vocabulary::Proposition],
+        stated: &str,
+    ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
         };
@@ -1402,15 +1421,40 @@ impl<'a> Lowering<'a> {
         } else {
             self.qualifications.structural(self.id, record, before)?
         };
-        if held == whole {
+        let (shown, displayed) = if matches!(
+            self.record_type(record)?.shape,
+            StorageShape::Reference { .. }
+        ) {
+            let referent = |projected: &[terminal_psi::StructuralPathQualification]| {
+                projected
+                    .iter()
+                    .filter(|row| row.path == [StructuralPathSegment::Referent])
+                    .map(|row| row.domain)
+                    .collect::<Vec<_>>()
+            };
+            (
+                referent(&projected),
+                referent(&self.memberships(record, before)?.1),
+            )
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        if held == whole && shown == displayed {
+            if !clauses.is_empty() {
+                return Err(self.internal("a cast that proves predicates adds no domain"));
+            }
             return self.located(operand);
         }
         let added: Vec<_> = whole
             .iter()
             .filter(|domain| !held.contains(domain))
+            .chain(shown.iter().filter(|domain| !displayed.contains(domain)))
             .copied()
             .collect();
-        if !added.is_empty() && held.iter().any(|domain| !whole.contains(domain)) {
+        if !added.is_empty()
+            && (held.iter().any(|domain| !whole.contains(domain))
+                || displayed.iter().any(|domain| !shown.contains(domain)))
+        {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
@@ -1433,7 +1477,7 @@ impl<'a> Lowering<'a> {
             place,
             position: 0,
             structural_type: record,
-            multiplicity: self.records.multiplicity(record, self.id)?,
+            multiplicity: self.held_multiplicity(value, record)?,
             access: StructuralAccess::Owned,
             qualifications: whole,
             projected_qualifications: projected,
@@ -1451,6 +1495,27 @@ impl<'a> Lowering<'a> {
             })?
             .structural_parameters
             .push(parameter);
+        if !clauses.is_empty() {
+            let subject = crate::body::self_place()
+                .ok_or_else(|| self.internal("cast subject place identity"))?;
+            let mut predicate = Vec::with_capacity(clauses.len());
+            for clause in clauses {
+                self.name_clause_contents(clause, &[(subject, exact)], None)?;
+                predicate.push(crate::canonical::substitute_parameters(
+                    clause,
+                    &[],
+                    &[place],
+                    id,
+                )?);
+            }
+            self.sources.memberships.push((cast, stated.to_owned()));
+            self.invariants.push(terminal_psi::ScalarBlockInvariant {
+                machine: id,
+                header: cast,
+                predicate: crate::canonical::conjunction(predicate, id)?,
+                arrivals: Vec::new(),
+            });
+        }
         let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
             .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
         self.jump_with_structural(
@@ -1477,6 +1542,36 @@ impl<'a> Lowering<'a> {
             record,
             fresh: true,
         }))
+    }
+
+    /// The multiplicity the root `value` was declared with, which a cast
+    /// passes on unchanged: a freshly formed reference owns its loan and is
+    /// affine although its type permits copies
+    /// (`required_result_multiplicity`). A root this machine declared
+    /// nowhere has its type's.
+    fn held_multiplicity(
+        &self,
+        value: PlaceId,
+        record: StructuralTypeId,
+    ) -> Checked<StructuralMultiplicity> {
+        for (_, draft) in self.blocks.iter() {
+            if let Some(parameter) = draft
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == value)
+            {
+                return Ok(parameter.multiplicity);
+            }
+            if let Some(result) = draft
+                .operations
+                .iter()
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == value)
+            {
+                return Ok(result.multiplicity);
+            }
+        }
+        self.records.multiplicity(record, self.id)
     }
 
     /// A byte view or sequence: its domains are primitive byte predicates,
@@ -1936,10 +2031,12 @@ impl<'a> Lowering<'a> {
             // computed (domains.md: "removing `D` with a cast changes no bits
             // or geometry"), but the result is a distinct place of a distinct
             // type, reached through the cast's own edge.
-            ExpressionKind::Requalify(operand) => self.requalify(operand, expression),
-            ExpressionKind::Establish { .. } => {
-                Err(self.internal("a cast that proves predicates of a data value"))
-            }
+            ExpressionKind::Requalify(operand) => self.requalify(operand, expression, &[], ""),
+            ExpressionKind::Establish {
+                operand,
+                clauses,
+                stated,
+            } => self.requalify(operand, expression, clauses, stated),
             ExpressionKind::Borrow {
                 access,
                 place,
