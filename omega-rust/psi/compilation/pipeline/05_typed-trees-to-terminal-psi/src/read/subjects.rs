@@ -233,6 +233,7 @@ impl Program<'_> {
                     declaring_trait: owner.symbol,
                     requirement,
                     implementation: machine.symbol,
+                    value_arguments: Vec::new(),
                 };
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
@@ -620,7 +621,13 @@ impl<'t> Program<'t> {
                 Unserved::Declaration("trait with parameters, schema clauses or a refinement"),
             ));
         }
-        if !declared.type_parameters.is_empty() {
+        if !declared.type_parameters.is_empty()
+            || self
+                .typed
+                .trait_machine_signatures(declared)
+                .iter()
+                .any(|requirement| !requirement.type_parameters.is_empty())
+        {
             self.generic_templates.push(declared.symbol);
             return Ok(());
         }
@@ -674,23 +681,11 @@ impl<'t> Program<'t> {
         proof_form: bool,
     ) -> Checked<()> {
         for requirement in self.typed.trait_machine_signatures(declared) {
-            // A requirement with value parameters has one contract per tuple
-            // of values (`requirement`), read where a call or a selected
-            // implementation supplies them. Read as a subject it has none,
-            // and the witness its implementations owe for every value at
-            // once is not built: refused by that name, not as a mismatch of
-            // arguments nobody gave.
-            if !self.requirement_binders(entry, requirement)?.is_empty() {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration("trait requirement with value parameters"),
-                ));
-            }
             if proof_form {
                 // A genuine bodyless requirement stays abstract in this form;
-                // it has no executable entry and can never be published.
-                self.requirement(requirement, &[])?;
+                // its invocation binders are rigid, not an empty application.
+                // Only actual closed calls publish executable public headers.
+                self.rigid_requirement(requirement)?;
                 continue;
             }
             let (signature, _) = self.requirement_signature(entry, requirement, &[])?;
@@ -783,6 +778,7 @@ impl<'t> Program<'t> {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
                 implementation: row.realization_machine,
+                value_arguments: Vec::new(),
             };
             if !self.conformance_witnesses.contains(&witness) {
                 self.conformance_witnesses.push(witness);

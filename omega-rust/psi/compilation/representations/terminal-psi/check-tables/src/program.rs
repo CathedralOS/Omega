@@ -263,11 +263,13 @@ pub struct Selected {
 /// preconditions, guarantees", and "A matching signature is insufficient."
 /// So each row a subject declares is an obligation of its own, whether or
 /// not the program selects the implementation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConformanceWitness {
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
     pub implementation: SymbolHandle,
+    /// Exact applied values; empty for a universally checked declaration.
+    pub value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
 }
 
 /// Symbolic root of a data invariant, substituted before observing storage.

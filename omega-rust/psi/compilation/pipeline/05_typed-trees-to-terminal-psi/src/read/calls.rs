@@ -1112,8 +1112,13 @@ impl<'t> Program<'t> {
         let declared =
             self.declared_requirement(id, dispatch.declaring_trait, dispatch.requirement)?;
         let binders = self.requirement_binders(id, declared)?;
-        let value_arguments =
-            self.static_value_arguments(id, &binders, application_handle, raw_arguments)?;
+        let value_arguments = self.static_value_arguments(
+            id,
+            &binders,
+            dispatch.realization_machine,
+            application_handle,
+            raw_arguments,
+        )?;
         if !dispatch.evidence_parameter.is_valid() {
             return unserved("static requirement dispatch");
         }
@@ -1357,21 +1362,111 @@ impl<'t> Program<'t> {
         )
     }
 
-    /// The literals a call's static arguments bind `binders` to, a
-    /// requirement's value parameters in declaration order. Each argument
-    /// must be one integer literal and nothing else, as the call site
-    /// records it (`StaticMachineArgument::const_literal`), and there must be
-    /// exactly one per parameter; the application may apply nothing more.
+    /// Read exact retained value bindings through the ordinary scalar owner.
+    /// Declaration order determines the tuple; each binder must occur once.
+    pub(super) fn bound_scalar_values(
+        &self,
+        id: MachineId,
+        binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
+        use semantic_vocabulary::{ScalarTerm, ScalarType};
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        use typed_trees::types::PrimitiveType;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let bindings = self
+            .typed
+            .expression_table
+            .static_machine_application_bindings(application);
+        if bindings.len() != binders.len() {
+            return Err(unserved(
+                "value application has an incomplete binding tuple",
+            ));
+        }
+        let mut ordered = bindings.iter().collect::<Vec<_>>();
+        ordered.sort_unstable_by_key(|binding| {
+            (
+                binding.parameter.arena_index(),
+                binding.parameter.generation(),
+            )
+        });
+        if ordered
+            .windows(2)
+            .any(|pair| pair[0].parameter == pair[1].parameter)
+        {
+            return Err(unserved("value application repeats a binder"));
+        }
+        let mut values = Vec::with_capacity(binders.len());
+        for &(parameter, scalar_type) in binders {
+            let Ok(position) = ordered.binary_search_by_key(
+                &(parameter.arena_index(), parameter.generation()),
+                |binding| {
+                    (
+                        binding.parameter.arena_index(),
+                        binding.parameter.generation(),
+                    )
+                },
+            ) else {
+                return Err(unserved("value parameter has no unique retained binding"));
+            };
+            let binding = ordered[position];
+            let StaticMachineBindingValue::Const(reference) = binding.value else {
+                return Err(unserved("value parameter is not bound to a static value"));
+            };
+            let primitive = match scalar_type {
+                ScalarType::Integer(carrier) if !carrier.is_address() => {
+                    let fixed = carrier
+                        .bits()
+                        .and_then(|bits| {
+                            numerics::integer_carrier::FixedInteger::new(
+                                carrier.sign(),
+                                u64::from(bits),
+                            )
+                        })
+                        .ok_or_else(|| {
+                            unserved("static value has an unresolved integer carrier")
+                        })?;
+                    PrimitiveType::Integer(fixed)
+                }
+                ScalarType::Boolean => PrimitiveType::Bool,
+                _ => {
+                    return Err(unserved(
+                        "value parameter has an unsupported scalar carrier",
+                    ));
+                }
+            };
+            let operand = self
+                .typed
+                .static_operand_from_type_reference(reference)
+                .map_err(unserved)?;
+            let value = self
+                .typed
+                .prepare_callable_scalar_argument(primitive, &operand)
+                .map_err(unserved)?;
+            values.push(match value {
+                ExpressionNode::Integer(literal) => {
+                    let (value, scalar_type) = self.literal(id, &literal, Some(scalar_type))?;
+                    ScalarTerm::Integer { scalar_type, value }
+                }
+                ExpressionNode::Boolean(value) => ScalarTerm::Boolean(value),
+                _ => return Err(unserved("static value did not retain its scalar meaning")),
+            });
+        }
+        Ok(values)
+    }
+
+    /// The canonical values a call binds the requirement's parameters to.
+    /// The retained declaration supplies its exact binder association;
+    /// the authored list remains checked against that same application.
     /// With no value parameter the call may carry no static argument.
     fn static_value_arguments(
         &self,
         id: MachineId,
         binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
+        declaration: SymbolHandle,
         application_handle: typed_trees::static_applications::StaticMachineApplicationHandle,
         authored_arguments: &[typed_trees::expression::StaticMachineArgument],
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
-        use typed_trees::expression::StaticMachineArgument;
-        use typed_trees::static_applications::StaticMachineBindingValue;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let table = &self.typed.expression_table;
         if application_handle.is_valid()
@@ -1404,28 +1499,23 @@ impl<'t> Program<'t> {
         if arguments.len() != binders.len() || bindings.len() != binders.len() {
             return unserved("requirement call with static arguments");
         }
-        if bindings
-            .iter()
-            .any(|binding| !matches!(binding.value, StaticMachineBindingValue::Const(_)))
-        {
-            return unserved("requirement call that binds something other than a constant");
+        if binders.is_empty() {
+            return Ok(Vec::new());
         }
-        let mut literals = Vec::with_capacity(binders.len());
-        for (argument, (_, scalar_type)) in arguments.iter().zip(binders) {
-            let Some(literal) = &argument.const_literal else {
-                return unserved("value argument that is not an integer literal");
-            };
-            let only_a_literal = StaticMachineArgument {
-                const_literal: Some(literal.clone()),
-                ..StaticMachineArgument::default()
-            };
-            if *argument != only_a_literal {
-                return unserved("value argument that is not only an integer literal");
-            }
-            let (value, scalar_type) = self.literal(id, literal, Some(*scalar_type))?;
-            literals.push(semantic_vocabulary::ScalarTerm::Integer { scalar_type, value });
+        if application.is_none_or(|application| application.binding_declaration != declaration) {
+            return unserved("requirement call binds another declaration");
         }
-        Ok(literals)
+        let parameters = if let Some(machine) = self.typed.machine_by_symbol(declaration) {
+            self.typed.machine_callable_parameters(machine)
+        } else if let Some((_, requirement)) = self.typed.trait_machine_signature(declaration) {
+            self.typed
+                .state_signature_type_parameters(requirement)
+                .to_vec()
+        } else {
+            return unserved("requirement call lost its binding declaration");
+        };
+        let binders = self.value_binder_correspondence(id, binders, &parameters)?;
+        self.bound_scalar_values(id, &binders, application_handle)
     }
 
     /// The types a call in a generic check form's entry applies its callee's
@@ -1626,8 +1716,13 @@ impl<'t> Program<'t> {
         }
         self.direct_selection(id, target, selection, binding)?;
         let binders = self.requirement_binders(id, requirement)?;
-        let value_arguments =
-            self.static_value_arguments(id, &binders, application, authored_arguments)?;
+        let value_arguments = self.static_value_arguments(
+            id,
+            &binders,
+            requirement.symbol,
+            application,
+            authored_arguments,
+        )?;
         let callee = self.requirement(requirement, &value_arguments)?;
         self.call_of(id, slots, (callee.into(), None), arguments, source, None)
             .map(Some)
