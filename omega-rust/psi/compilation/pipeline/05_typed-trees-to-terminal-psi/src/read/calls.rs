@@ -953,7 +953,7 @@ impl<'t> Program<'t> {
     fn designate(
         &mut self,
         id: MachineId,
-        selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
+        selection: arena::Handle<typed_trees::expression::BuildSelectionCall>,
         read: &mut Expression,
     ) -> Checked<()> {
         use language_semantics::declaration_selection::BuildSelectionRequest;

@@ -23,6 +23,11 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none crashes none;
     machine bind(activation: u64) reaches none crashes none;
 }
+// Selection first lends the Build to this checked helper, as the
+// prelude's does, so the host only observes the original Build's identity.
+public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
+    builder
+}
 public boundary trait BuildRequestOperations {
     machine artifact_only(builder: &Build) reaches none crashes none;
 }
@@ -63,6 +68,16 @@ fn typed_with_external_binding(
         (
             "<build-prelude>",
             prelude,
+            "package",
+            Some(package()),
+            source::SourceOrigin::Toolchain,
+        ),
+        // The prelude's operations live in their own code module, the unit
+        // `source_assembly` admits beside the declarations, so `Build::bind`
+        // names that module rather than the data type.
+        (
+            "<build-prelude:Build>",
+            "module Build;\n",
             "package",
             Some(package()),
             source::SourceOrigin::Toolchain,
@@ -108,12 +123,17 @@ fn typed_with_external_binding(
     request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
         ids[0], ids[1], "Build",
     )];
+    request
+        .top_level_bindings
+        .push(symbols::SourceScopedTopLevelBinding::module_import(
+            ids[0], ids[2], "Build", 0,
+        ));
     if external_binding.is_some() {
         for name in ["ForeignBinding", "DllImport"] {
             request
                 .top_level_bindings
                 .push(symbols::SourceScopedTopLevelBinding::new(
-                    ids[0], ids[2], name,
+                    ids[0], ids[3], name,
                 ));
         }
     }
@@ -752,6 +772,96 @@ machine build(builder: &mut Build) {
             .to_string()
             .contains("bundled core ForeignBinding declaration")
     }));
+}
+
+/// A selection is two generated calls, and each records the protocol
+/// operation typing chose for it. Publication takes a row's action from that
+/// record: when the record is changed, the published action follows it while
+/// the called requirement stays the same, so no reader re-derives the
+/// operation from the requirement's name.
+#[test]
+fn a_selection_row_takes_its_action_from_the_operation_typing_recorded() {
+    use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
+    use typed_trees::expression::ExpressionNode;
+    let build = "machine build(builder: &mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
+    let typed = || {
+        typed_with_external_binding(
+            build,
+            &native_binding_prelude(),
+            Some(include_str!(
+                "../../../../../source/library/core/external_binding.omg"
+            )),
+        )
+    };
+    let selections = |typed: &typed_trees::TypedTrees| {
+        typed
+            .expression_table
+            .expression_entries()
+            .filter_map(|(handle, expression)| match expression {
+                ExpressionNode::Call(call) if call.build_selection.is_valid() => Some((
+                    typed.symbols.name(call.target_symbol).to_owned(),
+                    call.build_selection,
+                    handle,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let recorded = typed();
+    let mut operations = selections(&recorded)
+        .into_iter()
+        .map(|(name, row, _)| {
+            let operation = recorded
+                .expression_table
+                .build_selection_call(row)
+                .unwrap()
+                .operation;
+            (name, operation)
+        })
+        .collect::<Vec<_>>();
+    operations.sort_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(
+        operations,
+        [
+            ("bind_native".to_owned(), Protocol::BindNative),
+            ("prepare".to_owned(), Protocol::Prepare),
+        ]
+    );
+
+    // The failing twin: the same program with the commit's record changed.
+    let mut edited = typed();
+    let (_, commit, call) = selections(&edited)
+        .into_iter()
+        .find(|(name, _, _)| name == "bind_native")
+        .unwrap();
+    let request = edited
+        .expression_table
+        .build_selection_request(commit)
+        .unwrap()
+        .clone();
+    let replaced = edited.expression_table.insert_build_selection_call(
+        typed_trees::expression::BuildSelectionCall {
+            request,
+            operation: Protocol::Select,
+        },
+    );
+    let ExpressionNode::Call(call) = edited.expression_table.expression_mut(call) else {
+        unreachable!("the row was read from a call")
+    };
+    call.build_selection = replaced;
+    let refused = accepted_frontier(edited, terminal_codec::TerminalPublication::Invocation)
+        .unwrap()
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .expect_err("a native request recorded as a plain selection is refused");
+    assert!(
+        refused.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("native Build binding disagrees with its protocol operation")),
+        "{refused:?}"
+    );
 }
 
 #[test]

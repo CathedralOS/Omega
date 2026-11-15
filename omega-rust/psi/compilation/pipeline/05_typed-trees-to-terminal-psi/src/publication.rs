@@ -41,9 +41,9 @@ pub(crate) struct PreparedProgram<'source> {
 /// The designated operands of one Build selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DesignatedOperands {
-    /// The request as the typed trees hold it
-    /// (`ExpressionTable::build_selection_request`).
-    pub request: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
+    /// The request and the protocol operation as the typed trees hold
+    /// them (`ExpressionTable::build_selection_call`).
+    pub request: arena::Handle<typed_trees::expression::BuildSelectionCall>,
     /// The machine whose source wrote the selection. The declarations a
     /// selection names are resolved for the place that wrote it
     /// (scoped_execution.md: "using the occurrence's package authority,
