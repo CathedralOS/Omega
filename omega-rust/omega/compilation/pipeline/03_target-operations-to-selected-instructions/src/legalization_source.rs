@@ -714,7 +714,7 @@ pub(crate) mod scalar_graph {
             use crate::legalization::accepted_fact;
             use crate::legalization::scalar_graph_input;
             use crate::structural_inputs::structural_reference_input::{
-                element_leaf_projection, primitive_store, storage_address_geometry,
+                element_leaf_projection, storage_address_geometry,
             };
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
@@ -991,30 +991,38 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_write_only_primitive_store(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::WriteOnlyPrimitiveStore {
+                let target_operations::TargetUnitOperation::WriteOnlyPrimitiveStore {
                     psi_operation,
                     destination,
                     path,
-                    value,
+                    source,
+                    byte_offset,
+                    byte_size,
+                    indices,
                     ..
-                } = &node.operation
+                } = targeted
                 else {
-                    unreachable!("dispatched project_write_only_primitive_store")
+                    return Err(Error::custody());
                 };
-                let geometry =
-                    primitive_store(destination, path, value.scalar_type, unit.geometry())
-                        .ok_or(Error::custody())?;
                 Ok(LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                     destination: destination.clone(),
                     path: path.clone(),
-                    value: *value,
-                    byte_offset: geometry.byte_offset,
-                    byte_size: u8::try_from(geometry.byte_size).map_err(|_| Error::custody())?,
-                    indices: o!(optimized => unit => *psi_operation => &geometry.elements)?,
+                    value: abstract_operations::AbstractResult {
+                        value: source.source_value(),
+                        scalar_type: source.scalar_type(),
+                    },
+                    byte_offset: *byte_offset,
+                    byte_size: u8::try_from(*byte_size).map_err(|_| Error::custody())?,
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
                 })
             }
 
@@ -1934,6 +1942,15 @@ pub(crate) mod scalar_graph {
                 )?
             } else if matches!(
                 targeted,
+                target_operations::TargetUnitOperation::WriteOnlyPrimitiveStore { .. }
+            ) {
+                storage_instructions::project_write_only_primitive_store(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
                 target_operations::TargetUnitOperation::StructuralScalarFieldStore { .. }
             ) {
                 storage_instructions::project_structural_scalar_field_store(
@@ -2661,11 +2678,6 @@ pub(crate) mod scalar_graph {
                     AbstractOperation::BoundaryCall { .. } => {
                         call_instructions::project_boundary_call(
                             node, optimized, native, operation,
-                        )?
-                    }
-                    AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
-                        storage_instructions::project_write_only_primitive_store(
-                            node, optimized, unit,
                         )?
                     }
                     AbstractOperation::EstablishByteSequenceLiteral {

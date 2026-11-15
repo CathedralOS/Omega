@@ -2678,17 +2678,18 @@ pub(crate) mod write_only_primitive_store {
         if projection.scalar != value.scalar_type {
             return Err(invalid());
         }
+        let byte_offset = projection.leaf.byte_offset;
         let runs = projection.selector_runs();
         let indices = runtime_indices(runs, function, scalar_sources, structural_types)
             .map_err(|_| invalid())?;
-        let (_, source) = if let Some(block_value) = block_value {
+        let (byte_size, source) = if let Some(block_value) = block_value {
             if block_value.value != value.value || block_value.scalar_type != value.scalar_type {
                 return Err(invalid());
             }
             let shape = super::super::scalar_abi::fixed_native_scalar_shape(value.scalar_type)
                 .ok_or_else(invalid)?;
             (
-                ValueShape::borrowed_reference(shape.byte_size, shape.alignment),
+                shape.byte_size,
                 TargetUnitWriteOnlyPrimitiveStoreSource::BlockParameter(block_value),
             )
         } else {
@@ -2741,13 +2742,7 @@ pub(crate) mod write_only_primitive_store {
                             )
                         }
                     };
-                    (
-                        ValueShape::borrowed_reference(
-                            referent_shape.byte_size,
-                            referent_shape.alignment,
-                        ),
-                        source,
-                    )
+                    (referent_shape.byte_size, source)
                 }
                 ScalarType::Boolean => {
                     let source = if let Some((parameter_index, _)) = function
@@ -2783,7 +2778,7 @@ pub(crate) mod write_only_primitive_store {
                             value: immediate,
                         }
                     };
-                    (ValueShape::borrowed_reference(1, 1), source)
+                    (1, source)
                 }
                 ScalarType::IeeeFloat(format) => {
                     let byte_size = match format {
@@ -2826,10 +2821,7 @@ pub(crate) mod write_only_primitive_store {
                             value: immediate,
                         }
                     };
-                    (
-                        ValueShape::borrowed_reference(u32::from(byte_size), byte_size),
-                        source,
-                    )
+                    (u32::from(byte_size), source)
                 }
             }
         };
@@ -2840,6 +2832,8 @@ pub(crate) mod write_only_primitive_store {
             destination_type: destination_type.clone(),
             destination_storage,
             source,
+            byte_offset,
+            byte_size,
             indices,
         });
         provenance.operations.push(*psi_operation);
