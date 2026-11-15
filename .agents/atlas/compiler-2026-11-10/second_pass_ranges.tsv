@@ -34,10 +34,6 @@ second_pass	unit	path	first_line	last_line	lines
 11	26	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	5751	11750	6000
 12	26	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	11751	17750	6000
 13	26	omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs	17751	18270	520
-14	51	omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_prover.rs	1701	7700	6000
-15	51	omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_prover.rs	7701	8071	371
-16	59	omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs	1201	7200	6000
-17	59	omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs	7201	11937	4737
 18	74	omega-rust/psi/compilation/proof/admission/src/integer_affine.rs	3301	6415	3115
 18	74	omega-rust/psi/compilation/proof/admission/src/mathematical_core.rs	521	1059	539
 19	74	omega-rust/psi/compilation/proof/admission/src/mathematical_core.rs	4774	9639	4866
