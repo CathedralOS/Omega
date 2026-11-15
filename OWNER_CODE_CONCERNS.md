@@ -115,13 +115,6 @@ framework or a list of unimplemented features.
 - Cost: The suite no longer establishes when a returned descriptor keeps or retires its exact loan. Reproduce the accepted and rejected cases through their actual authored source and distinguish stale artifact fixtures from changes to the loan and disposition checks before changing their oracles.
 - Reported: 2026-11-15, Codex, while comparing the stored-length repair with an unchanged Stage06 test baseline.
 
-### A constant snapshot loses a checked element qualification
-- Category: knowledge crossing a boundary
-- Where: [constant reconstruction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L674), [Product judgment](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L277), [collection membership check](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs#L589)
-- Saw: On macOS arm64 at clean `637ee209d8a`, the checked `make()` result has the `Stamped` qualification on every element and returns `Ticket.number` values 3 and 5. The constant receipt validates, then Product refuses the reconstructed `issued_tickets` array at `typing array literal element`. An unrestricted `Stamped` tag produces the same refusal. Both direct calls and both plain record-array constants run in native and Psi.
-- Cost: A named constant loses the checked facts carried by its initializer's result. Rejoin the existing accepted result to checked constant construction so portable validation can verify the exact value and nested qualifications. Preserve the issuer checks and refuse runtime authority at the constant boundary.
-- Reported: 2026-11-15, Codex, while carrying evaluated record-array constants to named use. Reproduced and traced again at `637ee209d8a`.
-
 ### A textual merge can pass Admission with a Rust type error
 - Category: verifying costs more than writing
 - Where: [pre-merge Admission](.github/workflows/admission.yml#L68), [post-merge checks](.github/workflows/post-merge-check.yml#L64), [atomic store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L223)

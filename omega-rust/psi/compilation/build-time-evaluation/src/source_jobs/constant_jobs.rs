@@ -331,6 +331,27 @@ fn decode_snapshot(
     use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceNode};
     let unsupported =
         || "no product route yet: constant result needs its pure snapshot materializer".to_owned();
+    // The snapshot keeps the value, not the evidence the invocation checked
+    // for each domain on it, so materialization re-establishes each domain
+    // with `as +D`. Anyone may write that only for a domain with
+    // unrestricted issuance; a restricted domain needs its issuer, and a
+    // constant grants no authority (constants.md).
+    for domain in program
+        .constant_domain_qualifications(carrier)
+        .ok_or_else(unsupported)?
+    {
+        let definition = program
+            .domain_definition(domain.symbol)
+            .ok_or("constant result names a domain without its declaration")?;
+        if definition.issuance() != typed_trees::domain::DomainIssuance::Unrestricted {
+            return Err(format!(
+                "a constant grants no authority, and `{}` restricts who may issue it: \
+                 the constant would re-establish it from the evaluated value; \
+                 declare the constant with the bare carrier and qualify it through an issuer",
+                definition.name.as_str(),
+            ));
+        }
+    }
     let underlying = program
         .unwrapped_type_reference(carrier)
         .ok_or("constant result has no exact carrier")?;
