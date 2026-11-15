@@ -177,3 +177,10 @@ framework or a list of features that remain unimplemented.
 - Saw: On macOS arm64 at `296353504c3` with the literal descriptor graph repair, the original `entry` calling `fail("x")` reaches its declared trap in both engines. Keep its Build bindings, entry, literal, and the callee signature `machine fail(items: &[u8]) crashes Trap`, and give `fail` an empty body. Both `omega run --both` and `omega run --engine psi` then exit 200 during target preparation with `InvalidStructuralValueInput` in `MachineId(1)`, `PlaceId(1)`: `home retirement has no owned home or materialized view carrier`.
 - Cost: The completing call cannot retire its argument's exact descriptor on the normal edge, so the package never executes. Carry the literal's checked storage and lifetime into the existing native carrier and retire only the view.
 - Reported: 2026-11-14, Codex, while executing the staged literal call and its normal-return companion
+
+### Concurrent provenance tests can pick a neighboring transcript
+- Category: tests that pin the bug
+- Where: [test transcript scratch space](tools/xtask/tests/provenance.rs#L14)
+- Saw: On macOS arm64, the 11-test suite at `fe93711ed68` returns `mislabeled-model` from the neighboring thread in `codex_without_thread_identity_keeps_newest_transcript_fallback`. A two-thread trace captured both exact test bodies allocating the same scratch directory from an identical clock tick and process ID.
+- Cost: These tests can read or delete one another's transcript data, so the fallback test can fail for unrelated input. Give each fixture exclusive custody of its transcript tree.
+- Reported: 2026-11-14, Codex, while checking the independently landed work-interval repair on macOS
