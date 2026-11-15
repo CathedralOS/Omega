@@ -5045,7 +5045,7 @@ mod declaration_invocations {
                     })
         }
 
-        fn bodyless_declaration(
+        pub fn bodyless_declaration(
             &self,
             target: SymbolHandle,
         ) -> Result<Option<(SymbolHandle, StateSignature)>, &'static str> {
