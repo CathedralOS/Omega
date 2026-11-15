@@ -967,7 +967,24 @@ impl<'t> Program<'t> {
             || machine.authored_target.is_some()
             || machine.target_family_interface
         {
-            return unserved("target selection");
+            let mut refusal = refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("target selection"),
+            );
+            refusal.detail.push_str(&format!(
+                "; declaration `{}` ({:?}); target={:?}; authored target={:?}; family interface={}; purpose={:?}; supply={:?}; body={:?}; declared at {:?}",
+                self.typed.symbols.display_path(machine.symbol, "::"),
+                machine.symbol,
+                machine.target.as_ref().map(|target| target.as_str()),
+                machine.authored_target.as_ref().map(|target| target.as_str()),
+                machine.target_family_interface,
+                machine.purpose,
+                machine.supply_mode,
+                machine.body_status,
+                self.declared_at(machine.symbol),
+            ));
+            return Err(refusal);
         }
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             return unserved("supply mode other than a checked body");

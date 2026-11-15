@@ -852,7 +852,7 @@ fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
     let through_helper = |argument: &str| {
         format!(
             "public boundary trait Probe {{
-                machine probe(value: u8) -> u8 ensures result == value reaches;
+                machine probe(value: u8) -> u8 ensures result == value reaches crashes none;
              }}
              public SuppliedProbe satisfies Probe {{
                 machine probe(value: u8) -> u8 {{ helper({argument}) }}
