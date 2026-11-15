@@ -948,6 +948,71 @@ pub(crate) mod exhaustiveness {
         }
 
         #[test]
+        fn shared_fields_remain_unchanged_across_an_unrelated_call() {
+            for source in [
+                "data Flags { flag: bool; } machine covered(flags: &Flags) { transition { flags.flag == true -> {} noise() == true -> {} flags.flag == false -> {} } }",
+                "data Flags { flag: bool; } data Outer { inner: Flags; } machine covered(flags: &Outer) { transition { flags.inner.flag == true -> {} noise() == true -> {} flags.inner.flag == false -> {} } }",
+                "data Flags { flag: bool; } data Outer { inner: &Flags; } machine covered(flags: &Outer) { transition { flags.inner.flag == true -> {} noise() == true -> {} flags.inner.flag == false -> {} } }",
+                "data Flags { flag: bool; } data Outer { good: bool; other: &mut Flags; } machine covered(flags: &Outer) { transition { flags.good == true -> {} noise() == true -> {} flags.good == false -> {} } }",
+                "machine covered(flag: &bool) { transition { flag == true -> {} noise() == true -> {} flag == false -> {} } }",
+                "machine covered(flags: &[bool; 2]) { transition { flags[0u64] == true -> {} noise() == true -> {} flags[0u64] == false -> {} } }",
+                "machine covered(flags: &[bool]) requires 0u64 < flags.len { transition { flags[0u64] == true -> {} noise() == true -> {} flags[0u64] == false -> {} } }",
+                "data Flags { flag: bool; } domain Flags::Seen; machine covered(flags: &Flags in Seen) { transition { flags.flag == true -> {} noise() == true -> {} flags.flag == false -> {} } }",
+                "data Flags { flag: bool; } data Holder<T> { flag: bool; other: T; } machine covered(flags: &Holder<&mut Flags>) { transition { flags.flag == true -> {} noise() == true -> {} flags.flag == false -> {} } }",
+            ] {
+                let program = resolve(&format!("machine noise() -> bool {{ false }} {source}"));
+                crate::lower_symbol_resolved_trees(&program)
+                    .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+            }
+        }
+
+        #[test]
+        fn shared_outer_storage_does_not_freeze_an_exclusive_reference_path() {
+            for source in [
+                "data Flags { flag: bool; } machine flip(flags: &mut Flags) -> bool { flags.flag = true; false } machine uncovered(flags: &mut Flags) { transition { flags.flag == true -> {} flip(flags) == true -> {} flags.flag == false -> {} } }",
+                "data Flags { flag: bool; } data Outer { inner: &mut Flags; } machine flip(flags: &Outer) -> bool { flags.inner.flag = true; false } machine uncovered(flags: &Outer) { transition { flags.inner.flag == true -> {} flip(flags) == true -> {} flags.inner.flag == false -> {} } }",
+                "data Flags { flag: bool; } data Outer { inner: &Flags; } machine replace(flags: &mut Outer, other: &Flags) -> bool { flags.inner = other; false } machine uncovered(flags: &mut Outer, other: &Flags) { transition { flags.inner.flag == true -> {} replace(flags, other) == true -> {} flags.inner.flag == false -> {} } }",
+                "machine change(index: &mut u64) -> bool { index = 1u64; false } machine uncovered(flags: &[bool; 2]) { let mut index: u64 = 0u64; transition { flags[index] == true -> {} change(&mut index) == true -> {} flags[index] == false -> {} } }",
+                "data Flags { flag: bool; } data Holder<T> { inner: T; } machine noise() -> bool { false } machine uncovered(flags: &Holder<&mut Flags>) { transition { flags.inner.flag == true -> {} noise() == true -> {} flags.inner.flag == false -> {} } }",
+            ] {
+                let program = resolve(source);
+                let error = validate_case_dispatch_exhaustiveness_in(
+                    &program,
+                    &TypingCohort::default(),
+                )
+                .expect_err(
+                    "mutable storage, reference carriers and selectors retain their versions",
+                );
+                assert!(
+                    error.message.contains("can fall through"),
+                    "{source}: {error:?}"
+                );
+            }
+        }
+
+        #[test]
+        fn opaque_and_atomic_carriers_do_not_gain_shared_stability() {
+            let program = resolve(
+                "boundary data External; machine inspect(external: &External, atomic: &AtomicBool) {}",
+            );
+            let machine = &program.machines[0];
+            let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+            let scope = DispatchScope {
+                program: &program,
+                machine,
+                state,
+                bindings: Vec::new(),
+            };
+            let bindings = coverage_bindings(&scope);
+            assert_eq!(bindings.len(), 2);
+            assert!(
+                bindings
+                    .iter()
+                    .all(|binding| !binding.shared && !binding.snapshot)
+            );
+        }
+
+        #[test]
         fn borrowed_case_captures_keep_their_storage_version() {
             let mut program = resolve(
                 "data Mode { case First; case Second; } machine change(value: &mut Mode) -> bool { value = Mode::First; false } machine uncovered(value: &mut Mode) { transition { value in Mode::First -> {} change(value) == true -> {} value in Mode::Second -> {} } }",
@@ -1297,7 +1362,7 @@ pub(crate) mod exhaustiveness {
         let mut has_opaque_arm = false;
         let mut epoch = 1;
         let subject_epoch = |subject, epoch| {
-            if snapshot_subject(scope, subject) {
+            if unchanged_subject(scope, subject) {
                 0
             } else {
                 epoch
@@ -1551,6 +1616,7 @@ pub(crate) mod exhaustiveness {
         symbol: (u32, u32),
         primitive: bool,
         snapshot: bool,
+        shared: bool,
     }
 
     fn coverage_bindings(scope: &DispatchScope<'_>) -> Vec<CoverageBinding> {
@@ -1563,6 +1629,9 @@ pub(crate) mod exhaustiveness {
             snapshot: live_symbol(program, symbol)
                 && !mutable
                 && scalar_value_type(program, reference).is_some(),
+            shared: live_symbol(program, symbol)
+                && !mutable
+                && shared_read_type(program, reference, false),
         };
         let mut bindings = parameters
             .iter()
@@ -1607,6 +1676,7 @@ pub(crate) mod exhaustiveness {
                     symbol: binding.symbol,
                     primitive: binding.primitive,
                     snapshot: binding.snapshot,
+                    shared: binding.shared,
                 });
             }
         }
@@ -1697,9 +1767,9 @@ pub(crate) mod exhaustiveness {
         }
     }
 
-    /// Memory projections and borrowed captures retain a storage version;
-    /// copied scalar values retain their identity across an unrelated call.
-    fn snapshot_subject(scope: &DispatchScope<'_>, expression: ExpressionHandle) -> bool {
+    /// Copies and ordinary reads protected by an existing shared loan remain
+    /// unchanged across calls. Exclusive and unknown storage retains its epoch.
+    fn unchanged_subject(scope: &DispatchScope<'_>, expression: ExpressionHandle) -> bool {
         let program = scope.program;
         let bindings = &scope.bindings;
         match program.tables.bodies.expressions.expression(expression) {
@@ -1719,6 +1789,7 @@ pub(crate) mod exhaustiveness {
                             .subject,
                     )
                     .is_some_and(|reference| scalar_value_type(program, &reference).is_some())
+                    || shared_subject(scope, expression)
             }
             ExpressionNode::Name(path) => {
                 !path.static_application.is_valid()
@@ -1726,7 +1797,7 @@ pub(crate) mod exhaustiveness {
                         .binary_search_by_key(&symbol_key(path.symbol), |binding| binding.symbol)
                     {
                         (!path.head_symbol.is_valid() || path.head_symbol == path.symbol)
-                            && bindings[position].snapshot
+                            && (bindings[position].snapshot || bindings[position].shared)
                     } else {
                         live_symbol(program, path.symbol)
                             && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
@@ -1737,17 +1808,155 @@ pub(crate) mod exhaustiveness {
                                 })
                     }
             }
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                shared_subject(scope, expression)
+            }
             ExpressionNode::Cast(cast) => {
                 builtin_conversion_type(program, cast).is_some()
-                    && snapshot_subject(scope, cast.value)
+                    && unchanged_subject(scope, cast.value)
             }
-            ExpressionNode::Unary(unary) => snapshot_subject(scope, unary.operand),
+            ExpressionNode::Unary(unary) => unchanged_subject(scope, unary.operand),
             ExpressionNode::Binary(binary) => {
                 builtin_binary_subject(scope, binary)
-                    && snapshot_subject(scope, binary.left)
-                    && snapshot_subject(scope, binary.right)
+                    && unchanged_subject(scope, binary.left)
+                    && unchanged_subject(scope, binary.right)
             }
             _ => false,
+        }
+    }
+
+    /// Follow the selected storage path, not every field reachable from its
+    /// root. A stored exclusive reference cancels the outer shared guarantee;
+    /// it does not invalidate an unrelated ordinary sibling field.
+    fn shared_subject(scope: &DispatchScope<'_>, expression: ExpressionHandle) -> bool {
+        let program = scope.program;
+        match program.tables.bodies.expressions.expression(expression) {
+            ExpressionNode::Name(path) => {
+                !path.static_application.is_valid()
+                    && (!path.head_symbol.is_valid() || path.head_symbol == path.symbol)
+                    && scope
+                        .bindings
+                        .binary_search_by_key(&symbol_key(path.symbol), |binding| binding.symbol)
+                        .ok()
+                        .is_some_and(|position| scope.bindings[position].shared)
+            }
+            ExpressionNode::Member(member) => {
+                shared_subject(scope, member.receiver)
+                    && live_symbol(program, coverage_member_symbol(scope, member))
+                    && shared_member_type(scope, member)
+                        .is_some_and(|reference| shared_read_type(program, &reference, true))
+            }
+            ExpressionNode::Indexed(indexed) => {
+                shared_subject(scope, indexed.collection)
+                    && unchanged_subject(scope, indexed.index)
+                    && builtin_index_element_type(scope, indexed)
+                        .is_some_and(|reference| shared_read_type(program, &reference, true))
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                saved.capture.is_valid()
+                    && shared_subject(
+                        scope,
+                        program
+                            .tables
+                            .bodies
+                            .expressions
+                            .match_subject(saved.capture)
+                            .subject,
+                    )
+            }
+            // Forming a fresh borrow or reevaluating a call is not a loan that
+            // remains live between two alternatives. Opaque access stays unknown.
+            _ => false,
+        }
+    }
+
+    /// Reference access belongs to the resolved type. Preserve a shared path
+    /// through ordinary inline storage, but never across an exclusive reference
+    /// or an opaque/atomic/external storage carrier without stability evidence.
+    fn shared_read_type<'program>(
+        program: &'program SymbolResolvedTrees,
+        mut reference: &'program TypeReference,
+        mut shared: bool,
+    ) -> bool {
+        loop {
+            match reference {
+                TypeReference::Reference(borrow) => {
+                    if borrow.access.is_exclusive() {
+                        return false;
+                    }
+                    shared = true;
+                    reference = program.child_type_reference(borrow.referee);
+                }
+                TypeReference::Constrained(constrained) => {
+                    reference = program.child_type_reference(constrained.base_type);
+                }
+                TypeReference::AliasUse { expansion, .. } => reference = expansion,
+                TypeReference::Named { symbol, .. } if shared && live_symbol(program, *symbol) => {
+                    if reference.primitive_type(&program.symbols).is_some() {
+                        return true;
+                    }
+                    return ordinary_data_owner(program, *symbol).is_some();
+                }
+                TypeReference::Generic(application) if shared => {
+                    return ordinary_data_owner(program, application.base_symbol).is_some();
+                }
+                TypeReference::FixedArray(_) | TypeReference::Slice(_) => return shared,
+                _ => return false,
+            }
+        }
+    }
+
+    fn ordinary_data_owner(
+        program: &SymbolResolvedTrees,
+        symbol: SymbolHandle,
+    ) -> Option<&DataDefinition> {
+        if !live_symbol(program, symbol) {
+            return None;
+        }
+        let position = program
+            .resolution_indexes
+            .data_definition_position(&program.data_definitions, symbol)?;
+        let data = &program.data_definitions[position as usize];
+        (data.symbol == symbol
+            && data.supply_mode == language_core::DataSupplyMode::CheckedShape
+            && data.quotient.is_none())
+        .then_some(data)
+    }
+
+    fn shared_member_type(
+        scope: &DispatchScope<'_>,
+        member: &resolved::expression::TableMemberExpression,
+    ) -> Option<TypeReference> {
+        if live_symbol(scope.program, member.member_symbol) {
+            return field_declared_type(scope, member.member_symbol);
+        }
+        nominal_member_field(scope, member).map(|field| field.type_reference.clone())
+    }
+
+    fn nominal_member_field<'program>(
+        scope: &DispatchScope<'program>,
+        member: &resolved::expression::TableMemberExpression,
+    ) -> Option<&'program resolved::data::DataField> {
+        let receiver = subject_declared_type(scope, member.receiver)?;
+        let mut carrier = &receiver;
+        loop {
+            match carrier {
+                TypeReference::Reference(borrow) => {
+                    carrier = scope.program.child_type_reference(borrow.referee)
+                }
+                TypeReference::Constrained(qualified) => {
+                    carrier = scope.program.child_type_reference(qualified.base_type)
+                }
+                TypeReference::AliasUse { expansion, .. } => carrier = expansion,
+                TypeReference::Generic(application) => {
+                    // The base owns fixed fields regardless of unused arguments.
+                    // A field depending on unresolved T supplies no access proof;
+                    // do not recover polarity through the looser case lookup.
+                    let owner = ordinary_data_owner(scope.program, application.base_symbol)?;
+                    return declared_field_in(scope.program, owner, member);
+                }
+                _ => return declared_member_field(scope, member),
+            }
         }
     }
 
@@ -2619,7 +2828,9 @@ pub(crate) mod exhaustiveness {
         match expressions.expression(subject) {
             ExpressionNode::Member(member) => field_declared_type(scope, member.member_symbol)
                 .or_else(|| {
-                    declared_member_field(scope, member).map(|field| field.type_reference.clone())
+                    declared_member_field(scope, member)
+                        .or_else(|| nominal_member_field(scope, member))
+                        .map(|field| field.type_reference.clone())
                 }),
             ExpressionNode::Boolean(_)
             | ExpressionNode::Membership(_)
@@ -2695,6 +2906,7 @@ pub(crate) mod exhaustiveness {
             member.member_symbol
         } else {
             declared_member_field(scope, member)
+                .or_else(|| nominal_member_field(scope, member))
                 .map_or_else(SymbolHandle::invalid, |field| field.symbol)
         }
     }
@@ -2709,6 +2921,14 @@ pub(crate) mod exhaustiveness {
         let program = scope.program;
         let receiver = subject_declared_type(scope, member.receiver)?;
         let definition = &program.data_definitions[data_index_for_type(program, &receiver)?];
+        declared_field_in(program, definition, member)
+    }
+
+    fn declared_field_in<'program>(
+        program: &'program SymbolResolvedTrees,
+        definition: &DataDefinition,
+        member: &resolved::expression::TableMemberExpression,
+    ) -> Option<&'program resolved::data::DataField> {
         let mut fields = program
             .data_members(definition.members)
             .iter()
