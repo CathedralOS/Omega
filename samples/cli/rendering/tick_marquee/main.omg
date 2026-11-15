@@ -14,11 +14,8 @@ use omega_language_std::Duration;
 use omega_language_std::Instant;
 use omega_language_std::elapsed_since;
 use omega_language_std::instant_now;
-domain [u8; 12]::Utf8
-requires
-    valid_utf8(self);
 data Main {
-    line: [u8; 12] in Utf8;
+    line: [u8; 12];
     frame: u32 in Wrapping;
     pos: u32 in Wrapping;
     t_start: Instant;

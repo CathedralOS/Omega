@@ -16,18 +16,6 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 30]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
 // FULLY EXACT -- no overflow domain anywhere: the counters are plain i32 with
 // guard-proven increments (re-guard hops where the loop-head guard is several
 // states upstream), the offsets/distance fold bounded from re-guards placed
@@ -42,9 +30,9 @@ requires
     && -8 <= self.dy && self.dy <= 8
     && -23 <= self.dist && self.dist <= 23
 {
-    line: [u8; 30] in Utf8;   // one rendered row
-    ramp: [u8; 8] in Utf8;    // " .:-=+*#"  dim -> bright
-    home: [u8; 3] in Utf8;    // ESC [ H  (cursor home)
+    line: [u8; 30];   // one rendered row
+    ramp: [u8; 8];    // " .:-=+*#"  dim -> bright
+    home: [u8; 3];    // ESC [ H  (cursor home)
     frame: i32;
     y: i32;
     x: i32;

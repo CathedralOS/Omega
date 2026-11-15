@@ -14,15 +14,6 @@ use omega::language::core::I32::from_f64;
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 24]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
 
 data Main
 requires
@@ -30,8 +21,8 @@ requires
     && 0 <= self.y && self.y <= 12
     && 0 <= self.x && self.x <= 24
 {
-    line: [u8; 24] in Utf8;
-    home: [u8; 3] in Utf8;
+    line: [u8; 24];
+    home: [u8; 3];
     bx: f64;
     by: f64;
     vx: f64;

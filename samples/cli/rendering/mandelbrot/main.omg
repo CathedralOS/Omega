@@ -11,22 +11,13 @@ use omega::language::core::ProcessExit;
 use omega::language::core::F64::from_i32;
 use omega_language_std::Console;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 64]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
-requires
-    valid_utf8(self);
 data Main
 requires self.x >= 0 && self.x <= 64,
     self.y >= 0 && self.y <= 28,
     self.k >= 0 && self.k <= 28
 {
-    row: [u8; 64] in Utf8;
-    palette: [u8; 8] in Utf8;
+    row: [u8; 64];
+    palette: [u8; 8];
     x: i32;
     y: i32;
     cr: f64;

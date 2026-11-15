@@ -17,18 +17,6 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 20]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 2]::Utf8
-requires
-    valid_utf8(self);
 
 data Particle {
     x: i32 in Wrapping;
@@ -38,11 +26,11 @@ data Particle {
 }
 
 data Main {
-    ps: [Particle; 4] in Wrapping;
-    grid: [i32; 200] in Wrapping; // 20 x 10
-    line: [u8; 20] in Utf8;
-    chars: [u8; 2] in Utf8;       // " *"  empty / particle
-    home: [u8; 3] in Utf8;
+    ps: [Particle; 4];
+    grid: [i32 in Wrapping; 200]; // 20 x 10
+    line: [u8; 20];
+    chars: [u8; 2];       // " *"  empty / particle
+    home: [u8; 3];
     gen: i32 in Wrapping;
     pi: i32 in Wrapping;   // particle index
     k: i32 in Wrapping;    // grid clear index
@@ -57,17 +45,17 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
-    main.ps[0].x = 2;  main.ps[0].y = 2;  main.ps[0].vx = 1;  main.ps[0].vy = 1;
-    main.ps[1].x = 17; main.ps[1].y = 3;  main.ps[1].vx = 0 - 1; main.ps[1].vy = 1;
-    main.ps[2].x = 8;  main.ps[2].y = 8;  main.ps[2].vx = 1;  main.ps[2].vy = 0 - 1;
-    main.ps[3].x = 13; main.ps[3].y = 5;  main.ps[3].vx = 0 - 1; main.ps[3].vy = 0 - 1;
+    main.ps[0].x = 2 as +Wrapping;  main.ps[0].y = 2 as +Wrapping;  main.ps[0].vx = 1 as +Wrapping;  main.ps[0].vy = 1 as +Wrapping;
+    main.ps[1].x = 17 as +Wrapping; main.ps[1].y = 3 as +Wrapping;  main.ps[1].vx = (0i32 - 1) as +Wrapping; main.ps[1].vy = 1 as +Wrapping;
+    main.ps[2].x = 8 as +Wrapping;  main.ps[2].y = 8 as +Wrapping;  main.ps[2].vx = 1 as +Wrapping;  main.ps[2].vy = (0i32 - 1) as +Wrapping;
+    main.ps[3].x = 13 as +Wrapping; main.ps[3].y = 5 as +Wrapping;  main.ps[3].vx = (0i32 - 1) as +Wrapping; main.ps[3].vy = (0i32 - 1) as +Wrapping;
     main.chars = " *";
     main.home = "XXX";
     main.home[0] = 27;
     main.home[1] = 91;
     main.home[2] = 72;
     main.line = "                    ";
-    main.gen = 0;
+    main.gen = 0 as +Wrapping;
     transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: &mut Main) {
@@ -76,21 +64,21 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 
     // --- clear the grid ---
     machine clear_init(main: &mut Main) {
-        main.k = 0;
+        main.k = 0 as +Wrapping;
         transition { _ -> block clear_loop(main) }
     }
     machine clear_loop(main: &mut Main) {
         transition main.k >= 0 && main.k < 200 { true -> block clear_cell(main) _ -> block plot_init(main) }
     }
     machine clear_cell(main: &mut Main) {
-        main.grid[main.k] = 0;
+        main.grid[main.k] = 0 as +Wrapping;
         main.k = main.k + 1;
         transition { _ -> block clear_loop(main) }
     }
 
     // --- plot every particle ---
     machine plot_init(main: &mut Main) {
-        main.pi = 0;
+        main.pi = 0 as +Wrapping;
         transition { _ -> block plot_loop(main) }
     }
     machine plot_loop(main: &mut Main) {
@@ -102,7 +90,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> block plot_set(main) _ -> block bad(main) }
     }
     machine plot_set(main: &mut Main) {
-        main.grid[main.b * 20 + main.a] = 1;
+        main.grid[main.b * 20 + main.a] = 1 as +Wrapping;
         main.pi = main.pi + 1;
         transition { _ -> block plot_loop(main) }
     }
@@ -110,14 +98,14 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // --- render the grid in place ---
     machine render_init(main: &mut Main) {
         Console::write(main.home);
-        main.ry = 0;
+        main.ry = 0 as +Wrapping;
         transition { _ -> block render_row(main) }
     }
     machine render_row(main: &mut Main) {
         transition main.ry >= 0 && main.ry < 10 { true -> block render_col_init(main) _ -> block after_render(main) }
     }
     machine render_col_init(main: &mut Main) {
-        main.cx = 0;
+        main.cx = 0 as +Wrapping;
         transition { _ -> render_col(main) }
     }
     machine render_col(main: &mut Main) {
@@ -148,7 +136,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 
     // --- integrate pos += vel for every particle, bouncing off the walls ---
     machine update_init(main: &mut Main) {
-        main.pi = 0;
+        main.pi = 0 as +Wrapping;
         transition { _ -> update_loop(main) }
     }
     machine update_loop(main: &mut Main) {
@@ -161,7 +149,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.n < 0 { true -> x_lo(main) _ -> x_hi_check(main) }
     }
     machine x_lo(main: &mut Main) {
-        main.n = 0;
+        main.n = 0 as +Wrapping;
         main.b = 0 - main.b;
         transition { _ -> store_x(main) }
     }
@@ -169,7 +157,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.n > 19 { true -> x_hi(main) _ -> store_x(main) }
     }
     machine x_hi(main: &mut Main) {
-        main.n = 19;
+        main.n = 19 as +Wrapping;
         main.b = 0 - main.b;
         transition { _ -> store_x(main) }
     }
@@ -188,7 +176,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.n < 0 { true -> y_lo(main) _ -> y_hi_check(main) }
     }
     machine y_lo(main: &mut Main) {
-        main.n = 0;
+        main.n = 0 as +Wrapping;
         main.b = 0 - main.b;
         transition { _ -> store_y(main) }
     }
@@ -196,7 +184,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.n > 9 { true -> y_hi(main) _ -> store_y(main) }
     }
     machine y_hi(main: &mut Main) {
-        main.n = 9;
+        main.n = 9 as +Wrapping;
         main.b = 0 - main.b;
         transition { _ -> store_y(main) }
     }

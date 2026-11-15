@@ -9,18 +9,6 @@ use omega::language::core::F64::from_i32;
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 48]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
 
 data Main
 requires self.frame >= 0 && self.frame <= 12,
@@ -28,9 +16,9 @@ requires self.frame >= 0 && self.frame <= 12,
     self.y >= 0 && self.y <= 22,
     self.k >= 0 && self.k <= 40
 {
-    row: [u8; 48] in Utf8;
-    palette: [u8; 8] in Utf8;
-    home: [u8; 3] in Utf8;
+    row: [u8; 48];
+    palette: [u8; 8];
+    home: [u8; 3];
     frame: i32;
     span: f64;
     x: i32;
