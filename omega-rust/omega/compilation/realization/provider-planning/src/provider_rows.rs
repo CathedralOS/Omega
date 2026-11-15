@@ -139,14 +139,17 @@ impl DirectBoundaryInput {
 }
 
 /// Realize the checked core primitive at its own callable coordinate, retaining
-/// the selected canonical requirement's complete schema as its semantic owner.
+/// the canonical requirement's complete schema as its semantic owner.
 /// No source callback or provider-name classification supplies execution here.
 pub fn direct_hosted_primitive_leaves(
     module: &terminal_psi::TerminalModule,
-    selected: &effects::SelectedProviderPlanFacts,
+    schemas: &[effects::provider_plan::ServiceSchema],
     target: &str,
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
     let fail = |reason: &str| vec![Diagnostic::error(reason)];
+    if target.is_empty() {
+        return Err(fail("hosted primitive requires one explicit native target"));
+    }
     let text = |identity| {
         module
             .identities
@@ -176,29 +179,35 @@ pub fn direct_hosted_primitive_leaves(
             .boundary_machine(requirement)
             .ok_or_else(|| fail("hosted primitive lost its canonical requirement link"))?;
         let requirement = text(canonical.identity)?;
-        let mut originals = selected.plans().iter().flat_map(|plan| {
-            plan.rows
-                .iter()
-                .enumerate()
-                .filter_map(move |(index, row)| {
-                    (plan.identities.text(row.declared_requirement_identity) == requirement)
-                        .then_some((plan, index))
-                })
+        let mut originals = schemas.iter().flat_map(|schema| {
+            schema.declaration.methods.iter().filter_map(move |method| {
+                (schema.identity_text(method.requirement_identity) == requirement)
+                    .then_some((schema, method))
+            })
         });
-        let (Some((original, row_index)), None) = (originals.next(), originals.next()) else {
+        let (Some((schema, method)), None) = (originals.next(), originals.next()) else {
             return Err(fail(
-                "hosted primitive needs one exact selected canonical requirement schema",
+                "hosted primitive needs one exact canonical requirement schema",
             ));
         };
-        if original.target != target {
-            return Err(fail(
-                "hosted primitive and selected plan name different targets",
-            ));
-        }
-        let mut original = original.clone();
-        let machine = text(declaration.source.semantic_declaration)?.to_owned();
-        original.rows[row_index].binding =
-            effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine };
+        let mut original = effects::provider_plan::ProviderPlan {
+            target: target.to_owned(),
+            schema: schema.clone(),
+            ..Default::default()
+        };
+        let coordinate = original.identities.intern(requirement);
+        original.rows.push(effects::provider_plan::ProviderPlanRow {
+            method: method.name.clone(),
+            requirement_identity: coordinate,
+            declared_requirement_identity: coordinate,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                machine: text(declaration.source.semantic_declaration)?.to_owned(),
+            },
+        });
+        let row_index = 0;
         let input = DirectBoundaryInput {
             row_index,
             declaration_identity: text(declaration.source.semantic_declaration)?.to_owned(),
