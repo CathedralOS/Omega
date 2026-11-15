@@ -20,9 +20,9 @@ pub fn validate_declared_synchronous_invocation_cycles(
             .find(|selected| std::ptr::eq(selected.plan, plan) && std::ptr::eq(selected.row, row))
             .ok_or_else(|| failure("checked invocation row lost its canonical selection".into()))?;
         let targets = selected
-            .headers
+            .candidates
             .iter()
-            .map(|header| header.synchronous_invocations.as_ref())
+            .map(|candidate| candidate.header.synchronous_invocations.as_ref())
             .collect::<Result<Vec<_>, _>>()
             .map_err(|reason| failure(reason.clone()))?;
         targets

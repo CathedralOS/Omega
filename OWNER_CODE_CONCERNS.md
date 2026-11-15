@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Package review tests still look under the retired fixture root
+- Category: tests that pin the bug
+- Where: [installation reach review](omega-rust/omega/compilation/compiler/tests/package_review.rs#L77), [kept fixture](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg#L1)
+- Saw: On clean `61d2ca4feca` on macOS arm64, `review_retains_installation_reach_across_staggered_dependency_resolution` panics before checking because `tests/omega/pass/providers/staggered_installation_reach_exit` does not exist. The fixture moved to `tests/fixtures` in `fd75a9baacc`. Other tests in this file still read the retired root.
+- Cost: The installed-reach and related review assertions do not run. Rejoin the tests to their actual kept fixtures and retain the authored authority and policy assertions.
+- Reported: 2026-11-15, Codex, while tracing checked provider custody in package review.
+
 ### Top-level help hides the standalone Psi work budget
 - Category: the documents disagree
 - Where: [top-level help](omega-rust/omega/application/src/arguments/compile.rs#L28), [run help](omega-rust/omega/application/src/arguments/run.rs#L23), [standalone budget argument control](omega-rust/omega/application/src/arguments/run.rs#L403)
@@ -114,13 +121,6 @@ framework or a list of unimplemented features.
 - Saw: On clean `8bb3a79076b` on macOS arm64, `const_name` refuses at `SAVED` with `TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The unchanged `call_result` exits 0 in both engines and `invalid_const_name` reaches its exact cast refusal. An isolated replay with the existing Linux x86-64 and macOS arm64 layout admissions returns `lo=42, hi=9` at offsets `[8, 0]` on both, then the ordinary constant snapshot decoder refuses the applied `LayoutStorage` carrier.
 - Cost: Shared Product preparation substitutes one value before selecting any of the five authored deployments. Keep the recipe until exact target closure, then join the authenticated layout and copy-eligible semantic snapshot through the existing target-scoped fold. Preserve the policy, field qualifications, and wrong-target and cast refusals.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles and tracing the kept named constant.
-
-### Package review refuses the fixed-layout target-body boundary
-- Category: knowledge crossing a boundary
-- Where: [Delivery boundary](samples/cli/facts/fixed_layout_storage/target_body/main.omg#L28), [review capture](omega-rust/omega/packages/review-evidence/src/capture/policy.rs#L209)
-- Saw: On clean `15145194c7d` on macOS arm64, `fixed_layout_storage/target_body` reaches package review projection and refuses with `package review cannot retain trait and boundary declaration contracts from the accepted declaration`. Its invalid twin reaches the authored `Delivered` cast under `--check`.
-- Cost: Package review stops execution before the original provider markers and byte offsets can be observed. Retain the accepted `Delivery` contract in the existing review record and keep incomplete contracts refused.
-- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
 
 ### Six Stage06 loan and ranking controls fail on clean main
 - Category: tests that pin the bug

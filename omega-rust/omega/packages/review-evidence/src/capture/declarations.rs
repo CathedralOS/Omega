@@ -9,7 +9,8 @@ use crate::record::{
     PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewContractOperatorMeaning, PackageReviewDataField, PackageReviewDataKind,
     PackageReviewDataMember, PackageReviewDataProperties, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
+    PackageReviewNominalOwner, PackageReviewSemanticDependencyExposure,
+    PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -120,7 +121,32 @@ impl<'a> PackageReviewInput<'a> {
         if !reference.is_valid() {
             return Err(unavailable("an absent declared type"));
         }
-        self.require_type_dependencies(reference)?;
+        self.require_type_dependencies(
+            reference,
+            PackageReviewSemanticDependencyExposure::PublicInterface,
+        )?;
+        self.exact_signature_type_identity(reference, lifetime_scope)
+    }
+
+    pub(super) fn type_identity_for_private_contract(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+        self.require_type_dependencies(
+            reference,
+            PackageReviewSemanticDependencyExposure::PrivateImplementation,
+        )?;
+        self.exact_signature_type_identity(reference, None)
+    }
+
+    fn exact_signature_type_identity(
+        &self,
+        reference: TypeReferenceHandle,
+        lifetime_scope: Option<(
+            SymbolHandle,
+            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+        )>,
+    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         let canonical = self
             .typed()
             .exact_owner_type_identity(typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
@@ -139,6 +165,7 @@ impl<'a> PackageReviewInput<'a> {
     fn require_type_dependencies(
         &self,
         reference: TypeReferenceHandle,
+        exposure: PackageReviewSemanticDependencyExposure,
     ) -> Result<(), Vec<Diagnostic>> {
         let package = self
             .compilation()
@@ -161,7 +188,7 @@ impl<'a> PackageReviewInput<'a> {
                         "an imported public type's semantic dependency contract",
                     ));
                 }
-                Some(_) => {
+                Some(_) if exposure == PackageReviewSemanticDependencyExposure::PublicInterface => {
                     let retained = self
                         .typed()
                         .data_definition_by_symbol(symbol)
@@ -176,7 +203,7 @@ impl<'a> PackageReviewInput<'a> {
                         ));
                     }
                 }
-                None => {
+                _ => {
                     self.nominal(symbol)?;
                 }
             }

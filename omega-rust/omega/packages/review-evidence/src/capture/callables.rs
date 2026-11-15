@@ -208,14 +208,16 @@ impl PackageReviewInput<'_> {
             .machine_states(declaration)
             .first()
             .ok_or_else(|| unavailable("the callable's source entry signature"))?;
-        let header = match body {
-            Some(entry) => {
-                &accepted
+        let body = body
+            .map(|entry| {
+                accepted
                     .module()
                     .machine(entry)
-                    .ok_or_else(|| unavailable("the accepted callable body"))?
-                    .contract
-            }
+                    .ok_or_else(|| unavailable("the accepted callable body"))
+            })
+            .transpose()?;
+        let header = match body {
+            Some(body) => &body.contract,
             None => {
                 let exact = source
                     .exact_owner_nominal_identity(
@@ -296,7 +298,15 @@ impl PackageReviewInput<'_> {
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let ([reach, entries], [checked_may_suspend, checked_may_block]) = match body {
-            Some(entry) => body_effects(accepted, entry)?,
+            Some(body) => {
+                let original = accepted
+                    .module()
+                    .unoptimized_machine_behavior(body.id)
+                    .ok_or_else(|| {
+                        unavailable("the callable's original checked behavior inventory")
+                    })?;
+                body_effects(accepted, body, original)?
+            }
             None => ([Vec::new(), Vec::new()], [false; 2]),
         };
         let realized_reach = reviewed_services(service_names, &reach)?;
@@ -591,7 +601,9 @@ fn reviewed_services(
 
 // These authority inventories belong to the accepted module, so inspect them
 // once before projecting its checked bodies rather than once per public helper.
-fn validate_body_effect_inventory(module: &TerminalModule) -> Result<(), Vec<Diagnostic>> {
+pub(super) fn validate_body_effect_inventory(
+    module: &TerminalModule,
+) -> Result<(), Vec<Diagnostic>> {
     if !module
         .root_service_reach
         .installation_dependencies
@@ -629,23 +641,18 @@ fn validate_body_effect_inventory(module: &TerminalModule) -> Result<(), Vec<Dia
     Ok(())
 }
 
-fn body_effects(
+pub(super) fn body_effects(
     accepted: &source_compiler::AcceptedTerminalSource,
-    machine: MachineId,
+    body: &terminal_psi::TerminalMachine,
+    original: &terminal_psi::UnoptimizedMachineBehavior,
 ) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
     let module = accepted.module();
-    let body = module
-        .machine(machine)
-        .ok_or_else(|| unavailable("the callable's effect body"))?;
-    let original = module
-        .unoptimized_machine_behavior(machine)
-        .ok_or_else(|| unavailable("the callable's original checked behavior inventory"))?;
     let tables = accepted
         .closure()
         .elaboration
         .tables
         .machines
-        .get(machine)
+        .get(body.id)
         .ok_or_else(|| unavailable("the callable's checked call inventory"))?;
     let mut rows = [Vec::new(), Vec::new()];
     let mut operational = [false; 2];
