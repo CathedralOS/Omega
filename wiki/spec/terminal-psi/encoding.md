@@ -1399,7 +1399,7 @@ AccessInitialize, AccessMoveOut and AccessView. Tag 4 names EmptyRunRelease,
 which consumes an empty run and returns its existing vacant backing. Tag 5 names
 AccessRelocate. Tags 6–9 name StaticInterruptInstall, StaticInterruptContext,
 StaticInterruptBeginCompletion and StaticInterruptFinishCompletion, respectively.
-Tag 10 names HostedPrimitive and adds a `u8` operation (`0` ProcessExit; other
+Semantic format marker 271 adds tag 10, HostedPrimitive, followed by a `u8` operation (`0` ProcessExit; other
 operations reject) followed by the canonical public requirement's `u64` boundary
 id. The primitive is a Machine boundary with its own checked source declaration
 and callable identity; the linked requirement remains a distinct Trait boundary.
@@ -2686,7 +2686,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 270 | yes |
+| semantic module | `PSITERM\0` | 271 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

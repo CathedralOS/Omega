@@ -956,13 +956,53 @@ pub(crate) mod declarations {
     impl CheckedBoundaryCallable {
         pub fn same_identity_as(
             &self,
-            identities: &crate::TerminalIdentityTable,
+            module: &crate::TerminalModule,
             other: &Self,
-            other_identities: &crate::TerminalIdentityTable,
+            other_module: &crate::TerminalModule,
         ) -> bool {
+            let identities = &module.identities;
+            let other_identities = &other_module.identities;
+            let same_execution = match (self.execution, other.execution) {
+                (
+                    CheckedBoundaryExecution::HostedPrimitive {
+                        operation,
+                        requirement,
+                    },
+                    CheckedBoundaryExecution::HostedPrimitive {
+                        operation: other_operation,
+                        requirement: other_requirement,
+                    },
+                ) => {
+                    operation == other_operation
+                        && module
+                            .boundary_machine(requirement)
+                            .zip(other_module.boundary_machine(other_requirement))
+                            .is_some_and(|(left, right)| {
+                                left.kind == BoundaryRequirementKind::Trait
+                                    && right.kind == BoundaryRequirementKind::Trait
+                                    && left
+                                        .declaration
+                                        .as_ref()
+                                        .zip(right.declaration.as_ref())
+                                        .is_some_and(|(left, right)| {
+                                            left.execution == CheckedBoundaryExecution::Provider
+                                                && right.execution
+                                                    == CheckedBoundaryExecution::Provider
+                                                && left.source.same_identity_as(
+                                                    identities,
+                                                    &right.source,
+                                                    other_identities,
+                                                )
+                                        })
+                            })
+                }
+                (CheckedBoundaryExecution::HostedPrimitive { .. }, _)
+                | (_, CheckedBoundaryExecution::HostedPrimitive { .. }) => false,
+                (left, right) => left == right,
+            };
             self.source
                 .same_identity_as(identities, &other.source, other_identities)
-                && self.execution == other.execution
+                && same_execution
                 && self.method_arguments.len() == other.method_arguments.len()
                 && self
                     .method_arguments
