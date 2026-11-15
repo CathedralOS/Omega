@@ -863,7 +863,11 @@ fn analyze(
             exclude_whole(*destination)?;
         }
     }
-    for claim in machine.entry_claims.iter().chain(&machine.block_entry_claims) {
+    for claim in machine
+        .entry_claims
+        .iter()
+        .chain(&machine.block_entry_claims)
+    {
         exclude_whole(claim.input)?;
     }
     for claim in &machine.content_entry_claims {
