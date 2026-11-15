@@ -90,11 +90,9 @@ machine use(value: {received}) {{ }}"
     }
 }
 
-/// What this route does not compute with a float is refused by name. A
-/// clause comparison is among them on purpose: numeric_values.md, "Under
-/// IEEE comparison, ordered relations are false on NaN, `==` is false", so
-/// `value == value` must not be read as the mathematical equality that holds
-/// of every value.
+/// Float operations and clause comparisons without a selected declaration
+/// are refused by name. The ordinary Product source tests supply Core and
+/// check whether the selected comparison can actually be proved.
 #[test]
 fn what_is_not_computed_with_a_float_is_refused_by_name() {
     for (program, refusal) in [
@@ -122,13 +120,13 @@ machine use(value: f64) { }",
         (
             "machine need(value: f32) requires value == value { }
 machine build_entry(value: f32) { need(value); }",
-            "contract comparison of floats in a clause while reading the signature of `need`",
+            "contract IEEE comparison without its selected declaration while reading the signature of `need`",
         ),
         (
             "machine make(value: f32) -> f32 ensures result == value { value }
 machine build_entry(value: f32) { use(make(value)); }
 machine use(value: f32) { }",
-            "contract comparison of floats in a clause while reading the signature of `make`",
+            "contract IEEE comparison without its selected declaration while reading the signature of `make`",
         ),
         (
             "data Calibration { magnitude: f32; }
