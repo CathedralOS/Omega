@@ -2,26 +2,54 @@
 use super::*;
 use optimization::digest_encoder::DomainDigestEncoder;
 
+/// A destination for the stable, target-neutral bytes of a service contract.
+/// Hashing and retained byte controls share the field encoding, not storage.
+pub trait ServiceContractSink {
+    fn service_contract_bytes(&mut self, bytes: &[u8]);
+}
+
+impl ServiceContractSink for DomainDigestEncoder {
+    fn service_contract_bytes(&mut self, bytes: &[u8]) {
+        self.raw(bytes);
+    }
+}
+impl ServiceContractSink for Vec<u8> {
+    fn service_contract_bytes(&mut self, bytes: &[u8]) {
+        self.extend_from_slice(bytes);
+    }
+}
+
 impl ServiceSurface {
     pub fn declaration_commitment(&self) -> [u8; 32] {
-        let mut digest = SurfaceDigest(DomainDigestEncoder::new(
-            b"omega.service-schema.sha256.v6\0",
-        ));
-        digest.string(self.identity_text(self.trait_name));
-        digest.package_identity(self.trait_package_identity);
-        digest.len(self.receiver_applications.len());
+        let mut digest = DomainDigestEncoder::new(b"omega.service-schema.sha256.v6\0");
+        self.encode_contract(&mut digest, |_, output| output.len(0));
+        digest.finish()
+    }
+
+    /// Write the declaration in v6 order. The caller writes its method suffix
+    /// at the exact boundary between that method's contract and the next one.
+    /// Target-neutral declarations write an empty calling-application count.
+    pub fn encode_contract<Output: ServiceContractSink>(
+        &self,
+        output: &mut Output,
+        mut method_suffix: impl FnMut(&ServiceMethod, &mut Output),
+    ) {
+        let mut encoder = ContractEncoder { output };
+        encoder.string(self.identity_text(self.trait_name));
+        encoder.package_identity(self.trait_package_identity);
+        encoder.len(self.receiver_applications.len());
         for application in &self.receiver_applications {
-            digest.string(self.identity_text(application.application));
-            digest.string(self.identity_text(application.trait_name));
-            digest.package_identity(application.trait_package_identity);
+            encoder.string(self.identity_text(application.application));
+            encoder.string(self.identity_text(application.trait_name));
+            encoder.package_identity(application.trait_package_identity);
             for identities in [
                 &application.argument_identities,
                 &application.lifetime_argument_identities,
                 &application.requirement_identities,
             ] {
-                digest.len(identities.len());
+                encoder.len(identities.len());
                 for identity in identities {
-                    digest.string(self.identity_text(*identity));
+                    encoder.string(self.identity_text(*identity));
                 }
             }
         }
@@ -32,26 +60,31 @@ impl ServiceSurface {
                     .cmp(self.identity_text(right.requirement_identity))
             })
         });
-        digest.len(methods.len());
+        encoder.len(methods.len());
         for method in methods {
-            digest.service_method(method, &self.identities);
+            encoder.service_method(method, &self.identities);
+            method_suffix(method, encoder.output);
         }
-        digest.0.finish()
     }
 }
-struct SurfaceDigest(DomainDigestEncoder);
-impl SurfaceDigest {
+
+struct ContractEncoder<'a, Output> {
+    output: &'a mut Output,
+}
+impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
     fn byte(&mut self, value: u8) {
-        self.0.byte(value);
+        self.output.service_contract_bytes(&[value]);
     }
     fn bool(&mut self, value: bool) {
         self.byte(u8::from(value));
     }
     fn len(&mut self, value: usize) {
-        self.0.len(value);
+        self.output
+            .service_contract_bytes(&(value as u64).to_le_bytes());
     }
     fn string(&mut self, value: &str) {
-        self.0.bytes(value.as_bytes());
+        self.len(value.len());
+        self.output.service_contract_bytes(value.as_bytes());
     }
     fn strings(&mut self, values: &[String]) {
         self.len(values.len());
@@ -63,7 +96,7 @@ impl SurfaceDigest {
         match identity {
             Some(identity) => {
                 self.byte(1);
-                self.0.raw(&identity.digest());
+                self.output.service_contract_bytes(&identity.digest());
             }
             None => self.byte(0),
         }
@@ -181,7 +214,5 @@ impl SurfaceDigest {
                 self.string(identities.text(route.requirement_identity));
             }
         }
-
-        self.len(0);
     }
 }

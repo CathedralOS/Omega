@@ -216,28 +216,14 @@ impl ServiceSchema {
 
     fn digest_with_calling(&self, include_calling: bool) -> ServiceSchemaDigest {
         let mut encoder = ProviderPlanDigestEncoder::for_service_schema();
-        encoder.string(self.identity_text(self.declaration.trait_name));
-        encoder.package_identity(self.declaration.trait_package_identity);
-        encoder.receiver_applications(self);
-        let mut methods = self.declaration.methods.iter().collect::<Vec<_>>();
-        methods.sort_by(|left, right| {
-            left.name.cmp(&right.name).then_with(|| {
-                self.identity_text(left.requirement_identity)
-                    .cmp(self.identity_text(right.requirement_identity))
-            })
-        });
-        encoder.len(methods.len());
-        for method in methods {
-            encoder.service_method(
-                method,
-                &self.declaration.identities,
-                if include_calling {
+        self.declaration
+            .encode_contract(&mut encoder, |method, encoder| {
+                encoder.calling_applications(if include_calling {
                     self.calling_for_requirement(method.requirement_identity)
                 } else {
                     Vec::new()
-                },
-            );
-        }
+                });
+            });
         ServiceSchemaDigest::from_digest(encoder.finish())
     }
 }
@@ -389,11 +375,105 @@ mod tests {
     use super::*;
 
     #[test]
-    fn checked_surface_commitment_matches_the_complete_declaration_encoding() {
-        let schema = schema("Parent", 1, false);
+    fn complete_service_contract_encoding_preserves_v6_bytes_and_calling_suffixes() {
+        use sha2::{Digest, Sha256};
+        let mut schema = schema("Child", 1, false);
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
+        let declaration = std::sync::Arc::make_mut(&mut schema.declaration);
+        declaration.trait_package_identity = package;
+        let after = declaration.identities.intern("Parent::after()");
+        let result = declaration.identities.intern("Never");
+        let enter = &mut declaration.methods[0];
+        let enter_identity = enter.requirement_identity;
+        enter.requirement_owner_package_identity = package;
+        enter.entry_claims.push(ServiceEntryClaim {
+            parameter_index: 0,
+            carrier_identity: enter.parameter_type_identities[0],
+            domain: "Permitted".into(),
+            predicate_presence: language_semantics::DomainPredicatePresence::Present,
+            effective_carry: language_semantics::CarryPolicy::PERMISSIVE,
+            authority_flow: ServiceEntryAuthorityFlow::Accepts,
+        });
+        enter.completion = semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        );
+        enter.has_result = true;
+        enter.result_type_identity = result;
+        enter.result_claims.push(ServiceResultClaim {
+            domain: "Returned".into(),
+            effective_carry: language_semantics::CarryPolicy::STRICT,
+        });
+        enter.service_reach.push("Svc".into());
+        enter.synchronous_invocations.push("before_return".into());
+        enter.may_suspend = true;
+        enter.terminates_guarantee = true;
+        enter.termination_premises.push(ServiceProgressPremise {
+            profile: "finite".into(),
+            subject: ServiceProgressSubject::Parameter(0),
+            subject_projections: vec!["length".into()],
+            establishment_routes: vec![ServiceProgressEstablishmentRoute {
+                kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                requirement_identity: enter_identity,
+            }],
+        });
+        declaration.methods.push(ServiceMethod {
+            name: "after".into(),
+            requirement_owner: "Parent".into(),
+            requirement_owner_package_identity: package,
+            requirement_identity: after,
+            ..Default::default()
+        });
+        for receiver in &mut declaration.receiver_applications {
+            receiver.application = receiver.trait_name;
+            receiver.trait_package_identity = package;
+            receiver.requirement_identities.insert(0, after);
+        }
+        schema.calling_applications.push(ServiceCallingApplication {
+            requirement: after,
+            abi: semantic_vocabulary::CallingAbiIdentity {
+                requirement_identity: "Parent::after()".into(),
+                declaring_application: "Parent".into(),
+                operands: vec![semantic_vocabulary::CallingStaticOperand {
+                    ordinal: 0,
+                    kind: semantic_vocabulary::CallingOperandKind::Type,
+                    identity: "u8".into(),
+                }],
+            },
+            plan: ServiceCallingPlan {
+                report_fingerprint: 2,
+                commitment: BoundaryCallingPlanCommitment::from_digest([2; 32]),
+                promise: BoundaryCallingPlanPromise::from_digest([2; 32]),
+            },
+        });
+        let hexadecimal = |bytes: [u8; 32]| {
+            use std::fmt::Write;
+            let mut text = String::with_capacity(64);
+            for byte in bytes {
+                write!(&mut text, "{byte:02x}").unwrap();
+            }
+            text
+        };
+        // These independent v6 vectors include inherited receivers, package
+        // identities, claims, carry rules, progress and two different method
+        // calling suffixes. Their placement is part of the byte grammar.
+        let declaration_digest = "a66a39489639c6cf8fbc7f63c4234ffd87b436d6daceeda49be8263baabcfab3";
+        let calling_digest = "3a55a5fe79f31b50f1c5ea99fa150791d5d394824f3340bdfae513f0b1abea66";
+        let mut bytes = Vec::new();
+        schema.declaration.encode_contract(&mut bytes, |_, output| {
+            output.extend_from_slice(&0u64.to_le_bytes())
+        });
+        assert_eq!(bytes.len(), 819);
+        let mut digest = Sha256::new();
+        digest.update(b"omega.service-schema.sha256.v6\0");
+        digest.update(&bytes);
+        assert_eq!(hexadecimal(digest.finalize().into()), declaration_digest);
         assert_eq!(
-            schema.declaration_identity_digest(),
-            schema.digest_with_calling(false)
+            hexadecimal(*schema.declaration_identity_digest().as_bytes()),
+            declaration_digest
+        );
+        assert_eq!(
+            hexadecimal(*schema.identity_digest().as_bytes()),
+            calling_digest
         );
     }
 

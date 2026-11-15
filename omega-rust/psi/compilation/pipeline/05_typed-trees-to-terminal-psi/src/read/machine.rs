@@ -2840,7 +2840,7 @@ impl<'t> Program<'t> {
                             })?),
                     )?;
                     if !call.discards_result {
-                        undiscarded(id, &called)?;
+                        self.undiscarded(id, &called)?;
                     }
                     Statement::Evaluate(called)
                 }
@@ -2875,7 +2875,7 @@ impl<'t> Program<'t> {
                             }
                         }
                         (false, _) | (true, None) => {
-                            undiscarded(id, &expression)?;
+                            self.undiscarded(id, &expression)?;
                             Statement::Evaluate(expression)
                         }
                     }
@@ -3455,18 +3455,21 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
     }
 }
 
-/// A statement evaluated for effect leaves no value behind. One that has a
-/// value and is not the machine's final value is a defect the route hands
-/// back, never a statement it reads past. `wiki/spec/language/effects.md`:
-/// "A non-Unit call result cannot be silently discarded. Intentional discard
-/// is `_ = call();`".
-fn undiscarded(id: MachineId, statement: &Expression) -> Checked<()> {
-    if statement.result.is_some() {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Statement("expression statement that discards its value"),
-        ));
+impl Program<'_> {
+    /// A statement evaluated for effect leaves no value behind. A proved-empty
+    /// declared result cannot produce a value to discard; the actual expression
+    /// still reaches ordinary no-normal lowering and all its call obligations.
+    /// Every other non-Unit result needs the explicit `_ = call();` discard.
+    fn undiscarded(&mut self, id: MachineId, statement: &Expression) -> Checked<()> {
+        if let Some(result) = statement.result
+            && !self.type_excludes_values(result)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Statement("expression statement that discards its value"),
+            ));
+        }
+        Ok(())
     }
-    Ok(())
 }

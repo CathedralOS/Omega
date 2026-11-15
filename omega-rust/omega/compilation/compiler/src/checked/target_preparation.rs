@@ -13,7 +13,8 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use products::CheckedProductSource;
 use provider_planning::target_supply::{
-    JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, TargetSupplyRequest,
+    JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, SupplySelection,
+    TargetSupplyRequest,
 };
 
 pub(crate) struct PreparedProductTarget {
@@ -148,7 +149,9 @@ impl ModuleDemand {
 /// (`provider_planning::target_supply`); each chosen provider joins the
 /// roster of the same compilation, where the lowered-form checker judges its
 /// machines as roots and proves that each refines the requirement it
-/// supplies. A provider may itself reach a boundary requirement, so the
+/// supplies. Each reached native leaf instead nominates its own canonical
+/// calling declaration on that same roster, without adding a provider body.
+/// A provider may itself reach a boundary requirement, so the
 /// roster is judged again until no target chooses anything new; it only
 /// grows, and it is bounded by the selections the Build and the target
 /// packages declare. A program that reaches no requirement is not judged a
@@ -168,7 +171,7 @@ pub fn judge_supplied_product(
         let accepted = publication.accepted()?;
         let mut roster = publication.roster()?.clone();
         let demand = ModuleDemand::read(accepted, &roster)?;
-        let before = roster.supplies.len();
+        let before = (roster.supplies.len(), roster.declaration_metadata.len());
         for profile in target::TargetProfile::ALL {
             let Ok(supply) = demand.prepare(
                 accepted,
@@ -179,19 +182,30 @@ pub fn judge_supplied_product(
             ) else {
                 continue;
             };
-            for chosen in supply
-                .requirements()
-                .iter()
-                .filter_map(|requirement| requirement.chosen())
-                .filter_map(|supply| supply.checked())
-                .flat_map(selected_supplies)
-            {
-                if !roster.supplies.contains(&chosen) {
-                    roster.supplies.push(chosen);
+            for requirement in supply.requirements() {
+                let Some(chosen) = requirement.chosen() else {
+                    continue;
+                };
+                match &chosen.selection {
+                    SupplySelection::Checked(selection) => {
+                        for chosen in selected_supplies(selection) {
+                            if !roster.supplies.contains(&chosen) {
+                                roster.supplies.push(chosen);
+                            }
+                        }
+                    }
+                    SupplySelection::Native(_) => {
+                        // A native leaf needs the declaration's canonical ABI,
+                        // without adding a body or selecting its sibling methods.
+                        let declaration = requirement.reached.requirement;
+                        if !roster.declaration_metadata.contains(&declaration) {
+                            roster.declaration_metadata.push(declaration);
+                        }
+                    }
                 }
             }
         }
-        if roster.supplies.len() == before {
+        if (roster.supplies.len(), roster.declaration_metadata.len()) == before {
             return Ok(publication);
         }
         publication = std::sync::Arc::new(products::ProductTerminalPublication::judge(

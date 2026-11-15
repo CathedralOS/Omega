@@ -464,3 +464,4 @@ impl ProviderSchemaDeclaration {
 }
 
 mod commitment;
+pub use commitment::ServiceContractSink;

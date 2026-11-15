@@ -640,3 +640,46 @@ fn an_empty_input_crosses_an_annotated_local_without_fabricating_its_carrier() {
          machine main(value: Empty) { let n: u32 = value; let b: bool = n; }",
     );
 }
+
+#[test]
+fn an_empty_result_statement_keeps_its_real_call_and_has_no_normal_successor() {
+    let accepted = accepted(
+        "public data Empty requires false {} \
+         public machine halt(value: u32) -> Empty requires value > 0u32 crashes Trap { crash Trap; } \
+         machine main() crashes Trap { halt(7u32); }",
+    );
+    let callee = check_no_normal(&accepted);
+    assert!(accepted.elaboration.module.machine(callee).is_some());
+    let requires = program(
+        "public data Empty requires false {} \
+         public machine halt(value: u32) -> Empty requires value > 0u32 crashes Trap { crash Trap; } \
+         machine main() crashes Trap { halt(0u32); }",
+    );
+    assert!(
+        matches!(&requires[0], Ok(RouteVerdict::Rejected { unproved, .. })
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "the empty result still owes its original argument requirement"
+    );
+}
+
+#[test]
+fn inhabited_result_statements_still_require_explicit_discard() {
+    for text in [
+        "public data Ordinary {} public machine value() -> Ordinary { Ordinary {} } machine main() { value(); }",
+        "public machine value() -> u32 ensures false crashes Trap { crash Trap; } machine main() crashes Trap { value(); }",
+    ] {
+        let verdicts = program(text);
+        assert!(
+            verdicts.iter().any(|verdict| match verdict {
+                Ok(RouteVerdict::FallBack(refusal)) => refusal
+                    .detail
+                    .contains("expression statement that discards its value"),
+                Err(crate::CompilationRefusal::Elaboration(refusal)) => refusal
+                    .detail
+                    .contains("expression statement that discards its value"),
+                _ => false,
+            }),
+            "an inhabited declared result cannot be silently discarded"
+        );
+    }
+}

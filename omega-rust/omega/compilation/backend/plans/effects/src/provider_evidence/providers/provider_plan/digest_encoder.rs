@@ -5,10 +5,7 @@ and `ServiceSchema` commitments. Interned identities always feed their
 canonical resolved text rather than process-local table ordinals.
 */
 
-use crate::provider_evidence::providers::provider_plan::{
-    ProviderBinding, ProviderIdentityTable, ServiceEntryAuthorityFlow, ServiceMethod,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
-};
+use crate::provider_evidence::providers::provider_plan::{ProviderBinding, ProviderIdentityTable};
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -43,13 +40,6 @@ pub(crate) trait DigestFeed {
     fn string(&mut self, value: &str) {
         self.bytes(value.as_bytes());
     }
-
-    fn strings(&mut self, values: &[String]) {
-        self.len(values.len());
-        for value in values {
-            self.string(value);
-        }
-    }
 }
 
 pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v8\0";
@@ -62,6 +52,12 @@ impl DigestFeed for ProviderPlanDigestEncoder {
         if let Some(preimage) = &mut self.1 {
             preimage.extend_from_slice(bytes);
         }
+    }
+}
+
+impl language_semantics::service_surface::ServiceContractSink for ProviderPlanDigestEncoder {
+    fn service_contract_bytes(&mut self, bytes: &[u8]) {
+        DigestFeed::raw(self, bytes);
     }
 }
 
@@ -92,27 +88,6 @@ impl ProviderPlanDigestEncoder {
         self.0.finalize().into()
     }
 
-    pub(crate) fn receiver_applications(&mut self, schema: &super::ServiceSchema) {
-        self.len(schema.declaration.receiver_applications.len());
-        for application in &schema.declaration.receiver_applications {
-            self.string(schema.identity_text(application.application));
-            self.string(schema.identity_text(application.trait_name));
-            self.package_identity(application.trait_package_identity);
-            self.len(application.argument_identities.len());
-            for argument in &application.argument_identities {
-                self.string(schema.identity_text(*argument));
-            }
-            self.len(application.lifetime_argument_identities.len());
-            for argument in &application.lifetime_argument_identities {
-                self.string(schema.identity_text(*argument));
-            }
-            self.len(application.requirement_identities.len());
-            for requirement in &application.requirement_identities {
-                self.string(schema.identity_text(*requirement));
-            }
-        }
-    }
-
     pub(crate) fn package_identity(
         &mut self,
         identity: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -126,125 +101,7 @@ impl ProviderPlanDigestEncoder {
         }
     }
 
-    fn carry_policy(&mut self, policy: language_semantics::CarryPolicy) {
-        self.byte(match policy.suspension {
-            language_semantics::CarrySuspension::Forbidden => 0,
-            language_semantics::CarrySuspension::Allowed => 1,
-        });
-        self.byte(match policy.cpu {
-            language_semantics::CarryCpu::Origin => 0,
-            language_semantics::CarryCpu::Any => 1,
-        });
-        self.byte(match policy.host_thread {
-            language_semantics::CarryHostThread::Origin => 0,
-            language_semantics::CarryHostThread::Any => 1,
-        });
-        self.byte(match policy.address {
-            language_semantics::CarryAddress::Stable => 0,
-            language_semantics::CarryAddress::Movable => 1,
-        });
-    }
-
-    pub(crate) fn service_method(
-        &mut self,
-        method: &ServiceMethod,
-        identities: &ProviderIdentityTable,
-        calling: Vec<&super::ServiceCallingApplication>,
-    ) {
-        self.string(&method.name);
-        self.string(&method.requirement_owner);
-        self.package_identity(method.requirement_owner_package_identity);
-        self.string(identities.text(method.requirement_identity));
-        self.len(method.parameter_count);
-        for identity in &method.parameter_type_identities {
-            self.string(identities.text(*identity));
-        }
-
-        let mut entry_claims = method.entry_claims.iter().collect::<Vec<_>>();
-        entry_claims.sort_by_cached_key(|claim| {
-            (
-                claim.parameter_index,
-                identities.text(claim.carrier_identity).to_owned(),
-                claim.domain.clone(),
-            )
-        });
-        self.len(entry_claims.len());
-        for claim in entry_claims {
-            self.len(claim.parameter_index);
-            self.string(identities.text(claim.carrier_identity));
-            self.string(&claim.domain);
-            self.byte(match claim.predicate_presence {
-                language_semantics::DomainPredicatePresence::Absent => 0,
-                language_semantics::DomainPredicatePresence::Present => 1,
-            });
-            self.carry_policy(claim.effective_carry);
-            self.byte(match claim.authority_flow {
-                ServiceEntryAuthorityFlow::Accepts => 0,
-            });
-        }
-
-        self.byte(match method.completion {
-            semantic_vocabulary::BoundaryCompletion::NormalReturn => 0,
-            semantic_vocabulary::BoundaryCompletion::External(
-                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
-            ) => 1,
-        });
-        self.bool(method.has_result);
-        if !method.result_type_identity.is_valid() {
-            self.byte(0);
-        } else {
-            self.byte(1);
-            self.string(identities.text(method.result_type_identity));
-        }
-        let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
-        result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
-        self.len(result_claims.len());
-        for claim in result_claims {
-            self.string(&claim.domain);
-            self.carry_policy(claim.effective_carry);
-        }
-
-        self.strings(&method.service_reach);
-        self.strings(&method.synchronous_invocations);
-        self.bool(method.may_suspend);
-        self.bool(method.may_block);
-        self.bool(method.terminates_guarantee);
-
-        let mut premises = method.termination_premises.iter().collect::<Vec<_>>();
-        premises.sort_by(|left, right| {
-            left.profile
-                .cmp(&right.profile)
-                .then_with(|| left.subject.cmp(&right.subject))
-                .then_with(|| left.subject_projections.cmp(&right.subject_projections))
-        });
-        self.len(premises.len());
-        for premise in premises {
-            self.string(&premise.profile);
-            match premise.subject {
-                ServiceProgressSubject::Parameter(index) => {
-                    self.byte(1);
-                    self.len(index);
-                }
-            }
-            self.strings(&premise.subject_projections);
-            let mut routes = premise.establishment_routes.iter().collect::<Vec<_>>();
-            routes.sort_by(|left, right| {
-                left.kind.cmp(&right.kind).then_with(|| {
-                    identities
-                        .text(left.requirement_identity)
-                        .cmp(identities.text(right.requirement_identity))
-                })
-            });
-            self.len(routes.len());
-            for route in routes {
-                self.byte(match route.kind {
-                    ServiceProgressEstablishmentRouteKind::CheckedRequirement => 0,
-                    ServiceProgressEstablishmentRouteKind::BoundaryRequirement => 1,
-                });
-                self.string(identities.text(route.requirement_identity));
-            }
-        }
-
+    pub(crate) fn calling_applications(&mut self, calling: Vec<&super::ServiceCallingApplication>) {
         self.len(calling.len());
         for application in calling {
             self.string(&application.abi.requirement_identity);

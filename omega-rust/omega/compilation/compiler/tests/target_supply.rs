@@ -513,9 +513,38 @@ fn native_supply(
 #[test]
 fn a_native_binding_supplies_only_its_reached_requirement() {
     use language_semantics::declaration_selection::ProductTarget;
-    let (accepted, defaults) = accepted(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
-    let native = native_supply(&accepted, ProductTarget::LinuxX86_64, package());
-    let prepared = prepare_for_target(&accepted, &[], &[native], &defaults, Some(TARGET)).unwrap();
+    let (source, defaults, roster) = judged(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let original = Arc::new(
+        products::ProductTerminalPublication::judge(
+            source,
+            roster,
+            optimization_core::OptimizationSelections::default(),
+        )
+        .unwrap(),
+    );
+    let native = native_supply(
+        original.accepted().unwrap(),
+        ProductTarget::LinuxX86_64,
+        package(),
+    );
+    let requirement = native.selection.requirement;
+    let publication = compiler::judge_supplied_product(compiler::ProductSupplySource {
+        publication: original,
+        build: &[],
+        native_bindings: std::slice::from_ref(&native),
+        defaults: &defaults,
+    })
+    .unwrap();
+    assert_eq!(
+        publication.roster().unwrap().declaration_metadata,
+        [requirement]
+    );
+    assert!(
+        publication.roster().unwrap().supplies.is_empty(),
+        "native metadata adds no checked provider root"
+    );
+    let accepted = publication.accepted().unwrap();
+    let prepared = prepare_for_target(accepted, &[], &[native], &defaults, Some(TARGET)).unwrap();
     assert_eq!(
         prepared.requirements().len(),
         1,
@@ -527,7 +556,7 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         SupplyAuthority::NativeBinding
     );
     assert!(
-        plans(&accepted, &settled).unwrap().is_empty(),
+        plans(accepted, &settled).unwrap().is_empty(),
         "a native leaf has no checked-provider plan"
     );
     let execution = selected_dispatch::SelectedExecution::settle(
@@ -544,6 +573,18 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         panic!("the chosen leaf retains one receipt")
     };
     let boundary = accepted.module().boundary_machine(row.boundary).unwrap();
+    let abi = accepted
+        .module()
+        .calling_abi_identity(row.boundary)
+        .unwrap();
+    let [calling] = accepted.module().calling_abi_signatures.as_slice() else {
+        panic!("only the reached native requirement needs a calling declaration")
+    };
+    assert_eq!(calling.id, abi.id());
+    assert!(
+        calling.storage.is_ok(),
+        "the canonical calling declaration retains its storage"
+    );
     let callable = boundary.declaration.as_ref().unwrap().source.callable;
     let origin = row
         .binding
