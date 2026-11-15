@@ -376,3 +376,100 @@ fn inline_float_comparison_keeps_the_literal_format_in_the_saved_operator() {
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn float_zero_locals_keep_positive_bits_and_require_the_default_domain() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use semantic_vocabulary::{IeeeFloatValue, ScalarType};
+            let source =
+                repository().join("tests/fixtures/run/float/zero_constructed_locals/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&source, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            let mut initializers = Vec::new();
+            for machine in &module.machines {
+                for operation in machine.operations() {
+                    let terminal_psi::OperationKind::EstablishPrimitiveLocal { value, .. } =
+                        operation.kind
+                    else {
+                        continue;
+                    };
+                    let producer = machine
+                        .operations()
+                        .find(|producer| {
+                            producer
+                                .result
+                                .scalar_ref()
+                                .is_some_and(|row| row.id == value)
+                        })
+                        .unwrap();
+                    let terminal_psi::OperationKind::IeeeFloatConstant { value } = producer.kind
+                    else {
+                        continue;
+                    };
+                    let home = operation.result.as_structural().unwrap().structural_type;
+                    let declaration = module
+                        .structural_types
+                        .iter()
+                        .find(|row| row.id == home)
+                        .unwrap();
+                    assert_eq!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                            value.format()
+                        ))
+                    );
+                    initializers.push(value);
+                }
+            }
+            initializers.sort();
+            assert_eq!(
+                initializers,
+                [IeeeFloatValue::Binary32(0), IeeeFloatValue::Binary64(0)]
+            );
+
+            let invalid =
+                repository().join("tests/fixtures/fail/float/zero_constructed_locals/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("zero storage cannot establish the default domain that excludes zero")
+            .into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains("cannot prove requires clause")
+                        && diagnostic.message.contains("data type")
+                        && diagnostic.message.contains("probe")
+                }),
+                "{diagnostics:?}"
+            );
+            assert!(
+                diagnostics
+                    .iter()
+                    .all(|diagnostic| !diagnostic.message.contains("not supported yet")),
+                "{diagnostics:?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}

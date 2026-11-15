@@ -3649,7 +3649,7 @@ impl<'a> Lowering<'a> {
     /// satisfies the default domain, the value is zero-constructible.
     /// Otherwise the type is gated: construction or checked qualification
     /// must establish the domain before observation." Every scalar type
-    /// this route reads (`i8`..`u64`, `bool`) admits zero and a constrained
+    /// this route reads admits zero, including both IEEE float formats. A constrained
     /// scalar type is refused by the reader, so a scalar home owes no
     /// domain clause and is never gated.
     /// The zero value of `record` in a new root: the storage of `let x: T;`.
@@ -3956,9 +3956,18 @@ impl<'a> Lowering<'a> {
                 value: IntegerValue::for_sign(integer.sign(), 0)
                     .map_err(|_| self.internal("zero is not an integer value"))?,
             },
-            ScalarType::IeeeFloat(_) => {
-                return Err(self.internal("a float local reached lowering"));
-            }
+            ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {
+                // Both IEEE formats represent positive zero with all bits clear.
+                // Keep the leaf's permanent format, just as literal lowering does.
+                value: match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                        semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                    }
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                        semantic_vocabulary::IeeeFloatValue::Binary64(0)
+                    }
+                },
+            },
         };
         let operation = self.operation_identity(source);
         match self.emit(operation, Some(scalar_type), kind)? {
