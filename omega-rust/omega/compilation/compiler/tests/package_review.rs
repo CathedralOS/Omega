@@ -213,6 +213,57 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
     assert_eq!(realized.len(), 1);
     assert_eq!(realized[0].path(), "Mark");
     assert_eq!(callable.published_service_reach(), Some(realized));
+
+    let mark = recovered
+        .public_traits()
+        .iter()
+        .find(|declaration| declaration.identity() == &realized[0])
+        .expect("the support package's exact Mark declaration");
+    let [read] = mark.requirements() else {
+        panic!("one Mark requirement");
+    };
+    let consumer = reviewed_and_recovered(
+        &kept_fixture("pass/effects/inferred_imported_reach/consumer/main.omg"),
+        "macos_arm64",
+    );
+    let [plan] = consumer.selected_providers().plans() else {
+        panic!("one selected MarkerMark plan");
+    };
+    assert_eq!(plan.target(), "macos_arm64");
+    assert_eq!(plan.schema_declaration(), mark.identity());
+    let [row] = plan.rows() else {
+        panic!("one checked MarkerMark implementation");
+    };
+    let [method] = plan.methods() else {
+        panic!("one imported requirement contract");
+    };
+    assert_eq!(row.requirement(), read.identity());
+    assert_eq!(row.requirement(), method.requirement());
+    assert_eq!(method.requirement_owner(), mark.identity());
+
+    let owner = review_evidence::record::PackageReviewNominalOwner::Package(consumer.package());
+    assert_ne!(owner, mark.identity().owner());
+    let provider = plan
+        .provider_type_declaration()
+        .expect("the local provider");
+    assert_eq!(provider.path(), "MarkerMark");
+    assert_eq!(provider.owner(), owner);
+    let realization = row.realization().expect("the checked local body");
+    assert_eq!(realization.path(), "MarkerMark::read");
+    assert_eq!(realization.owner(), owner);
+    assert!(
+        consumer
+            .public_traits()
+            .iter()
+            .all(|declaration| declaration.identity().path() != "Mark")
+    );
+    assert!(
+        consumer
+            .callables()
+            .callables()
+            .iter()
+            .all(|callable| callable.identity().path() != "Mark::read")
+    );
 }
 
 #[test]

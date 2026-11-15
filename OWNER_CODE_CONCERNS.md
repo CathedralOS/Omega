@@ -87,13 +87,6 @@ framework or a list of unimplemented features.
 - Cost: The final negative never reaches the operation-safety judgment. Determine how an exact checked view can observe the same scalar field through the original owned sequence before restoring the bound oracle.
 - Reported: 2026-11-15, Codex, while validating checked type computations.
 
-### Package review refuses a local provider for an imported service
-- Category: knowledge crossing a boundary
-- Where: [selected service ownership check](omega-rust/omega/packages/review-evidence/src/capture/providers.rs), [restored consumer Build](tests/fixtures/pass/effects/inferred_imported_reach/consumer/build.omg#L4)
-- Saw: On macOS arm64 after restoring the unsupplied review policy on `e99dbfdc9e7`, the original consumer selects its `MarkerMark` for the support package's `Mark` and runs both engines with exit 0. The support policy completes and recovers independently. The consumer's `packages audit --details` exits 1 with “the selected provider's complete local service application”.
-- Cost: Review requires the service to belong to the realizing package. Retain the exact installed plan with the foreign requirement identity and the local implementation while keeping the public callable and trait declaration under the dependency's reviewed package.
-- Reported: 2026-11-15, Codex, while restoring the original inferred reach review probe.
-
 ### Fixture review stops even when a project has no dangerous service
 - Category: fake gates
 - Where: [fixture discovery call](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L709), [service discovery](omega-rust/omega/compilation/compiler/tests/support/dangerous_service_acceptance.rs#L47)
