@@ -13,7 +13,7 @@ mod location_map;
 use location_map::LocationMap;
 
 pub(crate) mod analysis {
-    use super::engine::{Origin, StorageResolution};
+    use super::engine::{DescriptorReadDepth, Origin, StorageResolution};
     use super::*;
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
@@ -503,8 +503,14 @@ pub(crate) mod analysis {
             if let Some(result) = values.as_ref().and_then(|values| values.get(location)) {
                 return result.clone();
             }
-            let result = replay.resolve_storage(machine, state, location, None);
-            if let Some(values) = values {
+            let depth = DescriptorReadDepth::at(machine, state, None);
+            let result = replay.resolve_storage_with_depth(machine, state, location, &depth);
+            // A completed caller snapshot can still consult a callee whose
+            // result account has not been prepared. Its answer can change
+            // later without changing the caller snapshot.
+            if !depth.unprepared_summary.get()
+                && let Some(values) = values
+            {
                 values.insert(location.clone(), result.clone());
             }
             result
@@ -2573,8 +2579,9 @@ pub(crate) mod contents_queries {
             &self,
             machine: &DescriptorMachine,
             location: &DescriptorLocation,
-            completed: Option<(MachineId, DescriptorPosition)>,
+            depth: &DescriptorReadDepth<'_>,
         ) -> Option<(MachineId, DescriptorPosition)> {
+            let completed = depth.captured.get();
             if let Some(capture) = machine.location_capture(self.types, location, completed) {
                 return Some(capture);
             }
@@ -2586,7 +2593,8 @@ pub(crate) mod contents_queries {
                 root: location.root,
                 path: location.path[..index].to_vec(),
             };
-            let (position, origins) = self.returned_roster_origins(machine, &roster, completed)?;
+            let (position, origins) =
+                self.returned_roster_origins(machine, &roster, completed, Some(depth))?;
             if origins.is_empty()
                 || !origins.iter().all(|origin| {
                     matches!(
@@ -2604,14 +2612,15 @@ pub(crate) mod contents_queries {
             &self,
             machine: &DescriptorMachine,
             location: &DescriptorLocation,
-            completed: Option<(MachineId, DescriptorPosition)>,
+            depth: &DescriptorReadDepth<'_>,
         ) -> bool {
+            let completed = depth.captured.get();
             (location.path.is_empty()
                 && machine
                     .sequence_construction(self.types, location.root, completed)
                     .is_some())
                 || self
-                    .returned_roster_origins(machine, location, completed)
+                    .returned_roster_origins(machine, location, completed, Some(depth))
                     .is_some_and(|(_, origins)| {
                         !origins.is_empty()
                             && origins.iter().all(|origin| {
@@ -2629,6 +2638,7 @@ pub(crate) mod contents_queries {
             machine: &DescriptorMachine,
             location: &DescriptorLocation,
             completed: Option<(MachineId, DescriptorPosition)>,
+            depth: Option<&DescriptorReadDepth<'_>>,
         ) -> Option<(DescriptorPosition, Vec<&'replay DescriptorStoredOrigin>)> {
             if !std::ptr::eq(self.machine(machine.id)?, machine)
                 || completed.is_some_and(|(owner, _)| owner != machine.id)
@@ -2651,7 +2661,13 @@ pub(crate) mod contents_queries {
             let DescriptorInvocationTarget::Machine(callee) = call.target else {
                 return None;
             };
-            let slots = self.summaries.get(&callee)?.as_ref()?.result.as_ref()?;
+            let Some(summary) = self.summaries.get(&callee).and_then(Option::as_ref) else {
+                if let Some(depth) = depth {
+                    depth.unprepared_summary.set(true);
+                }
+                return None;
+            };
+            let slots = summary.result.as_ref()?;
             let slot = DescriptorResultSlot::matching(slots, suffix)?;
             Some((position, slot.origins_at(suffix)?))
         }
@@ -2714,6 +2730,7 @@ pub(crate) mod contents_queries {
                                 machine,
                                 &backing,
                                 depth.captured.get(),
+                                Some(depth),
                             )?;
                             if origins.is_empty() {
                                 return None;
@@ -2841,9 +2858,7 @@ pub(crate) mod contents_queries {
             }
             if self.slot_kind.tracks_references()
                 && let Some(location) = query.exact_location()
-                && self
-                    .location_capture(machine, &location, depth.captured.get())
-                    .is_none()
+                && self.location_capture(machine, &location, depth).is_none()
                 && let Some(carrier) =
                     self.reference_referent_carrier(machine, state, &location, depth)?
             {
@@ -2851,11 +2866,8 @@ pub(crate) mod contents_queries {
             }
             if self.slot_kind.tracks_references()
                 && let Some(queried) = query.exact_location()
-                && self
-                    .location_capture(machine, &queried, depth.captured.get())
-                    .is_none()
-                && let Some(value) =
-                    self.known_current_contents(machine, state, &queried, depth.captured.get())
+                && self.location_capture(machine, &queried, depth).is_none()
+                && let Some(value) = self.known_current_contents(machine, state, &queried, depth)
             {
                 return value.clone();
             }
@@ -2892,9 +2904,13 @@ pub(crate) mod contents_queries {
             machine: &DescriptorMachine,
             state: &'state State,
             queried: &DescriptorLocation,
-            completed: Option<(MachineId, DescriptorPosition)>,
+            depth: &DescriptorReadDepth<'_>,
         ) -> Option<&'state Value> {
-            match self.resolve_storage(machine, state, queried, completed)? {
+            let reads = DescriptorReadDepth::at(machine, state, None);
+            let _capture = reads.capture(depth.captured.get());
+            let resolved = self.resolve_storage_with_depth(machine, state, queried, &reads);
+            depth.absorb_summary_reads(&reads);
+            match resolved? {
                 StorageResolution::Unique(location) => (!state
                     .has_selected_inline_contents(&location))
                 .then(|| state.slots.get(&location))?,
@@ -2914,12 +2930,9 @@ pub(crate) mod contents_queries {
             let state = self.live_state(machine, state, depth)?;
             if self.slot_kind.tracks_references()
                 && let Some(location) = query.exact_location()
-                && self
-                    .location_capture(machine, &location, depth.captured.get())
-                    .is_none()
+                && self.location_capture(machine, &location, depth).is_none()
                 && self.incoming_references_unchanged(machine, state, &location, depth)
-                && let Some(value) =
-                    self.known_current_contents(machine, state, &location, depth.captured.get())
+                && let Some(value) = self.known_current_contents(machine, state, &location, depth)
             {
                 return value.clone();
             }
@@ -3180,9 +3193,10 @@ pub(crate) mod contents_queries {
                             self.canonical_storage_with_depth(machine, state, &selected, depth)?
                         }
                     },
-                    completed: depth.captured.get().or_else(|| {
-                        self.location_capture(machine, &selected, depth.captured.get())
-                    }),
+                    completed: depth
+                        .captured
+                        .get()
+                        .or_else(|| self.location_capture(machine, &selected, depth)),
                 }]));
             };
             let selected = match account {
@@ -3419,13 +3433,18 @@ pub(crate) mod contents_queries {
             let before = self.target_state(machine, state, Some((owner, position)), depth)?;
             let reads =
                 DescriptorReadDepth::at(machine, before, depth.history.map(|(_, states)| states));
-            let mut value = BTreeSet::new();
-            for origin in origins {
-                value.extend(
-                    self.substitute_result_with_depth(machine, before, call, origin, &reads)?,
-                );
-            }
-            (!value.is_empty()).then_some(value)
+            let value = (|| {
+                let mut value = BTreeSet::new();
+                for origin in origins {
+                    value.extend(
+                        self.substitute_result_with_depth(machine, before, call, origin, &reads)?,
+                    );
+                }
+                (!value.is_empty()).then_some(value)
+            })();
+            // Failed substitutions still consulted the child read context.
+            depth.absorb_summary_reads(&reads);
+            value
         }
 
         fn stored_view_targets(
@@ -3516,9 +3535,12 @@ pub(crate) mod contents_queries {
                         }
                         return Some(targets);
                     }
-                    if let Some((producer, origins)) =
-                        self.returned_roster_origins(machine, &location, depth.captured.get())
-                    {
+                    if let Some((producer, origins)) = self.returned_roster_origins(
+                        machine,
+                        &location,
+                        depth.captured.get(),
+                        Some(depth),
+                    ) {
                         let owner = (machine.id, (producer.0, producer.1.checked_add(1)?));
                         let captured = self.target_state(machine, state, Some(owner), depth)?;
                         let _capture = depth.capture(Some(owner));
@@ -3996,6 +4018,8 @@ pub(crate) mod engine {
     #[derive(Default)]
     pub(crate) struct DescriptorReadDepth<'state> {
         depth: std::cell::Cell<usize>,
+        // A later result account can change a query that consulted this gap.
+        pub(super) unprepared_summary: std::cell::Cell<bool>,
         pub(super) captured: std::cell::Cell<Option<(MachineId, DescriptorPosition)>>,
         pub(super) history: Option<(&'state DescriptorMachine, &'state States)>,
         pub(super) live: Option<(&'state DescriptorMachine, &'state State)>,
@@ -4009,6 +4033,12 @@ pub(crate) mod engine {
     }
 
     impl<'state> DescriptorReadDepth<'state> {
+        pub(super) fn absorb_summary_reads(&self, child: &DescriptorReadDepth<'_>) {
+            if child.unprepared_summary.get() {
+                self.unprepared_summary.set(true);
+            }
+        }
+
         pub(crate) fn at(
             machine: &'state DescriptorMachine,
             live: &'state State,
@@ -4426,7 +4456,6 @@ pub(crate) mod engine {
             location: &DescriptorLocation,
             depth: &DescriptorReadDepth<'_>,
         ) -> Option<StorageResolution> {
-            let completed = depth.captured.get();
             let mut current = location.clone();
             let mut captured_entry: Option<DescriptorLocation> = None;
             let mut expansions = BTreeMap::new();
@@ -4481,7 +4510,7 @@ pub(crate) mod engine {
                         .all(|origin| matches!(origin, Origin::Storage(_)))
                     && !(matches!(find_structural_type(self.types, root_type)?.shape, StructuralTypeShape::ElementView { .. })
                         && origins.iter().all(|origin| matches!(origin, Origin::Storage(backing)
-                            if self.has_roster_source(machine, backing, completed))))
+                            if self.has_roster_source(machine, backing, depth))))
                 {
                     let mut locations = self.storage_origins_with_depth(machine, state, &current, depth)?.into_iter();
                     let first = locations.next()?;
@@ -5879,7 +5908,8 @@ pub(crate) mod engine {
             // A returned roster may have arrived through another ordinary
             // call. Rebase its existing result account at that call's own
             // input cut; callee coordinates never become caller history.
-            if let Some((position, origins)) = self.returned_roster_origins(machine, backing, None)
+            if let Some((position, origins)) =
+                self.returned_roster_origins(machine, backing, None, None)
             {
                 let call = machine.calls.get(&position)?;
                 let before = states.get(&position)?;
