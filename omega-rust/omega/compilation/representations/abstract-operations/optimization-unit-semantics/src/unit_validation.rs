@@ -10708,9 +10708,9 @@ pub(crate) mod operation_contracts {
         use std::collections::BTreeMap;
 
         #[allow(clippy::too_many_arguments)]
-        pub(super) fn validate_node_operation_contracts(
+        pub(super) fn validate_node_operation_contracts<'function>(
             unit: &optimization_unit::PsiOptimizationUnit,
-            function: &PsiOptimizationFunction,
+            function: &'function PsiOptimizationFunction,
             block: &optimization_unit::OptimizationBlock,
             node_index: usize,
             node: &optimization_unit::OptimizationNode,
@@ -10727,8 +10727,8 @@ pub(crate) mod operation_contracts {
                 &terminal_psi::StructuralDomainDeclaration,
             >,
             call_accesses: &crate::current_ownership::CallAccesses,
-            scalar_expressions: &crate::descriptor_results::scalar_expressions::ScalarExpressions<
-                '_,
+            scalar_expressions: &std::cell::OnceCell<
+                crate::descriptor_results::scalar_expressions::ScalarExpressions<'function>,
             >,
         ) -> Result<(), OptimizationUnitValidationError> {
             if !operation_scalar_types_match(
@@ -11783,11 +11783,11 @@ pub(crate) mod operation_contracts {
         use semantic_vocabulary::StructuralTypeId;
         use std::collections::BTreeMap;
 
-        pub(crate) fn scalar_array_establishment_matches(
-            function: &PsiOptimizationFunction,
+        pub(crate) fn scalar_array_establishment_matches<'function>(
+            function: &'function PsiOptimizationFunction,
             operation: &O,
-            scalar_expressions: &crate::descriptor_results::scalar_expressions::ScalarExpressions<
-                '_,
+            scalar_expressions: &std::cell::OnceCell<
+                crate::descriptor_results::scalar_expressions::ScalarExpressions<'function>,
             >,
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
             domains: &BTreeMap<
@@ -11818,7 +11818,9 @@ pub(crate) mod operation_contracts {
                     &result.qualifications,
                     elements,
                     |element| {
-                        let (ty, literal) = scalar_expressions.literal(element)?.integer_value()?;
+                        let (ty, literal) = scalar_expressions
+                            .get_or_init(|| crate::descriptor_results::scalar_expressions::ScalarExpressions::new(function))
+                            .literal(element)?.integer_value()?;
                         Some((semantic_vocabulary::ScalarType::Integer(ty), literal))
                     },
                 )
@@ -12720,9 +12722,9 @@ pub(crate) mod operation_contracts {
         }
 
         #[allow(clippy::too_many_arguments)]
-        pub(crate) fn operation_structural_call_contract_matches(
+        pub(crate) fn operation_structural_call_contract_matches<'function>(
             unit: &optimization_unit::PsiOptimizationUnit,
-            caller: &PsiOptimizationFunction,
+            caller: &'function PsiOptimizationFunction,
             operation: &O,
             functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
             boundary_machines: &BTreeMap<
@@ -12732,8 +12734,8 @@ pub(crate) mod operation_contracts {
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
             domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
             call_accesses: &crate::current_ownership::CallAccesses,
-            scalar_expressions: &crate::descriptor_results::scalar_expressions::ScalarExpressions<
-                '_,
+            scalar_expressions: &std::cell::OnceCell<
+                crate::descriptor_results::scalar_expressions::ScalarExpressions<'function>,
             >,
         ) -> bool {
             match operation {
@@ -14737,8 +14739,9 @@ pub(crate) mod operation_contracts {
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Result<(), OptimizationUnitValidationError> {
         let definitions = values::collect_value_definitions(function)?;
-        let scalar_expressions =
-            crate::descriptor_results::scalar_expressions::ScalarExpressions::new(function);
+        // Most functions never need array literal qualification. Retain one
+        // reader only if an actual query needs it, and share it across nodes.
+        let scalar_expressions = std::cell::OnceCell::new();
         let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
         atomic_coherence::validate_function_atomic_coherence(
             function,
