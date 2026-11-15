@@ -988,6 +988,17 @@ pub(crate) mod byte_sequence_predicates {
         byte_literal_qualifications_hold_in(domains.iter(), carrier, qualifications, bytes)
     }
 
+    pub(crate) fn pure_byte_domain_predicate(
+        domain: &terminal_psi::StructuralDomainDeclaration,
+    ) -> Option<ByteSequencePredicate> {
+        // Literal contents establish this one condition only. Other clauses
+        // and unavailable theory still need their own proof.
+        if !domain.is_pure_predicate() || domain.predicate.is_some() {
+            return None;
+        }
+        domain.byte_predicate
+    }
+
     pub fn byte_literal_qualifications_hold_in<'domain>(
         domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
         carrier: StructuralTypeId,
@@ -1001,11 +1012,7 @@ pub(crate) mod byte_sequence_predicates {
                     .find(|domain| domain.id == *identity)
                     .is_some_and(|domain| {
                         domain.carrier == carrier
-                            && domain.content_projection.is_none()
-                            && domain.establishment_routes.is_none()
-                            && domain.has_no_required_memberships()
-                            && domain
-                                .byte_predicate
+                            && pure_byte_domain_predicate(domain)
                                 .is_some_and(|predicate| predicate.holds_for(bytes))
                     })
             })

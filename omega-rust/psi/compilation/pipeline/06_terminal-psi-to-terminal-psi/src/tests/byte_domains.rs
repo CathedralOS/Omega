@@ -168,19 +168,106 @@ machine build_entry() { let message: Message; let length: u64 = message.bytes.le
         panic!("{found:?}");
     };
     accepted.publish_invocation().unwrap();
-    let mut forged = accepted.elaboration.module.clone();
-    let domain = forged
-        .structural_domains
+    for unavailable_theory in 0..3 {
+        let mut forged = accepted.elaboration.module.clone();
+        let domain = forged
+            .structural_domains
+            .iter_mut()
+            .find(|domain| domain.byte_predicate == Some(ByteSequencePredicate::NoNul))
+            .expect("the field and whole descriptor use the same primitive domain row");
+        match unavailable_theory {
+            0 => domain.byte_predicate = Some(ByteSequencePredicate::NonEmpty),
+            1 => {
+                domain.predicate = Some(terminal_psi::StructuralDomainPredicate {
+                    subject: id(1),
+                    proposition: Proposition::Falsehood,
+                });
+            }
+            2 => domain.complete_predicate_theory = false,
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            terminal_semantics::structural_qualifications::validate(&forged)
+                .unwrap_err()
+                .detail,
+            "zero provisioning cannot establish a structural domain"
+        );
+    }
+}
+
+#[test]
+fn incoming_byte_literals_must_establish_the_domains_entire_theory() {
+    let source = "machine build_entry() { let bytes: [u8; 1] = [65u8]; }";
+    let found = judge_build(source);
+    let Ok(RouteVerdict::Accepted(accepted)) = found else {
+        panic!("{found:?}");
+    };
+    // ASCII bytes prove the encoded byte condition. They do not prove an
+    // additional clause or supply theory that the sender omitted.
+    let mut qualified = accepted.elaboration.module.clone();
+    assert!(qualified.structural_domains.is_empty());
+    let result = qualified
+        .machines
         .iter_mut()
-        .find(|domain| domain.byte_predicate == Some(ByteSequencePredicate::NoNul))
-        .expect("the field and whole descriptor use the same primitive domain row");
-    domain.byte_predicate = Some(ByteSequencePredicate::NonEmpty);
-    assert_eq!(
-        terminal_semantics::structural_qualifications::validate(&forged)
-            .unwrap_err()
-            .detail,
-        "zero provisioning cannot establish a structural domain"
-    );
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::EstablishScalarArray { .. }))
+        .unwrap()
+        .result
+        .structural()
+        .unwrap();
+    let carrier = result.structural_type;
+    let mut identities = qualified.identities.clone().into_builder();
+    let identity = identities.intern("untrusted-ascii-domain");
+    qualified.identities = identities.build();
+    qualified
+        .structural_domains
+        .push(terminal_psi::StructuralDomainDeclaration {
+            id: id(1),
+            semantic_domain: id(1),
+            identity,
+            carrier,
+            required_memberships: Some(Vec::new()),
+            complete_predicate_theory: true,
+            predicate: None,
+            content_projection: None,
+            byte_predicate: Some(ByteSequencePredicate::AsciiOnly),
+            establishment_routes: None,
+        });
+    let operation = qualified
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::EstablishScalarArray { .. }))
+        .unwrap();
+    let OperationResult::Structural(result) = &mut operation.result else {
+        unreachable!()
+    };
+    result.qualifications.push(id(1));
+    let closed = terminal_codec::ClosedTerminalModule::new(qualified.clone()).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
+    for extra_clause in [false, true] {
+        let mut forged = qualified.clone();
+        if extra_clause {
+            forged.structural_domains[0].predicate =
+                Some(terminal_psi::StructuralDomainPredicate {
+                    subject: id(1),
+                    proposition: Proposition::Falsehood,
+                });
+        } else {
+            forged.structural_domains[0].complete_predicate_theory = false;
+        }
+        let encoded = terminal_codec::ClosedTerminalModule::new(forged).unwrap();
+        let received =
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes());
+        assert!(
+            matches!(received,
+                Err(terminal_codec::CodecError::MalformedStructuralFoundation(reason))
+                    if reason == "scalar array establishment has an invalid result shape"),
+            "{received:?}"
+        );
+    }
 }
 
 #[test]

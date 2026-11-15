@@ -6362,7 +6362,8 @@ pub(crate) mod zeroed_structural {
             let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
             // The structural qualification judgment establishes ordinary
             // memberships. This check only decides predicates from bytes.
-            let Some(predicate) = domain.byte_predicate else { return true; };
+            if domain.byte_predicate.is_none() { return true; }
+            let Some(predicate) = crate::bytes::byte_sequence_predicates::pure_byte_domain_predicate(domain) else { return false; };
             if row.path.is_empty() { return false; }
             for (index, segment) in row.path.iter().enumerate() {
                 if let StructuralPathSegment::Case(selected) = segment {
@@ -6377,9 +6378,6 @@ pub(crate) mod zeroed_structural {
             let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, &row.path) else { return false; };
             if carrier.shape.is_shared_readable_byte_view() {
                 return domain.carrier == carrier.id
-                    && domain.content_projection.is_none()
-                    && domain.establishment_routes.is_none()
-                    && domain.has_no_required_memberships()
                     && predicate.holds_for(&[]);
             }
             let StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } = carrier.shape else { return false; };
@@ -6389,9 +6387,6 @@ pub(crate) mod zeroed_structural {
                 return false;
             }
             domain.carrier == carrier.id
-                && domain.content_projection.is_none()
-                && domain.establishment_routes.is_none()
-                && domain.has_no_required_memberships()
                 && match predicate {
                     terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
                     terminal_psi::ByteSequencePredicate::NoNul => length == 0,
