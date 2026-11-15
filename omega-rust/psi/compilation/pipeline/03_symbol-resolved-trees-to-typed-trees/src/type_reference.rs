@@ -178,7 +178,25 @@ pub(crate) mod domain_constraints {
                 &domain_constraint.arguments,
             );
             let [domain] = matches.as_slice() else {
-                normalized.push(TypeConstraintNode::Domain(domain_constraint));
+                // Whether any domain of this name is visible here at all,
+                // for any carrier: if none is, the name is unknown and the
+                // type malformed, not a selection a reader defers.
+                let names_no_visible_domain = matches.is_empty()
+                    && domain_constraint.subject == DomainConstraintSubject::Declared
+                    && reference.is_some()
+                    && select_domain_candidates_where(
+                        source,
+                        program,
+                        authored_name,
+                        reference,
+                        domain_constraint.symbol,
+                        |_| true,
+                    )
+                    .is_empty();
+                normalized.push(TypeConstraintNode::Domain(DomainConstraint {
+                    names_no_visible_domain,
+                    ..domain_constraint
+                }));
                 continue;
             };
 
@@ -240,6 +258,7 @@ pub(crate) mod domain_constraints {
                     semantic_roles,
                     establishment_routes: domain.establishment_routes.clone(),
                     source_selection: None,
+                    names_no_visible_domain: false,
                 }));
                 continue;
             }
@@ -286,6 +305,7 @@ pub(crate) mod domain_constraints {
                         .map(|domain| domain.establishment_routes.clone())
                         .unwrap_or_default(),
                     source_selection: None,
+                    names_no_visible_domain: false,
                 }));
             }
         }
