@@ -1335,9 +1335,9 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,
             (
-                ExpressionKind::LayoutObservation { subject: a, measurement: am },
-                ExpressionKind::LayoutObservation { subject: b, measurement: bm },
-            ) => a == b && am == bm,
+                ExpressionKind::LayoutObservation { application: a },
+                ExpressionKind::LayoutObservation { application: b },
+            ) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),

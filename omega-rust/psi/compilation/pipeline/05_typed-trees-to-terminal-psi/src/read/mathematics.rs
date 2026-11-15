@@ -18,8 +18,8 @@ use super::{
 };
 use crate::{Unserved, refuse};
 
-impl Program<'_> {
-    fn mathematical_definition(&self, symbol: SymbolHandle) -> Option<&MathematicalDefinition> {
+impl<'t> Program<'t> {
+    fn mathematical_definition(&self, symbol: SymbolHandle) -> Option<&'t MathematicalDefinition> {
         if !self.typed.symbols.symbols().nodes().is_valid(symbol)
             || self.typed.symbols.get(symbol).kind != symbols::SymbolKind::MathematicalDefinition
         {
@@ -64,12 +64,12 @@ impl Program<'_> {
     }
 
     fn mathematical_application<'a>(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'a>,
         call: &TableCallExpression,
     ) -> Checked<(
-        &MathematicalDefinition,
+        &'t MathematicalDefinition,
         Vec<(SymbolHandle, semantic_vocabulary::ScalarTerm)>,
     )> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
@@ -153,7 +153,7 @@ impl Program<'_> {
     }
 
     pub(super) fn mathematical_clause(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         call: &TableCallExpression,
@@ -184,7 +184,7 @@ impl Program<'_> {
     /// at any caller. A caller's facts cannot form the declaration's operands,
     /// and an unused subject declaration owes exactly the same formation.
     pub(super) fn mathematical_predicate_definition(
-        &self,
+        &mut self,
         id: MachineId,
         definition: &MathematicalDefinition,
         model: Option<&typed_trees::callable_signature_shapes::CallableAddressModel>,
@@ -297,7 +297,7 @@ impl Program<'_> {
     }
 
     pub(super) fn logical_mathematical_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
