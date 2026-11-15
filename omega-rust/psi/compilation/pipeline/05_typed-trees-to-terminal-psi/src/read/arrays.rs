@@ -166,6 +166,7 @@ impl Program<'_> {
         argument: ExpressionHandle,
         expected: ValueType,
         source: SourceOrigin,
+        formal_access: Option<language_core::ReferenceAccess>,
     ) -> Checked<Option<Expression>> {
         use language_core::ReferenceAccess;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
@@ -184,6 +185,34 @@ impl Program<'_> {
         let ValueType::Record(mut view, Qualification::NONE, _) = expected else {
             return Ok(None);
         };
+        // Formation owns a stored descriptor with the written loan. Only the
+        // callee's direct formal carries its access separately from its shape.
+        if formal_access == Some(ReferenceAccess::Mutable)
+            && self.data_type(machine, view)?.shape
+                == StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None })
+        {
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(argument);
+            let Some(ValueType::Record(actual, Qualification::NONE, _)) =
+                self.view_type(machine, reference)?
+            else {
+                return Err(unavailable("array view without its retained source type"));
+            };
+            if self.data_type(machine, actual)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+            {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    "the explicit array view lends only immutable access; a mutable parameter cannot grant writable access to that backing",
+                ));
+            }
+            view = actual;
+        }
         // A typed view names its element row; a byte view's element is the
         // backing's own `u8` row, checked below.
         let (access, typed_element) = match self.data_type(machine, view)?.shape {

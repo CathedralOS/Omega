@@ -1151,9 +1151,10 @@ impl<'a> Lowering<'a> {
                 if matches!(
                     data.shape,
                     StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(
-                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                        ),
+                        access: None
+                            | Some(
+                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                            ),
                     })
                 ) {
                     let extent = self.project(place, Segment::Extent)?;
@@ -2137,8 +2138,28 @@ impl<'a> Lowering<'a> {
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
                 let captured = continuing!(self.capture_place(place, home.as_deref()));
+                let shared_descriptor = reinterpret
+                    && declared == StructuralAccess::SharedBorrow
+                    && captured.1.is_empty()
+                    && self.exclusive_roots.binary_search(&captured.0).is_ok()
+                    && if let ValueType::Record(actual, _, _) = captured.3 {
+                        match (
+                            &self.record_type(actual)?.shape,
+                            &self.record_type(referent)?.shape,
+                        ) {
+                            (
+                                StorageShape::ByteSequence(source),
+                                StorageShape::ByteSequence(referent),
+                            ) => terminal_semantics::shared_byte_descriptor_storage_matches(
+                                *source, *referent,
+                            ),
+                            _ => false,
+                        }
+                    } else {
+                        false
+                    };
                 let lent = self.captured_loan(place, *access, captured, None)?;
-                let storage = if reinterpret {
+                let storage = if reinterpret && !shared_descriptor {
                     let byte_offset = self.zero(
                         ScalarType::Integer(
                             semantic_vocabulary::IntegerType::new(
@@ -3422,7 +3443,8 @@ impl<'a> Lowering<'a> {
         if !matches!(
             self.record_type(at.record)?.shape,
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                access: None
+                    | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             })
         ) {
             return Err(self.internal("a byte observation has no byte descriptor"));
@@ -3844,12 +3866,16 @@ impl<'a> Lowering<'a> {
                 Unserved::Statement("byte store through a descriptor stored in a field"),
             ));
         }
-        if !matches!(
-            self.record_type(record)?.shape,
+        let writable = match self.record_type(record)?.shape {
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::MutableBorrow)
-            })
-        ) {
+                access: Some(StructuralAccess::MutableBorrow),
+            }) => true,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None,
+            }) => self.exclusive_roots.binary_search(&root).is_ok(),
+            _ => false,
+        };
+        if !writable {
             return Err(self.internal("a byte store lost mutable descriptor access"));
         }
         self.name_contents(exact, actual)?;

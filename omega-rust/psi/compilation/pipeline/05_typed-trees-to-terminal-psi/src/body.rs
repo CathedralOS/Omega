@@ -384,7 +384,8 @@ impl StorageShape {
 
         match self {
             Self::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                access:
+                    None | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             }) => Some(|source| OperationKind::ByteSequenceLength { source }),
             Self::ElementView {
                 access:

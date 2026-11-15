@@ -272,9 +272,9 @@ fn graph_refusal(
 impl Storage<'_> {
     pub(super) fn borrowed_resource(
         &self,
-        ty: semantic_vocabulary::StructuralTypeId,
+        parameter: &terminal_psi::StructuralParameterDeclaration,
     ) -> BorrowedResource {
-        if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty) {
+        if terminal_semantics::borrowed_view_payload_parameter(parameter, self.types.iter()) {
             BorrowedResource::ViewPayload
         } else {
             BorrowedResource::Storage
@@ -626,7 +626,7 @@ impl Storage<'_> {
                 &lent,
                 &argument.path,
                 access,
-                self.borrowed_resource(parameter.structural_type),
+                self.borrowed_resource(parameter),
                 concerns,
             )?;
             let (obligation, row) = tables
@@ -671,7 +671,7 @@ impl Storage<'_> {
             let lifetime = retained
                 .next_if(|loan| loan.position == structural_position && loan.path == argument.path)
                 .map(|loan| loan.lifetime);
-            let resource = self.borrowed_resource(parameter.structural_type);
+            let resource = self.borrowed_resource(parameter);
             let cut = {
                 let (block, before) = self.graph.locate(before)?;
                 (
@@ -907,7 +907,15 @@ impl Storage<'_> {
                     super::Shape::Atomic(cell) => {
                         expected.shape == StructuralTypeShape::AtomicCell(cell)
                     }
-                    super::Shape::Typed(actual) => actual == referent,
+                    super::Shape::Typed(actual) => {
+                        actual == referent
+                            || terminal_semantics::shared_direct_byte_descriptor_source(
+                                self.module,
+                                self.lowered,
+                                source,
+                                result.structural_type,
+                            ) == Some(true)
+                    }
                     super::Shape::View | super::Shape::Payload(_) => false,
                 }
             };
@@ -1265,7 +1273,7 @@ impl Storage<'_> {
                         &raw,
                         &argument.path,
                         access,
-                        self.borrowed_resource(parameter.structural_type),
+                        self.borrowed_resource(parameter),
                         concerns,
                     )?;
                     if !permitted
@@ -1641,7 +1649,7 @@ impl Storage<'_> {
                         &raw,
                         &argument.path,
                         access,
-                        self.borrowed_resource(parameter.structural_type),
+                        self.borrowed_resource(parameter),
                         concerns,
                     )?;
                     let (obligation, row) = tables.obligations.iter().find(|(id, row)| {

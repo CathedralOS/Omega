@@ -573,7 +573,8 @@ pub use references::reference_views::{
     reference_storage_export_byte_width, reference_storage_region_source_compatible,
     reference_storage_source_compatible, reference_storage_view_is_compatible,
     representation_view_declaration, scalar_reference_view_admits, scalar_reference_view_is_total,
-    scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
+    scalar_reference_view_value, shared_byte_descriptor_storage_matches,
+    shared_descriptor_copy_matches, shared_direct_byte_descriptor_source, stored_reference_access,
 };
 pub use references::representation_geometry::{
     reference_view_compatible, reference_view_offset_is_zero, validate_reference_view_source,
@@ -609,9 +610,10 @@ pub use semantic_rows::{
 };
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
-    borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
-    root_before_edge, storage_names, structural_argument_source, structural_projection_authority,
-    view_descriptor_parameter, view_descriptor_projected_qualifications,
+    borrowed_storage_reference_ceiling, borrowed_view_payload_parameter,
+    descriptor_parameter_access, projection_before_edge, root_before_edge, storage_names,
+    structural_argument_source, structural_projection_authority, view_descriptor_parameter,
+    view_descriptor_projected_qualifications,
 };
 pub use storage::collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, CollectionViewDescriptor,

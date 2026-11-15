@@ -352,7 +352,11 @@ impl Program<'_> {
         {
             return Err("calling ABI parameter lost its retained source type".into());
         }
-        let (reference, access) = match self.typed.type_reference_table.type_reference(reference) {
+        let (reference, access, referent) = match self
+            .typed
+            .type_reference_table
+            .type_reference(reference)
+        {
             TypeReferenceNode::Reference {
                 referee,
                 access,
@@ -368,12 +372,26 @@ impl Program<'_> {
                     language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
                     language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
                 };
-                let (carrier, _) = self.borrowed_formal_carrier(reference, *referee);
-                (carrier, access)
+                let (carrier, referent) = self.borrowed_formal_carrier(reference, *referee);
+                (carrier, access, referent)
             }
-            _ => (reference, StructuralAccess::Owned),
+            _ => (
+                reference,
+                StructuralAccess::Owned,
+                crate::body::BorrowedReferent::Value,
+            ),
         };
-        let structural_type = self.calling_abi_storage(entry, reference)?;
+        let structural_type = if referent == crate::body::BorrowedReferent::Slice
+            && access == StructuralAccess::MutableBorrow
+        {
+            let value = self
+                .formal_value_type(entry, reference, referent)
+                .map_err(|error| error.detail)?;
+            self.storage_type(entry, reference, value)
+                .map_err(|error| error.detail)?
+        } else {
+            self.calling_abi_storage(entry, reference)?
+        };
         // Callback closure walks the same direct carrier as the ABI formal,
         // including a borrowed slice's descriptor. A represented parameter
         // still needs its callback storage checked.
@@ -687,16 +705,41 @@ mod descriptor_storage_tests {
                 });
             (reference, expected_access)
         });
+        let stored_mutable = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: written[1].0,
+                access: ReferenceAccess::Mutable,
+                lifetime: None,
+            });
         let entry = MachineId::new(1).unwrap();
         let mut program = Program::new(&typed, false);
-        let checked = written.map(|(reference, _)| {
-            let crate::ValueType::Record(carrier, _, _) =
-                program.value_type(entry, reference).unwrap()
-            else {
+        let checked = written.map(|(reference, access)| {
+            let ordinary = program.value_type(entry, reference).unwrap();
+            let formal = program
+                .formal_value_type(entry, reference, crate::body::BorrowedReferent::Slice)
+                .unwrap();
+            let crate::ValueType::Record(carrier, _, _) = formal else {
                 panic!("a borrowed slice has structural descriptor storage");
             };
+            if access == StructuralAccess::MutableBorrow {
+                assert_ne!(formal, ordinary);
+                assert_eq!(
+                    program.data_type(entry, carrier).unwrap().shape,
+                    crate::StorageShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                    )
+                );
+            } else {
+                assert_eq!(formal, ordinary);
+            }
             carrier
         });
+        let crate::ValueType::Record(stored_carrier, _, _) =
+            program.value_type(entry, written[1].0).unwrap()
+        else {
+            panic!("a stored view has structural descriptor storage");
+        };
         program.begin_declaration_storage(entry, 0).unwrap();
         let owned = program.calling_abi_parameter(entry, bytes).unwrap();
         assert_eq!(owned.access, StructuralAccess::Owned);
@@ -711,6 +754,16 @@ mod descriptor_storage_tests {
                 },
             );
         }
+        assert_eq!(
+            program
+                .calling_abi_parameter(entry, stored_mutable)
+                .unwrap(),
+            CallingAbiParameter {
+                structural_type: stored_carrier,
+                callback_backing: Some(stored_carrier),
+                access: StructuralAccess::MutableBorrow,
+            },
+        );
     }
 
     #[test]

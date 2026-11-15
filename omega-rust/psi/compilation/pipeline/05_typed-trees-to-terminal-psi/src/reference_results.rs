@@ -611,9 +611,9 @@ fn publish_parents(
                 .ok_or_else(|| {
                     unavailable(machine.id, "successor payload parent lost its header")
                 })?;
-            if terminal_semantics::descriptor_results::is_descriptor(
+            if terminal_semantics::borrowed_view_payload_parameter(
+                parameter,
                 module.structural_types.iter(),
-                parameter.structural_type,
             ) {
                 let row = tables
                     .obligations
@@ -954,9 +954,9 @@ fn publish_payload_children(
         let Some(access) = reference_access(argument.access) else {
             continue;
         };
-        if !terminal_semantics::descriptor_results::is_descriptor(
+        if !terminal_semantics::borrowed_view_payload_parameter(
+            formal,
             module.structural_types.iter(),
-            formal.structural_type,
         ) {
             continue;
         }
