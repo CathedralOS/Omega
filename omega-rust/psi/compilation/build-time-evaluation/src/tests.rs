@@ -1929,6 +1929,72 @@ fn a_const_argument_written_as_a_call_becomes_the_literal_of_its_value() {
 }
 
 #[test]
+fn a_closed_array_extent_uses_its_checked_value_when_demanded() {
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+    let source = "machine extent() -> u64 { 4u64 }
+        data Packet { bytes: [u8; extent()]; }
+        machine reader(packet: &Packet) -> u64 { 0u64 }
+        machine unrelated() -> u64 { 0u64 }";
+    for (entry, expected_calls) in [("reader", 1), ("unrelated", 0)] {
+        let (program, accounting, result) = evaluate_const_arguments_of(source, entry);
+        result.unwrap();
+        assert_eq!(accounting.receipts().len(), expected_calls);
+        accounting.validate_charges().unwrap();
+        let packet = program.data_definition_by_name_str("Packet").unwrap();
+        let [DataMember::Field(bytes)] = program.data_members(packet) else {
+            panic!("the original array field");
+        };
+        let node = program
+            .type_reference_table
+            .type_reference(bytes.type_reference);
+        if expected_calls == 1 {
+            assert!(
+                matches!(
+                    node,
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Literal(4),
+                        ..
+                    }
+                ),
+                "{node:?}"
+            );
+            assert!(program.deferred_refusal(packet.symbol).is_none());
+        } else {
+            assert!(
+                matches!(
+                    node,
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Expression(_),
+                        ..
+                    }
+                ),
+                "{node:?}"
+            );
+            assert!(program.deferred_refusal(packet.symbol).is_some());
+        }
+    }
+}
+
+#[test]
+fn an_evaluated_array_extent_must_be_a_nonnegative_length() {
+    let source = "machine extent() -> i64 { 0i64 - 1i64 }
+        data Packet { bytes: [u8; extent()]; }
+        machine reader(packet: &Packet) -> u64 { 0u64 }";
+    let (_, accounting, result) = evaluate_const_arguments_of(source, "reader");
+    let errors = result.expect_err("the evaluated extent is negative");
+    assert_eq!(accounting.receipts().len(), 1);
+    assert!(
+        errors.iter().any(|error| {
+            error.message.contains("computed array extent")
+                && error.message.contains("not a closed nonnegative integer")
+        }),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn a_const_argument_no_demanded_declaration_holds_is_left_as_written() {
     use typed_trees::types::TypeReferenceNode;
     let text = const_argument_program("", "4u64", "outer()");
