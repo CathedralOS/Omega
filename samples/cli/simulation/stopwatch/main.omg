@@ -47,10 +47,10 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
     send(main, Command::Tick { n: 10 as +Saturating });
     send(main, Command::Split);
-    send(main, Command::Tick { n: 20 });
+    send(main, Command::Tick { n: 20 as +Saturating });
     send(main, Command::Lap);
-    send(main, Command::Tick { n: 15 });
-    send(main, Command::Tick { n: 25 });
+    send(main, Command::Tick { n: 15 as +Saturating });
+    send(main, Command::Tick { n: 25 as +Saturating });
     send(main, Command::Split);
 
     // total==70, split==40, lap==30, elapsed==40.

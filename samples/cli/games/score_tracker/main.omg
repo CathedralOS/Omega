@@ -38,12 +38,12 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("score_tracker: replays score/bonus/reset events for two players");
-    apply(main, Event::Score { player: 0 as +Saturating, points: 30 });
-    apply(main, Event::Score { player: 1, points: 20 });
-    apply(main, Event::Bonus { player: 0 });
-    apply(main, Event::Score { player: 1, points: 10 });
-    apply(main, Event::Reset { player: 1 });
-    apply(main, Event::Score { player: 1, points: 10 });
+    apply(main, Event::Score { player: 0 as +Saturating, points: 30 as +Saturating });
+    apply(main, Event::Score { player: 1 as +Saturating, points: 20 as +Saturating });
+    apply(main, Event::Bonus { player: 0 as +Saturating });
+    apply(main, Event::Score { player: 1 as +Saturating, points: 10 as +Saturating });
+    apply(main, Event::Reset { player: 1 as +Saturating });
+    apply(main, Event::Score { player: 1 as +Saturating, points: 10 as +Saturating });
 
     // player[0] = 60, player[1] = 10, total = 70
     main.tracker.total = main.scores[0] + main.scores[1];
