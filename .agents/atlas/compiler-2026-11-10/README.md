@@ -12,7 +12,7 @@ commit and goes stale as the code moves, so check a claim against the code befor
   one place, fixed lists of shapes, accepts when it does not know, silent drops, unused or unwired, stated
   limits, disagreements between records, and what the digest writer checked in the code.
 - **Go to a record for detail.** `units.tsv` lists which unit read which file and line range. The record
-  for unit 57 is `records/unit_057.md`. Thirteen units ran out of room; the ranges they left were read in a
+  for unit 7 is `records/unit_007.md`. Thirteen units ran out of room; the ranges they left were read in a
   second pass, listed in `second_pass_ranges.tsv`, with records named `records/unit_NNN_gap_MMM.md`.
 - **Open a cited line as it was.** Citations are `file:line` at `457adf4a11f`. Use
   `git show 457adf4a11f:<path>` when the file has changed since. In the records, `<checkout>` stands for the
@@ -27,14 +27,13 @@ commit and goes stale as the code moves, so check a claim against the code befor
 | `area_05` | Omega representations and foundation | 25 to 31 |
 | `area_06` | Terminal runtime and packages | 32 to 37 |
 | `area_07` | Psi build-time evaluation and stages 00 to 04 | 38 to 45 |
-| `area_08` | Psi stage 05: borrow ledger and the checks | 46 to 55 |
-| `area_09` | Psi stage 05: execution plans, flow, published facts, values | 56 to 65 |
-| `area_10` | Psi stages 06 to 08 | 66 to 72 |
 | `area_11` | Proof, proof admission, psi-compiler, checked trees | 73 to 78 |
 | `area_12` | Psi representations: syntax, resolved trees, Terminal Psi codec and semantics, typed trees | 79 to 87 |
-| `area_13` | Validation, first half | 88 to 96 |
-| `area_14` | Validation, second half, and terminal installation | 97 to 105 |
 | `area_15` | Psi foundation and the two interpreters | 106 to 113 |
+
+Digests 08, 09, 10, 13 and 14 (Psi stage 05, stages 06 to 08, and validation; units 46 to 72 and 88 to
+105) and their records were removed: 98 to 100% of the code they describe was deleted with the old
+checker on 2026-11-13. The boundary and review notes still cite them; read them at commit `8b547065679`.
 
 ## How far to trust it
 
