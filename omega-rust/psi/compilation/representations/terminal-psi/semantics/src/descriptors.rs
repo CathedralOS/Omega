@@ -11292,8 +11292,8 @@ pub mod descriptor_results {
                 );
                 assert!(replay.summary(caller, 0).is_none());
 
-                // Moving the constructed roster itself does not let it carry
-                // its own backing: its elements still hold the caller's views.
+                // Moving the roster carries its own storage, while each
+                // ordinal must retain the distinct caller view it contains.
                 let mut moved = sequence_capture_module();
                 moved.structural_types[1].copyable = false;
                 let body = &mut moved.machines[0];
@@ -11325,18 +11325,26 @@ pub mod descriptor_results {
                     &graph,
                     crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
                 );
-                let result = replay.summary(caller, 0).and_then(|summary| summary.result);
-                assert!(
-                    result
-                        .as_ref()
-                        .is_none_or(|slots| slots.iter().all(|slot| !slot.origins.iter().any(
-                            |origin| matches!(
-                                origin,
-                                crate::descriptor_replay::DescriptorStoredOrigin::Carried
-                            )
-                        ))),
-                    "a roster of borrowed elements is not its own backing"
-                );
+                let result = replay
+                    .summary(caller, 0)
+                    .and_then(|summary| summary.result)
+                    .unwrap();
+                assert_eq!(result.len(), 1);
+                assert!(matches!(
+                    result[0].origins.as_slice(),
+                    [crate::descriptor_replay::DescriptorStoredOrigin::Carried]
+                ));
+                let (element, elements) = result[0].elements.as_ref().unwrap();
+                assert_eq!(*element, bytes);
+                assert_eq!(elements.len(), 2);
+                for (ordinal, slots) in elements.iter().enumerate() {
+                    assert_eq!(slots.len(), 1);
+                    assert!(slots[0].path.is_empty());
+                    assert!(slots[0].elements.is_none());
+                    assert!(matches!(slots[0].origins.as_slice(),
+                        [crate::descriptor_replay::DescriptorStoredOrigin::Parameter { position, projection }]
+                        if *position == ordinal && *projection == Projection::new(&[])));
+                }
             }
 
             // Moving a borrowed sequence value retires its descriptor, not
@@ -12918,6 +12926,7 @@ pub mod descriptor_results {
                 results.push(DescriptorResultSlot {
                     path: leaf.path,
                     origins,
+                    elements: None,
                 });
             }
             Some(results)
@@ -15978,6 +15987,73 @@ pub mod descriptor_results {
     pub struct DescriptorResultSlot {
         pub path: Vec<DescriptorPathSegment>,
         pub origins: Vec<DescriptorStoredOrigin>,
+        /// An owned returned sequence keeps its constructor's ordered element
+        /// accounts. Its backing moves, while each element still owes the
+        /// loans named by its own slots. Keeping this beside the backing also
+        /// retains the extent when an element has no descriptor leaves; flat
+        /// prefixed leaves alone cannot authenticate those ordinals. Consumers
+        /// visit the same paths and declared element types, without treating a
+        /// nominal ElementView index as proof of backing.
+        pub elements: Option<(StructuralTypeId, Vec<Vec<DescriptorResultSlot>>)>,
+    }
+
+    impl DescriptorResultSlot {
+        pub(crate) fn merge(&mut self, other: Self) -> Option<()> {
+            if self.path != other.path {
+                return None;
+            }
+            if self.origins.is_empty() {
+                self.elements = other.elements;
+            } else {
+                match (&mut self.elements, other.elements) {
+                    (None, None) => {}
+                    (Some((element, rows)), Some((other_element, other_rows)))
+                        if *element == other_element && rows.len() == other_rows.len() =>
+                    {
+                        for (slots, other_slots) in rows.iter_mut().zip(other_rows) {
+                            if slots.len() != other_slots.len() {
+                                return None;
+                            }
+                            for (slot, other_slot) in slots.iter_mut().zip(other_slots) {
+                                slot.merge(other_slot)?;
+                            }
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+            self.origins.extend(other.origins);
+            Some(())
+        }
+
+        pub(crate) fn visit<'a, Error>(
+            &'a self,
+            containing_type: StructuralTypeId,
+            prefix: &mut Vec<DescriptorPathSegment>,
+            visit: &mut impl FnMut(
+                &[DescriptorPathSegment],
+                StructuralTypeId,
+                &'a Self,
+            ) -> Result<(), Error>,
+        ) -> Result<(), Error> {
+            let length = prefix.len();
+            prefix.extend_from_slice(&self.path);
+            let result = (|| {
+                visit(prefix, containing_type, self)?;
+                if let Some((element, elements)) = &self.elements {
+                    for (ordinal, slots) in elements.iter().enumerate() {
+                        prefix.push(DescriptorPathSegment::FixedIndex(ordinal as u64));
+                        for slot in slots {
+                            slot.visit(*element, prefix, visit)?;
+                        }
+                        prefix.pop();
+                    }
+                }
+                Ok(())
+            })();
+            prefix.truncate(length);
+            result
+        }
     }
 
     pub struct DescriptorPlace {

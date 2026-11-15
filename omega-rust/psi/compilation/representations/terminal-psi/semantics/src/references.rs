@@ -542,12 +542,13 @@ pub(crate) mod reference_completion {
             return Err("returned provider view differs from its input contract");
         }
         for slot in slots {
-            if borrowed_descriptor_shape(module, result.structural_type, &slot.path).is_none() {
-                continue;
+            slot.visit(result.structural_type, &mut Vec::new(), &mut |path, containing_type, slot| {
+            if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+                return Ok(());
             }
             let descriptor = crate::descriptor_lifetimes::DescriptorLocation {
                 root: result.place,
-                path: slot.path.clone(),
+                path: path.to_vec(),
             };
             let mut pending = Vec::new();
             for origin in &slot.origins {
@@ -561,7 +562,7 @@ pub(crate) mod reference_completion {
                 }
             }
             if pending.is_empty() {
-                continue;
+                return Ok(());
             }
             let lifetime =
                 crate::descriptor_lifetimes::descriptor_location_lifetime(flow, at, &descriptor);
@@ -648,6 +649,8 @@ pub(crate) mod reference_completion {
                     },
                 )?;
             }
+            Ok::<(), &'static str>(())
+            })?;
         }
         Ok(())
     }
@@ -676,8 +679,7 @@ pub(crate) mod reference_completion {
             ReferenceCallContract, ReferenceCallOrigin, bind_reference_call_results,
         };
         use crate::descriptor_lifetimes::{
-            DescriptorLocation, descriptor_location, descriptor_location_lifetime,
-            descriptor_location_type,
+            DescriptorLocation, descriptor_location, descriptor_location_lifetime, descriptor_path,
         };
 
         let Some(result) = operation.result.as_structural().filter(|result| {
@@ -962,59 +964,63 @@ pub(crate) mod reference_completion {
             )
         };
         for slot in &slots {
-            let leaf = descriptor_location_type(
-                &module.structural_types,
+            slot.visit(
                 result.structural_type,
-                &slot.path,
-            )
-            .and_then(|leaf| module.structural_type(leaf))
-            .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
-            if !is_view(&leaf.shape) {
-                continue;
-            }
-            let descriptor = DescriptorLocation {
-                root: result.place,
-                path: slot.path.clone(),
-            };
-            for origin in &slot.origins {
-                let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
-                    position,
-                    projection,
-                } = origin
-                else {
-                    continue;
-                };
-                // A formal that is itself a view hands back the descriptor
-                // it was given, or a window of it: that view's backing is
-                // the original one, not the argument's storage.
-                let formal = parameters
-                    .get(*position)
-                    .and_then(|formal| module.structural_type(formal.structural_type))
-                    .ok_or_else(|| refuse("returned view input has no typed formal"))?;
-                if is_view(&formal.shape)
-                    || projection
-                        .path
-                        .contains(&terminal_psi::StructuralPathSegment::Referent)
-                {
-                    continue;
-                }
-                let argument = call
-                    .structural_arguments
-                    .get(*position)
-                    .ok_or_else(|| refuse("returned view input has no actual argument"))?;
-                if argument.access == StructuralAccess::Owned {
-                    // An owned input moves into the callee, so a view it
-                    // returns is a descriptor the input carried, as when a
-                    // view passed by value comes back. The descriptor flow
-                    // transports that view's own loan; the call lends none.
-                    continue;
-                }
-                let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
-                if lifetime.live.contains(&at) {
-                    return Err(refuse("returned view loan crosses its own call formation"));
-                }
-                retain_call_lifetime(&mut retained, *position, lifetime).map_err(refuse)?;
-            }
+                &mut Vec::new(),
+                &mut |path, containing_type, slot| {
+                    descriptor_path(&module.structural_types, containing_type, &slot.path)
+                        .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
+                    if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+                        return Ok(());
+                    }
+                    let descriptor = DescriptorLocation {
+                        root: result.place,
+                        path: path.to_vec(),
+                    };
+                    for origin in &slot.origins {
+                        let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
+                            position,
+                            projection,
+                        } = origin
+                        else {
+                            continue;
+                        };
+                        // A formal that is itself a view hands back the descriptor
+                        // it was given, or a window of it: that view's backing is
+                        // the original one, not the argument's storage.
+                        let formal = parameters
+                            .get(*position)
+                            .and_then(|formal| module.structural_type(formal.structural_type))
+                            .ok_or_else(|| refuse("returned view input has no typed formal"))?;
+                        if is_view(&formal.shape)
+                            || projection
+                                .path
+                                .contains(&terminal_psi::StructuralPathSegment::Referent)
+                        {
+                            continue;
+                        }
+                        let argument = call
+                            .structural_arguments
+                            .get(*position)
+                            .ok_or_else(|| refuse("returned view input has no actual argument"))?;
+                        if argument.access == StructuralAccess::Owned {
+                            // An owned input moves into the callee, so a view it
+                            // returns is a descriptor the input carried, as when a
+                            // view passed by value comes back. The descriptor flow
+                            // transports that view's own loan; the call lends none.
+                            continue;
+                        }
+                        let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+                        if lifetime.live.contains(&at) {
+                            return Err(refuse(
+                                "returned view loan crosses its own call formation",
+                            ));
+                        }
+                        retain_call_lifetime(&mut retained, *position, lifetime).map_err(refuse)?;
+                    }
+                    Ok::<(), crate::descriptor_results::DescriptorGraphError>(())
+                },
+            )?;
         }
         retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)
             .map_err(refuse)?;
