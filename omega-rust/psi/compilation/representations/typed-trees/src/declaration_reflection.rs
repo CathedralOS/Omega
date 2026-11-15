@@ -264,10 +264,8 @@ pub mod reflection {
                 match callable_description_identity(typed, selected, author) {
                     Ok(actual) => {
                         for index in first..last {
-                            if &actual == requested[index] {
-                                if matched[index].is_none() {
-                                    matched[index] = Some((selected.clone(), author));
-                                }
+                            if &actual == requested[index] && matched[index].is_none() {
+                                matched[index] = Some((selected.clone(), author));
                             }
                         }
                     }
