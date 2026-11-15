@@ -89,7 +89,7 @@ distinct; the implementation owner resolves findings and completes landing.
 When changing code organization, follow the touched route from its public
 entrypoint to the operation and result handling before reporting completion, applying
 [Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture).
-Use [main.rs](../../../omega-rust/omega/application/cli/src/main.rs) and
+Use [main.rs](../../../omega-rust/omega/application/src/main.rs) and
 [target_batch.rs](../../../omega-rust/omega/compilation/compiler/src/target_batch.rs) as orchestration examples, and repeat
 that ownership test at subordinate multi-step flows. Choose the entrance from
 the file tree; check that names and calls reveal the owner and next step. Fix

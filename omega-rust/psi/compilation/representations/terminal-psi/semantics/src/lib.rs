@@ -34,8 +34,10 @@ pub mod control_graph;
 mod descriptor_replay;
 pub mod descriptors;
 pub mod inhabitation;
+pub mod normal_completion;
 pub mod plain_affine;
 pub mod references;
+pub mod scalar_qualifications;
 pub mod scalars;
 pub mod storage;
 pub mod structural;
@@ -537,7 +539,8 @@ pub use bytes::byte_sequence_predicates::{
     byte_predicate_requirement, byte_qualification_predicates_in,
     byte_sequence_concatenation_predicates, byte_sequence_source_predicates, byte_view_call_result,
     indexed_byte_store_goal, machine_scalar_constant_origin, pure_byte_qualifications,
-    scalar_array_qualifications_hold, scalar_constant_value, shared_byte_field_copy_predicates,
+    scalar_array_qualifications_hold, scalar_constant_value, scalar_operation_literal,
+    shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{
@@ -656,6 +659,7 @@ pub use structural::zeroed_structural::{
     zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
     zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
+    zeroed_structural_types_and_fields_satisfy,
 };
 
 pub use descriptors::descriptor_lifetimes;

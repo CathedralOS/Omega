@@ -736,9 +736,6 @@ mod declaration_values {
         value: syntax_trees::expression::ExpressionHandle,
     ) -> Result<(), Diagnostic> {
         use syntax_trees::expression::ExpressionNode;
-        if crate::constant::direct_selector_literal(syntax_trees, value) {
-            return Ok(());
-        }
         match syntax_trees.expressions.expression(value) {
             ExpressionNode::Boolean(_)
             | ExpressionNode::Integer(_)
@@ -1014,7 +1011,7 @@ pub(crate) mod initializer_dependencies {
                     TypeReference::ConstExpression(expression) => {
                         self.queue_expression(expression.expression)
                     }
-                    TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}
+                    TypeReference::Unit => {}
                 }
                 Ok(())
             }
@@ -2573,8 +2570,6 @@ mod initializer_leaves {
                 return collect(syntax, selection, expression, origin, substitution, leaves);
             }
             match syntax.type_references.type_reference(type_reference) {
-            TypeReferenceNode::DynamicTrait { .. }
-                if crate::constant::direct_selector_literal(syntax, expression) => Ok(()),
             TypeReferenceNode::FixedArray { element_type, .. } => match syntax.expressions.expression(expression) {
                 ExpressionNode::ArrayLiteral(elements) => {
                     let element_type =
@@ -5378,36 +5373,8 @@ use crate::symbols::assign_constant_expression_symbols;
 use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 use initializer_dependencies::bind_named_implementation_const_calls;
-use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::ConstDefinition;
-use syntax_trees::types::TypeReferenceNode;
-
-/*
-    A direct implementation selection is a symbolic literal, not an evaluated
-    table address. Ordinary resolution and dynamic selection checking retain
-    and authenticate its implementation and complete target application, even
-    when the declaration has no use. Public canonical identity remains separate.
-*/
-pub(crate) fn direct_selector_literal(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-    let ExpressionNode::Cast(cast) = syntax.expressions.expression(expression) else {
-        return false;
-    };
-    !cast.form.is_recast()
-        && cast.domain == ArithmeticDomain::Exact
-        && cast.semantic_domain.is_empty()
-        && cast.semantic_domain_arguments.is_empty()
-        && matches!(
-            syntax.type_references.type_reference(cast.target_type),
-            TypeReferenceNode::DynamicTrait { .. }
-        )
-        && matches!(
-            syntax.expressions.expression(cast.value),
-            ExpressionNode::Name { .. }
-        )
-}
 
 /*
     Find unfinished values without claiming a carrier or constructor selection.
@@ -5423,9 +5390,6 @@ pub fn requires_const_initializer_evaluation(
     }
     let mut pending = vec![definition.value];
     while let Some(expression) = pending.pop() {
-        if direct_selector_literal(syntax, expression) {
-            continue;
-        }
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(_)
             | ExpressionNode::Boolean(_)

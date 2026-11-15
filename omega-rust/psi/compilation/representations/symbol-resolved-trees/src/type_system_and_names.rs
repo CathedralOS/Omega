@@ -40,13 +40,6 @@ pub mod type_system {
                             format!("{}<{arguments}>", generic.base_name)
                         }
                         TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
-                        TypeReference::DynamicTrait {
-                            name, arguments, ..
-                        } => match arguments.count() {
-                            0 => format!("dyn {name}"),
-                            1 => format!("dyn {name}<1 argument>"),
-                            count => format!("dyn {name}<{count} arguments>"),
-                        },
                         TypeReference::Named { name, .. } => name.to_string(),
                         TypeReference::Unit => "()".to_owned(),
                         TypeReference::AliasUse { expansion, .. } => {
@@ -170,12 +163,6 @@ pub mod type_system {
             Slice(SliceTypeReference),
             Generic(GenericTypeReference),
             ConstExpression(ConstExpressionTypeReference),
-            DynamicTrait {
-                symbol: SymbolHandle,
-                name: DiagnosticName,
-                arguments: HandleSpan<TypeReference>,
-                supplied_operand_owner: OperandLifetimeOwnerHandle,
-            },
             Named {
                 symbol: SymbolHandle,
                 name: DiagnosticName,
@@ -632,25 +619,6 @@ pub mod type_system {
                             source_expressions.copy_into(expressions, expression.expression);
                         self.insert(TypeReferenceNode::ConstExpression(expression))
                     }
-                    TypeReference::DynamicTrait {
-                        symbol,
-                        name,
-                        arguments,
-                        ..
-                    } => {
-                        let arguments = self.insert_type_reference_handle_span_from_trees(
-                            source_generic_arguments.span_or_empty(*arguments),
-                            expressions,
-                            source_generic_arguments,
-                            source_constraints,
-                            source_expressions,
-                        );
-                        self.insert(TypeReferenceNode::DynamicTrait {
-                            symbol: *symbol,
-                            name: name.clone(),
-                            arguments,
-                        })
-                    }
                     TypeReference::Named { symbol, name, .. } => {
                         self.insert(TypeReferenceNode::Named {
                             symbol: *symbol,
@@ -712,10 +680,6 @@ pub mod type_system {
                         supplied_operand_owner,
                         ..
                     }
-                    | Self::DynamicTrait {
-                        supplied_operand_owner,
-                        ..
-                    }
                     | Self::AliasUse {
                         supplied_operand_owner,
                         ..
@@ -741,10 +705,6 @@ pub mod type_system {
                     Self::Slice(reference) => reference.supplied_operand_owner = owner,
                     Self::Generic(reference) => reference.supplied_operand_owner = owner,
                     Self::Named {
-                        supplied_operand_owner,
-                        ..
-                    }
-                    | Self::DynamicTrait {
                         supplied_operand_owner,
                         ..
                     }
@@ -789,11 +749,6 @@ pub mod type_system {
                 arguments: HandleSpan<TypeReferenceHandle>,
             },
             ConstExpression(crate::expression::ExpressionHandle),
-            DynamicTrait {
-                symbol: SymbolHandle,
-                name: DiagnosticName,
-                arguments: HandleSpan<TypeReferenceHandle>,
-            },
             Named {
                 symbol: SymbolHandle,
                 name: DiagnosticName,
@@ -938,7 +893,6 @@ pub mod type_system {
                     | TypeReference::Slice(_)
                     | TypeReference::Generic(_)
                     | TypeReference::ConstExpression(_)
-                    | TypeReference::DynamicTrait { .. }
                     | TypeReference::Unit => None,
                 }
             }

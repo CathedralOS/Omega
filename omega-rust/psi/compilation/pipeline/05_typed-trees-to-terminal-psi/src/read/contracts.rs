@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::closed_numeric;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 use super::authority::Access;
 use super::places::Member;
@@ -242,6 +242,23 @@ impl Program<'_> {
             }
             ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
                 return self.mathematical_clause(id, scope, call);
+            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                // A callable predicate is Boolean, including a named input
+                // and its negation. Keep its actual contract input identity;
+                // a caller substitutes that identity, never its spelling.
+                return Ok(Proposition::Implication {
+                    premise: Box::new(self.clause(id, scope, unary.operand)?),
+                    conclusion: Box::new(Proposition::Falsehood),
+                });
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                let (term, value_type) =
+                    self.term(id, scope, expression, Some(ScalarType::Boolean))?;
+                if self.clause_operand_type(id, value_type)? != ScalarType::Boolean {
+                    return unserved("predicate whose value is not Boolean");
+                }
+                return canonical::equal(term, ScalarTerm::Boolean(true), id);
             }
             _ => {}
         }

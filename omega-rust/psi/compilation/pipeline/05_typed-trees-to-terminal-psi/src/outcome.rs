@@ -48,7 +48,9 @@ use crate::body::{
     Axis, Body, Ceiling, CrashCeiling, Expression, ExpressionKind, Signatures, Statement, Target,
 };
 use crate::canonical;
+use crate::components::{Components, index};
 use crate::{Unserved, refuse};
+use terminal_check_tables::Refusal;
 
 /// Call-visible outcomes in this compilation's fixed source unit.
 #[derive(Debug, Clone, PartialEq)]
@@ -73,12 +75,24 @@ pub struct Outcome {
 ///
 /// Machines may call each other in a cycle, so the table is the least fixed
 /// point of one rule: every machine starts as never completing and reaching
-/// no crash, each body is walked against the table as it stands, and the
-/// walk is repeated until no outcome changes. Both terms only grow (a
+/// no crash, each body is walked against the table as it stands, and a body
+/// is walked again only when a callee's row changed. Both terms only grow (a
 /// machine found to complete stays so, a cause found stays), so the walk
 /// ends. A machine whose only paths call it again never completes normally,
 /// which is what `wiki/spec/terminal-psi/control_flow.md` says of it: "An
 /// infinite path has no normal return".
+///
+/// The walk follows `components`, the call components of these bodies, with
+/// callees' components first, so a body outside a call cycle is walked once,
+/// against its callees' final rows, whatever the declaration order. Only a
+/// cycle iterates, as effects.md says: "Reach derivation computes
+/// conservative fixed points over recursive checked-call components." The
+/// component graph holds every call a body names, so it covers every row a
+/// walk reads, including a call reached only once an earlier call is found
+/// to complete. Its least fixed point is the one whole-program rounds reach.
+///
+/// When bodies refuse, the refusal of the lowest `MachineId` is returned, so
+/// the diagnostic does not depend on the order in which rows settle.
 ///
 /// A machine in `requirements` is a requirement's contract and has no body:
 /// its member may return, and it may crash only as its authored ceiling says.
@@ -91,87 +105,40 @@ pub(crate) fn outcomes(
     requirements: &[MachineId],
     local_bodies: Option<&[MachineId]>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    components: &Components,
 ) -> Checked<IdTable<MachineId, Outcome>> {
-    // A closed-body input has no source-unit boundary. Source compilations
-    // supply their exact local-body roster, independently of whether result
-    // facts can be published as additional clauses of those bodies.
-    let mut local = bodies.map(|_, _| local_bodies.is_none());
-    for &machine in local_bodies.unwrap_or_default() {
-        *local.get_mut(machine).ok_or_else(|| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Machine("local body summary outside the module"),
-            )
-        })? = true;
-    }
-    let mut walk = Walk {
-        signatures,
-        requirements,
-        inhabitation,
-        reached: bodies.map(|_, _| Reached::default()),
-        causes: BTreeSet::new(),
-        contributed: Default::default(),
-        operational: [false; 2],
-    };
-    loop {
-        let mut changed = false;
-        for (machine, body) in bodies.iter() {
-            walk.causes.clear();
-            walk.contributed = Default::default();
-            walk.operational = [false; 2];
-            let declared_empty = crate::inhabitation::excludes_result(
-                inhabitation,
-                signatures.get(machine.into(), machine)?.result,
-            );
-            let completes_normally = if requirements.contains(&machine) {
-                !declared_empty
-            } else {
-                // Always walk the body for its other effects. Only its
-                // normal-completion inference is private to the unit.
-                let completes = walk.statements(machine, &body.statements)?;
-                !declared_empty && (completes || local.get(machine) != Some(&true))
-            };
-            let found = Reached {
-                operational: walk.operational,
-                completes_normally,
-                causes: std::mem::take(&mut walk.causes),
-                contributed: std::mem::take(&mut walk.contributed).map(|mut row| {
-                    row.services.sort_unstable();
-                    row.services.dedup();
-                    row
-                }),
-            };
-            let slot = walk.reached.get_mut(machine).ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Call("callee outside the module"),
-                )
-            })?;
-            if *slot != found {
-                *slot = found;
-                changed = true;
+    let mut walk = Walk::new(bodies, signatures, requirements, local_bodies, inhabitation)?;
+    walk.settle(bodies, components)?;
+    walk.table()
+}
+
+/// `outcomes`, with the number of body walks it took; `by_rounds` instead
+/// walks every body in identity order each round until no row changes, the
+/// whole-program fixed point the callee-first walk must agree with.
+#[cfg(test)]
+pub(crate) fn counted_outcomes(
+    bodies: &IdTable<MachineId, Body>,
+    signatures: Signatures<'_>,
+    requirements: &[MachineId],
+    local_bodies: Option<&[MachineId]>,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    by_rounds: bool,
+) -> Checked<(IdTable<MachineId, Outcome>, usize)> {
+    let mut walk = Walk::new(bodies, signatures, requirements, local_bodies, inhabitation)?;
+    if by_rounds {
+        loop {
+            let mut changed = false;
+            for (machine, body) in bodies.iter() {
+                changed |= walk.visit(machine, body)?;
+            }
+            if !changed {
+                break;
             }
         }
-        if !changed {
-            break;
-        }
+    } else {
+        walk.settle(bodies, &crate::components::discover(bodies)?)?;
     }
-    let mut table = IdTable::default();
-    for (machine, reached) in walk.reached.iter() {
-        table.push(Outcome {
-            operational: signatures
-                .get(machine.into(), machine)?
-                .operational
-                .published(reached.operational),
-            completes_normally: reached.completes_normally,
-            crash_routes: walk.published(machine, &reached.causes)?,
-            service_reach: walk.published_row(machine, Axis::Reach, reached, true)?,
-            synchronous_entries: walk.published_row(machine, Axis::Entries, reached, true)?,
-        });
-    }
-    Ok(table)
+    Ok((walk.table()?, walk.visits))
 }
 
 /// What structure reaches in one body, against the table as it stands.
@@ -200,6 +167,8 @@ struct Contributed {
 
 struct Walk<'b> {
     signatures: Signatures<'b>,
+    /// Whether a machine's normal-completion inference is its own body's.
+    local: IdTable<MachineId, bool>,
     inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
     /// Machines that are a requirement's contract and have no body.
     requirements: &'b [MachineId],
@@ -210,9 +179,169 @@ struct Walk<'b> {
     /// the order met; sorted when the body's walk ends.
     contributed: [Contributed; 2],
     operational: [bool; 2],
+    #[cfg(test)]
+    visits: usize,
 }
 
-impl Walk<'_> {
+impl<'b> Walk<'b> {
+    fn new(
+        bodies: &IdTable<MachineId, Body>,
+        signatures: Signatures<'b>,
+        requirements: &'b [MachineId],
+        local_bodies: Option<&[MachineId]>,
+        inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
+    ) -> Checked<Self> {
+        // A closed-body input has no source-unit boundary. Source compilations
+        // supply their exact local-body roster, independently of whether result
+        // facts can be published as additional clauses of those bodies.
+        let mut local = bodies.map(|_, _| local_bodies.is_none());
+        for &machine in local_bodies.unwrap_or_default() {
+            *local.get_mut(machine).ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Machine("local body summary outside the module"),
+                )
+            })? = true;
+        }
+        Ok(Walk {
+            signatures,
+            local,
+            requirements,
+            inhabitation,
+            reached: bodies.map(|_, _| Reached::default()),
+            causes: BTreeSet::new(),
+            contributed: Default::default(),
+            operational: [false; 2],
+            #[cfg(test)]
+            visits: 0,
+        })
+    }
+
+    /// Settles every row, one call component at a time with callees first.
+    /// Inside a cycle a member is walked again only when a callee in the same
+    /// component changed its row since the member was last walked.
+    fn settle(
+        &mut self,
+        bodies: &IdTable<MachineId, Body>,
+        components: &Components,
+    ) -> Checked<()> {
+        let mut stale = vec![false; bodies.len()];
+        let mut refused = vec![false; bodies.len()];
+        let mut refusal: Option<(MachineId, Refusal)> = None;
+        for (members, cyclic) in components.callee_first() {
+            let mut pending = members.len();
+            for &member in members {
+                stale[index(member)] = true;
+            }
+            while pending > 0 {
+                for &machine in members {
+                    let this = index(machine);
+                    if !std::mem::replace(&mut stale[this], false) {
+                        continue;
+                    }
+                    pending -= 1;
+                    let body =
+                        terminal_check_tables::row(bodies, machine, machine, Construct::Machine)?;
+                    match self.visit(machine, body) {
+                        Ok(changed) => {
+                            if !(changed && cyclic) {
+                                continue;
+                            }
+                            for &caller in components.callers(this) {
+                                if components.same_component(caller, this)
+                                    && !refused[caller]
+                                    && !std::mem::replace(&mut stale[caller], true)
+                                {
+                                    pending += 1;
+                                }
+                            }
+                        }
+                        // A refused body keeps the row it had; the program is
+                        // refused, and the rest is walked only to choose the
+                        // lowest refusing machine.
+                        Err(error) => {
+                            refused[this] = true;
+                            if refusal.as_ref().is_none_or(|(first, _)| machine < *first) {
+                                refusal = Some((machine, error));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        match refusal {
+            Some((_, error)) => Err(error),
+            None => Ok(()),
+        }
+    }
+
+    /// Walks `machine`'s body against the table as it stands; true when its
+    /// row changed.
+    fn visit(&mut self, machine: MachineId, body: &Body) -> Checked<bool> {
+        #[cfg(test)]
+        {
+            self.visits += 1;
+        }
+        self.causes.clear();
+        self.contributed = Default::default();
+        self.operational = [false; 2];
+        let declared_empty = crate::inhabitation::excludes_result(
+            self.inhabitation,
+            self.signatures.get(machine.into(), machine)?.result,
+        );
+        let completes_normally = if self.requirements.contains(&machine) {
+            !declared_empty
+        } else {
+            // Always walk the body for its other effects. Only its
+            // normal-completion inference is private to the unit.
+            let completes = self.statements(machine, &body.statements)?;
+            !declared_empty && (completes || self.local.get(machine) != Some(&true))
+        };
+        let found = Reached {
+            operational: self.operational,
+            completes_normally,
+            causes: std::mem::take(&mut self.causes),
+            contributed: std::mem::take(&mut self.contributed).map(|mut row| {
+                row.services.sort_unstable();
+                row.services.dedup();
+                row
+            }),
+        };
+        let slot = self.reached.get_mut(machine).ok_or_else(|| {
+            refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Call("callee outside the module"),
+            )
+        })?;
+        Ok(if *slot != found {
+            *slot = found;
+            true
+        } else {
+            false
+        })
+    }
+
+    /// The published table, once every row is settled.
+    fn table(&self) -> Checked<IdTable<MachineId, Outcome>> {
+        let mut table = IdTable::default();
+        for (machine, reached) in self.reached.iter() {
+            table.push(Outcome {
+                operational: self
+                    .signatures
+                    .get(machine.into(), machine)?
+                    .operational
+                    .published(reached.operational),
+                completes_normally: reached.completes_normally,
+                crash_routes: self.published(machine, &reached.causes)?,
+                service_reach: self.published_row(machine, Axis::Reach, reached, true)?,
+                synchronous_entries: self.published_row(machine, Axis::Entries, reached, true)?,
+            });
+        }
+        Ok(table)
+    }
+
     /// The routes `machine` publishes, given the causes its body reaches.
     fn published(
         &self,
@@ -527,6 +656,9 @@ impl Walk<'_> {
                         .invocation((*callee).into(), *required_contract, machine)?;
                 let completes =
                     !crate::inhabitation::excludes_result(self.inhabitation, signature.result)
+                        && !terminal_semantics::inhabitation::predicates_are_false(
+                            &signature.ensures,
+                        )
                         && (required_contract.is_some() || reached.completes_normally);
                 let published = signature.operational.published(reached.operational);
                 for (contributes, published) in self.operational.iter_mut().zip(published) {

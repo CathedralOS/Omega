@@ -1,6 +1,7 @@
 // Complete-policy decision capture without candidate-only package indices.
 // Removed packages, root roles, and replacements refer to comparison subjects; `capture_policy` enforces the representation byte ceiling at capture as well as persistence.
 
+#[path = "policy_text.rs"]
 mod text;
 pub(super) use text::{HEADER, encode, recover};
 

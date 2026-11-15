@@ -5,7 +5,7 @@
 use super::Error;
 use super::framing::Reader;
 use crate::declarations::{AliasName, PackageName};
-use package_source::SourceRelativePath;
+use source_acquisition::SourceRelativePath;
 
 impl Reader<'_> {
     pub(super) fn package_name(&mut self, maximum: usize) -> Result<PackageName, Error> {

@@ -21,6 +21,7 @@ use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
 use symbols::BuiltinFunction;
+#[path = "expressions_operator_policy.rs"]
 mod operator_policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

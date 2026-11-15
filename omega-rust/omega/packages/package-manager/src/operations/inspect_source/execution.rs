@@ -2,8 +2,10 @@
 
 use super::report::PackageSourceInspection;
 use super::request::{PackageSourceInspectionError, PackageSourceRequest, SourceAdapter};
-use package_source::git::resolution::resolve_git_source_in_lane;
-use package_source::{LocalSourceLimits, SourceResolveError, SourceResolver, resolve_local_source};
+use source_acquisition::git::resolution::resolve_git_source_in_lane;
+use source_acquisition::{
+    LocalSourceLimits, SourceResolveError, SourceResolver, resolve_local_source,
+};
 
 fn inspect_package_source_with_resolver(
     request: PackageSourceRequest,

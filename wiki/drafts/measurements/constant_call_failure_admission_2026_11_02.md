@@ -112,7 +112,7 @@ redundant whole-program caller check despite completed analysis showing no crash
 routes. That analysis is reused only when there are no entry requirements. Every
 recorded entry requirement is checked at the actual call.
 
-Earlier R20 build steps included `package-source` so Cargo enabled the same
+Earlier R20 build steps included `source-acquisition` so Cargo enabled the same
 dependency features as the CLI. The final CLI build reused the four compiler
 crates built in those preceding steps. The changed crate took 17.25 seconds,
 the final CLI command took 73.61 seconds, and the corpus runner took 80.87 seconds. Source changes differ from

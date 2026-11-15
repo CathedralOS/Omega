@@ -30,16 +30,27 @@ reachable closures and cycle checks; `build_handoffs.rs`, `provider_selections.r
 Build outputs; and `errors.rs` defines `PackageCompilationInputError`.
 */
 
+#[path = "bindings.rs"]
 mod bindings;
+#[path = "build_handoffs.rs"]
 mod build_handoffs;
+#[path = "construction.rs"]
 mod construction;
+#[path = "dependency_graph.rs"]
 mod dependency_graph;
+#[path = "errors.rs"]
 mod errors;
+#[path = "native_bindings.rs"]
 mod native_bindings;
+#[path = "native_evaluation.rs"]
 mod native_evaluation;
+#[path = "native_output_codec.rs"]
 pub mod native_output_codec;
+#[path = "provider_defaults.rs"]
 mod provider_defaults;
+#[path = "provider_selection_codec.rs"]
 pub mod provider_selection_codec;
+#[path = "provider_selections.rs"]
 mod provider_selections;
 pub use native_bindings::{
     NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,

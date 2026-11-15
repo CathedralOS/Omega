@@ -10,7 +10,7 @@ use super::{
 };
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::{PackageCheckedContext, PackagePolicyOccurrence};
-use package_evidence::record::PACKAGE_POLICY_ROW_VERSION;
+use review_evidence::record::PACKAGE_POLICY_ROW_VERSION;
 use target::TargetProfile;
 
 impl PackageLock {

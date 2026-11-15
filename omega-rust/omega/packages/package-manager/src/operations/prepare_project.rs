@@ -32,9 +32,9 @@ use crate::resolution::graph::{
 };
 use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
 use package_compilation::PackageCompilationInputError;
-use package_source::PrimaryGitChoices;
-use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{
+use source_acquisition::PrimaryGitChoices;
+use source_acquisition::git::resolution::GitExactRevisionAcquisition;
+use source_acquisition::{
     ExternalSourceContext, LocalSourceLimits, SourceResolveError, SourceResolver,
 };
 use std::fmt;
@@ -42,6 +42,7 @@ use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
 #[cfg(test)]
+#[path = "prepare_project_tests.rs"]
 mod tests;
 
 pub const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
@@ -89,7 +90,7 @@ impl PreparedLocalProject {
             .find_map(|package| {
                 let key = package.source().key();
                 match key.source_lineage() {
-                    package_source::SourceLineage::ExternalLocal(local)
+                    source_acquisition::SourceLineage::ExternalLocal(local)
                         if local.canonical_absolute_path() == canonical_root =>
                     {
                         Some(key.identity())
@@ -314,12 +315,12 @@ impl LocalProjectPreparation {
     }
 
     pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PrepareLocalProjectError> {
-        self.acquire_selected_root(&package_source::SourceCaptureRequest::entire_tree())
+        self.acquire_selected_root(&source_acquisition::SourceCaptureRequest::entire_tree())
     }
 
     pub fn acquire_selected_root(
         &self,
-        selected: &package_source::SourceCaptureRequest,
+        selected: &source_acquisition::SourceCaptureRequest,
     ) -> Result<AcquiredBuildSource, PrepareLocalProjectError> {
         let acquired = AcquiredBuildSource::capture_selected_local(
             &self.canonical_root,

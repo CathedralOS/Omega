@@ -6,7 +6,7 @@ use super::framing::{Reader, Writer};
 use super::{Error, Limits};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedSourceIdentity;
-use package_source::{
+use source_acquisition::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
     WorkspaceMemberLineage,

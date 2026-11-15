@@ -8,6 +8,7 @@
 // against `package_controlled_roots` so a symlink in a host directory cannot
 // redirect execution into a package-controlled tree.
 
+#[path = "path_custody.rs"]
 mod path_custody;
 
 use crate::ResolverPreparedExecution;
@@ -96,4 +97,5 @@ fn resolver_process_limits() -> BoundedProcessLimits {
 }
 
 #[cfg(test)]
+#[path = "tests/mod.rs"]
 mod tests;

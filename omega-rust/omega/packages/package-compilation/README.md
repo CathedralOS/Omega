@@ -95,7 +95,7 @@ encoding live in the shared [source foundation](../../../psi/foundation/source/s
 so early Psi jobs and package review use the same protocol without a dependency
 from Psi to package management. This is distinct from the complete root visible
 to build evaluation.
-[BuildSourceCustody](src/source_consumption/checked_sources.rs) admits the current
+[BuildSourceCustody](src/source/source_consumption_checked_sources.rs) admits the current
 activation's generated extension: package context, exact root and source coordinates,
 checked source counts, and retained generated-output custody. Empty output needs no
 package context; rejection leaves prior custody unchanged. The compiler then schedules
@@ -123,7 +123,7 @@ the files and manifest succeed; compiler reports cannot assert a directory on
 the output owner's behalf. Scratch files and generated source are not products.
 See [observation custody](observation_custody.md) for the retained contract.
 
-[Native Build output](src/package_compilation/native_bindings.rs) extends the
+[Native Build output](src/native_bindings.rs) extends the
 existing generated-source bundle's package, purpose, target, execution profile,
 source-consumption and dependency-closure custody. It carries checked source
 formations and completed native intent, including an empty roster. Product

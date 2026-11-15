@@ -23,9 +23,9 @@ fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
 
 fn accepted(text: &str) -> Box<crate::verdict::AcceptedClosure> {
     let mut verdicts = program(text);
-    let first = verdicts.remove(0).expect("source formation");
-    let RouteVerdict::Accepted(accepted) = first else {
-        panic!("the declared empty result must be judged: {first:?}; remaining: {verdicts:?}");
+    let accepted = match verdicts.remove(0) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the source program must be judged: {other:?}"),
     };
     assert!(
         verdicts
@@ -161,14 +161,143 @@ fn an_empty_input_can_be_syntactically_returned_without_creating_a_normal_value(
          public machine identity(value: Empty) -> Empty crashes none { value } \
          machine main(value: Empty) -> u32 crashes none { identity(value) }",
     );
-    let callee = check_no_normal(&accepted);
+    let module = &accepted.elaboration.module;
+    assert_eq!(
+        module.machines.len(),
+        2,
+        "the original source needs no helper"
+    );
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    let callee = module
+        .machines
+        .iter()
+        .find(|machine| machine.result.structural().is_some())
+        .expect("the actual identity body remains present");
+    assert_eq!(
+        query.status(callee.result.structural().unwrap().structural_type),
+        Status::ProvedEmpty
+    );
+    assert!(callee.blocks.iter().any(|block| matches!(
+        block.terminator,
+        terminal_psi::Terminator::ReturnStructural { .. }
+    )));
     assert!(
-        terminal_semantics::control_graph::normal_completion_possible(
-            &accepted.elaboration.module,
-            callee,
-        )
-        .unwrap(),
+        terminal_semantics::control_graph::normal_completion_possible(module, callee.id).unwrap(),
         "the declared-type proof must work independently of syntactic non-return",
+    );
+    let main = module
+        .machines
+        .iter()
+        .find(|machine| machine.result.scalar_ref().is_some())
+        .expect("the actual scalar-result caller remains present");
+    let sources = terminal_semantics::normal_completion::ReturnSources::new(main).unwrap();
+    assert!(
+        main.blocks.iter().any(|block| sources
+            .is_uninhabited_return(&block.terminator, &query)
+            .unwrap()),
+        "evaluating the actual Empty argument ends before entering identity"
+    );
+    assert!(
+        module
+            .machines
+            .iter()
+            .all(|machine| machine.module_invocations().count() == 0)
+    );
+    assert!(
+        module
+            .operations()
+            .all(|operation| operation.result.scalar_ref().is_none()
+                && !matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::IntegerConstant { .. }
+                )),
+        "the impossible operand cannot fabricate a scalar or a helper call"
+    );
+    accepted
+        .publish_invocation()
+        .expect("actual accepted publication");
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("receiving admission retains the real Empty return and operand elimination");
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
+}
+
+fn bare_empty_value(guarantee: &str) -> Box<crate::verdict::AcceptedClosure> {
+    let accepted = accepted(&format!(
+        "public data Empty requires false {{}} \
+         machine main(value: Empty) -> u32 {guarantee} {{ value }}",
+    ));
+    let module = &accepted.elaboration.module;
+    let [machine] = module.machines.as_slice() else {
+        panic!("the actual body has no synthetic helper");
+    };
+    assert_eq!(machine.result.scalar().unwrap().scalar_type, u32_type());
+    let [input] = machine.structural_parameters.as_slice() else {
+        panic!("the actual Empty input must remain declared");
+    };
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    assert_eq!(query.status(input.structural_type), Status::ProvedEmpty);
+    assert_eq!(machine.module_invocations().count(), 0);
+    assert!(module.operations().all(|operation| !matches!(
+        operation.kind,
+        terminal_psi::OperationKind::IntegerConstant { .. }
+    )));
+    accepted
+        .publish_invocation()
+        .expect("actual accepted publication");
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("the bare empty expression must survive receiving admission");
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
+    accepted
+}
+
+#[test]
+fn a_bare_empty_input_needs_no_call_to_occupy_a_scalar_result_position() {
+    bare_empty_value("");
+}
+
+#[test]
+fn a_bare_empty_input_still_establishes_its_scalar_result_guarantee() {
+    bare_empty_value("ensures result == 7u32");
+}
+
+#[test]
+fn receiving_rejects_the_same_structural_return_when_its_type_is_inhabited() {
+    let accepted = bare_empty_value("");
+    let mut forged = accepted.elaboration.module.clone();
+    let [machine] = forged.machines.as_slice() else {
+        panic!("the actual bare-value program has one machine");
+    };
+    let parameter = machine.structural_parameters[0].structural_type;
+    let declaration = forged
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == parameter)
+        .unwrap();
+    let [predicate] = declaration.requires.as_mut_slice() else {
+        panic!("the actual input type has one false default-domain clause");
+    };
+    assert_eq!(*predicate, Proposition::Falsehood);
+    // Change only the actual type contract. The same owned structural return
+    // can no longer use empty-value compatibility under the u32 header.
+    *predicate = Proposition::Truth;
+    let closed = terminal_codec::ClosedTerminalModule::new(forged)
+        .expect("the single semantic mutation remains encodable");
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes());
+    assert!(
+        matches!(
+            received,
+            Err(terminal_codec::CodecError::MalformedStructuralFoundation(_))
+        ),
+        "the inhabited structural result must fail receiving type validation",
     );
 }
 
@@ -322,4 +451,189 @@ machine main() crashes Trap {
             "an unknown payload still needs its own coverage: {verdicts:?}",
         );
     }
+}
+
+fn scalar_postcondition_call(
+    accepted: &crate::verdict::AcceptedClosure,
+    actual: Option<bool>,
+    no_normal: bool,
+) {
+    use semantic_vocabulary::InvocationSite;
+    let module = &accepted.elaboration.module;
+    assert_eq!(
+        module.machines.len(),
+        if actual.is_some() { 3 } else { 2 },
+        "only main, stop, and the conditional body's authored crash arm are lowered",
+    );
+    let stop = accepted
+        .elaboration
+        .names
+        .iter()
+        .find_map(|(id, names)| (names.machine == "stop").then_some(id))
+        .unwrap();
+    let callee = module.machine(stop).unwrap();
+    assert_eq!(callee.result.scalar().unwrap().scalar_type, u32_type());
+    assert!(callee.requires.is_empty(), "no new input precondition");
+    assert_eq!(callee.ensures.len(), 1);
+    assert!(!callee.crash_routes.is_empty(), "the Trap promise remains");
+    let semantic_vocabulary::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("the actual main is a declared machine");
+    };
+    let caller = module.machine(entry).unwrap();
+    let calls = caller.module_invocations().collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("main directly invokes the actual stop exactly once");
+    };
+    assert_eq!(call.inputs.callee, stop);
+    assert_eq!(call.inputs.required_contract, None);
+    assert!(call.inputs.structural_arguments.is_empty());
+    assert!(call.inputs.requirement_obligations.is_empty());
+    assert_eq!(
+        matches!(call.site, InvocationSite::InvokeNoNormal(_)),
+        no_normal,
+    );
+    match (actual, call.inputs.arguments) {
+        (None, []) => {}
+        (Some(actual), [argument]) => {
+            assert!(caller.operations().any(|operation| {
+                operation
+                    .result
+                    .as_scalar()
+                    .is_some_and(|value| value.id == *argument)
+                    && matches!(operation.kind,
+                        terminal_psi::OperationKind::BooleanConstant { value } if value == actual)
+            }));
+        }
+        _ => panic!("the actual arguments must remain unchanged"),
+    }
+    if no_normal {
+        assert!(
+            caller.operations().all(|operation| {
+                operation
+                    .module_invocation()
+                    .is_none_or(|call| call.callee != stop)
+                    && operation
+                        .result
+                        .as_scalar()
+                        .is_none_or(|value| value.scalar_type != u32_type())
+            }),
+            "a no-normal scalar call creates no normal call or receiving value"
+        );
+    } else {
+        let InvocationSite::Operation(id) = call.site else {
+            panic!("the returning argument keeps its ordinary invocation");
+        };
+        let operation = caller
+            .operations()
+            .find(|operation| operation.id == id)
+            .unwrap();
+        assert_eq!(
+            operation.result.as_scalar().unwrap().scalar_type,
+            u32_type()
+        );
+    }
+    accepted.publish_invocation().unwrap();
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("the actual published postcondition must justify receiving admission");
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
+    assert_eq!(
+        received.module().machine(stop).unwrap().result,
+        callee.result
+    );
+}
+
+#[test]
+fn a_public_false_postcondition_keeps_u32_without_a_normal_receiver() {
+    scalar_postcondition_call(
+        &accepted(
+            "public machine stop() -> u32 ensures false crashes Trap { crash Trap; } \
+             machine main() crashes Trap { let value: u32 = stop(); }",
+        ),
+        None,
+        true,
+    );
+}
+
+#[test]
+fn a_conditional_public_postcondition_uses_the_actual_boolean_argument() {
+    for actual in [true, false] {
+        let source = format!(
+            "public machine stop(fatal: bool) -> u32 ensures !fatal crashes Trap {{ \
+             transition fatal {{ true -> fail() false -> 7u32 }} \
+             machine fail() -> u32 crashes Trap {{ crash Trap; }} }} \
+             machine main() -> u32 crashes Trap {{ stop({actual}) }}"
+        );
+        scalar_postcondition_call(&accepted(&source), Some(actual), actual);
+    }
+}
+
+#[test]
+fn a_published_no_return_promise_still_owes_its_own_bodys_guarantee() {
+    for text in [
+        "public machine stop() -> u32 ensures false { 7u32 } machine main() {}",
+        "public machine stop(fatal: bool) -> u32 ensures !fatal { 7u32 } machine main() {}",
+    ] {
+        let verdicts = program(text);
+        assert!(
+            matches!(&verdicts[0], Ok(RouteVerdict::Rejected { unproved, .. })
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+            "a public postcondition cannot waive its own returning body's proof: {verdicts:?}",
+        );
+    }
+}
+
+#[test]
+fn an_empty_input_crosses_an_annotated_local_without_fabricating_its_carrier() {
+    let accepted = accepted(
+        "public data Empty requires false {} \
+         machine main(value: Empty) -> u32 ensures result == 7u32 { \
+             let n: u32 = value; n \
+         }",
+    );
+    let module = &accepted.elaboration.module;
+    let [machine] = module.machines.as_slice() else {
+        panic!("the bare Empty expression needs no helper machine");
+    };
+    assert_eq!(
+        machine.result.scalar_ref().unwrap().scalar_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+    );
+    assert_eq!(machine.module_invocations().count(), 0);
+    assert!(
+        module.operations().all(|operation| {
+            !matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant { .. }
+            ) && operation.result.scalar_ref().is_none()
+        }),
+        "an impossible initializer must not materialize a scalar local value"
+    );
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    let sources = terminal_semantics::normal_completion::ReturnSources::new(machine).unwrap();
+    assert!(
+        machine.blocks.iter().any(|block| {
+            sources
+                .is_uninhabited_return(&block.terminator, &query)
+                .unwrap()
+        }),
+        "the actual owned Empty expression must justify completion"
+    );
+    accepted
+        .publish_invocation()
+        .expect("actual accepted publication");
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("receiving admission retains the actual empty initializer");
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
+
+    type_refusal(
+        "public data Empty requires false {} \
+         machine main(value: Empty) { let n: u32 = value; let b: bool = n; }",
+    );
 }

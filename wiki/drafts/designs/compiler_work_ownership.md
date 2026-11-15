@@ -37,7 +37,7 @@ are not already served APIs.
 | Psi 02 | [Resolution](../../../omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs#L2496) orders normalization, identities, constants and selections through a mutable owner. A later phase needs facts established earlier. | Prepare declaration/scope/selection inputs, then resolve independent body uses into owned tables. Preserve each phase's preconditions; do not declare all resolution independent. |
 | Psi 03 | [Typing](../../../omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596) loops through declaration families with one mutable lowerer and then closes the cohort. Shared-snapshot completion can clone owned arenas. | Share immutable declaration/type/signature tables; produce body-local tables and explicit closure inputs. Retain necessary cohort closure before consumers use its results. |
 | Psi 04 | [Specialization](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L83) appends generated machines and scans prior instances linearly. [Record-pattern preparation](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/record_patterns.rs) follows it. | Deduplicate canonical instance requests through an exact key index, reserve identities, and generate independent bodies through a bounded work queue once `LOWERED-FORM-CHECKER` stabilizes Psi 04. Keep pass ordering and stop/refusal behavior. |
-| Psi 05 | [Structural lowering](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L882) prepares shared signatures, outcomes, compact SCC call components (#3201) and records; `lower::machine` returns owned results and `plain_affine::plan` runs per machine. `outcome.rs` still iterates whole-program fixed-point rounds. | Repair `outcome.rs` propagation first; if lowering cost warrants it, dynamically schedule independent lowering jobs and assemble in `MachineId` order. Preserve recursive-component relationships and source correspondence. |
+| Psi 05 | [Structural lowering](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L882) prepares shared signatures, outcomes, compact SCC call components (#3201) and records; `lower::machine` returns owned results and `plain_affine::plan` runs per machine. `outcome.rs` settles outcomes callee-first over those components, iterating only inside a cycle. | If lowering cost warrants it, dynamically schedule independent lowering jobs and assemble in `MachineId` order. Preserve recursive-component relationships and source correspondence. |
 | Psi 06 | [Discharge](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L380) runs result inference, private-input inference, then result inference again, prepares indexed per-machine branch and carried-proof inputs (#3212), and discharges disjoint `MachineTables`. Per-machine `graph.rs` dominance is still quadratic. | Repair per-machine dominance and proof-origin cloning first, then expose independent final machine checks over settled inputs. Later, if costly, schedule independent ready summary branches under the same budget. Preserve cycle policy and proof admission. |
 | Omega 00–09 | Native jobs traverse the [numbered representation pipeline](../../../omega-rust/pipeline.md#connected-program-route); native completion spawns up to four 256 MiB-stack scoped workers. | Share an explicit foundation-owned invocation budget with Psi work. Keep the stage sequence inside a native job; no pool per native stage. |
 
@@ -234,8 +234,7 @@ walks all bodies is a candidate repair, not automatically an unavoidable join.
    high-leverage sequential repairs in [OWNER_CODE_CONCERNS.md](../../../OWNER_CODE_CONCERNS.md#entries):
    per-machine immediate-dominator trees instead of quadratic dominance matrices
    (`06/src/graph.rs`), compact proof origins instead of upfront derivation
-   cloning (`06/src/known.rs`), reverse-dependency outcome propagation instead
-   of whole-program fixed-point sweeps (`05/src/outcome.rs`), indexed
+   cloning (`06/src/known.rs`), indexed
    specialization instance lookup (`04/src/passes/specialization.rs`), and
    invocation-scoped syntax reuse across logical-module discovery. Validate each
    as a standalone sequential repair without a scheduler rewrite.
@@ -276,8 +275,8 @@ directly tied to this ownership direction:
   preserve unchanged pages and explicit signature/summary dependencies once
   `LOWERED-FORM-CHECKER` frontend churn settles.
 - **Stage-local quadratic prerequisites:** linear dominance trees (`graph.rs`),
-  compact proof origins (`known.rs`), reverse-dependency outcome propagation
-  (`outcome.rs`) and indexed specialization lookup (`specialization.rs`).
+  compact proof origins (`known.rs`) and indexed specialization lookup
+  (`specialization.rs`).
 
 Already landed sequential prerequisites from the initial queue:
 
@@ -287,6 +286,9 @@ Already landed sequential prerequisites from the initial queue:
 - **Checking inputs (#3212):** grouped branches and carried-proof associations
   once in `06_terminal-psi-to-terminal-psi/src/lib.rs` so each machine borrows
   only its own prepared inputs.
+- **Outcome propagation:** `05_typed-trees-to-terminal-psi/src/outcome.rs`
+  settles call outcomes callee-first over the #3201 components, so a body
+  outside a cycle is walked once instead of once per whole-program round.
 
 Resolution scheduling, specialization queues and summary scheduling remain
 design hypotheses here, not extra queue entries implying that parallelism is

@@ -61,6 +61,7 @@ mod operational;
 mod outcome;
 mod policy;
 mod proof_scope;
+mod qualifications;
 mod read;
 mod reference_results;
 mod suspension;
@@ -823,6 +824,7 @@ fn lower_generic_for<'source>(
             .as_ref()
             .map(|local| local.outcomes.as_slice()),
         &declared.records.inhabitation,
+        &components,
     )?;
     // Declaration checking publishes no executable arrival or root reach.
     if let Some(entry) = entry {
@@ -836,13 +838,6 @@ fn lower_generic_for<'source>(
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
         source.publish_services(diagnostic, &mut module)?;
-        source.publish_boundaries(
-            diagnostic,
-            signatures,
-            &outcomes,
-            &declared.records,
-            &mut module,
-        )?;
     } else if !signatures.boundaries.is_empty() {
         return Err(refuse(
             diagnostic,
@@ -851,6 +846,68 @@ fn lower_generic_for<'source>(
         ));
     }
     let mut tables = CheckTables::default();
+    let mut qualifications = qualifications::Qualifications::declare(
+        diagnostic,
+        declarations,
+        std::mem::take(&mut module.identities),
+    )?;
+    if let Some(source) = declarations {
+        source.publish_boundaries(
+            diagnostic,
+            signatures,
+            &outcomes,
+            &declared.records,
+            &mut qualifications,
+            &mut module,
+        )?;
+    }
+    for (_, record) in records.iter() {
+        for field in record
+            .fields()
+            .iter()
+            .chain(record.cases().iter().flat_map(|case| &case.fields))
+        {
+            if let ValueType::Scalar(scalar_type, qualifier) = field.value_type {
+                let set = qualifications.scalar(diagnostic, scalar_type, qualifier)?;
+                if !set.is_empty() {
+                    qualifications
+                        .catalog
+                        .fields
+                        .push(terminal_psi::ScalarFieldQualification {
+                            field: field.id,
+                            value_type: semantic_vocabulary::QualifiedScalarType {
+                                scalar_type,
+                                qualifications: set,
+                            },
+                        });
+                }
+            }
+        }
+    }
+    qualifications
+        .catalog
+        .fields
+        .sort_unstable_by_key(|field| field.field);
+    for (value_type, structural_type) in declared.records.primitive_types() {
+        if let ValueType::Scalar(scalar_type, qualifier) = value_type {
+            let set = qualifications.scalar(diagnostic, scalar_type, qualifier)?;
+            if !set.is_empty() {
+                qualifications.catalog.primitives.push(
+                    terminal_psi::ScalarPrimitiveQualification {
+                        structural_type,
+                        value_type: semantic_vocabulary::QualifiedScalarType {
+                            scalar_type,
+                            qualifications: set,
+                        },
+                    },
+                );
+            }
+        }
+    }
+    qualifications
+        .catalog
+        .primitives
+        .sort_unstable_by_key(|row| row.structural_type);
     let mut sources = IdTable::default();
     if let Some(source) = declarations {
         for (id, original) in source.declaration_representatives.iter() {
@@ -877,6 +934,7 @@ fn lower_generic_for<'source>(
                     signatures,
                     &outcomes,
                     &declared.records,
+                    &mut qualifications,
                 )?);
         }
     }
@@ -910,6 +968,7 @@ fn lower_generic_for<'source>(
             &outcomes,
             &declared.records,
             requirements.contains(&id),
+            &mut qualifications,
         )?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
@@ -920,6 +979,8 @@ fn lower_generic_for<'source>(
         source.designated.push(lowered.designated);
         source.calls.push(lowered.calls);
     }
+    module.identities = qualifications.identities.build();
+    module.scalar_qualifications = qualifications.catalog;
     for machine in &mut module.machines {
         let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
             .map_err(|error| {

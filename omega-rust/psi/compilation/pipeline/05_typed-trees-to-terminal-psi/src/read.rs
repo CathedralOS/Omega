@@ -190,6 +190,9 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    /// Resolved domain declarations actually used by this verification unit.
+    /// Lowering publishes these meanings, not just the carrier of their values.
+    pub declared_domains: Vec<(SymbolHandle, ValueType)>,
     /// Only completed source contracts enter this stage-local query cache.
     /// It contains no value facts and is never published as evidence.
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -355,6 +358,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            declared_domains: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),

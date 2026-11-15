@@ -368,6 +368,19 @@ pub fn discharge_carrying(
 }
 
 fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
+    terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            elaboration
+                .module
+                .machines
+                .first()
+                .map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+            Construct::Machine,
+            &format!("invalid declared scalar qualifications: {error:?}"),
+        )
+    })?;
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
@@ -396,10 +409,17 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     // summarized under no input, and what it returns because of the input
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
+    let diagnostic = elaboration
+        .module
+        .machines
+        .first()
+        .map(|machine| machine.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+    let inhabitation = prepare_inhabitation(&elaboration.module, diagnostic)?;
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, &mut unreached)?;
-    entry_inputs::infer(elaboration, &mut unreached)?;
-    result_summaries::infer(elaboration, &mut unreached)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
+    entry_inputs::infer(elaboration, &mut unreached, &inhabitation)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
     let inputs = machine_inputs::PreparedMachineInputs::new(
         &elaboration.module,
         &elaboration.sources,
@@ -408,22 +428,11 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         carried,
     );
     let module = &elaboration.module;
-    // Every empty observation asks about this exact immutable family. Keep
-    // the catalog and its exclusion graph once for the whole discharge.
+    // Observe the same immutable type family used by inference above. The
+    // existing module-scoped exclusion graph serves every machine; only this
+    // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
         terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
-    let empty_types = terminal_semantics::inhabitation::Inhabitation::prepare(&empty_contracts)
-        .map_err(|error| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                module.machines.first().map_or_else(
-                    || MachineId::new(1).expect("one is nonzero"),
-                    |machine| machine.id,
-                ),
-                Construct::Machine,
-                &format!("declared empty type family is malformed: {error:?}"),
-            )
-        })?;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
     for id in identities {
@@ -460,6 +469,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
             module,
+            &inhabitation,
             &elaboration.domains,
             id,
             tables,
@@ -467,7 +477,6 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             inputs.carried.map(|position| &carried[position]),
             inputs.branches,
             &empty_contracts,
-            &empty_types,
         )?);
     }
     Ok(Discharge { machines })
@@ -565,6 +574,7 @@ fn terminal_machine(
 #[allow(clippy::too_many_arguments)]
 fn machine(
     module: &TerminalModule,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
@@ -572,7 +582,6 @@ fn machine(
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
-    empty_types: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
     let invariants = &module.scalar_block_invariants;
@@ -590,7 +599,7 @@ fn machine(
         graph,
         context,
         reference_graph,
-    } = prepare(module, domains, id, tables)?;
+    } = prepare_with_inhabitation(module, domains, id, tables, inhabitation)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
@@ -783,7 +792,7 @@ fn machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(tables, empty_contracts, empty_types)?;
+    let mut uses = storage.uses(tables, empty_contracts, inhabitation)?;
     // A store into a field of a byte domain is judged by the bytes it
     // supplies; a refused store is that operation's verdict.
     for judged in storage.byte_predicate_stores()? {
@@ -1097,6 +1106,34 @@ pub(crate) fn prepare(
     id: MachineId,
     tables: &mut MachineTables,
 ) -> Checked<Prepared> {
+    let inhabitation = prepare_inhabitation(module, id)?;
+    prepare_with_inhabitation(module, domains, id, tables, &inhabitation)
+}
+
+fn prepare_inhabitation(
+    module: &TerminalModule,
+    id: MachineId,
+) -> Checked<terminal_semantics::inhabitation::Inhabitation> {
+    terminal_semantics::inhabitation::Inhabitation::prepare(
+        &terminal_semantics::inhabitation::TerminalContracts::new(&module.structural_types),
+    )
+    .map_err(|_| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            "structural type contracts do not form one inhabitation family",
+        )
+    })
+}
+
+pub(crate) fn prepare_with_inhabitation(
+    module: &TerminalModule,
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+    id: MachineId,
+    tables: &mut MachineTables,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+) -> Checked<Prepared> {
     let machines = &module.machines;
     let structural_types = &module.structural_types;
     let lowered = terminal_machine(machines, id, id)?;
@@ -1106,7 +1143,7 @@ pub(crate) fn prepare(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     // A ranking is admitted whole before any of its comparisons is decided,
@@ -1340,7 +1377,6 @@ pub(crate) fn callee(
             // (`operational::judge`, which every discharge runs first).
             if !declaration.requires.is_empty()
                 || !declaration.normal_qualifications.is_empty()
-                || !declaration.scalar_domain_requirements.is_empty()
                 || declaration.structural_parameters.iter().any(|formal| {
                     !formal.qualifications.is_empty()
                         || !formal.projected_qualifications.is_empty()

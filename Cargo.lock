@@ -398,9 +398,7 @@ dependencies = [
  "optimization-unit-semantics",
  "orchestration",
  "package-compilation",
- "package-evidence",
  "package-manager",
- "package-source",
  "platform-custody",
  "products",
  "program-entry-plan",
@@ -408,11 +406,13 @@ dependencies = [
  "provider-planning",
  "provider-selection",
  "register-model",
+ "review-evidence",
  "runtime-abi",
  "selected-dispatch",
  "selected-instructions",
  "semantic-vocabulary",
  "source",
+ "source-acquisition",
  "source-compiler",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
@@ -788,12 +788,12 @@ dependencies = [
  "optimization-core",
  "orchestration",
  "package-compilation",
- "package-evidence",
  "package-manager",
- "package-source",
  "products",
  "provider-planning",
+ "review-evidence",
  "semantic-vocabulary",
+ "source-acquisition",
  "source-files-to-tokens",
  "symbols",
  "syntax-trees",
@@ -1292,11 +1292,11 @@ dependencies = [
  "orchestration",
  "package-compilation",
  "package-manager",
- "package-source",
  "platform-custody",
  "products",
  "resolver-execution",
  "semantic-vocabulary",
+ "source-acquisition",
  "target",
  "terminal-codec",
  "terminal-installation",
@@ -1411,42 +1411,15 @@ dependencies = [
  "flow-effects",
  "language-semantics",
  "optimization-core",
- "package-source",
  "platform-custody",
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-acquisition",
  "source-compiler",
  "symbols",
  "syntax-trees",
  "target",
- "terminal-psi",
- "typed-trees",
-]
-
-[[package]]
-name = "package-evidence"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "diagnostics",
- "effects",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
- "optimization-core",
- "package-compilation",
- "products",
- "provider-planning",
- "selected-dispatch",
- "semantic-vocabulary",
- "source",
- "source-compiler",
- "symbols",
- "target",
- "terminal-check-tables",
  "terminal-psi",
  "typed-trees",
 ]
@@ -1472,14 +1445,14 @@ dependencies = [
  "native-artifact",
  "optimization-core",
  "package-compilation",
- "package-evidence",
- "package-source",
  "platform-custody",
  "products",
  "proof-admission",
+ "review-evidence",
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-acquisition",
  "source-compiler",
  "syntax-trees",
  "target",
@@ -1488,25 +1461,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "terminal-work",
  "tokens",
-]
-
-[[package]]
-name = "package-source"
-version = "0.1.0"
-dependencies = [
- "bounded-process",
- "cap-fs-ext",
- "cap-primitives",
- "cap-std",
- "compiler-storage",
- "filesystem-authority",
- "nix",
- "optimization-core",
- "platform-custody",
- "resolver-execution",
- "sha1-checked",
- "sha2",
- "source",
 ]
 
 [[package]]
@@ -1835,6 +1789,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "review-evidence"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "effects",
+ "flow-effects",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "optimization-core",
+ "package-compilation",
+ "products",
+ "provider-planning",
+ "selected-dispatch",
+ "semantic-vocabulary",
+ "source",
+ "source-compiler",
+ "symbols",
+ "target",
+ "terminal-check-tables",
+ "terminal-psi",
+ "typed-trees",
+]
+
+[[package]]
 name = "runtime-abi"
 version = "0.1.0"
 dependencies = [
@@ -2118,6 +2099,25 @@ dependencies = [
  "compiler-storage",
  "semantic-vocabulary",
  "sha2",
+]
+
+[[package]]
+name = "source-acquisition"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "cap-fs-ext",
+ "cap-primitives",
+ "cap-std",
+ "compiler-storage",
+ "filesystem-authority",
+ "nix",
+ "optimization-core",
+ "platform-custody",
+ "resolver-execution",
+ "sha1-checked",
+ "sha2",
+ "source",
 ]
 
 [[package]]

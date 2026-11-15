@@ -161,9 +161,9 @@ impl Program<'_> {
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. } => return Ok(false),
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => return Err(unserved()),
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                    return Err(unserved());
+                }
             }
         }
         Err(unserved())
@@ -242,7 +242,6 @@ impl Program<'_> {
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
-            TypeReferenceNode::DynamicTrait { .. } => unserved("dynamic trait"),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }
@@ -889,6 +888,13 @@ impl Program<'_> {
         // A domain's predicates are judged where the place declared in it
         // has a contract to join (`predicates`); each place without one
         // refuses them there by name.
+        if !self
+            .declared_domains
+            .iter()
+            .any(|(symbol, _)| *symbol == domain)
+        {
+            self.declared_domains.push((domain, plain));
+        }
         Ok(())
     }
 

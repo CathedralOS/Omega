@@ -117,6 +117,25 @@ impl crate::TypedTrees {
         instance: SymbolHandle,
         parameter: SymbolHandle,
     ) -> Result<(&crate::expression::StaticMachineArgument, SymbolHandle), &'static str> {
+        self.selected_implementation_receipt(instance, parameter)
+            .map(|(_, operand, owner)| (operand, owner))
+    }
+
+    /// [`Self::selected_implementation_operand`], also returning the one
+    /// specialization receipt that supplied it, so a caller that needs the
+    /// receipt does not search the specialization rows a second time.
+    fn selected_implementation_receipt(
+        &self,
+        instance: SymbolHandle,
+        parameter: SymbolHandle,
+    ) -> Result<
+        (
+            &crate::MachineSpecialization,
+            &crate::expression::StaticMachineArgument,
+            SymbolHandle,
+        ),
+        &'static str,
+    > {
         use crate::static_applications::StaticMachineBindingValue;
         let mut receipts = self
             .machine_specializations
@@ -148,7 +167,7 @@ impl crate::TypedTrees {
         else {
             return Err("selected parameter was not bound to an implementation operand");
         };
-        Ok((operand, source.lexical_owner))
+        Ok((receipt, operand, source.lexical_owner))
     }
 
     /// Read the public requirement chosen by the existing named-member or
@@ -184,17 +203,9 @@ impl crate::TypedTrees {
             ),
         };
         if let Some(dispatch) = dispatch {
-            self.selected_implementation_operand(owner, dispatch.evidence_parameter)?;
-            let mut receipts = self
-                .machine_specializations
-                .iter()
-                .filter(|receipt| receipt.instance == owner);
-            let receipt = receipts
-                .next()
-                .ok_or("public call lost its supplying specialization")?;
-            if receipts.next().is_some() {
-                return Err("public call has several supplying specializations".into());
-            }
+            // The receipt is the unique one the operand query authenticated.
+            let (receipt, _, _) =
+                self.selected_implementation_receipt(owner, dispatch.evidence_parameter)?;
             let original = authored_binding
                 .map(|binding| binding.original)
                 .unwrap_or_else(|| call.registration_operation(self));
