@@ -673,10 +673,33 @@ fn validate_machine(
                 // store delivers its domains.
                 OperationKind::EstablishStructuralLocal {} => {}
                 OperationKind::EstablishZeroedStructural {} => {
-                    if !produced.whole.is_empty()
+                    let carrier = result_type.ok_or(StructuralQualificationError {
+                        machine: id,
+                        detail: "zero provisioning has no declared result carrier",
+                    })?;
+                    let byte_projected = produced.projected.iter().filter(|row| {
+                        domain(module, row.domain)
+                            .is_some_and(|domain| domain.byte_predicate.is_some())
+                    });
+                    let byte_defaults_hold =
+                        crate::structural::zeroed_structural::zeroed_byte_qualifications_hold(
+                            module.structural_types.iter(),
+                            module.structural_domains.iter(),
+                            carrier,
+                            produced
+                                .whole
+                                .iter()
+                                .map(|domain| (&[][..], *domain))
+                                .chain(byte_projected.map(|row| (row.path.as_slice(), row.domain))),
+                        );
+                    if !byte_defaults_hold
                         || produced
                             .projected
                             .iter()
+                            .filter(|row| {
+                                domain(module, row.domain)
+                                    .is_none_or(|domain| domain.byte_predicate.is_none())
+                            })
                             .any(|row| !zero_admits(module, row.domain))
                     {
                         return malformed(

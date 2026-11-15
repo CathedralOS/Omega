@@ -204,10 +204,9 @@ machine build_entry() {
     assert!(
         matches!(
             refused,
-            terminal_codec::CodecError::MalformedOperationFoundation {
-                reason: "value transfer does not establish its byte domains",
-                ..
-            }
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "a byte transfer's source does not establish its primitive byte-domain qualifications"
+            )
         ),
         "the corrupted transfer must fail its byte-domain establishment: {refused:?}"
     );
@@ -293,6 +292,17 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
         "{declarations}machine copy(from: &Rejection, into: &mut Rejection) {{ into.reason = from.reason; }}\n\
          machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(&a, &mut b); }}"
     );
+    // Independent input regions cannot promise the stored view survives in
+    // the other record. State their common referent lifetime for the copy.
+    assert_eq!(
+        verdict(&copied),
+        "typing assigned value type while reading the body of `copy`"
+    );
+    let copied = copied.replacen(
+        "copy(from: &Rejection, into: &mut Rejection)",
+        "copy<'reason>(from: &Rejection<'reason>, into: &mut Rejection<'reason>)",
+        1,
+    );
     assert_eq!(verdict(&copied), "accepted");
     // Removing a qualification does not erase the earlier establishment's
     // obligation to justify that qualification for these exact bytes.
@@ -320,4 +330,85 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
         refused.starts_with("type byte view in a domain the empty view is not in"),
         "{refused}"
     );
+
+    // The default owner must distinguish an empty descriptor from the one
+    // zero octet in this actual parsed and lowered fixed-array field.
+    let default_source = format!("data FixedDefault {{ bytes: [u8; 1]; }}\n{copied}").replacen(
+        "let mut b: Rejection;",
+        "let mut b: Rejection; let zeros: FixedDefault;",
+        1,
+    );
+    let accepted = match judge_build(&default_source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the ordinary fixed default must form: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    let (root, field, array) = module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.operations())
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishZeroedStructural {}
+            )
+        })
+        .find_map(|operation| {
+            let result = operation.result.structural()?;
+            let record = module.structural_type(result.structural_type)?;
+            record.shape.record_fields()?.iter().find_map(|field| {
+                let array = module.structural_type(field.field_type.as_structural()?)?;
+                matches!(
+                    array.shape,
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Literal(1),
+                        ..
+                    }
+                )
+                .then_some((record.id, field.identity, array.id))
+            })
+        })
+        .expect("the source emitted its zeroed fixed-array record");
+    let mut domain = module
+        .structural_domains
+        .iter()
+        .find(|domain| domain.byte_predicate == Some(ByteSequencePredicate::ValidUtf8))
+        .expect("the source retains its complete primitive byte theory")
+        .clone();
+    domain.carrier = array;
+    let qualification = terminal_psi::StructuralPathQualification {
+        path: vec![terminal_psi::StructuralPathSegment::Field(field)],
+        domain: domain.id,
+    };
+    // These are inputs to the shared default predicate query, not a claim
+    // that a changed domain row belongs to an accepted artifact.
+    for (predicate, expected) in [
+        (ByteSequencePredicate::AsciiOnly, true),
+        (ByteSequencePredicate::ValidUtf8, true),
+        (ByteSequencePredicate::NoNul, false),
+    ] {
+        domain.byte_predicate = Some(predicate);
+        let theory = domain
+            .predicate
+            .as_mut()
+            .expect("complete primitive theory");
+        let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+        required.insert(predicate);
+        theory.proposition = terminal_semantics::byte_predicate_requirement(
+            required,
+            terminal_psi::ByteSequencePredicateSet::EMPTY,
+            theory.subject,
+            &[],
+        );
+        assert_eq!(
+            terminal_semantics::zeroed_projected_byte_qualifications_hold(
+                module.structural_types.iter(),
+                std::iter::once(&domain),
+                root,
+                std::slice::from_ref(&qualification),
+            ),
+            expected,
+            "the actual fixed-array zero default under {predicate:?}",
+        );
+    }
 }

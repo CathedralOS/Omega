@@ -914,12 +914,6 @@ impl Records<'_> {
             let ValueType::Record(inner, qualification, _) = field.value_type else {
                 continue;
             };
-            // A byte view's domain is decided by the bytes it shows: the
-            // field's own type carries its predicates (`read::bytes`), and
-            // the byte judgment holds every store to them.
-            if !field.byte_predicates.is_empty() || self.is_byte_sequence(inner) {
-                continue;
-            }
             let depth = prefix.len();
             if let Some(case) = case {
                 prefix.push(StructuralPathSegment::Case(case));

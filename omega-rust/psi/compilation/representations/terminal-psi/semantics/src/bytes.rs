@@ -254,6 +254,7 @@ pub(crate) mod byte_sequence_predicates {
     }
 
     pub fn byte_field_root(
+        module: &TerminalModule,
         machine: &TerminalMachine,
         source: PlaceId,
     ) -> Option<(StructuralTypeId, StructuralAccess)> {
@@ -285,8 +286,13 @@ pub(crate) mod byte_sequence_predicates {
                         result.multiplicity,
                         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                     )
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
+                    && pure_byte_qualifications(
+                        module.structural_types.iter(),
+                        module.structural_domains.iter(),
+                        structural_type,
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                    )
                     && result.qualification_establishments.is_empty()
                     && result.claims.is_empty())
                 .then_some((structural_type, StructuralAccess::Owned));
@@ -296,8 +302,13 @@ pub(crate) mod byte_sequence_predicates {
         (matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty())
+        ) && pure_byte_qualifications(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            parameter.structural_type,
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        ))
         .then_some((parameter.structural_type, parameter.access))
     }
 
@@ -572,7 +583,7 @@ pub(crate) mod byte_sequence_predicates {
         if source.path.is_empty() {
             return byte_sequence_source_predicates(module, machine, source.place);
         }
-        let (root, access) = byte_field_root(machine, source.place)?;
+        let (root, access) = byte_field_root(module, machine, source.place)?;
         if access == StructuralAccess::WriteOnlyBorrow {
             return None;
         }
@@ -807,7 +818,7 @@ pub(crate) mod byte_sequence_predicates {
                 if source.path.is_empty() {
                     return resolve_whole(source.place);
                 }
-                let (root, _) = byte_field_root(machine, source.place)?;
+                let (root, _) = byte_field_root(module, machine, source.place)?;
                 let selected = runtime_structural_path_tip(
                     module.structural_types.iter(),
                     root,
@@ -829,7 +840,7 @@ pub(crate) mod byte_sequence_predicates {
                 )
             }
             terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
-                let (structural_type, access) = byte_field_root(machine, source.place)?;
+                let (structural_type, access) = byte_field_root(module, machine, source.place)?;
                 if source.access != StructuralAccess::SharedBorrow
                     || !matches!(
                         access,
@@ -960,7 +971,8 @@ pub(crate) mod byte_sequence_predicates {
                             if backing.path.is_empty() {
                                 source_predicates(module, machine, backing.place, work, memo)?
                             } else {
-                                let (root, access) = byte_field_root(machine, backing.place)?;
+                                let (root, access) =
+                                    byte_field_root(module, machine, backing.place)?;
                                 if access == StructuralAccess::WriteOnlyBorrow
                                     || backing.access == StructuralAccess::WriteOnlyBorrow
                                 {
@@ -988,7 +1000,7 @@ pub(crate) mod byte_sequence_predicates {
                         let captured = if path.is_empty() {
                             source_predicates(module, machine, *backing, work, memo)?
                         } else {
-                            let (root, access) = byte_field_root(machine, *backing)?;
+                            let (root, access) = byte_field_root(module, machine, *backing)?;
                             if access == StructuralAccess::WriteOnlyBorrow {
                                 return None;
                             }
