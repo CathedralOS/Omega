@@ -11399,6 +11399,12 @@ pub mod descriptor_results {
                 let states = replay.states(receiver_id, 0).unwrap();
                 let receiver = graph.iter().find(|row| row.id == receiver_id).unwrap();
                 let current = states.get(&(receiver_entry, 4)).unwrap();
+                for position in 1..=4 {
+                    eprintln!(
+                        "returned-roster-state {position}: {:?}",
+                        states.get(&(receiver_entry, position)).unwrap().slots
+                    );
+                }
                 for (ordinal, source) in [(0, 1), (1, 2)] {
                     let query = DescriptorContentsQuery {
                         root: PlaceId::new(4).unwrap(),
