@@ -6,11 +6,9 @@ typed declaration and application for later provider selection.
 
 pub mod provider_declarations {
     use diagnostics::Diagnostic;
-    use language_semantics::direct_calls::DirectCallDeclarations;
     use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
     use language_semantics::trust_declarations::TrustDeclarations;
     use std::sync::{Arc, OnceLock};
-    use symbols::SymbolHandle;
 
     pub(crate) mod context {
         use crate::TypedTrees;
@@ -43,7 +41,6 @@ pub mod provider_declarations {
     pub struct PreparedProviderInventory<Owner: AsRef<crate::TypedTrees> = crate::FrozenTypedTrees> {
         owner: Arc<Owner>,
         origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
-        direct_calls: OnceLock<Arc<DirectCallDeclarations<SymbolHandle>>>,
         trust: OnceLock<Result<TrustDeclarations, Diagnostic>>,
         services: Arc<super::PreparedServiceCatalog>,
     }
@@ -63,7 +60,6 @@ pub mod provider_declarations {
             Self {
                 owner,
                 origins: OnceLock::new(),
-                direct_calls: OnceLock::new(),
                 trust: OnceLock::new(),
                 services: Arc::new(services),
             }
@@ -89,35 +85,6 @@ pub mod provider_declarations {
                 self.owner.as_ref().as_ref(),
                 source::DependencyScope::Product,
             ))
-        }
-
-        pub fn direct_calls_for(
-            &self,
-            owner: &Owner,
-        ) -> Result<&DirectCallDeclarations<SymbolHandle>, Diagnostic> {
-            self.require_owner(owner)?;
-            Ok(self.direct_calls())
-        }
-
-        pub fn direct_calls(&self) -> &DirectCallDeclarations<SymbolHandle> {
-            self.direct_call_declarations()
-        }
-
-        pub fn retained_direct_calls_for(
-            &self,
-            owner: &Owner,
-        ) -> Result<Arc<DirectCallDeclarations<SymbolHandle>>, Diagnostic> {
-            self.require_owner(owner)?;
-            Ok(Arc::clone(self.direct_call_declarations()))
-        }
-
-        fn direct_call_declarations(&self) -> &Arc<DirectCallDeclarations<SymbolHandle>> {
-            self.direct_calls.get_or_init(|| {
-                Arc::new(crate::direct_calls::collect(
-                    self.owner.as_ref().as_ref(),
-                    source::DependencyScope::Product,
-                ))
-            })
         }
 
         pub fn origins_for(
@@ -301,11 +268,8 @@ pub mod provider_declarations {
             let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
             assert!(Arc::ptr_eq(inventory.program(), &owner));
             assert!(inventory.services_for(&owner).is_ok());
-            assert!(inventory.direct_calls_for(&owner).is_ok());
             assert!(inventory.origins_for(&owner).is_ok());
             assert!(inventory.services_for(&other).is_err());
-            assert!(inventory.direct_calls_for(&other).is_err());
-            assert!(inventory.retained_direct_calls_for(&other).is_err());
             assert!(inventory.origins_for(&other).is_err());
         }
 
@@ -316,10 +280,6 @@ pub mod provider_declarations {
             assert!(Arc::ptr_eq(
                 &inventory.retained_service_catalog(),
                 &inventory.retained_service_catalog()
-            ));
-            assert!(Arc::ptr_eq(
-                &inventory.retained_direct_calls_for(&owner).unwrap(),
-                &inventory.retained_direct_calls_for(&owner).unwrap()
             ));
             let trust = inventory.trust_declarations().unwrap();
             assert!(trust.machines.is_empty());
