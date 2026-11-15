@@ -68,10 +68,10 @@ impl Program<'_> {
     ) -> Checked<()> {
         use semantic_vocabulary::{DomainSemanticId, StructuralDomainId};
         use terminal_psi::{StructuralDomainDeclaration, StructuralDomainPredicate};
-        if !self
+        if self
             .declared_domains
             .iter()
-            .any(|(_, carrier)| matches!(carrier, ValueType::Record(..)))
+            .all(|(_, carrier)| matches!(carrier, ValueType::Scalar(..)))
         {
             return Ok(());
         }
