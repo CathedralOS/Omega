@@ -679,8 +679,11 @@ pub(crate) mod component_provider {
         else {
             return Err("component import/export lacks a checked callable contract".into());
         };
-        if !receiving_contract.same_identity_as(left, supplying_contract, right)
-            || receiving.completion != supplying.completion
+        if !receiving_contract.same_identity_as(
+            receiver.module(),
+            supplying_contract,
+            provider.module(),
+        ) || receiving.completion != supplying.completion
             || receiving.unconditional_termination != supplying.unconditional_termination
             || receiving.parameter_order != supplying.parameter_order
             || receiving.scalar_parameters != supplying.scalar_parameters

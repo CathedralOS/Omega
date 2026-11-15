@@ -1399,8 +1399,8 @@ AccessInitialize, AccessMoveOut and AccessView. Tag 4 names EmptyRunRelease,
 which consumes an empty run and returns its existing vacant backing. Tag 5 names
 AccessRelocate. Tags 6–9 name StaticInterruptInstall, StaticInterruptContext,
 StaticInterruptBeginCompletion and StaticInterruptFinishCompletion, respectively.
-Semantic format marker 271 adds tag 10, HostedPrimitive, followed by a `u8` operation (`0` ProcessExit; other
-operations reject) followed by the canonical public requirement's `u64` boundary
+Semantic format marker 271 adds tag 10, HostedPrimitive, followed by a `u8`
+operation (`0` ProcessExit; other operations reject), then the canonical public requirement's `u64` boundary
 id. The primitive is a Machine boundary with its own checked source declaration
 and callable identity; the linked requirement remains a distinct Trait boundary.
 Receiving authenticates the exact compiler-owned core declarations and their
@@ -1408,7 +1408,7 @@ complete signature, reach, crash and progress correspondence, and independently
 proves that the actual result type is empty. The link preserves the canonical
 terminal observation without supplying target realization or execution authority.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Vocabulary marker 133 and the artifact transport envelope remain unchanged.
+decoded. Vocabulary marker 134 and the artifact transport envelope remain unchanged.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
