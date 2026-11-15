@@ -171,13 +171,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a generic machine cannot call a reference-returning requirement, and no machine can return a selected reference result. lifetimes.md, "Returned views", keeps every leaf of the selected lifetime as a possible source, so the requirement's declared lifetime groups (`terminal_semantics::selected_reference_result`) must stand for the bodiless callee's origins, and a within-region origin must publish as `ReferenceOriginExtent::WithinRegion` rather than be refused.
 - Reported: 2026-11-15, Claude Code (worker-1), after the requirement schema kept its elided signature lifetimes
 
-### The checker ends a reference loan at its last use; the lowering never releases the carrier
-- Category: a verdict with nothing behind it
-- Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); the 05 lowering emits no `ReleaseReference` and places carrier cleanup only at returns (`05_typed-trees-to-terminal-psi/src/lower/places.rs`); interpreter transfer check `owned value cannot transfer while its storage is borrowed` (`terminal-interpreter/src/storage_records_and_arrays.rs`, `stage_owned_value`)
-- Saw: `let mut holder: Holder = Holder { engine: &mut engine }; start(&mut holder); transition engine.mode { ... }` with a `Mode` that is not `[copy]` is accepted and published, then the dispatch's `MoveStructuralValue` traps in the Psi interpreter. It is not specific to a reference stored in a record: on `372860cf534` the plain local `let lent: &mut Engine = &mut engine; start(lent); transition engine.mode { ... }` traps the same way. The same programs with `Mode [copy]` run (`06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs`, `a_data_value_is_stored_through_a_stored_reference`)
-- Cost: an accepted program fails when run. ownership.md, "Borrows and aliases", closes a local's loan "after the last use of that local", so the checker is right and the lowering must release each reference carrier (a local, or the reference field of a record) where its loan closes, on every edge leaving its live range, with 06 checking that release against the same descriptor lifetime
-- Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference; widened 2026-11-15 to plain locals
-
 ### An explicit exclusive borrow becomes shared before the checker sees its formation
 - Category: a verdict with nothing behind it
 - Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs`, `lent` and its `attenuated` argument path

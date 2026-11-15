@@ -860,6 +860,25 @@ pub mod descriptor_lifetimes {
         pub authorized: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
     }
 
+    pub fn descriptor_entry_lifetime(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        entry: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+    ) -> DescriptorLifetime {
+        DescriptorLifetime {
+            live: location_live_positions(steps, entry, descriptor, true, Some(entry)),
+            authorized: transported_locations(steps, entry, descriptor, true, false, None),
+        }
+    }
+
+    pub(crate) fn descriptor_continuation_locations(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        at: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+    ) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
+        transported_locations(steps, at, descriptor, true, false, None)
+    }
+
     pub fn descriptor_location_lifetime(
         steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
         birth: DescriptorPosition,
@@ -12940,10 +12959,44 @@ pub mod descriptor_results {
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
                     let mut step = DescriptorFlowStep::default();
-                    operation.kind.clone().map_structural_uses(&mut |place| {
-                        step.inputs.push(DescriptorLocation::whole(place));
-                        place
-                    });
+                    // A scalar sibling does not observe the reference leaves
+                    // beside it. Retain the representation's projected uses;
+                    // reducing them to roots spuriously extends those loans.
+                    for used in operation.kind.storage_uses() {
+                        use terminal_psi::StructuralStorageUse;
+                        let (root, selected) = match used {
+                            StructuralStorageUse::Place(root) => {
+                                (root, Some(DescriptorLocation::whole(root)))
+                            }
+                            StructuralStorageUse::Projection(projection)
+                            | StructuralStorageUse::Element {
+                                descriptor: projection,
+                                ..
+                            } => (
+                                projection.root,
+                                location(projection.root, projection.path, None),
+                            ),
+                            StructuralStorageUse::Canonical { root, path }
+                            | StructuralStorageUse::ObservedField { root, path } => (
+                                root,
+                                crate::descriptor_lifetimes::canonical_descriptor_location(
+                                    &module.structural_types,
+                                    root,
+                                    *graph.place_types.get(&root)?,
+                                    path,
+                                ),
+                            ),
+                            StructuralStorageUse::Type(_) => continue,
+                        };
+                        if let Some(selected) = selected {
+                            step.inputs.push(selected);
+                        } else {
+                            // An unresolved selection can retain authority,
+                            // never establish disjointness or an early end.
+                            step.may_escape = true;
+                            step.inputs.push(DescriptorLocation::whole(root));
+                        }
+                    }
                     let result = operation.result.structural();
                     if let Some(result) = result {
                         graph.payload_producers.insert(position, result.place);

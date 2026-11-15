@@ -401,36 +401,118 @@ machine build_entry(cell: &Cell) {{
 /// subsystem = Subsystem::Unspecified { .. }`. The entry traps unless the
 /// cell it lent holds the new case with its payload and its scalar
 /// neighbour is untouched.
+const STORED_MODE: &str = include_str!("../../tests/fixtures/stored_reference_end/main.omg");
+
 #[test]
 fn a_data_value_is_stored_through_a_stored_reference() {
-    let status = run(r#"
-data Mode [copy] { case Idle; case Busy(level: u64); }
-data Engine { mode: Mode; count: u64; }
-data Holder<'storage> { engine: &'storage mut Engine; }
-machine start(holder: &mut Holder) { holder.engine.mode = Mode::Busy { level: 7 }; }
-machine entry() crashes Trap {
-    let mut engine: Engine = Engine { mode: Mode::Idle, count: 3 };
-    let mut holder: Holder = Holder { engine: &mut engine };
-    start(&mut holder);
-    transition engine.mode {
-        Mode::Busy { level } -> check(level, engine.count)
-        Mode::Idle -> bad()
-    }
-    machine check(level: u64, count: u64) crashes Trap {
-        transition level == 7 && count == 3 {
-            true -> done()
-            false -> bad()
-        }
-    }
-    machine done() {}
-    machine bad() { crash Trap; }
-}
-"#);
+    let status = run(STORED_MODE);
     assert_eq!(
         status,
         Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit
         ))
+    );
+}
+
+#[test]
+fn a_plain_local_reference_ends_before_its_noncopyable_owner_is_moved() {
+    let source = STORED_MODE
+        .replace(
+            "machine start(holder: &mut Holder) { holder.engine.mode",
+            "machine start(engine: &mut Engine) { engine.mode",
+        )
+        .replace(
+            "let mut holder: Holder = Holder { engine: &mut engine };",
+            "let lent: &mut Engine = &mut engine;",
+        )
+        .replace("start(&mut holder);", "start(lent);");
+    assert_eq!(
+        run(&source),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+}
+
+#[test]
+fn releasing_a_dead_reference_keeps_its_scalar_sibling() {
+    let source = STORED_MODE
+        .replace(
+            "engine: &'storage mut Engine;",
+            "engine: &'storage mut Engine; mark: u64;",
+        )
+        .replace(
+            "Holder { engine: &mut engine }",
+            "Holder { engine: &mut engine, mark: 11 }",
+        )
+        .replace(
+            "check(level, engine.count)",
+            "check(level, engine.count, holder.mark)",
+        )
+        .replace("count: u64) crashes", "count: u64, mark: u64) crashes")
+        .replace("count == 3", "count == 3 && mark == 11");
+    assert_eq!(
+        run(&source),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+}
+
+#[test]
+fn an_owned_move_before_the_stored_references_last_use_is_rejected() {
+    let source = STORED_MODE
+        .replace(
+            "start(&mut holder);",
+            "let moved: Mode = engine.mode; start(&mut holder);",
+        )
+        .replace("transition engine.mode", "transition moved");
+    let result = run(&source).unwrap_err();
+    assert!(
+        result.contains("ConflictingUse") && result.contains("ObserveWhileExclusive"),
+        "{result}"
+    );
+}
+
+#[test]
+fn a_missing_stored_reference_disposition_is_refused() {
+    let typed = super::boundary_calls::typed(STORED_MODE);
+    let entry = super::boundary_calls::entry(&typed);
+    let mut elaborated = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let mut removed = 0;
+    for machine in &mut elaborated.module.machines {
+        for block in &mut machine.blocks {
+            block.operations.retain(|operation| {
+                if matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::ReleaseReference { .. }
+                ) {
+                    removed += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+    }
+    assert!(removed > 0);
+    let refused = crate::judge(Ok(elaborated)).unwrap_err();
+    assert!(
+        refused.detail.contains("no explicit last-use disposition"),
+        "{refused:?}"
     );
 }
 
