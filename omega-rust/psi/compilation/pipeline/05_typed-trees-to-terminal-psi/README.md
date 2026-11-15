@@ -524,7 +524,19 @@ expressions and the selected view declaration, checking explicit
 carrier's canonical default; an authored lookalike grants no ranking theory.
 Supported measures use scalar formals, integer constants, exact subtraction,
 and the length of a borrowed byte-view formal. Ranked mutual call components
-retain a private measure for every member.
+retain a private measure for every member. A recursive call group may declare
+its decreasing measure in one machine and pass the values it needs through
+helpers. The compiler follows each call's actual argument bindings to express
+that measure using the helper's own inputs. It refuses an expression that
+would depend on a local, field read or call result at helper entry. Every
+internal edge still proves its comparison, and every complete cycle still
+contains strict descent. This adds no public termination promise to a helper.
+
+A `match` at the end of a machine can return its chosen arm directly. Recursive
+calls in those arms participate in the same call group. Calls used to evaluate
+the subject, patterns or other operands still have work after they return, so
+they keep their continuations. A match whose value is used by another expression
+keeps its shared result continuation instead.
 [Rankings](#rankings) describes their lowering. A bare `terminates` can rely
 on such loops only when every reachable cycle is ranked.
 
