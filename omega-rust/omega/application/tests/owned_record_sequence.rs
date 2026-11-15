@@ -2,8 +2,8 @@
 //! is held in a local, returned from the machine that built it and passed by value to another
 //! machine. Native code backs the sequence with read-only image storage, so its descriptor stays
 //! valid after the building machine's frame is gone; the Psi interpreter and the native program
-//! must agree on the result. A sequence with a runtime element has no read-only bytes, so native
-//! lowering refuses it instead of backing it with a frame that ends at return.
+//! must agree on the result. Psi also preserves a runtime-valued sequence across both calls.
+//! Native realization of that fixture still needs an owned backing that survives the return.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -49,12 +49,12 @@ fn an_owned_record_sequence_survives_return_and_by_value_transfer_natively() {
 }
 
 #[test]
-fn an_owned_record_sequence_with_a_runtime_element_is_refused_natively() {
-    let project = fixture("fail", "runtime_record_sequence");
-    let (output, report) = run(&project, &["--engine", "native"]);
-    assert!(!output.status.success(), "{report}");
+fn a_runtime_valued_record_sequence_survives_return_and_by_value_transfer_in_psi() {
+    let project = fixture("pending", "runtime_record_sequence");
+    let (output, report) = run(&project, &["--engine", "psi"]);
+    assert!(output.status.success(), "{report}");
     assert!(
-        report.contains("native artifact target lowering failed: UnsupportedControlFlow"),
+        report.lines().any(|line| line == "terminal exit 0"),
         "{report}"
     );
 }

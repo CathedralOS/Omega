@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Saved named record sequences lose their storage contracts
+- Category: knowledge crossing a boundary
+- Where: [constant-element sequence](tests/fixtures/run/ownership/owned_record_sequence/main.omg#L9), [runtime-valued sequence](tests/fixtures/pending/ownership/runtime_record_sequence/main.omg#L7), [payload replay](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L5677)
+- Saw: On clean `8bfa8ba2dee` on macOS arm64, the constant-element sequence exits 0 in native and Psi. Its saved artifact fails inspection in `main`, block 5, operation 10 with `established payload contract is absent`. The runtime-valued fixture exits 0 in Psi and its artifact fails in block 3, operation 5 with `structural store backing is unresolved`. Both name the returned sequence in a local before passing it by value. An unchanged local-only literal and a direct returned-value call both reopen.
+- Cost: Programs can run with a named returned sequence that the independent reader cannot follow through storage. Retain the exact backing and payload contract at the existing store and join machinery and keep unmatched backing refused.
+- Reported: 2026-11-15, Codex, while independently checking the native record-sequence work.
+
 ### Console reload treats a mutable byte window as a replaceable descriptor
 - Category: knowledge crossing a boundary
 - Where: [Console requirement](source/library/std/console.omg#L36), [formal lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L529), [writable descriptor slots](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs#L7341), [boundary output coverage](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13050)

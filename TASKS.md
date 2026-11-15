@@ -266,7 +266,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## P3 - Terminal Psi, proofs, and observation
 
-- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete structural loans and slice views, including nested element-view copies. An owned record sequence whose elements are constant scalar records runs natively from read-only image storage (`tests/fixtures/run/ownership/owned_record_sequence`); one with a runtime element value is still refused by native target lowering (`tests/fixtures/fail/ownership/runtime_record_sequence`) and needs a backing that outlives the machine that builds it. Indexing an owned sequence, or lending it as `&[T]`, is still refused in source.
+- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete structural loans and slice views, including nested element-view copies. An owned record sequence whose elements are constant scalar records runs natively from read-only image storage (`tests/fixtures/run/ownership/owned_record_sequence`); the [runtime-valued sequence](tests/fixtures/pending/ownership/runtime_record_sequence/main.omg) runs in Psi and still needs native backing that outlives the machine that builds it. Indexing an owned sequence, or lending it as `&[T]`, is still refused in source.
 
 <a id="normalized-abi-lowering"></a>
 
