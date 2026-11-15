@@ -43,6 +43,7 @@ fn identity(machine: MachineId, detail: &str) -> Refusal {
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns: Construct::Machine,
+        source_span: None,
         detail: detail.to_owned(),
     }
 }

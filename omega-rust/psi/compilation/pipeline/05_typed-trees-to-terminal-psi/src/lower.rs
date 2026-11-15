@@ -822,6 +822,7 @@ impl<'a> Lowering<'a> {
                 reason: RefusalReason::ForeignIdentity,
                 machine: self.id,
                 concerns: Construct::Machine,
+                source_span: None,
                 detail: "a qualification names a value outside this lowering".into(),
             })?;
         if slot.is_some_and(|previous| previous != qualification) {
@@ -1021,6 +1022,7 @@ impl<'a> Lowering<'a> {
             reason: RefusalReason::Unsupported,
             machine: self.id,
             concerns: self.current.map_or(Construct::Machine, Construct::Block),
+            source_span: None,
             detail: format!("completion {detail}"),
         }
     }
@@ -1035,6 +1037,7 @@ impl<'a> Lowering<'a> {
             reason: RefusalReason::ForeignIdentity,
             machine: id,
             concerns: Construct::Machine,
+            source_span: None,
             detail: String::from("slot is past the end of this body"),
         })
     }
@@ -1044,6 +1047,7 @@ impl<'a> Lowering<'a> {
             reason: RefusalReason::ForeignIdentity,
             machine: self.id,
             concerns: Construct::Machine,
+            source_span: None,
             detail: String::from("slot is past the end of this body"),
         })
     }
