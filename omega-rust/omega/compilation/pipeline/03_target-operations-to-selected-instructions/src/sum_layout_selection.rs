@@ -1396,6 +1396,221 @@ fn retained_sequence_lengths_project_with_only_their_rows_and_facts() {
 }
 
 #[test]
+fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_structural_byte_sequence_field_read;
+    use legalized_operations::LegalizedScalarInstructionKind;
+    use semantic_vocabulary::ObligationId;
+
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut field = scalar_field(1, names.intern("path"), u64_type());
+    field.field_type =
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        });
+    let mut sibling = field.clone();
+    sibling.id = StructuralFieldId::new(2).unwrap();
+    sibling.identity = names.intern("known");
+    let selected_field = field.id;
+    let sibling_field = sibling.id;
+    let mut holder = reference_type(1, names.intern("Holder"), ty(1));
+    holder.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![field, sibling],
+    };
+    let mut array = reference_type(2, names.intern("Holders"), ty(2));
+    array.shape = StructuralTypeShape::FixedArray {
+        element: ty(1),
+        length: terminal_psi::ArrayExtent::Literal(4),
+    };
+    let parameter = parameter(ty(2));
+    let selector_bound = ObligationId::new(2).unwrap();
+    let byte_bound = ObligationId::new(3).unwrap();
+    let source = terminal_psi::StructuralArgument {
+        place: parameter.place,
+        access: parameter.access,
+        path: vec![StructuralPathSegment::RuntimeIndex {
+            index: val(1),
+            obligation: selector_bound,
+        }],
+    };
+    let result = AbstractResult {
+        value: val(4),
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+    };
+    let operation = AbstractOperation::StructuralByteSequenceFieldRead {
+        psi_operation: op(4),
+        result,
+        source: source.place,
+        path: source.path.clone(),
+        field: selected_field,
+        index: val(2),
+        length: val(3),
+        obligation: byte_bound,
+    };
+    let constant = |ordinal, value| AbstractOperation::IntegerConstant {
+        psi_operation: op(ordinal),
+        result: val(ordinal),
+        scalar_type: ScalarType::Integer(u64_type()),
+        value: IntegerValue::Unsigned(value),
+    };
+    let function = function_with_body(
+        vec![parameter],
+        vec![entry(
+            1,
+            vec![
+                constant(1, 1),
+                constant(2, 0),
+                AbstractOperation::StructuralByteSequenceFieldLength {
+                    psi_operation: op(3),
+                    result: AbstractResult {
+                        value: val(3),
+                        scalar_type: ScalarType::Integer(u64_type()),
+                    },
+                    source: source.place,
+                    path: source.path.clone(),
+                    field: selected_field,
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![holder, array], function);
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let integer_source = |ordinal, value| TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(ordinal),
+        source_value: val(ordinal),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(value),
+    };
+    let selector = integer_source(1, 1);
+    let index = integer_source(2, 0);
+    let row = TargetUnitOperation::StructuralByteSequenceFieldRead {
+        psi_operation: op(4),
+        result,
+        source: source.clone(),
+        field: selected_field,
+        indices: vec![target_operations::TargetStructuralRuntimeIndex {
+            operand: selector,
+            stride: 32,
+            extent: Some(4),
+            obligation: selector_bound,
+        }],
+        index,
+        length: val(3),
+        obligation: byte_bound,
+    };
+    let facts = [selector_bound, byte_bound].map(|obligation| {
+        optimization_unit::AcceptedObligationFact::new(
+            plan.psi,
+            [7; 32],
+            machine(),
+            optimization_unit::PsiProvenance::Operation(op(4)),
+            obligation,
+            vec![2],
+        )
+    });
+    let project = |facts| project_structural_byte_sequence_field_read(machine(), facts, &row);
+    let LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+        source: projected_source,
+        field,
+        indices,
+        index: projected_index,
+        length,
+        obligation,
+        accepted_fact,
+    } = project(&facts).unwrap()
+    else {
+        panic!("byte field read");
+    };
+    assert_eq!(projected_source, source);
+    assert_eq!(
+        (field, projected_index, length, obligation),
+        (selected_field, val(2), val(3), byte_bound)
+    );
+    assert_eq!(accepted_fact, facts[1].identity);
+    assert_eq!(indices.len(), 1);
+    assert_eq!(
+        (
+            indices[0].operand.value,
+            indices[0].stride,
+            indices[0].extent,
+            indices[0].accepted_fact
+        ),
+        (val(1), 32, Some(4), facts[0].identity)
+    );
+    assert!(
+        project(&facts[..1]).is_err(),
+        "each byte owes its own bound"
+    );
+    assert!(
+        project(&facts[1..]).is_err(),
+        "the enclosing array owes a separate bound"
+    );
+
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let sources = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = sources.available(block_id(1));
+        available.push((val(1), selector));
+        available.push((val(2), index));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("read agrees with the exact field, selector and bounds");
+    #[derive(Debug)]
+    enum Damage {
+        SiblingField,
+        DifferentLength,
+        WrongStride,
+    }
+    for damage in [
+        Damage::SiblingField,
+        Damage::DifferentLength,
+        Damage::WrongStride,
+    ] {
+        let mut changed = row.clone();
+        let TargetUnitOperation::StructuralByteSequenceFieldRead {
+            field,
+            length,
+            indices,
+            ..
+        } = &mut changed
+        else {
+            panic!("byte field read");
+        };
+        match damage {
+            Damage::SiblingField => *field = sibling_field,
+            Damage::DifferentLength => *length = val(2),
+            Damage::WrongStride => indices[0].stride = 16,
+        }
+        assert!(audit(&changed).is_err(), "{damage:?}");
+    }
+}
+
+#[test]
 fn retained_byte_length_audit_reconstructs_the_descriptor_and_exact_fold() {
     use target_operations::TargetIntegerExpression as Expression;
     use terminal_psi::ByteSequenceCarrier;

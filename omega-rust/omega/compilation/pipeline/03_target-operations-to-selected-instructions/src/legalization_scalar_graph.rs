@@ -6928,24 +6928,6 @@ pub(crate) mod structural_fields {
         })
     }
 
-    pub(crate) fn byte_index_operands(
-        function: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: semantic_vocabulary::OperationId,
-        source: &terminal_psi::StructuralArgument,
-        field: semantic_vocabulary::StructuralFieldId,
-    ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
-    {
-        let geometry = byte_geometry(function, source, field, unit.geometry())
-            .ok_or(crate::LegalizationError::custody())?;
-        crate::legalization::runtime_indices::operands(
-            function,
-            unit,
-            operation,
-            &geometry.elements,
-        )
-    }
-
     pub(crate) fn view_slot_geometry(
         function: &PsiOptimizationFunction,
         destination: &terminal_psi::StructuralArgument,
