@@ -484,7 +484,8 @@ pub(crate) mod canonical_values {
 }
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, CallableContractScope, CallableSubstitution,
-    ClosedRequirementApplication, NamedConformanceCaptureIndex, RequirementLocalArgument,
+    ClosedRequirementApplication, MachineInstantiation, NamedConformanceCaptureIndex,
+    RequirementLocalArgument,
 };
 pub(crate) mod frozen {
     use super::TypedTrees;

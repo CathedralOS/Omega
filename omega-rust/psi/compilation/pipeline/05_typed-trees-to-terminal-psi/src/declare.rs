@@ -14,8 +14,8 @@ and the published suspension and blocking Booleans.
 
 Every identity is the one the typed trees fix for the declaration's symbol,
 copied into the module's identity table in the text form that table holds,
-exactly as a record type's is (`RecordType::identity`). Nothing here or in
-the checker compares those texts, and none is formed from a name.
+exactly as a record type's is (`RecordType::identity`). These identities are
+never formed from a name.
 
 The contract commitment is a digest of the contract the lowered form
 publishes for the machine: its callable identity, each formal's complete declared
@@ -41,10 +41,11 @@ use optimization::digest_encoder::DomainDigestEncoder;
 use semantic_vocabulary::{IdTable, MachineId};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    CheckedMachineDeclaration, ClosedReachApplication, ClosedReachParameter,
-    NominalDeclarationIdentity, TerminalIdentityTableBuilder, TerminalMachine,
+    CheckedMachineCapture, CheckedMachineDeclaration, ClosedReachApplication, ClosedReachCapture,
+    ClosedReachParameter, NominalDeclarationIdentity, TerminalIdentityTableBuilder,
+    TerminalMachine,
 };
-use typed_trees::TypedTrees;
+use typed_trees::{MachineInstantiation, TypedTrees};
 
 use crate::{Elaboration, Signature};
 
@@ -65,10 +66,11 @@ impl Hasher for Commitment {
     }
 }
 
-/// The ordinary arguments declared beside an exact generated machine. These
-/// stay in preparation until its template forms supply the contract.
-pub(crate) struct OrdinaryApplication {
+/// Bindings for the generated body or its enclosing map. Retain them until
+/// the exact source template forms supply the application contract.
+pub(crate) struct PreparedApplication {
     template: SymbolHandle,
+    enclosing_capture: bool,
     parameter_kinds: Vec<u8>,
     telescope: Vec<ClosedReachParameter>,
 }
@@ -80,7 +82,7 @@ pub(crate) fn declare(
     typed: &TypedTrees,
     program: &crate::read::Program<'_>,
     elaboration: &mut Elaboration,
-) -> Result<Vec<(MachineId, OrdinaryApplication)>, &'static str> {
+) -> Result<Vec<(MachineId, PreparedApplication)>, &'static str> {
     let machines = &program.symbols;
     let signatures = &program.signatures;
     let requirement_sources = &program.declaration_sources;
@@ -125,7 +127,7 @@ pub(crate) fn declare(
         Err(_) if identities.is_invocation_scoped() => Ok(Vec::new()),
         sources => sources,
     };
-    let mut ordinary = Vec::new();
+    let mut prepared = Vec::new();
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
         if elaboration.requirements.contains(&machine.id) {
@@ -164,7 +166,7 @@ pub(crate) fn declare(
             Ok((declaration, application)) => {
                 machine.declaration = Some(declaration);
                 if let Some(application) = application {
-                    ordinary.push((machine.id, application));
+                    prepared.push((machine.id, application));
                 }
             }
             Err(reason) => elaboration.undeclared.push((machine.id, reason)),
@@ -259,7 +261,7 @@ pub(crate) fn declare(
         Ok(())
     })();
     elaboration.module.identities = identities.build();
-    result.map(|()| ordinary)
+    result.map(|()| prepared)
 }
 
 /// States, for each requirement a chosen provider supplies
@@ -388,7 +390,7 @@ fn declaration(
     machine: &TerminalMachine,
     published: Published<'_>,
     identities: &mut TerminalIdentityTableBuilder,
-) -> Result<(CheckedMachineDeclaration, Option<OrdinaryApplication>), &'static str> {
+) -> Result<(CheckedMachineDeclaration, Option<PreparedApplication>), &'static str> {
     let declared = typed
         .machine_by_symbol(symbol)
         .ok_or("the machine has no typed-tree declaration")?;
@@ -416,11 +418,11 @@ fn declaration(
         .ok_or("the machine has no complete declared signature identity")?;
     // A machine stage 04 generated for a static application also names the
     // generic machine it was generated from and commits to the application.
-    let (specialization, ordinary) = match typed.executable_application_template(symbol)? {
+    let (specialization, prepared) = match typed.executable_application_template(symbol)? {
         Some(template) => {
-            let (specialization, ordinary) =
+            let (specialization, prepared) =
                 application(typed, sources, symbol, template, identities)?;
-            (Some(specialization), ordinary)
+            (Some(specialization), prepared)
         }
         None => (None, None),
     };
@@ -459,7 +461,7 @@ fn declaration(
             published_may_block: machine.published_may_block,
             specialization,
         },
-        ordinary,
+        prepared,
     ))
 }
 
@@ -483,7 +485,7 @@ fn application(
 ) -> Result<
     (
         terminal_psi::CheckedMachineSpecialization,
-        Option<OrdinaryApplication>,
+        Option<PreparedApplication>,
     ),
     &'static str,
 > {
@@ -527,18 +529,33 @@ fn application(
             "a generated machine's application binds other than one argument per parameter",
         );
     }
-    let parameters = typed.machine_type_parameters(declared);
-    let mut ordinary = (typed.machine_specialization(instance).is_some()
-        && declared.conformance_bounds.is_empty()
+    let (parameters, enclosing_capture) = match row {
+        MachineInstantiation::Specialization(_) => (typed.machine_type_parameters(declared), false),
+        MachineInstantiation::Capture(capture) => {
+            let (owner, _) = typed
+                .owned_conformance_realization(template)
+                .filter(|(owner, _)| owner.symbol == capture.conformance_application.declaration)
+                .ok_or("a captured application lost its exact enclosing map")?;
+            if capture.normalized_template_identity != callable
+                || binding_application != capture.conformance_application.callable_application
+                || !declared.type_parameters.is_empty()
+            {
+                return Err("a captured application lost its exact source template");
+            }
+            (typed.conformance_type_parameters(owner), true)
+        }
+    };
+    let mut prepared = (declared.conformance_bounds.is_empty()
         && parameters.iter().all(|parameter| {
             matches!(parameter.kind, TypeParameterKind::Type) || parameter.kind.is_const_or_value()
         }))
-    .then(|| OrdinaryApplication {
+    .then(|| PreparedApplication {
         template,
+        enclosing_capture,
         parameter_kinds: Vec::with_capacity(bindings.len()),
         telescope: Vec::with_capacity(bindings.len()),
     });
-    if ordinary.is_some()
+    if prepared.is_some()
         && (parameters.len() != bindings.len()
             || !parameters.iter().zip(bindings).all(|(parameter, binding)| {
                 parameter.symbol == binding.parameter
@@ -558,9 +575,9 @@ fn application(
             StaticMachineBindingValue::Type(type_reference) => {
                 let argument = type_argument(typed, *type_reference)?;
                 argument.hash(&mut commitment);
-                if let Some(ordinary) = &mut ordinary {
-                    ordinary.parameter_kinds.push(0);
-                    ordinary
+                if let Some(prepared) = &mut prepared {
+                    prepared.parameter_kinds.push(0);
+                    prepared
                         .telescope
                         .push(ClosedReachParameter::Type { argument });
                 }
@@ -598,9 +615,9 @@ fn application(
             StaticMachineBindingValue::Const(value_reference) => {
                 let (carrier, value) = const_argument(typed, binding.parameter, *value_reference)?;
                 ("value", carrier.as_str(), value.as_str()).hash(&mut commitment);
-                if let Some(ordinary) = &mut ordinary {
-                    ordinary.parameter_kinds.push(1);
-                    ordinary.telescope.push(ClosedReachParameter::Const {
+                if let Some(prepared) = &mut prepared {
+                    prepared.parameter_kinds.push(1);
+                    prepared.telescope.push(ClosedReachParameter::Const {
                         // The length keeps the carrier and literal distinct.
                         argument: format!("{}:{carrier}{value}", carrier.len()),
                     });
@@ -624,7 +641,7 @@ fn application(
             template_semantic_declaration: semantic,
             commitment: commitment.0.finish(),
         },
-        ordinary,
+        prepared,
     ))
 }
 
@@ -670,13 +687,12 @@ fn const_argument(
     Ok((carrier, value))
 }
 
-/// Connect an ordinary generated body to the template contract the same
-/// compilation judges. Its type and const arguments cannot contribute
-/// callable reach. The generated body already owns its fixed service and
-/// operational rows.
-pub(crate) fn close_ordinary_specializations(
+/// Close a generated body against the template contract this compilation
+/// judges. Type and const applications preserve the generated body's fixed
+/// service and operational rows.
+pub(crate) fn close_specializations(
     generic: &[terminal_check_tables::compilation::GenericForms],
-    applications: Vec<(MachineId, OrdinaryApplication)>,
+    applications: Vec<(MachineId, PreparedApplication)>,
     closure: &mut Elaboration,
 ) -> Result<(), (MachineId, &'static str)> {
     if applications.is_empty() {
@@ -692,12 +708,7 @@ pub(crate) fn close_ordinary_specializations(
             // Both rosters were produced in machine order by declaration.
             let machine = machines
                 .find(|machine| machine.id == owner)
-                .ok_or("an ordinary application has no exact emitted owner")?;
-            let specialization = machine
-                .declaration
-                .as_ref()
-                .and_then(|declaration| declaration.specialization.as_ref())
-                .ok_or("an ordinary application has no checked declaration")?;
+                .ok_or("a prepared application has no exact emitted owner")?;
             let Some(template_base_commitment) = bases
                 .get(&application.template)
                 .copied()
@@ -716,6 +727,35 @@ pub(crate) fn close_ordinary_specializations(
                 &blocking_dependency,
                 &[],
             )?;
+            let fixed = machine.published_service_ceiling.clone();
+            let specialization = machine
+                .declaration
+                .as_mut()
+                .and_then(|declaration| declaration.specialization.as_mut())
+                .ok_or("a prepared application has no checked declaration")?;
+            let mut parameter_kinds = application.parameter_kinds;
+            let mut telescope = application.telescope;
+            let capture = application.enclosing_capture.then(|| {
+                let template_identity = specialization.template_callable;
+                // The map supplied all the bindings. The owned method has
+                // no separate static arguments at this call.
+                specialization.capture = Some(CheckedMachineCapture {
+                    template_identity,
+                    template_commitment,
+                    specialization_commitment: specialization.commitment,
+                });
+                ClosedReachCapture {
+                    template_identity,
+                    template_base_commitment,
+                    template_commitment,
+                    suspension_dependency: suspension_dependency.clone(),
+                    blocking_dependency: blocking_dependency.clone(),
+                    conditional_carry: Vec::new(),
+                    specialization_commitment: specialization.commitment,
+                    parameter_kinds: std::mem::take(&mut parameter_kinds),
+                    telescope: std::mem::take(&mut telescope),
+                }
+            });
             machine.closed_reach_application = Some(ClosedReachApplication {
                 template_identity: specialization.template_semantic_declaration,
                 template_base_commitment,
@@ -724,10 +764,10 @@ pub(crate) fn close_ordinary_specializations(
                 blocking_dependency,
                 conditional_carry: Vec::new(),
                 specialization_commitment: specialization.commitment,
-                parameter_kinds: application.parameter_kinds,
-                telescope: application.telescope,
-                capture: None,
-                fixed: machine.published_service_ceiling.clone(),
+                parameter_kinds,
+                telescope,
+                capture,
+                fixed,
                 dependencies: Vec::new(),
                 calls: Vec::new(),
             });

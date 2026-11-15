@@ -273,8 +273,10 @@ pub fn elaborate_for(
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
-    elaborate_source_for(typed, compilation, publication, named_captures(typed))
-        .map(|prepared| prepared.program)
+    let mut prepared =
+        elaborate_source_for(typed, compilation, publication, named_captures(typed))?;
+    proof_scope::declare(typed, &mut prepared.program, &prepared.selected_calls)?;
+    Ok(prepared.program)
 }
 
 fn elaborate_source_for<'source>(
@@ -308,7 +310,6 @@ fn elaborate_source_for<'source>(
     let mut elaboration = finish_reading(program, entry, IdTable::default())?;
     elaboration.selected_calls =
         compilation::prepare_selected_signatures(typed, &elaboration.program, &elaboration.source)?;
-    proof_scope::declare(typed, &mut elaboration.program, &elaboration.selected_calls)?;
     Ok(elaboration)
 }
 
@@ -667,8 +668,8 @@ fn finish_reading<'source>(
     )?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
-    let ordinary_applications = declare::declare(program.typed(), &program, &mut elaboration)
-        .and_then(|ordinary_applications| {
+    let prepared_applications = declare::declare(program.typed(), &program, &mut elaboration)
+        .and_then(|prepared_applications| {
             declare::provider_candidates(
                 program.typed(),
                 &program.symbols,
@@ -678,7 +679,7 @@ fn finish_reading<'source>(
             )?;
             // Last, over the finished operations and published contracts.
             suspension::publish_crossings(&mut elaboration.module)?;
-            Ok(ordinary_applications)
+            Ok(prepared_applications)
         })
         .map_err(|reason| {
             refuse(
@@ -724,7 +725,7 @@ fn finish_reading<'source>(
         program: elaboration,
         source,
         selected_calls: Vec::new(),
-        ordinary_applications,
+        prepared_applications,
     })
 }
 
@@ -1068,7 +1069,7 @@ fn lower_generic_for<'source>(
     let mut prepared = PreparedProgram {
         source,
         selected_calls: Vec::new(),
-        ordinary_applications: Vec::new(),
+        prepared_applications: Vec::new(),
         program: Elaboration {
             module,
             tables,
