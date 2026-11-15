@@ -1296,11 +1296,26 @@ impl<'a> Lowering<'a> {
                 }
             }
         }
+        // Literal ordinals enumerate literals, while roots also include
+        // records, parameters and operation results. Number the declarations
+        // once here so those interleaved roots cannot leave literal gaps.
+        let mut byte_literal_ordinal = 0;
         let structural_places = self
             .roots
             .iter()
-            .map(|(id, (kind, _))| StructuralPlaceDeclaration { id, kind: *kind })
-            .collect();
+            .map(|(id, (kind, _))| {
+                let mut kind = *kind;
+                if let StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    ..
+                } = &mut kind
+                {
+                    *declaration_ordinal = self.position(byte_literal_ordinal)?;
+                    byte_literal_ordinal += 1;
+                }
+                Ok(StructuralPlaceDeclaration { id, kind })
+            })
+            .collect::<Checked<Vec<_>>>()?;
         self.call_formations.sort_unstable_by_key(|row| row.site);
         let mut machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
