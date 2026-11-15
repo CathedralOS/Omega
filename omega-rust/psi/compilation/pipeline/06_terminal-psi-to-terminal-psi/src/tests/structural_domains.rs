@@ -276,3 +276,54 @@ fn a_move_cannot_carry_an_unchecked_operation_issuer_row() {
         "a structural issuer claim on an operation requires a boundary completion",
     );
 }
+
+#[test]
+fn a_value_match_keeps_each_arriving_records_domain() {
+    const SOURCE: &str = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine choose(test: bool, left: Ticket in Stamped, right: Ticket in Stamped) -> Ticket in Stamped {
+    let selected: Ticket in Stamped = match test { true -> left, _ -> right };
+    selected
+}
+machine entry() -> u32 {
+    let selected: Ticket in Stamped =
+        choose(false, stamp(Ticket { number: 3u32 }), stamp(Ticket { number: 5u32 }));
+    selected.number
+}
+"#;
+    let elaboration = invocation(SOURCE).unwrap();
+    let module = &elaboration.module;
+    let domain = module.structural_domains[0].id;
+    let choose = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| module.identities.text(declaration.callable))
+                .is_some_and(|identity| identity.contains("choose"))
+        })
+        .expect("the chosen machine owns the match");
+    assert!(
+        choose
+            .blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+            .any(|parameter| parameter.qualifications == [domain])
+    );
+    let verdict = judge(Ok(elaboration)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let invalid = SOURCE.replace("_ -> right }", "_ -> right as -Stamped }");
+    let refusal = invocation(&invalid).unwrap_err();
+    assert!(
+        refusal.detail.contains("the match's common result type")
+            && refusal
+                .detail
+                .contains("a type gains or loses a domain only"),
+        "{refusal:?}"
+    );
+}

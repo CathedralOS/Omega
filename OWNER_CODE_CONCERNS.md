@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A reference match loses the incoming loan at its result
+- Category: knowledge crossing a boundary
+- Where: [incoming descriptor authentication](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L429)
+- Saw: On macOS arm64 with the `2654b67f946` CLI, `let joined: &Ticket = match choice { true -> incoming, _ -> incoming };` followed by a call borrowing `joined` refuses because it cannot authenticate the incoming loan. Binding `incoming` to a local reference before the same match instead runs to exit 0 in native and fails in Psi with `AffineFrontierMismatch` at machine 4, block 4. The otherwise equivalent `&Ticket in Stamped` controls reproduce both outcomes with the qualified match change at `1264434c319`.
+- Cost: Branches that deliver a shared reference to the same backing cannot carry its checked loan into a caller. Preserve the incoming formation and live permission through the existing arrival and interpreter custody rules.
+- Reported: 2026-11-15, Codex, while checking domains through value matches.
+
 ### A selected domain access plan never supplies its issuer set
 - Category: a verdict with nothing behind it
 - Where: [source demand](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L143), [cast ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/casts.rs#L529)
@@ -146,7 +153,7 @@ framework or a list of features that remain unimplemented.
 ### Some record-domain placements still have no checked representation
 - Category: a verdict with nothing behind it
 - Where: `05_typed-trees-to-terminal-psi/src/qualifications.rs` (`declare_structural`, `structural_establishments`); `lower/places.rs` (`value_memberships`); `terminal-psi/semantics/src/structural_qualifications.rs`; `06_terminal-psi-to-terminal-psi/src/lib.rs` (boundary calls with qualified structural formals)
-- Saw: the lowered checker forms each declared record-domain predicate with the default facts of its own carrier. Field sites prove the clauses at their storage paths. A cast still refuses domains with predicates because it cannot prove their complete membership theory. A cast through a requirement route is refused because the lowered form carries a conformance edge only as the closed application of a selected call. Domains on array elements and qualified boundary results are refused. A value match also refuses a qualified result before it checks the arms. A matched `&Ticket in Stamped` was refused in the persistent-reference controls on macOS arm64; the same reference assigned directly and passed as a field executes. A host value issued by the evaluator receives its formal's memberships only at the Build entry.
+- Saw: the lowered checker forms each declared record-domain predicate with the default facts of its own carrier. Field sites prove the clauses at their storage paths. A cast still refuses domains with predicates because it cannot prove their complete membership theory. A cast through a requirement route is refused because the lowered form carries a conformance edge only as the closed application of a selected call. Domains on array elements and qualified boundary results are refused. A host value issued by the evaluator receives its formal's memberships only at the Build entry.
 - Cost: programs using those placements are refused or require the Build entry to supply the membership.
 - Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts; narrowed 2026-11-15, Claude Code, after carrying record domains into the lowered checker
 

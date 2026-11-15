@@ -777,9 +777,9 @@ impl<'t> Program<'t> {
         Ok((arms, default, result))
     }
 
-    /// Each arm transfers one value of the destination's exact type,
-    /// including its regions. Qualification and rigid-value judgments remain
-    /// separate; a matching carrier alone does not erase those obligations.
+    /// Each returning arm transfers the destination's exact type, including
+    /// its domains and regions. Structural arrival parameters carry those
+    /// memberships into the match continuation.
     fn arm_value(
         &mut self,
         id: MachineId,
@@ -803,10 +803,9 @@ impl<'t> Program<'t> {
         }
         let value_type = match value.result {
             Some(
-                value_type @ (ValueType::Scalar(_, Qualification::NONE)
-                | ValueType::Record(_, Qualification::NONE, _)),
+                value_type @ (ValueType::Scalar(_, Qualification::NONE) | ValueType::Record(..)),
             ) => value_type,
-            Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
+            Some(ValueType::Scalar(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
             Some(ValueType::Rigid(_)) => {
