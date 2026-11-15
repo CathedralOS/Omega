@@ -33,6 +33,38 @@ pub(crate) struct Qualifications {
     structural_issuers: Vec<(MachineId, StructuralDomainId, u32)>,
     /// Explicit structural casts, in machine and edge order.
     pub structural_changes: Vec<StructuralQualificationChange>,
+    /// The module's scalar applications. Every machine's lowering shares
+    /// it, so one layout question about one row is one application however
+    /// many bodies ask it (`layout_observation`).
+    pub scalar_applications: terminal_psi::ScalarApplications,
+}
+
+impl Qualifications {
+    /// The application observing `measurement` of `subject` under the
+    /// selected target's validated geometry, published once per module.
+    pub(crate) fn layout_observation(
+        &mut self,
+        subject: semantic_vocabulary::StructuralTypeId,
+        measurement: terminal_psi::LayoutMeasurement,
+        scalar_type: ScalarType,
+    ) -> Result<semantic_vocabulary::ScalarApplicationId, &'static str> {
+        let declaration = terminal_psi::ScalarApplication::LayoutObservation {
+            subject,
+            measurement,
+            semantics_version: terminal_psi::LayoutMeasurement::SEMANTICS_VERSION,
+            scalar_type,
+        };
+        if let Some(position) = self
+            .scalar_applications
+            .declarations()
+            .iter()
+            .position(|existing| *existing == declaration)
+        {
+            return semantic_vocabulary::ScalarApplicationId::new(position as u64 + 1)
+                .ok_or("scalar application namespace is exhausted");
+        }
+        self.scalar_applications.insert(declaration)
+    }
 }
 
 /// Which declared route an issuer restriction names.

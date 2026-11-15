@@ -700,6 +700,14 @@ pub(crate) fn defer_unbound_calls(
             let ExpressionNode::Call(call) = expression else {
                 continue;
             };
+            // `size_of<T>()` and `align_of<T>()` name no declaration by
+            // construction: typing recognized the compiler-known query and
+            // retained its operand, and Terminal Psi production reads that
+            // request as a layout observation. It is not a call awaiting a
+            // target.
+            if call.layout_query.is_some() {
+                continue;
+            }
             let receiver = if !call.receiver.is_valid() {
                 CallReceiver::Absent
             } else if let ExpressionNode::Name(path) =

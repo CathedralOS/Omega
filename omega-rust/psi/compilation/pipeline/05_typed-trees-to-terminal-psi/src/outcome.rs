@@ -489,6 +489,7 @@ impl<'b> Walk<'b> {
         match &expression.kind {
             ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_) => Ok(true),

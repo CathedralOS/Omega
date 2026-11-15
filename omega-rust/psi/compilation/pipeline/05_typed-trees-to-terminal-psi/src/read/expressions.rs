@@ -1278,6 +1278,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
     left.result == right.result
         && match (&left.kind, &right.kind) {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
+            (
+                ExpressionKind::LayoutObservation { subject: a, measurement: am },
+                ExpressionKind::LayoutObservation { subject: b, measurement: bm },
+            ) => a == b && am == bm,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
@@ -1436,6 +1440,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (
                 ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
+                | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }

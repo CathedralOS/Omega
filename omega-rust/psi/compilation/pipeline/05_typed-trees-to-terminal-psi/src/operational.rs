@@ -92,6 +92,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
     }
     match &value.kind {
         ExpressionKind::Integer(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Slot(_)
