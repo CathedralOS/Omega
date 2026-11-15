@@ -197,7 +197,7 @@ pub(crate) fn declare(
             &mut elaboration.module,
             &mut identities,
         )?;
-        for (required, application, mut dispatch) in links {
+        for (required, application, mut dispatch, result_lifetimes) in links {
             let application = elaboration
                 .module
                 .closed_conformance_applications
@@ -218,7 +218,13 @@ pub(crate) fn declare(
             {
                 return Err("one public contract is associated with different closed selections");
             }
+            if contract.selected_application.is_some()
+                && contract.result_lifetimes != result_lifetimes
+            {
+                return Err("one public contract is published with different lifetime accounts");
+            }
             contract.selected_application = Some(dispatch);
+            contract.result_lifetimes = result_lifetimes;
         }
         elaboration
             .module

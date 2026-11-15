@@ -14,7 +14,14 @@ use terminal_psi::{
 };
 use typed_trees::TypedTrees;
 
-type HeaderLink = (ContractId, usize, StaticRequirementDispatch);
+/// A selected public header's link to its closed application, with the
+/// public signature's declared lifetime groups the header publishes.
+type HeaderLink = (
+    ContractId,
+    usize,
+    StaticRequirementDispatch,
+    Option<Vec<terminal_psi::DeclaredResultLifetime>>,
+);
 
 pub(super) fn publish(
     typed: &TypedTrees,
@@ -408,7 +415,6 @@ pub(super) fn publish(
                         .as_ref()
                         .map(|specialization| specialization.commitment),
                     method_arguments: arguments,
-                    result_lifetimes,
                 });
             links.push((
                 *required,
@@ -423,6 +429,7 @@ pub(super) fn publish(
                     realization_callable_identity: callable,
                     realization: *body,
                 },
+                result_lifetimes,
             ));
         }
         application

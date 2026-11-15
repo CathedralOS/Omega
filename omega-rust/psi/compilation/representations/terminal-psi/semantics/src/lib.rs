@@ -133,8 +133,8 @@ pub use references::reference_storage_geometry::{
     validate_storage_destination_intervals,
 };
 pub use references::{
-    RequirementReferenceResult, SelectedReferenceResult, declared_reference_result_sources,
-    requirement_reference_result, selected_reference_result,
+    DeclaredReferenceResult, public_reference_result, requirement_reference_result,
+    selected_reference_result,
 };
 pub use references::{
     boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
