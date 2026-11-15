@@ -3,11 +3,11 @@
 data HookProcedurePolicy { }
 public HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        HookProcedurePolicy::plan(signature)
+        hook_procedure_plan(signature)
     }
 }
 
-machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+machine hook_procedure_plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 1 && signature.has_result {
@@ -76,11 +76,11 @@ boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
 data HookRegistrarPolicy { }
 public HookRegistrarCallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        HookRegistrarPolicy::plan(signature)
+        hook_registrar_plan(signature)
     }
 }
 
-machine BoundaryEntryPlan::write_integer_register_parameter(
+machine boundary_entry_plan_write_integer_register_parameter(
     output: &mut BoundaryEntryPlan,
     index: u64,
     register: MachineRegister
@@ -98,7 +98,7 @@ requires index <= 31
     };
 }
 
-machine HookRegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+machine hook_registrar_plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 2 {
@@ -124,8 +124,8 @@ machine HookRegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = 2;
-        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 0, MachineRegister::X86Rcx);
-        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 1, MachineRegister::X86Rdx);
+        boundary_entry_plan_write_integer_register_parameter(&mut output, 0, MachineRegister::X86Rcx);
+        boundary_entry_plan_write_integer_register_parameter(&mut output, 1, MachineRegister::X86Rdx);
         output.call.stack_alignment = 16;
         output.call.shadow_bytes = 32;
         output.call.entry_control = EntryControl::CallReturn;
@@ -139,9 +139,9 @@ machine HookRegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = 3;
-        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 0, MachineRegister::X86Rcx);
-        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 1, MachineRegister::X86Rdx);
-        BoundaryEntryPlan::write_integer_register_parameter(&mut output, 2, MachineRegister::X86R8);
+        boundary_entry_plan_write_integer_register_parameter(&mut output, 0, MachineRegister::X86Rcx);
+        boundary_entry_plan_write_integer_register_parameter(&mut output, 1, MachineRegister::X86Rdx);
+        boundary_entry_plan_write_integer_register_parameter(&mut output, 2, MachineRegister::X86R8);
         output.call.callback_materialization_count = 1;
         output.call.callback_materializations[0].binder =
             signature.callback_binders[0].binder;
@@ -176,12 +176,12 @@ boundary trait HookRegistrar: Calling<HookRegistrarCallingPolicy> {
 
 data HookProvider { }
 
-machine HookProvider::call(message: u64) -> u64
+machine hook_provider_call(message: u64) -> u64
 satisfies HookProcedure::call
 {
     message
 }
 
 machine main() reaches HookRegistrar {
-    HookRegistrar::install<HookProvider::call>(1u64, 2u64);
+    HookRegistrar::install<hook_provider_call>(1u64, 2u64);
 }

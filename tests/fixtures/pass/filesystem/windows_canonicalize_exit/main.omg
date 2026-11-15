@@ -21,11 +21,6 @@ use omega::language::core::ProcessExit;
 use omega_language_std::ErrorKind;
 use omega_language_std::UnitResult;
 use omega_language_std::Filesystem;
-use omega_language_std::Filesystem::write_all;
-use omega_language_std::Filesystem::remove;
-use omega_language_std::Filesystem::create_dir;
-use omega_language_std::Filesystem::remove_dir;
-use omega_language_std::Filesystem::canonicalize;
 
 use omega_language_std::Console;
 
@@ -38,7 +33,7 @@ data FailedOpen {
 }
 
 machine FailedOpen::main(failed_open: &mut FailedOpen) -> i32 {
-    let outcome: UnitResult = block Filesystem::canonicalize(&mut failed_open.filesystem, "omega_wcanon_missing.txt", &mut failed_open.buffer);
+    let outcome: UnitResult = block omega_language_std::filesystem_canonicalize(&mut failed_open.filesystem, "omega_wcanon_missing.txt", &mut failed_open.buffer);
     transition outcome {
         UnitResult::Error { kind } -> failed(kind)
         _ -> unexpected()
@@ -57,10 +52,10 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
-    main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_wcanon_probe.txt", "canon");
+    main.unit_result = block omega_language_std::filesystem_write_all(&mut main.fs, "omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> block resolve(main) _ -> bad(main, 71) }
     machine resolve(main: &mut Main) {
-        main.unit_result = block Filesystem::canonicalize(&mut main.fs, "omega_wcanon_probe.txt", &mut main.canon);
+        main.unit_result = block omega_language_std::filesystem_canonicalize(&mut main.fs, "omega_wcanon_probe.txt", &mut main.canon);
         transition main.unit_result { UnitResult::Ok -> block spelled(main) _ -> bad(main, 72) }
     }
     machine spelled(main: &mut Main) {
@@ -69,18 +64,18 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemCo
         transition canonical_prefix_is_valid(main.canon[0]) { true -> block make_dir(main) _ -> bad(main, 73) }
     }
     machine make_dir(main: &mut Main) {
-        main.unit_result = block Filesystem::create_dir(&mut main.fs, "omega_wcanon_dir");
+        main.unit_result = block omega_language_std::filesystem_create_dir(&mut main.fs, "omega_wcanon_dir");
         transition main.unit_result { UnitResult::Ok -> block resolve_dir(main) _ -> bad(main, 76) }
     }
     machine resolve_dir(main: &mut Main) {
-        main.unit_result = block Filesystem::canonicalize(&mut main.fs, "omega_wcanon_dir", &mut main.canon);
+        main.unit_result = block omega_language_std::filesystem_canonicalize(&mut main.fs, "omega_wcanon_dir", &mut main.canon);
         transition main.unit_result { UnitResult::Ok -> block spelled_dir(main) _ -> bad(main, 77) }
     }
     machine spelled_dir(main: &mut Main) {
         transition canonical_prefix_is_valid(main.canon[0]) { true -> block missing(main) _ -> bad(main, 78) }
     }
     machine missing(main: &mut Main) {
-        let outcome: UnitResult = block Filesystem::canonicalize(&mut main.fs, "omega_wcanon_missing.txt", &mut main.canon);
+        let outcome: UnitResult = block omega_language_std::filesystem_canonicalize(&mut main.fs, "omega_wcanon_missing.txt", &mut main.canon);
         transition outcome { UnitResult::Error { kind } -> block kindcheck(main, kind) _ -> bad(main, 74) }
     }
     machine kindcheck(main: &mut Main, kind: ErrorKind) {
@@ -88,11 +83,11 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemCo
         transition kind { ErrorKind::NotFound -> block cleanup(main) _ -> bad(main, 75) }
     }
     machine cleanup(main: &mut Main) {
-        main.unit_result = block Filesystem::remove(&mut main.fs, "omega_wcanon_probe.txt");
+        main.unit_result = block omega_language_std::filesystem_remove(&mut main.fs, "omega_wcanon_probe.txt");
         transition { _ -> block cleanup_dir(main) }
     }
     machine cleanup_dir(main: &mut Main) {
-        main.unit_result = block Filesystem::remove_dir(&mut main.fs, "omega_wcanon_dir");
+        main.unit_result = block omega_language_std::filesystem_remove_dir(&mut main.fs, "omega_wcanon_dir");
         transition { _ -> good(main) }
     }
     machine good(main: &mut Main) { ProcessExit::exit_process(70); }

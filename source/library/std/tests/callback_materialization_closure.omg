@@ -144,4 +144,4 @@ public boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
 }
 
 data Main { }
-machine Main::main(main: &mut Main) { }
+machine callback_materialization_main(main: &mut Main) { }

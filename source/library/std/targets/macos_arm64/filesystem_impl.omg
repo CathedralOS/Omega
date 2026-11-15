@@ -78,9 +78,6 @@ macos_arm64 machine posix_filesystem_directory_name_offset() -> u64
 macos_arm64 machine posix_filesystem_remove_directory_flag() -> i32 { 128 }
 macos_arm64 machine posix_filesystem_directory_descent_flags() -> i32 { 1048832 }
 
-macos_arm64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut FilesystemProviderDefaults) {
-    FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemPosixProvider>(defaults);
-}
 
 // The PosixCanonicalLibc requirements are bound in std's Build machine.
 
@@ -102,7 +99,7 @@ macos_arm64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut 
         102 -> ErrorKind::Unsupported,
         _ -> ErrorKind::Other
     };
-    ErrorKind::reconstruct(&filesystem.err_kind)
+    reconstruct_error_kind(&filesystem.err_kind)
 }
 
 macos_arm64 machine posix_filesystem_would_block_error() -> i32 { 35 }

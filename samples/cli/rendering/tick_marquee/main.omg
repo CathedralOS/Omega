@@ -26,7 +26,7 @@ data Main {
 }
 machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
-    main.t_start = Time::now(&mut main.time);
+    main.t_start = omega_language_std::time_now(&mut main.time);
     main.frame = 0;
     transition { _ -> frame_loop(main) }
     machine frame_loop(main: &mut Main) {
@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> frame_loop(main) }
     }
     machine finish(main: &mut Main) {
-        let elapsed: Duration = Time::elapsed_since(&mut main.time, main.t_start);
+        let elapsed: Duration = omega_language_std::time_elapsed_since(&mut main.time, main.t_start);
         transition elapsed.seconds == 0 {
             true -> check_subsecond(main, elapsed.subsecond_nanoseconds)
             false -> ok(main)

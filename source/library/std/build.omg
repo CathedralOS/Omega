@@ -10,6 +10,7 @@ machine build(builder: &mut Build) {
     configure_posix_canonical(builder);
     configure_posix_filesystem(builder);
     configure_posix_filesystem_darwin(builder);
+    configure_filesystem(builder);
     configure_console(builder);
     configure_process_exit(builder);
     configure_windows_gui(builder);
@@ -690,6 +691,7 @@ machine configure_console(builder: &mut Build) {
 // Win32 GUI leaves: window and message pumps on user32, device-context and
 // client-rectangle reads on user32, and bitmap presentation on gdi32.
 machine configure_windows_gui(builder: &mut Build) {
+    Build::select_provider<WindowsGuiHost, NativeWindowsGui>(builder, windows_x86_64);
     Build::bind<WindowsGuiIo::create_window>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "CreateWindowExA"
@@ -726,19 +728,19 @@ machine configure_windows_gui(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "AdjustWindowRectEx"
         } });
-    Build::bind<WindowsGuiHost::get_dc>(builder, windows_x86_64,
+    Build::bind<WindowsGuiIo::get_dc>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetDC"
         } });
-    Build::bind<WindowsGuiHost::release_dc>(builder, windows_x86_64,
+    Build::bind<WindowsGuiIo::release_dc>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "ReleaseDC"
         } });
-    Build::bind<WindowsGuiHost::client_rectangle>(builder, windows_x86_64,
+    Build::bind<WindowsGuiIo::client_rectangle>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "GetClientRect"
         } });
-    Build::bind<WindowsGuiHost::stretch_dibits>(builder, windows_x86_64,
+    Build::bind<WindowsGuiIo::stretch_dibits>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "gdi32.dll", export: "StretchDIBits"
         } });
@@ -837,4 +839,17 @@ machine configure_process_exit(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "ExitProcess"
         } });
+}
+
+// The portable filesystem keeps one complete provider for each target. These
+// are the same choices formerly recorded through the retired defaults marker.
+machine configure_filesystem(builder: &mut Build) {
+    Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, linux_arm64);
+    Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, linux_x86_64);
+    Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, macos_arm64);
+    Build::select_provider<FilesystemService, FilesystemWindowsProvider>(builder, windows_x86_64);
+    Build::select_provider<PosixFilesystemHost, PosixFilesystemImplementation>(builder, linux_arm64);
+    Build::select_provider<PosixFilesystemHost, PosixFilesystemImplementation>(builder, linux_x86_64);
+    Build::select_provider<PosixFilesystemHost, PosixFilesystemImplementation>(builder, macos_arm64);
+    Build::select_provider<WindowsFilesystemHost, NativeWindowsFilesystem>(builder, windows_x86_64);
 }

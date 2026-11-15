@@ -2,9 +2,9 @@ use omega::language::core::ProcessExit;
 // elapsed_timer: times a real workload with std::time -- the first full
 // consumer of the Instant/Time surface (TASKS_TIME.md rung 8).
 //
-// Chain: Time::now() captures a start Instant; Time::sleep_for sleeps a
+// Chain: time_now() captures a start Instant; time_sleep_for sleeps a
 // 50ms Duration (the workload -- returns the clamped millisecond request);
-// Time::elapsed_since reads the stopwatch; Duration::checked_as_milliseconds
+// time_elapsed_since reads the stopwatch; duration_checked_as_milliseconds
 // totals it; the total renders zero-padded into a console line
 // ("elapsed milliseconds: 00050"-shaped; real clocks may overshoot).
 //
@@ -36,16 +36,16 @@ data Main {
 
 machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("elapsed_timer: times a 50ms workload with std::time");
-    let start: Instant = Time::now(&mut context.time);
+    let start: Instant = omega_language_std::time_now(&mut context.time);
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
-    let slept: u32 = block Time::sleep_for(&mut context.time, pause);
+    let slept: u32 = block omega_language_std::time_sleep_for(&mut context.time, pause);
     transition slept == 50 {
         true -> read_elapsed(context, start)
         false -> fail_request(context)
     }
     machine read_elapsed(context: &mut Main, start: Instant) {
-        let elapsed: Duration = Time::elapsed_since(&mut context.time, start);
-        let total_result: TotalResult = Duration::checked_as_milliseconds(&elapsed);
+        let elapsed: Duration = omega_language_std::time_elapsed_since(&mut context.time, start);
+        let total_result: TotalResult = omega_language_std::duration_checked_as_milliseconds(&elapsed);
         transition total_result {
             TotalResult::Ok { total } -> render(context, total)
             TotalResult::Overflow -> fail_overflow(context)

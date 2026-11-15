@@ -8,17 +8,17 @@ use omega::language::core::FilesystemMetadataQuery;
 use omega::language::core::narrow_u64_to_i64_wrapping;
 
 machine windows_metadata_error() -> WindowsMetadataResult {
-    let code: u32 = WindowsFilesystemNativeProvider::last_error();
+    let code: u32 = windows_filesystem_native_last_error();
     transition code != 0 {
         true -> (WindowsMetadataResult::Error { code: code })
         false -> (WindowsMetadataResult::Error { code: 31 })
     }
 }
 
-windows_x86_64 machine WindowsFilesystemNativeProvider::metadata(handle: u64) -> WindowsMetadataResult
+windows_x86_64 machine windows_filesystem_native_metadata(handle: u64) -> WindowsMetadataResult
 satisfies WindowsFilesystemHost::metadata
 reaches FilesystemMetadataQuery {
-    let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
+    let duplicate: u64 = windows_filesystem_native_duplicate_handle(handle);
     transition duplicate != 0 {
         true -> block query(duplicate)
         false -> (windows_metadata_error())
@@ -28,7 +28,7 @@ reaches FilesystemMetadataQuery {
     }
 }
 
-windows_x86_64 machine WindowsFilesystemNativeProvider::read_metadata(path: &[u8] in Path, no_follow: bool) -> WindowsMetadataResult
+windows_x86_64 machine windows_filesystem_native_read_metadata(path: &[u8] in Path, no_follow: bool) -> WindowsMetadataResult
 satisfies WindowsFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery {
     let mut wide: [u16; 4096];
@@ -47,7 +47,7 @@ reaches FilesystemMetadataQuery {
     machine open(wide: [u16; 4096] in WindowsNativePath, flags: u32) -> WindowsMetadataResult
     requires flags == 34603008 || flags == 36700160 {
         let raw: i64 = block WindowsFilesystemMetadataIo::open_attributes(&wide, 128, 7, 0, 3, flags, 0);
-        let handle: u64 = WindowsFilesystemNativeProvider::normalize_handle(raw);
+        let handle: u64 = windows_filesystem_native_normalize_handle(raw);
         transition handle != 0 {
             true -> block query(handle)
             false -> (windows_metadata_error())
@@ -61,7 +61,7 @@ reaches FilesystemMetadataQuery {
 windows_x86_64 machine windows_metadata_owned_handle(handle: u64) -> WindowsMetadataResult
 reaches FilesystemMetadataQuery {
     let outcome: WindowsMetadataResult = block windows_query_metadata(handle);
-    let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
+    let released: i32 = block windows_filesystem_native_close_handle(handle);
     windows_metadata_completion(outcome, released)
 }
 

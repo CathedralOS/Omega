@@ -17,10 +17,10 @@ data Main {
 
 machine entry_start() reaches ProcessExit + Console + TimeHost {
     let mut entry: Main;
-    let start: Instant = Time::now(&mut entry.time);
+    let start: Instant = omega_language_std::time_now(&mut entry.time);
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
-    let slept: u32 = block Time::sleep_for(&mut entry.time, pause);
-    let elapsed: Duration = Time::elapsed_since(&mut entry.time, start);
+    let slept: u32 = block omega_language_std::time_sleep_for(&mut entry.time, pause);
+    let elapsed: Duration = omega_language_std::time_elapsed_since(&mut entry.time, start);
     let long_enough: bool = elapsed.seconds > 0 || elapsed.subsecond_nanoseconds >= 50000000;
     transition slept == 50 && long_enough {
         true -> pass()

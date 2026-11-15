@@ -133,9 +133,9 @@ reaches
     let pumped: bool = WindowsGuiHost::pump_message(&mut native);
     // The row contract's caller buffer keeps the window/kind/wParam layout the
     // close-detection reads; lParam/time/pt stay zero (the sample reads none).
-    message[0] = WindowsMessage::window(&native);
-    message[1] = WindowsMessage::kind(&native);
-    message[2] = WindowsMessage::word_parameter(&native);
+    message[0] = omega_language_std::windows_message_window(&native);
+    message[1] = omega_language_std::windows_message_kind(&native);
+    message[2] = omega_language_std::windows_message_word_parameter(&native);
     message[3] = 0;
     message[4] = 0;
     message[5] = 0;
