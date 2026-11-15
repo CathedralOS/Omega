@@ -576,7 +576,10 @@ fn profile_refuses_an_unknown_backend_before_running_the_subject() {
         .output()
         .unwrap();
     assert_eq!(result.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&result.stderr).contains("wpr, perf-stat or perf-record"));
+    assert!(
+        String::from_utf8_lossy(&result.stderr)
+            .contains("wpr, perf-stat, perf-record or selected-bodies")
+    );
     assert!(!directory.path().join("profile").exists());
 }
 

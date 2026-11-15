@@ -28,12 +28,15 @@ target. On another host, copy one and change the executable suffix and target.
 | `show <run-dir>` | A Markdown table of a validated run. |
 | `check <run-dir> <percent>` | Does the run establish a regression beyond this budget? |
 | `history <old-run> <new-run>` | How do the candidates of two separate runs compare? |
-| `profile <plan.json> <baseline\|candidate> <wpr\|perf-stat\|perf-record> <new-dir>` | Where does one checked execution spend its time? |
+| `profile <plan.json> <baseline\|candidate> <wpr\|perf-stat\|perf-record\|selected-bodies> <new-dir>` | Where does one checked execution spend its time? |
 | `progress [options]` | How fast is this commit's release compiler on this host? |
 | `scaling --omega <omega> [options]` | Does a bigger program make each machine cost more to check? |
 | `dominance-summary <graph-run-dir>` | Validate and summarize retained pairs from the private checker graph driver. |
 | `proof-plan <source\|prepare\|prove> <baseline> <candidate> <main.omg> <new-plan.json> [options]` | Prepare a portable comparison of the proof benchmark's source route or timed replay. |
 | `proof-square <new-directory> [--identity-build]` | Reconstruct the pinned square-sum workload and verify its source hashes. |
+| `selected-body-inputs <baseline-omega> <new-directory>` | Retain the original compiler and two unchanged Build continuation workloads. |
+| `selected-body-plan <profile-driver> <copied-main.omg> <target[,target]> <new-plan.json>` | Create its ordinary checked capture plan with explicit executable and targets. |
+| `selected-body-source-plan <baseline-omega> <copied-main.omg> <target[,target]> <new-plan.json>` | Retain the original CLI control and freeze its output oracle for an ordinary comparison. |
 
 Any command may start with `--address-space-gib N` to change the Linux
 address-space cap (default 64 GiB) every measured process runs under; records
@@ -64,6 +67,15 @@ optimization selections; it preserves the arithmetic and checksum. A shallow
 checkout missing the pinned commit must fetch it first. See the
 [proof preparation report](../../wiki/drafts/measurements/proof_preparation_2026_11_14.md)
 for the measured boundary, source distributions and reproduction commands.
+
+## Selected-body copy attribution
+
+The `selected-bodies` profile backend runs the retained opt-in capture driver
+through the same runner, oracle and resource capture as other profiles. Its
+private log and typed snapshots describe real continuation copies; the profile
+record hashes every snapshot. The ordinary compiler has no instrumentation.
+See [the experiment instructions](selected-bodies/README.md) for the fixed source,
+portable input preparation, capture patch, replay, and measurement limits.
 
 ## Paired comparisons
 
