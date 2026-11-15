@@ -44,7 +44,6 @@ impl PackagePolicyServiceMethod {
                 || calling.requirement != self.requirement
                 || calling.requirement_trait != self.requirement_owner
                 || calling.semantic_parameters.len() != self.parameter_count
-                || calling.semantic_result.is_some() != self.has_result
             {
                 return Err(
                     "provider method calling policy is detached from its schema or requirement",

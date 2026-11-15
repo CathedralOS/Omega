@@ -21,6 +21,7 @@ pub(super) fn project(
     target: TargetProfile,
 ) -> Result<PackagePolicyCallingPlan, Vec<Diagnostic>> {
     let signature = &application.signature;
+    let result_type = method.calling_result_type();
     if application.target != target.native_target()
         || application.dispatch_only_parameter_count != 0
         || application
@@ -28,7 +29,7 @@ pub(super) fn project(
             .map_err(|reason| unavailable(&reason))?
             != application.commitment
         || signature.parameters.len() != method.signature.parameters.len()
-        || signature.result.is_some() != method.signature.result.is_some()
+        || signature.result.is_some() != result_type.is_some()
     {
         return Err(unavailable(
             "the exact validated boundary calling application",
@@ -138,7 +139,7 @@ pub(super) fn project(
             result: signature.result,
         },
         semantic_parameters,
-        semantic_result: method.signature.result.clone(),
+        semantic_result: result_type.cloned(),
         native_parameters,
         callbacks: PackagePolicyCallbacks {
             binders: Vec::new(),
