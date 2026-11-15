@@ -75,9 +75,9 @@ framework or a list of features that remain unimplemented.
 
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing
-- Where: [pool cache retention](tools/docs/testing.md#L589), [managed retention setup](tools/xtask/src/managed_cache_retention.rs#L1)
-- Saw: On macOS arm64 at `c55c52f59b1`, mbx 1.29.2 collected the assigned `worker-8` target between validation commands on 2026-11-14. A concurrent collection reported 37.9 GiB available against a 45.0 GiB floor, removed two live checkout targets, and kept two targets used by running commands. The host had no `target.keep` setting. Recreating the collected view resumed work, and the next owning test build compiled from cold in 3m 12s.
-- Cost: An assigned local slot can lose its build outputs while the agent is between commands. Investigate giving assigned slots retention priority within the disk budget, with the existing operator overrides and reclamation under pressure.
+- Where: [pool assignments](tools/xtask/src/worktree.rs#L166), [pool cache retention](tools/docs/testing.md#L589), [mbx 1.29.2 collection order](https://github.com/jdx/mr-boxington/blob/v1.29.2/docs/managed-targets.md#keep-or-evict-specific-checkouts)
+- Saw: On macOS arm64 at `c55c52f59b1`, mbx 1.29.2 collected assigned `worker-8` between commands below the workstation's 45.0 GiB free-space floor. The recovered test build compiled from cold in 3m 12s. In two isolated checkouts, `MBX_TARGET_EVICT_FIRST` changed one collector's choice under a one-target budget. An independent collector reverted to oldest-first. Under a zero budget and simulated low disk, a real `mbx run` lease and an explicit `MBX_TARGET_KEEP` each kept the view. After the command ended, that same scratch view was collectible without an explicit keep.
+- Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Expose advisory managed-view priority in mbx and feed it from the pool’s existing assignment state. Honor explicit operator rules and running-command locks, and keep assigned views eligible for reclamation under pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
 
 ### The C layout field walk omits ranks on five recursive helpers
