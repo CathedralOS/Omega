@@ -235,6 +235,23 @@ fn adopt(root: &Path, directory: &Path) -> Result<WorkInterval, String> {
                     entry.message
                 ));
             }
+        } else if entry.message.starts_with("merge ") || entry.message.starts_with("merge:") {
+            // An integration continues the owned source only when that exact
+            // source is its first parent. A merge label cannot prove lineage.
+            let lineage = git(
+                root,
+                &["rev-list", "--parents", "-n", "1", &entry.source, "--"],
+            )?;
+            let mut lineage = lineage.split_whitespace();
+            if lineage.next() != Some(entry.source.as_str())
+                || lineage.next() != Some(entry.old.as_str())
+                || lineage.next().is_none()
+            {
+                return Err(format!(
+                    "unverifiable merge checkpoint `{}`; use `worktree begin` for a new outcome",
+                    entry.message
+                ));
+            }
         } else if !entry.message.starts_with("commit")
             && !entry.message.starts_with("rebase")
             && !(entry.message.starts_with("reset:") && entry.source == entry.old)
