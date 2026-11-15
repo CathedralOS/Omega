@@ -9,9 +9,7 @@ overlapping mutable/shared loans, never a passing numerical sample.
 
 The source was recovered from the stopped W100 owner's retained NF03 commit
 `ea2a50a27f8743d41fc02b7787e90228b1162a50`. The original mathematical oracles and
-intervals in [ORACLES.md](ORACLES.md) remain unchanged. `verify_oracles.py` checks
-those frozen results independently using rational and high-precision decimal
-arithmetic; it does not establish Omega runtime acceptance.
+intervals in [ORACLES.md](ORACLES.md) remain unchanged.
 
 NF01 package metadata and NF02 numeric policy are now present. The complex
 kernel uses NF02's format-specific scalar classification for magnitude input
@@ -37,11 +35,6 @@ expectations. CLI `--both` termination agreement alone does not establish those
 stream observations. The owned validator performs both direct native execution
 and genuine buffered Terminal execution from each normal compilation report:
 
-```sh
-python3 samples/cli/scientific/w100/nf03_complex_carrier_ops/validation/build_runtime.py --omega /absolute/path/to/verified/omega --output samples/cli/scientific/w100/nf03_complex_carrier_ops/build/runtime-validator
-python3 samples/cli/scientific/w100/nf03_complex_carrier_ops/validate.py --omega /absolute/path/to/verified/omega --runtime-harness samples/cli/scientific/w100/nf03_complex_carrier_ops/build/runtime-validator
-```
-
 The builder verifies CLI bytes against its recorded build unit and selects the
 Rust dependency closure by exact fingerprints. It retains a build receipt.
 The validator requires already reviewed project decisions and writes actual
@@ -51,8 +44,7 @@ native and Terminal streams and exits under each project's ignored
 
 The restored `evidence/` records describe historical producers and qualification
 attempts. Four historical source text dumps have trailing empty lines normalized;
-the retained source commit identifies their original bytes. In particular, `evidence/qualify.py` creates temporary qualification
-metadata; its historical results do not represent acceptance of these current
-integrated projects. Current qualification comes from the validator’s verified
-compiler receipt and actual native and captured Terminal observations; source
-checks and oracle calculations alone are not completion.
+the retained source commit identifies their original bytes. Current qualification
+comes from the validator’s verified compiler receipt and actual native and
+captured Terminal observations; source checks and oracle calculations alone are
+not completion.

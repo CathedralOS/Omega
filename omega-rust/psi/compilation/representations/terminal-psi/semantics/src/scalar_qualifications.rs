@@ -43,6 +43,82 @@ pub fn arithmetic_policy_identity(
     }
 }
 
+/// An issuer restriction's route, whichever domain family declares it. A
+/// boundary requirement issues only at its boundary completion, never inside
+/// a guest machine, so it has no form here.
+pub(crate) enum IssuerRoute<'a> {
+    ExactMachine {
+        issuer: &'a terminal_psi::NominalDeclarationIdentity,
+        machine_identity: terminal_psi::TerminalIdentityIndex,
+    },
+    CheckedRequirement {
+        issuer: &'a terminal_psi::NominalDeclarationIdentity,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
+    },
+}
+
+/// Whether `machine`, by its checked declaration, is the callable a route
+/// names: the exact machine (or the template a specialization instantiates),
+/// or a closed conformance realizing the exact requirement with it.
+pub(crate) fn issuer_route_authorizes(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    declaration: &terminal_psi::CheckedMachineDeclaration,
+    route: IssuerRoute<'_>,
+) -> bool {
+    match route {
+        IssuerRoute::ExactMachine {
+            issuer,
+            machine_identity,
+        } => {
+            (module
+                .identities
+                .text(machine_identity)
+                .zip(module.identities.text(declaration.callable))
+                .is_some_and(|(issued, callable)| {
+                    issued
+                        == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+                            callable,
+                            declaration
+                                .specialization
+                                .as_ref()
+                                .map(|application| &application.commitment),
+                        )
+                })
+                && issuer.identity() == declaration.semantic_declaration)
+                || declaration
+                    .specialization
+                    .as_ref()
+                    .is_some_and(|specialization| {
+                        machine_identity == specialization.template_callable
+                            && issuer.identity() == specialization.template_semantic_declaration
+                            && module
+                                .identities
+                                .text(specialization.template_callable)
+                                .is_some_and(|identity| !identity.is_empty())
+                    })
+        }
+        IssuerRoute::CheckedRequirement {
+            issuer,
+            requirement_identity,
+        } => module
+            .closed_conformance_applications
+            .iter()
+            .any(|application| {
+                application.rows.iter().any(|row| {
+                    row.public_requirement_identity == requirement_identity
+                        && row.requirement_declaration == *issuer
+                        && row.realization_callable_identity == Some(declaration.callable)
+                        && application.realization_callables.iter().any(|callable| {
+                            callable.source_callable_identity == declaration.callable
+                                && callable.callable
+                                    == terminal_psi::TargetMachineCallable::Machine(machine.id)
+                        })
+                })
+            }),
+    }
+}
+
 fn same_type(left: &ValueDeclaration, right: &ValueDeclaration) -> bool {
     left.scalar_type == right.scalar_type && left.qualifications == right.qualifications
 }
@@ -1224,31 +1300,36 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
                             "scalar issuer lost its checked declaration",
                         ),
                     )?;
-                    match domain.establishment_routes.as_deref().unwrap_or_default().get(*route as usize) {
-                        Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
-                            (module.identities.text(*machine_identity).zip(module.identities.text(declaration.callable))
-                                .is_some_and(|(issued, callable)| issued == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
-                                    callable, declaration.specialization.as_ref().map(|application| &application.commitment),
-                                )) && issuer.identity() == declaration.semantic_declaration)
-                                || declaration.specialization.as_ref().is_some_and(|specialization| {
-                                    *machine_identity == specialization.template_callable
-                                        && issuer.identity() == specialization.template_semantic_declaration
-                                        && module.identities.text(specialization.template_callable).is_some_and(|identity| !identity.is_empty())
-                                })
-                        }
-                        Some(ScalarDomainEstablishmentRoute::CheckedRequirement { declaration: issuer, requirement_identity }) => {
-                            module.closed_conformance_applications.iter().any(|application| {
-                                application.rows.iter().any(|row| {
-                                    row.public_requirement_identity == *requirement_identity
-                                        && row.requirement_declaration == *issuer
-                                        && row.realization_callable_identity == Some(declaration.callable)
-                                        && application.realization_callables.iter().any(|callable| {
-                                            callable.source_callable_identity == declaration.callable
-                                                && callable.callable == terminal_psi::TargetMachineCallable::Machine(machine.id)
-                                        })
-                                })
-                            })
-                        }
+                    match domain
+                        .establishment_routes
+                        .as_deref()
+                        .unwrap_or_default()
+                        .get(*route as usize)
+                    {
+                        Some(ScalarDomainEstablishmentRoute::ExactMachine {
+                            declaration: issuer,
+                            machine_identity,
+                        }) => issuer_route_authorizes(
+                            module,
+                            machine,
+                            declaration,
+                            IssuerRoute::ExactMachine {
+                                issuer,
+                                machine_identity: *machine_identity,
+                            },
+                        ),
+                        Some(ScalarDomainEstablishmentRoute::CheckedRequirement {
+                            declaration: issuer,
+                            requirement_identity,
+                        }) => issuer_route_authorizes(
+                            module,
+                            machine,
+                            declaration,
+                            IssuerRoute::CheckedRequirement {
+                                issuer,
+                                requirement_identity: *requirement_identity,
+                            },
+                        ),
                         _ => false,
                     }
                 }

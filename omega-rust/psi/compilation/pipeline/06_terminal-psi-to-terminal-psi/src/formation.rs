@@ -38,6 +38,30 @@ pub fn prepare_replay(
             &format!("invalid declared scalar qualifications: {error:?}"),
         )
     })?;
+    // A record formal, result or field in a domain is a contract of the
+    // lowered form, judged here before anything is inferred from it.
+    terminal_semantics::structural_qualifications::validate(&elaboration.module).map_err(
+        |error| {
+            crate::refusal(
+                RefusalReason::ForeignIdentity,
+                error
+                    .machine
+                    .or_else(|| {
+                        elaboration
+                            .module
+                            .machines
+                            .first()
+                            .map(|machine| machine.id)
+                    })
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                &format!(
+                    "invalid declared structural qualifications: {}",
+                    error.detail
+                ),
+            )
+        },
+    )?;
     module(&elaboration.module)?;
     Ok(ReplayScope { elaboration })
 }
@@ -137,8 +161,8 @@ struct Root {
 #[derive(Clone, PartialEq, Eq)]
 enum Observation {
     Input(ValueId),
-    Field(Version, PlaceId, Vec<Segment>),
-    Extent(PlaceId, Vec<Segment>),
+    Field(Version, usize, Vec<Segment>),
+    Extent(usize, Vec<Segment>),
     Computed(ScalarTerm),
 }
 
@@ -258,13 +282,18 @@ impl Scope<'_> {
         Ok(())
     }
 
-    fn root(&self, place: PlaceId) -> Result<Root, BindingError> {
-        let mut roots = self.roots.iter().filter(|root| root.place == place);
-        let root = *roots.next().ok_or("contract field has no declared root")?;
+    fn root(&self, place: PlaceId) -> Result<(usize, Root), BindingError> {
+        let mut roots = self
+            .roots
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(_, root)| root.place == place);
+        let (index, root) = roots.next().ok_or("contract field has no declared root")?;
         if roots.next().is_some() || (root.result && !self.completion) {
             return Err("contract field has an ambiguous or unavailable root".into());
         }
-        Ok(root)
+        Ok((index, root))
     }
 
     fn error(&self, error: BindingError, owner: &str) -> Refusal {
@@ -372,18 +401,18 @@ impl ClauseBindings for Scope<'_> {
         path: &[Segment],
         ty: ScalarType,
     ) -> Result<ScalarTerm, BindingError> {
-        let root = self.root(place)?;
+        let (index, root) = self.root(place)?;
         if version == Version::Entry && !root.has_entry {
             return Err("contract result or data subject has no entry observation".into());
         }
         // A nominal view element does not prove that the element exists.
         // Fixed arrays carry their extent; open views need a separate bound.
-        for (index, segment) in path.iter().enumerate() {
+        for (depth, segment) in path.iter().enumerate() {
             if matches!(segment, Segment::FixedIndex(_)) {
                 let prefix = terminal_semantics::canonical_structural_path_tip(
                     self.module.structural_types.iter(),
                     root.ty,
-                    &path[..index],
+                    &path[..depth],
                 )
                 .ok_or("contract index lost its exact declared collection")?;
                 if !matches!(
@@ -412,7 +441,7 @@ impl ClauseBindings for Scope<'_> {
         } else {
             Version::Current
         };
-        self.observe(Observation::Field(version, place, path.to_vec()), ty)
+        self.observe(Observation::Field(version, index, path.to_vec()), ty)
     }
 
     fn extent(
@@ -421,7 +450,7 @@ impl ClauseBindings for Scope<'_> {
         path: &[Segment],
         ty: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, BindingError> {
-        let root = self.root(place)?;
+        let (index, root) = self.root(place)?;
         let selected = terminal_semantics::canonical_structural_path_tip(
             self.module.structural_types.iter(),
             root.ty,
@@ -440,7 +469,7 @@ impl ClauseBindings for Scope<'_> {
             return Err("completion extent needs its exact storage version".into());
         }
         self.observe(
-            Observation::Extent(place, path.to_vec()),
+            Observation::Extent(index, path.to_vec()),
             ScalarType::Integer(ty),
         )
     }
@@ -657,26 +686,7 @@ pub(crate) fn module(module: &TerminalModule) -> Checked<()> {
         scope.completion = true;
         scope.clauses(&boundary.scalar_ensures, "boundary ensures")?;
     }
-    for declared in &module.structural_types {
-        data(
-            module,
-            diagnostic,
-            declared.id,
-            PlaceId::new(1).expect("nonzero"),
-            &declared.requires,
-        )?;
-    }
-    for domain in &module.structural_domains {
-        if let Some(predicate) = &domain.predicate {
-            data(
-                module,
-                diagnostic,
-                domain.carrier,
-                predicate.subject,
-                std::slice::from_ref(&predicate.proposition),
-            )?;
-        }
-    }
+    data_domains(module, diagnostic)?;
     for domain in &module.scalar_qualifications.domains {
         if let Some(predicate) = &domain.predicate
             && owes([&predicate.proposition])
@@ -703,30 +713,63 @@ pub(crate) fn module(module: &TerminalModule) -> Checked<()> {
     Ok(())
 }
 
-fn data(
-    module: &TerminalModule,
-    diagnostic: MachineId,
-    ty: StructuralTypeId,
-    place: PlaceId,
-    clauses: &[Proposition],
-) -> Checked<()> {
-    if !owes(clauses) {
-        return Ok(());
-    }
-    let mut scope = Scope {
-        module,
-        diagnostic,
-        inputs: Vec::new(),
-        result: None,
-        roots: vec![Root {
-            place,
-            ty,
-            borrowed: false,
-            result: false,
-            has_entry: false,
-        }],
-        completion: false,
-        facts: Facts::default(),
+fn data_domains(module: &TerminalModule, diagnostic: MachineId) -> Checked<()> {
+    let mut predicates = module
+        .structural_domains
+        .iter()
+        .filter_map(|domain| {
+            let predicate = domain.predicate.as_ref()?;
+            owes([&predicate.proposition]).then_some((domain.carrier, domain.id, Some(predicate)))
+        })
+        .collect::<Vec<_>>();
+    predicates.sort_unstable_by_key(|&(carrier, domain, _)| (carrier, domain));
+    let carrier_error = |detail| {
+        crate::refusal(
+            RefusalReason::ForeignIdentity,
+            diagnostic,
+            Construct::Machine,
+            detail,
+        )
     };
-    scope.clauses(clauses, "data domain")
+    let mut remaining = predicates.len();
+    for declared in &module.structural_types {
+        let first = predicates.partition_point(|row| row.0 < declared.id);
+        let end = predicates.partition_point(|row| row.0 <= declared.id);
+        let domains = &mut predicates[first..end];
+        if domains.is_empty() && !owes(&declared.requires) {
+            continue;
+        }
+        let mut scope = Scope {
+            module,
+            diagnostic,
+            inputs: Vec::new(),
+            result: None,
+            roots: vec![Root {
+                place: PlaceId::new(1).expect("nonzero"),
+                ty: declared.id,
+                borrowed: false,
+                result: false,
+                has_entry: false,
+            }],
+            completion: false,
+            facts: Facts::default(),
+        };
+        scope.clauses(&declared.requires, "data domain")?;
+        let carrier_facts = std::mem::take(&mut scope.facts);
+        for (_, _, predicate) in domains {
+            let predicate = predicate
+                .take()
+                .ok_or_else(|| carrier_error("record domain has an ambiguous carrier"))?;
+            // Both clauses constrain the same occupied carrier. Rebind its
+            // source subject while observations keep the same scope slot.
+            scope.roots[0].place = predicate.subject;
+            scope.facts = carrier_facts.clone();
+            scope.clauses(std::slice::from_ref(&predicate.proposition), "data domain")?;
+            remaining -= 1;
+        }
+    }
+    if remaining != 0 {
+        return Err(carrier_error("record domain has no declared carrier"));
+    }
+    Ok(())
 }

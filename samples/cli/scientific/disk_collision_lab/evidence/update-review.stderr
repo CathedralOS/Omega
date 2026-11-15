@@ -1,3 +1,0 @@
-package candidate checking failed: checked compilation failed for package `disk_collision_lab` with 1 diagnostic(s)
-  error: `Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: terminator: conditional successors: guard expression)
-    source-unit 0, bytes 1744..1749

@@ -60,7 +60,6 @@ omega packages update --project samples/cli/independent/pedigree_allele_constrai
 # Read the produced review, decide its individual requests, then resume if authorized.
 omega packages update --resume --project samples/cli/independent/pedigree_allele_constraints
 omega samples/cli/independent/pedigree_allele_constraints/main.omg
-python3 samples/cli/independent/pedigree_allele_constraints/validation/verify.py /absolute/path/to/compiled/application
 omega run --both samples/cli/independent/pedigree_allele_constraints/main.omg < samples/cli/independent/pedigree_allele_constraints/fixtures/shared_ancestry.stdin
 omega --check --target linux_x86_64 samples/cli/independent/pedigree_allele_constraints/controls/bounds/main.omg
 ```
@@ -76,10 +75,9 @@ The independent Python oracle enumerates 4^people chromosome-choice histories,
 then collapses them to genotype assignments. It does not use the application's
 3^people algorithm or inheritance formula. `validation/FROZEN.sha256` was written
 before any Omega check or execution. Do not regenerate expectations from an
-application run. The 399 exhaustive tiny observation combinations and 23 named fixtures cover unknown/ambiguous founders, tiny trios, impossible
-inheritance, shared ancestry, six people, two contradictions and malformed input.
-`validation/verify.py` requires full stdout byte equality, exact exit status and
-empty stderr, and records every case in JSON.
+application run. The 399 exhaustive tiny observation combinations and 23 named
+fixtures cover unknown/ambiguous founders, tiny trios, impossible inheritance,
+shared ancestry, six people, two contradictions and malformed input.
 
 Validation passes on compiler base `343e19054f52b1b9939306e8ad27336f7890303c`
 with the accompanying terminal-call prefix repair. The complete application

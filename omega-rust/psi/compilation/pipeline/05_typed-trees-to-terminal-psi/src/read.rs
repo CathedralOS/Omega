@@ -25,6 +25,7 @@ serve is refused when it is set, never ignored.
 mod arrays;
 mod atomics;
 mod authority;
+pub(crate) use authority::has_predicates;
 mod bytes;
 mod calling_abis;
 mod calls;
@@ -630,6 +631,118 @@ mod tests {
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
         }
+    }
+
+    #[test]
+    fn a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence() {
+        use language_semantics::DomainPredicatePresence;
+        use semantic_vocabulary::Proposition;
+        use source::{
+            DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum, SourceSpan,
+        };
+        use typed_trees::domain::{DomainDefinition, ProofFact};
+
+        let text = "Never Always Bare";
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_checked_instance(
+                "domains.omg".into(),
+                text,
+                "domains".into(),
+                None,
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Product,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources(Some(std::sync::Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let domains = builder.insert_children(
+            root,
+            [(0, 5), (6, 12), (13, 17)].map(|(start, end)| {
+                (
+                    SymbolKind::Domain,
+                    SymbolNameRef::Source(SourceSpan::new(source, source::Span::new(start, end))),
+                )
+            }),
+        );
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        for ((symbol, name), predicate) in
+            domains
+                .handles()
+                .zip(["Never", "Always", "Bare"])
+                .zip([Some(false), Some(true), None])
+        {
+            let (predicate_presence, facts) = if let Some(value) = predicate {
+                let expression = typed
+                    .expression_table
+                    .insert(ExpressionNode::Boolean(value));
+                (
+                    DomainPredicatePresence::Present,
+                    typed
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(expression)]),
+                )
+            } else {
+                (DomainPredicatePresence::Absent, arena::HandleSpan::empty())
+            };
+            typed.push_domain_definition(DomainDefinition {
+                symbol,
+                name: name.into(),
+                predicate_presence,
+                facts,
+                ..Default::default()
+            });
+        }
+        let mut program = Program::new(&typed, false);
+        let carrier = program.records.push(plain_record());
+        program.declared_domains.extend(
+            domains
+                .handles()
+                .map(|symbol| (symbol, ValueType::record(carrier))),
+        );
+        let elaboration = crate::lower_generic_for(
+            None,
+            &semantic_vocabulary::IdTable::default(),
+            crate::body::Signatures {
+                machines: &program.signatures,
+                declarations: &program.declaration_signatures,
+                declaration_aliases: None,
+                boundaries: &program.boundary_signatures,
+                completions: &program.boundary_completions,
+            },
+            &program.records,
+            &[],
+            terminal_codec::TerminalPublication::Invocation,
+            Some(&program),
+        )
+        .unwrap();
+        let domains = &elaboration.program.module.structural_domains;
+        let predicates = domains
+            .iter()
+            .map(|domain| {
+                domain
+                    .predicate
+                    .as_ref()
+                    .map(|predicate| &predicate.proposition)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            predicates,
+            [
+                Some(&Proposition::Falsehood),
+                Some(&Proposition::Truth),
+                None
+            ]
+        );
+        assert!(
+            domains
+                .iter()
+                .all(|domain| !domain.complete_predicate_theory)
+        );
     }
 
     fn unit_machines() -> (TypedTrees, [SymbolHandle; 2]) {

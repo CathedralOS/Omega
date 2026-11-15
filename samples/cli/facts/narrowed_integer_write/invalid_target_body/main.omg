@@ -27,7 +27,7 @@ data PortableByte [copy] { value: i64; }
 data Memory { bytes: [u8; 2]; }
 machine store(destination: &mut i64, value: i64) { destination = value; }
 boundary trait SelectedPerform {
-    machine perform(destination: &mut i64, value: i64) reaches;
+    machine perform(destination: &mut i64, value: i64) reaches crashes none;
 }
 X86Perform satisfies SelectedPerform {
     machine perform(destination: &mut i64, value: i64) { store(destination, value); }

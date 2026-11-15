@@ -7,7 +7,7 @@ public domain i32::RepresentableMagnitude
 public boundary trait Magnitude {
     machine absolute(value: i32 in RepresentableMagnitude) -> i32
         reaches
-        requires 6 in RepresentableMagnitude;
+        requires 6 in RepresentableMagnitude crashes none;
 }
 
 data Main { value: i32; }

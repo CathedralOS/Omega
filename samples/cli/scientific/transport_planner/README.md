@@ -40,7 +40,6 @@ omega packages update --project samples/cli/independent/transport_planner --targ
 omega --check --target linux_x86_64 samples/cli/independent/transport_planner/main.omg
 omega run --both --keep samples/cli/independent/transport_planner/main.omg < samples/cli/independent/transport_planner/data/nontrivial.txt
 omega --target linux_x86_64 samples/cli/independent/transport_planner/main.omg
-python3 samples/cli/independent/transport_planner/validation/validate.py <emitted-executable> --report <report-path>
 omega --check --target linux_x86_64 samples/cli/independent/transport_planner/intended_invalid/rejected.omg
 ```
 
@@ -49,17 +48,12 @@ access to a nine-element array. It must not be substituted for invalid runtime
 input checks, which execute the valid application.
 
 `validation/oracles.json` was frozen before the first compiler invocation:
-SHA-256 `2db28f76680e508ddbc9f1b31aba098671f9374708ba55c728b6ee0dd47b5f33`.
-`validation/reference.py` recursively assigns each of the nine cells and is
-independent of the Omega solver's four-cell parameterization. The manifest
-contains eight named variants and all 1,539 balanced tiny 2x2 instances with
-margins 0..2 and all four costs in {-1,0,2}, embedded in 3x3. Ten malformed
-runtime fixtures cover EOF, missing/extra tokens, negative/large margins,
-large costs, a bare sign, nonnumeric text, overflow-sized text and buffer fill.
-The harness also checks EOF finalization and CRLF/tab separators. It checks
-exact output/exit/stderr, conservation, nonnegativity, objective reconstruction
-and the independently frozen optimal cost and tie-broken table. `freeze.py`
-reproduces the manifest; do not rerun it to accommodate observed Omega output.
+SHA-256 `2db28f76680e508ddbc9f1b31aba098671f9374708ba55c728b6ee0dd47b5f33`. The
+manifest contains eight named variants and all 1,539 balanced tiny 2x2
+instances with margins 0..2 and all four costs in {-1,0,2}, embedded in 3x3.
+Ten malformed runtime fixtures cover EOF, missing/extra tokens, negative/large
+margins, large costs, a bare sign, nonnumeric text, overflow-sized text and
+buffer fill.
 
 Named instances include a greedy trap, negative costs, ties, all-zero margins,
 both directions of imbalance and the maximum magnitude objective. The
@@ -79,15 +73,11 @@ ignored `build/`; it does not join the product's Rust workspace. Build and
 execute it sequentially:
 
 ```sh
-python3 samples/cli/independent/transport_planner/validation/build_terminal_probe.py
 samples/cli/independent/transport_planner/build/terminal-probe-cargo/target/release/ind01-terminal-probe samples/cli/independent/transport_planner
 ```
 
 See the delivered validation receipt for the exact compiler/source identities,
 commands, native/Terminal observations and remaining limitations.
 
-On this executor, `build_terminal_probe.py <verified-main-target>` also links the
-same validation source to the recorded main build's existing Rust libraries.
-Its exact rustc command and library hashes are saved in `build/terminal-probe-link.json`.
-The validation consumer is checked separately; normal landing checks cover the
-changed production compiler packages and CLI.
+The validation consumer is checked separately; normal landing checks cover the changed
+production compiler packages and CLI.

@@ -2,7 +2,7 @@
 // Expected exit: 0
 public boundary trait Mark {
     machine read() -> u64
-        reaches Mark;
+        reaches Mark crashes none;
 }
 MarkerMark satisfies Mark {
     machine read() -> u64 { 7 }

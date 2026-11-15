@@ -18,7 +18,7 @@ machine produce<'input>(input: &'input [u8]) -> BorrowedCase<'input> {
     }
 }
 machine forward<'input>(input: &'input [u8]) -> BorrowedCase<'input> { produce(input) }
-boundary trait Inspect { machine selected(input: &[u8]) -> u64 reaches; }
+boundary trait Inspect { machine selected(input: &[u8]) -> u64 reaches crashes none; }
 WindowsInspect satisfies Inspect {
     machine selected(input: &[u8]) -> u64 {
 

@@ -9,11 +9,11 @@ machine normal() reaches AcceptedService crashes Trap {
     machine wrong_value() crashes Trap { crash Trap; }
 }
 machine trapping() crashes Trap { crash Trap; }
-boundary trait UnusedService { machine operation() reaches; }
+boundary trait UnusedService { machine operation() reaches crashes none; }
 
-boundary trait UntakenService { machine operation() reaches; }
+boundary trait UntakenService { machine operation() reaches crashes none; }
 
-boundary trait AcceptedService { machine value() -> u64 reaches; }
+boundary trait AcceptedService { machine value() -> u64 reaches crashes none; }
 AcceptedProvider satisfies AcceptedService {
     machine value() -> u64 { 7 }
 }

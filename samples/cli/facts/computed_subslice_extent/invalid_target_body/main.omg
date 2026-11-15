@@ -3,7 +3,7 @@
 machine can_window(items: &[u8], low: u64) -> bool { items.len == 4 && low <= 3 }
 boundary trait SelectedWindowRead {
     machine read(items: &[u8], low: u64) -> u8
-        reaches requires can_window(items, low) == true;
+        reaches requires can_window(items, low) == true crashes none;
 }
 
 ComputedWindowRead satisfies SelectedWindowRead {

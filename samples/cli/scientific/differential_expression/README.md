@@ -53,10 +53,8 @@ plus 2e-7 relative tolerance (factors use 2e-8).
 
 ## Independent references
 
-`validation/oracle.json` was frozen from Python 3.12, NumPy and SciPy 1.17.0
-before executing the Omega application. `reference.py` uses `brentq`, `gammaln`
-and `ndtr`; it does not copy the application's bisection or shifted Stirling evaluator,
-series functions or normal-tail approximation. Its hash is in `oracle.sha256`.
+`validation/oracle.json` was frozen from Python 3.12, NumPy and SciPy 1.17.0 before
+executing the Omega application.
 
 `validation/deseq2.R` requires DESeq2 **1.46.0**, installed from Debian trixie's
 `r-bioc-deseq2` package. It independently calculates normalization and moment
@@ -64,12 +62,10 @@ dispersion, filters the same genes, supplies these to `nbinomWaldTest`, and uses
 `betaPrior=FALSE`, `minmu=1e-6`, `betaTol=1e-10`, `maxit=1000`, `useOptim=TRUE`.
 `results` uses contrast group 1 / 0, `independentFiltering=FALSE` and
 `cooksCutoff=FALSE`; `lfcShrink` and `DESeq` are never called. Frozen CSVs,
-factors and `session.txt` retain the independent execution. `check_deseq2.py`
-compares normalization, dispersion, base mean, fitted group means, NB log
-likelihood, LFC, SE, p and BH q to the
-SciPy oracle with 2e-5 relative / 2e-6 absolute tolerance. The small discrepancy
-reflects DESeq2's internal numerical regularization. See the official
-[DESeq2 vignette](https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html)
+factors and `session.txt` retain the independent execution. The small
+discrepancy reflects DESeq2's internal numerical regularization. See the
+official [DESeq2
+vignette](https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html)
 for the full pipeline and its different dispersion and filtering defaults.
 
 Fixtures exercise unequal library sizes, overdispersion, unequal group sizes,
@@ -86,9 +82,6 @@ From repository root, with a compiler built from the recorded candidate:
 omega packages update --project samples/cli/independent/differential_expression --target linux_x86_64
 # Inspect the exact generated source and capability review, then resume it.
 omega run --keep samples/cli/independent/differential_expression/main.omg < samples/cli/independent/differential_expression/data/realistic.stdin
-python -B samples/cli/independent/differential_expression/validation/run.py --executable /retained/build/path/omega-program
-python -B samples/cli/independent/differential_expression/validation/check_deseq2.py
-python -B samples/cli/independent/differential_expression/validation/check_observed.py
 ```
 
 The private Rust `validation/terminal-driver` uses the ordinary package manager
@@ -100,9 +93,7 @@ source interpreter or approval bypass is used. Its native and Terminal outputs
 are checked against the same frozen numerical oracle. Receipts live in ignored
 `build/validation/`; committed evidence summarizes observed runs and identities.
 After observing Terminal, the driver publishes that same retained native product
-through the ordinary product API and prints its executable path. Pass that path
-to `validation/run.py --executable` to check all native fixtures from the same
-prepared compilation.
+through the ordinary product API and prints its executable path.
 
 The retained build path is printed by `run --keep`; reuse that unchanged native
 application for all fixture inputs. [Qualification evidence](validation/EVIDENCE.md)

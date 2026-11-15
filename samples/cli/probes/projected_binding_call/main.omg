@@ -15,7 +15,7 @@ public data Receipt [linear] dropped by drop_receipt { code: i32; }
 machine drop_receipt(receipt: &mut Receipt) {}
 
 public boundary trait Settlement {
-    machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32 reaches;
+    machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32 reaches crashes none;
 }
 
 Settler satisfies Settlement {

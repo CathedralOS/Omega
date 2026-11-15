@@ -1116,6 +1116,7 @@ mod attribution {
         fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
             let (_, mut source) = fixture();
             source.blocks[0].operations[2] = AbstractOperation::StructuralCase {
+                psi_block: source.blocks[0].block,
                 source: semantic_vocabulary::PlaceId::new(1).unwrap(),
                 path: Vec::new(),
                 cases: [10, 11]
@@ -10235,7 +10236,7 @@ mod source {
                                 && match row.kind {
                                     selected_instructions::SelectedInstructionKind::Load32 { .. } =>
                                         super::placed_reference::case_tag_load_matches(
-                                            *psi_operation, *source, path, tag_byte_offset, row, addresses,
+                                            selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation), *source, path, tag_byte_offset, row, addresses,
                                         ).is_some(),
                                     selected_instructions::SelectedInstructionKind::ZeroExtendU32 => path.is_empty() && tag_byte_offset == 0,
                                     _ => false,
@@ -10350,7 +10351,7 @@ mod source {
                 }
                 AbstractOperation::EstablishReference { psi_operation, result, source, storage } => {
                     graph.operations().filter(|row| matches!(row,
-                        TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage }
+                        TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage, .. }
                         if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source && retained_storage == storage
                     )).count() == 1
                 }
@@ -10988,6 +10989,14 @@ mod source {
                             structural_parameters: vec![],
                             operations: vec![],
                             terminator,
+                            terminator_metadata: target_operations::TargetOperationMetadata {
+                                work: vec![],
+                                effect: optimization_unit::EffectLink {
+                                    input: 0,
+                                    output: 0,
+                                },
+                                ownership: vec![],
+                            },
                         }],
                     },
                 }
@@ -11110,6 +11119,8 @@ mod source {
                             target: destination,
                             bindings: vec![],
                             structural_bindings: vec![],
+                            structural_indices: vec![],
+                            work: vec![],
                             cleanup_actions: actual.clone(),
                         },
                     });
@@ -12669,6 +12680,7 @@ mod source {
                         result_home,
                         source,
                         correspondence,
+                        ..
                     } = operation
                     {
                         geometry
@@ -12866,6 +12878,16 @@ mod source {
                         };
                     }
                 }
+                // Captured dispatch addresses are consumed by the terminator,
+                // after every ordinary instruction in its block. Keep these
+                // positions without adding terminals to the operation inventory.
+                locations.extend(selected.blocks.iter().enumerate().map(|(position, block)| {
+                    (
+                        selected_instructions::terminator_instruction(&block.terminator).id,
+                        position,
+                        block.instructions.len(),
+                    )
+                }));
                 operation_instructions.sort_by_key(|(operation, _)| *operation);
                 locations.sort_by_key(|(instruction, _, _)| *instruction);
                 Self {
@@ -12926,6 +12948,12 @@ mod source {
                 | SelectedInstructionKind::MaterializeI64 { .. } => 0,
                 SelectedInstructionKind::AddressOffset { .. }
                 | SelectedInstructionKind::Load64 { .. }
+                | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU16
+                | SelectedInstructionKind::ZeroExtendU32
+                | SelectedInstructionKind::SignExtendI8
+                | SelectedInstructionKind::SignExtendI16
+                | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::CopyI64 => 1,
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingMultiplyI64 => 2,
@@ -13016,7 +13044,7 @@ mod source {
         fn definition<'a>(
             selected: &'a SelectedFunction,
             inputs: &SelectedAddressInputs<'a>,
-            operation: OperationId,
+            site: selected_instructions::SelectedMemoryAccessOrigin,
             register: VirtualRegisterId,
         ) -> Option<&'a SelectedInstruction> {
             let mut rows = inputs
@@ -13025,12 +13053,23 @@ mod source {
                 .iter()
                 .copied()
                 .filter(|row| {
-                    row.provenance.operations.contains(&operation)
-                        || matches!(
-                            row.kind,
-                            SelectedInstructionKind::FrameAddress { .. }
-                                | SelectedInstructionKind::CopyI64
-                        )
+                    (match site {
+                        selected_instructions::SelectedMemoryAccessOrigin::Operation(operation) => {
+                            row.provenance.operations.contains(&operation)
+                        }
+                        selected_instructions::SelectedMemoryAccessOrigin::Edge(edge) => {
+                            row.provenance.edges.contains(&edge)
+                        }
+                        selected_instructions::SelectedMemoryAccessOrigin::Block(_) => {
+                            row.provenance.operations.is_empty()
+                                && row.provenance.edges.is_empty()
+                                && row.provenance.work.is_empty()
+                        }
+                    }) || matches!(
+                        row.kind,
+                        SelectedInstructionKind::FrameAddress { .. }
+                            | SelectedInstructionKind::CopyI64
+                    )
                 });
             let (Some(row), None) = (rows.next(), rows.next()) else {
                 return None;
@@ -13051,25 +13090,60 @@ mod source {
         fn scaled_index(
             selected: &SelectedFunction,
             inputs: &SelectedAddressInputs<'_>,
-            operation: OperationId,
+            site: selected_instructions::SelectedMemoryAccessOrigin,
             register: VirtualRegisterId,
             consumer: &SelectedInstruction,
         ) -> Option<(ValueId, u64)> {
-            let row = definition(selected, inputs, operation, register)?;
+            let row = definition(selected, inputs, site, register)?;
             if row.kind != SelectedInstructionKind::WrappingMultiplyI64
                 || !inputs.precedes(row.id, consumer.id)
             {
                 return None;
             }
-            let value_register = operand(row, 0)?;
+            let mut value_register = operand(row, 0)?;
+            let mut value_consumer = row;
+            let register = selected.virtual_register(value_register)?;
+            if matches!(register.origin, VirtualRegisterOrigin::AbiTransport { .. }) {
+                // Address lowering explicitly normalizes a narrow selector.
+                // Recover its actual SSA input through the exact extension,
+                // rather than accepting the provenance's claimed value list.
+                let extension = definition(selected, inputs, site, value_register)?;
+                use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+                let (sign, bits) = match extension.kind {
+                    SelectedInstructionKind::ZeroExtendU8 => (IntegerSign::Unsigned, 8),
+                    SelectedInstructionKind::ZeroExtendU16 => (IntegerSign::Unsigned, 16),
+                    SelectedInstructionKind::ZeroExtendU32 => (IntegerSign::Unsigned, 32),
+                    SelectedInstructionKind::SignExtendI8 => (IntegerSign::Signed, 8),
+                    SelectedInstructionKind::SignExtendI16 => (IntegerSign::Signed, 16),
+                    SelectedInstructionKind::SignExtendI32 => (IntegerSign::Signed, 32),
+                    _ => return None,
+                };
+                let input = operand(extension, 0)?;
+                if operand(extension, 1)? != value_register
+                    || register.scalar_type
+                        != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).ok()?)
+                    || selected.virtual_register(input)?.scalar_type
+                        != ScalarType::Integer(IntegerType::new(sign, bits).ok()?)
+                    || !inputs.precedes(extension.id, row.id)
+                {
+                    return None;
+                }
+                value_register = input;
+                value_consumer = extension;
+            } else if !matches!(register.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                if integer == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).ok()?
+                    || integer == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 64).ok()?)
+            {
+                return None;
+            }
             let value = resolved_source_value(
                 selected,
                 selected.virtual_register(value_register)?.origin,
-                row,
+                value_consumer,
                 inputs.occurrence(value_register)?,
                 |producer, consumer| inputs.precedes(producer, consumer),
             )?;
-            let stride = definition(selected, inputs, operation, operand(row, 1)?)?;
+            let stride = definition(selected, inputs, site, operand(row, 1)?)?;
             if !inputs.precedes(stride.id, row.id) {
                 return None;
             }
@@ -13095,6 +13169,7 @@ mod source {
             selected: SelectedAddressInputs<'a>,
             homes: super::structural_homes::HomeInputs<'a>,
             case_operations: Vec<(OperationId, &'a TargetUnitOperation)>,
+            source_values: Option<Vec<(ValueId, semantic_vocabulary::ScalarType)>>,
         }
 
         impl<'a> AddressInputs<'a> {
@@ -13118,6 +13193,33 @@ mod source {
                     selected: SelectedAddressInputs::new(selected),
                     homes: super::structural_homes::HomeInputs::new(target, selected),
                     case_operations,
+                    source_values: None,
+                }
+            }
+
+            fn source_scalar_type(
+                &mut self,
+                function: &optimization_unit::PsiOptimizationFunction,
+                value: ValueId,
+            ) -> Option<semantic_vocabulary::ScalarType> {
+                let values = self.source_values.get_or_insert_with(|| {
+                    let mut values: Vec<_> =
+                        function
+                            .parameters
+                            .iter()
+                            .chain(function.blocks.iter().flat_map(|block| {
+                                block.parameters.iter().chain(block.definitions())
+                            }))
+                            .map(|row| (row.value, row.scalar_type))
+                            .collect();
+                    values.sort_by_key(|(value, _)| *value);
+                    values
+                });
+                let first = values.partition_point(|(id, _)| *id < value);
+                let end = values.partition_point(|(id, _)| *id <= value);
+                match &values[first..end] {
+                    [(_, scalar_type)] => Some(*scalar_type),
+                    _ => None,
                 }
             }
         }
@@ -13182,13 +13284,13 @@ mod source {
 
             fn at(
                 &mut self,
-                operation: OperationId,
+                site: selected_instructions::SelectedMemoryAccessOrigin,
                 register: VirtualRegisterId,
                 consumer: &SelectedInstruction,
             ) -> Option<Address> {
                 self.failure = None;
                 self.address(
-                    operation,
+                    site,
                     register,
                     self.selected.virtual_registers.len() + 1,
                     consumer,
@@ -13201,7 +13303,7 @@ mod source {
 
             fn address(
                 &mut self,
-                operation: OperationId,
+                site: selected_instructions::SelectedMemoryAccessOrigin,
                 register: VirtualRegisterId,
                 remaining: usize,
                 consumer: &SelectedInstruction,
@@ -13296,10 +13398,10 @@ mod source {
                                 return None;
                             }
                         };
-                        return self.address(operation, operand(writer, 0)?, remaining - 1, writer);
+                        return self.address(site, operand(writer, 0)?, remaining - 1, writer);
                     }
                 }
-                let row = definition(selected, &self.inputs().selected, operation, register)?;
+                let row = definition(selected, &self.inputs().selected, site, register)?;
                 if !self.inputs().selected.precedes(row.id, consumer.id) {
                     return None;
                 }
@@ -13315,16 +13417,16 @@ mod source {
                     }),
                     SelectedInstructionKind::AddressOffset { byte_offset } => {
                         let mut result =
-                            self.address(operation, operand(row, 0)?, remaining - 1, row)?;
+                            self.address(site, operand(row, 0)?, remaining - 1, row)?;
                         result.offset = result.offset.checked_add(u64::from(byte_offset))?;
                         Some(result)
                     }
                     SelectedInstructionKind::CopyI64 => {
-                        self.address(operation, operand(row, 0)?, remaining - 1, row)
+                        self.address(site, operand(row, 0)?, remaining - 1, row)
                     }
                     SelectedInstructionKind::Load64 { byte_offset } => {
                         let mut result =
-                            self.address(operation, operand(row, 0)?, remaining - 1, row)?;
+                            self.address(site, operand(row, 0)?, remaining - 1, row)?;
                         result.offset = result.offset.checked_add(u64::from(byte_offset))?;
                         result
                             .loads
@@ -13334,11 +13436,11 @@ mod source {
                     }
                     SelectedInstructionKind::ByteViewAddress => {
                         let mut result =
-                            self.address(operation, operand(row, 0)?, remaining - 1, row)?;
+                            self.address(site, operand(row, 0)?, remaining - 1, row)?;
                         result.indices.push(scaled_index(
                             selected,
                             &self.inputs().selected,
-                            operation,
+                            site,
                             operand(row, 1)?,
                             row,
                         )?);
@@ -13445,12 +13547,20 @@ mod source {
                     return None;
                 }
             }
-            let captured = addresses.at(operation, operand(instruction, 1)?, instruction);
+            let captured = addresses.at(
+                selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
+                operand(instruction, 1)?,
+                instruction,
+            );
             let captured = captured?;
             if captured != expected {
                 return None;
             }
-            let destination = addresses.at(operation, operand(instruction, 0)?, instruction)?;
+            let destination = addresses.at(
+                selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
+                operand(instruction, 0)?,
+                instruction,
+            )?;
             if destination.offset != 0
                 || !destination.indices.is_empty()
                 || !destination.loads.is_empty()
@@ -13461,7 +13571,7 @@ mod source {
             let mut exact = target.graph.operations().filter(|row| {
                 matches!(row,
                 TargetUnitOperation::EstablishAccessReference { psi_operation, result_home,
-                    source: captured, correspondence: retained } if *psi_operation == operation
+                    source: captured, correspondence: retained, .. } if *psi_operation == operation
                     && result_home.operation_result() == Some((operation, result))
                     && captured == source && retained == correspondence)
             });
@@ -13642,20 +13752,43 @@ mod source {
         // adjustment. Check the resulting address against the same exact field
         // or element, including reference crossings and runtime index values.
         pub(super) fn case_tag_load_matches(
-            operation: OperationId,
+            site: SelectedMemoryAccessOrigin,
             place: PlaceId,
             path: &[terminal_psi::StructuralPathSegment],
             byte_offset: u32,
             load: &SelectedInstruction,
             addresses: &mut AddressReplay<'_>,
         ) -> Option<()> {
-            addresses.failure = None;
             let SelectedInstructionKind::Load32 {
                 byte_offset: displacement,
             } = load.kind
             else {
                 return None;
             };
+            case_address_matches(
+                site,
+                place,
+                path,
+                byte_offset,
+                operand(load, 0)?,
+                displacement,
+                load,
+                addresses,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn case_address_matches(
+            site: SelectedMemoryAccessOrigin,
+            place: PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+            byte_offset: u32,
+            register: VirtualRegisterId,
+            displacement: u32,
+            consumer: &SelectedInstruction,
+            addresses: &mut AddressReplay<'_>,
+        ) -> Option<()> {
+            addresses.failure = None;
             let (base, root) = address_root(&addresses.inputs().homes, place)?;
             let geometry =
                 target_operations_to_selected_instructions::reference_formation_geometry(
@@ -13681,9 +13814,199 @@ mod source {
                 return None;
             }
             let expected = geometry_address(base, &geometry, false)?;
-            let mut actual = addresses.at(operation, operand(load, 0)?, load)?;
+            let mut actual = addresses.at(site, register, consumer)?;
             actual.offset = actual.offset.checked_add(u64::from(displacement))?;
             (actual == expected).then_some(())
+        }
+
+        /// Reconstructs the target selector contract against its original
+        /// checked terminator, independently of its current CFG block.
+        #[allow(clippy::too_many_arguments)]
+        pub(super) fn dispatch_indices(
+            source_block: semantic_vocabulary::BlockId,
+            place: PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+            indices: &[target_operations::TargetStructuralRuntimeIndex],
+            byte_offset: u32,
+            region_byte_size: u32,
+            unit: &optimization_unit::PsiOptimizationUnit,
+            addresses: &mut AddressReplay<'_>,
+        ) -> Option<Vec<legalized_operations::LegalizedRuntimeIndexOperand>> {
+            let machine = addresses.target.machine;
+            let (_, root) = address_root(&addresses.inputs().homes, place)?;
+            let geometry =
+                target_operations_to_selected_instructions::reference_formation_geometry(
+                    root,
+                    path,
+                    addresses.geometry()?,
+                )?;
+            let region_shape = addresses.geometry()?.shape(geometry.region_root).ok()?;
+            if !geometry.readable
+                || indices.len() != geometry.elements.len()
+                || geometry.byte_offset != byte_offset
+                || region_shape.byte_size != region_byte_size
+            {
+                return None;
+            }
+            let function = unit.function(machine)?;
+            indices
+                .iter()
+                .zip(&geometry.elements)
+                .map(|(index, element)| {
+                    let scalar_type = addresses
+                        .inputs
+                        .as_mut()?
+                        .source_scalar_type(function, element.index)?;
+                    if index.operand.source_value() != element.index
+                        || index.stride != element.stride
+                        || index.extent != element.extent
+                        || index.obligation != element.obligation
+                        || index.operand.scalar_type() != scalar_type
+                    {
+                        return None;
+                    }
+                    let fact = unit.accepted_obligation_fact(
+                        machine,
+                        terminal_psi::ExecutionSite::Block(source_block),
+                        Some(element.obligation),
+                    )?;
+                    Some(legalized_operations::LegalizedRuntimeIndexOperand {
+                        operand: abstract_operations::AbstractResult {
+                            value: element.index,
+                            scalar_type,
+                        },
+                        stride: element.stride,
+                        extent: element.extent,
+                        obligation: element.obligation,
+                        accepted_fact: fact.identity,
+                    })
+                })
+                .collect()
+        }
+
+        /// A tag load and each captured payload address must select the same
+        /// element. Bounds belong to the common read, never to a chosen arm.
+        #[allow(clippy::too_many_arguments)]
+        pub(super) fn dispatch_read_matches(
+            source_block: semantic_vocabulary::BlockId,
+            current_block: semantic_vocabulary::BlockId,
+            place: PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+            byte_offset: u32,
+            indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+            addresses: &mut AddressReplay<'_>,
+        ) -> Option<()> {
+            let selected = addresses.selected;
+            let origin = SelectedMemoryAccessOrigin::Block(source_block);
+            let mut loads = selected
+                .memory_accesses
+                .iter()
+                .filter(|access| {
+                    access.origin == origin
+                        && access.place == place
+                        && access.byte_count == 4
+                        && matches!(
+                            access.role,
+                            SelectedMemoryAccessRole::ReadPlace
+                                | SelectedMemoryAccessRole::ReadIndexedPrimitive { .. }
+                        )
+                })
+                .map(|access| access.instruction)
+                .collect::<Vec<_>>();
+            loads.sort_unstable();
+            loads.dedup();
+            let [instruction] = loads.as_slice() else {
+                return None;
+            };
+            let mut instructions = selected.instructions().filter(|row| row.id == *instruction);
+            let (Some(load), None) = (instructions.next(), instructions.next()) else {
+                return None;
+            };
+            if !selected.blocks.iter().any(|block| {
+                block.source_block() == current_block && block.instruction_index(load.id).is_some()
+            }) {
+                return None;
+            }
+            case_tag_load_matches(origin, place, path, byte_offset, load, addresses)?;
+            let rows = selected
+                .memory_accesses
+                .iter()
+                .filter(|row| row.instruction == load.id)
+                .collect::<Vec<_>>();
+            dispatch_index_rows_match(source_block, place, byte_offset, indices, &rows)
+        }
+
+        fn dispatch_index_rows_match(
+            source_block: semantic_vocabulary::BlockId,
+            place: PlaceId,
+            byte_offset: u32,
+            indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+            rows: &[&selected_instructions::SelectedMemoryAccess],
+        ) -> Option<()> {
+            let origin = SelectedMemoryAccessOrigin::Block(source_block);
+            if rows.len() != indices.len().max(1) {
+                return None;
+            }
+            if indices.is_empty() {
+                return (rows[0].origin == origin
+                    && rows[0].place == place
+                    && rows[0].byte_offset == byte_offset
+                    && rows[0].byte_count == 4
+                    && rows[0].role == SelectedMemoryAccessRole::ReadPlace)
+                    .then_some(());
+            }
+            for (row, index) in rows.iter().zip(indices) {
+                if row.origin != origin
+                    || row.place != place
+                    || row.byte_offset != byte_offset
+                    || row.byte_count != 4
+                    || row.role
+                        != (SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                            index: index.operand.value,
+                            stride: index.stride,
+                            extent: index.extent,
+                            obligation: index.obligation,
+                            accepted_fact: index.accepted_fact,
+                        })
+                {
+                    return None;
+                }
+            }
+            Some(())
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        pub(super) fn dispatch_source_matches(
+            source_block: semantic_vocabulary::BlockId,
+            place: PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+            byte_offset: u32,
+            region_byte_size: u32,
+            source: &selected_instructions::SelectedCaseDispatchSource,
+            consumer: &SelectedInstruction,
+            addresses: &mut AddressReplay<'_>,
+        ) -> Option<()> {
+            let selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                place: actual,
+                pointer,
+                byte_size,
+            } = source
+            else {
+                return None;
+            };
+            if *actual != place || *byte_size != region_byte_size {
+                return None;
+            }
+            case_address_matches(
+                SelectedMemoryAccessOrigin::Block(source_block),
+                place,
+                path,
+                byte_offset,
+                *pointer,
+                byte_offset,
+                consumer,
+                addresses,
+            )
         }
 
         pub(super) fn borrowed_address_matches(
@@ -13720,7 +14043,11 @@ mod source {
                     register, source
                 )
             })?;
-            let actual = addresses.at(operation, register, consumer);
+            let actual = addresses.at(
+                selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
+                register,
+                consumer,
+            );
             if actual.as_ref() != Some(&expected) {
                 return Err(format!(
                     "borrowed pointer {:?} for {:?}: expected {:?}; reconstructed {:?}; spill proof: {:?}; definitions: {}",
@@ -13780,6 +14107,262 @@ mod source {
                 register = input;
             }
             chain.join("; ")
+        }
+        #[cfg(test)]
+        mod dispatch_address_tests {
+            use super::*;
+            use register_model::{
+                RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey,
+            };
+            use selected_instructions::{
+                SelectedBlock, SelectedBlockId, SelectedInstructionId,
+                SelectedInstructionProvenance, SelectedMemoryAccess, SelectedOperand,
+                SelectedTerminator, VirtualRegister,
+            };
+            use semantic_vocabulary::{
+                BlockId, EdgeId, IntegerSign, IntegerType, MachineId, ObligationId, ScalarType,
+            };
+
+            #[test]
+            fn dispatch_reads_retain_owner_selector_stride_extent_and_receipt() {
+                let source = BlockId::new(7).unwrap();
+                let place = PlaceId::new(1).unwrap();
+                let index = legalized_operations::LegalizedRuntimeIndexOperand {
+                    operand: abstract_operations::AbstractResult {
+                        value: ValueId::new(2).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        ),
+                    },
+                    stride: 8,
+                    extent: Some(2),
+                    obligation: ObligationId::new(3).unwrap(),
+                    accepted_fact:
+                        optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                            b"checked discriminator",
+                        ),
+                };
+                let expected = SelectedMemoryAccess {
+                    instruction: SelectedInstructionId(4),
+                    origin: SelectedMemoryAccessOrigin::Block(source),
+                    place,
+                    byte_offset: 16,
+                    byte_count: 4,
+                    role: SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                        index: index.operand.value,
+                        stride: index.stride,
+                        extent: index.extent,
+                        obligation: index.obligation,
+                        accepted_fact: index.accepted_fact,
+                    },
+                };
+                let check = |row: &SelectedMemoryAccess| {
+                    dispatch_index_rows_match(
+                        source,
+                        place,
+                        16,
+                        std::slice::from_ref(&index),
+                        &[row],
+                    )
+                    .is_some()
+                };
+                assert!(check(&expected));
+                for origin in [
+                    SelectedMemoryAccessOrigin::Operation(OperationId::new(source.get()).unwrap()),
+                    SelectedMemoryAccessOrigin::Edge(EdgeId::new(source.get()).unwrap()),
+                    SelectedMemoryAccessOrigin::Block(BlockId::new(8).unwrap()),
+                ] {
+                    let mut changed = expected.clone();
+                    changed.origin = origin;
+                    assert!(
+                        !check(&changed),
+                        "a chosen edge or equal numeric operation is a different owner"
+                    );
+                }
+                for mutation in 0..5 {
+                    let mut changed = expected.clone();
+                    let SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                        index,
+                        stride,
+                        extent,
+                        obligation,
+                        accepted_fact,
+                    } = &mut changed.role
+                    else {
+                        unreachable!()
+                    };
+                    match mutation {
+                        0 => *index = ValueId::new(9).unwrap(),
+                        1 => *stride = 16,
+                        2 => *extent = Some(3),
+                        3 => *obligation = ObligationId::new(9).unwrap(),
+                        _ => *accepted_fact =
+                            optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                                b"another read",
+                            ),
+                    }
+                    assert!(!check(&changed), "changed selector contract {mutation}");
+                }
+                assert!(
+                    dispatch_index_rows_match(source, place, 16, &[index], &[&expected, &expected])
+                        .is_none()
+                );
+            }
+
+            fn normalized_selector(
+                sign: IntegerSign,
+                extension: SelectedInstructionKind,
+            ) -> SelectedFunction {
+                let integer =
+                    |sign, bits| ScalarType::Integer(IntegerType::new(sign, bits).unwrap());
+                let instruction =
+                    |raw, kind, operands: &[(u32, RegisterOperandAccess)]| SelectedInstruction {
+                        id: SelectedInstructionId(raw),
+                        kind,
+                        constraint: RegisterConstraintKey {
+                            family: RegisterConstraintFamily::Instruction,
+                            variant: 0,
+                        },
+                        operands: operands
+                            .iter()
+                            .enumerate()
+                            .map(|(position, (register, access))| SelectedOperand {
+                                operand: position as u16,
+                                virtual_register: VirtualRegisterId(*register),
+                                access: *access,
+                                class: RegisterClassId(0),
+                                fixed_view: None,
+                                tied_to: None,
+                                early_clobber: false,
+                            })
+                            .collect(),
+                        implicit_uses: vec![],
+                        implicit_defs: vec![],
+                        clobbers: vec![],
+                        provenance: SelectedInstructionProvenance {
+                            values: vec![ValueId::new(7).unwrap()],
+                            ..Default::default()
+                        },
+                    };
+                use RegisterOperandAccess::{Def, Use};
+                let blocks = vec![SelectedBlock {
+                    id: SelectedBlockId(0),
+                    origin: selected_instructions::SelectedBlockOrigin::Source(
+                        BlockId::new(7).unwrap(),
+                    ),
+                    instructions: vec![
+                        instruction(0, extension, &[(0, Use), (1, Def)]),
+                        instruction(
+                            1,
+                            SelectedInstructionKind::MaterializeI64 {
+                                value: semantic_vocabulary::IntegerValue::Unsigned(4),
+                            },
+                            &[(2, Def)],
+                        ),
+                        instruction(
+                            2,
+                            SelectedInstructionKind::WrappingMultiplyI64,
+                            &[(1, Use), (2, Use), (3, Def)],
+                        ),
+                        instruction(3, SelectedInstructionKind::CompareI64Zero, &[(3, Use)]),
+                    ],
+                    terminator: SelectedTerminator::Return {
+                        instruction: instruction(4, SelectedInstructionKind::ReturnUnit, &[]),
+                        psi_return_edge: EdgeId::new(1).unwrap(),
+                    },
+                }];
+                SelectedFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    provenance: Default::default(),
+                    structural: None,
+                    local_storage_slots: vec![],
+                    outgoing_arguments: vec![],
+                    calls: vec![],
+                    normalized_foreign_calls: vec![],
+                    memory_accesses: vec![],
+                    boundary_settlements: vec![],
+                    entry_block: SelectedBlockId(0),
+                    blocks: blocks.into(),
+                    virtual_registers: (0..4)
+                        .map(|raw| VirtualRegister {
+                            id: VirtualRegisterId(raw),
+                            scalar_type: if raw == 0 {
+                                integer(sign, 32)
+                            } else {
+                                integer(IntegerSign::Unsigned, 64)
+                            },
+                            class: RegisterClassId(0),
+                            definition_site: None,
+                            entry_fixed_view: None,
+                            origin: if raw == 0 {
+                                VirtualRegisterOrigin::EntryParameter {
+                                    source_value: ValueId::new(7).unwrap(),
+                                    parameter_index: 0,
+                                }
+                            } else {
+                                VirtualRegisterOrigin::AbiTransport {
+                                    instruction: SelectedInstructionId(raw - 1),
+                                    place: PlaceId::new(1).unwrap(),
+                                    byte_offset: 0,
+                                }
+                            },
+                        })
+                        .collect(),
+                }
+            }
+
+            #[test]
+            fn normalized_index_replay_checks_the_extension_input_type_and_order() {
+                let origin = SelectedMemoryAccessOrigin::Block(BlockId::new(7).unwrap());
+                let check = |function: &SelectedFunction| {
+                    let inputs = SelectedAddressInputs::new(function);
+                    scaled_index(
+                        function,
+                        &inputs,
+                        origin,
+                        VirtualRegisterId(3),
+                        &function.blocks[0].instructions[3],
+                    )
+                };
+                for (sign, extension) in [
+                    (
+                        IntegerSign::Unsigned,
+                        SelectedInstructionKind::ZeroExtendU32,
+                    ),
+                    (IntegerSign::Signed, SelectedInstructionKind::SignExtendI32),
+                ] {
+                    let mut function = normalized_selector(sign, extension);
+                    assert_eq!(check(&function), Some((ValueId::new(7).unwrap(), 4)));
+                    let inputs = SelectedAddressInputs::new(&function);
+                    assert!(
+                        inputs.precedes(SelectedInstructionId(2), SelectedInstructionId(4)),
+                        "the branch consumes its address after all ordinary operations"
+                    );
+                    function.virtual_registers[0].origin = VirtualRegisterOrigin::EntryParameter {
+                        source_value: ValueId::new(8).unwrap(),
+                        parameter_index: 0,
+                    };
+                    assert_eq!(
+                        check(&function),
+                        Some((ValueId::new(8).unwrap(), 4)),
+                        "claimed provenance values cannot replace the actual SSA input"
+                    );
+                    function.virtual_registers[0].scalar_type =
+                        ScalarType::Integer(IntegerType::new(sign, 16).unwrap());
+                    assert!(
+                        check(&function).is_none(),
+                        "a different source width needs its own exact normalization"
+                    );
+                    let mut reordered = normalized_selector(sign, extension);
+                    reordered.blocks.get_mut(0).unwrap().instructions.swap(0, 2);
+                    assert!(
+                        check(&reordered).is_none(),
+                        "a later extension cannot establish an earlier index"
+                    );
+                }
+            }
         }
     }
 
@@ -14359,20 +14942,28 @@ mod source {
         use semantic_vocabulary::PlaceId;
         use terminal_psi::{StructuralAccess, StructuralParameterDeclaration};
 
+        #[allow(clippy::too_many_arguments)]
         pub(super) fn retained(
             function: &SelectedFunction,
             source_blocks: &[AbstractBlock],
             source_parameters: &[StructuralParameterDeclaration],
             target: &target_operations::TargetFunction,
+            source_block: semantic_vocabulary::BlockId,
             source: PlaceId,
             path: &[terminal_psi::StructuralPathSegment],
             cases: &[AbstractStructuralCaseSuccessor],
+            unit: &optimization_unit::PsiOptimizationUnit,
+            addresses: &mut super::placed_reference::AddressReplay<'_>,
         ) -> bool {
             let Some(first) = cases.first() else {
                 return false;
             };
             let mut matching = target.graph.blocks.iter().filter_map(|block| {
                 let target_operations::TargetControlTerminator::StructuralCase {
+                    psi_block,
+                    indices,
+                    byte_offset,
+                    region_byte_size,
                     source: root,
                     path: projection,
                     cases: successors,
@@ -14381,18 +14972,65 @@ mod source {
                 else {
                     return None;
                 };
-                (root.place() == source
+                (*psi_block == source_block
+                    && root.place() == source
                     && projection == path
                     && successors
                         .iter()
                         .any(|case| case.psi_edge == first.psi_edge))
-                .then_some((root, successors))
+                .then_some((
+                    root,
+                    successors,
+                    indices,
+                    *byte_offset,
+                    *region_byte_size,
+                    block.block,
+                ))
             });
-            let Some((target_source, target_cases)) = matching.next() else {
+            let Some((
+                target_source,
+                target_cases,
+                indices,
+                byte_offset,
+                region_byte_size,
+                current_block,
+            )) = matching.next()
+            else {
                 return false;
             };
             if matching.next().is_some() || target_cases.len() != cases.len() {
                 return false;
+            }
+            if !super::structural_fields::retained_selectors(path, indices) {
+                return false;
+            }
+            {
+                let Some(expected_indices) = super::placed_reference::dispatch_indices(
+                    source_block,
+                    source,
+                    path,
+                    indices,
+                    byte_offset,
+                    region_byte_size,
+                    unit,
+                    addresses,
+                ) else {
+                    return false;
+                };
+                if cases.len() > 1
+                    && super::placed_reference::dispatch_read_matches(
+                        source_block,
+                        current_block,
+                        source,
+                        path,
+                        byte_offset,
+                        &expected_indices,
+                        addresses,
+                    )
+                    .is_none()
+                {
+                    return false;
+                }
             }
             !cases.is_empty()
                 && cases.iter().all(|case| {
@@ -14425,8 +15063,14 @@ mod source {
                             successor.role == SelectedSuccessorRole::Semantic
                                 && successor.psi_edge == Some(case.psi_edge)
                         })
+                        .map(move |successor| {
+                            (
+                                successor,
+                                selected_instructions::terminator_instruction(&block.terminator),
+                            )
+                        })
                     });
-                    let Some(successor) = matching.next() else {
+                    let Some((successor, consumer)) = matching.next() else {
                         return false;
                     };
                     let Some(retained) = &successor.structural_case else {
@@ -14446,6 +15090,11 @@ mod source {
                             path,
                             source_blocks,
                             source_parameters,
+                            source_block,
+                            byte_offset,
+                            region_byte_size,
+                            consumer,
+                            addresses,
                         )
                         && retained.case == case.case
                         && retained.case_tag == target_case.case_tag
@@ -14469,6 +15118,7 @@ mod source {
                 })
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn projected_source_matches(
             slots: &[selected_instructions::SelectedLocalStorageSlot],
             dispatch: &selected_instructions::SelectedCaseDispatchSource,
@@ -14476,16 +15126,33 @@ mod source {
             path: &[terminal_psi::StructuralPathSegment],
             blocks: &[AbstractBlock],
             parameters: &[StructuralParameterDeclaration],
+            source_block: semantic_vocabulary::BlockId,
+            byte_offset: u32,
+            region_byte_size: u32,
+            consumer: &selected_instructions::SelectedInstruction,
+            addresses: &mut super::placed_reference::AddressReplay<'_>,
         ) -> bool {
-            if !path.contains(&terminal_psi::StructuralPathSegment::Referent) {
-                return source_slot_matches(dispatch, target.place(), blocks, parameters);
-            }
-            let selected_instructions::SelectedCaseDispatchSource::Borrowed { place, .. } =
-                dispatch
-            else {
-                return false;
+            let place = match dispatch {
+                selected_instructions::SelectedCaseDispatchSource::Local { .. } => {
+                    return !path.contains(&terminal_psi::StructuralPathSegment::Referent)
+                        && !path.iter().any(|step| step.runtime_index().is_some())
+                        && source_slot_matches(dispatch, target.place(), blocks, parameters);
+                }
+                selected_instructions::SelectedCaseDispatchSource::Borrowed { place, .. } => *place,
             };
-            if *place != target.place() || !terminal_psi::is_static_structural_path(path) {
+            if place != target.place()
+                || super::placed_reference::dispatch_source_matches(
+                    source_block,
+                    place,
+                    path,
+                    byte_offset,
+                    region_byte_size,
+                    dispatch,
+                    consumer,
+                    addresses,
+                )
+                .is_none()
+            {
                 return false;
             }
             let target_operations::TargetStructuralCaseSource::Home(home) = target else {
@@ -14510,7 +15177,7 @@ mod source {
             let shape = home.layout.shape();
             source_slot_matches(
                 &selected_instructions::SelectedCaseDispatchSource::Local { slot },
-                *place,
+                place,
                 blocks,
                 parameters,
             ) && slots
@@ -15065,6 +15732,14 @@ mod source {
                             parameters: vec![],
                             structural_parameters: vec![],
                             operations: vec![target_operation],
+                            terminator_metadata: target_operations::TargetOperationMetadata {
+                                work: vec![],
+                                effect: optimization_unit::EffectLink {
+                                    input: 0,
+                                    output: 0,
+                                },
+                                ownership: vec![],
+                            },
                             terminator: TargetControlTerminator::Return {
                                 psi_edge: edge,
                                 cleanup_actions: vec![],
@@ -19421,15 +20096,18 @@ mod source {
                     }
                     AbstractOperation::Jump { .. }
                     | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),
-                    AbstractOperation::StructuralCase { source, path, cases } => {
+                    AbstractOperation::StructuralCase { psi_block, source, path, cases } => {
                         structural_case::retained(
                             selected,
                             &abstracted.blocks,
                             &abstracted.structural_parameters,
                             targeted,
+                            *psi_block,
                             *source,
                             path,
                             cases,
+                            current.optimized_target().optimized().unit(),
+                            &mut addresses,
                         )
                     }
                     _ => false,

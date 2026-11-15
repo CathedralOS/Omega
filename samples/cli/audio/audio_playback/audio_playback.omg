@@ -22,7 +22,7 @@ use omega::language::core::widen_u32_to_u64;
 public boundary trait AudioPlayback {
     machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
         reaches AudioPlayback
-        blocks;
+        blocks crashes none;
 }
 
 // ---- windows_x86_64: winmm PlaySoundW over the in-memory WAV image ----
@@ -34,7 +34,7 @@ public boundary trait AudioPlayback {
 boundary trait WindowsAudioPlaybackIo {
     machine c_play_sound(image: &u8, hmod: u64, flags: u32) -> i32
     reaches AudioPlayback
-    blocks;
+    blocks crashes none;
 }
 
 WindowsAudioPlayback satisfies AudioPlayback {
@@ -57,17 +57,17 @@ WindowsAudioPlayback satisfies AudioPlayback {
 
 boundary trait LinuxAudioPlaybackIo {
     machine c_open(pcm: &mut u64, name: &u8, stream: i32, mode: i32) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_set_params(pcm: u64, format: i32, access: i32, channels: u32, rate: u32, soft_resample: i32, latency_us: u32) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_writei(pcm: u64, buffer: &u8, frames: u64) -> i64
     reaches AudioPlayback
-    blocks;
+    blocks crashes none;
     machine c_drain(pcm: u64) -> i32
     reaches AudioPlayback
-    blocks;
+    blocks crashes none;
     machine c_close(pcm: u64) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
 }
 
 LinuxAudioPlayback satisfies AudioPlayback {
@@ -143,26 +143,26 @@ LinuxAudioPlayback satisfies AudioPlayback {
 
 boundary trait MacosAudioPlaybackIo {
     machine c_dlsym(handle: u64, name: &u8) -> u64
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_new_output(format: &u8, callback: u64, user_data: u64, callback_run_loop: u64, callback_mode: u64, flags: u32, queue: &mut u64) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_allocate_buffer(queue: u64, byte_size: u32, buffer: &mut u64) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_enqueue_buffer(queue: u64, buffer: u64, packet_count: u32, packet_descriptions: u64) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_start(queue: u64, start_time: u64) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_stop(queue: u64, immediate: u32) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_dispose(queue: u64, immediate: u32) -> i32
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_copy_to_address(destination: u64, source: &u8, count: u64) -> u64
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_load_pointer(source: u64, destination: &mut u64, count: u64)
-    reaches AudioPlayback;
+    reaches AudioPlayback crashes none;
     machine c_usleep(microseconds: u32) -> i32
     reaches AudioPlayback
-    blocks;
+    blocks crashes none;
 }
 
 machine macos_status(code: i32) -> i32 {

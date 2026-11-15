@@ -4,7 +4,7 @@
 // grants no capability.
 public boundary trait Lettering {}
 public boundary trait CharacterCase {
-    machine upper(character: i32) -> i32 reaches Lettering;
+    machine upper(character: i32) -> i32 reaches Lettering crashes none;
 }
 machine demand(result: bool) crashes Trap {
     transition result { true -> done() false -> bad() }
@@ -12,7 +12,7 @@ machine demand(result: bool) crashes Trap {
     machine bad() { crash Trap; }
 }
 boundary trait Shouting {
-    machine shout(character: i32) -> i32 reaches Lettering;
+    machine shout(character: i32) -> i32 reaches Lettering crashes none;
 }
 UpperShouting satisfies Shouting {
     machine shout(character: i32) -> i32 reaches Lettering {

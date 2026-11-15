@@ -174,11 +174,7 @@ build/rust-target/release/omega packages update --project samples/cli/independen
 # Review any new policy meanings; only already authorized exact meanings may be accepted.
 build/rust-target/release/omega --check --target linux_x86_64 --build-dir samples/cli/independent/piston_cycle_work/build/check samples/cli/independent/piston_cycle_work/main.omg
 build/rust-target/release/omega --target linux_x86_64 --build-dir samples/cli/independent/piston_cycle_work/build/native-current samples/cli/independent/piston_cycle_work/main.omg
-python3 samples/cli/independent/piston_cycle_work/validation/run_native.py samples/cli/independent/piston_cycle_work/build/native-current/omega-program build/new029-output
-python3 samples/cli/independent/piston_cycle_work/validation/verify.py build/new029-output native
-python3 samples/cli/independent/piston_cycle_work/validation/build_terminal.py build/rust-target/release build/terminal_capture_current METADATA_MAP_JSON
 build/terminal_capture_current samples/cli/independent/piston_cycle_work/main.omg build/new029-output
-python3 samples/cli/independent/piston_cycle_work/validation/verify.py build/new029-output terminal
 build/rust-target/release/omega --check --build-dir build/new029-intended-invalid samples/cli/independent/piston_cycle_work/controls/intended_invalid/main.omg
 ```
 

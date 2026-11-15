@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "nf03_phasor_power");
-    Build::depend(builder, Source::Path { location: "/workspace/Omega/.codex/worktrees/nf03/source/library/std" });
-    Build::depend_as(builder, "numerics", Source::Path { location: "/tmp/nf03-preflight/numerics" });
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-}

@@ -15,7 +15,7 @@ requires
 public boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
     reaches
-        Console;
+        Console crashes none;
 }
 
 data App {

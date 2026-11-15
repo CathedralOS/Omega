@@ -2,7 +2,7 @@
 // Expected exit: 0
 public data Division [copy] { quotient: i64; remainder: i64; }
 public boundary trait IntegerDivision {
- machine divide(numerator: i64, denominator: i64) -> Division reaches;
+ machine divide(numerator: i64, denominator: i64) -> Division reaches crashes none;
 }
 
 machine consume(first: Division, copied: Division) -> bool reaches IntegerDivision {

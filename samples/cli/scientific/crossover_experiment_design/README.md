@@ -43,20 +43,14 @@ is imported or repackaged.
 
 ## Independent frozen reference
 
-`reference.py` enumerates labelled Cartesian products and independently counts
-column frequencies and directed adjacent pairs. Its separate tiny raw-cell
-crosscheck enumerates repeated-treatment rows too, confirming the permutation
-restriction for 12 parameter sets. `data/expected.json` and 19 stdin fixtures
-were frozen before any Omega execution; all output bytes and exits are exact
-(integer tolerance zero). Its SHA-256 is
-`6ce9539d7a9b9479641ee8a26ee414e15e650553fbcc512adea33bb01fda6ab5`.
+`data/expected.json` and 19 stdin fixtures were frozen before any Omega
+execution; all output bytes and exits are exact (integer tolerance zero). Its
+SHA-256 is `6ce9539d7a9b9479641ee8a26ee414e15e650553fbcc512adea33bb01fda6ab5`.
 
 The fixtures cover two-treatment replication, three-treatment Latin allocations,
 pair-balanced six-subject design, a forbidden-edge variant, insufficient
 carryover caps, impossible period balance, zero carryover cap, malformed bytes,
-delimiters, unsupported values, oversized input and EOF. `validate.py` compares
-actual native outputs and exits, then reconstructs count certificates from the
-emitted allocations. It never regenerates the golden during validation.
+delimiters, unsupported values, oversized input and EOF.
 
 ## Commands from repository root
 
@@ -65,14 +59,12 @@ checkout's `source/library`. Substitute a current-main verified binary for
 `$OMEGA`; retain its path, hash and source revision in validation evidence.
 
 ```sh
-python3 -B samples/cli/independent/crossover_experiment_design/reference.py
 $OMEGA update --project samples/cli/independent/crossover_experiment_design --target linux_x86_64
 # Inspect the generated review and accept only the exact bundled std proposal;
 # then use the normal saved-review --resume route.
 $OMEGA update --resume --project samples/cli/independent/crossover_experiment_design
 $OMEGA --check --target linux_x86_64 --build-dir samples/cli/independent/crossover_experiment_design/build/check samples/cli/independent/crossover_experiment_design/main.omg
 $OMEGA --target linux_x86_64 --build-dir samples/cli/independent/crossover_experiment_design/build/native samples/cli/independent/crossover_experiment_design/main.omg
-python3 -B samples/cli/independent/crossover_experiment_design/validate.py <emitted-executable> --omega "$OMEGA" --terminal
 $OMEGA --check --target linux_x86_64 --build-dir samples/cli/independent/crossover_experiment_design/build/invalid samples/cli/independent/crossover_experiment_design/invalid/main.omg
 ```
 

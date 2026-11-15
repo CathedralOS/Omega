@@ -227,9 +227,17 @@ impl PackageReviewInput<'_> {
         } else {
             self.callable_contracts(declaration, state)?
         };
-        let exact_sources =
-            source::source_identity::toolchain_source_identities(source.symbols.source_files())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // Product already retained this exact roster at its source boundary.
+        // Only Build has a distinct source owner to prepare here.
+        let build_sources;
+        let exact_sources = if role == PackagePolicyCallableRole::Build {
+            build_sources =
+                source::source_identity::toolchain_source_identities(source.symbols.source_files())
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            build_sources.as_slice()
+        } else {
+            self.compilation().sources().exact_toolchain_sources()
+        };
         let type_identity = |reference| {
             if role != PackagePolicyCallableRole::Build {
                 return self.type_identity(reference);
@@ -240,7 +248,7 @@ impl PackageReviewInput<'_> {
                         type_reference: reference,
                         binders: &[],
                         substitutions: &[],
-                        exact_toolchain_sources: &exact_sources,
+                        exact_toolchain_sources: exact_sources,
                     },
                 )
                 .and_then(|identity| source.type_identity_text(identity))
@@ -260,7 +268,7 @@ impl PackageReviewInput<'_> {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let service_names = service_identities(accepted, &exact_sources)?;
+        let service_names = service_identities(accepted, exact_sources)?;
         let ([reach, entries], [checked_may_suspend, checked_may_block]) = match body {
             Some(entry) => body_effects(accepted, entry)?,
             None => ([Vec::new(), Vec::new()], [false; 2]),
@@ -326,7 +334,11 @@ impl PackageReviewInput<'_> {
             contracts,
             declared_service_reach,
             service_reach_dependency: PackagePolicyServiceReachDependency {
-                concrete: reviewed_services(&service_names, &header.published_service_ceiling)?,
+                concrete: if body.is_some() {
+                    realized_reach.clone()
+                } else {
+                    reviewed_services(&service_names, &header.published_service_ceiling)?
+                },
                 parameters: Vec::new(),
             },
             checked_service_reach: if body.is_some() {

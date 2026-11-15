@@ -1,9 +1,0 @@
-{
-  "assignment": "IND08",
-  "scope": "samples/cli/independent/operating_envelope/",
-  "base": "30ec6a20142f4e79e236c20912455939df40ea96",
-  "branch": "ind08",
-  "dependencies_on_active_workers": [],
-  "acceptance": "Real Omega check and native geometry outputs, Terminal comparison where supported, frozen analytic oracles and per-vertex certificates, runtime input rejection and independent source rejection",
-  "claims": "Registration not successful: coordination unavailable on status; IND08 is not a TASKS.md marker. Scope retained locally."
-}

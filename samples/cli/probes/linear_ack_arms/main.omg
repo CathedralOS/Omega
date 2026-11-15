@@ -16,7 +16,7 @@
 
 data Receipt [linear] { code: i32; }
 boundary trait ReceiptAck {
-    machine ack(receipt: Receipt) reaches;
+    machine ack(receipt: Receipt) reaches crashes none;
 }
 
 data Main { choose_first: bool; hits: i32 in Wrapping; }

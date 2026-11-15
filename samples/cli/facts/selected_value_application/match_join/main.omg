@@ -20,7 +20,7 @@ boundary trait SelectedValue {
     ) -> Selection<Cell>
     reaches
     requires Index <= 10
-    ensures result.right == Index;
+    ensures result.right == Index crashes none;
 }
 SelectionAdapter satisfies SelectedValue {
     machine selected<Index: u32, Implementation satisfies Choose<Cell>>(

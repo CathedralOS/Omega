@@ -24,7 +24,7 @@ machine valid(counts: &Counts) -> bool {
     counts.fields == 3u64 && counts.erased == 1u64 && counts.order == 17426u64
         && counts.evaluations == 1u64 && counts.valid
 }
-boundary trait Inspect { machine apply(counts: &mut Counts) reaches; }
+boundary trait Inspect { machine apply(counts: &mut Counts) reaches crashes none; }
 WindowsInspect satisfies Inspect { machine apply(counts: &mut Counts) { reflect::inspect_record_fields<Subject, describe>(once(&mut counts)); } }
 LinuxX86Inspect satisfies Inspect { machine apply(counts: &mut Counts) { reflect::inspect_record_fields<Subject, describe>(once(&mut counts)); } }
 MacInspect satisfies Inspect { machine apply(counts: &mut Counts) { reflect::inspect_record_fields<Subject, describe>(once(&mut counts)); } }

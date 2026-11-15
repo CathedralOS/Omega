@@ -269,7 +269,7 @@ impl Program<'_> {
 
 /// Whether membership in the domain is more than its name: it states
 /// predicates of its own.
-pub(super) fn has_predicates(definition: &typed_trees::domain::DomainDefinition) -> bool {
+pub(crate) fn has_predicates(definition: &typed_trees::domain::DomainDefinition) -> bool {
     definition.predicate_presence != language_semantics::DomainPredicatePresence::Absent
         || !definition.facts.is_empty()
 }

@@ -430,8 +430,8 @@ machine consume(value: Pair, expected_first: u8, expected_last: u8) -> bool {
 }
 
 boundary trait PairDelivery {
-    machine semantic(edge: bool) -> Pair reaches terminates;
-    machine marker() -> u64 reaches terminates;
+    machine semantic(edge: bool) -> Pair reaches terminates crashes none;
+    machine marker() -> u64 reaches terminates crashes none;
 }
 FirstDelivery satisfies PairDelivery {
     machine semantic(edge: bool) -> Pair {

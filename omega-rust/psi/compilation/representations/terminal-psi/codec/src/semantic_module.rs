@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 271`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 272`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -400,6 +400,22 @@ pub(crate) mod canonical_order {
                 .map(|declaration| declaration.id),
             "structural domains by StructuralDomainId",
         )?;
+        require_increasing(
+            module
+                .structural_qualification_changes
+                .iter()
+                .map(|change| (change.machine, change.edge, change.argument_ordinal)),
+            "structural qualification changes by machine, edge and argument",
+        )?;
+        if module
+            .structural_qualification_changes
+            .iter()
+            .any(|change| !strictly_increasing(change.establishments.iter().map(|row| row.domain)))
+        {
+            return Err(noncanonical!(
+                "structural qualification change establishments by StructuralDomainId"
+            ));
+        }
         r!(module.services.iter().map(|declaration| declaration.id) => "services by ServiceId")?;
         if module
             .services
@@ -4698,7 +4714,10 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // separately from its executable body. Marker 263 operational ceilings and call
 // acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
 // numeric and finite-family identities remain part of the same format.
-pub(crate) const FORMAT_MARKER: u16 = 271;
+// Marker 272 retains each structural value's explicit qualification changes
+// (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
+// row a qualified structural parameter could have arrived through.
+pub(crate) const FORMAT_MARKER: u16 = 272;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4763,6 +4782,10 @@ pub(crate) fn decode_closed_parts(
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
+    // Artifact ingress judges structural memberships exactly as the lowered
+    // checker does; an artifact cannot carry a domain the checker would refuse.
+    terminal_semantics::structural_qualifications::validate(&module)
+        .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
     crate::identity_formations::validate_identity_formations(
         &module,
         &mut proof_admission::Budget::default(),
@@ -5751,7 +5774,7 @@ mod format_marker_tests {
         // of which payload follows their shared legacy marker. Marker 260's finite
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
-            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269,
+            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 271,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

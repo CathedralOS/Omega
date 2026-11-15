@@ -250,8 +250,8 @@ with `< /dev/null` on non-interactive `omega` invocations so
 background processes never hang on open stdin:
 
 ```bash
-# Build warm optimized development compiler in worktree target/:
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega < /dev/null
+# Let mbx place the worktree target so it can rebuild it after collection.
+CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega < /dev/null
 
 # Run the tests on the code you changed, then the small area around it:
 mbx test -p <crate> --test <test> < /dev/null
@@ -401,8 +401,8 @@ reads the allowed lanes from this table:
 - **Isolated detached worktree pool (`.agents/worktree/worker-N`); never touch primary checkout; no local branches:**
   Claim an idle pool slot (`worker-1`, `worker-2`, …) via
   `cargo xtask worktree acquire <lane>-<topic>`, which resets an idle `worker-N`
-  checkout to `origin/main` in place so its fixed path and warm `target/` cache
-  stay 100% valid across tasks. In a cloud session the slot instead starts at
+  checkout to `origin/main` in place. Its fixed path lets later tasks reuse
+  build outputs retained by mbx. In a cloud session the slot instead starts at
   the commit its restored build was published for; rebase onto `origin/main`
   only when the task needs something newer. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via

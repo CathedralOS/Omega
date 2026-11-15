@@ -557,6 +557,7 @@ fn elaborate_witness_call(
                             call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: borrowed.access,
+                                formation: borrowed.access,
                                 place: Box::new(place),
                                 home: borrowed.home.clone(),
                             },
@@ -696,6 +697,11 @@ fn finish_reading<'source>(
                 })?);
         }
     }
+    reference_results::publish_requirements(
+        &mut elaboration.module,
+        &program,
+        &program.requirements,
+    )?;
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration)?;
     elaboration.machines = program.symbols;
@@ -846,7 +852,6 @@ fn lower_generic_for<'source>(
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
-        source.publish_structural_domains(diagnostic, &mut module)?;
         source.publish_services(diagnostic, &mut module)?;
     } else if !signatures.boundaries.is_empty() {
         return Err(refuse(
@@ -991,6 +996,11 @@ fn lower_generic_for<'source>(
     }
     module.identities = qualifications.identities.build();
     module.scalar_qualifications = qualifications.catalog;
+    module.structural_domains = qualifications.structural;
+    qualifications
+        .structural_changes
+        .sort_unstable_by_key(|change| (change.machine, change.edge, change.argument_ordinal));
+    module.structural_qualification_changes = qualifications.structural_changes;
     let mut domains = IdTable::default();
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());

@@ -25,7 +25,7 @@ use omega::language::core::PrivateCallbackSlot;
 use omega::language::core::Schema;
 
 public boundary trait WindowProcedure {
-    machine call(message: u64) reaches;
+    machine call(message: u64) reaches crashes none;
 }
 
 data Spread {}

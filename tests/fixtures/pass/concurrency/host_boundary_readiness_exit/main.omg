@@ -1,9 +1,9 @@
 // Expected exit: 0
 // A checked suspending call retains its argument and continuation until ready.
 public boundary trait Readiness {
-    machine wait(value: i32) -> i32 reaches suspends;
-    machine observe(value: i32) reaches;
-    machine replace(value: &mut i32) reaches suspends;
+    machine wait(value: i32) -> i32 reaches suspends crashes none;
+    machine observe(value: i32) reaches crashes none;
+    machine replace(value: &mut i32) reaches suspends crashes none;
 }
 public Immediate satisfies Readiness {
     machine wait(value: i32) -> i32 { value }
@@ -12,7 +12,7 @@ public Immediate satisfies Readiness {
 }
 
 public boundary trait ProviderGate {
-    machine wait(value: i32) -> i32 reaches suspends;
+    machine wait(value: i32) -> i32 reaches suspends crashes none;
 }
 public OpenGate satisfies ProviderGate {
     machine wait(value: i32) -> i32 { value }

@@ -42,14 +42,10 @@ Exits: 0 for an identified physical result, 3 for non-identifiability, and 64
 for refused input, and 65 for failed numerical closure or composition normalization. Source control `controls/component_bound` must reject its
 ninth-component write; no runtime status substitutes for that rejection.
 
-`python3 samples/cli/independent/vapor_liquid_flash/validate.py --omega /absolute/path/to/omega`
-checks actual native and captured Terminal values against the checksum-frozen
-80-digit independent Decimal/Newton oracle. Binary roots additionally satisfy
-an analytic expression. The required error bounds are 1e-8 for vapor fraction
-and present-phase composition and 1e-10 for each component's closure, including
-closure recomputed from displayed compositions. It also checks normalization,
-K relations, phase status, ordering, and absence markers. `reference.py --freeze`
-is an explicit maintenance action; validation never rewrites expected results.
+Binary roots additionally satisfy an analytic expression. The required error bounds are 1e-8 for
+vapor fraction and present-phase composition and 1e-10 for each component's closure, including
+closure recomputed from displayed compositions. It also checks normalization, K relations, phase
+status, ordering, and absence markers.
 
 The bisection midpoint uses an owned mutable `f64` parameter. Its update and
 return exercise invocation-local scalar storage; the caller keeps its bracket

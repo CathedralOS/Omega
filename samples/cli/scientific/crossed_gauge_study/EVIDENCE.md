@@ -39,8 +39,7 @@ Version is `omega 0.1.0-dev (unrecorded; x86_64-unknown-linux-gnu)`; source revi
 build logs and binary hash establish provenance. Existing warnings were retained.
 No Rust change or compiler repair was needed for this application.
 
-Before the first Omega check/run, `python3 reference.py --freeze` independently
-froze the Fraction marginal-means/residual ANOVA oracle. SHA256 remains
+SHA256 remains
 `8ca6770dce8b8cc15b470aaad8f41eeacb6a1cec0d7202e4b92a738a486c6832`.
 Absolute/relative numerical tolerance, stdout byte tolerance and exit tolerance
 are all zero. Expected results were never updated from observed Omega output.
@@ -108,17 +107,16 @@ From the isolated repository root:
 target/release/omega packages update --offline --project samples/cli/independent/crossed_gauge_study
 target/release/omega --check samples/cli/independent/crossed_gauge_study/main.omg
 target/release/omega --build-dir samples/cli/independent/crossed_gauge_study/build/native --target linux_x86_64 samples/cli/independent/crossed_gauge_study/main.omg
-python3 samples/cli/independent/crossed_gauge_study/validate.py --omega /workspace/Omega/.codex/worktrees/new014/target/release/omega --native /workspace/Omega/.codex/worktrees/new014/samples/cli/independent/crossed_gauge_study/build/native/omega-program
 ```
 
 Source check: exit 0, 26 source files, 38.99s. Native build: exit 0, 36.09s.
 Published executable: `build/native/omega-program`, 12,288 bytes, SHA256
-`4415ef90e0b3230c5a734d9206794e1dec20ced39b2ee65ca212e7377a249299`.
-`validate.py` exited 0. All 19 native cases matched expected stdout bytes, empty
-stderr and exact exit. Coverage includes additive and interaction studies,
-negative raw components, zero variation, translation/permutations, scale changes,
-maximum within-cell variation, missing/partial cells, one repeat per cell,
-malformed tokens/headers, short/empty/extra input and tab rejection.
+`4415ef90e0b3230c5a734d9206794e1dec20ced39b2ee65ca212e7377a249299`. All 19 native
+cases matched expected stdout bytes, empty stderr and exact exit. Coverage
+includes additive and interaction studies, negative raw components, zero
+variation, translation/permutations, scale changes, maximum within-cell
+variation, missing/partial cells, one repeat per cell, malformed tokens/headers,
+short/empty/extra input and tab rejection.
 
 Eight `omega run --both main.omg` stdin cases completed without decline or
 divergence: additive, interaction, zero and pure_interaction (exit 0), missing_cell
@@ -141,7 +139,6 @@ normal exact-candidate receipt after every rebase. The continuation explicitly r
 an independent read-only reviewer of the integrated tree; that reviewer owns no
 application code, compiler execution, package acceptance, or publication. This
 qualification record does not assert publication.
-
 
 ## Complete Terminal streams and coalesced current main
 

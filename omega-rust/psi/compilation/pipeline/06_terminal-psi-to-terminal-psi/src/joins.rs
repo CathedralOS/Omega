@@ -12,15 +12,17 @@ under simultaneous destination-parameter to actual-argument substitution"
 (control_flow.md, "Equality relations").
 
 Lowering mints one `ArrivalInvariant` obligation per edge into a block with
-parameters. The predicate is the checker's to choose; it is inferred here as
-the disjunction over arrivals of what each arrival knows that the join does
-not, stated in the predicate's scope (machine formals and the join's own
-parameters, control_flow.md):
+parameters. The checker infers a predicate from the facts on each arrival.
+Besides the join's own parameters, inference can keep a formal whose binding
+dominates the join. Authored invariant scope follows control_flow.md.
 
 - for each parameter `p` and its argument `a` on that arrival, `p == a`,
   with `a` replaced by the exact scalar definitions available on the
   arrival edge, through the same bounded substitution that
   `ValueEqualityTransport` checks;
+- for each integer parameter, the literal range the prover finds for its
+  argument on that arrival (`argument_bounds`), which the unfolded
+  definition alone may no longer give;
 - each fact available on the arrival edge but not at the join, transported
   through those definitions into its denotation;
 - each preceding join's predicate that names a value this edge fixes to a
@@ -40,10 +42,9 @@ its parameter-to-argument substitution, proved by the one prover and decided
 by the kernel. When some arrival cannot be proved, the inferred facts are
 discarded and the join is reported in `MachineDischarge::weakened_joins`.
 The original declared predicate, if any, stays mandatory and its arrivals are
-checked again. A block on a cycle gets no inferred predicate: cyclic cuts need induction,
-which this route does not do. Nor does a dispatch arm, entered by a
-`StructuralCase` edge that passes no arguments: its payload parameters are
-bound by `DispatchBinding` rows, and lowering mints no arrival for it.
+checked again. A join that dominates one of its arrivals needs an induction
+hypothesis. This inference skips it. A dispatch arm's payload parameters are
+bound by `DispatchBinding` rows, and lowering mints no arrival for them.
 
 Nothing here reads a name or text: values are compared by identity.
 */
@@ -135,29 +136,49 @@ fn predicate_row(tables: &MachineTables, block: BlockId) -> Option<KnowledgeId> 
         .map(|(row, _)| row)
 }
 
-/// Whether every value `proposition` names is a machine formal, what a
-/// formal's storage held at entry, or a parameter of `block`: the predicate
-/// scope of control_flow.md. fact_validity.md binds entry hypotheses to
-/// "exact invocation formals or structural entry paths", and an entry
-/// content is such a path's one value for the whole invocation.
+/// Whether the inferred predicate uses values bound on every arrival.
+/// A dominating block parameter is already bound when the join runs, and
+/// any use the join dominates must revisit the join after a new binding.
+/// The authored invariant roster keeps its scope in `arrivals::admit`.
 fn in_scope(
     lowered: &TerminalMachine,
     tables: &MachineTables,
+    dominating_bindings: Option<&Graph>,
     block: BlockId,
     proposition: &Proposition,
 ) -> bool {
     let mut inside = true;
     proposition.visit_value_ids(|value| {
-        inside &= match tables.values.get(value).map(|row| row.origin) {
-            Some(ValueOrigin::MachineParameter { .. }) => true,
-            Some(ValueOrigin::StorageContent { place, after: None }) => {
-                crate::places::input_content(lowered, tables, place)
-            }
-            Some(ValueOrigin::BlockParameter { block: owner, .. }) => owner == block,
-            _ => false,
-        };
+        inside &= available_value(lowered, tables, dominating_bindings, block, value);
     });
     inside
+}
+
+fn available_value(
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+    dominating_bindings: Option<&Graph>,
+    block: BlockId,
+    value: ValueId,
+) -> bool {
+    match tables.values.get(value).map(|row| row.origin) {
+        Some(ValueOrigin::MachineParameter { .. }) => true,
+        Some(ValueOrigin::StorageContent { place, after: None }) => {
+            crate::places::input_content(lowered, tables, place)
+        }
+        Some(ValueOrigin::BlockParameter { block: owner, .. }) => {
+            owner == block
+                || dominating_bindings.is_some_and(|graph| {
+                    graph
+                        .dominates(
+                            ProgramPoint::BlockEntry(owner),
+                            ProgramPoint::BlockEntry(block),
+                        )
+                        .is_ok_and(|dominates| dominates)
+                })
+        }
+        _ => false,
+    }
 }
 
 /// `term` with each defined value replaced by its definition, recursively.
@@ -218,11 +239,10 @@ pub(crate) fn project(
     }
 }
 
-/// Infers a predicate for every acyclic block with parameters and records it
-/// as that block's `BlockInvariant` knowledge row at its entry. `check` must
-/// run before any other obligation reads it. A declared predicate keeps its
-/// required facts and gains the ordinary incoming facts too. Declaring a
-/// predicate does not erase the parameter's relation to its argument.
+/// Records an inferred scalar join predicate as `BlockInvariant` knowledge
+/// at its entry. `check` must run before any other obligation reads it. A
+/// declared predicate keeps its own scope and gains incoming facts expressed
+/// in that scope.
 pub(crate) fn infer(
     lowered: &TerminalMachine,
     id: MachineId,
@@ -236,6 +256,10 @@ pub(crate) fn infer(
             continue;
         }
         let entry = ProgramPoint::BlockEntry(join.id);
+        let declared = predicate_row(tables, join.id);
+        // A declared invariant keeps its own telescope even when one member
+        // of a ranked call cycle dominates another member's head.
+        let dominating_bindings = declared.is_none().then_some(graph);
         let mut disjuncts = Vec::new();
         // A block entered by a cycle, or by an edge that passes no arguments
         // (a dispatch arm, whose parameters the payload binds through
@@ -254,8 +278,18 @@ pub(crate) fn infer(
                 skip = true;
                 break;
             };
+            let bounds = argument_bounds(id, tables, graph, context, join, at_edge, arguments);
             disjuncts.push(describe(
-                lowered, id, tables, graph, context, join, at_edge, entry, arguments,
+                lowered,
+                id,
+                tables,
+                graph,
+                context,
+                join,
+                at_edge,
+                dominating_bindings,
+                arguments,
+                bounds,
             )?);
         }
         if skip {
@@ -263,7 +297,7 @@ pub(crate) fn infer(
         }
         let predicate = connective(disjuncts, false);
         if predicate != Proposition::Truth {
-            if let Some(row) = predicate_row(tables, join.id) {
+            if let Some(row) = declared {
                 let previous = tables
                     .knowledge
                     .get(row)
@@ -291,6 +325,64 @@ pub(crate) fn infer(
     Ok(())
 }
 
+/// The literal range of each integer argument an arrival passes, stated on
+/// the destination parameter it binds. The parameter's equation keeps the
+/// argument's definition, but a definition the integer rules bound only
+/// through its own result equations, such as `(x & 32) as u8 as u64`, says
+/// nothing once it is unfolded into a block assumption: an assumption is no
+/// operation axiom, so neither the mask's endpoint step nor the cast's bound
+/// transport can cite it. The arrival still has those axioms, so its range is
+/// found there, by the prover the arrival obligation itself is decided with,
+/// and crosses as an inclusive range conjunct ("Inclusive integer ranges are
+/// ordinary conjunction predicates in this same roster", control_flow.md).
+/// Every arrival proves it again with the rest of the predicate. A bound that
+/// is only the carrier's, or an arrival whose hypotheses cannot be read, adds
+/// nothing.
+fn argument_bounds(
+    id: MachineId,
+    tables: &MachineTables,
+    graph: &Graph,
+    context: &PropositionContext,
+    join: &terminal_psi::Block,
+    at_edge: ProgramPoint,
+    arguments: &[ValueId],
+) -> Vec<Proposition> {
+    let mut bounds = Vec::new();
+    if !join
+        .parameters
+        .iter()
+        .any(|parameter| matches!(parameter.scalar_type, ScalarType::Integer(_)))
+    {
+        return bounds;
+    }
+    let Some(identity) = ObligationId::new(1) else {
+        return bounds;
+    };
+    let Ok(known) = crate::hypotheses(graph, tables, id, identity, at_edge) else {
+        return bounds;
+    };
+    let mut prover =
+        crate::prove::Prover::new(context, &known.assumptions, &known.axioms, &tables.values);
+    for (parameter, argument) in join.parameters.iter().zip(arguments) {
+        let ScalarType::Integer(integer) = parameter.scalar_type else {
+            continue;
+        };
+        let subject = ScalarTerm::value(parameter.id, parameter.scalar_type);
+        let literal = |value| ScalarTerm::Integer {
+            scalar_type: integer,
+            value,
+        };
+        let (lower, upper) = prover.literal_bounds(*argument);
+        if let Some(lower) = lower {
+            bounds.push(Proposition::LessOrEqual(literal(lower), subject.clone()));
+        }
+        if let Some(upper) = upper {
+            bounds.push(Proposition::LessOrEqual(subject, literal(upper)));
+        }
+    }
+    bounds
+}
+
 /// What one arrival knows that the join does not, in the join's scope.
 #[allow(clippy::too_many_arguments)]
 fn describe(
@@ -301,9 +393,14 @@ fn describe(
     context: &PropositionContext,
     join: &terminal_psi::Block,
     at_edge: ProgramPoint,
-    entry: ProgramPoint,
+    dominating_bindings: Option<&Graph>,
     arguments: &[ValueId],
+    bounds: Vec<Proposition>,
 ) -> Checked<Proposition> {
+    let entry = ProgramPoint::BlockEntry(join.id);
+    let in_scope = |proposition: &Proposition| {
+        in_scope(lowered, tables, dominating_bindings, join.id, proposition)
+    };
     let mut available = Vec::new();
     for (_, row) in tables.knowledge.iter() {
         if !graph.dominates(row.available_from, at_edge)? {
@@ -379,6 +476,9 @@ fn describe(
     // above has identified true definitions: an edge fixing a join result to
     // a literal must remain a path selection, not become its definition.
     // Operation equations keep priority, and alternatives are never flattened.
+    // Keep an already visible value as itself. The guard and the next call
+    // use the current head parameter, even when an earlier arrival proved
+    // an equality between that parameter and an incoming expression.
     let mut pending: Vec<&Proposition> = available
         .iter()
         .filter(|(justification, _, _)| {
@@ -389,11 +489,13 @@ fn describe(
     while let Some(proposition) = pending.pop() {
         match proposition {
             Proposition::Conjunction(parts) => pending.extend(parts),
-            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                if matches!(
-                    subject.scalar_type(),
-                    ScalarType::Boolean | ScalarType::Integer(_)
-                ) || entry_content(definition) =>
+            Proposition::Equal(subject @ ScalarTerm::Value { id: value, .. }, definition)
+                if (dominating_bindings.is_none()
+                    || !available_value(lowered, tables, dominating_bindings, join.id, *value))
+                    && (matches!(
+                        subject.scalar_type(),
+                        ScalarType::Boolean | ScalarType::Integer(_)
+                    ) || entry_content(definition)) =>
             {
                 equations.push(proposition)
             }
@@ -409,7 +511,7 @@ fn describe(
         });
         named
     };
-    let mut parts = Vec::new();
+    let mut parts = bounds;
     let renaming: Vec<_> = arguments
         .iter()
         .copied()
@@ -437,7 +539,7 @@ fn describe(
         // inferred predicate; no storage observation is re-read here.
         if let Some(stated) = rename(proposition, &renaming)
             && stated != **proposition
-            && in_scope(lowered, tables, join.id, &stated)
+            && in_scope(&stated)
         {
             parts.push(stated);
         }
@@ -462,7 +564,7 @@ fn describe(
                 && let Some(denotation) = rename(&denotation, &renaming)
             {
                 parts.push(project(&denotation, &mut |atom| {
-                    in_scope(lowered, tables, join.id, atom).then(|| atom.clone())
+                    in_scope(atom).then(|| atom.clone())
                 }));
             }
             continue;
@@ -471,7 +573,7 @@ fn describe(
         // substitution. Expanding its Boolean equalities into cases would
         // discard the reusable form the preceding join established.
         if let Some(stated) = rename(proposition, &renaming)
-            && in_scope(lowered, tables, join.id, &stated)
+            && in_scope(&stated)
         {
             parts.push(stated);
             continue;
@@ -489,14 +591,13 @@ fn describe(
             continue;
         };
         parts.push(project(&denotation, &mut |atom| {
-            in_scope(lowered, tables, join.id, atom).then(|| atom.clone())
+            in_scope(atom).then(|| atom.clone())
         }));
     }
     // A part outside the scope, or one this route does not state (a
     // contradiction, which would make the disjunct unprovable here), is left
     // out: that weakens the disjunct, never strengthens it.
-    parts
-        .retain(|part| *part != Proposition::Falsehood && in_scope(lowered, tables, join.id, part));
+    parts.retain(|part| *part != Proposition::Falsehood && in_scope(part));
     Ok(connective(parts, true))
 }
 

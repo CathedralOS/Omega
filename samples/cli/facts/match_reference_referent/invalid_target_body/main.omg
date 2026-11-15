@@ -25,7 +25,7 @@ machine apply(chosen: &i64, spare: &i64) -> i64 {
 boundary trait SelectedReference {
     machine read(chosen: &i64, spare: &i64) -> i64
     requires chosen == 17
-    reaches;
+    reaches crashes none;
 }
 
 LinuxX86Reference satisfies SelectedReference {

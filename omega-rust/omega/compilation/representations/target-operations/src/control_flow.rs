@@ -59,6 +59,16 @@ pub struct TargetControlBlock {
     pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
     pub operations: Vec<TargetUnitOperation>, // Nonterminal operations only; control is owned by `terminator`.
     pub terminator: TargetControlTerminator,
+    pub terminator_metadata: TargetOperationMetadata,
+}
+
+/// Execution charges and custody annotations retained by the target producer.
+/// This is not an executable operation or a reference to an earlier body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetOperationMetadata {
+    pub work: Vec<optimization_unit::WorkSettlement>,
+    pub effect: optimization_unit::EffectLink,
+    pub ownership: Vec<optimization_unit::OwnershipEvent>,
 }
 
 impl TargetControlBlock {
@@ -125,8 +135,11 @@ pub enum TargetControlTerminator {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     StructuralCase {
+        /// Original checked terminator, independent of this graph's current block.
+        psi_block: BlockId,
         source: TargetStructuralCaseSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
         /// Pointer words crossed to reach the sum, in chase order.
@@ -231,6 +244,8 @@ pub struct TargetControlCaseSuccessor {
     pub target: BlockId,
     pub payloads: Vec<TargetControlCasePayload>,
     pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
+    pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
+    pub work: Vec<optimization_unit::WorkSettlement>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
 }
 
@@ -247,6 +262,8 @@ pub struct TargetControlSuccessor {
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
     pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
+    pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
+    pub work: Vec<optimization_unit::WorkSettlement>,
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 

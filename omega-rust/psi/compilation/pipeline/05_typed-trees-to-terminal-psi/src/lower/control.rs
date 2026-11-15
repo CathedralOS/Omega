@@ -20,9 +20,7 @@ use terminal_psi::{
 
 use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
-use crate::body::{
-    Expression, ExpressionKind, Qualification, Selector, Statement, Strict, Target, ValueType,
-};
+use crate::body::{Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -116,7 +114,7 @@ impl Lowering<'_> {
         self.jump_with_structural(target, arguments, Vec::new(), source)
     }
 
-    fn jump_with_structural(
+    pub(super) fn jump_with_structural(
         &mut self,
         target: BlockId,
         arguments: Vec<ValueId>,
@@ -789,7 +787,7 @@ impl Lowering<'_> {
                 self.parameter(join, result, scalar_type)?;
                 Value::Scalar(result)
             }
-            ValueType::Record(record, Qualification::NONE, _) => {
+            ValueType::Record(record, qualification, _) => {
                 let (place, _) = self.root(
                     semantic_vocabulary::StructuralPlaceKind::BlockParameter {
                         block: join,
@@ -797,14 +795,18 @@ impl Lowering<'_> {
                     },
                     record,
                 )?;
+                // Every arm delivers the match's one type, domains included;
+                // the checker holds each arrival to them.
+                let (qualifications, projected_qualifications) =
+                    self.memberships(record, qualification)?;
                 let parameter = StructuralParameterDeclaration {
                     place,
                     position: 0,
                     structural_type: record,
                     multiplicity: self.records.multiplicity(record, self.id)?,
                     access: StructuralAccess::Owned,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                     additional_input_qualifications: Vec::new(),
                 };
                 let id = self.id;
@@ -820,9 +822,6 @@ impl Lowering<'_> {
                     .structural_parameters
                     .push(parameter);
                 Value::Record(place)
-            }
-            ValueType::Record(..) => {
-                return Err(self.internal("a qualified data match result has no established join"));
             }
             ValueType::Rigid(_) => {
                 return Err(self.internal("a rigid match result has no established join"));

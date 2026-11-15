@@ -1,4 +1,3 @@
 # Frozen fixtures and reference identities must retain their exact bytes.
 data/* binary
-reference.py -text
 ORACLE_FREEZE.json -text

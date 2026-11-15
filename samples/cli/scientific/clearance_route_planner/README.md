@@ -59,9 +59,6 @@ sample=samples/cli/independent/clearance_route_planner
 # Resume the same proposal after its exact decisions are reviewed.
 "$omega_binary" update --resume --project "$sample"
 "$omega_binary" --check --target linux_x86_64 "$sample/main.omg"
-python3 "$sample/reference.py"
-python3 "$sample/validation/build_runtime.py" --omega "$omega_binary" --output "$sample/build/runtime-validator"
-python3 "$sample/validate.py" --omega "$omega_binary" --runtime-harness "$sample/build/runtime-validator"
 ```
 
 The private observer compiles through the normal prepared native report, runs

@@ -57,10 +57,8 @@ machine and flags. The oracle and 25 fixtures were frozen before any Omega run.
 Absolute/relative tolerances are both zero. Inputs cover capacity variants,
 precedence-sensitive urgent pickup windows, waiting, tied optima, coincident
 sites, reversed sites, exact/infeasible deadlines, EOF, and malformed records.
-`validate.py` checks fixture hashes, exact stdout and exit codes and writes
-actual stdout/stderr under ignored `build/validation-{native,both}`. It never
-accepts packages or regenerates expected data. `--both` also requests Terminal
-comparison; a DECLINED comparison remains an explicit unsupported result.
+`--both` also requests Terminal comparison; a DECLINED comparison remains an
+explicit unsupported result.
 
 The separate [intended-invalid source](controls/intended_invalid/main.omg)
 is a complete dependency-free package source that writes index four of a four-slot carrier.
@@ -82,10 +80,7 @@ sample=samples/cli/independent/sample_collection_routing
 # Resume only an accepted review, and never retry a denied acceptance.
 "$omega_binary" update --resume --project "$sample"
 "$omega_binary" --check --target linux_x86_64 --build-dir "$sample/build/check" "$sample/main.omg"
-python3 "$sample/validate.py" --omega "$omega_binary" --route native
 # Or compile once and pass the exact artifact path from the compiler report:
-# python3 "$sample/validate.py" --executable "$reported_artifact" --route native
-python3 "$sample/validate.py" --omega "$omega_binary" --route both
 "$omega_binary" --check --target linux_x86_64 --build-dir "$sample/build/invalid" "$sample/controls/intended_invalid/main.omg"
 ```
 

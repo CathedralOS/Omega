@@ -1,6 +1,6 @@
-// Assemble the native request from this application's canonical artifact and
-// completed entry plans. The remaining unsupported Build demands refuse here;
-// their absence is checked before empty supply/permission rosters are formed.
+// Assemble the native request from this application's canonical artifact,
+// completed entry plans and settled provider plans. The remaining unsupported
+// Build demands refuse here before the permission roster is formed.
 
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -53,11 +53,9 @@ pub(crate) fn prepare(
             "no product route yet: executable native bindings need their completed application plans",
         ));
     }
-    if !checked.execution().plans().plans().is_empty()
-        || !checked.execution().plans().assumed_bindings().is_empty()
-    {
+    if !checked.execution().plans().assumed_bindings().is_empty() {
         return Err(failure(
-            "no product route yet: executable providers need their canonical row realizations and package permissions",
+            "no product route yet: executable assumed bindings need their reviewed installation",
         ));
     }
     if !checked
@@ -103,20 +101,16 @@ pub(crate) fn prepare(
         proposal.ok_or_else(|| failure("native entry has no selected target proposal"))?;
     let module = program.artifact().semantic_module();
     proposal.application_roots = Some(roots);
-    let selected = proposal.selection.as_ref().map_err(|reasons| {
+    proposal.selection.as_ref().map_err(|reasons| {
         reasons
             .iter()
             .cloned()
             .map(Diagnostic::error)
             .collect::<Vec<_>>()
     })?;
-    if !selected.plans.is_empty() || !selected.checked_candidates.is_empty() {
-        return Err(failure(
-            "no product route yet: native provider declarations need their selected row evidence",
-        ));
-    }
-    // No selected provider row exists above, so no package permission can be
-    // granted. This is a deny-by-absence policy, not inferred leaf authority.
+    // This in-process product admits no package terminal-authority permission;
+    // a selected row that needs one is refused downstream. This is a
+    // deny-by-absence policy, not inferred leaf authority.
     let permissions = native_compiler::admit_package_permissions(Vec::new(), Default::default())?;
     let profile = entry.source().target_slot().owner;
     let semantic = entry
@@ -126,13 +120,35 @@ pub(crate) fn prepare(
         .physical_calling_application()
         .ok_or_else(|| failure("native entry lost its physical calling application"))?;
     let proposals = vec![proposal.clone()];
+    // Each selected plan enters settlement with its own canonical rows. This
+    // in-process product holds no host or device review, so no row carries a
+    // reviewed execution: checked rows execute their selected machine, and an
+    // intrinsic row realizes only through its canonical declared meaning or
+    // is refused at boundary settlement.
+    let selected_plans = checked.execution().plans();
+    let unreviewed = selected_plans
+        .plans()
+        .iter()
+        .map(|plan| vec![None; plan.rows.len()])
+        .collect::<Vec<_>>();
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: &module.identities,
         direct_boundary_leaves: Vec::new(),
         target_profile: Some(profile),
         boundaries: BoundaryApplicationSettlement {
-            selected_provider_plans: checked.execution().plans(),
-            selected_provider_provenance: Vec::new(),
+            selected_provider_plans: selected_plans,
+            selected_provider_provenance: selected_plans
+                .plans()
+                .iter()
+                .zip(&unreviewed)
+                .map(
+                    |(plan, row_executions)| native_compiler::CompilerIntrinsicPlanProvenance {
+                        plan,
+                        semantic_schema: &plan.schema,
+                        row_executions,
+                    },
+                )
+                .collect(),
             calling_applications: vec![semantic.clone(), physical.clone()],
         },
         native_target: Some(profile.native_target()),

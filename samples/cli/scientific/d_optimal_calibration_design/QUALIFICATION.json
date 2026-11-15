@@ -391,8 +391,6 @@
     "main.omg": "2db332de34c666415313dd3a30be43356615b547696bb6a2d6cc57e129d5f37d",
     "design/model.omg": "a867db14517bdfe6549c75fa113257b697a8671d9cd9b15c4e71151ef0eb7360",
     "build.omg": "5a53d49a4fef4fce4a69f89775d647a46e3a5da48bb81c1cd65916283ca51ed0",
-    "reference.py": "89a6f21785a1dd4614de595d9ac8463566cd10c66280bfc23696f27e7eb55544",
-    "validate.py": "adb91b3d5614b0c948f1839776cfb4abe7bf56f2cd3b069fc405ad6155b2788e",
     "validation/terminal_capture.rs": "493873c66e7f5413a374a33d5d40635b7b74329a4b4200f30b575524cb72ab1c",
     "data/frozen.json": "a22eed47caab37c8cd16fcdec6dfe70e2f607844b048dcf720af0c098cabdfe1",
     "data/frozen.sha256": "a7db6d333c20d03550891cfc7e22f6ba033004c5d05f64a06d29ebff634e85c2"

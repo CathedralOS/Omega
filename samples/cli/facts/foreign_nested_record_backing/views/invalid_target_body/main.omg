@@ -72,7 +72,7 @@ machine entry_start() reaches Writer crashes Trap {
 
 boundary trait PendingTransfer {
     machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained
-    reaches ensures result in Pending::Retained;
+    reaches ensures result in Pending::Retained crashes none;
 }
 PendingTransferCode satisfies PendingTransfer {
     machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained

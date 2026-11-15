@@ -11,10 +11,10 @@ use omega::language::core::widen_u32_to_u64;
 use omega_language_std::targets::macos_arm64::filesystem_abi;
 
 public boundary trait StatExchange {
-    machine fill(value: &mut DarwinStat) reaches;
-    machine check(value: &DarwinStat) -> u64 reaches;
-    machine extent() -> u64 reaches;
-    machine alignment() -> u64 reaches;
+    machine fill(value: &mut DarwinStat) reaches crashes none;
+    machine check(value: &DarwinStat) -> u64 reaches crashes none;
+    machine extent() -> u64 reaches crashes none;
+    machine alignment() -> u64 reaches crashes none;
 }
 OtherPolicy satisfies FixedLayout<DarwinStatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {

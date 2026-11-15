@@ -361,7 +361,12 @@ impl Program<'_> {
                 "proposition",
             ),
             (
-                symbols_of(typed.wire_schemas(), |row| row.symbol),
+                typed
+                    .wire_schemas()
+                    .iter()
+                    .filter(|schema| schema.encoding.is_some())
+                    .map(|schema| schema.symbol)
+                    .collect(),
                 "wire schema",
             ),
         ];

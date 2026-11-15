@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Packet { before: u8; items: [u8; 3]; after: u8; }
 boundary trait Bytes {
-    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T reaches requires Count > 0;
+    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T reaches requires Count > 0 crashes none;
 }
 SelectedBytes satisfies Bytes {
     machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T requires Count > 0 { bytes[Count - 1] }

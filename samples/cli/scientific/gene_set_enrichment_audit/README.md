@@ -49,26 +49,17 @@ Run from the repository root with the repaired candidate compiler. The recorded
 base compiler reproduces the structural-copy custody gap. The verified repaired
 binary SHA-256 is `caf8a6144f521a34c9867a51d43ed8cce7826fd97581d76a196ab27074821cda`:
 
-```sh
-python3 samples/cli/independent/gene_set_enrichment_audit/reference.py
-python3 samples/cli/independent/gene_set_enrichment_audit/validate.py --omega /absolute/path/to/omega --route check
-python3 samples/cli/independent/gene_set_enrichment_audit/validate.py --omega /absolute/path/to/omega --route native
-python3 samples/cli/independent/gene_set_enrichment_audit/validate.py --omega /absolute/path/to/omega --route terminal
-python3 samples/cli/independent/gene_set_enrichment_audit/validate.py --omega /absolute/path/to/omega --route invalid
-```
-
-The oracle was frozen before Omega execution. `reference.py` enumerates every
-possible selected subset, independently of the application's binomial formula.
-Six valid cases cover overlap, duplicates, reversed ranks, ties, empty query,
-full query and sparse universes. Eight invalid runtime fixtures cover admission
-and parser limits. `fixtures/expected.json` and `oracle.sha256` are the frozen
-answers. Do not regenerate them from program output. The runner retains actual
-stdout, stderr, command and exit receipts in ignored `build/<route>/`.
-Terminal route acceptance requires explicit native/Terminal exit agreement;
-a decline is not a pass. The current CLI compares process exits only. Native
-stdout is checked against the complete exact oracle on both execution routes;
-this CLI does not expose interpreted stdout for an independent output check.
-Only one Omega execution runs at a time.
+The oracle was frozen before Omega execution. Six valid cases cover overlap,
+duplicates, reversed ranks, ties, empty query, full query and sparse universes.
+Eight invalid runtime fixtures cover admission and parser limits.
+`fixtures/expected.json` and `oracle.sha256` are the frozen answers. Do not
+regenerate them from program output. The runner retains actual stdout, stderr,
+command and exit receipts in ignored `build/<route>/`. Terminal route
+acceptance requires explicit native/Terminal exit agreement; a decline is not a
+pass. The current CLI compares process exits only. Native stdout is checked
+against the complete exact oracle on both execution routes; this CLI does not
+expose interpreted stdout for an independent output check. Only one Omega
+execution runs at a time.
 
 The separate complete `controls/intended_invalid` project deliberately reads
 index 3 of a three-element array. Its exact documented Slice::index requires

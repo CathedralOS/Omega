@@ -18,7 +18,7 @@ Policy<const Marker: u64> satisfies FixedLayout<Payload> {
 }
 boundary trait ReadValue {
     machine read<const Value: u64>() -> u64 reaches
-        requires Value == 7u64 || Value == 11u64;
+        requires Value == 7u64 || Value == 11u64 crashes none;
 }
 DefaultRead satisfies ReadValue {
     machine read<const Value: u64>() -> u64 {

@@ -1,6 +1,0 @@
-{
-  "revision": "6178dfc303b74b0f39c8cc7207132e9d8a6427b1",
-  "product_sha256": "0cc1ae4633fe12f81944c41566dfe53effec6a3c090adc39e73256c599d8f11c",
-  "runner": "target/debug/build/compiler/30a42ed2272986f2/out/corpus_runner-30a42ed2272986f2",
-  "base": "3e49a9f1a417c0a152ad3c3a6101c9f6aa553669"
-}

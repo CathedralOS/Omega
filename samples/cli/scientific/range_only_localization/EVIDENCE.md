@@ -79,13 +79,9 @@ omega packages update --project samples/cli/independent/range_only_localization 
 # through the normal package workflow; no lock or source guard is hand-edited.
 omega --check --target linux_x86_64 samples/cli/independent/range_only_localization/main.omg
 omega --target linux_x86_64 samples/cli/independent/range_only_localization/main.omg
-python3 -B samples/cli/independent/range_only_localization/validate.py \
-  samples/cli/independent/range_only_localization/build/omega-program
 python3 tools/corpus_gate.py --both \
   --filter pass/slices/fixed_array_slice_state_arguments_exit,pass/slices/local_array_element_view_exit \
   --golden /tmp/add09-integrated-slices.txt --record
-python3 -B samples/cli/independent/range_only_localization/validate_terminal.py \
-  /absolute/path/to/the/verified/corpus_runner
 omega --check --target linux_x86_64 \
   samples/cli/independent/range_only_localization/intended_invalid/rejected.omg
 ```

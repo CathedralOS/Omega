@@ -16,7 +16,7 @@ machine apply<Kind>(value: &mut Kind) requires Kind == u32 || Kind == u64 {
     zero<mark<Kind>>();
     operate<Kind, increment<Kind>>(value);
 }
-boundary trait Edit { machine update(value: &mut u64) reaches; }
+boundary trait Edit { machine update(value: &mut u64) reaches crashes none; }
 WindowsEdit satisfies Edit { machine update(value: &mut u64) { apply(value); } }
 LinuxX86Edit satisfies Edit { machine update(value: &mut u64) { apply(value); } }
 MacEdit satisfies Edit { machine update(value: &mut u64) { apply(value); } }
