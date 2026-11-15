@@ -253,6 +253,7 @@ pub(crate) struct Program<'t> {
 }
 
 /// One slot of a body: formals first, then locals in binding order.
+#[derive(Clone)]
 struct Slot {
     symbol: SymbolHandle,
     value_type: ValueType,

@@ -27,9 +27,13 @@ plain carrier.
 On a data carrier (`domain Player::Alive requires self.health > 0`) the
 clauses name fields beneath `self`, so a field `player: Player in Alive`
 owes `self.player.health > 0` as a clause of its owner, kept by the owner's
-windows like any other. A data value in such a domain that is itself a
-formal or a result has no owner whose clauses it joins, and its predicates
-would need a window of their own, so each is refused by name
+windows like any other. A formal of a data type in such a domain reads its
+predicates as entry clauses over the formal's own storage, exactly as
+`requires path[4095] == 0` written on the machine would be
+(`of_formal_storage`). That holds only while the body cannot write the
+formal, so a reassignable or mutably borrowed one is refused by name. A data
+result in such a domain has no owner whose clauses it joins, and its
+predicates would need a window of their own, so it is refused
 (`signature_predicates`), as are a cast that adds such a domain
 (`read::casts`), a case payload, an array element and a partial write
 inside such a value (`read::authority`).
@@ -140,7 +144,33 @@ impl Program<'_> {
                 continue;
             }
             let ValueType::Scalar(scalar_type, _) = slot.value_type else {
-                return unserved("formal of a data type in a domain with predicates");
+                // A record or array formal: the domain's predicates are entry
+                // clauses over the formal's own storage, exactly as
+                // `requires path[4095] == 0` written against it would be.
+                // The formal must keep the value it arrived with: a body
+                // that rebinds it, or writes through a mutable borrow, could
+                // leave the domain before the formal is handed back, and
+                // that needs a check this route does not make yet.
+                if slot.assignable {
+                    return unserved(
+                        "reassignable formal of a data type in a domain with predicates",
+                    );
+                }
+                if slot
+                    .borrowed
+                    .is_some_and(|access| access != language_core::ReferenceAccess::Shared)
+                {
+                    return unserved(
+                        "mutably borrowed formal of a data type in a domain with predicates",
+                    );
+                }
+                added.requires.extend(self.of_formal_storage(
+                    id,
+                    entry,
+                    position,
+                    qualification,
+                )?);
+                continue;
             };
             // A borrowed formal's clause is about what its referent holds,
             // at entry and again at every handback; only the first has a
@@ -190,6 +220,41 @@ impl Program<'_> {
         Ok(added)
     }
 
+    /// The predicates of `qualification` about the record or array formal at
+    /// `position`, read in `scope` as clauses written against that formal:
+    /// the domain's `self` names the formal, so `self[4095] == 0` is read
+    /// exactly as an authored `requires path[4095] == 0`, through the same
+    /// formal-field projection.
+    fn of_formal_storage(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        position: usize,
+        qualification: Qualification,
+    ) -> Checked<Vec<(Proposition, ClauseText)>> {
+        let mut clauses = Vec::new();
+        for predicate in self.predicates(id, qualification)? {
+            if !predicate.subject.is_valid() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Spelling("domain predicate without a subject symbol"),
+                ));
+            }
+            let mut slots = scope.slots.to_vec();
+            slots[position].symbol = predicate.subject;
+            let reading = ClauseScope {
+                slots: &slots,
+                ..*scope
+            };
+            clauses.push((
+                self.clause(id, &reading, predicate.expression)?,
+                self.subject_text(scope.slots, position, predicate.expression),
+            ));
+        }
+        Ok(clauses)
+    }
+
     /// A domain clause's text with the formal at `position` where the
     /// domain wrote `self`.
     fn subject_text(
@@ -199,23 +264,14 @@ impl Program<'_> {
         expression: ExpressionHandle,
     ) -> ClauseText {
         let subject = self.clause_subject(expression);
-        let renamed: Vec<Slot> = slots
-            .iter()
-            .enumerate()
-            .map(|(at, slot)| Slot {
-                symbol: if at == position {
-                    subject
-                } else {
-                    SymbolHandle::invalid()
-                },
-                value_type: slot.value_type,
-                assignable: slot.assignable,
-                homed: slot.homed,
-                erased: slot.erased,
-                borrowed: slot.borrowed,
-                borrowed_regions: slot.borrowed_regions,
-            })
-            .collect();
+        let mut renamed = slots.to_vec();
+        for (at, slot) in renamed.iter_mut().enumerate() {
+            slot.symbol = if at == position {
+                subject
+            } else {
+                SymbolHandle::invalid()
+            };
+        }
         self.clause_text(&renamed, expression)
     }
 
