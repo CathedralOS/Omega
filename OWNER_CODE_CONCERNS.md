@@ -101,13 +101,6 @@ framework or a list of unimplemented features.
 - Cost: A batch pays for the same source inventory repeatedly. Prepare the role, name and original occurrence lookups in their existing source owners. Keep the exact package alias and visibility, source stratum, qualified-path precedence, ambiguity, and lexical author checks for audit, provider and native selection.
 - Reported: 2026-11-15, Codex, while reviewing the authored service audit admission.
 
-### The root service-audit controls refer to retired source paths
-- Category: tests that pin the bug
-- Where: [direct root example](omega-rust/omega/compilation/compiler/examples/package_batch_sources.rs#L47), [authored import](tests/fixtures/pass/effects/root_service_audit/main.omg#L1), [nested dependency](tests/fixtures/pass/effects/root_service_audit/build.omg#L3), [denial guide](tests/fixtures/pass/effects/root_service_audit/README.md#L13)
-- Saw: On `df9b4619a87`, the kept `package_batch_sources --service-audits` example refuses `audit_driver::main` at line 1, column 5 because the import selects no declaration or module. The guide's `tests/omega/fail/build/service_audit_requires_boundary` path is absent. After the driver's interface becomes reviewable, the original `packages audit` project also refuses overlapping consumer and driver source roots.
-- Cost: The direct check cannot prove exact delegated `MotorControl` custody, idempotence, or the absence of untaken and dependency registrations. Migrate the import and use disjoint source roots for the same two packages. Reconnect the ordinary-trait denial while retaining those exact assertions.
-- Reported: 2026-11-15, Codex, while replaying the kept audit controls.
-
 ### A target-computed array extent lacks its selected provider during evaluation
 - Category: knowledge crossing a boundary
 - Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [closed computation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs), [invocation admission](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs)

@@ -48,7 +48,7 @@ fn measure() {
         let (mut requests, custody) = discover(
             &mut session,
             &mut completed,
-            &root.join("tests/fixtures/pass/effects/root_service_audit/main.omg"),
+            &root.join("tests/fixtures/pass/effects/root_service_audit/consumer/main.omg"),
             &[TargetProfile::host_if_supported().expect("Build host")],
             CompilationProduct::Check,
         );

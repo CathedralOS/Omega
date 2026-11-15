@@ -216,6 +216,27 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
 }
 
 #[test]
+fn build_service_audit_rejects_an_ordinary_trait() {
+    let fixture = kept_fixture("fail/build/service_audit_requires_boundary/main.omg");
+    let expected = std::fs::read_to_string(fixture.with_file_name("expected.txt")).unwrap();
+    let Err(diagnostics) =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, None)
+    else {
+        panic!("an ordinary trait cannot register a service audit");
+    };
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one refusal at the authored operand: {diagnostics:?}");
+    };
+    assert_eq!(diagnostic.message, expected.trim_end());
+    let location = diagnostic
+        .resolved_location
+        .as_ref()
+        .expect("the authored Build operand location");
+    assert_eq!(location.path.file_name().unwrap(), "build.omg");
+    assert_eq!((location.line, location.column), (3, 12));
+}
+
+#[test]
 fn review_policy_round_trip_keeps_unsupplied_driver_requirements() {
     let recovered = reviewed_and_recovered(
         &kept_fixture("pass/effects/root_service_audit/driver/main.omg"),
