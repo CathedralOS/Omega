@@ -673,9 +673,11 @@ fn finish_logical_witness<'source>(
     program.prepare_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
+    let components = prepare_call_components(&bodies, &program.signatures)?;
     let mut witness = lower_program(
         Some(entry),
         &bodies,
+        &components,
         body::Signatures {
             machines: &program.signatures,
             boundaries: &program.boundaries,
@@ -764,7 +766,7 @@ fn finish_reading<'source>(
         .map(|selected| program.prepare_provider_selections(diagnostic, selected))
         .transpose()?;
     let mut policies = read::calling::SourceCallingPolicies::default();
-    loop {
+    let components = loop {
         program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
         // Bodies and policy bodies share one discovery closure. Reading either
         // may introduce another boundary's ordinary parent contract.
@@ -779,14 +781,15 @@ fn finish_reading<'source>(
             let body = program.body(next)?;
             bodies.push(body);
         }
-        program.finish_operational_envelopes(&bodies)?;
+        let components = prepare_call_components(&bodies, &program.signatures)?;
+        program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
         if !program.prepare_calling_policies(diagnostic, calling, &mut policies)? {
-            break;
+            break components;
         }
-    }
+    };
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
-    program.finish_operational_envelopes(&bodies)?;
+    program.finish_operational_envelopes(&bodies, &components)?;
     program.finish_declarations(diagnostic)?;
     program.prepare_external_providers(diagnostic)?;
     let services = program.service_map(diagnostic)?;
@@ -808,6 +811,7 @@ fn finish_reading<'source>(
     } = lower_program(
         entry,
         &bodies,
+        &components,
         body::Signatures {
             machines: &program.signatures,
             boundaries: &program.boundaries,
@@ -983,9 +987,11 @@ fn lower_generic_for<'source>(
     publication: terminal_codec::TerminalPublication,
     typed_source: Option<&'source TypedTrees>,
 ) -> Checked<PreparedProgram<'source>> {
+    let components = prepare_call_components(bodies, signatures.machines)?;
     lower_program(
         entry,
         bodies,
+        &components,
         signatures,
         records,
         requirements,
@@ -1000,9 +1006,22 @@ fn lower_generic_for<'source>(
     )
 }
 
+/// Validate call positions and prepare the graph once for this body closure.
+/// Progress inference and lowering borrow the same component/ranking data.
+fn prepare_call_components(
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+) -> Checked<components::Components> {
+    for (machine, body) in bodies.iter() {
+        operational::positions(machine, body)?;
+    }
+    components::components(bodies, signatures)
+}
+
 fn lower_program<'source>(
     entry: Option<MachineId>,
     bodies: &IdTable<MachineId, Body>,
+    components: &components::Components,
     signatures: body::Signatures<'_>,
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
@@ -1054,10 +1073,6 @@ fn lower_program<'source>(
             invokes: signature.invokes.clone(),
         })
     };
-    for (machine, body) in bodies.iter() {
-        operational::positions(machine, body)?;
-    }
-    let components = components::components(bodies, signatures.machines)?;
     // One source owner fixes the local inference boundary. Result clauses
     // retain their private publication restriction; local non-return does not
     // become a public clause and can use every eligible body in that unit.
@@ -1119,7 +1134,7 @@ fn lower_program<'source>(
             .as_ref()
             .map(|local| local.outcomes.as_slice()),
         &declared.records.inhabitation,
-        &components,
+        components,
     )?;
     // Declaration checking publishes no executable arrival or root reach.
     if let Some(entry) = entry {

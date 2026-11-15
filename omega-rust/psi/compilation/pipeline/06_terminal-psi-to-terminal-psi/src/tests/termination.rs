@@ -275,6 +275,15 @@ fn a_promise_holds_over_a_ranked_loop_and_not_over_an_unranked_one() {
         refused(&program("")),
         "contract termination promise over a call cycle"
     );
+    let ranked = program("\nterminates by remaining");
+    assert_unchanged_measure_refuses(
+        &ranked.replace("count_down(remaining - 1)", "count_down(remaining)"),
+    );
+    assert!(
+        refused(&ranked.replacen("machine count_down", "public machine count_down", 1))
+            .contains("termination promise invokes a callable without a termination guarantee"),
+        "a private witness cannot publish progress for a silent export"
+    );
 }
 
 #[test]

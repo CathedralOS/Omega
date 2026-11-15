@@ -216,7 +216,7 @@ impl Components {
         })
     }
 
-    pub(super) fn reaches_unranked_cycle(&self, machine: usize) -> bool {
+    pub(crate) fn reaches_unranked_cycle(&self, machine: usize) -> bool {
         self.components[self.machine_components[machine]].reaches_unranked_cycle
     }
 

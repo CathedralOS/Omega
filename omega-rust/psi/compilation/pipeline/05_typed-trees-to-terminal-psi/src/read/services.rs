@@ -173,6 +173,7 @@ impl Program<'_> {
     pub(crate) fn finish_operational_envelopes(
         &mut self,
         bodies: &IdTable<MachineId, Body>,
+        components: &crate::components::Components,
     ) -> Checked<()> {
         let declaration_policies = self.declaration_policies()?;
         // An abstract requirement can defer its operational contract to a
@@ -517,42 +518,64 @@ impl Program<'_> {
         // The completed envelopes are carried into Terminal Psi. Its checker
         // validates acknowledgements, source positions and suspension evidence
         // on the actual emitted calls.
-        // A silent private acyclic body may finish locally without exporting
-        // a promise. Unknown code must still carry a genuine termination
-        // guarantee before a caller can rely on it to fulfill its own promise.
-        let mut local_termination = policies.map(|_, policy| {
+        // A private body's progress belongs to this checked closure. Its
+        // ranked cycles still owe their comparisons; a silent exported or
+        // selected requirement cannot borrow that private evidence.
+        let private = self.symbols.map(|id, symbol| {
+            !self.requirements.contains(&id)
+                && self
+                    .typed
+                    .machine_by_symbol(*symbol)
+                    .is_some_and(|machine| !machine.is_public && machine.body_is_present)
+        });
+        let mut local_termination = policies.map(|id, policy| {
             matches!(
                 policy.termination,
                 TerminalCallableTermination::Terminates { .. }
-            )
+            ) || (private.get(id) == Some(&true)
+                && !components.reaches_unranked_cycle(crate::components::index(id)))
         });
-        loop {
-            let mut changed = false;
-            for (id, uses) in calls.iter() {
-                if self.requirements.contains(&id) || local_termination.get(id) == Some(&true) {
-                    continue;
-                }
-                let symbol = self
-                    .symbols
+        // Callee components are settled first. A ranked cycle may assume its
+        // own progress only while every member and outgoing call supports it.
+        for (members, _) in components.callee_first() {
+            let mut complete = true;
+            for &id in members {
+                let uses = calls
                     .get(id)
-                    .ok_or_else(|| unavailable(id, "termination subject has no exact source"))?;
-                let private = self
-                    .typed
-                    .machine_by_symbol(*symbol)
-                    .is_some_and(|machine| !machine.is_public);
-                if private
-                    && uses
+                    .ok_or_else(|| unavailable(id, "progress subject has no invocation row"))?;
+                if local_termination.get(id) != Some(&true)
+                    || !uses
                         .iter()
                         .all(|invocation| call_terminates(self, invocation, &local_termination))
                 {
-                    *local_termination
-                        .get_mut(id)
-                        .ok_or_else(|| unavailable(id, "termination subject has no row"))? = true;
-                    changed = true;
+                    complete = false;
+                    break;
                 }
             }
-            if !changed {
-                break;
+            if !complete {
+                for &id in members {
+                    if private.get(id) == Some(&true)
+                        && !matches!(
+                            policies.get(id).map(|policy| &policy.termination),
+                            Some(TerminalCallableTermination::Terminates { .. })
+                        )
+                    {
+                        *local_termination
+                            .get_mut(id)
+                            .ok_or_else(|| unavailable(id, "termination subject has no row"))? =
+                            false;
+                    }
+                }
+            }
+        }
+        for (id, eligible) in private.iter() {
+            if *eligible && local_termination.get(id) == Some(&true) {
+                published
+                    .get_mut(id)
+                    .ok_or_else(|| unavailable(id, "private progress subject has no envelope"))?
+                    .termination = TerminalCallableTermination::Terminates {
+                    premises: Vec::new(),
+                };
             }
         }
         for (id, envelope) in published.iter() {
