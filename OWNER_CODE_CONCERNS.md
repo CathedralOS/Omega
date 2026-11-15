@@ -136,12 +136,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
-### Provider-selection fixtures find no authored selection to test
+### Build-time access fixtures stop at the data-owner check
 - Category: tests that pin the bug
-- Where: [Build-time provider fixture](omega-rust/psi/compilation/build-time-evaluation/src/product/provider_selection_tests.rs#L150)
-- Saw: On macOS arm64 at base `69ec9aa5bd8`, seven tests fail before collector assertions because the fixture's typed `Build::select_provider` produces zero provider-selection occurrences. The mismatch persists with and without the universe-level admission repair.
-- Cost: The fixture cannot check occurrence rejoining, private-provider visibility, operand validation, or ordering. Restore the authored Build protocol inputs and verify that the controls reach those judgments.
-- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
+- Where: [borrowed view fixtures](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L9), [access plan constructors](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.omg#L9), [checked callee ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L898)
+- Saw: On macOS arm64 at clean `59b8d53b729`, both closed-borrow controls refuse `Access::view_mut` in `relay`, and the access-plan control refuses `AccessPlan::new` in `construct_restricted_plan`. All three stop at `a data declaration cannot own a machine; declare an ordinary static machine` during Build-time source preparation.
+- Cost: These controls cannot check original backing and exclusive-loan behavior, invalid view interpretation, or complete access-plan construction. Trace the exact library call owners and preserve those acceptance and rejection judgments.
+- Reported: 2026-11-15, Codex, while running the Build-time evaluator suite on macOS arm64
 
 ### The Build-time sequence fixtures stop at reference result correspondence
 - Category: tests that pin the bug
