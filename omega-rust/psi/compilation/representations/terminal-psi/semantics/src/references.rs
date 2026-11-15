@@ -146,10 +146,10 @@ pub(crate) mod reference_completion {
     /// A borrow keeps the resource it arrived with. Literal storage can own
     /// shared permission; an input or an earlier loan keeps its own identity.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum BorrowedLoanSource<Identity = semantic_vocabulary::ObligationId> {
+    pub enum BorrowedLoanSource {
         Owner,
         Incoming,
-        Loan(Identity),
+        Loan(semantic_vocabulary::ObligationId),
         Provider,
     }
 
@@ -271,7 +271,7 @@ pub(crate) mod reference_completion {
     }
 
     /// Read the source from the descriptor's actual value and arrival flow.
-    pub fn borrowed_loan_source<'a, Identity: Copy + PartialEq>(
+    pub fn borrowed_loan_source<'a>(
         module: &terminal_psi::TerminalModule,
         machine: &terminal_psi::TerminalMachine,
         analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
@@ -279,11 +279,11 @@ pub(crate) mod reference_completion {
         descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
         candidates: impl Iterator<
             Item = (
-                Identity,
+                semantic_vocabulary::ObligationId,
                 &'a crate::descriptor_lifetimes::DescriptorLifetime,
             ),
         >,
-    ) -> Result<BorrowedLoanSource<Identity>, &'static str> {
+    ) -> Result<BorrowedLoanSource, &'static str> {
         let mut parent = None;
         for (identity, lifetime) in candidates {
             let authorized = lifetime
@@ -468,7 +468,7 @@ pub(crate) mod reference_completion {
         Ok(BorrowedLoanSource::Incoming)
     }
 
-    pub fn reference_loan_parent<'a, Identity: Copy + PartialEq>(
+    pub fn reference_loan_parent<'a>(
         module: &terminal_psi::TerminalModule,
         machine: &terminal_psi::TerminalMachine,
         analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
@@ -476,11 +476,11 @@ pub(crate) mod reference_completion {
         descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
         candidates: impl Iterator<
             Item = (
-                Identity,
+                semantic_vocabulary::ObligationId,
                 &'a crate::descriptor_lifetimes::DescriptorLifetime,
             ),
         >,
-    ) -> Result<Option<Identity>, &'static str> {
+    ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
         match borrowed_loan_source(module, machine, analysis, at, descriptor, candidates)? {
             BorrowedLoanSource::Loan(parent) => Ok(Some(parent)),
             BorrowedLoanSource::Incoming => Ok(None),
