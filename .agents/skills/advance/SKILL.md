@@ -62,9 +62,9 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 
 ## Step 2: Reproduce & Trace Before Editing (Worker-Owned Under Swarm)
 
-1. **Build or reuse the warm optimized producer** in the worktree's `target/`
-   (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir> mbx build -p omega`;
-   close stdin with `< /dev/null` on manual background runs).
+1. **Build or reuse the warm optimized producer** from the worktree root
+   (`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega < /dev/null`). Let mbx
+   place the worktree's `target/` so it can recreate a collected view.
 2. **Witness the failure first:** Run the focused test on the affected mechanism
    or the existing program witness (`omega run --both` or
    `mbx xtask sample-gate --filter <sample_path>`).

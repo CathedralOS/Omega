@@ -76,8 +76,8 @@ framework or a list of features that remain unimplemented.
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing
 - Where: [pool cache retention](tools/docs/testing.md#L589), [managed retention setup](tools/xtask/src/managed_cache_retention.rs#L1)
-- Saw: On macOS arm64 at `c55c52f59b1`, the assigned `worker-8` passed its focused test at 22:11:11 PST on 2026-11-14. By 22:11:49, the same slot's `target` was a dangling mbx symlink and its next command failed with `Not a directory (os error 20)`. A concurrent mbx 1.29.2 test log reported 37.9 GiB free against its 45.0 GiB floor and removal of two live target directories while two running commands kept theirs. The host had no `target.keep` setting. No command in this slot was compiling while its target was removed.
-- Cost: A local agent holding a pool slot can lose its binaries and incremental build state between tests. Repairing the link gets the next build started cold. Make cache retention follow the local pool's assignment lifetime within the workstation's disk budget.
+- Saw: On macOS arm64 at `c55c52f59b1`, mbx 1.29.2 collected the assigned `worker-8` target between validation commands on 2026-11-14. A concurrent collection reported 37.9 GiB available against a 45.0 GiB floor, removed two live checkout targets, and kept two targets used by running commands. The host had no `target.keep` setting. Recreating the collected view resumed work, and the next owning test build compiled from cold in 3m 12s.
+- Cost: An assigned local slot can lose its build outputs while the agent is between commands. Investigate giving assigned slots retention priority within the disk budget, with the existing operator overrides and reclamation under pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
 
 ### The C layout field walk omits ranks on five recursive helpers
