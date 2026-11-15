@@ -293,6 +293,18 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.refused_signatures.contains(&symbol) {
+            let mut refused = refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Machine("a call of a machine whose signature is refused above"),
+            );
+            refused.detail.push_str(&format!(
+                " (`{}`)",
+                self.typed.symbols.display_path(symbol, "::")
+            ));
+            return Err(refused);
+        }
         if self.descriptor_storage {
             return Err(refuse(
                 self.next_identity()?,
@@ -454,8 +466,12 @@ impl<'t> Program<'t> {
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
         let widths = std::mem::replace(&mut self.width_scope, outer_widths);
-        let (signature, names, value_parameters) =
-            read.map_err(|refusal| self.read_failure_at(refusal, symbol, "the signature"))?;
+        let (signature, names, value_parameters) = read.map_err(|refusal| {
+            if self.collected.is_some() && !self.refused_signatures.contains(&symbol) {
+                self.refused_signatures.push(symbol);
+            }
+            self.read_failure_at(refusal, symbol, "the signature")
+        })?;
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
         {

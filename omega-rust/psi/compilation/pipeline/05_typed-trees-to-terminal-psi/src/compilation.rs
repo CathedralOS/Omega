@@ -90,6 +90,9 @@ pub fn prepare_compilation(
             Ok(witness)
         })
         .collect();
+    // Every refusal reading met is reported: the first as the closure's
+    // verdict, the rest beside it (`PreparedCompilation::further`).
+    let mut further = Vec::new();
     let (mut closure, source, signatures, prepared_applications) =
         match crate::elaborate_source_for(typed, compilation, publication, captures.clone()) {
             Ok(prepared) => (
@@ -98,7 +101,11 @@ pub fn prepare_compilation(
                 prepared.selected_calls,
                 prepared.prepared_applications,
             ),
-            Err(refusal) => (Err(refusal), Default::default(), Vec::new(), Vec::new()),
+            Err(mut refused) => {
+                let first = refused.remove(0);
+                further = refused;
+                (Err(first), Default::default(), Vec::new(), Vec::new())
+            }
         };
     let mut templates = Vec::new();
     let mut rows: Vec<WitnessRow<'_>> = Vec::new();
@@ -256,6 +263,7 @@ pub fn prepare_compilation(
         source,
         program: TerminalCompilation::Prepared(PreparedCompilation {
             closure,
+            further,
             arrivals,
             forms,
             witnesses,

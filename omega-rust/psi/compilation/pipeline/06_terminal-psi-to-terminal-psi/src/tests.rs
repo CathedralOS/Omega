@@ -44,6 +44,7 @@ mod contract_formation;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
+mod every_refusal;
 mod floats;
 mod guard_contradiction;
 mod handoffs;
@@ -6396,6 +6397,7 @@ mod generic_bodies {
         TerminalCompilation::Prepared(PreparedCompilation {
             arrivals: Vec::new(),
             closure: Ok(closure),
+            further: Vec::new(),
             forms: vec![GenericForms {
                 template,
                 name: "advance".to_owned(),

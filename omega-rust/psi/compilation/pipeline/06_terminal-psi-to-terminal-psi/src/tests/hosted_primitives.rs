@@ -250,7 +250,12 @@ fn a_copied_primitive_name_does_not_receive_compiler_custody() {
         "use omega::language::core::Never; use omega::language::core::ProcessExit; public boundary machine ProcessExitPrimitive(return_code: i32) -> Never satisfies ProcessExit::exit_process reaches ProcessExit crashes none terminates; machine main() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
     );
     let verdicts = judge_program(&typed);
-    let [Ok(RouteVerdict::FallBack(refusal))] = verdicts.as_slice() else {
+    // The declaration is refused, and so is `main`, which calls it.
+    let [
+        Ok(RouteVerdict::FallBack(refusal)),
+        Ok(RouteVerdict::FallBack(caller)),
+    ] = verdicts.as_slice()
+    else {
         panic!("the ordinary copied declaration must have no compiler supply: {verdicts:?}");
     };
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
@@ -259,5 +264,11 @@ fn a_copied_primitive_name_does_not_receive_compiler_custody() {
             .detail
             .contains("supply mode other than a checked body"),
         "{refusal:?}"
+    );
+    assert!(
+        caller.detail.contains(
+            "a call of a machine whose signature is refused above (`ProcessExitPrimitive`)"
+        ),
+        "{caller:?}"
     );
 }

@@ -9,11 +9,16 @@ use terminal_check_tables::program::MachineSources;
 use terminal_check_tables::{CheckTables, Checked, Construct, ProgramPoint};
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule};
 
+/// A machine whose reference ends cannot be planned yet is refused on its
+/// own: the first such refusal is returned once every machine was tried,
+/// and each later one is put in `further`.
 pub(crate) fn install(
     module: &mut TerminalModule,
     tables: &mut CheckTables,
     sources: &mut IdTable<MachineId, MachineSources>,
+    further: &mut Vec<terminal_check_tables::Refusal>,
 ) -> Checked<()> {
+    let mut unsupported: Vec<terminal_check_tables::Refusal> = Vec::new();
     let candidates = terminal_semantics::reference_ends::candidates(module).map_err(|error| {
         terminal_check_tables::Refusal {
             source_span: error.operation.and_then(|operation| {
@@ -69,7 +74,15 @@ pub(crate) fn install(
                     concerns,
                     detail: detail.to_owned(),
                 }
-            })?;
+            });
+        let plan = match plan {
+            Ok(plan) => plan,
+            Err(refused) if refused.reason == terminal_check_tables::RefusalReason::Unsupported => {
+                unsupported.push(refused);
+                continue;
+            }
+            Err(refused) => return Err(refused),
+        };
         let machine = &mut module.machines[ordinal];
         let source = sources.get_mut(owner).ok_or_else(|| {
             refuse(
@@ -210,6 +223,11 @@ pub(crate) fn install(
                 Unserved::Machine("reference end has no owning operation boundary"),
             ));
         }
+    }
+    if !unsupported.is_empty() {
+        let first = unsupported.remove(0);
+        further.append(&mut unsupported);
+        return Err(first);
     }
     Ok(())
 }
