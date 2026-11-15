@@ -247,20 +247,47 @@ machine take<'a>(count: &'a u32) { }
     );
 }
 
-/// A machine declared under a data type's name owns none of that data's
-/// lifetimes: it cannot take a view at one and store it.
-#[test]
-fn a_machine_under_a_data_name_is_not_given_the_data_lifetimes() {
-    assert_eq!(
-        verdict(
-            r#"
+const DATA_QUALIFIED_MACHINE: &str = r#"
 data Session<'storage> { ready: bool; name: &'storage [u8]; }
 machine build_entry(session: &mut Session, name: &[u8]) { Session::keep(session, name); }
 machine Session::keep(session: &mut Session, view: &'storage [u8]) { session.name = view; }
-"#
-        ),
-        "type byte view has no complete owned region identity"
+"#;
+
+#[test]
+fn a_data_qualified_machine_is_rejected_at_its_declaration() {
+    let verdict = judge_build(DATA_QUALIFIED_MACHINE);
+    let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+        panic!("expected a data attachment violation: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected one data attachment violation: {violations:?}");
+    };
+    assert_eq!(
+        violation.statement,
+        "a data declaration cannot own a machine; declare an ordinary static machine"
     );
+    let site = violation.site.expect("the machine declaration is authored");
+    assert_eq!(
+        &DATA_QUALIFIED_MACHINE[site.span.start..site.span.end],
+        "Session::keep"
+    );
+}
+
+#[test]
+fn a_static_machine_must_declare_the_lifetime_its_signature_uses() {
+    // Removing the retired attachment lets the signature reader reach
+    // the view whose lifetime is declared only on the data type.
+    let ordinary = DATA_QUALIFIED_MACHINE.replace("Session::keep", "keep");
+    assert_eq!(
+        verdict(&ordinary),
+        "type byte view has no complete owned region identity while reading the signature of `keep`"
+    );
+    let bound = ordinary
+        .replace("machine build_entry(", "machine build_entry<'storage>(")
+        .replace("machine keep(", "machine keep<'storage>(")
+        .replace("&mut Session,", "&mut Session<'storage>,")
+        .replace("name: &[u8]", "name: &'storage [u8]");
+    assert_eq!(verdict(&bound), "accepted");
 }
 
 /// The toolchain's `dependency::from_source` and the call that consumes its
