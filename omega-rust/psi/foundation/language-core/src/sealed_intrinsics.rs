@@ -765,3 +765,17 @@ mod tests {
         );
     }
 }
+
+/// Exact source coordinates for the hosted primitive and its public contract.
+/// Consumers still authenticate source custody and the complete signature.
+pub fn hosted_process_exit_sources() -> [(&'static str, &'static str, &'static [u8]); 3] {
+    [
+        (
+            "process_exit_native.omg",
+            "ProcessExitPrimitive::exit_process",
+            CORE_PROCESS_EXIT_NATIVE,
+        ),
+        ("process_exit.omg", "ProcessExit", CORE_PROCESS_EXIT),
+        ("never.omg", "Never", bundled!("core/never.omg")),
+    ]
+}

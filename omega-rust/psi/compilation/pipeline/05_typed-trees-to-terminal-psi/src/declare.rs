@@ -593,6 +593,7 @@ fn application(
 pub(crate) fn boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,
+    execution: terminal_psi::CheckedBoundaryExecution,
     signature: &Signature,
     published: Published<'_>,
     identities: &mut TerminalIdentityTableBuilder,
@@ -603,6 +604,12 @@ pub(crate) fn boundary(
     ),
     &'static str,
 > {
+    if matches!(
+        execution,
+        terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
+    ) {
+        return primitive_boundary(typed, symbol, execution, signature, published, identities);
+    }
     let (owner, requirement) = typed
         .trait_machine_signature(symbol)
         .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == symbol)
@@ -634,6 +641,86 @@ pub(crate) fn boundary(
             source,
             execution: terminal_psi::CheckedBoundaryExecution::Provider,
             method_arguments,
+        },
+    ))
+}
+
+// A primitive has a source declaration and a contract, but no source body.
+// State its actual machine identities without constructing a fictitious machine.
+fn primitive_boundary(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    execution: terminal_psi::CheckedBoundaryExecution,
+    signature: &Signature,
+    published: Published<'_>,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<
+    (
+        NominalDeclarationIdentity,
+        terminal_psi::CheckedBoundaryCallable,
+    ),
+    &'static str,
+> {
+    let machine = typed
+        .machine_by_symbol(symbol)
+        .ok_or("primitive has no machine declaration")?;
+    let [state] = typed.machine_states(machine) else {
+        return Err("primitive has no exact entry state");
+    };
+    let sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|_| "primitive source has no exact identity")?;
+    let owner = NominalDeclarationIdentity::new(nominal(typed, &sources, symbol, identities)?);
+    let type_text = |reference| {
+        typed
+            .type_identity_text(typed.package_qualified_type_identity(reference))
+            .filter(|text| !text.is_empty())
+            .ok_or("primitive signature type has no identity")
+    };
+    let formals = typed.state_parameters(state);
+    let parameter_types = formals
+        .iter()
+        .map(|formal| type_text(formal.type_reference))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_type = type_text(state.return_type)?;
+    let callable = typed
+        .machine_callable_identity_text(machine)
+        .filter(|text| !text.is_empty())
+        .ok_or("primitive has no callable identity")?;
+    let contract = declaration_contract_commitment(
+        &callable,
+        formals,
+        &parameter_types,
+        &result_type,
+        &signature.requires,
+        signature.ensures.iter(),
+        signature
+            .declared_crash_routes()
+            .ok_or("primitive has no crash ceiling")?,
+        signature,
+        published,
+    );
+    let source = CheckedMachineDeclaration {
+        machine: owner.clone(),
+        state: NominalDeclarationIdentity::new(nominal(typed, &sources, state.symbol, identities)?),
+        semantic_declaration: semantic_identity(typed, symbol, identities)?,
+        parameter_types: parameter_types
+            .iter()
+            .map(|text| identities.intern(text))
+            .collect(),
+        callable: identities.intern(&callable),
+        result_type: identities.intern(&result_type),
+        contract,
+        published_may_suspend: machine.suspends,
+        published_may_block: machine.blocks,
+        specialization: None,
+    };
+    Ok((
+        owner,
+        terminal_psi::CheckedBoundaryCallable {
+            source,
+            execution,
+            method_arguments: Vec::new(),
         },
     ))
 }
