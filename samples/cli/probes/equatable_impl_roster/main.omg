@@ -1,6 +1,3 @@
-trait Equatable<T> {
-    machine equals(left: &T, right: &T) -> bool;
-}
 data Coin { value: i32; year: i32; }
 CoinStructural satisfies Equatable<Coin> { }
 CoinByValue satisfies Equatable<Coin> {

@@ -1,4 +1,3 @@
-trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
 data Command { case None; case Move(dx: i32); }
 CommandEquality satisfies Equatable<Command> { }
 data Main { cmd: Command; }

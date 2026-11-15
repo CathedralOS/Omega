@@ -17,6 +17,21 @@ pub(crate) fn checked(units: &[(&str, &str)]) -> Result<typed_trees::TypedTrees,
     )
 }
 
+pub(crate) fn checked_with_equality(
+    units: &[(&str, &str)],
+) -> Result<typed_trees::TypedTrees, String> {
+    let mut sources = vec![(
+        0,
+        "equality.omg",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/equality.omg"
+        )),
+    )];
+    sources.extend(units.iter().map(|(path, text)| (31, *path, *text)));
+    packages(&sources, &[], &[])
+}
+
 fn packages(
     units: &[(u8, &str, &str)],
     dependencies: &[(u8, &str, u8)],
@@ -33,8 +48,12 @@ fn packages(
                 root.join(path),
                 (*text).to_owned(),
                 root,
-                Some(identity(*package)),
-                source::SourceOrigin::User,
+                (*package != 0).then(|| identity(*package)),
+                if *package == 0 {
+                    source::SourceOrigin::Toolchain
+                } else {
+                    source::SourceOrigin::User
+                },
             )
             .source_id;
         source_ids.push(id);

@@ -2752,6 +2752,39 @@ impl<'t> Program<'t> {
             }
         }
         let value_type = self.formal_value_type(id, carrier, referent)?;
+        if matches!(value_type, ValueType::Rigid(_))
+            && let Some(types) = &mut self.schema_types
+        {
+            // A bodyless generic schema has no caller storage to borrow. Its
+            // whole reference type is an opaque logical input, distinct from T
+            // and from other reference types. Rigid inputs grant no facts. The
+            // applied callable later checks its real referent and outer loan.
+            let identity = self
+                .typed
+                .package_qualified_type_identity(formal.type_reference);
+            if !identity.is_valid() {
+                return unserved("symbolic reference without its complete type identity");
+            }
+            let position = match types.iter().position(|candidate| *candidate == identity) {
+                Some(position) => position,
+                None => {
+                    types.push(identity);
+                    types.len() - 1
+                }
+            };
+            let position = u32::try_from(self.scope.len() + position).map_err(|_| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("schema type count"),
+                )
+            })?;
+            return Ok((
+                ValueType::Rigid(terminal_check_tables::values::RigidType(position)),
+                false,
+                None,
+            ));
+        }
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require
