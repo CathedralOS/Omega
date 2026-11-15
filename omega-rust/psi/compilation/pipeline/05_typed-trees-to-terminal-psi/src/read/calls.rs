@@ -2308,7 +2308,7 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
-            && let Some(view) = self.borrowed_byte_range(id, slots, argument, expected, source)?
+            && let Some(view) = self.borrowed_array_range(id, slots, argument, expected, source)?
         {
             return Ok((
                 Expression {

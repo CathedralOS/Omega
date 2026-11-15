@@ -1029,7 +1029,8 @@ pub enum ExpressionKind {
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
-    /// An explicit borrow of a whole byte array. The descriptor borrows
+    /// An explicit borrow of a whole closed array, as a byte descriptor or
+    /// a typed element view. The descriptor borrows
     /// the selected backing; its formation owns a separate loan occurrence.
     ArrayView {
         base: Box<Expression>,
