@@ -18,9 +18,10 @@ exactly as a record type's is (`RecordType::identity`). Nothing here or in
 the checker compares those texts, and none is formed from a name.
 
 The contract commitment is a digest of the contract the lowered form
-publishes for the machine: its callable identity, each formal's type and
-binding mode, its result type, the `requires` and `ensures` propositions and
-crash routes of its `MachineContract`, and what its header says about
+publishes for the machine: its callable identity, each formal's complete declared
+type and binding mode, its complete result type (including lifetime relations),
+the `requires` and `ensures` propositions and crash routes of its
+`MachineContract`, and what its header says about
 termination. Consumers compare this commitment only under its domain and
 encoding; a digest from another contract representation is not interchangeable.
 
@@ -387,17 +388,12 @@ fn declaration(
         .filter(|callable| !callable.is_empty())
         .ok_or("the machine has no callable identity")?;
     let semantic = semantic_identity(typed, symbol, identities)?;
-    let type_text = |type_reference| {
-        typed
-            .type_identity_text(typed.package_qualified_type_identity(type_reference))
-            .filter(|text| !text.is_empty())
-            .ok_or("a signature type has no identity")
-    };
-    let parameter_types = formals
-        .iter()
-        .map(|formal| type_text(formal.type_reference))
-        .collect::<Result<Vec<_>, _>>()?;
-    let result_type = type_text(state.return_type)?;
+    // A descriptive type identity erases reference lifetimes. Reuse the
+    // complete signature normalization used by public requirement schemas so
+    // these existing declaration fields retain the authored promise as well.
+    let (parameter_types, result_type) = typed
+        .machine_definition_types(declared)
+        .ok_or("the machine has no complete declared signature identity")?;
     // A machine stage 04 generated for a static application also names the
     // generic machine it was generated from and commits to the application.
     let specialization = match typed.executable_application_template(symbol)? {
