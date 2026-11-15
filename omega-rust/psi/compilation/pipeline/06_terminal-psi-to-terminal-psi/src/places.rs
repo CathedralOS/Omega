@@ -372,6 +372,8 @@ struct Reaching {
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
+    #[cfg(test)]
+    scanned_rows: usize,
 }
 
 /// What a place is, by the lowered form's own declarations.
@@ -2182,16 +2184,14 @@ impl<'a> Storage<'a> {
                 // A constructor first establishes its whole case, then its
                 // fields at the same operation. Follow earlier stores of that
                 // operation before crossing its observation point.
-                let earlier =
-                    self.log[..row_index]
-                        .iter()
-                        .enumerate()
-                        .rev()
-                        .find(|(_, previous)| {
-                            previous.block == row.block
-                                && previous.position == row.position
-                                && asked.ended_by(previous)
-                        });
+                let earlier = self.log[..row_index]
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .take_while(|(_, previous)| {
+                        previous.block == row.block && previous.position == row.position
+                    })
+                    .find(|(_, previous)| asked.ended_by(previous));
                 if let Some((index, _)) = earlier {
                     row_index = index;
                     weakened = true;
@@ -2549,9 +2549,19 @@ impl<'a> Storage<'a> {
                 // the path: the latest position, and in one position the later
                 // log entry.
                 let mut last: Option<(usize, &Logged)> = None;
-                for (index, row) in self.log.iter().enumerate() {
-                    if row.block != block
-                        || row.position > up_to
+                // Search this block before following its predecessors. stores emits
+                // Graph-checked block identity order, and byte_payload_writes
+                // sorts appended effects into that order. Keep the original
+                // forward check order and row identities within the block.
+                let begin = self.log.partition_point(|row| row.block < block);
+                let end = self.log.partition_point(|row| row.block <= block);
+                for index in begin..end {
+                    let row = &self.log[index];
+                    #[cfg(test)]
+                    {
+                        budget.scanned_rows += 1;
+                    }
+                    if row.position > up_to
                         || !asked.ended_by(row)
                         || self.call_preserves_extent(asked, row, concerns)?
                     {
@@ -2785,6 +2795,8 @@ impl<'a> Storage<'a> {
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
+            #[cfg(test)]
+            scanned_rows: 0,
         }
     }
 
@@ -5126,6 +5138,191 @@ impl crate::Bindings for Observed<'_, '_> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+
+    #[test]
+    fn a_copy_trace_scans_its_blocks_and_preserves_every_arrival() {
+        let mut source = String::from("data Point { x: u32; y: u32; }\n");
+        let count = 12;
+        for step in 0..count {
+            let next = step + 1;
+            source.push_str(&format!(
+                "machine hop{step}(p: Point, choose: bool) -> u32 {{\n\
+                 transition choose {{ true -> left{step}(p, choose) false -> right{step}(p, choose) }}\n\
+                 }}\n\
+                 machine left{step}(p: Point, choose: bool) -> u32 {{ hop{next}(p, choose) }}\n\
+                 machine right{step}(p: Point, choose: bool) -> u32 {{ hop{next}(p, choose) }}\n"
+            ));
+        }
+        source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x false -> hop0(p, choose) }} }}\n"));
+        let typed = crate::tests::rankings::typed_with_ranking_catalog(&source);
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "hop0")
+            .unwrap()
+            .symbol;
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program;
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
+        else {
+            panic!("reconvergence must prepare");
+        };
+        let input = prepared
+            .closure
+            .unwrap_or_else(|error| panic!("{}", error.detail));
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::ScalarStructuralField { .. }
+                            | OperationKind::PrimitiveScalarRead { .. }
+                    )
+                })
+            })
+            .unwrap();
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let references = reference_graph(module, machine.id).unwrap();
+        let references = RefCell::new(DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.structural_types,
+            &references,
+        ));
+        let mut storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &references,
+        )
+        .unwrap();
+        let operation = machine
+            .operations()
+            .find(|operation| storage.read_leaf(operation).unwrap().is_some())
+            .expect("final field read");
+        let leaf = storage.read_leaf(operation).unwrap().unwrap();
+        let (block, after) = graph
+            .locate(ProgramPoint::AfterOperation(operation.id))
+            .unwrap();
+        let mut trace = storage.budget();
+        let reached = storage
+            .reaching(
+                tables,
+                Asked::Contents(&leaf),
+                block,
+                after - 1,
+                &mut trace,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_eq!(reached, Reached::Established(1));
+        assert!(
+            trace.scanned_rows < 2_000_000,
+            "copy queries scanned unrelated blocks: {} rows",
+            trace.scanned_rows
+        );
+
+        let row_index = storage
+            .log
+            .iter()
+            .position(|row| {
+                row.block != graph.entry()
+                    && row.lineage.segments.is_empty()
+                    && matches!(&row.stored, Stored::Moved(source) if source.segments.is_empty())
+            })
+            .expect("a branch copies its formal");
+        let destination = storage.log[row_index].lineage.clone();
+        let source = match &storage.log[row_index].stored {
+            Stored::Moved(source) => source.clone(),
+            _ => unreachable!(),
+        };
+        // One arrival transfers just the leaf. Its initial contents are the
+        // same, but it carries no evidence for a newly enclosing record.
+        storage.log[row_index]
+            .lineage
+            .segments
+            .extend_from_slice(&leaf.segments);
+        if let Stored::Moved(source) = &mut storage.log[row_index].stored {
+            source.segments.extend_from_slice(&leaf.segments);
+        }
+        let mut shallower = storage.budget();
+        let reached = storage
+            .reaching(
+                tables,
+                Asked::Contents(&leaf),
+                block,
+                after - 1,
+                &mut shallower,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_eq!(reached, Reached::Established(0));
+        storage.log[row_index].lineage = destination;
+
+        // That same arrival now supplies no contents. A valid sibling arrival
+        // cannot establish the joined value on its behalf.
+        storage.log[row_index].stored = Stored::Vacated;
+        let mut missing = storage.budget();
+        assert_eq!(
+            storage
+                .reaching(
+                    tables,
+                    Asked::Contents(&leaf),
+                    block,
+                    after - 1,
+                    &mut missing,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap(),
+            Reached::Unestablished
+        );
+        storage.log[row_index].stored = Stored::Moved(source);
+
+        // Remove the invocation's incoming edge from the equation graph.
+        // The remaining backedges can carry contents but cannot initialize them.
+        let mut unseeded = tables.clone();
+        unseeded.edges = IdTable::default();
+        for (_, edge) in tables.edges.iter() {
+            if edge.source != graph.entry() {
+                unseeded.edges.push(edge.clone());
+            }
+        }
+        let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
+        storage.graph = &cyclic_graph;
+        let mut cycle = storage.budget();
+        assert_eq!(
+            storage
+                .reaching(
+                    &unseeded,
+                    Asked::Contents(&leaf),
+                    block,
+                    after - 1,
+                    &mut cycle,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap(),
+            Reached::Unestablished
+        );
+    }
 
     #[test]
     fn a_saved_slice_cannot_use_a_later_iterations_endpoints() {
