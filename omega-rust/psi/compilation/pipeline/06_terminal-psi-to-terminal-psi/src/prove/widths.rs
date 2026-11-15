@@ -284,13 +284,13 @@ impl Prover<'_> {
         bounds.extend(self.carrier_endpoint(&value, integer, direction));
         for index in 0..self.facts.len() {
             let proposition = self.facts[index].proposition.clone();
-            let proof = self.facts[index].proof.clone();
             let axiom = self.facts[index].axiom;
             match &proposition {
                 // The literal a result equation fixes the value to.
                 Proposition::Equal(left, literal @ ScalarTerm::Integer { .. })
                     if left == subject =>
                 {
+                    let proof = self.facts[index].proof(&self.facts);
                     let oriented = match direction {
                         Direction::Upper => Some(proof),
                         Direction::Lower => flip(proof).ok(),
@@ -364,7 +364,7 @@ impl Prover<'_> {
                         continue;
                     };
                     if let Some(bound) = self.relational_bound(
-                        proof,
+                        self.facts[index].proof(&self.facts),
                         strict,
                         &value,
                         &other_value,

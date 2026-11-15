@@ -52,8 +52,11 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::values::ValueRow;
 
+#[path = "prove/ranges.rs"]
 mod ranges;
+#[path = "prove/reach.rs"]
 mod reach;
+#[path = "prove/widths.rs"]
 mod widths;
 
 use crate::known::{Fact, is_branch_fact};
@@ -280,8 +283,8 @@ pub(crate) struct Prover<'a> {
     facts: Vec<Fact>,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
-    /// their selected arithmetic meaning, each with its proof.
-    equations: Vec<(Proposition, ProofNode)>,
+    /// their selected arithmetic meaning, each citing its prepared fact.
+    equations: Vec<usize>,
     definitions: IdTable<ValueId, Option<usize>>,
     transport: crate::known::TransportInputs,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
@@ -448,7 +451,7 @@ impl<'a> Prover<'a> {
         let premise = if target == Proposition::Truth {
             primitive(Proposition::Truth, PrimitiveJudgment::Truth)
         } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
-            fact.proof.clone()
+            fact.proof(&self.facts)
         } else {
             // Exact result equations can expose identical open mathematical
             // terms, such as embed(sum) == embed(a) + embed(b). Reflexivity
@@ -469,7 +472,7 @@ impl<'a> Prover<'a> {
                 premise: Box::new(premise),
                 equalities: inputs
                     .iter()
-                    .map(|&index| self.equations[index].1.clone())
+                    .map(|&index| self.facts[self.equations[index]].proof(&self.facts))
                     .collect(),
             },
         ))
@@ -479,6 +482,7 @@ impl<'a> Prover<'a> {
     /// must not consume this goal's transport budget or duplicate proof trees.
     fn select_transport_inputs(&mut self, proposition: &Proposition) {
         crate::known::Known::transport_inputs(
+            &self.facts,
             &self.equations,
             proposition,
             &self.definitions,
@@ -494,7 +498,7 @@ impl<'a> Prover<'a> {
             self.transport
                 .selected
                 .iter()
-                .map(|&index| &self.equations[index].0),
+                .map(|&index| &self.facts[self.equations[index]].proposition),
         )
         .ok()
     }
@@ -503,8 +507,9 @@ impl<'a> Prover<'a> {
     /// program point: a value one of its equations fixes to a literal is that
     /// literal.
     pub(crate) fn has_rules_for(&mut self, goal: &Proposition) -> bool {
-        let fixed = |equations: &[(Proposition, ProofNode)], value| {
-            equations.iter().any(|(equation, _)| {
+        let fixed = |facts: &[Fact], equations: &[usize], value| {
+            equations.iter().any(|&index| {
+                let equation = &facts[index].proposition;
                 matches!(equation,
                     Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Integer { .. })
                     if *id == value)
@@ -512,14 +517,23 @@ impl<'a> Prover<'a> {
         };
         let binders = self.width_binders();
         let width = |value| binders.contains(&value);
-        if covered(goal, &|value| fixed(&self.equations, value), &width) {
+        if covered(
+            goal,
+            &|value| fixed(&self.facts, &self.equations, value),
+            &width,
+        ) {
             return true;
         }
         // Use the same exact definitions as certificate construction. A
         // checked update can expose `entry + 1 == entry + 2`: the kernel can
         // decide that comparison even though its original result was open.
-        self.transported_goal(goal)
-            .is_some_and(|goal| covered(&goal, &|value| fixed(&self.equations, value), &width))
+        self.transported_goal(goal).is_some_and(|goal| {
+            covered(
+                &goal,
+                &|value| fixed(&self.facts, &self.equations, value),
+                &width,
+            )
+        })
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -679,7 +693,7 @@ impl<'a> Prover<'a> {
             .facts
             .iter()
             .filter(|fact| fact.axiom.is_none() && order(&fact.proposition).is_some())
-            .map(|fact| fact.proof.clone())
+            .map(|fact| fact.proof(&self.facts))
             .collect();
         // An equality with a literal is two orders, and either may be the
         // one the value's bounds contradict: a callee's crash route
@@ -695,7 +709,7 @@ impl<'a> Prover<'a> {
                             if left.integer_value().is_some() != right.integer_value().is_some()
                     )
             })
-            .map(|fact| fact.proof.clone())
+            .map(|fact| fact.proof(&self.facts))
             .collect();
         for equality in equalities {
             orders.extend(weaken(equality.clone()));
@@ -711,7 +725,7 @@ impl<'a> Prover<'a> {
             .facts
             .iter()
             .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
-            .map(|fact| fact.proof.clone())
+            .map(|fact| fact.proof(&self.facts))
             .collect();
         guards
             .into_iter()
@@ -742,7 +756,9 @@ impl<'a> Prover<'a> {
             let Ok(closed) = check_value_equality_denotation(
                 self.context,
                 &negation,
-                inputs.iter().map(|&index| &self.equations[index].0),
+                inputs
+                    .iter()
+                    .map(|&index| &self.facts[self.equations[index]].proposition),
             ) else {
                 continue;
             };
@@ -755,7 +771,7 @@ impl<'a> Prover<'a> {
                     premise: Box::new(proof),
                     equalities: inputs
                         .iter()
-                        .map(|&index| self.equations[index].1.clone())
+                        .map(|&index| self.facts[self.equations[index]].proof(&self.facts))
                         .collect(),
                 },
             );
@@ -763,7 +779,7 @@ impl<'a> Prover<'a> {
                 Proposition::Falsehood,
                 ProofRule::ImplicationElimination {
                     implication: Box::new(negation),
-                    premise: Box::new(self.facts[index].proof.clone()),
+                    premise: Box::new(self.facts[index].proof(&self.facts)),
                 },
             );
             return Some(ex_falso(absurd, goal));
@@ -797,7 +813,9 @@ impl<'a> Prover<'a> {
         let denotation = check_value_equality_denotation(
             self.context,
             &untaken,
-            self.equations.iter().map(|(equation, _)| equation),
+            self.equations
+                .iter()
+                .map(|&index| &self.facts[index].proposition),
         )
         .ok()?;
         // Unchanged means `condition` has no definition here, and then
@@ -815,7 +833,7 @@ impl<'a> Prover<'a> {
                 equalities: self
                     .equations
                     .iter()
-                    .map(|(_, proof)| proof.clone())
+                    .map(|&index| self.facts[index].proof(&self.facts))
                     .collect(),
             },
         );
@@ -837,7 +855,7 @@ impl<'a> Prover<'a> {
             .facts
             .iter()
             .filter_map(|fact| match &fact.proposition {
-                Proposition::Disjunction(parts) => Some((parts.clone(), fact.proof.clone())),
+                Proposition::Disjunction(parts) => Some((parts.clone(), fact.proof(&self.facts))),
                 _ => None,
             })
             .collect();
@@ -950,14 +968,14 @@ impl<'a> Prover<'a> {
 
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         if let Some(fact) = self.facts.iter().find(|fact| &fact.proposition == goal) {
-            return Ok(fact.proof.clone());
+            return Ok(fact.proof(&self.facts));
         }
         if let Some(absurd) = self
             .facts
             .iter()
             .find(|fact| fact.proposition == Proposition::Falsehood)
         {
-            return Ok(ex_falso(absurd.proof.clone(), goal));
+            return Ok(ex_falso(absurd.proof(&self.facts), goal));
         }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),
@@ -1157,14 +1175,13 @@ impl<'a> Prover<'a> {
         let mut steps = Vec::new();
         for index in 0..self.facts.len() {
             let proposition = self.facts[index].proposition.clone();
-            let proof = self.facts[index].proof.clone();
             let axiom = self.facts[index].axiom;
             match &proposition {
                 Proposition::LessOrEqual(left, right) | Proposition::LessThan(left, right)
                     if left == at && matches!(right, ScalarTerm::Value { .. }) =>
                 {
                     let strict = matches!(proposition, Proposition::LessThan(..));
-                    steps.push((right.clone(), proof, strict));
+                    steps.push((right.clone(), self.facts[index].proof(&self.facts), strict));
                 }
                 Proposition::Equal(left, right)
                     if matches!(left, ScalarTerm::Value { .. })
@@ -1172,6 +1189,7 @@ impl<'a> Prover<'a> {
                         && left != right
                         && (left == at || right == at) =>
                 {
+                    let proof = self.facts[index].proof(&self.facts);
                     let oriented = if left == at { Ok(proof) } else { flip(proof) };
                     if let Ok(weakened) = oriented.and_then(weaken) {
                         let next = if left == at { right } else { left };
@@ -1194,7 +1212,7 @@ impl<'a> Prover<'a> {
                             node(
                                 conclusion,
                                 ProofRule::IntegerAddOrder {
-                                    sum: Box::new(proof),
+                                    sum: Box::new(self.facts[index].proof(&self.facts)),
                                     positive: Box::new(positive),
                                 },
                             ),
@@ -1218,7 +1236,7 @@ impl<'a> Prover<'a> {
                             node(
                                 conclusion,
                                 ProofRule::IntegerSubtractOrder {
-                                    difference: Box::new(proof),
+                                    difference: Box::new(self.facts[index].proof(&self.facts)),
                                     positive: Box::new(positive),
                                 },
                             ),
@@ -1408,7 +1426,6 @@ impl<'a> Prover<'a> {
         integer: IntegerType,
         direction: Direction,
     ) -> Option<Bound> {
-        let proof = self.facts[index].proof.clone();
         let axiom = self.facts[index].axiom;
         let proposition = self.facts[index].proposition.clone();
         match (&proposition, direction) {
@@ -1448,7 +1465,7 @@ impl<'a> Prover<'a> {
                         ),
                         ProofRule::IntegerOrderSubstitution {
                             relation: Box::new(image),
-                            equality: Box::new(proof),
+                            equality: Box::new(self.facts[index].proof(&self.facts)),
                             endpoint,
                         },
                     ),
@@ -1459,14 +1476,22 @@ impl<'a> Prover<'a> {
             | (Proposition::LessOrEqual(literal, left), Direction::Lower)
                 if left == subject && literal.integer_value().is_some() =>
             {
-                let (literal, proof) = self.literal_endpoint(proof, literal, direction)?;
+                let (literal, proof) = self.literal_endpoint(
+                    self.facts[index].proof(&self.facts),
+                    literal,
+                    direction,
+                )?;
                 Some(Bound { literal, proof })
             }
             (Proposition::LessThan(left, literal), Direction::Upper)
             | (Proposition::LessThan(literal, left), Direction::Lower)
                 if left == subject && literal.integer_value().is_some() =>
             {
-                let (value, proof) = self.literal_endpoint(proof, literal, direction)?;
+                let (value, proof) = self.literal_endpoint(
+                    self.facts[index].proof(&self.facts),
+                    literal,
+                    direction,
+                )?;
                 let adjacent = step(value, direction == Direction::Lower)?;
                 let conclusion = Self::oriented(
                     subject,
@@ -1488,6 +1513,7 @@ impl<'a> Prover<'a> {
                     || (right == subject && left.integer_value().is_some()) =>
             {
                 // Orient the equality so the weakened `<=` points the right way.
+                let proof = self.facts[index].proof(&self.facts);
                 let wanted_left_is_subject = direction == Direction::Upper;
                 let proof = if (left == subject) == wanted_left_is_subject {
                     proof
@@ -1509,7 +1535,7 @@ impl<'a> Prover<'a> {
                 // A strict relation chains as it is; `through` restates a
                 // strict result as `<=` with the literal stepped inward.
                 let other = if near == subject { far } else { near };
-                self.through(proof, other, direction)
+                self.through(self.facts[index].proof(&self.facts), other, direction)
             }
             (Proposition::Equal(left, right), _)
                 if matches!(left, ScalarTerm::Value { .. })
@@ -1517,6 +1543,7 @@ impl<'a> Prover<'a> {
                     && left != right
                     && (left == subject || right == subject) =>
             {
+                let proof = self.facts[index].proof(&self.facts);
                 let wanted_left_is_subject = direction == Direction::Upper;
                 let proof = if (left == subject) == wanted_left_is_subject {
                     proof

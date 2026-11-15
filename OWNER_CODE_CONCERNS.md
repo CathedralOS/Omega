@@ -129,13 +129,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The freshness contract can reuse a derived answer without identifying all of its inputs, while also rebuilding for irrelevant mutations. Give each index exact dependency stamps: relevant storage identities, complete roster handles and mutation epochs, or encapsulated mutation with explicit invalidation. Do not merely hash the existing incomplete inputs. Acceptance warms an index, replaces relevant storage at matching counts/revisions, changes generations and makes same-length edits, then compares against a cold rebuild; unrelated body edits must not rebuild signature-only indexes. Establish the affected production mutation routes before claiming a compiler misjudgment; none was demonstrated by this source audit.
 - Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`
 
-### Proof preparation copies complete derivations before knowing which facts are needed
-- Category: re-deriving
-- Where: [conjunction expansion](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L57), [fact preparation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L136), [owned proof trees](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L393)
-- Saw: `Known::new` constructs proofs for every assumption/axiom. For each conjunct, `flatten` embeds `Box::new(proof.clone())`; `ProofNode` owns its conclusion and recursive children, so this copies their payload. The equation list clones selected facts/proofs again. A wide conjunction can therefore retain its whole parent proposition in every leaf proof.
-- Cost: Available but unused facts create potentially quadratic certificate payload. Retain compact proof origins during search (assumption/axiom plus conjunct path, or shared derivation nodes), materializing only selected certificates for kernel checking/publication. A portable proof-format change is not required. Acceptance measures allocations/retained bytes for wide and nested conjunctions with few used facts, checks selected certificates independently under the same assumptions, and preserves specified logical proof accounting; physical sharing must not silently change proof-budget semantics.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; payload growth is inferred from owned clones, not benchmarked
-
 ### An explicit exclusive borrow becomes shared before the checker sees its formation
 - Category: a verdict with nothing behind it
 - Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs`, `lent` and its `attenuated` argument path
@@ -219,13 +212,6 @@ framework or a list of features that remain unimplemented.
 - Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
-
-### The scalar contract fixture's inferred call proof is refused by the kernel
-- Category: a proof producer and checker disagree
-- Where: `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg:26` (the call `settle(product)`)
-- Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
-- Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
-- Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
 
 ### Every product gate is refused at a macOS layout alias while building for Linux
 - Category: a verdict with nothing behind it

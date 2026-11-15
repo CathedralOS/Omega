@@ -20,17 +20,89 @@ use semantic_vocabulary::{
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_psi::PrimitiveJudgment;
 
-/// One hypothesis or one conjunct of it, with the node that yields it.
+#[cfg(test)]
+#[path = "known/tests.rs"]
+mod tests;
+
+/// A recipe for an ordinary certificate, owned by this preparation only.
+/// Equations and derived facts cite fact positions instead of copying trees.
+#[derive(Debug)]
+enum Origin {
+    Assumption(usize),
+    SemanticAxiom(usize),
+    PendingConjunct,
+    Conjunction {
+        parent: usize,
+        conjunct: usize,
+    },
+    IntegerEquality {
+        premise: usize,
+    },
+    Transport {
+        premise: usize,
+        equalities: Vec<usize>,
+    },
+}
+
+/// One hypothesis or conjunct, with enough origin to reconstruct its proof.
+#[derive(Debug)]
 pub(crate) struct Fact {
     pub(crate) proposition: Proposition,
-    pub(crate) proof: ProofNode,
+    origin: Origin,
     /// The index of a whole semantic axiom, cited by definition-bound rules.
     pub(crate) axiom: Option<usize>,
 }
 
+impl Fact {
+    /// Expand only a selected derivation. The resulting owned tree is exactly
+    /// what the unchanged kernel/publication path has always received, so its
+    /// logical occurrence and depth budgets do not depend on physical sharing.
+    pub(crate) fn proof(&self, facts: &[Fact]) -> ProofNode {
+        let rule = match &self.origin {
+            Origin::Assumption(index) => ProofRule::Assumption { index: *index },
+            Origin::SemanticAxiom(index) => ProofRule::SemanticAxiom { index: *index },
+            Origin::PendingConjunct => {
+                unreachable!("conjunction construction is complete before proof selection")
+            }
+            Origin::Conjunction { parent, conjunct } => ProofRule::ConjunctionElimination {
+                conjunction: Box::new(facts[*parent].proof(facts)),
+                conjunct: *conjunct,
+            },
+            Origin::IntegerEquality { premise } => {
+                let Proposition::Equal(_, right) = &facts[*premise].proposition else {
+                    unreachable!("integer equality originates in a scalar equality");
+                };
+                ProofRule::EqualityTransitivity {
+                    left_equals_middle: Box::new(facts[*premise].proof(facts)),
+                    middle_equals_right: Box::new(ProofNode {
+                        conclusion: Proposition::Equal(right.clone(), right.clone()),
+                        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                    }),
+                }
+            }
+            Origin::Transport {
+                premise,
+                equalities,
+            } => ProofRule::ValueEqualityTransport {
+                premise: Box::new(facts[*premise].proof(facts)),
+                equalities: equalities
+                    .iter()
+                    .map(|&index| facts[index].proof(facts))
+                    .collect(),
+            },
+        };
+        ProofNode {
+            conclusion: self.proposition.clone(),
+            rule,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct Known {
     pub(crate) facts: Vec<Fact>,
-    pub(crate) equations: Vec<(Proposition, ProofNode)>,
+    /// Fact positions, in the original selected equation order.
+    pub(crate) equations: Vec<usize>,
     /// The first checked definition of each value, retained from normalization
     /// so proof transport selects the same reachable equation family.
     pub(crate) definitions: IdTable<ValueId, Option<usize>>,
@@ -56,40 +128,37 @@ impl TransportInputs {
 
 fn flatten(
     proposition: &Proposition,
-    proof: ProofNode,
+    origin: Origin,
     axiom: Option<usize>,
     facts: &mut Vec<Fact>,
-) {
+    conjuncts: &mut Vec<usize>,
+) -> usize {
+    let first = conjuncts.len();
     if let Proposition::Conjunction(parts) = proposition {
-        for (conjunct, part) in parts.iter().enumerate() {
-            flatten(
-                part,
-                ProofNode {
-                    conclusion: part.clone(),
-                    rule: ProofRule::ConjunctionElimination {
-                        conjunction: Box::new(proof.clone()),
-                        conjunct,
-                    },
-                },
-                None,
-                facts,
-            );
+        for part in parts {
+            let child = flatten(part, Origin::PendingConjunct, None, facts, conjuncts);
+            conjuncts.push(child);
         }
     }
+    let parent = facts.len();
     facts.push(Fact {
         proposition: proposition.clone(),
-        proof,
+        origin,
         axiom,
     });
+    // Keep the original children-before-parent search order. Parent references
+    // point forward until this batch completes; no consumer sees pending
+    // origins. One scratch stack serves all conjunctions, including nesting.
+    for (conjunct, child) in conjuncts.drain(first..).enumerate() {
+        facts[child].origin = Origin::Conjunction { parent, conjunct };
+    }
+    parent
 }
 
 /// Integer equality and equality of its embeddings have the same meaning.
 /// Reuse the kernel's existing equality composition/normalization rule rather
 /// than treating a callee's value equality as a new definition or assumption.
-fn integer_equality(
-    proposition: &Proposition,
-    proof: &ProofNode,
-) -> Option<(Proposition, ProofNode)> {
+fn integer_equality(proposition: &Proposition) -> Option<Proposition> {
     let Proposition::Equal(left, right) = proposition else {
         return None;
     };
@@ -104,19 +173,7 @@ fn integer_equality(
     if first > second {
         std::mem::swap(&mut first, &mut second);
     }
-    let conclusion = Proposition::IntegerMathEqual(first, second);
-    let reflexive = ProofNode {
-        conclusion: Proposition::Equal(right.clone(), right.clone()),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-    };
-    let lifted = ProofNode {
-        conclusion: conclusion.clone(),
-        rule: ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(proof.clone()),
-            middle_equals_right: Box::new(reflexive),
-        },
-    };
-    Some((conclusion, lifted))
+    Some(Proposition::IntegerMathEqual(first, second))
 }
 
 pub(crate) fn is_branch_fact(proposition: &Proposition) -> bool {
@@ -140,31 +197,29 @@ impl Known {
         values: &IdTable<ValueId, ValueRow>,
     ) -> Self {
         let mut facts = Vec::new();
+        let mut conjuncts = Vec::new();
         for (index, assumption) in assumptions.iter().enumerate() {
             flatten(
                 assumption,
-                ProofNode {
-                    conclusion: assumption.clone(),
-                    rule: ProofRule::Assumption { index },
-                },
+                Origin::Assumption(index),
                 None,
                 &mut facts,
+                &mut conjuncts,
             );
         }
         for (index, axiom) in axioms.iter().enumerate() {
             flatten(
                 axiom,
-                ProofNode {
-                    conclusion: axiom.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                },
+                Origin::SemanticAxiom(index),
                 Some(index),
                 &mut facts,
+                &mut conjuncts,
             );
         }
         let equations: Vec<_> = facts
             .iter()
-            .filter(|fact| match &fact.proposition {
+            .enumerate()
+            .filter(|(_, fact)| match &fact.proposition {
                 Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
                     match definition {
                         ScalarTerm::Boolean(_) => fact.axiom.is_some(),
@@ -198,7 +253,7 @@ impl Known {
                 }
                 _ => false,
             })
-            .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
+            .map(|(index, _)| index)
             .collect();
         let mut result = Self {
             facts,
@@ -206,8 +261,9 @@ impl Known {
             definitions: IdTable::default(),
         };
         let mut defined = values.map(|_, _| None);
-        for (index, (equation, _)) in result.equations.iter().enumerate() {
-            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation
+        for (index, &fact) in result.equations.iter().enumerate() {
+            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) =
+                &result.facts[fact].proposition
                 && let Some(defined) = defined.get_mut(*id)
             {
                 defined.get_or_insert(index);
@@ -217,7 +273,7 @@ impl Known {
             let _ = result.add_literal(index, &mut defined);
         }
         result.integer_equalities(0, &defined);
-        result.normalize(context, &mut defined);
+        result.normalize(context, &mut defined, &mut conjuncts);
         result.definitions = defined;
         result
     }
@@ -232,14 +288,14 @@ impl Known {
             let fact = &self.facts[index];
             if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition
                 && let Some(Some(definition)) = defined.get(*id)
-                && self.equations[*definition].0 == fact.proposition
+                && self.facts[self.equations[*definition]].proposition == fact.proposition
             {
                 continue;
             }
-            if let Some((proposition, proof)) = integer_equality(&fact.proposition, &fact.proof) {
+            if let Some(proposition) = integer_equality(&fact.proposition) {
                 self.facts.push(Fact {
                     proposition,
-                    proof,
+                    origin: Origin::IntegerEquality { premise: index },
                     axiom: None,
                 });
             }
@@ -263,8 +319,7 @@ impl Known {
             return None;
         }
         *definition = Some(self.equations.len());
-        self.equations
-            .push((fact.proposition.clone(), fact.proof.clone()));
+        self.equations.push(index);
         Some(*id)
     }
 
@@ -272,7 +327,8 @@ impl Known {
     /// following definitions transitively. Including every earlier derived
     /// equality would duplicate unrelated proof trees at every new step.
     pub(crate) fn transport_inputs(
-        equations: &[(Proposition, ProofNode)],
+        facts: &[Fact],
+        equations: &[usize],
         proposition: &Proposition,
         defined: &IdTable<ValueId, Option<usize>>,
         scratch: &mut TransportInputs,
@@ -297,7 +353,7 @@ impl Known {
                 continue;
             }
             inputs.push(*index);
-            if let Proposition::Equal(_, definition) = &equations[*index].0 {
+            if let Proposition::Equal(_, definition) = &facts[equations[*index]].proposition {
                 definition.visit_value_ids(|value| {
                     pending.push(value);
                     true
@@ -317,6 +373,7 @@ impl Known {
         &mut self,
         context: &PropositionContext,
         defined: &mut IdTable<ValueId, Option<usize>>,
+        conjuncts: &mut Vec<usize>,
     ) {
         if self.equations.is_empty() {
             return;
@@ -334,14 +391,20 @@ impl Known {
         while let Some(index) = pending.pop_front() {
             queued[index] = false;
             let fact = &self.facts[index];
-            Self::transport_inputs(&self.equations, &fact.proposition, defined, &mut transport);
+            Self::transport_inputs(
+                &self.facts,
+                &self.equations,
+                &fact.proposition,
+                defined,
+                &mut transport,
+            );
             let Ok(transported) = check_value_equality_denotation(
                 context,
                 &fact.proposition,
                 transport
                     .selected
                     .iter()
-                    .map(|&index| &self.equations[index].0),
+                    .map(|&index| &self.facts[self.equations[index]].proposition),
             ) else {
                 continue;
             };
@@ -360,19 +423,16 @@ impl Known {
             }
             // Capture only the equations available before this derivation.
             // Adding its consequence below cannot make it its own premise.
-            let proof = ProofNode {
-                conclusion: transported.clone(),
-                rule: ProofRule::ValueEqualityTransport {
-                    premise: Box::new(fact.proof.clone()),
-                    equalities: transport
-                        .selected
-                        .iter()
-                        .map(|&index| self.equations[index].1.clone())
-                        .collect(),
-                },
+            let origin = Origin::Transport {
+                premise: index,
+                equalities: transport
+                    .selected
+                    .iter()
+                    .map(|&index| self.equations[index])
+                    .collect(),
             };
             let first = self.facts.len();
-            flatten(&transported, proof, None, &mut self.facts);
+            flatten(&transported, origin, None, &mut self.facts, conjuncts);
             self.integer_equalities(first, defined);
             for derived in first..self.facts.len() {
                 if let Some(value) = self.add_literal(derived, defined)
