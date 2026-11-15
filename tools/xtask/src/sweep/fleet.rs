@@ -659,7 +659,9 @@ fn describe(assignment: &Assignment, status: &Result<Option<Status>, String>) ->
                 }
             }
             if !status.detail.is_empty() {
-                line.push_str(&format!(": {}", status.detail));
+                // A lock owner written on Windows ends in a line break.
+                let detail: Vec<&str> = status.detail.split_whitespace().collect();
+                line.push_str(&format!(": {}", detail.join(" ")));
             }
             if !settled(status) && status.updated > 0 && age > STALE_SECONDS {
                 line.push_str(&format!(
