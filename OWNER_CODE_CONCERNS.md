@@ -101,13 +101,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The compiler stops at obligation ownership before checking either valid value transfer or the specific invalid use. Match each generated obligation to its exact lowered arrival, operation or edge and preserve the original ownership judgments.
 - Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
 
-### A literal view loses its descriptor during a crashing transfer
-- Category: a verdict with nothing behind it
-- Where: [crashing transfer fixture](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/collection_members.rs#L366)
-- Saw: On clean `f5ed845ea2f` on macOS arm64, the Stage 06 witness `machine entry() crashes Trap { fail("x"); }` refuses its input loan because `descriptor snapshots cannot be reconstructed` at block 1, operation 2. At `59b8d53b729` this control publishes and its interpreter reaches the asserted `Trap`.
-- Cost: A valid shared literal argument loses its known backing before the call reaches its declared crash. Keep the staged descriptor's loan tied to that exact transfer.
-- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
-
 ### Storing a shared reborrow falsely conflicts with its parent loan
 - Category: a verdict with nothing behind it
 - Where: [stored shared-reborrow fixture](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L363)
@@ -212,3 +205,10 @@ framework or a list of features that remain unimplemented.
 - Saw: At `1a5fd676246` the published selected `Chosen::hand` control accepts with one public header and complete lifetime groups. Keep that operation header, its invocation row and the selected method tuple. Remove only the method's `result_lifetimes`. The public semantic query reports `selected reference result has an unresolved declared lifetime frontier`. The receiving judgment still refuses, but reports that descriptor storage flow cannot be reconstructed at the call.
 - Cost: The receiver drops the exact missing public evidence when the descriptor graph takes the query's optional result. Keep the existing failure reason and the actual call site through the receiving judgment.
 - Reported: 2026-11-14, Codex, while auditing the selected reference public contract after #3351
+
+### A literal argument reaches native retirement without a view carrier
+- Category: knowledge crossing a boundary
+- Where: [native home retirement](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow.rs#L1318), [staged literal call control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/collection_members.rs#L366)
+- Saw: On macOS arm64 at `296353504c3` with the literal descriptor graph repair, the original `entry` calling `fail("x")` reaches its declared trap in both engines. Keep its Build bindings, entry, literal, and the callee signature `machine fail(items: &[u8]) crashes Trap`, and give `fail` an empty body. Both `omega run --both` and `omega run --engine psi` then exit 200 during target preparation with `InvalidStructuralValueInput` in `MachineId(1)`, `PlaceId(1)`: `home retirement has no owned home or materialized view carrier`.
+- Cost: The completing call cannot retire its argument's exact descriptor on the normal edge, so the package never executes. Carry the literal's checked storage and lifetime into the existing native carrier and retire only the view.
+- Reported: 2026-11-14, Codex, while executing the staged literal call and its normal-return companion
