@@ -33,7 +33,7 @@ machine fold_segment(segment: &Segment, checksum: u32 in Wrapping) -> u32 in Wra
 }
 
 machine checksum(packet: &Packet) -> u32 in Wrapping {
-    transition { _ -> scan(packet, 0, 0) }
+    transition { _ -> scan(packet, 0, 0u32 as +Wrapping) }
     machine scan(packet: &Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
     requires cursor <= 4 {
         transition cursor < 4 {
