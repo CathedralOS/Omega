@@ -73,6 +73,20 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Run help omits that an explicit host target skips execution
+- Category: the documents disagree
+- Where: [run usage](omega-rust/omega/application/src/arguments/run.rs#L23), [native and Psi selection](omega-rust/omega/application/src/execution/mod.rs#L219), [target-only result](omega-rust/omega/application/src/execution/mod.rs#L247)
+- Saw: On macOS arm64 at `2de81092693`, `omega run --both --keep --target macos_arm64` on the kept fixed-layout field sample exits 0 with only “compiled for target” and saves an inspectable artifact. Omitting `--target` runs both engines and reports both exits. The usage lists `--both` and `--target` together without explaining that an explicit target means emission only.
+- Cost: A caller can request both engines, name the host, and mistake a successful compile for an execution comparison. Explain when the command emits without running, and make the success report explicit about which engines ran.
+- Reported: 2026-11-15, Codex, while independently opening the fixed-layout field program's saved Psi artifact.
+
+### A last-use ownership refusal drops its source site
+- Category: knowledge crossing a boundary
+- Where: [affine walk](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L1650), [source refusal adapter](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_ends.rs#L47)
+- Saw: On macOS arm64 at `a532f60be46`, the retained fixed-layout field sample refused without a source location. A focused trace identified `OperationId(23)` at the proposed reference release. The affine walk attaches an operation identity to errors from the operation itself but drops the known identity from last-use planning errors; the stage 05 adapter also leaves the source span empty.
+- Cost: Another last-use planning error can leave a reader unable to locate the failing borrow or use. Keep the existing error site through planning and use its authored source correspondence when available.
+- Reported: 2026-11-15, Codex, while tracing the fixed-layout field samples.
+
 ### A typed slice refuses indexing after proving its live extent
 - Category: branch per shape
 - Where: [typed collection reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L442), [collection access contract](wiki/spec/language/expressions.md#indexing-and-ranges)
@@ -100,13 +114,6 @@ framework or a list of unimplemented features.
 - Saw: On clean `8bb3a79076b` on macOS arm64, `const_name` refuses at `SAVED` with `TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The unchanged `call_result` exits 0 in both engines and `invalid_const_name` reaches its exact cast refusal. An isolated replay with the existing Linux x86-64 and macOS arm64 layout admissions returns `lo=42, hi=9` at offsets `[8, 0]` on both, then the ordinary constant snapshot decoder refuses the applied `LayoutStorage` carrier.
 - Cost: Shared Product preparation substitutes one value before selecting any of the five authored deployments. Keep the recipe until exact target closure, then join the authenticated layout and copy-eligible semantic snapshot through the existing target-scoped fold. Preserve the policy, field qualifications, and wrong-target and cast refusals.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles and tracing the kept named constant.
-
-### Fixed-layout record fields stop affine checking before the cast verdict
-- Category: knowledge crossing a boundary
-- Where: [field sample](samples/cli/facts/fixed_layout_storage/field/main.omg#L28), [invalid field sample](samples/cli/facts/fixed_layout_storage/invalid_field/main.omg#L24), [canonical affine region](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L2456)
-- Saw: On clean `15145194c7d` on macOS arm64, `fixed_layout_storage/field` fails package review with `affine projection outside the static structural vocabulary`. `invalid_field` gives the same unjudged refusal during `--check`, before the checker can decide the `Delivered` cast. Both store the selected `LayoutStorage<Pair, PairLayout>` value in `Holder.value`.
-- Cost: The field placement cannot check either the authored byte offsets or the invalid 41 cast. Make the existing affine projection check recognize the field's exact selected storage path. Once the negative reaches the cast, verify and refresh its `expected.txt` and `sample.json`, which still use the earlier range wording.
-- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
 
 ### Package review refuses the fixed-layout target-body boundary
 - Category: knowledge crossing a boundary

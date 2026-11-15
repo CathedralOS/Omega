@@ -11,7 +11,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralStoreDisposition,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalMachine,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1594,6 +1594,25 @@ impl Analysis<'_> {
             Error::unsupported("reference closure has no finite descriptor roster"),
         )?;
         for leaf in leaves {
+            let declaration = self
+                .types
+                .get(index(leaf.structural_type.get())?)
+                .filter(|declaration| declaration.id == leaf.structural_type)
+                .ok_or(Error::malformed(
+                    "reference closure lost the leaf declaration",
+                ))?;
+            // Only a mutable loan can leave a hole. Shared byte recasts
+            // retain the lender's storage through loan checking, without
+            // turning their alternate presentation into an owned path.
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::Reference {
+                    access: StructuralAccess::MutableBorrow,
+                    ..
+                }
+            ) {
+                continue;
+            }
             let mut exact = path.to_vec();
             exact.extend(leaf.path);
             self.restore_reference(state, source, &exact, site)?;
