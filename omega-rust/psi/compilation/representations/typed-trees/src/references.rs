@@ -133,23 +133,23 @@ pub(crate) mod source_occurrences {
                             &call.machine_arguments,
                         )
                     };
-                    let retained = self
-                        .expression_table
-                        .static_machine_application_mut(application);
-                    if !retained.lexical_owner.is_valid() {
-                        retained.lexical_owner = owner;
-                    }
-                    if !retained.binding_declaration.is_valid()
-                        && let Some(declaration) = declaration
-                    {
-                        retained.binding_declaration = declaration;
-                    }
+                    self.retain_application_source_context(application, owner, declaration);
                     self.retain_application_operand_sources(
                         application,
                         &original_arguments,
                         &call.machine_arguments,
                     )?;
                     let arguments = call.machine_arguments;
+                    let destination = self
+                        .statement_table
+                        .statement(handle)
+                        .as_call()
+                        .expect("retaining a source application does not replace its call");
+                    if destination.authored_machine_application == application
+                        && destination.machine_arguments == arguments
+                    {
+                        continue;
+                    }
                     let StatementNode::Call(call) = self.statement_table.statement_mut(handle)
                     else {
                         unreachable!("retaining a source application does not replace its call");
@@ -164,9 +164,10 @@ pub(crate) mod source_occurrences {
             /// authored call has: its target, its static arguments and the
             /// declaration `owner` whose names those arguments use.
             ///
-            /// The program-wide pass above runs once. A stage that turns an
-            /// expression into a call afterwards uses this for that call, so
-            /// its result is judged like the same call written by hand.
+            /// The program-wide pass also revisits retained calls during a
+            /// continuation. It rechecks their sources without rewriting rows
+            /// whose prepared context is unchanged. Later call producers use
+            /// the same operation for calls they introduce.
             pub fn retain_call_static_argument_context(
                 &mut self,
                 expression: crate::expression::ExpressionHandle,
@@ -198,28 +199,26 @@ pub(crate) mod source_occurrences {
                 .flatten();
                 if call.authored_machine_application.is_valid() {
                     let application = call.authored_machine_application;
-                    let retained = self
-                        .expression_table
-                        .static_machine_application_mut(application);
-                    if !retained.lexical_owner.is_valid() {
-                        retained.lexical_owner = owner;
-                    }
-                    if !retained.binding_declaration.is_valid()
-                        && let Some(declaration) = declaration
-                    {
-                        retained.binding_declaration = declaration;
-                    }
+                    self.retain_application_source_context(application, owner, declaration);
                     self.retain_application_operand_sources(
                         application,
                         &original_arguments,
                         &call.machine_arguments,
                     )?;
-                    let ExpressionNode::Call(destination) =
-                        self.expression_table.expression_mut(expression)
-                    else {
-                        unreachable!("retaining operand sources does not replace its call");
-                    };
-                    destination.machine_arguments = call.machine_arguments;
+                    if self
+                        .expression_table
+                        .call_node(expression)
+                        .expect("retaining operand sources does not replace its call")
+                        .machine_arguments
+                        != call.machine_arguments
+                    {
+                        let ExpressionNode::Call(destination) =
+                            self.expression_table.expression_mut(expression)
+                        else {
+                            unreachable!("retaining operand sources does not replace its call");
+                        };
+                        destination.machine_arguments = call.machine_arguments;
+                    }
                     return Ok(());
                 }
                 let namespace = self
@@ -238,13 +237,7 @@ pub(crate) mod source_occurrences {
                     call.target,
                     &call.machine_arguments,
                 );
-                let retained = self
-                    .expression_table
-                    .static_machine_application_mut(application);
-                retained.lexical_owner = owner;
-                if let Some(declaration) = declaration {
-                    retained.binding_declaration = declaration;
-                }
+                self.retain_application_source_context(application, owner, declaration);
                 self.retain_application_operand_sources(
                     application,
                     &original_arguments,
@@ -258,6 +251,32 @@ pub(crate) mod source_occurrences {
                 call.authored_machine_application = application;
                 call.machine_arguments = arguments;
                 Ok(())
+            }
+
+            fn retain_application_source_context(
+                &mut self,
+                application: crate::static_applications::StaticMachineApplicationHandle,
+                owner: SymbolHandle,
+                declaration: Option<SymbolHandle>,
+            ) {
+                let retained = self
+                    .expression_table
+                    .static_machine_application(application);
+                let set_owner = !retained.lexical_owner.is_valid() && owner.is_valid();
+                let set_declaration =
+                    !retained.binding_declaration.is_valid() && declaration.is_some();
+                if set_owner || set_declaration {
+                    let retained = self
+                        .expression_table
+                        .static_machine_application_mut(application);
+                    if set_owner {
+                        retained.lexical_owner = owner;
+                    }
+                    if set_declaration {
+                        retained.binding_declaration =
+                            declaration.expect("missing declaration was prepared");
+                    }
+                }
             }
 
             // A selected member keeps its supplying type as well as its member
@@ -293,21 +312,32 @@ pub(crate) mod source_occurrences {
                                 ExpressionNode::TypeExpression(_)
                             )
                         {
-                            *self.expression_table.expression_mut(*expression) =
+                            let replacement =
                                 ExpressionNode::TypeExpression(selected.type_reference);
+                            if self.expression_table.expression(*expression) != &replacement {
+                                *self.expression_table.expression_mut(*expression) = replacement;
+                            }
                         } else {
                             let symbol = selected.symbol;
-                            let selection = self.expression_table.insert_static_member(selected);
-                            let mut path = self
-                                .expression_table
-                                .name_path_node(*expression)
-                                .copied()
-                                .unwrap_or_default();
+                            let previous =
+                                self.expression_table.name_path_node(*expression).copied();
+                            let selection = previous
+                                .filter(|path| {
+                                    self.expression_table.static_member(path.static_application)
+                                        == Some(&selected)
+                                })
+                                .map(|path| path.static_application)
+                                .unwrap_or_else(|| {
+                                    self.expression_table.insert_static_member(selected)
+                                });
+                            let mut path = previous.unwrap_or_default();
                             path.symbol = symbol;
                             path.head_symbol = symbol;
                             path.static_application = selection;
-                            *self.expression_table.expression_mut(*expression) =
-                                ExpressionNode::Name(path);
+                            let replacement = ExpressionNode::Name(path);
+                            if self.expression_table.expression(*expression) != &replacement {
+                                *self.expression_table.expression_mut(*expression) = replacement;
+                            }
                         }
                         continue;
                     }
@@ -372,11 +402,13 @@ pub(crate) mod source_occurrences {
                                 .as_mut()
                                 .expect("source application remains retained")
                                 .member = member;
-                            *self
-                                .expression_table
-                                .static_member_mut(next)
-                                .ok_or("declaration operand lost its prepared member path")? =
-                                selected;
+                            if self.expression_table.static_member(next) != Some(&selected) {
+                                *self
+                                    .expression_table
+                                    .static_member_mut(next)
+                                    .ok_or("declaration operand lost its prepared member path")? =
+                                    selected;
+                            }
                         }
                         next = member;
                     }
@@ -467,9 +499,11 @@ pub(crate) mod source_occurrences {
                 } else {
                     self.retain_static_operand_sources(&mut arguments, owner)?;
                 }
-                self.expression_table
-                    .static_machine_application_arguments_mut(application)
-                    .clone_from_slice(&arguments);
+                if self.static_machine_application_arguments(application) != arguments {
+                    self.expression_table
+                        .static_machine_application_arguments_mut(application)
+                        .clone_from_slice(&arguments);
+                }
                 let declaration = self
                     .static_machine_application(application)
                     .binding_declaration;
@@ -4011,6 +4045,59 @@ mod conformance_occurrence_tests {
                     operational_acknowledgement: Default::default(),
                 }));
         (expression, application)
+    }
+
+    #[test]
+    fn repeated_source_context_preparation_keeps_retained_body_rows_shared() {
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let owner = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("owner"),
+        );
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let (expression, application) = occurrence_call(&mut program, owner);
+        let statements = program.statement_table.insert_statements([
+            StatementNode::Call(crate::statement::TableCall {
+                authored_machine_application: application,
+                ..Default::default()
+            }),
+            StatementNode::Expression(expression),
+        ]);
+        let states = program
+            .tables
+            .machine_states
+            .insert_many([crate::state::State {
+                statement_nodes: statements,
+                ..Default::default()
+            }]);
+        program.push_machine(Machine {
+            symbol: owner,
+            states,
+            ..Default::default()
+        });
+        program.retain_static_argument_contexts().unwrap();
+        let retained = program.clone();
+        program.retain_static_argument_contexts().unwrap();
+        assert_eq!(program, retained);
+        assert!(std::ptr::eq(
+            program.expression_table.expression(expression),
+            retained.expression_table.expression(expression)
+        ));
+        assert!(std::ptr::eq(
+            program.statement_table.statement(statements.start()),
+            retained.statement_table.statement(statements.start())
+        ));
+        assert!(std::ptr::eq(
+            program
+                .expression_table
+                .static_machine_application(application),
+            retained
+                .expression_table
+                .static_machine_application(application)
+        ));
     }
 
     #[test]
