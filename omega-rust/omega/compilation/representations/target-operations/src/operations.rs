@@ -6,8 +6,8 @@ Every operation that establishes a structural value exposes its exact `structura
 
 use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
-    BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, ProviderExecutionBinding, TargetBoundaryResult,
+    BoundaryScalarArgument, ExternalExecutionBinding, NormalizedForeignCallBinding,
+    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument, TargetBoundaryResult,
     TargetStructuralArgument, TargetStructuralHomeRequirement, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource,
@@ -294,6 +294,9 @@ pub enum TargetUnitOperation {
         path: Vec<StructuralPathSegment>,
         field: Option<StructuralFieldId>,
         value: PlaceId,
+        /// Declared type of the owned value written into the field. Selection
+        /// derives the store's shape from it through the shared type catalog.
+        value_type: semantic_vocabulary::StructuralTypeId,
         byte_offset: u32,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
@@ -506,7 +509,7 @@ pub enum TargetUnitOperation {
     NormalizedForeignCall {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        provider_execution: ExternalExecutionBinding,
         binding: NormalizedForeignCallBinding,
         scalar_arguments: Vec<NormalizedForeignScalarArgument>,
         structural_arguments: Vec<NormalizedForeignStructuralArgument>,

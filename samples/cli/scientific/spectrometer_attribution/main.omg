@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 2 (empty stdin).
 // Expected output contains: invalid spectrum input
 // Valid spectrum/catalog fixtures exit 0 and emit regions and catalog matches.
@@ -13,7 +14,7 @@ use spectrometer::output::print_report;
 
 // The ordinary hosted entry consumes one complete bounded spectrum/catalog
 // inventory. There are no built-in answers or scenario-dependent branches.
-public machine Spectrometer::main(application: &mut Spectrometer) reaches Console
+public machine Spectrometer::main(application: &mut Spectrometer) reaches ProcessExit + Console
 invokes Console
 blocks
 crashes Trap
@@ -57,14 +58,14 @@ crashes Trap
     machine report(application: &mut Spectrometer) {
         match_regions(&application.spectrum, &mut application.regions);
         print_report(application);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(application: &mut Spectrometer) {
         Console::write_line("invalid spectrum input");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
     machine capacity(application: &mut Spectrometer) {
         Console::write_line("region capacity exceeded");
-        Console::exit_process(3);
+        ProcessExit::exit_process(3);
     }
 }

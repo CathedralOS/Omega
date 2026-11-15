@@ -233,9 +233,7 @@ pub fn selected_program_entry_boundary(
             .nominal_identity
             .as_ref()
             .map_err(|error| vec![error.clone()])?;
-        let surface = declaration
-            .surface
-            .ok_or_else(|| failure("selected entry boundary lost its actual source surface"))?;
+        let surface = declaration.surface.map_err(|error| vec![error])?;
         surface.exact_requirements().map_err(|error| vec![error])?;
         matching.push(symbol);
     }

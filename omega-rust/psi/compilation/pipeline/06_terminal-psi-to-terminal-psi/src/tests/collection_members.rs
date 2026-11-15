@@ -105,6 +105,39 @@ fn a_length_read_uses_the_exact_formals_entry_extent() {
 }
 
 #[test]
+fn a_stored_element_length_reads_its_exact_descriptor() {
+    for carrier in ["[Ticket]", "&[Ticket]"] {
+        let result = judged(&format!(
+            "data Ticket {{ number: u32; }}
+             machine entry(tickets: {carrier}) -> u64 requires tickets.len > 0 {{ tickets.len - 1 }}"
+        ));
+        let super::RouteVerdict::Accepted(accepted) = result else {
+            panic!("{carrier}: {result:?}");
+        };
+        let machine = &accepted.elaboration.module.machines[0];
+        let formal = &machine.structural_parameters[0];
+        assert!(machine.blocks.iter().flat_map(|block| &block.operations).any(|operation| {
+            matches!(&operation.kind, terminal_psi::OperationKind::ElementViewLength { source }
+                if source.place == formal.place && source.path.is_empty())
+        }), "{carrier}");
+    }
+}
+
+#[test]
+fn another_element_descriptors_extent_cannot_justify_this_length() {
+    let result = judged(
+        "data Ticket { number: u32; }
+         machine entry(left: &[Ticket], right: &[Ticket]) -> u64
+         requires left.len > 0 { right.len - 1 }",
+    );
+    assert!(
+        matches!(result, super::RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, super::ObligationKind::OperationSafety { .. }))),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn another_views_extent_cannot_justify_this_length() {
     let result = judged(
         "machine entry(left: &[u8], right: &[u8]) -> u64 requires left.len > 0 { right.len - 1 }",
@@ -483,7 +516,10 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
                 .iter()
                 .flat_map(|block| &block.operations)
                 .filter(|operation| {
-                    matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    matches!(
+                        operation.kind,
+                        OperationKind::StructuralByteSequenceFieldLength { .. }
+                    )
                 })
                 .count()
                 == 2
@@ -511,7 +547,10 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .operations
             .iter()
             .position(|operation| {
-                matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                matches!(
+                    operation.kind,
+                    OperationKind::StructuralByteSequenceFieldLength { .. }
+                )
             })
             .unwrap();
         let staged_call = entry.operations.split_off(initial_read + 1);
@@ -527,7 +566,10 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .iter()
             .position(|block| {
                 block.operations.iter().any(|operation| {
-                    matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    matches!(
+                        operation.kind,
+                        OperationKind::StructuralByteSequenceFieldLength { .. }
+                    )
                 })
             })
             .unwrap();
@@ -594,7 +636,12 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         let first = lowered.blocks[0]
             .operations
             .iter()
-            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceLength { .. }))
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::StructuralByteSequenceFieldLength { .. }
+                )
+            })
             .unwrap();
         let fresh = lowered
             .blocks
@@ -603,7 +650,12 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .unwrap()
             .operations
             .iter()
-            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceLength { .. }))
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::StructuralByteSequenceFieldLength { .. }
+                )
+            })
             .unwrap();
         assert!(storage.read_equation(&tables, first).unwrap().is_some());
         assert_eq!(

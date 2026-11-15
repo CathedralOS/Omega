@@ -544,6 +544,43 @@ fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
     }
 }
 
+/// `&entries[..]` of noncopy records forms the same whole-collection
+/// element view a byte array does, so its length is the array's extent:
+/// `require_four` holds for four entries and is refused for three.
+#[test]
+fn typed_whole_array_views_keep_exact_length_and_their_backing() {
+    let program = r#"
+        data Entry { value: i32; }
+        machine require_four(length: u64) -> u64 requires length == 4 { length }
+        machine extent(entries: &[Entry; 4]) -> u64 {
+            let view: &[Entry] = &entries[..];
+            require_four(view.len)
+        }
+        machine build_entry() {
+            let entries: [Entry; 4] = [Entry { value: 7 }, Entry { value: 8 },
+                Entry { value: 9 }, Entry { value: 10 }];
+            use(extent(&entries));
+            use(extent(&entries));
+        }
+        machine use(extent: u64) {}
+    "#;
+    assert_eq!(verdict(program), "accepted", "{program}");
+    let short = program
+        .replace("[Entry; 4]", "[Entry; 3]")
+        .replace(", Entry { value: 10 }", "");
+    assert!(
+        verdict(&short).starts_with("rejected"),
+        "a three-entry view cannot satisfy require_four: {short}"
+    );
+    let partial = program.replace("&entries[..]", "&entries[1..]");
+    assert_eq!(
+        verdict(&partial),
+        "expression partial typed array views need their element-view subslice formation \
+         while reading the local binding of `extent::entry::view` while reading the body of \
+         `extent`"
+    );
+}
+
 #[test]
 fn an_array_loan_keeps_its_element_type_and_requested_access() {
     assert_eq!(
@@ -1203,4 +1240,37 @@ requires count > {minimum} && count <= items.len
             assert_eq!(verdict(&source), expected, "{source}");
         }
     }
+}
+
+#[test]
+fn loop_arrivals_prove_the_selected_views_own_extent() {
+    const SOURCE: &str = r#"
+machine build_entry(bytes: &[u8], other: &[u8], position: u64)
+requires position < bytes.len {
+    let byte: u8 = scan(bytes, other, position);
+}
+machine scan(bytes: &[u8], other: &[u8], position: u64) -> u8
+requires position < bytes.len {
+    transition { _ -> read(bytes, other, position) }
+    machine read(bytes: &[u8], other: &[u8], position: u64) -> u8
+    requires position < bytes.len {
+        transition position > 0 {
+            true -> scan(bytes, other, position - 1)
+            false -> bytes[position]
+        }
+    }
+}
+"#;
+    assert_eq!(verdict(SOURCE), "accepted");
+    let sibling = SOURCE.replacen(
+        "scan(bytes, other, position)",
+        "scan(other, bytes, position)",
+        1,
+    );
+    let refused = judge_build(&sibling).expect("the sibling-view program reaches checking");
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. } | ObligationKind::ArrivalInvariant { .. }))),
+        "the first view's bound cannot establish a bound on its sibling"
+    );
 }

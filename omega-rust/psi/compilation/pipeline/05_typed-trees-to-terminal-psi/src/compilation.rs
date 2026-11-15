@@ -78,6 +78,7 @@ pub fn prepare_compilation(
             );
             let mut witness = crate::read::logical::projected_arrival(
                 typed,
+                compilation.purpose,
                 required,
                 binding.implementation,
                 &binding.visible_parameters,
@@ -185,7 +186,15 @@ pub fn prepare_compilation(
     if let Some(reason) = selected_failure {
         closure = Err(reason);
     }
-    let forms = prepare_generic_forms(typed, templates, &captures);
+    // Template proof forms retain both the checked source context and the
+    // actual publication mode of the invocation using their captures.
+    let forms = prepare_generic_forms(
+        typed,
+        compilation.purpose,
+        templates,
+        &captures,
+        publication,
+    );
     closure = closure.and_then(|mut elaboration| {
         crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
             .map_err(|(owner, reason)| {
@@ -214,7 +223,8 @@ pub fn prepare_compilation(
                 *implementation,
                 crate::WitnessInputs {
                     captures: captures.clone(),
-                    outcome_subjects: Some((compilation.subjects, compilation.purpose)),
+                    purpose: compilation.purpose,
+                    outcome_subjects: Some(compilation.subjects),
                 },
             ),
             None => crate::elaborate_witness_with_captures(
@@ -226,7 +236,8 @@ pub fn prepare_compilation(
                 None,
                 crate::WitnessInputs {
                     captures: captures.clone(),
-                    outcome_subjects: Some((compilation.subjects, compilation.purpose)),
+                    purpose: compilation.purpose,
+                    outcome_subjects: Some(compilation.subjects),
                 },
             ),
         };
@@ -460,15 +471,22 @@ pub(crate) fn prepare_selected_signatures<'source>(
 
 fn prepare_generic_forms(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     mut templates: Vec<SymbolHandle>,
     captures: &crate::NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Vec<GenericForms> {
     let mut forms = Vec::new();
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let elaborated =
-            crate::elaborate_generic_forms_with_captures(typed, &[template], captures.clone());
+        let elaborated = crate::elaborate_generic_forms_with_captures(
+            typed,
+            purpose,
+            &[template],
+            captures.clone(),
+            publication,
+        );
         let mut applies = Some(Vec::new());
         for form in elaborated.iter().flatten() {
             for application in &form.applications {

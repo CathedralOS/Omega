@@ -12,8 +12,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// permitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ConsoleUse {
-    /// `exit_process`.
-    pub exit: bool,
     /// `write`, `write_byte` or `write_line`.
     pub output: bool,
     /// `read_byte` or `read_line`.
@@ -22,7 +20,7 @@ pub struct ConsoleUse {
 
 impl ConsoleUse {
     pub const fn is_empty(self) -> bool {
-        !(self.exit || self.output || self.input)
+        !(self.output || self.input)
     }
 }
 
@@ -30,12 +28,12 @@ impl ConsoleUse {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RequiredDangerousServices {
     /// The selected entry demands the standard library's `FilesystemHost`
-    /// boundary: its reach names it, directly or through a helper such as the
-    /// `Filesystem` wrapper.
+    /// boundary: its reach names it, directly or through a requirement such as
+    /// `FilesystemService::open`.
     pub filesystem: bool,
     /// The selected entry demands the standard library's `TimeHost`
     /// boundary: its reach names it, directly or through a helper such as
-    /// `Time::now`.
+    /// `instant_now`.
     pub time: bool,
     /// The operations the program resolves against this package's
     /// selected `Console` provider; `None` when it selected no such provider

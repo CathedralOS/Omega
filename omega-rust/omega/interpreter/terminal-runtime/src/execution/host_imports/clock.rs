@@ -206,8 +206,8 @@ impl ClockImport {
             )
         })?;
         let selected_target = binding
-            .import()
-            .map(|(locator, _)| locator.target())
+            .foreign_import_locator()
+            .map(|locator| locator.target())
             .or_else(|| binding.system_call().map(|call| call.target));
         let host_target = target::TargetProfile::host_if_supported();
         if matches!(

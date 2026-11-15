@@ -1,31 +1,32 @@
 # Optimizer tasks
 
-Follow [board update discipline](TASKS.md#updating-the-boards): retain unfinished
-work and its necessary context, not a history of completed milestones.
-Use [working the board](TASKS.md#working-the-board) when this scope reopens.
-Development iteration performance is a separate first-class outcome there;
-it does not silently reopen optimizer feature work here.
+Follow [board update discipline](TASKS.md#updating-the-boards): keep unfinished
+work and the context it needs, not a history of finished milestones.
+Use [working the board](TASKS.md#working-the-board) when this board reopens.
+Faster development builds are a separate outcome there and do not reopen
+optimizer work here.
 
 **Parked.** This board is not open for assignment until the owner reopens it.
 Do not claim or start these items; native correctness work that a program
 needs stays on [TASKS.md](TASKS.md#immediate-product-closure).
 
-This is the optimizer execution board, not its history. Architecture and
-rationale live in [optimizer implementation](omega-rust/optimization.md);
-landed milestones live in Git. Remove an item when its acceptance passes. An
-open item states its current frontier once. Tag an added item's provenance on
-its first line: `(new-scope)` or `(split-of:<parent-item>)`.
+This board lists remaining optimizer work; design is in
+[optimizer implementation](omega-rust/optimization.md), finished work in Git.
+Remove an item when its acceptance passes. An open item says once where its
+work currently stops. Mark where an added item came from on its first
+line: `(new-scope)` or `(split-of:<parent-item>)`.
 
-Selections are exact names. Do not add `O1`/`O2`/`O3`, `debug`/`release`, or
-another broad alias. Every rule names the exact semantic, proof, ownership,
-effect and target facts it consumes. Checked facts may be consumed
-in-process; no item here requires shipped proofs, independent replay of the
-compiler's own rewrites, or custody-mutation matrices; follow
+Select rules by exact name. Do not add `O1`/`O2`/`O3`,
+`debug`/`release`, or another broad alias. Every rule names the exact semantic,
+proof, ownership, effect and target facts it reads. Rules may read checked
+facts in-process; no item here requires shipped proofs, independent replay of
+the compiler's own rewrites, or custody-mutation matrices; follow
 [verification placement](omega-rust/pipeline.md#verification-placement). Optimizer crates have no
-Rust tests; an acceptance below that names a corpus fixture names a program of
-the former corpus ([tests/README.md](tests/README.md#the-former-corpus)), kept
-under `tests/fixtures/` or restored there from history, and is met by that
-program passing `omega run --both`.
+Rust tests. An acceptance below that names a corpus fixture, a `tests/omega/`
+path or a corpus command means a program of the former corpus
+([tests/README.md](tests/README.md#the-former-corpus)), kept under
+`tests/fixtures/` or restored there from history; it is met when that program
+passes `omega run --both`.
 
 ## Execution priority
 
@@ -35,15 +36,14 @@ program passing `omega run --both`.
 | 2. Better code for runnable programs | GENERAL-LICM, ALLOCATION-REFINEMENT, machine/memory rewrites, representation specialization and interprocedural summaries. FRAME-LAYOUT follows TASKS.md **RUNTIME-SIZED-ACTIVATION-CONTRACT**; ordinary calls do not wait for it. |
 | 3. Consolidation and rollout | PIPELINE-OWNER-CONSOLIDATION, PER-RULE-COVERAGE, BENCHMARKS, WORKSPACE-ROLLOUT. |
 
-A concrete correctness regression takes precedence over this order. Mandatory
-register-pressure recovery is not optional optimization quality; advanced
-rewrites and promotion are not prerequisites for the first useful compiler.
+A real correctness regression comes before this order. Register-pressure
+recovery is required for correctness, not optional;
+advanced rewrites and promotion are not needed for the first useful compiler.
 
 ## Register allocation and frames
 
-- **SPILL-REALIZATION.** Finish executable register-pressure recovery and
-  make its emitted frames participate in stack provisioning on every entry
-  kind.
+- **SPILL-REALIZATION.** Finish register-pressure spilling and count its
+  emitted spill frames in stack demand for every entry kind.
   - Owners: [register allocation](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/README.md)
     `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/`
     (pressure decision, `RuntimeSpillSource`) and Omega 04
@@ -53,18 +53,18 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   - Reuse hosted-entry spill-frame accounting. Preserve
     `pass/collections/runtime_vec_u32_growth_exit` (exit 70) and
     `pass/calls/nested_call_tail_roots_exit` (exit 0) as regression controls.
-  - Remaining: external (non-hosted) entry roots do not yet join spill frames
-    to stack demand; values of a foreign register class without a pure
-    bit-transport pair still reject (vector/non-IEEE needs a scalar
-    representation and target capability first).
+  - Remaining: external (non-hosted) entry points do not yet add spill frames
+    to stack demand; a value of another register class without a pure bit-copy
+    pair still rejects (vector and non-IEEE values first need a scalar
+    representation and target support).
   Acceptance: a corpus pressure fixture with an external entry root executes
   natively with its spill frame counted in stack demand; slot reuse is counted
   once; insufficient stack supply rejects before execution (a byte ceiling is
   not backing). `python tools/corpus_gate.py --native --filter borrow/write_only`
   stays unchanged; no source crash route is added for spill operations.
 
-- **ALLOCATION-REFINEMENT.** Add pressure-chosen live-range splits that move a
-  value into an independently homed segment before falling back to storage.
+- **ALLOCATION-REFINEMENT.** Under register pressure, split a value's live range
+  so a segment gets its own register before falling back to a stack slot.
   - Owners: Omega 04
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements/`,
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/` and
@@ -92,8 +92,9 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   and uses splits and copies where it previously spilled. SPILL-REALIZATION
   owns storage; this item adds no slot.
 
-- **FRAME-LAYOUT.** Realize bounded activation claims in the native frame
-  under the [activation storage contract](wiki/spec/resources/activation_storage.md).
+- **FRAME-LAYOUT.** Place bounded activation claims (reserved stack
+  storage) in the native frame under the
+  [activation storage contract](wiki/spec/resources/activation_storage.md).
   Depends on TASKS.md **RUNTIME-SIZED-ACTIVATION-CONTRACT** (source checking
   and Terminal claim production). Ordinary call frames do not wait for this;
   red-zone, probing, unwind, callee-save and call alignment have owners.
@@ -157,9 +158,8 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     custody that no stage admits today: `cycle_operation_eligible`
     requires `claim_transfers.is_empty()` on cyclic
     `CallUnit`/`CallStructuralScalar`, and `owned_call_result` requires
-    both transfer rosters empty for an owned `CallStructural` result —
-    the fence comment says claim movement stays closed until cyclic
-    claim custody is supported. Upstream, a linear consumer's operand
+    both transfer rosters empty for an owned `CallStructural` result.
+    Upstream, a linear consumer's operand
     must chain from a call result (`06_checked-trees-to-lowered-psi`
     `result_uses.rs`) whose own linear result cannot be established in a
     state body (`05_typed-trees-to-checked-trees` `linear_validation.rs`),
@@ -258,7 +258,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     not prove projection disjointness; different view IDs are not disjoint
     bytes (`view_backing_roots` in
     `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/byte_view_homes.rs`).
-    Keep `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/place_storage.rs` as the shared route/extent vocabulary.
+    Keep `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/place_storage.rs` as the shared route/extent types.
   - Control flow: forwarding across a join with no existing merge parameter,
     and store motion across non-reconvergent forks/joins, external
     predecessors or dynamic geometry, without adding or dropping writes.
@@ -316,12 +316,11 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
 ## Pipeline cleanup follow-ups
 
-- **PIPELINE-OWNER-CONSOLIDATION.** Finish the public-entrance and consumer
-  audit under the [connected pipeline contract](omega-rust/pipeline.md):
-  remove competing entrances and orphan outputs, and make retained plans
-  drive the physical operations they describe. A shared name such as
-  `encode`, an isolated validator, or a retained-but-unused plan is not a
-  join.
+- **PIPELINE-OWNER-CONSOLIDATION.** Finish auditing public entry points and
+  consumers under the [connected pipeline contract](omega-rust/pipeline.md):
+  remove competing entry points and unread outputs, and make kept plans drive
+  the physical operations they describe. A shared name such as `encode`, an
+  uncalled validator, or an unused kept plan does not connect stages.
   - The common physical route is
     `omega-rust/omega/compilation/compiler/src/native/physical_pipeline.rs` plus
     machine-emission's frame realization

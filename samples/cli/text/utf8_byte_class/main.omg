@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Classify a UTF-8 byte by its high bits -- the natural home for shifts and casts
 // used DIRECTLY in transition guards (both recently supported). A UTF-8 byte's
 // shape is entirely in its leading bits:
@@ -21,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
     main.byte = 226; // 0xE2 = 11100010, a 3-byte-sequence lead
 
@@ -76,15 +77,15 @@ machine Main::main(main: &mut Main) reaches Console {
     machine done4(main: &mut Main) { transition { _ -> block finish4(main) } }
     machine done99(main: &mut Main) { transition { _ -> block finish99(main) } }
 
-    machine finish1(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(1); }
-    machine finish2(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(2); }
-    machine finish3(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(3); }
-    machine finish4(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(4); }
-    machine finish99(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(99); }
+    machine finish1(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); ProcessExit::exit_process(1); }
+    machine finish2(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); ProcessExit::exit_process(2); }
+    machine finish3(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); ProcessExit::exit_process(3); }
+    machine finish4(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); ProcessExit::exit_process(4); }
+    machine finish99(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); ProcessExit::exit_process(99); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

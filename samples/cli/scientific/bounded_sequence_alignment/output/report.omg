@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 module output::report;
 use omega_language_std::Console;
 use alignment::local;
@@ -12,7 +13,7 @@ ensures result.len == count as u64
     &bytes[0..count]
 }
 
-public machine number(value: i32 in Wrapping) reaches Console
+public machine number(value: i32 in Wrapping) reaches ProcessExit + Console
 invokes Console
 {
     transition value >= 0 && value <= 48 { true -> digits(value) false -> bad() }
@@ -24,10 +25,10 @@ invokes Console
         transition { _ -> units(value) }
     }
     machine units(value: i32 in Wrapping) { Console::write_byte(((value % 10) + 48) as i32); }
-    machine bad() { Console::write_line("ERROR internal-number"); Console::exit_process(70); }
+    machine bad() { Console::write_line("ERROR internal-number"); ProcessExit::exit_process(70); }
 }
 
-public machine report(result: &alignment::local::Alignment) reaches Console
+public machine report(result: &alignment::local::Alignment) reaches ProcessExit + Console
 invokes Console
 {
     transition result.columns >= 0 && result.columns <= 32 {
@@ -79,5 +80,5 @@ invokes Console
         transition { _ -> second(result, position) }
     }
     machine done() { Console::write_line(""); }
-    machine bad() { Console::write_line("ERROR internal-trace"); Console::exit_process(70); }
+    machine bad() { Console::write_line("ERROR internal-trace"); ProcessExit::exit_process(70); }
 }

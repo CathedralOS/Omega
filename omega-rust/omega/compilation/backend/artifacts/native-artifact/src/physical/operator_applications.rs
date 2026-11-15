@@ -402,6 +402,9 @@ pub(super) fn derive_operator_physical_span(
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     let operation = exact_terminal_operation(module, occurrence)?;
     match realization {
+        BoundaryApplicationRealization::NativeBinding { .. } => {
+            Err("native boundary operator needs its exact foreign execution occurrence")
+        }
         BoundaryApplicationRealization::NongenericCheckedBody { .. }
         | BoundaryApplicationRealization::SpecializedCheckedBody { .. } => {
             if fragment_publication {

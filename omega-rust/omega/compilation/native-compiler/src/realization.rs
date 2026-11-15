@@ -77,6 +77,10 @@ fn admit_realization<'request>(
                     .collect(),
                 request.admission.providers.selected_provider_plans,
                 request.admission.providers.external_binding_rows,
+                native_artifact::NativeBindingRuntimeInputs {
+                    bindings: request.admission.providers.native_bindings,
+                    calling: request.admission.providers.installed_calling,
+                },
             )
         })
         .transpose()

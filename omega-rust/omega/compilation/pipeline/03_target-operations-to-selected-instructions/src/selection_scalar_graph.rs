@@ -5147,13 +5147,11 @@ pub(crate) mod normalized_foreign {
                     });
             }
         }
-        let saved_controls =
-            call.binding
-                .same_stack_contribution()
-                .and(operation)
-                .map(|operation| LocalStorageSlotId::Boundary {
-                    operation: operation.operation,
-                });
+        let saved_controls = operation
+            .filter(|_| call.binding.requires_floating_control_preservation())
+            .map(|operation| LocalStorageSlotId::Boundary {
+                operation: operation.operation,
+            });
         let mut operands = Vec::new();
         for argument in &call.scalar_arguments {
             let value = argument.source.source_value();
@@ -5920,6 +5918,7 @@ pub(crate) mod process_exit {
             || !matches!(
                 binding.execution,
                 target_operations::BoundaryExecutionBinding::AdmittedProvider(_)
+                    | target_operations::BoundaryExecutionBinding::NativeBinding(_)
                     | target_operations::BoundaryExecutionBinding::CompilerBuiltin(
                         target_operations::CompilerBuiltinExecution::HostedExitProcessI32
                     )
@@ -5930,10 +5929,16 @@ pub(crate) mod process_exit {
         if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign) =
             &binding.realization
         {
-            let target_operations::BoundaryExecutionBinding::AdmittedProvider(provider_execution) =
-                binding.execution
-            else {
-                return Err(SelectedInstructionError::custody());
+            let provider_execution = match binding.execution {
+                target_operations::BoundaryExecutionBinding::AdmittedProvider(execution) => {
+                    target_operations::ExternalExecutionBinding::Provider(execution)
+                }
+                target_operations::BoundaryExecutionBinding::NativeBinding(execution) => {
+                    target_operations::ExternalExecutionBinding::NativeBinding(execution)
+                }
+                target_operations::BoundaryExecutionBinding::CompilerBuiltin(_) => {
+                    return Err(SelectedInstructionError::custody());
+                }
             };
             let call = legalized_operations::LegalizedNormalizedForeignCall {
                 boundary: *boundary,

@@ -7,7 +7,6 @@ coordinates are stored as `ProviderIdentityId` handles into the declaration's
 identity table.
 */
 
-use super::DigestFeed;
 use crate::provider_evidence::evidence_digest;
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 use crate::provider_evidence::providers::provider_plan::{
@@ -211,33 +210,19 @@ impl ServiceSchema {
     }
 
     pub fn declaration_identity_digest(&self) -> ServiceSchemaDigest {
-        self.digest_with_calling(false)
+        ServiceSchemaDigest::from_digest(self.declaration.declaration_commitment())
     }
 
     fn digest_with_calling(&self, include_calling: bool) -> ServiceSchemaDigest {
         let mut encoder = ProviderPlanDigestEncoder::for_service_schema();
-        encoder.string(self.identity_text(self.declaration.trait_name));
-        encoder.package_identity(self.declaration.trait_package_identity);
-        encoder.receiver_applications(self);
-        let mut methods = self.declaration.methods.iter().collect::<Vec<_>>();
-        methods.sort_by(|left, right| {
-            left.name.cmp(&right.name).then_with(|| {
-                self.identity_text(left.requirement_identity)
-                    .cmp(self.identity_text(right.requirement_identity))
-            })
-        });
-        encoder.len(methods.len());
-        for method in methods {
-            encoder.service_method(
-                method,
-                &self.declaration.identities,
-                if include_calling {
+        self.declaration
+            .encode_contract(&mut encoder, |method, encoder| {
+                encoder.calling_applications(if include_calling {
                     self.calling_for_requirement(method.requirement_identity)
                 } else {
                     Vec::new()
-                },
-            );
-        }
+                });
+            });
         ServiceSchemaDigest::from_digest(encoder.finish())
     }
 }
@@ -387,6 +372,134 @@ impl compiler_storage::Record for ProviderPlanDigest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complete_service_contract_v7_retains_type_signatures_and_calling_suffixes() {
+        use sha2::{Digest, Sha256};
+        let mut schema = schema("Child", 1, false);
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
+        let declaration = std::sync::Arc::make_mut(&mut schema.declaration);
+        declaration.trait_package_identity = package;
+        let after = declaration.identities.intern("Parent::after()");
+        let result = declaration.identities.intern("Never");
+        let enter = &mut declaration.methods[0];
+        let enter_identity = enter.requirement_identity;
+        enter.requirement_owner_package_identity = package;
+        enter.entry_claims.push(ServiceEntryClaim {
+            parameter_index: 0,
+            carrier_identity: enter.parameter_type_identities[0],
+            domain: "Permitted".into(),
+            predicate_presence: language_semantics::DomainPredicatePresence::Present,
+            effective_carry: language_semantics::CarryPolicy::PERMISSIVE,
+            authority_flow: ServiceEntryAuthorityFlow::Accepts,
+        });
+        enter.completion = semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        );
+        enter.has_result = true;
+        enter.result_type_identity = result;
+        enter.result_claims.push(ServiceResultClaim {
+            domain: "Returned".into(),
+            effective_carry: language_semantics::CarryPolicy::STRICT,
+        });
+        enter.service_reach.push("Svc".into());
+        enter.synchronous_invocations.push("before_return".into());
+        enter.may_suspend = true;
+        enter.terminates_guarantee = true;
+        enter.declared_type_signature = [31; 32];
+        enter.termination_premises.push(ServiceProgressPremise {
+            profile: "finite".into(),
+            subject: ServiceProgressSubject::Parameter(0),
+            subject_projections: vec!["length".into()],
+            establishment_routes: vec![ServiceProgressEstablishmentRoute {
+                kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                requirement_identity: enter_identity,
+            }],
+        });
+        declaration.methods.push(ServiceMethod {
+            name: "after".into(),
+            requirement_owner: "Parent".into(),
+            requirement_owner_package_identity: package,
+            requirement_identity: after,
+            declared_type_signature: [32; 32],
+            ..Default::default()
+        });
+        for receiver in &mut declaration.receiver_applications {
+            receiver.application = receiver.trait_name;
+            receiver.trait_package_identity = package;
+            receiver.requirement_identities.insert(0, after);
+        }
+        schema.calling_applications.push(ServiceCallingApplication {
+            requirement: after,
+            abi: semantic_vocabulary::CallingAbiIdentity {
+                requirement_identity: "Parent::after()".into(),
+                declaring_application: "Parent".into(),
+                operands: vec![semantic_vocabulary::CallingStaticOperand {
+                    ordinal: 0,
+                    kind: semantic_vocabulary::CallingOperandKind::Type,
+                    identity: "u8".into(),
+                }],
+            },
+            plan: ServiceCallingPlan {
+                report_fingerprint: 2,
+                commitment: BoundaryCallingPlanCommitment::from_digest([2; 32]),
+                promise: BoundaryCallingPlanPromise::from_digest([2; 32]),
+            },
+        });
+        let hexadecimal = |bytes: [u8; 32]| {
+            use std::fmt::Write;
+            let mut text = String::with_capacity(64);
+            for byte in bytes {
+                write!(&mut text, "{byte:02x}").unwrap();
+            }
+            text
+        };
+        // The fixed v6 vectors check the unchanged prefix. The v7 trailer
+        // adds the two declared signatures in canonical method order.
+        let declaration_digest = "a66a39489639c6cf8fbc7f63c4234ffd87b436d6daceeda49be8263baabcfab3";
+        let calling_digest = "3a55a5fe79f31b50f1c5ea99fa150791d5d394824f3340bdfae513f0b1abea66";
+        let mut bytes = Vec::new();
+        schema.declaration.encode_contract(&mut bytes, |_, output| {
+            output.extend_from_slice(&0u64.to_le_bytes())
+        });
+        let trailer = [vec![32; 32], vec![31; 32]].concat();
+        assert_eq!(bytes.len(), 819 + trailer.len());
+        assert_eq!(&bytes[819..], trailer.as_slice());
+        let mut digest = Sha256::new();
+        digest.update(b"omega.service-schema.sha256.v6\0");
+        digest.update(&bytes[..819]);
+        assert_eq!(hexadecimal(digest.finalize().into()), declaration_digest);
+        let mut digest = Sha256::new();
+        digest.update(b"omega.service-schema.sha256.v7\0");
+        digest.update(&bytes);
+        assert_eq!(
+            hexadecimal(*schema.declaration_identity_digest().as_bytes()),
+            hexadecimal(digest.finalize().into())
+        );
+        let mut encoded = super::ProviderPlanDigestEncoder::for_service_schema_preimage();
+        schema
+            .declaration
+            .encode_contract(&mut encoded, |method, output| {
+                output.calling_applications(
+                    schema.calling_for_requirement(method.requirement_identity),
+                );
+            });
+        let preimage = encoded.finish_preimage();
+        let prefix =
+            &preimage[b"omega.service-schema.sha256.v7\0".len()..preimage.len() - trailer.len()];
+        let mut historical = Sha256::new();
+        historical.update(b"omega.service-schema.sha256.v6\0");
+        historical.update(prefix);
+        assert_eq!(hexadecimal(historical.finalize().into()), calling_digest);
+        assert_eq!(
+            &preimage[preimage.len() - trailer.len()..],
+            trailer.as_slice()
+        );
+        assert_eq!(
+            hexadecimal(*schema.identity_digest().as_bytes()),
+            hexadecimal(Sha256::digest(&preimage).into())
+        );
+    }
 
     #[test]
     fn distinct_phantom_applications_share_a_requirement_without_collapsing() {

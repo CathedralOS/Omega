@@ -107,7 +107,7 @@ pub use control_flow::{
 pub mod identity;
 mod validation;
 pub use identity::{
-    encode_access_call_bindings, encode_call_binding, encode_call_plan,
+    encode_access_call_bindings, encode_call_binding, encode_call_plan, encode_external_execution,
     encode_hosted_read_byte_identity, encode_integer, encode_locator,
     encode_machine_function_identity, encode_native_callback_argument, encode_placement,
     encode_provider_execution, encode_register, encode_scalar_type, encode_shape, encode_work,

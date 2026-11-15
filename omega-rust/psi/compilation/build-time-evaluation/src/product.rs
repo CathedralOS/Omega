@@ -1,9 +1,9 @@
 //! Carry Build's completed choices into application compilation.
 //!
-//! Provider choices must match their authored declaration requests before they
-//! become selection intent. Other policies still lack their producers and
-//! refuse requests for their own operations. An absent request needs no policy;
-//! an unimplemented one cannot disappear into an empty result.
+//! A provider choice must match its authored declaration request before it
+//! becomes selection intent. Other policies still lack producers and refuse
+//! requests for their own operations. An unrequested operation needs no
+//! policy; an unimplemented one cannot vanish into an empty result.
 
 use language_semantics::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,

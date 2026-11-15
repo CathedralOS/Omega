@@ -1,35 +1,36 @@
 # Package resolution
 
-[mod.rs](mod.rs) assembles source resolution and the complete graph.
+[mod.rs](mod.rs) resolves sources and assembles the complete graph.
 [Source selection](../../../../../../wiki/spec/packages/sources.md) owns the
-public contract; acquisition owns immutable tree custody, not package approval.
+public contract; acquisition keeps immutable trees and approves no package.
 
-[graph/git_pins.rs](graph/git_pins.rs) separates two policies:
+[graph/git_pins.rs](graph/git_pins.rs) keeps two policies apart:
 
-- `GitDependencyPins` borrows the accepted source subject and exact update keys.
-  Unknown/duplicate selections reject before acquisition. Empty selection
-  preserves unchanged requests for install; ordinary unpinned resolution updates
-  all selectors. Selected keys refresh their repository lineage as a unit.
+- `GitDependencyPins` borrows the accepted source subject and exact update
+  keys. Unknown or duplicate selections fail before acquisition. An
+  empty selection keeps unchanged requests for install; ordinary unpinned
+  resolution updates all selectors. Selected keys refresh their repository
+  lineage together.
 - `GitResolutionOptions::offline` forbids new/refreshed Git requests across the
-  whole traversal, overriding preserved pins' exact-fetch permission.
+  traversal, overriding a kept pin's permission to fetch exactly.
 
-The pins' acquisition option controls only missing preserved revisions; it is not
-an offline switch for new or refreshed requests. Reacquired objects must match
-recorded commit/tree/content. Alias/member changes do not refresh unchanged
-locator/revision requests. Git edges cannot be called resolved-but-unfetched:
-commit/tree and member-declaration verification already require resolver custody.
+The pins' acquisition option controls only missing pinned revisions; it is
+not an offline switch. Refetched objects must match the recorded
+commit/tree/content. Alias/member changes do not refresh unchanged
+locator/revision requests. A Git edge is never resolved but unfetched:
+verifying commit/tree and member declarations already needs the fetched source.
 
-Workspace declaration observations retain the helper source graphs used during
-their execution. [graph/subject/catalog.rs](graph/subject/catalog.rs) records
-these separately from the selected Product graph, checks shared source custody,
-and flattens nested catalog observations into bounded execution records. Locks
-encode these records only when present; ordinary subjects retain their existing
-encoding and decision fingerprints. Pins and locked request admission read both
-graphs, but catalog helpers grant no Product dependency or import.
+Each workspace declaration keeps the helper source graphs it ran with.
+[graph/subject/catalog.rs](graph/subject/catalog.rs) records these apart from
+the selected Product graph, checks they share fetched sources, and flattens
+nested catalog observations into bounded execution records. Locks encode these
+records only when present; other subjects keep their encoding and decision
+fingerprints. Pins and locked request admission read both graphs, but catalog
+helpers grant no Product dependency or import.
 
-Locked recovery selects recorded target policy before touching acquisition, then
-reconstructs the exact graph. Resume uses proposed pins, not current branch tips.
+Locked recovery picks the recorded target policy before acquisition, then
+rebuilds the exact graph. Resume uses proposed pins, not current branch tips.
 Historical-source diagnostics obey the same offline option; missing old bytes
-leave normalized policy comparison available. The
+still allow normalized policy comparison. The
 [command owner](../../README.md#install-and-update) documents CLI support
-and target selection; the API's policy does not imply every command has a flag.
+and target selection; not every API policy has a command flag.

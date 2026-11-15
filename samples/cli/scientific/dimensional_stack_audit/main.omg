@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // With EOF, bounded input rejects explicitly.
 // Expected exit: 64.
 // Expected output contains: INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]
@@ -11,7 +12,7 @@ data Main {
     assembly: Assembly;
     audit: Audit;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)");
     block read_integer(&mut main.input);
     transition main.input.valid && main.input.value >= 1 && main.input.value <= 6 {
@@ -96,15 +97,15 @@ machine Main::main(main: &mut Main) reaches Console {
         write_integer(deviation);
         transition { _ -> contributors(main, index + 1) }
     }
-    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine done(main: &mut Main) { ProcessExit::exit_process(0); }
     machine invalid(main: &mut Main) {
         Console::write_line("INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -4,14 +4,14 @@ use omega::language::core::ProcessExit;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
-    configure_process_exit(builder);
     configure_macos_image(builder);
     configure_time_host(builder);
     configure_windows_filesystem(builder);
     configure_posix_canonical(builder);
     configure_posix_filesystem(builder);
     configure_posix_filesystem_darwin(builder);
-    configure_windows_console(builder);
+    configure_console(builder);
+    configure_process_exit(builder);
     configure_windows_gui(builder);
     configure_macos_gui(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
@@ -75,15 +75,6 @@ machine build(builder: &mut Build) {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPop"
         }
     });
-}
-
-// Every hosted target selects the checked wrapper. Its core primitive is
-// settled independently; selecting the wrapper grants no process-exit authority.
-machine configure_process_exit(builder: &mut Build) {
-    Build::select_provider<ProcessExit, NativeProcessExit>(builder, windows_x86_64);
-    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_x86_64);
-    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_arm64);
-    Build::select_provider<ProcessExit, NativeProcessExit>(builder, macos_arm64);
 }
 
 // Package-local raw supply follows the checked provider closure. Applications
@@ -649,7 +640,38 @@ machine configure_posix_filesystem_darwin(builder: &mut Build) {
 // The remaining Windows and Darwin leaf bindings: console I/O and process
 // exit on msvcrt/kernel32, Win32 GUI calls on user32/gdi32, and the AppKit,
 // CoreGraphics and libSystem clock entries the macOS GUI providers call.
-machine configure_windows_console(builder: &mut Build) {
+machine configure_console(builder: &mut Build) {
+    Build::select_provider<Console, NativeConsole>(builder, windows_x86_64);
+    Build::select_provider<ConsoleHost, WindowsConsoleHost>(builder, windows_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, linux_x86_64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, linux_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, linux_arm64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, linux_arm64);
+    Build::select_provider<Console, NativeConsole>(builder, macos_arm64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, macos_arm64);
+    Build::select_provider<Console, NativeConsole>(builder, macos_x86_64);
+    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, macos_x86_64);
+    Build::bind<PosixConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
+    Build::bind<PosixConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+    Build::bind<PosixConsoleIo::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
+    Build::bind<PosixConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+    Build::bind<PosixConsoleIo::read>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<PosixConsoleIo::write>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+        } });
+    Build::bind<PosixConsoleIo::read>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<PosixConsoleIo::write>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+        } });
+
     Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
@@ -662,10 +684,7 @@ machine configure_windows_console(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
-    Build::bind<Console::exit_process>(builder, windows_x86_64,
-        ForeignBinding::DllImport { import: DllImport::PeByName {
-            library: "kernel32.dll", export: "ExitProcess"
-        } });
+
 }
 
 // Win32 GUI leaves: window and message pumps on user32, device-context and
@@ -796,5 +815,26 @@ machine configure_macos_image(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGImageCreate"
+        } });
+}
+
+// Each hosted target supplies canonical process termination through its native
+// binding. Linux exits the whole process, including any sibling threads.
+machine configure_process_exit(builder: &mut Build) {
+    Build::bind<ProcessExit::exit_process>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 231u64 });
+    Build::bind<ProcessExit::exit_process>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 94u64 });
+    Build::bind<ProcessExit::exit_process>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
+        } });
+    Build::bind<ProcessExit::exit_process>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
+        } });
+    Build::bind<ProcessExit::exit_process>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "ExitProcess"
         } });
 }

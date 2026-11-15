@@ -162,7 +162,7 @@ impl CompilationSession {
 
     /// The frozen typed trees of a standalone source program, as the
     /// lowered-form checker is shown them, without running the program's
-    /// Build and without Psi 05, validation's judgments or Psi 06.
+    /// Build and without Psi 05 or Psi 06.
     ///
     /// The machine named `entry` in `request.root_path` (`main`, when `entry`
     /// is `None` and the source declares one) is bound to the request

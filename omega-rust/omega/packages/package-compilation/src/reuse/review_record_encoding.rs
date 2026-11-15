@@ -66,7 +66,7 @@ pub fn recover_declaration_kind(
 
 pub fn semantic_binding_role_tag(role: AcceptedSemanticBindingRole) -> u8 {
     match role {
-        AcceptedSemanticBindingRole::ConsoleExitProcessI32 => 0,
+        AcceptedSemanticBindingRole::ConsoleIo => 10,
         AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => 1,
         AcceptedSemanticBindingRole::FilesystemHostService => 2,
         AcceptedSemanticBindingRole::TimeHostService => 3,
@@ -83,7 +83,7 @@ pub fn recover_semantic_binding_role(
     cursor: &mut ObservationCursor<'_>,
 ) -> Option<AcceptedSemanticBindingRole> {
     Some(match cursor.u8()? {
-        0 => AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        10 => AcceptedSemanticBindingRole::ConsoleIo,
         1 => AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
         2 => AcceptedSemanticBindingRole::FilesystemHostService,
         3 => AcceptedSemanticBindingRole::TimeHostService,

@@ -1013,7 +1013,7 @@ fn emit_instruction(
             .get(ordinal as usize)
             .filter(|call| call.instruction == instruction.id && call.call.boundary == boundary)
             .ok_or(ResolvedFragmentEmissionError::RootMismatch)?;
-        call.call.binding.symbolic_import().is_none()
+        call.call.binding.import_locator().is_none()
     } else {
         false
     };

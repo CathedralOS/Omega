@@ -1,9 +1,9 @@
 # Bootstrap-chain tooling
 
-This directory owns replaceable invocation, tape materialization, exact
-artifact construction, and the chain-layout gate. It owns no language
-semantics, compiler source, proof, canonical artifact, or test corpus.
-These host scripts are temporary tooling, subject to the
+This directory holds replaceable scripts that run the bootstrap chain, write
+tapes, build exact artifacts and check the chain's layout. It holds no
+language semantics, compiler source, proof, canonical artifact or test corpus.
+These temporary host scripts fall under the
 [whole-chain minimization contract](../../bootstrap/MINIMIZATION.md).
 
 ```sh
@@ -11,108 +11,105 @@ sh tools/bootstrap/check-chain-hygiene.sh
 sh tests/bootstrap/alpha-beta-edge.sh --edge
 ```
 
-The second command is the presently closed bootstrap floor: audited Alpha seed
-behavior plus exact trusted Beta compiler reconstruction. It is run from the
-cross-rung test owner.
-There is deliberately no wrapper that relabels that one command as a complete
-chain run or prints ceremonial status for compiler edges that do not exist.
+The second command, kept with the cross-rung tests, checks the finished part
+of the chain: the audited Alpha seed's behavior and an exact rebuild of the
+trusted Beta compiler. No wrapper calls it a full chain run or prints status
+for compiler edges that do not exist.
 
-`tools/bootstrap/alpha/seed_env.sh` binds the exact size and SHA-256 of the
-selected audited Alpha container from the `bootstrap/interpreted/0_alpha/README.md`
-retention inventory; `stamp_seed` refuses to carry any other bytes.
-`tools/bootstrap/beta/artifact_env.sh` binds the exact size and SHA-256 of
-`beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses to
-materialize any other bytes; those identities are those audited in
+`tools/bootstrap/alpha/seed_env.sh` pins the exact size and SHA-256 of the
+audited Alpha container chosen in `bootstrap/interpreted/0_alpha/README.md`;
+`stamp_seed` refuses any other bytes.
+`tools/bootstrap/beta/artifact_env.sh` pins the exact size and SHA-256 of
+`beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses any
+other bytes; these identities are audited in
 `bootstrap/interpreted/1_beta/AUDIT.md` and decoded by `tests/beta/compiler/root-audit.py`.
-`tools/bootstrap/gamma/evaluator_env.sh` binds `gamma_evaluator.beta` and
+`tools/bootstrap/gamma/evaluator_env.sh` pins `gamma_evaluator.beta` and
 `gamma_evaluator_bytecode.tape` the same way against
-`bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md`. A digest match is an identity check,
-not a proof.
+`bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md`. A matching digest checks
+identity; it is not a proof.
 
-`tools/bootstrap/delta/compiler_env.sh` binds the Delta edge's request entry,
+`tools/bootstrap/delta/compiler_env.sh` pins the Delta edge's request entry,
 source manifest, ordered support-member manifest, `GammaComposedV2` record,
-and repacked canonical closure and packed support section the same way
-against `bootstrap/interpreted/3_delta/README.md` and `delta_compiler.composed`;
-it also checks the record names the selected evaluator tape, packed
-closure, and packed support section. The same env binds the staged-compiler
-gate's `development_driver.gamma` diagnostic entry that packs on top of the
-bound member bytes; `tests/bootstrap/delta-identity.sh` covers its refusals.
-`tools/bootstrap/epsilon/evaluator_env.sh` binds the
+repacked canonical closure and packed support section the same way against
+`bootstrap/interpreted/3_delta/README.md` and `delta_compiler.composed`. It
+checks that the record names the chosen evaluator tape, packed closure
+and packed support section. It also pins the staged-compiler gate's
+`development_driver.gamma` diagnostic entry, packed on top of the pinned
+member bytes; `tests/bootstrap/delta-identity.sh` tests its refusals.
+`tools/bootstrap/epsilon/evaluator_env.sh` pins the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
-against `bootstrap/interpreted/4_epsilon/README.md`. Both refuse before writing when the
-bound bytes differ, including a changed manifest or member. The same env binds
-the canonical `execution_driver.delta` slice adapter and the evaluator receipt
-identity that the bound Delta edge reconstructs from the bound evaluator,
-driver, and support section; `tests/bootstrap/epsilon-identity.sh` checks the
-driver and receipt refusals and every consuming gate's record.
+against `bootstrap/interpreted/4_epsilon/README.md`. Both refuse before writing if
+the bytes differ from the pins, including a changed manifest or member. The Epsilon file also pins the canonical `execution_driver.delta`
+slice adapter and the evaluator receipt identity that the pinned Delta edge
+rebuilds from the pinned evaluator, driver and support section;
+`tests/bootstrap/epsilon-identity.sh` checks the driver and receipt refusals
+and every consuming gate's record.
 
-`tools/bootstrap/omega/compiler_env.sh` binds the
+`tools/bootstrap/omega/compiler_env.sh` pins the
 `omega_compiler.epsilon.sources` manifest and repacked D closure against
-`bootstrap/interpreted/5_omega/README.md` the same way, plus the gate-local customer
-entries the omega-parser, omega-outcome, omega-request, and omega-executable
-gates append on top of the bound member bytes, and the omega-request gate's
-canonical sealed request fixture, each recorded in its gate's README.
-The same env binds D's OCREQ request entry — `program.omg`, the canonical
-180-byte Omega source the request names as the compilation subject, SHA-256
-`9cc2d065cf33e3a9de241d061f407665892f7171a431936a0e5ad9e5d3eeea85` — a
-separate input fed to the bound customer as sealed bytes, not a manifested
-member.
-`tools/bootstrap/proofs/sources_env.sh` binds the
+`bootstrap/interpreted/5_omega/README.md` the same way. It also pins the
+entries the omega-parser, omega-outcome, omega-request and omega-executable
+gates append on top of the pinned member bytes, and
+the omega-request gate's canonical sealed request fixture; each gate's
+README records its own. The same file pins D's OCREQ request entry,
+`program.omg`: the canonical 180-byte Omega source the request compiles,
+SHA-256 `9cc2d065cf33e3a9de241d061f407665892f7171a431936a0e5ad9e5d3eeea85`.
+It is a separate input fed to the pinned customer entry as sealed bytes,
+not a manifest member.
+`tools/bootstrap/proofs/sources_env.sh` pins the
 `implementation.gamma.sources` and `theory.gamma.sources` manifests and their
 repacked member closures against `bootstrap/proofs/checker/README.md` and
 `bootstrap/proofs/beta_encoding/README.md`, plus the derivation gates'
-diagnostic prefix entries packed on top of the bound member bytes, each
-recorded in its gate's README.
+diagnostic prefix entries packed on top of the pinned member bytes; each
+gate's README records its own.
 
-The fast `tests/bootstrap/*-identity.sh` gates exercise exact materialized
-bytes and corruption/truncation refusals against the bound expectations.
-They retain checks against executable consumer records, but do not grep
-documentation for copies of the same hashes or formatted byte counts.
-Repeating a pin in prose adds no independent identity evidence; the cited
-audit and profile documents still explain the subjects and their obligations.
+The fast `tests/bootstrap/*-identity.sh` gates check the exact bytes written
+and that corrupted or truncated bytes are refused, against the pins. They
+check the records of the programs that use the bytes, but never grep
+documentation for copies of the hashes or byte counts: a pin repeated in
+prose proves nothing new. The cited audit and profile documents explain each
+artifact and its obligations.
 
-`check-chain-hygiene.sh` is the single repository-topology gate. It positively
-enumerates the implemented compiler source/tape identities, inventories every
-retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
-owners and native compiler identities above Alpha, prevents a lower
-compiler owner from reaching beyond its immediate successor, and audits the
-manifested closure members plus bootstrap step surfaces for the
-Rust-producer omission contract.
-Owner roots come from tracked and nonignored untracked files in a Git checkout,
-or from physical files in a source archive. Empty directories left by a move do
-not create owners. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory
+`check-chain-hygiene.sh` is the only repository-layout check. It lists the
+implemented compiler source and tape identities, lists
+every kept source, test and bootstrap-tool directory, rejects other bootstrap
+directories and native compiler identities above Alpha, stops a lower
+compiler from reaching past its immediate successor, and checks that
+manifest members and bootstrap step files omit the Rust producer.
+It finds directories from tracked and untracked non-ignored files in a Git
+checkout, or from the files in a source archive. Empty
+directories left by a move do not count. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory
 behavior in disposable archive and checkout fixtures.
-Alpha, Beta, and Gamma may not contain subdirectories. Delta, Epsilon, and D
-may retain concept-owned folders but not a redundant root `compiler/` directory.
-The separate `bootstrap/proofs/` owner contains the checker and encoding theory;
-it is not another language rung.
+Alpha, Beta and Gamma may not contain subdirectories. Delta, Epsilon and D
+may keep one folder per concept, but not a redundant root `compiler/`
+directory. The separate `bootstrap/proofs/` directory holds the checker and
+encoding theory; it is not another language rung.
 
-`mbx xtask source-closure MANIFEST OUTPUT` checks and concatenates explicitly ordered
-source members. `GammaSourceClosureV1` selects `.gamma` members for the proof
+`mbx xtask source-closure MANIFEST OUTPUT` checks source members, in the order
+the manifest gives, and concatenates them. `GammaSourceClosureV1` selects `.gamma` members for the proof
 closures; `DeltaSourceClosureV1` selects `.delta` members for the Epsilon
-evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. All
-use the same identity, length, digest, and canonical relative-path rows. The
-manifest parent owns the complete source-file inventory: missing, extra,
-wrong-language, stale, and symlinked members reject before output replacement.
-`--prefix ENTRY` prepends one entry file — a marked entry or gate-local
-diagnostic header that is not a manifested member — ahead of the packed
-members; it must be a regular file carrying the manifest's source suffix and
-rejects before output replacement on a wrong language, a symlink, a
-non-regular path, or forbidden bytes.
-Inventory traversal checks membership only; it never selects or orders inputs.
+evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. All use
+the same rows: identity, length, digest and canonical relative path. The
+manifest's directory must list every source file in it: a missing, extra,
+wrong-language, stale or symlinked member is rejected before the output is
+replaced. `--prefix ENTRY` puts one non-member entry file, a marked entry or
+a gate's diagnostic header, before the packed members. It must be a regular file with the manifest's source suffix; a wrong
+language, symlink, non-regular path or forbidden bytes are rejected first. Walking the directory only checks
+membership, never choosing or ordering inputs.
 
-`paths.sh` exports canonical selected-owner paths. Future compiler artifact
-paths may be named while absent; the topology gate does not pretend they exist.
-Proof gates use `OMEGA_PATH_DERIVATION_CHECKER_SOURCES` and
-`OMEGA_PATH_BETA_ENCODING_SOURCES` from that same registry.
-Shell remains replaceable invocation plumbing. Source-closure packing, the
-Alpha Windows listing forge, and Gamma evaluator invocation are xtask
-commands. None of them may parse an accepted language, lower code, manufacture
-proof premises, or decide admission.
+`paths.sh` exports the canonical path of each chosen directory. It may name
+future compiler artifacts before they exist; the layout check does not treat
+them as present. Proof gates take
+`OMEGA_PATH_DERIVATION_CHECKER_SOURCES` and
+`OMEGA_PATH_BETA_ENCODING_SOURCES` from it.
+Shell scripts only invoke things and can be replaced. Source-closure packing,
+the Alpha Windows listing forge and Gamma evaluator runs are xtask commands.
+None of them may parse an accepted language, lower code, invent proof
+premises or decide admission.
 
-The component directories hold sourceable materializers or deliberate artifact
-construction commands. Tests consume them from `tests/`; canonical artifacts
-remain under their language owner.
+The subdirectories hold sourceable scripts that write artifacts, or explicit
+artifact build commands. Tests in `tests/` use them; canonical
+artifacts stay in their language's directory.
 
 ## Retention and deletion
 
@@ -129,6 +126,6 @@ remain under their language owner.
 | `proofs/sources_env.sh` | Bound identity and canonical member-closure materialization for the derivation checker and Beta encoding theory. | Delete only when every caller has an equally direct canonical invocation. |
 | `mbx xtask source-closure` | Byte-exact assembly of the Gamma proof, Delta-written Epsilon evaluator, and Epsilon-written Omega D source closures. | Delete only when the selected lower compilers accept the same canonical member closures directly. |
 
-The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
-future-artifact locators, root compiler cache, and receipt profiles had no
-independent semantic or acceptance role. Git history owns them.
+The retired `verify-lattice.sh`, `test-paths.sh`, old bootstrap-role
+wrapper, future-artifact locators, root compiler cache and receipt profiles
+checked nothing of their own. They remain in Git history.

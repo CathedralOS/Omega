@@ -15,7 +15,7 @@
 // root source, or `main` when none is named and the source declares one, is
 // bound to the target's `ProgramEntry`), prepares the product exactly as the
 // product check does up to Psi 04's frozen typed trees, and stops there. Psi
-// 05, validation's judgments and Psi 06 never run: the shared source
+// 05 and Psi 06 never run: the shared source
 // preparation returns its frozen owner directly after Psi 04. The caller
 // judges the returned frontier with
 // `terminal_psi_to_terminal_psi::judge_compilation`.
@@ -140,7 +140,7 @@ fn frozen_frontier(
 ) -> Result<TypedFrontier, CompileFailure> {
     // Like the product check's first preparation: no target has chosen a
     // dependency default yet, so none is a layout root.
-    let layout_scopes = super::source_checking::layout_target_scopes(&typed, build, &[])?;
+    let layout_scopes = super::source_checking::layout_target_scopes(&typed, build, &[], &[])?;
     let entries = build.program_roots();
     let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     // The root of a stated graph is the subject. A source given no graph is
@@ -189,7 +189,6 @@ fn frozen_frontier(
             external_roots: &[],
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
-            completion: typed_trees::boundary_completions::SourceCompletionAdmission::None,
             representations: source_compiler::ProductRepresentationInput::default(),
             asm_authority: Some(
                 language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(

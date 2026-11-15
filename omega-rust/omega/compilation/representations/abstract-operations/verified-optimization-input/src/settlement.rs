@@ -29,6 +29,8 @@ pub mod boundary_application_settlement {
                 self.selected_provider_plans,
                 &self.selected_provider_provenance,
                 &self.calling_applications,
+                &provider_admission::RetainedNativeBindings::default(),
+                None,
                 scope,
             )
         }
@@ -41,6 +43,8 @@ pub mod boundary_application_settlement {
             '_,
         >],
         calling: &[calling_conventions::BoundaryCallingApplication],
+        native_bindings: &provider_admission::RetainedNativeBindings,
+        profile: Option<target::TargetProfile>,
         scope: &crate::NativeExecutionScope,
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
         let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
@@ -58,12 +62,92 @@ pub mod boundary_application_settlement {
                 row_executions: row.row_executions,
             })
             .collect::<Vec<_>>();
-        let realizations = provider_selection::select_boundary_applications(
+        let module = artifact.semantic_module();
+        let mut provider_demands = Vec::new();
+        let mut native_realizations = Vec::new();
+        for demand in demands.rows() {
+            let mut candidates = native_bindings.rows.iter().filter(|row| {
+                module
+                    .boundary_machine(row.boundary)
+                    .and_then(|boundary| boundary.declaration.as_ref())
+                    .is_some_and(|declaration| {
+                        declaration.source.state.same_identity_as(
+                            &module.identities,
+                            demand.requirement().declaration(),
+                            &module.identities,
+                        )
+                    })
+            });
+            let first = candidates.next();
+            if candidates.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "native boundary application has competing receipts",
+                )]);
+            }
+            let Some(row) = first else {
+                provider_demands.push(demand.clone());
+                continue;
+            };
+            if !matches!(
+                demand.application(),
+                boundary_applications::BoundaryApplication::Empty
+            ) {
+                return Err(vec![Diagnostic::error(
+                    "native binding application needs its complete applied requirement",
+                )]);
+            }
+            let abi = module
+                .calling_abi_identity(row.boundary)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let mut applications = calling.iter().filter(|application| application.abi == abi);
+            let application = applications
+                .next()
+                .filter(|_| applications.next().is_none())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "native boundary application has no unique calling application",
+                    )]
+                })?;
+            let profile = profile.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "native boundary application has no target",
+                )]
+            })?;
+            let execution = provider_admission::validate_native_binding_execution(
+                row,
+                &native_bindings.identities,
+                module,
+                profile,
+                application,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            native_realizations.push(
+                boundary_applications::BoundaryApplicationRealizationCompanion::native_binding(
+                    demand.terminal_operation(),
+                    execution.receipt(),
+                    execution.contract(),
+                    execution.calling(),
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?,
+            );
+        }
+        let provider_demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
+            demands.terminal_psi(),
+            provider_demands,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let provider_realizations = provider_selection::select_boundary_applications(
             &provenance,
             selected,
-            artifact.semantic_module(),
-            &demands,
+            module,
+            &provider_demands,
         )?;
+        native_realizations.extend_from_slice(provider_realizations.rows());
+        let realizations = boundary_applications::TerminalBoundaryApplicationRealizations::new(
+            &demands,
+            native_realizations,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let opaque_applications = project_opaque_applications(calling, artifact.semantic_module())
             .map_err(|message| vec![Diagnostic::error(message)])?;
         boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
@@ -164,7 +248,9 @@ pub mod comparison_settlement {
                     continue;
                 };
                 let row = &realizations[row_index];
-                let identity = row.selected_plan_digest();
+                let identity = row.selected_plan_digest().ok_or_else(|| {
+                    fail("comparison requires a checked or intrinsic provider plan")
+                })?;
                 let position = plan_indices.partition_point(|(digest, _)| digest < identity);
                 let Some((digest, provider_plan_index)) = plan_indices.get(position) else {
                     return Err(fail("selected execution names an absent provider plan"));

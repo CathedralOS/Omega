@@ -938,9 +938,58 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
         Ok(_) => panic!("changed result origins must not supply a retained loan"),
     };
     assert_eq!(
-        refusal,
-        "returned reference header differs from its actual body origins"
+        refusal.detail(),
+        Some("returned reference header differs from its actual body origins")
     );
+    assert_eq!(refusal.machine(), caller.id);
+    assert_eq!(refusal.operation(&changed), Some(operation));
+
+    // A changed instruction cannot borrow the source site of the original.
+    let actual_operation = caller.operation(operation).unwrap().clone();
+    let mut different = actual_operation.clone();
+    different.kind = terminal_psi::OperationKind::EstablishStructuralLocal {};
+    let reason = refusal.detail().expect("the original header refusal");
+    let unattributed = terminal_semantics::descriptor_results::DescriptorGraphError::at_operation(
+        &changed, caller.id, &different, reason,
+    );
+    assert_eq!(unattributed.detail(), Some(reason));
+    assert_eq!(unattributed.machine(), caller.id);
+    assert_eq!(unattributed.operation(&changed), None);
+
+    // The ID is ambiguous even with exactly one fully matching instruction.
+    let mut duplicated = changed.clone();
+    let body = duplicated
+        .machines
+        .iter_mut()
+        .find(|body| body.id == caller.id)
+        .unwrap();
+    let block = body
+        .blocks
+        .iter_mut()
+        .find(|block| block.operations.iter().any(|row| row.id == operation))
+        .unwrap();
+    block.operations.push(different);
+    let body = duplicated.machine(caller.id).unwrap();
+    assert_eq!(
+        body.operations().filter(|row| row.id == operation).count(),
+        2
+    );
+    assert_eq!(
+        body.operations()
+            .filter(|row| *row == &actual_operation)
+            .count(),
+        1
+    );
+    let unattributed = terminal_semantics::descriptor_results::DescriptorGraphError::at_operation(
+        &duplicated,
+        caller.id,
+        &actual_operation,
+        reason,
+    );
+    assert_eq!(unattributed.detail(), Some(reason));
+    assert_eq!(unattributed.machine(), caller.id);
+    assert_eq!(unattributed.operation(&duplicated), None);
+
     let positive = crate::judge(Ok(positive)).unwrap();
     let RouteVerdict::Accepted(accepted) = positive else {
         panic!("{positive:?}");

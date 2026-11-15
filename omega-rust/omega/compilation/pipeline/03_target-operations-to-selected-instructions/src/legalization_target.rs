@@ -1622,10 +1622,15 @@ pub(crate) mod control_flow {
                             } => {
                                 *call_plan == expected_plan
                                     && plan.function(*callee).is_some_and(|candidate| {
-                                        // Checked provider conformance owns
-                                        // the declared result contract. This
-                                        // terminal call produces no ABI value.
-                                        candidate
+                                        candidate.result.structural().is_some_and(|result| {
+                                            declaration.result.accepts_provider_result(
+                                                &terminal_psi::TerminalMachineResult::Structural(result.clone()),
+                                                declaration.identity,
+                                                declaration.declaration.as_ref().map(|callable| callable.source.semantic_declaration),
+                                                &unit.structural_domains,
+                                            )
+                                        })
+                                            && candidate
                                                 .parameters
                                                 .iter()
                                                 .map(|row| row.scalar_type)
@@ -1652,8 +1657,11 @@ pub(crate) mod control_flow {
                         }
                         && declaration.completion
                             == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        // External completion has no physical result, including
-                        // when its checked declaration names an empty result.
+                        && terminal_semantics::inhabitation::external_result_is_erased(
+                            declaration.completion,
+                            declaration.result.structural(),
+                            plan.structural_types.as_slice(),
+                        ) == Ok(true)
                         && arguments.len() == expected_arguments.len()
                         && arguments.len() == expected_plan.parameters.len()
                         && structural_arguments.len() == declaration.structural_parameters.len()
@@ -3406,8 +3414,7 @@ pub(crate) mod normalized_foreign {
             || psi_operation != expected_operation
             || boundary != expected_boundary
             || binding.native_target() != Some(native.target)
-            || binding.provider_plan_report_identity()
-                != provider_execution.provider_plan_report_identity().get()
+            || !binding.matches_execution(*provider_execution)
             || !binding.has_valid_entry_mechanism()
             || validated.plan() != &binding.boundary_entry_plan
             || operands.len() != scalar_shapes.len() + structural.len() + private_ordinals.len()
@@ -4064,12 +4071,31 @@ pub(crate) mod unit {
                     let declaration = plan
                         .structural_type(result.structural_type)
                         .ok_or(LegalizationError::custody())?;
-                    let terminal_psi::StructuralTypeShape::FixedArray {
-                        element,
-                        length: terminal_psi::ArrayExtent::Literal(length),
-                    } = declaration.shape
-                    else {
-                        return Err(LegalizationError::custody());
+                    let (element, length) = match declaration.shape {
+                        terminal_psi::StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } => (element, length),
+                        // An owned sequence is backed by its constant roster in the
+                        // read-only literal pool; target lowering admits no other form.
+                        terminal_psi::StructuralTypeShape::ElementView {
+                            element,
+                            access: None,
+                        } => {
+                            let roster = target_operations::constant_element_roster(
+                                optimized.blocks.iter().flat_map(|block| {
+                                    block.nodes.iter().map(|node| &node.operation)
+                                }),
+                                abstracted,
+                                unit.geometry(),
+                            )
+                            .ok_or(LegalizationError::custody())?;
+                            if roster.element != element {
+                                return Err(LegalizationError::custody());
+                            }
+                            (element, roster.count)
+                        }
+                        _ => return Err(LegalizationError::custody()),
                     };
                     if psi_operation != expected_operation
                         || elements != expected_elements
@@ -4282,18 +4308,23 @@ pub(crate) mod unit {
                             })
                             .ok_or(LegalizationError::custody())?
                             .as_checking();
-                            Ok::<_, LegalizationError>((element.index, scalar_type, element.stride))
+                            Ok::<_, LegalizationError>((element, scalar_type))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    // Selection reads the result, selector operands, extents and
+                    // proof keys from this row alone, so each must rejoin here.
                     if psi_operation != expected_operation
                         || source != expected_source
                         || path != expected_path
                         || *byte_offset != expected_offset
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || indices.len() != expected_indices.len()
                         || indices.iter().zip(&expected_indices).any(
-                            |(index, (value, scalar_type, stride))| {
-                                index.stride != *stride
-                                    || index.operand.source_value() != *value
+                            |(index, (element, scalar_type))| {
+                                index.stride != element.stride
+                                    || index.extent != element.extent
+                                    || index.obligation != element.obligation
+                                    || index.operand.source_value() != element.index
                                     || index.operand.scalar_type() != *scalar_type
                             },
                         )
@@ -4557,6 +4588,7 @@ pub(crate) mod unit {
                         || *path != abstract_operations::StructuralCopyPath::Ordinary(extent.path)
                         || *byte_offset != extent.byte_offset
                         || !super::runtime_indices_rejoin(indices, &extent.elements, sources)
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || *result_home
                             != scalar_graph_input::aggregate_results::result_home(
                                 optimized,
@@ -4575,6 +4607,7 @@ pub(crate) mod unit {
                         path,
                         field,
                         value: retained_value,
+                        value_type,
                         byte_offset,
                         indices,
                     },
@@ -4608,8 +4641,11 @@ pub(crate) mod unit {
                     {
                         return Err(LegalizationError::custody());
                     }
+                    // Selection derives the store's shape from the retained
+                    // value type, so it must name the written field's type.
                     if owned_projected_field_source(optimized, value, plan.geometry())?
                         != extent.field_type
+                        || *value_type != extent.field_type
                     {
                         return Err(LegalizationError::custody());
                     }

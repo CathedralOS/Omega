@@ -8241,31 +8241,25 @@ pub(crate) mod function_structure {
                         O::ReleaseReference { source, path, .. } => {
                             let valid = structural_source_contract(function, *source).is_some_and(
                                 |signature| {
-                                    (path.is_empty()
-                                || (signature.access == StructuralAccess::Owned
-                                    && signature.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Affine
-                                    && signature.is_unqualified()
-                                    && !signature.has_result_evidence()))
-                                && path.iter().all(|segment| {
-                                    matches!(
-                                        segment,
-                                        StructuralPathSegment::Field(_)
-                                            | StructuralPathSegment::FixedIndex(_)
-                                    )
-                                })
-                                && crate::unit_validation::references::leaf_type(
-                                    structural_types,
-                                    signature.structural_type,
-                                    path,
-                                )
-                                .and_then(|selected| structural_types.get(&selected))
-                                .is_some_and(|declaration| {
-                                    matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::Reference { .. }
-                                    )
-                                })
+                                    signature.access == StructuralAccess::Owned
+                                        && (path.is_empty()
+                                            || (signature.multiplicity
+                                                == terminal_psi::StructuralMultiplicity::Affine
+                                                && signature.is_unqualified()
+                                                && !signature.has_result_evidence()))
+                                        && path.iter().all(|segment| {
+                                            matches!(
+                                                segment,
+                                                StructuralPathSegment::Field(_)
+                                                    | StructuralPathSegment::FixedIndex(_)
+                                            )
+                                        })
+                                        && terminal_semantics::inline_descriptor_type(
+                                            structural_types.values().copied(),
+                                            signature.structural_type,
+                                            path,
+                                        )
+                                        .is_some()
                                 },
                             );
                             if !valid {
@@ -12633,7 +12627,11 @@ pub(crate) mod operation_contracts {
                     ..
                 } => boundary_machines.get(boundary).is_some_and(|boundary| {
                     boundary.completion == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        && boundary.result.is_unit()
+                        && terminal_semantics::inhabitation::external_result_is_erased(
+                            boundary.completion,
+                            boundary.result.structural(),
+                            unit.structural_types.as_slice(),
+                        ) == Ok(true)
                         && arguments.len() == boundary.scalar_parameters.len()
                         && arguments
                             .iter()

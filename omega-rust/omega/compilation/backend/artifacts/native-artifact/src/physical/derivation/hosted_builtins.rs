@@ -347,7 +347,7 @@ pub(crate) fn derive_hosted_builtin_child(
         BoundaryTraitSettlementParts {
             occurrence: *occurrence,
             requirement_identity: requirement_identity.to_owned(),
-            selected_plan_digest,
+            selected_supply: selected_plan_digest.into(),
             target,
             role,
             identity: parent_identity,

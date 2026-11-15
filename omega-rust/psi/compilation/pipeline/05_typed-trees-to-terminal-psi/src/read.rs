@@ -81,6 +81,7 @@ pub(crate) struct LocalSummaryBodies {
 
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
+    pub purpose: source::DependencyScope,
     pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
     named_captures: crate::NamedCaptures,
@@ -151,7 +152,7 @@ pub(crate) struct Program<'t> {
     /// The original request's fixed membership for outcome inference inside
     /// independent witnesses. It neither roots declarations nor supplies the
     /// complete caller roster needed by private input/result inference.
-    pub outcome_subjects: Option<(Vec<Option<PackageKeyIdentity>>, source::DependencyScope)>,
+    pub outcome_subjects: Option<Vec<Option<PackageKeyIdentity>>>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
     /// What each type parameter in scope stands for while one machine's
@@ -319,16 +320,23 @@ impl<'t> Program<'t> {
 
     #[cfg(test)]
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
-        Self::with_captures(typed, rigid, crate::named_captures(typed))
+        Self::with_captures(
+            typed,
+            rigid,
+            source::DependencyScope::Product,
+            crate::named_captures(typed),
+        )
     }
 
     pub fn with_captures(
         typed: &'t TypedTrees,
         rigid: bool,
+        purpose: source::DependencyScope,
         captures: crate::NamedCaptures,
     ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
+            purpose,
             declaration_metadata: Vec::new(),
             typed,
             named_captures: captures,
@@ -674,15 +682,26 @@ mod tests {
                 )
             }),
         );
+        let subjects = domains
+            .handles()
+            .map(|domain| {
+                builder
+                    .insert_children(
+                        domain,
+                        [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
+                    )
+                    .handle_at(0)
+            })
+            .collect::<Vec<_>>();
         let mut typed = TypedTrees {
             symbols: builder.finish(),
             ..Default::default()
         };
-        for ((symbol, name), predicate) in
-            domains
-                .handles()
-                .zip(["Never", "Always", "Bare"])
-                .zip([Some(false), Some(true), None])
+        for (((symbol, name), predicate), subject_symbol) in domains
+            .handles()
+            .zip(["Never", "Always", "Bare"])
+            .zip([Some(false), Some(true), None])
+            .zip(subjects)
         {
             let (predicate_presence, facts) = if let Some(value) = predicate {
                 let expression = typed
@@ -702,6 +721,7 @@ mod tests {
                 symbol,
                 name: name.into(),
                 semantic_id,
+                subject_symbol,
                 predicate_presence,
                 facts,
                 ..Default::default()

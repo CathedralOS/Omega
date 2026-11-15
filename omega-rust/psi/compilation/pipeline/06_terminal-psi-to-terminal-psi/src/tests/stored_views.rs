@@ -159,8 +159,7 @@ machine build_entry(session: &Session, other: &Session) {
 /// holds a view is still replaced whole as a record.
 #[test]
 fn a_stored_view_is_established_by_a_literal_and_by_zero() {
-    let accepted = accepted(
-        r#"
+    const SOURCE: &str = r#"
 data Inner<'held> { count: u32; name: &'held [u8]; }
 data Session<'storage> { ready: bool; inner: Inner<'storage>; }
 machine build_entry(session: &mut Session) {
@@ -170,8 +169,8 @@ machine build_entry(session: &mut Session) {
     session.inner.name = made.name;
     session.inner = zeroed.inner;
 }
-"#,
-    );
+"#;
+    let accepted = accepted(SOURCE);
     // `Inner.name` is the byte field; `Session.inner` stays a nested record.
     assert_eq!(stored_fields(&accepted), [true, false]);
     let operations = operations(&accepted);
@@ -193,6 +192,27 @@ machine build_entry(session: &mut Session) {
         1
     );
     accepted.publish_invocation().unwrap();
+
+    let executable = format!(
+        r#"{SOURCE}
+machine entry() crashes Trap {{
+    let mut session: Session;
+    build_entry(&mut session);
+    transition session.inner.name.len == 4 {{
+        true -> done()
+        _ -> bad()
+    }}
+    machine done() {{}}
+    machine bad() crashes Trap {{ crash Trap; }}
+}}
+"#
+    );
+    assert_eq!(
+        super::stored_references::run(&executable),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
 }
 
 /// Only the shared view is a storable descriptor: "Qualified mutable,

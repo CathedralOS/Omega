@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Offline stdin interpreter. At most 64 commands; each line is exactly an
 // uppercase opcode and one digit. Overlong lines are drained and rejected
 // atomically. EOF commits a final unterminated line. No equipment is accessed.
@@ -15,7 +16,7 @@ data Main {
     decision: i32;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("IND22 offline laboratory protocol; deadline=5; capacity=64");
     transition { _ -> block read(main) }
     machine read(main: &mut Main) {
@@ -87,16 +88,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine exhausted(main: &mut Main) {
         Console::write_line("BUDGET_EXHAUSTED");
-        Console::exit_process(65);
+        ProcessExit::exit_process(65);
     }
     machine done(main: &mut Main) {
         Console::write_line("END");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

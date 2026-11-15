@@ -13,7 +13,8 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use products::CheckedProductSource;
 use provider_planning::target_supply::{
-    JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, TargetSupplyRequest,
+    JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, SupplySelection,
+    TargetSupplyRequest,
 };
 
 pub(crate) struct PreparedProductTarget {
@@ -56,6 +57,7 @@ pub struct ProductSupplySource<'a> {
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
+    pub native_bindings: &'a [provider_planning::native_bindings::NativeBuildSupply],
     pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
     /// Defaults whose layouts the source lays out only for a target that
     /// chooses them: the provider selections of the Build's dependencies.
@@ -146,6 +148,7 @@ impl ModuleDemand {
         &self,
         accepted: &source_compiler::AcceptedTerminalSource,
         build: &[build_time_evaluation::provider_declarations::ProviderSelection],
+        native_bindings: &[provider_planning::native_bindings::NativeBuildSupply],
         defaults: &[build_time_evaluation::provider_declarations::TargetProviderDefaults],
         target: Option<&str>,
     ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
@@ -155,6 +158,7 @@ impl ModuleDemand {
             roots: &self.roots,
             judged: &self.judged,
             build,
+            native_bindings,
             defaults,
             target,
         })
@@ -171,7 +175,9 @@ impl ModuleDemand {
 /// (`provider_planning::target_supply`); each chosen provider joins the
 /// roster of the same compilation, where the lowered-form checker judges its
 /// machines as roots and proves that each refines the requirement it
-/// supplies. A provider may itself reach a boundary requirement, so the
+/// supplies. The shared declaration publisher retains the ABI of each read
+/// boundary, including native leaves, without adding a provider body.
+/// A provider may itself reach a boundary requirement, so the
 /// roster is judged again until no target chooses anything new; it only
 /// grows, and it is bounded by the selections the Build and the target
 /// packages declare. A program that reaches no requirement is not judged a
@@ -204,6 +210,7 @@ pub fn judge_supplied_product(
             let Ok(supply) = demand.prepare(
                 accepted,
                 source.build,
+                source.native_bindings,
                 source.defaults,
                 Some(profile.target_name()),
             ) else {
@@ -214,16 +221,20 @@ pub fn judge_supplied_product(
                 .iter()
                 .filter_map(|requirement| requirement.chosen())
             {
-                if source.layout_deferred.contains(&supply.selection) {
+                // Native bindings add no checked body or deferred layout.
+                let SupplySelection::Checked(selection) = &supply.selection else {
+                    continue;
+                };
+                if source.layout_deferred.contains(selection) {
                     let layout = ChosenDefaultLayout {
                         target: profile,
-                        selection: supply.selection.clone(),
+                        selection: selection.clone(),
                     };
                     if !source.layout_prepared.contains(&layout) && !unprepared.contains(&layout) {
                         unprepared.push(layout);
                     }
                 }
-                for chosen in selected_supplies(&supply.selection) {
+                for chosen in selected_supplies(selection) {
                     if !roster.supplies.contains(&chosen) {
                         roster.supplies.push(chosen);
                     }
@@ -254,6 +265,7 @@ pub struct TargetSupplySource<'a> {
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
+    pub native_bindings: &'a [provider_planning::native_bindings::NativeBuildSupply],
     pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
     /// The selected deployment, or no deployment for targetless checking.
     pub target: Option<&'a str>,
@@ -273,6 +285,7 @@ pub fn prepare_supplied_target(
     let supply = ModuleDemand::read(accepted, source.publication.roster()?)?.prepare(
         accepted,
         source.build,
+        source.native_bindings,
         source.defaults,
         source.target,
     )?;
@@ -282,11 +295,12 @@ pub fn prepare_supplied_target(
         .filter(|requirement| requirement.realization.is_none())
         .filter_map(|requirement| {
             let chosen = requirement.chosen()?;
+            let selection = chosen.checked()?;
             Some(Diagnostic::error(format!(
                 "no product route yet: target preparation for `{}`: `{}` is supplied by `{}`, which the accepted module does not hold as a judged provider",
                 source.target.unwrap_or("<unscoped>"),
                 requirement.reached.name,
-                chosen.selection.provider_type.authored_path,
+                selection.provider_type.authored_path,
             )))
         })
         .collect::<Vec<_>>();
@@ -309,6 +323,7 @@ impl PreparedProductTarget {
         let supply = prepare_supplied_target(TargetSupplySource {
             publication: &source.terminal_publication,
             build: &source.computed_build_config.config.provider_selections,
+            native_bindings: &source.computed_build_config.config.native_bindings,
             defaults: &source.provider_defaults,
             target: profile.map(|profile| profile.target_name()),
         })

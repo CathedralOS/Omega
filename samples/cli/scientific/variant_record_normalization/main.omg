@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Complete streamed synthetic variant-normalization application.
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
@@ -19,7 +20,7 @@ data Application {
     rejected: u64 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut application: Application;
     Console::write_line("VARIANT_NORMALIZATION|1");
     transition { _ -> read(&mut application) }
@@ -86,10 +87,10 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> exit(2)
         }
     }
-    machine exit(code: i32) { Console::exit_process(code); }
+    machine exit(code: i32) { ProcessExit::exit_process(code); }
 }
 
-machine consume(application: &mut Application, input: &Input) -> u64 in Wrapping reaches Console {
+machine consume(application: &mut Application, input: &Input) -> u64 in Wrapping reaches ProcessExit + Console {
     transition input.valid {
         true -> select(application, input)
         _ -> 1
@@ -186,7 +187,7 @@ machine consume(application: &mut Application, input: &Input) -> u64 in Wrapping
     }
 }
 
-machine render_ledger(ledger: &Ledger) reaches Console {
+machine render_ledger(ledger: &Ledger) reaches ProcessExit + Console {
     transition { _ -> row(ledger, 0) }
     machine row(ledger: &Ledger, index: u64 in Wrapping) {
         transition index < ledger.count && index < 32 {
@@ -221,7 +222,7 @@ machine render_ledger(ledger: &Ledger) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

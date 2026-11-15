@@ -3216,11 +3216,31 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let owner = self.structural_value(source)?;
         let carrier = project_structural_value(&self.structural_types(), owner, path)?;
-        self.reference_contract(carrier.structural_type)?;
         let key = StructuralRuntimePlace::from(&carrier);
-        if operation.result != OperationResult::Unit || !self.reference_referents.contains_key(&key)
-        {
+        if operation.result != OperationResult::Unit {
             return Err(malformed());
+        }
+        let declaration = self.structural_declaration(carrier.structural_type)?;
+        let argument = StructuralArgument {
+            place: source,
+            path: path.to_vec(),
+            access: StructuralAccess::Owned,
+        };
+        let view = declaration.shape.is_view_descriptor();
+        if declaration.shape.is_borrowed_byte_carrier() {
+            if self
+                .retained_byte_descriptor_binding(&argument, &carrier)?
+                .is_none()
+            {
+                return Err(malformed());
+            }
+        } else if view {
+            self.element_view_argument(&argument, &carrier)?;
+        } else {
+            self.reference_contract(carrier.structural_type)?;
+            if !self.reference_referents.contains_key(&key) {
+                return Err(malformed());
+            }
         }
         if let Some(ram) = self
             .reference_referents
@@ -3237,17 +3257,22 @@ impl TerminalExecution<'_> {
             &self.structural_values,
             self.structural_cases.as_map(),
             &mut frontier,
-            &StructuralArgument {
-                place: source,
-                path: path.to_vec(),
-                access: StructuralAccess::Owned,
-            },
+            &argument,
         )? && !Self::owns_unrestricted_carrier(
             self.program.machine(self.current_machine)?,
             source,
             owner.structural_type,
         ) {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+        // Dispose the exact descriptor home, while retaining the backing
+        // and any sibling descriptors in the enclosing value.
+        if view {
+            let retirement = self.prepare_subtree_retirement(&key)?;
+            self.prune_subtree(retirement)?;
+            if path.is_empty() {
+                self.retire_home_companions(source);
+            }
         }
         let origin = self.reference_referents.remove(&key);
         self.live_affine_frontier = frontier;

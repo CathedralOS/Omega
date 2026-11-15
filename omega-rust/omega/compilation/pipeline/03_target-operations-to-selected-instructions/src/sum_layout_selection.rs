@@ -1,4 +1,4 @@
-//! Selected instructions for sum rows the target plan already stores.
+//! Tests selection for sum rows the target plan already stores.
 //!
 //! Each scenario builds the target row directly and runs legalization and
 //! selection. The row carries the tag, offset, layout, pointer chase, and
@@ -733,6 +733,376 @@ fn retained_scalar_store_geometry_is_checked_against_its_source() {
         }
         assert!(audit(&forged).is_err(), "tampered scalar store {mutation}");
     }
+}
+
+#[test]
+fn retained_field_store_value_type_is_checked_against_its_source() {
+    // Selection derives a structural field store's shape from the retained
+    // value type alone, so the independent audit must refuse a row whose
+    // value type, offset or field differs from the source operation.
+    let mut names = TerminalIdentityTableBuilder::default();
+    let inner_field = names.intern("x");
+    let outer_field = names.intern("inner");
+    let mut inner = reference_type(2, names.intern("Inner"), ty(2));
+    inner.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![scalar_field(1, inner_field, u64_type())],
+    };
+    let mut outer = reference_type(1, names.intern("Outer"), ty(1));
+    let mut nested = scalar_field(2, outer_field, u64_type());
+    nested.field_type = StructuralFieldType::Structural(ty(2));
+    outer.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![nested],
+    };
+    let mut parameter = parameter(ty(1));
+    parameter.access = StructuralAccess::MutableBorrow;
+    let field = StructuralFieldId::new(2).unwrap();
+    let value = structural_result(place(3), ty(2));
+    let operation = AbstractOperation::StoreStructuralField {
+        disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralWindowRoot::Parameter(parameter.clone()),
+        path: Vec::new(),
+        field: Some(field),
+        value: terminal_psi::StructuralArgument {
+            place: value.place,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        },
+    };
+    let function = function_with_body(
+        vec![parameter.clone()],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::EstablishZeroedStructural {
+                    psi_operation: op(1),
+                    result: value.clone(),
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![outer, inner], function);
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let row = TargetUnitOperation::StoreStructuralField {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralWindowRoot::Parameter(parameter),
+        path: Vec::new(),
+        field: Some(field),
+        value: value.place,
+        value_type: ty(2),
+        byte_offset: 0,
+        indices: Vec::new(),
+    };
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("retained field store matches its source");
+    for mutation in 0..3 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::StoreStructuralField {
+            value_type,
+            byte_offset,
+            field,
+            ..
+        } = &mut forged
+        else {
+            panic!("store");
+        };
+        match mutation {
+            0 => *value_type = ty(1),
+            1 => *byte_offset = 4,
+            _ => *field = Some(StructuralFieldId::new(1).unwrap()),
+        }
+        assert!(audit(&forged).is_err(), "tampered field store {mutation}");
+    }
+}
+
+#[test]
+fn retained_leaf_copy_selectors_are_checked_against_their_source() {
+    // Selection takes a leaf copy's result and selector extent and proof key
+    // from the target row, so the audit must refuse each one changed.
+    let mut names = TerminalIdentityTableBuilder::default();
+    let element_field = names.intern("x");
+    let mut element = reference_type(2, names.intern("Element"), ty(2));
+    element.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![scalar_field(1, element_field, u64_type())],
+    };
+    let mut array = reference_type(1, names.intern("Elements"), ty(1));
+    array.shape = StructuralTypeShape::FixedArray {
+        element: ty(2),
+        length: terminal_psi::ArrayExtent::Literal(4),
+    };
+    let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
+    let path = vec![StructuralPathSegment::RuntimeIndex {
+        index: val(4),
+        obligation,
+    }];
+    let result = structural_result(place(3), ty(2));
+    let operation = AbstractOperation::StructuralLeafCopy {
+        psi_operation: op(2),
+        result: result.clone(),
+        source: place(1),
+        path: abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
+    };
+    let function = function_with_body(
+        vec![parameter(ty(1))],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: op(1),
+                    result: val(4),
+                    scalar_type: ScalarType::Integer(u64_type()),
+                    value: IntegerValue::Unsigned(1),
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![array, element], function);
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let index_source = TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(1),
+        source_value: val(4),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(1),
+    };
+    let layout =
+        crate::legalization_scalar_graph::aggregate_results::type_home_layout(ty(2), &plan_view)
+            .unwrap();
+    let row = TargetUnitOperation::StructuralLeafCopy {
+        psi_operation: op(2),
+        result_home: home(op(2), &result, layout.clone()),
+        source: place(1),
+        path: abstract_operations::StructuralCopyPath::Ordinary(path),
+        byte_offset: 0,
+        indices: vec![target_operations::TargetStructuralRuntimeIndex {
+            operand: index_source,
+            stride: 8,
+            extent: Some(4),
+            obligation,
+        }],
+    };
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        available.push((val(4), index_source));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("retained leaf copy matches its source");
+    for mutation in 0..4 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::StructuralLeafCopy {
+            result_home,
+            indices,
+            ..
+        } = &mut forged
+        else {
+            panic!("leaf copy");
+        };
+        match mutation {
+            0 => indices[0].extent = Some(5),
+            1 => indices[0].obligation = semantic_vocabulary::ObligationId::new(9).unwrap(),
+            2 => indices[0].stride = 16,
+            _ => *result_home = home(op(9), &result, layout.clone()),
+        }
+        assert!(audit(&forged).is_err(), "tampered leaf copy {mutation}");
+    }
+}
+
+#[test]
+fn retained_storage_copies_stores_and_tag_tests_project_without_bodies() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::{
+        project_structural_case_membership, project_structural_field_store,
+        project_structural_leaf_copy,
+    };
+    use legalized_operations::LegalizedScalarInstructionKind as Kind;
+    use target_operations::TargetStructuralRuntimeIndex;
+    // Selection must build these three rows from the target row, the shared
+    // type catalog and the admitted fact list alone; no earlier body is passed.
+    let mut names = TerminalIdentityTableBuilder::default();
+    let field_name = names.intern("value");
+    let mut cell = reference_type(1, names.intern("Cell"), ty(1));
+    cell.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![scalar_field(1, field_name, u64_type())],
+    };
+    let types = vec![cell];
+    let geometry = crate::native_geometry::NativeGeometry::new(&types).unwrap();
+    let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
+    let index = TargetStructuralRuntimeIndex {
+        operand: TargetUnitScalarArgumentSource::Parameter {
+            parameter_index: 0,
+            source_value: val(4),
+            scalar_type: target_operations::selector_carrier_type(),
+        },
+        stride: 8,
+        extent: Some(5),
+        obligation,
+    };
+    let fact = optimization_unit::AcceptedObligationFact::new(
+        psi(),
+        [6; 32],
+        machine(),
+        optimization_unit::PsiProvenance::Operation(op(2)),
+        obligation,
+        vec![7],
+    );
+    let facts = std::slice::from_ref(&fact);
+    let path = vec![StructuralPathSegment::RuntimeIndex {
+        index: val(4),
+        obligation,
+    }];
+
+    let membership = TargetUnitOperation::StructuralCaseMembership {
+        psi_operation: op(2),
+        result: boolean_result(),
+        source: place(1),
+        path: path.clone(),
+        tag_byte_offset: 8,
+        case: case_id(1),
+        case_tag: 0,
+        indices: vec![index.clone()],
+        pointer_slots: vec![TargetCasePointerSlot {
+            byte_offset: 0,
+            index_start: 0,
+            index_end: 1,
+            scalar_descriptor: false,
+        }],
+    };
+    let Kind::StructuralCaseMembership {
+        indices,
+        tag_byte_offset,
+        ..
+    } = project_structural_case_membership(machine(), facts, &membership).unwrap()
+    else {
+        panic!("membership");
+    };
+    assert_eq!(tag_byte_offset, 8);
+    assert_eq!(
+        (indices[0].extent, indices[0].accepted_fact),
+        (Some(5), fact.identity)
+    );
+    assert!(project_structural_case_membership(machine(), &[], &membership).is_err());
+    let mut overlong = membership.clone();
+    let TargetUnitOperation::StructuralCaseMembership { pointer_slots, .. } = &mut overlong else {
+        panic!("membership");
+    };
+    pointer_slots[0].index_end = 2;
+    assert!(project_structural_case_membership(machine(), facts, &overlong).is_err());
+
+    let result = structural_result(place(2), ty(1));
+    let layout = TargetStructuralHomeLayout::Aggregate(geometry.shape(ty(1)).unwrap());
+    let copy = TargetUnitOperation::StructuralLeafCopy {
+        psi_operation: op(2),
+        result_home: home(op(2), &result, layout.clone()),
+        source: place(1),
+        path: abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
+        byte_offset: 0,
+        indices: vec![index.clone()],
+    };
+    let Kind::StructuralLeafCopy {
+        result: copied,
+        shape,
+        indices,
+        ..
+    } = project_structural_leaf_copy(machine(), facts, &copy).unwrap()
+    else {
+        panic!("leaf copy");
+    };
+    assert_eq!(copied, result);
+    assert_eq!(shape, layout.shape());
+    assert_eq!(indices[0].accepted_fact, fact.identity);
+    assert!(project_structural_leaf_copy(machine(), &[], &copy).is_err());
+    let mut foreign = copy.clone();
+    let TargetUnitOperation::StructuralLeafCopy { result_home, .. } = &mut foreign else {
+        panic!("leaf copy");
+    };
+    *result_home = home(op(9), &result, layout);
+    assert!(project_structural_leaf_copy(machine(), facts, &foreign).is_err());
+
+    let store = TargetUnitOperation::StoreStructuralField {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralWindowRoot::Parameter(parameter(ty(1))),
+        path,
+        field: None,
+        value: place(3),
+        value_type: ty(1),
+        byte_offset: 0,
+        indices: vec![index],
+    };
+    let Kind::StoreStructuralField { shape, indices, .. } =
+        project_structural_field_store(machine(), facts, &geometry, &store).unwrap()
+    else {
+        panic!("store");
+    };
+    assert_eq!(shape, geometry.shape(ty(1)).unwrap());
+    assert_eq!(indices[0].extent, Some(5));
+    assert!(project_structural_field_store(machine(), &[], &geometry, &store).is_err());
+    let mut unknown = store;
+    let TargetUnitOperation::StoreStructuralField { value_type, .. } = &mut unknown else {
+        panic!("store");
+    };
+    *value_type = ty(9);
+    assert!(project_structural_field_store(machine(), facts, &geometry, &unknown).is_err());
 }
 
 #[test]

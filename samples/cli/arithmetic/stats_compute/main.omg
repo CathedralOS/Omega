@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Statistics compute kernel. Exercises f64 arithmetic end-to-end: mean,
 // variance, and a weighted sum over a small fixed dataset.
 //
@@ -69,7 +70,7 @@ machine Main::add_weighted(main: &mut Main, x: f64, w: f64) {
     main.s.weighted_sum = main.s.weighted_sum + x * w;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
     Main::add(main, 2.0);
@@ -119,7 +120,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: mean fell below 4.9, expected 5.0 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine check_mean_upper(main: &mut Main) {
@@ -133,7 +134,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: mean rose above 5.1, expected 5.0 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     // Verify variance: should be 4.0.
@@ -148,7 +149,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: variance fell below 3.9, expected 4.0 (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine check_var_high(main: &mut Main) {
@@ -162,7 +163,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: variance rose above 4.1, expected 4.0 (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 
     // Verify weighted sum: should be 82.5.
@@ -177,7 +178,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: weighted sum fell below 82.0, expected 82.5 (exit 75)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(75);
+        ProcessExit::exit_process(75);
     }
 
     machine check_weighted_high(main: &mut Main) {
@@ -191,19 +192,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: weighted sum rose above 83.0, expected 82.5 (exit 76)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(76);
+        ProcessExit::exit_process(76);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: mean=5.0, variance=4.0, weighted sum=82.5 all in tolerance (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

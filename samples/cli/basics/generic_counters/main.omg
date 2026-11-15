@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Two invocation-local instances of Counter<T>: Counter<i32> records a score
 // and Counter<bool> latches a flag. Static machines take explicit borrowed
 // counters; each instance retains its own value and write count. Only the
@@ -23,7 +24,7 @@ machine current_counter<T [copy]>(counter: &Counter<T>) -> T {
 machine counter_count<T>(counter: &Counter<T>) -> i32 in Wrapping {
     transition { _ -> (counter.times) }
 }
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut score: Counter<i32>;
     let mut flag: Counter<bool>;
     record_counter(&mut score, 30);
@@ -37,9 +38,9 @@ machine entry_start() reaches Console {
         true -> tally(total, times_score, times_flag)
         false -> wrong()
     }
-    machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches Console {
+    machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches ProcessExit + Console {
         let code: i32 in Wrapping = (total as i32 in Wrapping) + times_score + 1 + times_flag;
-        Console::exit_process(code as i32);
+        ProcessExit::exit_process(code as i32);
     }
-    machine wrong() reaches Console { Console::exit_process(3); }
+    machine wrong() reaches ProcessExit + Console { ProcessExit::exit_process(3); }
 }

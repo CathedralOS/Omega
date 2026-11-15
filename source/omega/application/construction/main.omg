@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega_compiler::Compilation;
@@ -21,12 +22,12 @@ data ConstructionInput {
     bytes: [u8; 4194304];
 }
 
-machine malformed() reaches Console crashes Trap {
-    Console::exit_process(253);
+machine malformed() reaches ProcessExit + Console crashes Trap {
+    ProcessExit::exit_process(253);
     crash Trap;
 }
 
-machine read_byte() -> u8 reaches Console crashes Trap blocks {
+machine read_byte() -> u8 reaches ProcessExit + Console crashes Trap blocks {
     let input: ByteRead = block Console::read_byte();
     transition input {
         ByteRead::Byte { value } -> byte(value)
@@ -36,12 +37,12 @@ machine read_byte() -> u8 reaches Console crashes Trap blocks {
     requires value >= 0 && value <= 255
     { value as u8 }
     machine truncated() -> u8 {
-        Console::exit_process(253);
+        ProcessExit::exit_process(253);
         crash Trap;
     }
 }
 
-machine read_word() -> u32 reaches Console crashes Trap blocks {
+machine read_word() -> u32 reaches ProcessExit + Console crashes Trap blocks {
     let b0: u32 = (block read_byte()) as u32;
     let b1: u32 = (block read_byte()) as u32;
     let b2: u32 = (block read_byte()) as u32;
@@ -50,7 +51,7 @@ machine read_word() -> u32 reaches Console crashes Trap blocks {
 }
 
 machine read_input(input: &mut ConstructionInput)
-reaches Console crashes Trap blocks
+reaches ProcessExit + Console crashes Trap blocks
 {
     input.package_count = block read_word();
     input.edge_count = block read_word();
@@ -108,7 +109,7 @@ reaches Console crashes Trap blocks
 // Metadata access never substitutes zero for an invalid coordinate. A bad
 // row, span, package index or role terminates before any tape is published.
 machine row_word(input: &ConstructionInput, index: u64) -> u32
-reaches Console crashes Trap
+reaches ProcessExit + Console crashes Trap
 {
     transition index < 2752 {
         true -> word(input, index)
@@ -118,13 +119,13 @@ reaches Console crashes Trap
     requires index < 2752
     { input.rows[index] }
     machine invalid() -> u32 {
-        Console::exit_process(253);
+        ProcessExit::exit_process(253);
         crash Trap;
     }
 }
 
 machine copy_name(input: &ConstructionInput, name: &mut ModulePath, start: u32, end: u32)
-reaches Console crashes Trap
+reaches ProcessExit + Console crashes Trap
 {
     psi::module_path_clear(name);
     transition start <= end && end <= input.buffer_length && end - start <= 256 {
@@ -150,7 +151,7 @@ reaches Console crashes Trap
 }
 
 machine add_packages(input: &ConstructionInput, compilation: &mut Compilation)
-reaches Console crashes Trap
+reaches ProcessExit + Console crashes Trap
 {
     transition { _ -> next(input, compilation, 0) }
     machine next(input: &ConstructionInput, compilation: &mut Compilation, index: u64) {
@@ -181,12 +182,12 @@ reaches Console crashes Trap
             _ -> full()
         }
     }
-    machine full() { Console::exit_process(252); crash Trap; }
+    machine full() { ProcessExit::exit_process(252); crash Trap; }
     machine done() {}
 }
 
 machine add_edges(input: &ConstructionInput, compilation: &mut Compilation)
-reaches Console crashes Trap
+reaches ProcessExit + Console crashes Trap
 {
     transition { _ -> next(input, compilation, 0) }
     machine next(input: &ConstructionInput, compilation: &mut Compilation, index: u64) {
@@ -220,12 +221,12 @@ reaches Console crashes Trap
             _ -> full()
         }
     }
-    machine full() { Console::exit_process(252); crash Trap; }
+    machine full() { ProcessExit::exit_process(252); crash Trap; }
     machine done() {}
 }
 
 machine add_units(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer)
-reaches Console crashes Trap
+reaches ProcessExit + Console crashes Trap
 {
     transition { _ -> next(input, compilation, lexer, 0) }
     machine next(input: &ConstructionInput, compilation: &mut Compilation, lexer: &mut Lexer, index: u64) {
@@ -289,11 +290,11 @@ reaches Console crashes Trap
         omega_compiler::compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, &module_path);
         transition { _ -> next(input, compilation, lexer, index + 1) }
     }
-    machine full() { Console::exit_process(252); crash Trap; }
+    machine full() { ProcessExit::exit_process(252); crash Trap; }
     machine done() {}
 }
 
-machine publish(compilation: &Compilation) reaches Console crashes Trap {
+machine publish(compilation: &Compilation) reaches ProcessExit + Console crashes Trap {
     let status: i32 = omega_compiler::compilation_exit_status(compilation);
     transition status == 0 {
         true -> bounded(compilation)
@@ -317,11 +318,11 @@ machine publish(compilation: &Compilation) reaches Console crashes Trap {
         Console::write_byte(compilation.output.bytes[index] as i32);
         transition { _ -> next(compilation, index + 1) }
     }
-    machine complete() { Console::exit_process(0); }
-    machine refused(status: i32) { Console::exit_process(status); }
+    machine complete() { ProcessExit::exit_process(0); }
+    machine refused(status: i32) { ProcessExit::exit_process(status); }
 }
 
-machine entry_start() reaches Console crashes Trap blocks {
+machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
     let mut input: ConstructionInput;
     block read_input(&mut input);
     let mut compilation: Compilation;

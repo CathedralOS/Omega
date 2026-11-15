@@ -1,15 +1,16 @@
+use omega::language::core::ProcessExit;
 // Complete intended-invalid application. Rail history has two slots;
 // selecting slot two violates the documented exclusive upper bound.
 use omega_language_std::Console;
 data Main { history: [f64; 2]; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     main.history[2] = 1.0;
     Console::write_line("unreachable invalid rail history write");
-    Console::exit_process(0);
+    ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

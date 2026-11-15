@@ -30,8 +30,8 @@ use calling_conventions::{
 use function_identity::MachineFunctionIdentity;
 use legalized_operations::{
     LegalizedNormalizedForeignCall, LegalizedScalarArgument, LegalizedScalarCall,
-    encode_call_binding, encode_call_plan, encode_integer, encode_native_callback_argument,
-    encode_placement, encode_provider_execution, encode_shape,
+    encode_call_binding, encode_call_plan, encode_external_execution, encode_integer,
+    encode_native_callback_argument, encode_placement, encode_shape,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, MachineId, ObligationId, OperationId, PlaceId,
@@ -64,8 +64,8 @@ use super::fixed_view_copy_codec::{
     decode_option_u64, decode_scalar, encode_ids, encode_option_u64, encode_scalar, length,
 };
 use super::structural_contracts::{
-    decode_call_source, decode_effect, decode_invocation_site, decode_ownership,
-    decode_provider_execution, encode_call_source, encode_effect,
+    decode_call_source, decode_effect, decode_external_execution, decode_invocation_site,
+    decode_ownership, encode_call_source, encode_effect,
 };
 use super::structural_declarations::{
     decode_access, decode_multiplicity, decode_path, decode_projected, decode_qualification_path,
@@ -669,7 +669,7 @@ pub(super) fn encode_normalized_foreign_call(
     row.invocation_site.encode_identity(bytes);
     let call = &row.call;
     crate::codec_bytes::push_encoded(bytes, call.boundary.get().to_le_bytes());
-    encode_provider_execution(bytes, call.provider_execution);
+    encode_external_execution(bytes, call.provider_execution);
     encode_call_binding(bytes, &call.binding);
     length(bytes, call.scalar_arguments.len());
     for argument in &call.scalar_arguments {
@@ -748,7 +748,7 @@ pub(super) fn decode_normalized_foreign_call(
     let instruction = SelectedInstructionId(cursor.u32()?);
     let invocation_site = decode_invocation_site(cursor)?;
     let boundary = decode_id(cursor, BoundaryMachineId::new)?;
-    let provider_execution = decode_provider_execution(cursor)?;
+    let provider_execution = decode_external_execution(cursor)?;
     let binding = decode_call_binding(cursor)?;
     let scalar_arguments = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(TargetUnitScalarCallArgument {
@@ -881,14 +881,26 @@ fn decode_machine_function_identity(
 fn decode_call_binding(
     cursor: &mut Cursor<'_>,
 ) -> Result<NormalizedForeignCallBinding, FixedViewCopyDecodeError> {
-    let target_name = decode_string(cursor)?;
+    let mut target_name = decode_string(cursor)?;
+    let hosted = target_name == "@hosted";
+    if hosted {
+        target_name = decode_string(cursor)?;
+    }
     if target_name.is_empty() {
         let target_name = decode_string(cursor)?;
         let target = TargetProfile::from_canonical_target_name(&target_name)
             .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         let number = cursor.i64()?;
-        let provider_plan_report_identity = cursor.u64()?;
-        let provider_plan_commitment = cursor.array::<32>()?;
+        let execution = match cursor.byte()? {
+            0 => target_operations::NormalizedForeignExecution::ProviderPlan {
+                report: cursor.u64()?,
+                commitment: cursor.array::<32>()?,
+            },
+            1 => {
+                target_operations::NormalizedForeignExecution::NativeBinding(cursor.array::<32>()?)
+            }
+            _ => return Err(FixedViewCopyDecodeError::InvalidSystemCallBinding),
+        };
         let requirement_identity = decode_string(cursor)?;
         let call = decode_call_plan(cursor)?;
         let state = decode_state_plan(cursor)?;
@@ -906,8 +918,7 @@ fn decode_call_binding(
                 target_operations::NormalizedSystemCallBinding {
                     target,
                     number,
-                    provider_plan_report_identity,
-                    provider_plan_commitment,
+                    execution,
                     requirement_identity,
                 },
             ),
@@ -946,29 +957,56 @@ fn decode_call_binding(
     } else {
         (Some(decode_locator_for_target(cursor, &target_name)?), None)
     };
+    let hosted_receipt = if hosted {
+        Some((cursor.array::<32>()?, decode_string(cursor)?))
+    } else {
+        None
+    };
     let call = decode_call_plan(cursor)?;
     let state = decode_state_plan(cursor)?;
+    if let Some((receipt, requirement_identity)) = hosted_receipt {
+        let locator = locator.ok_or(FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
+        let binding = NormalizedForeignCallBinding {
+            boundary_entry_plan: BoundaryEntryPlan { call, state },
+            mechanism: target_operations::NormalizedForeignCallMechanism::HostedImport {
+                locator,
+                receipt,
+                requirement_identity,
+            },
+        };
+        let signature = calling_conventions::CallSignature::of_placements(
+            &binding.boundary_entry_plan.call.parameters,
+            binding.boundary_entry_plan.call.result.as_ref(),
+        );
+        if !binding.has_valid_entry_mechanism()
+            || validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &signature)
+                .is_err()
+        {
+            return Err(FixedViewCopyDecodeError::InvalidSameStackContribution);
+        }
+        return Ok(binding);
+    }
     let report_identity = cursor.u64()?;
     let commitment = cursor.array::<32>()?;
-    let provider_plan_report_identity = cursor.u64()?;
-    let provider_plan_commitment =
-        SameStackProviderPlanCommitment::from_digest(cursor.array::<32>()?);
+    let provider_report = cursor.u64()?;
+    let provider_commitment = SameStackProviderPlanCommitment::from_digest(cursor.array::<32>()?);
     let requirement_identity = TerminalIdentityIndex(cursor.u32()?);
     let receipt = SameStackContributionAdmissionReceiptId::from_normalized_identity(cursor.u64()?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?;
-    let candidate = SameStackContributionAdmissionCandidate {
-        provider_plan_report_identity,
-        provider_plan_commitment,
-        requirement_identity,
-        receipt,
-        bytes: cursor.u64()?,
-        alignment: cursor.u64()?,
-    };
+    let bytes = cursor.u64()?;
+    let alignment = cursor.u64()?;
     let contribution = admit_same_stack_contribution(
-        candidate.clone(),
-        provider_plan_report_identity,
-        provider_plan_commitment,
-        candidate.requirement_identity,
+        SameStackContributionAdmissionCandidate {
+            provider_plan_report_identity: provider_report,
+            provider_plan_commitment: provider_commitment,
+            requirement_identity,
+            receipt,
+            bytes,
+            alignment,
+        },
+        provider_report,
+        provider_commitment,
+        requirement_identity,
     )
     .map_err(|_| FixedViewCopyDecodeError::InvalidSameStackContribution)?;
     if contribution.report_identity().normalized_identity() != report_identity
@@ -1778,7 +1816,8 @@ mod tests {
                         0xB3,
                         0xB4,
                     )
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
                 scalar_arguments: vec![TargetUnitScalarCallArgument {
                     parameter_index: 0,
                     source: TargetUnitScalarArgumentSource::IntegerImmediate {
@@ -1847,8 +1886,10 @@ mod tests {
                         target: profile,
                         number: 211,
                         requirement_identity: "Kernel::invoke".into(),
-                        provider_plan_report_identity: 0xA1,
-                        provider_plan_commitment: [0x42; 32],
+                        execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                            report: 0xA1,
+                            commitment: [0x42; 32],
+                        },
                     },
                 ),
             };
@@ -1870,7 +1911,13 @@ mod tests {
                 match corruption {
                     0 => kernel.number = -1,
                     1 => kernel.target = TargetProfile::MacosArm64,
-                    2 => kernel.provider_plan_report_identity = 0,
+                    2 => {
+                        kernel.execution =
+                            target_operations::NormalizedForeignExecution::ProviderPlan {
+                                report: 0,
+                                commitment: [0x42; 32],
+                            }
+                    }
                     3 => kernel.requirement_identity.clear(),
                     4 => kernel.target = TargetProfile::AlphaBootstrap,
                     5 => kernel.target = TargetProfile::CrossPlatformCli,
@@ -1896,7 +1943,13 @@ mod tests {
                 if coordinate == 0 {
                     kernel.number += 1;
                 } else {
-                    kernel.provider_plan_commitment[31] ^= 1;
+                    if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                        commitment,
+                        ..
+                    } = &mut kernel.execution
+                    {
+                        commitment[31] ^= 1;
+                    }
                 }
                 let mut changed_bytes = Vec::new();
                 encode_call_binding(&mut changed_bytes, &changed);
@@ -1907,6 +1960,54 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn native_binding_recovery_preserves_receipt_and_hosted_backing() {
+        let mut source = row();
+        let locator = source.call.binding.import().unwrap().0.clone();
+        let execution =
+            target_operations::NativeBindingExecution::from_commitments([1; 32], [2; 32], [3; 32])
+                .unwrap();
+        source.call.provider_execution =
+            target_operations::ExternalExecutionBinding::NativeBinding(execution);
+        source.call.binding.mechanism =
+            target_operations::NormalizedForeignCallMechanism::HostedImport {
+                locator,
+                receipt: execution.receipt(),
+                requirement_identity: "Foreign::leaf".into(),
+            };
+        assert!(source.call.binding.same_stack_contribution().is_none());
+        let mut bytes = Vec::new();
+        encode_normalized_foreign_call(&mut bytes, &source).unwrap();
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_normalized_foreign_call(&mut cursor).unwrap(), source);
+        assert_eq!(cursor.remaining(), 0);
+
+        let mut execution_bytes = Vec::new();
+        legalized_operations::encode_external_execution(
+            &mut execution_bytes,
+            source.call.provider_execution,
+        );
+        for coordinate in 0..3 {
+            let mut changed = execution_bytes.clone();
+            changed[1 + coordinate * 32..1 + (coordinate + 1) * 32].fill(0);
+            assert_eq!(
+                super::super::structural_contracts::decode_external_execution(&mut Cursor::new(
+                    &changed
+                )),
+                Err(FixedViewCopyDecodeError::InvalidProviderExecution)
+            );
+        }
+        let target_operations::NormalizedForeignCallMechanism::HostedImport { receipt, .. } =
+            &mut source.call.binding.mechanism
+        else {
+            unreachable!()
+        };
+        *receipt = [0; 32];
+        let mut changed = Vec::new();
+        encode_call_binding(&mut changed, &source.call.binding);
+        assert!(decode_call_binding(&mut Cursor::new(&changed)).is_err());
     }
 
     #[test]

@@ -6,6 +6,11 @@ use super::*;
 use std::sync::Arc;
 
 pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
+    try_typed(text).unwrap()
+}
+
+/// Typing's own verdict on `text`, for tests whose program typing must reject.
+pub(super) fn try_typed(text: &str) -> Result<typed_trees::TypedTrees, diagnostics::Diagnostic> {
     let mut sources = source::SourceMap::default();
     let source = sources
         .add("boundary_calls/source.omg".into(), text.to_owned())
@@ -21,7 +26,7 @@ pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
         },
     )
     .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
 }
 
 pub(super) fn entry(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {
@@ -298,7 +303,8 @@ fn sink_requirement(frozen: &typed_trees::FrozenTypedTrees) -> symbols::SymbolHa
 /// numeric_values.md, "Integer equality and order": integers of different
 /// types compare by their exact values, in contracts too. A native binding
 /// claims each closed application of a value-generic requirement, because
-/// only those have a contract with literal array lengths.
+/// only those have a contract with literal array lengths, and claims nothing
+/// when nothing applies it.
 #[test]
 fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
     let applied = value_generic_boundary("Sink::take<4>(&buffer, 3)");
@@ -321,15 +327,11 @@ fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
         "{verdict:?}"
     );
 
-    // With no application, nothing gives the requirement a contract to read.
+    // With no application there is no contract to read, so the claim
+    // publishes no boundary; a consumer's call would close its own.
     let unapplied = value_generic_boundary("7u32");
-    let refused = claimed(&unapplied, sink_requirement(&unapplied)).unwrap_err();
-    assert!(
-        refused
-            .detail
-            .contains("native binding of a requirement with value parameters that nothing applies"),
-        "{refused:?}"
-    );
+    let elaboration = claimed(&unapplied, sink_requirement(&unapplied)).unwrap();
+    assert!(elaboration.module.boundary_machines.is_empty());
 }
 
 #[test]
@@ -2339,10 +2341,24 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         captures[0].conformance_application.identity_encoding,
         captures[1].conformance_application.identity_encoding
     );
-    assert_named_invocation_value(
-        compilation_verdicts_of(&prepared),
-        semantic_vocabulary::IntegerValue::Unsigned(7),
+    let verdicts = compilation_verdicts_of(&prepared);
+    let RouteVerdict::Accepted(invocation) = &verdicts[0] else {
+        panic!("expected the closed invocation: {verdicts:?}");
+    };
+    let module = &invocation.elaboration.module;
+    terminal_semantics::closed_reach::validate_closed_reach_applications(module).unwrap();
+    let retained = module
+        .machines
+        .iter()
+        .filter_map(|machine| machine.closed_reach_application.as_ref()?.capture.as_ref())
+        .collect::<Vec<_>>();
+    assert_eq!(retained.len(), 2);
+    assert!(
+        retained
+            .iter()
+            .all(|capture| capture.parameter_kinds == [0, 0])
     );
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
     let mut missing = (*prepared).clone();
     missing.captured_machine_applications = Default::default();
     missing

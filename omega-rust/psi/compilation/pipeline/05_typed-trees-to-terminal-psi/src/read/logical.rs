@@ -1,9 +1,9 @@
-//! Source-owned inputs of a logical invocation witness. Scalar leaves here are
-//! mathematical snapshots, including fields of linear data; they are never an
+//! Reads the source-owned inputs of a logical invocation witness. Scalar leaves
+//! here are mathematical snapshots, including fields of linear data, never an
 //! executable representation of that data. Establishment-restricted domains
 //! keep their nominal premise; every domain keeps its complete declared theory.
-//! Unread theory refuses the witness
-//! before proof search, so failure under an approximation cannot reject source.
+//! Unread theory refuses the witness before proof search, so failure under an
+//! approximation cannot reject source.
 
 use arena::{Arena, HandleSpan};
 use semantic_vocabulary::{
@@ -1167,6 +1167,7 @@ impl Inputs {
 
 pub(crate) fn projected_arrival(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     required: &StateSignature,
     supplied: SymbolHandle,
     projection: &[ParameterOccurrence],
@@ -1234,7 +1235,7 @@ pub(crate) fn projected_arrival(
             Unserved::Contract("incomplete logical callable inventory"),
         ));
     }
-    let mut program = Program::with_captures(typed, false, captures);
+    let mut program = Program::with_captures(typed, false, purpose, captures);
     if program.result_type(entry, required.return_type)?.is_some()
         || program.result_type(callee, state.return_type)?.is_some()
     {

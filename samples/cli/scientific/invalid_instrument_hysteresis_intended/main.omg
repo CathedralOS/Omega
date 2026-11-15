@@ -1,14 +1,15 @@
+use omega::language::core::ProcessExit;
 // Complete intended-invalid application: violates its data invariant.
 use omega_language_std::Console;
 data BoundedStimulus requires value >= 0 && value <= 100 { value: i32; }
 data InvalidInstrument { stimulus: BoundedStimulus; }
-machine InvalidInstrument::run(instrument: &mut InvalidInstrument) reaches Console {
+machine InvalidInstrument::run(instrument: &mut InvalidInstrument) reaches ProcessExit + Console {
     instrument.stimulus.value = 101;
-    Console::exit_process(0);
+    ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: InvalidInstrument;
     InvalidInstrument::run(&mut entry_storage);
 }

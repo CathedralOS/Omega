@@ -23,6 +23,9 @@ use omega_language_std::MacosImageData;
 use omega_language_std::MacosImageObjects;
 use omega_language_std::WindowsGuiHost;
 use omega_language_std::WindowsMessage;
+use omega_language_std::windows_message_kind;
+use omega_language_std::windows_message_window;
+use omega_language_std::windows_message_word_parameter;
 
 public windows_x86_64 machine app_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 requires title[10] == 0
@@ -133,9 +136,9 @@ reaches
     let pumped: bool = WindowsGuiHost::pump_message(&mut native);
     // The row contract's caller buffer keeps the window/kind/wParam layout the
     // close-detection reads; lParam/time/pt stay zero (the sample reads none).
-    message[0] = WindowsMessage::window(&native);
-    message[1] = WindowsMessage::kind(&native);
-    message[2] = WindowsMessage::word_parameter(&native);
+    message[0] = windows_message_window(&native);
+    message[1] = windows_message_kind(&native);
+    message[2] = windows_message_word_parameter(&native);
     message[3] = 0;
     message[4] = 0;
     message[5] = 0;

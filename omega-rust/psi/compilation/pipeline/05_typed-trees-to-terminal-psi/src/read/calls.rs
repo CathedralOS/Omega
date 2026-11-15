@@ -1885,6 +1885,9 @@ impl<'t> Program<'t> {
             (machine, boundary)
         };
         self.visible_to(id, target)?;
+        if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
+            return Ok(fence);
+        }
         if boundary_call {
             let boundary = self.boundary_declaration(id, target)?;
             return self.call_of(
@@ -2302,10 +2305,25 @@ impl<'t> Program<'t> {
         formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
+        self.lent_from(id, slots, argument, None, formal, expected)
+    }
+
+    /// `lent`, where an explicit borrow `argument` lends `beneath` in place
+    /// of its own target: `&(text as +D)` lends `text`, and the caller
+    /// qualifies the reference it forms (`borrow_value`).
+    pub(super) fn lent_from(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        argument: ExpressionHandle,
+        beneath: Option<ExpressionHandle>,
+        formal: &crate::body::Borrowed,
+        expected: ValueType,
+    ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
-            && let Some(view) = self.borrowed_byte_range(id, slots, argument, expected, source)?
+            && let Some(view) = self.borrowed_array_range(id, slots, argument, expected, source)?
         {
             return Ok((
                 Expression {
@@ -2330,7 +2348,9 @@ impl<'t> Program<'t> {
         // binding, a field or another helper call. An ordinary owned value
         // still needs an explicit borrow of its place.
         let (operand, access, explicit) = match node {
-            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access, true),
+            ExpressionNode::Borrow(borrow) => {
+                (beneath.unwrap_or(borrow.target), borrow.access, true)
+            }
             _ => (argument, formal.access, false),
         };
         // A recast presents the same captured place under another type. The
@@ -2725,13 +2745,8 @@ fn mentions<'a>(
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
-        ExpressionKind::Atomic {
-            place, operands, ..
-        } => {
-            if mentions(id, place, slots, captures)? {
-                return Ok(true);
-            }
-            for operand in operands {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
                 if mentions(id, operand, slots, captures)? {
                     return Ok(true);
                 }

@@ -704,14 +704,24 @@ pub(crate) mod declarations {
                 (Self::Scalar(expected), crate::TerminalMachineResult::Scalar(result)) => {
                     *expected == result.value_type()
                 }
-                (Self::Structural(expected), crate::TerminalMachineResult::Structural(result)) => {
-                    expected.structural_type == result.structural_type
-                        && expected.multiplicity == result.multiplicity
-                        && expected.qualifications == result.qualifications
-                        && expected.projected_qualifications == result.projected_qualifications
+                (Self::Structural(_), crate::TerminalMachineResult::Structural(result)) => {
+                    self.matches_structural_result(result)
                 }
                 _ => false,
             }
+        }
+
+        pub fn matches_structural_result(
+            &self,
+            result: &crate::StructuralResultDeclaration,
+        ) -> bool {
+            let Self::Structural(expected) = self else {
+                return false;
+            };
+            expected.structural_type == result.structural_type
+                && expected.multiplicity == result.multiplicity
+                && expected.qualifications == result.qualifications
+                && expected.projected_qualifications == result.projected_qualifications
         }
 
         pub fn matches_operation_result(&self, result: &crate::OperationResult) -> bool {
@@ -734,6 +744,13 @@ pub(crate) mod declarations {
             match self {
                 Self::Scalar(scalar) => Some(scalar.scalar_type),
                 Self::Unit | Self::Structural(_) => None,
+            }
+        }
+
+        pub const fn structural(&self) -> Option<StructuralTypeId> {
+            match self {
+                Self::Structural(result) => Some(result.structural_type),
+                Self::Unit | Self::Scalar(_) => None,
             }
         }
 
@@ -821,6 +838,7 @@ pub(crate) mod declarations {
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CheckedBoundaryCallable {
+        pub service_declaration: [u8; 32],
         pub source: crate::CheckedMachineDeclaration,
         pub execution: CheckedBoundaryExecution,
         pub method_arguments: Vec<crate::ClosedReachArgument>,
@@ -939,6 +957,7 @@ pub(crate) mod declarations {
             };
             self.source
                 .same_identity_as(identities, &other.source, other_identities)
+                && self.service_declaration == other.service_declaration
                 && same_execution
                 && self.method_arguments.len() == other.method_arguments.len()
                 && self

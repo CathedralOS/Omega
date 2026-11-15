@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use text::buffer;
 use commands::command_parser;
 use dungeon::dungeon;
@@ -24,7 +25,7 @@ machine Game::initialize(
     TextBuffer::set(&mut game.output, "");
 }
 
-machine Game::run_game_loop(game: &mut Game) reaches Console {
+machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     Console::write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
     GameView::render_title();
 
@@ -333,6 +334,6 @@ machine Game::run_game_loop(game: &mut Game) reaches Console {
         Console::write_line("the crawl has ended -- goodbye (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut game.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }

@@ -920,10 +920,7 @@ pub(crate) mod boundary_call {
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
-                    let target_operations::BoundaryExecutionBinding::AdmittedProvider(
-                        provider_execution,
-                    ) = binding.execution
-                    else {
+                    let Some(provider_execution) = binding.execution.external() else {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };
                     if let Some(home) = target_result.scalar_home().copied() {

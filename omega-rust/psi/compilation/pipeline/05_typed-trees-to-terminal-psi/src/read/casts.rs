@@ -174,7 +174,6 @@ impl Program<'_> {
         entry: language_core::cast_form::CastEntry,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        use language_core::cast_form::CastEntryKind;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         // A cast typing deferred is a row on its machine, raised before any
         // body is read; an entry without its type here was never accounted.
@@ -202,6 +201,45 @@ impl Program<'_> {
             None
         };
         let operand = self.expression(id, slots, cast.value, landing)?;
+        self.entry_applied(id, cast, entry, operand, result, source)
+    }
+
+    /// `&text as +D`, as `borrow_value` forms it: `lent` is the reference
+    /// to `text`, and the entry changes the domains it displays on its
+    /// referent to `after`, keeping its referent, lifetime and access mode
+    /// (domains.md, "Mutable views").
+    pub(super) fn reference_entry(
+        &mut self,
+        id: MachineId,
+        cast: &TableCastExpression,
+        entry: language_core::cast_form::CastEntry,
+        lent: Expression,
+        after: Qualification,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let Some(result) = lent.result.and_then(|formed| formed.qualified(after)) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("reference cast of a value that is not a reference"),
+            ));
+        };
+        self.entry_applied(id, cast, entry, lent, result, source)
+    }
+
+    /// What one entry does to an operand already read, `result` being the
+    /// type after it.
+    fn entry_applied(
+        &mut self,
+        id: MachineId,
+        cast: &TableCastExpression,
+        entry: language_core::cast_form::CastEntry,
+        operand: Expression,
+        result: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::cast_form::CastEntryKind;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let Some(operand_type) = operand.result else {
             return unserved("domain cast of a Unit value");
         };
@@ -260,12 +298,28 @@ impl Program<'_> {
                             }
                             (Vec::new(), String::new())
                         }
-                        // No clause is stated of a value that is not a
-                        // scalar, so a domain with predicates is not
-                        // added to one unproved.
+                        // An array or record, or a reference displaying a
+                        // domain on its referent (`&text as +Terminated`):
+                        // the clauses are stated over the plain value at one
+                        // structural subject, which lowering binds to the
+                        // cast's result (`record_cast_predicates`).
+                        (ValueType::Record(..), Some(domains))
+                            if super::authority::has_predicates(
+                                self.domain_theory(id, domain)?,
+                            ) =>
+                        {
+                            self.record_cast_predicates(
+                                id,
+                                Qualification {
+                                    policy: None,
+                                    domains,
+                                },
+                                result,
+                            )?
+                        }
                         _ if super::authority::has_predicates(self.domain_theory(id, domain)?) => {
                             return unserved(
-                                "cast that adds a domain with predicates to a value that is not a scalar",
+                                "cast that adds a domain with predicates to a value of a type parameter",
                             );
                         }
                         _ => (Vec::new(), String::new()),

@@ -194,7 +194,12 @@ pub(crate) fn prepare(
         let row = rows
             .next()
             .ok_or_else(|| failure("entry ABI lost its original source application"))?;
-        if rows.next().is_some() || !row.source_templates.contains(&symbol) {
+        if rows.next().is_some()
+            || !row
+                .projections
+                .iter()
+                .any(|projection| projection.source == symbol)
+        {
             return Err(failure(
                 "entry ABI has competing or foreign source declaration custody",
             ));
@@ -335,7 +340,7 @@ pub(crate) fn prepare(
         &[source_digest.as_bytes()],
     );
     let (parameters, result) =
-        physical_type_identities(owner, catalog, physical_id).map_err(failure)?;
+        physical_type_identities(owner, catalog, physical_id, physical_symbol).map_err(failure)?;
     let physical_contract = ProgramEntryPhysicalContractPlan::new(
         slot,
         physical_identity.requirement_identity,
@@ -389,6 +394,7 @@ fn physical_type_identities(
     typed: &typed_trees::TypedTrees,
     catalog: &typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
     id: CallingSignatureId,
+    source: symbols::SymbolHandle,
 ) -> Result<(Vec<String>, String), String> {
     let row = catalog
         .abi_signatures()
@@ -408,8 +414,14 @@ fn physical_type_identities(
             .ok_or_else(|| "physical entry type has no complete retained identity".to_owned())
     };
     let mut previous = None;
-    for projection in &row.projections {
-        let projection = projection.as_ref().map_err(Clone::clone)?;
+    // The selected entry's source is already authenticated above. A Build
+    // copy of that declaration does not describe this Product entry's types.
+    for projection in row
+        .projections
+        .iter()
+        .filter(|projection| projection.source == source)
+    {
+        let projection = projection.storage.as_ref().map_err(Clone::clone)?;
         if !projection.substitutions.is_empty() {
             return Err("physical entry types require retained substitutions".into());
         }

@@ -187,7 +187,78 @@ impl Program<'_> {
         expected: ValueType,
         source: crate::SourceOrigin,
     ) -> Checked<crate::Expression> {
-        if let Some(view) = self.borrowed_byte_range(machine, slots, argument, expected, source)? {
+        use typed_trees::expression::ExpressionNode;
+        // `&text as +D`: domains.md, "Mutable views": "A cast applies to a
+        // reference by accounting for the domains displayed on its referent
+        // ... A borrow groups before `as`". The typed trees hold it as a
+        // borrow of the cast, so the place `text` is lent plainly and the
+        // cast then changes the reference's displayed domains, owing what
+        // `+D` owes of the referent it shows.
+        let table = &self.typed.expression_table;
+        if let ExpressionNode::Borrow(borrow) = table.expression(argument)
+            && let ExpressionNode::Cast(cast) = table.expression(borrow.target)
+            && let Some(entry) = cast.form.entry()
+        {
+            // Through an exclusive loan, removal owes re-establishment when
+            // the loan ends ("mutable-view-reestablishment"), which this
+            // formation does not state, so only a shared loan is served.
+            if borrow.access != language_core::ReferenceAccess::Shared {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Expression("domain cast of an exclusive reference formation"),
+                ));
+            }
+            let cast = *cast;
+            let domain = crate::body::DomainInstance {
+                declaration: cast.semantic_domain_symbol,
+                identity: cast.semantic_domain_id,
+            };
+            let after = expected.qualification();
+            use language_core::cast_form::CastEntryKind;
+            let before = match entry.kind {
+                CastEntryKind::Add => after.domains.without(domain),
+                CastEntryKind::Remove => after.domains.with(domain),
+                CastEntryKind::Keep => Some(after.domains),
+            }
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Typing("reference cast whose destination does not show its entry"),
+                )
+            })?;
+            let plain = expected
+                .qualified(Qualification {
+                    domains: before,
+                    ..after
+                })
+                .ok_or_else(|| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Typing("reference cast of a rigid descriptor"),
+                    )
+                })?;
+            let lent =
+                self.formed_reference(machine, slots, argument, Some(cast.value), plain, source)?;
+            return self.reference_entry(machine, &cast, entry, lent, after, source);
+        }
+        self.formed_reference(machine, slots, argument, None, expected, source)
+    }
+
+    /// `borrow_value` of the place an explicit borrow names, or of
+    /// `beneath` in place of its target (`lent_from`).
+    fn formed_reference(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        argument: typed_trees::expression::ExpressionHandle,
+        beneath: Option<typed_trees::expression::ExpressionHandle>,
+        expected: ValueType,
+        source: crate::SourceOrigin,
+    ) -> Checked<crate::Expression> {
+        if let Some(view) = self.borrowed_array_range(machine, slots, argument, expected, source)? {
             return Ok(view);
         }
         let Some((referent, access)) = self.reference_referent(machine, expected)? else {
@@ -235,7 +306,7 @@ impl Program<'_> {
             regions: expected.regions(),
             home,
         };
-        let (value, _) = self.lent(machine, slots, argument, &formal, referent)?;
+        let (value, _) = self.lent_from(machine, slots, argument, beneath, &formal, referent)?;
         if !matches!(value.kind, crate::ExpressionKind::Borrow { .. }) {
             unreachable!()
         };

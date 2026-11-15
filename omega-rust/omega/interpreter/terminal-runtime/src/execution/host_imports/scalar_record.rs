@@ -96,8 +96,8 @@ pub(super) fn admit_c_word_record<const FIELD_COUNT: usize>(
         || application.plan.plan() != &binding.boundary_entry_plan
         || application.commitment == [0; 32]
         || binding
-            .import()
-            .is_none_or(|(locator, _)| application.target != locator.target().native_target())
+            .foreign_import_locator()
+            .is_none_or(|locator| application.target != locator.target().native_target())
         || !application.opaque_applications.is_empty()
     {
         return Err(invalid(

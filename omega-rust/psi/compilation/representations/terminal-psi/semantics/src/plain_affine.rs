@@ -11,7 +11,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralStoreDisposition,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalMachine,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -235,6 +235,9 @@ struct Root {
     /// which disposal the home owes.
     affine: bool,
     multiplicity: terminal_psi::StructuralMultiplicity,
+    /// The root's own contract is nonlinear, unqualified and claim-free.
+    /// This is a static storage restriction, never authority to use a loan.
+    whole_restoration: bool,
     parameter: bool,
     /// A parameter lent with `&mut`: the only storage the machine does not
     /// own that an owned value may be moved out of, leaving a window the
@@ -306,6 +309,7 @@ struct Residence {
 struct Analysis<'a> {
     types: &'a [StructuralTypeDeclaration],
     roots: Vec<Option<Root>>,
+    borrowed_headers: Vec<PlaceId>,
     unavailable: Vec<Unavailable>,
     unavailable_roots: Vec<Option<Site>>,
     stores: Vec<(OperationId, StructuralStoreDisposition)>,
@@ -692,6 +696,56 @@ pub fn declared_multiplicity(
     }
 }
 
+/// Each edge into a block parameter that carries a fresh permission on
+/// (`carried`) supplies a whole root of that affine custody, so the
+/// parameter's loan lifecycle is the one its argument owned.
+fn carried_permissions(
+    machine: &TerminalMachine,
+    contracts: &[Option<(
+        semantic_vocabulary::StructuralTypeId,
+        terminal_psi::StructuralMultiplicity,
+        StructuralAccess,
+        Option<terminal_psi::StructuralMultiplicity>,
+    )>],
+    carried: &[PlaceId],
+) -> Result<(), Error> {
+    if carried.is_empty() {
+        return Ok(());
+    }
+    for block in &machine.blocks {
+        let edges = block.terminator.successor_edges();
+        let arguments = block.terminator.successor_block_arguments();
+        for ((_, target), arguments) in edges.into_iter().zip(arguments) {
+            let Some(target) = machine.blocks.iter().find(|block| block.id == target) else {
+                return Err(Error::malformed(
+                    "a structural successor names an absent block",
+                ));
+            };
+            for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
+                if !carried.contains(&parameter.place) {
+                    continue;
+                }
+                let affine = argument.path.is_empty()
+                    && argument.access == StructuralAccess::Owned
+                    && contracts
+                        .get(index(argument.place.get())?)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|(structural_type, multiplicity, _, _)| {
+                            structural_type == parameter.structural_type
+                                && multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        });
+                if !affine {
+                    return Err(Error::malformed(
+                        "an affine permission parameter receives other than its carrier",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn required_result_multiplicity(
     operation: &terminal_psi::Operation,
 ) -> Option<terminal_psi::StructuralMultiplicity> {
@@ -759,6 +813,17 @@ fn analyze(
         }
     }
     let mut contracts = vec![None; machine.structural_places.len()];
+    // Read static whole-origin restrictions once with the custody declarations.
+    // Actual loan authority and the current value remain separate judgments.
+    let mut whole_restoration = vec![true; machine.structural_places.len()];
+    let mut exclude_whole = |place: PlaceId| -> Result<(), Error> {
+        *whole_restoration
+            .get_mut(index(place.get())?)
+            .ok_or(Error::malformed(
+                "whole-origin contract is outside the machine",
+            ))? = false;
+        Ok(())
+    };
     let mut insert_contract = |place: PlaceId,
                                structural_type,
                                multiplicity,
@@ -778,26 +843,77 @@ fn analyze(
         }
         Ok(())
     };
+    // A block parameter may carry a fresh permission carrier on, keeping
+    // the custody its producer gave it: a shared reference is affine while
+    // it owns its loan although its type permits copies
+    // (`required_result_multiplicity`). Every arrival must then supply such
+    // a carrier whole (`carried_permissions`), so the marking is never an
+    // arbitrary one.
+    let mut carried = Vec::new();
     for parameter in machine
         .structural_parameters
         .iter()
         .chain(machine.block_structural_parameters())
     {
+        if parameter.access != StructuralAccess::Owned
+            || !parameter.is_unqualified_root()
+            || !parameter.additional_input_qualifications.is_empty()
+        {
+            exclude_whole(parameter.place)?;
+        }
+        let required = (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && parameter.access == StructuralAccess::Owned
+            && machine
+                .block_structural_parameters()
+                .any(|block| block.place == parameter.place)
+            && types
+                .get(index(parameter.structural_type.get())?)
+                .is_some_and(|declaration| {
+                    declaration.copyable
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Reference {
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            }
+                        )
+                }))
+        .then_some(terminal_psi::StructuralMultiplicity::Affine);
+        if required.is_some() {
+            carried.push(parameter.place);
+        }
         insert_contract(
             parameter.place,
             parameter.structural_type,
             parameter.multiplicity,
             parameter.access,
-            None,
+            required,
         )?;
+    }
+    // Copyable storage joins the region walk when a disposition affects it.
+    // Borrowed names without a release keep their existing arrival semantics.
+    let mut descriptor_releases = IdSet::new();
+    if let Some(candidates) = reference_candidates {
+        for candidate in candidates.values().flatten() {
+            descriptor_releases.insert(candidate.argument.place);
+        }
     }
     let mut has_borrowed_windows = false;
     for operation in machine.operations() {
+        if let terminal_psi::OperationKind::ReleaseReference { source, .. } = operation.kind {
+            descriptor_releases.insert(source);
+        }
         has_borrowed_windows |= matches!(
             operation.kind,
             terminal_psi::OperationKind::MoveStructuralField { .. }
         );
         if let Some(result) = operation.result.as_structural() {
+            if !(result.is_affine_plain() || result.is_unrestricted_plain())
+                || !result.additional_input_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+            {
+                exclude_whole(result.place)?;
+            }
             let required_result = required_result_multiplicity(operation);
             if required_result.is_some() {
                 // An operation-owned permission is distinct from the type's
@@ -827,6 +943,25 @@ fn analyze(
                 required_result,
             )?;
         }
+        if let terminal_psi::OperationKind::EstablishByteSequenceLiteral {
+            destination,
+            qualifications,
+            ..
+        } = &operation.kind
+            && !qualifications.is_empty()
+        {
+            exclude_whole(*destination)?;
+        }
+    }
+    for claim in machine
+        .entry_claims
+        .iter()
+        .chain(&machine.block_entry_claims)
+    {
+        exclude_whole(claim.input)?;
+    }
+    for claim in &machine.content_entry_claims {
+        exclude_whole(claim.input.root)?;
     }
     if let TerminalMachineResult::Structural(result) = &machine.result {
         insert_contract(
@@ -837,6 +972,7 @@ fn analyze(
             None,
         )?;
     }
+    carried_permissions(machine, &contracts, &carried)?;
     // An empty-domain observation needs an actual initialized value even
     // when it has no scalar leaves. Follow its producers and copies through
     // the same region transfer, without converting copies into affine moves.
@@ -967,14 +1103,20 @@ fn analyze(
         }
         let (_, multiplicity, _, _) = contracts[roots.len()]
             .ok_or(Error::malformed("tracked storage has no custody contract"))?;
-        roots.push((tracked || observe_copyable).then_some(Root {
-            structural_type: ty,
-            owned,
-            affine: tracked,
-            multiplicity,
-            parameter,
-            exclusive,
-        }));
+        // A shared descriptor may be copied, but releasing one copy
+        // still vacates its own storage region.
+        let descriptor_region = owned && descriptor_releases.contains(place.id);
+        roots.push(
+            (tracked || observe_copyable || descriptor_region).then_some(Root {
+                structural_type: ty,
+                owned,
+                affine: tracked,
+                multiplicity,
+                whole_restoration: owned && whole_restoration[roots.len()],
+                parameter,
+                exclusive,
+            }),
+        );
     }
     // Access is independent of whether the referent has affine contents.
     // Check every successor telescope before the copyable-storage fast path.
@@ -1064,9 +1206,15 @@ fn analyze(
         Default::default()
     };
     let live = live_entries(machine, types, reference_candidates, &backing)?;
+    let borrowed_headers = machine
+        .block_structural_parameters()
+        .filter(|parameter| parameter.access != StructuralAccess::Owned)
+        .map(|parameter| parameter.place)
+        .collect();
     let mut analysis = Analysis {
         types,
         roots,
+        borrowed_headers,
         unavailable: Vec::new(),
         unavailable_roots: Vec::new(),
         stores: Vec::new(),
@@ -1136,7 +1284,8 @@ fn analyze(
             {
                 return Err(Error::malformed(
                     "an edge leaves a frontier its successor does not enter with",
-                ));
+                )
+                .at(Site::Edge(arrival.edge)));
             }
             if !arrival.actions.is_empty() {
                 cleanup.push((arrival.edge, arrival.actions));
@@ -1445,6 +1594,25 @@ impl Analysis<'_> {
             Error::unsupported("reference closure has no finite descriptor roster"),
         )?;
         for leaf in leaves {
+            let declaration = self
+                .types
+                .get(index(leaf.structural_type.get())?)
+                .filter(|declaration| declaration.id == leaf.structural_type)
+                .ok_or(Error::malformed(
+                    "reference closure lost the leaf declaration",
+                ))?;
+            // Only a mutable loan can leave a hole. Shared byte recasts
+            // retain the lender's storage through loan checking, without
+            // turning their alternate presentation into an owned path.
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::Reference {
+                    access: StructuralAccess::MutableBorrow,
+                    ..
+                }
+            ) {
+                continue;
+            }
             let mut exact = path.to_vec();
             exact.extend(leaf.path);
             self.restore_reference(state, source, &exact, site)?;
@@ -1670,6 +1838,24 @@ impl Analysis<'_> {
                             unrestored: true,
                         });
                     }
+                }
+            }
+            // A borrowed header names captured storage; it does not own a
+            // value that needs cleanup. End a dead name before the next header
+            // is bound, leaving its backing and all loan checks untouched.
+            // A surviving use still needs a name established on every arrival.
+            for place in &self.borrowed_headers {
+                let raw = index(place.get())?;
+                let forgotten = !needed.is_some_and(|needed| needed.contains(*place))
+                    || owned_there.is_some_and(|there| there.regions[raw].is_none());
+                if forgotten && let Some(region) = &outgoing.regions[raw] {
+                    if !region.available(&[]) {
+                        return Err(Error::unsupported(
+                            "borrowed block storage still owes restoration at its last use",
+                        )
+                        .at(Site::Edge(edge)));
+                    }
+                    outgoing.regions[raw] = None;
                 }
             }
             // "At reconvergence, predecessors must agree on the exact live
@@ -1972,15 +2158,16 @@ impl Analysis<'_> {
                     else {
                         unreachable!()
                     };
-                    let projected = carrier_path
-                        .iter()
-                        .rposition(|segment| *segment == StructuralPathSegment::Referent)
-                        .is_some_and(|referent| {
-                            field.is_some() || referent + 1 < carrier_path.len()
-                        });
-                    if !projected {
+                    if !carrier_path.contains(&StructuralPathSegment::Referent) {
                         return Err(Error::unsupported(
-                            "a local loan cannot open a whole-referent ownership window",
+                            "an owned storage window requires an exclusive reference crossing",
+                        ));
+                    }
+                    if !crate::structural_window_selects_child(carrier_path, *field)
+                        && !root.whole_restoration
+                    {
+                        return Err(Error::unsupported(
+                            "whole-referent restoration requires unqualified nonlinear owned storage without claims",
                         ));
                     }
                 }
@@ -2003,7 +2190,9 @@ impl Analysis<'_> {
                     ));
                 }
                 self.read(state, source, &selected, site)?;
-                self.vacate(state, source, &selected)?;
+                // The value leaves, but the authenticated reference still
+                // owns access to this allocated home until repair and release.
+                self.vacate_contents(state, source, &selected)?;
             }
             Op::ScalarStructuralField {
                 source,
@@ -2019,6 +2208,37 @@ impl Analysis<'_> {
                 let mut path = path.clone();
                 path.push(Segment::Field(*field));
                 self.read(state, *source, &path, site)?;
+            }
+            Op::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                ..
+            }
+            | Op::StructuralByteSequenceFieldLength {
+                source,
+                path,
+                field,
+            }
+            | Op::StructuralByteSequenceFieldByteStore {
+                destination: source,
+                path,
+                field,
+                ..
+            } => {
+                if let Some(root) = self.root(*source)? {
+                    let selected = crate::projected_field_declaration(
+                        self.types.iter(),
+                        root.structural_type,
+                        path,
+                        *field,
+                    )
+                    .ok_or(Error::malformed("byte access has no declared field"))?;
+                    let mut path = path.clone();
+                    path.push(StructuralPathSegment::Field(selected.identity));
+                    let (path, _) = self.observed(*source, &path)?;
+                    self.read(state, *source, &path, site)?;
+                }
             }
             // A store requires a live receiving home, not a value in its hole.
             Op::StructuralScalarFieldStore {
@@ -2060,6 +2280,9 @@ impl Analysis<'_> {
                 }
             }
             Op::StoreStructuralField { value, .. } => self.argument(state, value, site, false)?,
+            Op::StructuralByteViewFieldStore { source, .. } => {
+                self.read(state, *source, &[], site)?;
+            }
             kind => {
                 for used in kind.storage_uses() {
                     self.storage_use(state, used, site)?;
@@ -2067,6 +2290,9 @@ impl Analysis<'_> {
             }
         }
         match &operation.kind {
+            Op::EstablishByteSequenceLiteral { destination, .. } => {
+                self.establish(state, *destination, true)?;
+            }
             Op::MoveStructuralValue { source } => {
                 if self.root(source.place)?.is_some_and(|root| !root.owned) {
                     return Err(Error::unsupported("owned extraction from borrowed storage"));
@@ -2074,17 +2300,13 @@ impl Analysis<'_> {
                 self.argument(state, source, site, true)?;
             }
             Op::ReleaseReference { source, path } => {
-                self.restore_reference(state, *source, path, site)?;
-                self.argument(
-                    state,
-                    &StructuralArgument {
-                        place: *source,
-                        path: path.clone(),
-                        access: StructuralAccess::Owned,
-                    },
-                    site,
-                    true,
-                )?;
+                if !self.root(*source)?.is_some_and(|root| root.owned) {
+                    return Err(Error::unsupported("owned extraction from borrowed storage"));
+                }
+                let region = self.canonical(*source, path)?;
+                self.read(state, *source, &region, site)?;
+                self.restore_reference_leaves(state, *source, path, site)?;
+                self.vacate(state, *source, &region)?;
             }
             kind if kind.constructor_arguments().next().is_some() => {
                 // Every constructor transfers its actual owned children. The
@@ -2095,13 +2317,28 @@ impl Analysis<'_> {
                 }
             }
             Op::StoreStructuralField {
-                disposition,
                 destination,
                 path,
                 field,
-                value,
+                ..
+            }
+            | Op::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field,
+                ..
             } => {
-                self.argument(state, value, site, true)?;
+                let declared_disposition =
+                    if let Op::StoreStructuralField {
+                        disposition, value, ..
+                    } = &operation.kind
+                    {
+                        self.argument(state, value, site, true)?;
+                        Some(*disposition)
+                    } else {
+                        // Storing a shared byte view copies its descriptor.
+                        None
+                    };
                 let (backing, projection) = if self.references.is_some() {
                     self.backing(state, *destination, path, site)?
                 } else {
@@ -2133,9 +2370,9 @@ impl Analysis<'_> {
                             .any(|segment| matches!(segment, StructuralPathSegment::Referent))
                     {
                         self.read(state, *destination, &receiving, site)?;
-                        if settled {
+                        if settled && let Some(disposition) = declared_disposition {
                             let required = StructuralStoreDisposition::ReplaceDiscardable;
-                            if self.verify_stores && *disposition != required {
+                            if self.verify_stores && disposition != required {
                                 return Err(Error::malformed(
                                     "a vacant store targets established storage behind a reference",
                                 ));
@@ -2184,17 +2421,19 @@ impl Analysis<'_> {
                                     "replacement of a partially moved region",
                                 ));
                             };
-                            if self.verify_stores && *disposition != required {
-                                return Err(Error::malformed(match required {
-                                    StructuralStoreDisposition::Vacant => {
-                                        "an occupied replacement store targets vacated affine contents"
-                                    }
-                                    StructuralStoreDisposition::ReplaceDiscardable => {
-                                        "a vacant store displaces established affine contents"
-                                    }
-                                }));
+                            if let Some(disposition) = declared_disposition {
+                                if self.verify_stores && disposition != required {
+                                    return Err(Error::malformed(match required {
+                                        StructuralStoreDisposition::Vacant => {
+                                            "an occupied replacement store targets vacated affine contents"
+                                        }
+                                        StructuralStoreDisposition::ReplaceDiscardable => {
+                                            "a vacant store displaces established affine contents"
+                                        }
+                                    }));
+                                }
+                                self.stores.push((operation.id, required));
                             }
-                            self.stores.push((operation.id, required));
                         }
                         if !region.base && !path.is_empty() {
                             return Err(Error::unsupported(
@@ -2612,8 +2851,8 @@ impl Analysis<'_> {
         Ok(())
     }
 
-    /// Only an owned whole move ends the home. A borrowed root's storage
-    /// remains allocated and owes restoration even when all its contents move.
+    /// Ordinary owned transfer ends its source home. A storage extraction
+    /// through a live reference instead uses `vacate_contents` and keeps it.
     fn vacate(&self, state: &mut State, place: PlaceId, path: &[Segment]) -> Result<(), Error> {
         let root = self
             .root(place)?
@@ -2621,7 +2860,23 @@ impl Analysis<'_> {
         let region = &mut state.regions[index(place.get())?];
         if root.owned && path.is_empty() {
             *region = None;
-        } else if let Some(region) = region {
+            Ok(())
+        } else {
+            self.vacate_contents(state, place, path)
+        }
+    }
+
+    fn vacate_contents(
+        &self,
+        state: &mut State,
+        place: PlaceId,
+        path: &[Segment],
+    ) -> Result<(), Error> {
+        let region = state
+            .regions
+            .get_mut(index(place.get())?)
+            .ok_or(Error::malformed("vacated contents are outside the machine"))?;
+        if let Some(region) = region {
             region.set(path, false);
         }
         Ok(())
@@ -2918,6 +3173,98 @@ mod tests {
     }
 
     #[test]
+    fn a_dead_borrowed_header_can_rejoin_a_path_that_never_entered_it() {
+        use terminal_psi::{
+            Block, BoundaryParameterKind, Operation, OperationKind, OperationResult, SuccessorEdge,
+            Terminator, ValueDeclaration,
+        };
+        let types = reconvergence_types();
+        let mut machine = borrowed_backedge(StructuralAccess::SharedBorrow);
+        machine.contract.parameters.push(ValueDeclaration {
+            id: id(1),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        });
+        machine
+            .contract
+            .parameter_order
+            .insert(0, BoundaryParameterKind::Scalar);
+        let edge = |raw, target, structural_arguments| SuccessorEdge {
+            edge: id(raw),
+            target: id(target),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments,
+            cleanup_actions: Vec::new(),
+        };
+        machine.blocks[0].terminator = Terminator::Conditional {
+            condition: id(1),
+            when_true: edge(
+                1,
+                2,
+                vec![StructuralArgument::whole(
+                    id(1),
+                    StructuralAccess::SharedBorrow,
+                )],
+            ),
+            when_false: edge(2, 3, Vec::new()),
+        };
+        let use_header = Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument::whole(
+                    id(2),
+                    StructuralAccess::SharedBorrow,
+                )],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        );
+        machine.blocks[1].operations.push(use_header.clone());
+        machine.blocks[1].terminator = Terminator::Jump {
+            edge: id(3),
+            target: id(3),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            cleanup_actions: Vec::new(),
+        };
+        machine.blocks.push(Block::plain(
+            id(3),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: id(4),
+                cleanup_actions: Vec::new(),
+            },
+        ));
+        let planned = plan(&machine, &types)
+            .expect("the dead borrowed name is not an ownership obligation at the join");
+        assert!(planned.unavailable.is_empty());
+        assert!(
+            planned.cleanup.is_empty(),
+            "retiring a borrowed name must not discard its backing"
+        );
+        let mut use_header = use_header;
+        use_header.id = id(2);
+        machine.blocks[2].operations.push(use_header);
+        assert!(
+            !plan(&machine, &types)
+                .expect("the joined frontier remains available for checking")
+                .unavailable
+                .is_empty(),
+            "a path that never received the header cannot use that borrow after the join"
+        );
+    }
+
+    #[test]
     fn borrowed_block_storage_survives_a_backedge_without_becoming_owned() {
         let types = reconvergence_types();
         for access in [
@@ -3158,11 +3505,13 @@ mod tests {
     fn owned_analysis(types: &[StructuralTypeDeclaration]) -> Analysis<'_> {
         Analysis {
             types,
+            borrowed_headers: Vec::new(),
             roots: vec![Some(Root {
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 owned: true,
                 affine: true,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                whole_restoration: true,
                 parameter: false,
                 exclusive: false,
             })],

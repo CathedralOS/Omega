@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Overflow-safe reduction: sum a [i32; N] array into an i64 accumulator so a
 // total that would overflow i32 is still correct. 2_000_000_000 + 200_000_000 =
 // 2_200_000_000 exceeds i32's max (2_147_483_647); widening each element to i64
@@ -24,7 +25,7 @@ requires
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("array_sum: overflow-safe reduction -- i32 elements widened to an i64 accumulator");
     main.nums[0] = 0x7735_9400;
     main.nums[1] = 0x0BEB_C200;
@@ -63,19 +64,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: sum != 2200000000 -- widening reduction wrong (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

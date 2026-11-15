@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // One-record chronology CLI; EOF without a record is an input error.
 // Expected exit: 2.
 // Expected output contains: invalid input
@@ -10,7 +11,7 @@ use chronology::input;
 // The application owns the input backing across the blocking provider call.
 data Main { bytes: [u8; 32]; }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(&mut main.bytes);
     transition read {
         LineReadResult::LineComplete { count } -> input(main, count)
@@ -66,12 +67,12 @@ machine Main::main(main: &mut Main) reaches Console {
         number(main, model.enabled[2] as i32 in Wrapping);
         number(main, model.enabled[3] as i32 in Wrapping);
         Console::write_line(" count=0");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine success(main: &mut Main) { Console::exit_process(0); }
+    machine success(main: &mut Main) { ProcessExit::exit_process(0); }
     machine invalid(main: &mut Main) {
         Console::write_line("invalid input");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
 }
 
@@ -102,7 +103,7 @@ machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

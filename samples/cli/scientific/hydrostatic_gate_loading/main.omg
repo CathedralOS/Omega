@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // ADD02: Complete offline hydrostatic loading of a vertical gate silhouette.
 // Expected exit: 0 for valid bounded stdin; 64 for invalid bounded stdin.
 // Expected output contains: HYDROSTATIC_GATE_V1 micro_units (valid input).
@@ -24,7 +25,7 @@ data Application {
 }
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut application: Application;
     block Reader::next(&mut application.reader);
     transition application.reader.status == 1 && application.reader.value >= 2 && application.reader.value <= 8 {
@@ -192,12 +193,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line(" center_um=undefined");
         transition { _ -> water(application, water_index + 1) }
     }
-    machine done() { Console::exit_process(0); }
-    machine invalid() { Console::write_line("ERROR invalid bounded gate input"); Console::exit_process(64); }
+    machine done() { ProcessExit::exit_process(0); }
+    machine invalid() { Console::write_line("ERROR invalid bounded gate input"); ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

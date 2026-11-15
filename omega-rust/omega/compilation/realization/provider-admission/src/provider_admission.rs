@@ -43,6 +43,10 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub use crate::AdmittedInstalledInterruptCohort;
+pub use crate::native_bindings::{
+    NativeBindingInput, RetainedNativeBinding, RetainedNativeBindings,
+    validate_native_binding_execution, validate_native_binding_realization,
+};
 pub use adapters::{
     AdmittedProgramProviderContext, retain_selected_provider_adapters,
     selected_synchronous_call_graph,
@@ -75,7 +79,7 @@ pub use terminal_authority_policy::{
     terminal_authority_policy_with_rows, time_host_permission_rows,
 };
 pub(crate) use terminal_authority_policy::{
-    normalized_foreign_terminal_mechanism,
+    conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
 
@@ -133,6 +137,8 @@ impl AdmittedNativeCallableAuthority {
 }
 
 pub struct AdmittedNativeProviders<'execution> {
+    native_bindings: crate::RetainedNativeBindings,
+    native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
     pub settlements: Vec<AdmittedBoundarySettlement<'execution>>,
     pub(crate) native_callbacks: crate::AdmittedNativeCallbackCohort, // Scoped to this executable occurrence scope, never the full retained catalog.
     pub(crate) installed_interrupts: crate::AdmittedInstalledInterruptCohort,
@@ -146,6 +152,12 @@ pub struct AdmittedNativeProviders<'execution> {
 }
 
 impl AdmittedNativeProviders<'_> {
+    pub fn native_bindings(&self) -> &crate::RetainedNativeBindings {
+        &self.native_bindings
+    }
+    pub fn native_calling(&self) -> &[calling_conventions::BoundaryCallingApplication] {
+        &self.native_calling
+    }
     pub const fn program_provider_context(
         &self,
     ) -> &std::sync::Arc<AdmittedProgramProviderContext> {
@@ -223,12 +235,14 @@ pub fn admit_native_providers<'request>(
         &installed_interrupts,
         request.terminal_authority_policy,
     )?;
+    let (native_settlements, native_mechanisms) = crate::native_bindings::settle(input, request)?;
     require_reached_providers(
         input,
         request.profile,
         request.selected_provider_plans,
         &installed_interrupts,
         &interrupt_mechanisms,
+        &native_settlements,
     )?;
     let (lifecycle_settlements, lifecycle_mechanisms) =
         access_lifecycles::settle_native_lifecycles(
@@ -245,6 +259,8 @@ pub fn admit_native_providers<'request>(
         compiler_builtins::settle_compiler_builtins(input, request)?;
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
+    settlements.extend(native_settlements);
+    mechanisms.extend(native_mechanisms);
     for settlement in &settlements {
         let checked_component = matches!(
             &settlement.realization,
@@ -345,7 +361,33 @@ pub fn admit_native_providers<'request>(
                     .map(|entry| (entry.boundary(), entry.entry())),
             ))
         });
+    let mut native_calling = Vec::new();
+    for settlement in &settlements {
+        if !matches!(
+            settlement.execution,
+            AdmittedBoundaryExecution::NativeBinding { .. }
+        ) {
+            continue;
+        }
+        let abi = artifact
+            .semantic_module()
+            .calling_abi_identity(settlement.boundary)
+            .map_err(|reason| realization_error("native binding calling custody", reason))?;
+        let application = request
+            .installed_calling
+            .iter()
+            .find(|application| application.abi == abi)
+            .ok_or_else(|| {
+                realization_error(
+                    "native binding calling custody",
+                    "admitted application disappeared",
+                )
+            })?;
+        native_calling.push(application.clone());
+    }
     Ok(AdmittedNativeProviders {
+        native_bindings: request.native_bindings.clone(),
+        native_calling,
         installed_interrupts,
         settlements,
         native_callbacks: crate::AdmittedNativeCallbackCohort {
@@ -435,6 +477,7 @@ fn require_reached_providers(
     selected: &effects::SelectedProviderPlanFacts,
     installed_interrupts: &crate::AdmittedInstalledInterruptCohort,
     interrupt_mechanisms: &[AdmittedTerminalMechanism],
+    native_settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<(), Vec<Diagnostic>> {
     let plan = input.plan();
     let reached = AuthorityGraph::new(input, target_profile)
@@ -480,6 +523,7 @@ fn require_reached_providers(
             {
                 return None;
             }
+            if native_settlements.iter().any(|settlement| settlement.boundary == *boundary) { return None; }
             let requirement = plan.identities.text(declaration.identity)?;
             (selected.selected_requirement_row(requirement).is_none()
                 && !selected

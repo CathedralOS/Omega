@@ -46,6 +46,7 @@ dependencies = [
  "diagnostics",
  "installation-evidence",
  "language-core",
+ "language-semantics",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
@@ -1137,6 +1138,7 @@ dependencies = [
  "optimization-core",
  "platform-custody",
  "program-entry-plan",
+ "provider-admission",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -2680,6 +2682,7 @@ name = "typed-trees-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "diagnostics",
  "language-core",
  "language-semantics",
  "numerics",

@@ -75,6 +75,49 @@ machine consume(tickets: [Ticket]) {}
     );
 }
 
+#[test]
+fn psi_runs_the_bundled_atomic_fence_in_its_module() {
+    assert_psi_runs(
+        "atomic-fence",
+        r#"use omega::language::core::Atomic;
+use omega::language::core::Atomic::fence;
+use omega::language::core::FenceOrdering;
+machine main() {
+    let ordering: FenceOrdering = FenceOrdering::Receive;
+    let alias: FenceOrdering = ordering;
+    Atomic::fence(alias);
+    fence(FenceOrdering::Publish);
+    Atomic::fence(FenceOrdering::ReceivePublish);
+}
+"#,
+    );
+}
+
+#[test]
+fn psi_runs_a_named_sum_constant_with_its_case_payload() {
+    assert_psi_runs(
+        "sum-constant",
+        r#"data Policy [copy] {
+    case Read(number: u64);
+    case Write(number: u64);
+}
+const selected: Policy = Policy::Read { number: 7u64 };
+machine main() crashes Trap {
+    let result: u64 = match selected {
+        Policy::Read { number } -> number
+        _ -> 99u64
+    };
+    transition result == 7u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#,
+    );
+}
+
 fn compile(project: &Path, destination: NativeDestination) -> Result<BuildReport, BuildError> {
     let outcomes = build(BuildRequest {
         root_path: project.join("main.omg"),

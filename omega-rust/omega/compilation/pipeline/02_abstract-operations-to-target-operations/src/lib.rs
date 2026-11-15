@@ -435,7 +435,8 @@ pub(crate) mod optimized {
             .as_ref()
             .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
         let bindings =
-            super::provider_evidence::bind_provider_executions(optimized.plan(), settlements)?;
+            super::provider_evidence::bind_provider_executions(optimized.plan(), settlements)
+                .map_err(|error| error.with_boundary_context(optimized.plan()))?;
         let program =
             super::coordination::lower_to_target_operations_with_settlements_and_installation(
                 optimized.plan(),
@@ -445,7 +446,8 @@ pub(crate) mod optimized {
                 installed,
                 lowering_facts.native_callbacks().callbacks(),
                 Some(&lowering_facts),
-            )?;
+            )
+            .map_err(|error| error.with_boundary_context(optimized.plan()))?;
         Ok(ValidatedOptimizedTargetOperations {
             optimized,
             lowering_facts,
@@ -515,6 +517,9 @@ pub(crate) mod provider_evidence {
                     settlement.boundary,
                 ))?;
                 let execution = match settlement.execution {
+                    AdmittedBoundaryExecution::NativeBinding { execution, .. } => {
+                        target_operations::BoundaryExecutionBinding::NativeBinding(execution)
+                    }
                     AdmittedBoundaryExecution::Provider(provider_execution) => {
                         let provider_plan = target_operations::ProviderPlanReportIdentity::new(
                             provider_execution.provider_plan_report_identity(),

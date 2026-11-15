@@ -20,6 +20,7 @@ use super::authority::Access;
 use super::places::Member;
 use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
 use super::{Program, Slot};
+use crate::StorageShape;
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
 use crate::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
@@ -723,17 +724,12 @@ impl Program<'_> {
                 else {
                     return unserved("extent of non-collection storage");
                 };
-                if !matches!(
-                    self.data_type(id, record)?.shape,
-                    crate::StorageShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(
-                                terminal_psi::StructuralAccess::SharedBorrow
-                                    | terminal_psi::StructuralAccess::MutableBorrow
-                            ),
-                        }
-                    )
-                ) {
+                if self
+                    .data_type(id, record)?
+                    .shape
+                    .length_operation()
+                    .is_none()
+                {
                     return unserved("extent without its descriptor operation");
                 }
                 let scalar_type = semantic_vocabulary::IntegerType::new(
@@ -1372,13 +1368,15 @@ impl Program<'_> {
                         Unserved::Contract("member of something that is not data"),
                     )
                 };
-                let Some((root, base, receiver)) = self.projected(id, scope, member.receiver)?
+                let Some((root, mut base, receiver)) =
+                    self.projected(id, scope, member.receiver)?
                 else {
                     return Err(not_data());
                 };
                 let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
                     return Err(not_data());
                 };
+                let record = self.through_shared_referent(id, &mut base, record)?;
                 (root, base, record, member.selection.field_symbol())
             }
             ExpressionNode::Indexed(indexed) => {
@@ -1391,6 +1389,7 @@ impl Program<'_> {
                 let Some(array) = self.opened(id, Some(receiver), Access::Read)? else {
                     return Err(unavailable("index of something that is not an array"));
                 };
+                let array = self.through_shared_referent(id, &mut path, array)?;
                 let (element, qualification, terminal_semantics::CollectionExtent::Fixed(length)) =
                     self.array_element(id, array)?
                 else {
@@ -1459,6 +1458,43 @@ impl Program<'_> {
             }
         };
         Ok(Some((root, path, value_type)))
+    }
+
+    /// A clause names storage beneath a stored shared reference, such as
+    /// `self.buffer[4095]` for `buffer: &'s [u16; 4096]`, as the referent the
+    /// reference lends: one `Referent` step, then the referent's own fields
+    /// or elements. A shared referent cannot change while it is lent, so a
+    /// fact about it holds for as long as the reference does. Storage behind
+    /// an exclusive reference can be written through it, so a clause there is
+    /// refused by name. Anything that is not a reference is `record` itself.
+    fn through_shared_referent(
+        &self,
+        id: MachineId,
+        path: &mut Vec<CanonicalStructuralPathSegment>,
+        record: super::authority::Opened,
+    ) -> Checked<super::authority::Opened> {
+        match self.data_type(id, record.record())?.shape {
+            StorageShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            } => {
+                path.push(CanonicalStructuralPathSegment::Referent);
+                self.opened(id, Some(ValueType::record(referent)), Access::Read)?
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("referent that is not data"),
+                        )
+                    })
+            }
+            StorageShape::Reference { .. } => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("clause through an exclusive stored reference"),
+            )),
+            _ => Ok(record),
+        }
     }
 }
 

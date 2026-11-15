@@ -1,14 +1,15 @@
 // A product of one target reads two settled things: which target it is for
-// and which provider plans supply the boundary requirements its accepted
-// Terminal module reaches. This record holds exactly those, and its only
+// and which checked plans or evaluated native bindings supply the boundary
+// requirements its accepted Terminal module reaches. Its only
 // constructor takes them from provider settlement, so a product cannot be
 // formed for a target whose supply was never settled.
 //
 // It deliberately carries nothing a product can derive. The selected program
 // entry, native provider declarations, calling applications, callback roots
 // and review provenance belong to the products that use them and are formed
-// there from these plans and the accepted artifact; a product whose inputs
-// have no producer yet refuses by name instead of reading a retained copy.
+// there from the selected supplies and the accepted artifact. Native binding
+// receipts remain here because their completed Build evaluations cannot be
+// reconstructed from the Product's accepted artifact.
 
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -17,6 +18,7 @@ use std::sync::Arc;
 pub struct SelectedExecution {
     target_profile: Option<target::TargetProfile>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
+    native_bindings: Arc<provider_planning::target_supply::NormalizedNativeSupplies>,
 }
 
 impl SelectedExecution {
@@ -33,6 +35,7 @@ impl SelectedExecution {
                 "selected execution and settled provider supply name different deployments",
             )]);
         }
+        let native_bindings = supply.native_bindings(planning.module)?;
         let plans =
             effects::SelectedProviderPlanFacts::from_selected_plans(supply.plans(planning)?)
                 .map_err(|reason| {
@@ -44,6 +47,7 @@ impl SelectedExecution {
         Ok(Self {
             target_profile,
             plans: Arc::new(plans),
+            native_bindings: Arc::new(native_bindings),
         })
     }
 
@@ -64,6 +68,10 @@ impl SelectedExecution {
 
     pub fn shared_plans(&self) -> &Arc<effects::SelectedProviderPlanFacts> {
         &self.plans
+    }
+
+    pub fn native_bindings(&self) -> &provider_planning::target_supply::NormalizedNativeSupplies {
+        &self.native_bindings
     }
 
     /// The provider proposal this target's conditions are checked against:

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A persistent software-rendered macOS window. The 64x64 animated framebuffer
 // is stretched into a 256x256 client area until the user closes it or presses
 // Escape while this window has focus. Window state is explicitly owned by the
@@ -371,12 +372,12 @@ machine Main::main(main: &mut Main) reaches
     machine closed(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("window closed -- goodbye (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 

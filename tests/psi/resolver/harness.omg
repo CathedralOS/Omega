@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Gate-owned black-box name-resolution harness. The gate package's build root
 // binds `resolver_harness_main` as its own product entry; the product compiler
 // closure never includes it. Lexing and parsing run exactly as in the product;
@@ -45,7 +46,7 @@ data HarnessWord [copy] {
 // whole set then resolves. Malformed framing exits 253, and a set its
 // provisions cannot hold 252, without an observation.
 machine main()
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -55,7 +56,7 @@ blocks
 }
 
 public machine resolver_harness_main(resolver_harness: &mut ResolverHarness)
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -329,27 +330,27 @@ blocks
     }
 
     machine accepted(resolver_harness: &mut ResolverHarness) {
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 
     machine resolve_rejected(resolver_harness: &mut ResolverHarness) {
-        Console::exit_process(249);
+        ProcessExit::exit_process(249);
     }
 
     machine parse_rejected(resolver_harness: &mut ResolverHarness) {
-        Console::exit_process(250);
+        ProcessExit::exit_process(250);
     }
 
     machine lex_rejected(resolver_harness: &mut ResolverHarness) {
-        Console::exit_process(251);
+        ProcessExit::exit_process(251);
     }
 
     machine source_full(resolver_harness: &mut ResolverHarness) {
-        Console::exit_process(252);
+        ProcessExit::exit_process(252);
     }
 
     machine malformed(resolver_harness: &mut ResolverHarness) {
-        Console::exit_process(253);
+        ProcessExit::exit_process(253);
     }
 }
 

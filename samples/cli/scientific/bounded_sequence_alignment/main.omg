@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // With absent stdin, the sample harness checks the missing-input diagnostic.
 // Expected exit: 64.
 // Expected output contains: ERROR missing-sequence
@@ -10,7 +11,7 @@ use output::report;
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut first: input::sequence::Sequence;
     let mut second: input::sequence::Sequence;
     let mut result: alignment::local::Alignment;
@@ -26,20 +27,20 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine emit(main: &mut Main, result: &alignment::local::Alignment) {
         output::report::report(result);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine diagnostic(main: &mut Main, status: i32) {
         transition status { 1 -> empty(main) 2 -> alphabet(main) 3 -> capacity(main) 4 -> missing(main) _ -> internal(main) }
     }
-    machine empty(main: &mut Main) { Console::write_line("ERROR empty-sequence"); Console::exit_process(64); }
-    machine alphabet(main: &mut Main) { Console::write_line("ERROR alphabet-expected-ACGTN"); Console::exit_process(64); }
-    machine capacity(main: &mut Main) { Console::write_line("ERROR sequence-exceeds-16"); Console::exit_process(64); }
-    machine missing(main: &mut Main) { Console::write_line("ERROR missing-sequence"); Console::exit_process(64); }
-    machine internal(main: &mut Main) { Console::write_line("ERROR internal-alignment"); Console::exit_process(70); }
+    machine empty(main: &mut Main) { Console::write_line("ERROR empty-sequence"); ProcessExit::exit_process(64); }
+    machine alphabet(main: &mut Main) { Console::write_line("ERROR alphabet-expected-ACGTN"); ProcessExit::exit_process(64); }
+    machine capacity(main: &mut Main) { Console::write_line("ERROR sequence-exceeds-16"); ProcessExit::exit_process(64); }
+    machine missing(main: &mut Main) { Console::write_line("ERROR missing-sequence"); ProcessExit::exit_process(64); }
+    machine internal(main: &mut Main) { Console::write_line("ERROR internal-alignment"); ProcessExit::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

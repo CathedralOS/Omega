@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: stage vector 9
 // A mass-action stage selects one concentration triple. The match subject is
@@ -21,7 +22,7 @@ machine choose(order: u64) -> [f64; 3] {
 
 machine sum(values: [f64; 3]) -> f64 { values[0] + values[1] + values[2] }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let chosen: [f64; 3] = choose(1);
     transition { _ -> carry(main, chosen) }
     machine carry(main: &mut Main, values: [f64; 3]) {
@@ -37,16 +38,16 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine pass() {
         Console::write_line("stage vector 9");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine fail() {
         Console::write_line("stage vector mismatch");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

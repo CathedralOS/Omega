@@ -321,33 +321,43 @@ pub mod provider_declarations {
 pub mod projection {
     pub(crate) mod applied_receivers {
         use crate::trait_definition::AppliedTraitScope;
+        use diagnostics::Diagnostic;
         use language_semantics::service_surface::ServiceReceiverApplication;
         use language_semantics::service_surface::identities::ProviderIdentityTable;
 
         pub(crate) fn collect_scopes<'program>(
             program: &'program crate::TypedTrees,
             root: AppliedTraitScope<'program>,
-        ) -> Option<Vec<AppliedTraitScope<'program>>> {
+        ) -> Result<Vec<AppliedTraitScope<'program>>, Diagnostic> {
             let mut scopes: Vec<AppliedTraitScope<'_>> = Vec::new();
-            let mut ambiguous = false;
+            let mut ambiguous = None;
             root.visit(program, &mut |scope| {
                 if let Some(existing) = scopes
                     .iter()
                     .find(|existing| existing.declaration.symbol == scope.declaration.symbol)
                 {
-                    ambiguous |= !existing.same_application(program, scope);
+                    if !existing.same_application(program, scope) {
+                        ambiguous.get_or_insert(scope.declaration.symbol);
+                    }
                 } else {
                     scopes.push(scope.clone());
                 }
             });
-            (!ambiguous).then_some(scopes)
+            if let Some(declaration) = ambiguous {
+                return Err(super::projection_failure(
+                    program,
+                    declaration,
+                    "the receiver is inherited with different applications",
+                ));
+            }
+            Ok(scopes)
         }
 
         pub(crate) fn receiver_applications(
             program: &crate::TypedTrees,
             scopes: &[AppliedTraitScope<'_>],
             identities: &mut ProviderIdentityTable,
-        ) -> Option<Vec<ServiceReceiverApplication>> {
+        ) -> Result<Vec<ServiceReceiverApplication>, Diagnostic> {
             let mut applications = Vec::new();
             for scope in scopes.iter().filter(|scope| {
                 scope.declaration.is_boundary
@@ -355,25 +365,30 @@ pub mod projection {
                         .trait_machine_signatures(scope.declaration)
                         .is_empty()
             }) {
+                let unavailable =
+                    |reason| super::projection_failure(program, scope.declaration.symbol, reason);
                 let mut argument_identities = Vec::new();
                 for parameter in program.trait_type_parameters(scope.declaration) {
                     let Some(identity) =
                         scope.portable_parameter_identity(program, parameter.symbol)
                     else {
-                        return Some(Vec::new());
+                        return Ok(Vec::new());
                     };
-                    argument_identities
-                        .push(identities.intern(&program.type_identity_text(identity)?));
+                    let text = program.type_identity_text(identity).ok_or_else(|| {
+                        unavailable("a receiver type argument has no exact identity")
+                    })?;
+                    argument_identities.push(identities.intern(&text));
                 }
                 let Some(lifetimes) = scope.portable_lifetime_arguments(program) else {
-                    return Some(Vec::new());
+                    return Ok(Vec::new());
                 };
                 let lifetime_argument_identities = lifetimes
                     .iter()
                     .map(|identity| {
                         Some(identities.intern(&program.type_identity_text(*identity)?))
                     })
-                    .collect::<Option<Vec<_>>>()?;
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| unavailable("a receiver lifetime has no exact identity"))?;
                 let mut requirement_identities = Vec::new();
                 scope.visit(program, &mut |declaring| {
                     for signature in program.trait_machine_signatures(declaring.declaration) {
@@ -391,7 +406,8 @@ pub mod projection {
                     .sort_by(|left, right| identities.text(*left).cmp(identities.text(*right)));
                 let application = scope
                     .portable_application_identity(program)
-                    .and_then(|identity| program.type_identity_text(identity))?;
+                    .and_then(|identity| program.type_identity_text(identity))
+                    .ok_or_else(|| unavailable("the receiver application has no exact identity"))?;
                 applications.push(ServiceReceiverApplication {
                     application: identities.intern(&application),
                     trait_name: identities
@@ -415,7 +431,7 @@ pub mod projection {
                         })
                 });
             }
-            Some(applications)
+            Ok(applications)
         }
     }
     pub(crate) mod correspondence {
@@ -552,21 +568,52 @@ pub mod projection {
         ProviderPlanningContext::new(program, source::DependencyScope::Product).contains(symbol)
     }
 
+    pub(super) fn projection_failure(
+        program: &crate::TypedTrees,
+        symbol: symbols::SymbolHandle,
+        reason: impl std::fmt::Display,
+    ) -> diagnostics::Diagnostic {
+        let path = program.symbols.display_path(symbol, "::");
+        let diagnostic = diagnostics::Diagnostic::error(format!(
+            "cannot read service contract for `{path}`: {reason}"
+        ));
+        if let Some(span) = program.symbols.symbol_provenance_source_span(symbol) {
+            diagnostic.with_source_span(span)
+        } else {
+            diagnostic
+        }
+    }
+
     pub fn from_typed<'program>(
         context: ProviderPlanningContext<'program>,
         trait_definition: &'program crate::trait_definition::TraitDefinition,
-    ) -> Option<ProjectedServiceSurface<'program>> {
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
         from_typed_application(context, AppliedTraitScope::abstract_scope(trait_definition))
     }
 
     pub fn from_typed_application<'program>(
         context: ProviderPlanningContext<'program>,
         root: AppliedTraitScope<'program>,
-    ) -> Option<ProjectedServiceSurface<'program>> {
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
         let program = context.typed;
         let trait_definition = root.declaration;
-        if !trait_definition.is_boundary || !context.contains(trait_definition.symbol) {
-            return None;
+        let symbol = trait_definition.symbol;
+        if !trait_definition.is_boundary {
+            return Err(projection_failure(
+                program,
+                symbol,
+                "the trait is not a boundary",
+            ));
+        }
+        if !context.contains(symbol) {
+            return Err(projection_failure(
+                program,
+                symbol,
+                format_args!(
+                    "the trait is outside the {:?} dependency scope",
+                    context.scope
+                ),
+            ));
         }
         let mut methods = Vec::new();
         let mut requirements = Vec::new();
@@ -588,7 +635,7 @@ pub mod projection {
         }
         let receiver_applications =
             applied_receivers::receiver_applications(program, &scopes, &mut identities)?;
-        Some(ProjectedServiceSurface {
+        Ok(ProjectedServiceSurface {
             program,
             schema: ProviderSchemaDeclaration::BoundaryTrait(trait_definition.symbol),
             argument_owner,
@@ -637,6 +684,19 @@ pub mod projection {
                         .symbol_package_identity(operator.symbol),
                     requirement_identity,
                     parameter_count: program.operator_parameters(operator).len(),
+                    declared_type_signature:
+                        language_semantics::service_surface::declared_type_signature(
+                            program
+                                .operator_parameters(operator)
+                                .iter()
+                                .map(|parameter| {
+                                    program.package_qualified_type_identity_text(
+                                        parameter.type_reference,
+                                    )
+                                }),
+                            &program.package_qualified_type_identity_text(operator.return_type),
+                        )
+                        .ok()?,
                     parameter_type_identities: program
                         .operator_parameters(operator)
                         .iter()
@@ -737,6 +797,15 @@ pub mod projection {
                     requirement_owner_package_identity: package_identity,
                     requirement_identity: requirement_identity_id,
                     parameter_count: parameters.len(),
+                    declared_type_signature:
+                        language_semantics::service_surface::declared_type_signature(
+                            parameters.iter().map(|parameter| {
+                                program
+                                    .package_qualified_type_identity_text(parameter.type_reference)
+                            }),
+                            &program.package_qualified_type_identity_text(entry.return_type),
+                        )
+                        .ok()?,
                     parameter_type_identities: parameters
                         .iter()
                         .map(|parameter| {
@@ -777,7 +846,7 @@ pub mod projection {
         requirements: &mut Vec<ServiceRequirementSource>,
         methods: &mut Vec<ServiceMethod>,
         identities: &mut ProviderIdentityTable,
-    ) -> Option<()> {
+    ) -> Result<(), diagnostics::Diagnostic> {
         let trait_definition = scope.declaration;
         for signature in program.trait_machine_signatures(trait_definition) {
             let requirement_identity = identities.intern(
@@ -802,6 +871,29 @@ pub mod projection {
                     .symbol_package_identity(trait_definition.symbol),
                 requirement_identity,
                 parameter_count: program.state_signature_parameters(signature).iter().count(),
+                declared_type_signature:
+                    language_semantics::service_surface::declared_type_signature(
+                        program
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .map(|parameter| {
+                                program
+                                    .type_identity_text(scope.package_qualified_type_identity(
+                                        program,
+                                        parameter.type_reference,
+                                    ))
+                                    .unwrap_or_default()
+                            }),
+                        &program
+                            .type_identity_text(
+                                scope.package_qualified_type_identity(
+                                    program,
+                                    signature.return_type,
+                                ),
+                            )
+                            .unwrap_or_default(),
+                    )
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 parameter_type_identities: program
                     .state_signature_parameters(signature)
                     .iter()
@@ -832,14 +924,15 @@ pub mod projection {
                     .unwrap_or_default(),
                 result_claims: service_result_claims(program, scope, signature),
                 service_reach: service_reach_names(program, trait_definition, signature),
-                synchronous_invocations: synchronous_invocation_names(program, signature)?,
+                synchronous_invocations: synchronous_invocation_names(program, signature)
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 may_suspend: signature.suspends,
                 may_block: signature.blocks,
                 terminates_guarantee: signature.termination_guarantee.promises_termination(),
                 termination_premises: service_progress_premises(program, signature, identities),
             });
         }
-        Some(())
+        Ok(())
     }
 
     fn service_progress_premises(
@@ -1186,16 +1279,17 @@ pub mod projection {
     fn synchronous_invocation_names(
         program: &crate::TypedTrees,
         signature: &crate::signature::StateSignature,
-    ) -> Option<Vec<String>> {
+    ) -> Result<Vec<String>, String> {
         let parameters = program
             .state_signature_parameters(signature)
             .iter()
             .collect::<Vec<_>>();
         invocation_names(
             program,
-            crate::invocations::declared_signature_invocations(program, signature).ok()?,
+            crate::invocations::declared_signature_invocations(program, signature)?,
             &parameters,
         )
+        .ok_or_else(|| "an invoked target has no exact service identity".into())
     }
 
     fn machine_synchronous_invocation_names(
@@ -1366,10 +1460,7 @@ pub(crate) mod catalog {
     impl RetainedServiceSurface {
         pub fn surface(&self) -> Result<PreparedServiceSurface<'_>, Diagnostic> {
             self.catalog
-                .view(self.catalog.records.get(self.record))
-                .ok_or_else(|| {
-                    Diagnostic::error("retained service declaration lost its prepared surface")
-                })
+                .required_surface(self.catalog.records.get(self.record))
         }
     }
 
@@ -1378,7 +1469,7 @@ pub(crate) mod catalog {
         pub package: Option<PackageKeyIdentity>,
         pub path: &'catalog str,
         pub nominal_identity: &'catalog Result<String, Diagnostic>,
-        pub surface: Option<PreparedServiceSurface<'catalog>>,
+        pub surface: Result<PreparedServiceSurface<'catalog>, Diagnostic>,
     }
 
     pub struct PreparedServiceSurface<'catalog> {
@@ -1528,7 +1619,13 @@ pub(crate) mod catalog {
                     exact_toolchain_sources,
                     ServiceOrigin::Declaration(schema),
                     schema,
-                    projection::from_typed_operator(context, operator),
+                    projection::from_typed_operator(context, operator).ok_or_else(|| {
+                        projection::projection_failure(
+                            program,
+                            schema.symbol(),
+                            "the operator has no complete service declaration",
+                        )
+                    }),
                     &[],
                 );
             }
@@ -1544,7 +1641,15 @@ pub(crate) mod catalog {
                     exact_toolchain_sources,
                     ServiceOrigin::Declaration(schema),
                     schema,
-                    projection::from_typed_boundary_requirement(context, machine),
+                    projection::from_typed_boundary_requirement(context, machine).ok_or_else(
+                        || {
+                            projection::projection_failure(
+                                program,
+                                schema.symbol(),
+                                "the machine has no complete service declaration",
+                            )
+                        },
+                    ),
                     &[],
                 );
             }
@@ -1566,7 +1671,7 @@ pub(crate) mod catalog {
                     package: record.package,
                     path: &record.path,
                     nominal_identity: &record.nominal_identity,
-                    surface: self.view(record),
+                    surface: self.required_surface(record),
                 })
         }
 
@@ -1731,6 +1836,22 @@ pub(crate) mod catalog {
             })
         }
 
+        fn required_surface<'catalog>(
+            &'catalog self,
+            record: &'catalog ServiceRecord,
+        ) -> Result<PreparedServiceSurface<'catalog>, Diagnostic> {
+            self.view(record).ok_or_else(|| {
+                record
+                    .correspondence
+                    .as_ref()
+                    .err()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        Diagnostic::error("retained service declaration lost its prepared surface")
+                    })
+            })
+        }
+
         fn has_origin(&self, origin: ServiceOrigin) -> bool {
             if matches!(origin, ServiceOrigin::Application { application, .. } if !application.is_valid())
             {
@@ -1747,7 +1868,7 @@ pub(crate) mod catalog {
             exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
             origin: ServiceOrigin,
             schema: ProviderSchemaDeclaration,
-            projected: Option<ProjectedServiceSurface<'_>>,
+            projected: Result<ProjectedServiceSurface<'_>, Diagnostic>,
             arguments: &[TypeReferenceHandle],
         ) {
             let mut record = ServiceRecord {
@@ -1766,23 +1887,29 @@ pub(crate) mod catalog {
                 arguments: self.arguments.insert_many(arguments.iter().copied()),
                 ..ServiceRecord::default()
             };
-            if let Some(projected) = projected {
-                record.correspondence = projected.validate_correspondence();
-                record.argument_owner = projected.argument_owner;
-                record.requirements =
-                    self.requirements
-                        .insert_many(projected.requirements.into_iter().map(|source| {
-                            PreparedServiceRequirement {
-                                nominal_identity: exact_identity(
-                                    context.typed,
-                                    source.symbol,
-                                    exact_toolchain_sources,
-                                ),
-                                source,
-                            }
-                        }));
-                record.declaration = Some(projected.declaration);
-            }
+            let projected = match projected {
+                Ok(projected) => projected,
+                Err(diagnostic) => {
+                    record.correspondence = Err(diagnostic);
+                    self.records.insert(record);
+                    return;
+                }
+            };
+            record.correspondence = projected.validate_correspondence();
+            record.argument_owner = projected.argument_owner;
+            record.requirements =
+                self.requirements
+                    .insert_many(projected.requirements.into_iter().map(|source| {
+                        PreparedServiceRequirement {
+                            nominal_identity: exact_identity(
+                                context.typed,
+                                source.symbol,
+                                exact_toolchain_sources,
+                            ),
+                            source,
+                        }
+                    }));
+            record.declaration = Some(projected.declaration);
             self.records.insert(record);
         }
 
@@ -1811,6 +1938,13 @@ pub(crate) mod catalog {
                 let schema = ProviderSchemaDeclaration::BoundaryTrait(receiver);
                 let projected = root
                     .declaring_scope(context.typed, receiver)
+                    .ok_or_else(|| {
+                        projection::projection_failure(
+                            context.typed,
+                            receiver,
+                            "the named application has no exact declaring scope",
+                        )
+                    })
                     .and_then(|scope| projection::from_typed_application(context, scope));
                 self.retain(
                     context,
@@ -1864,7 +1998,13 @@ pub(crate) mod catalog {
                             exact_toolchain_sources,
                             ServiceOrigin::Declaration(schema),
                             schema,
-                            projected,
+                            projected.ok_or_else(|| {
+                                projection::projection_failure(
+                                    program,
+                                    schema.symbol(),
+                                    "the sealed accessor has no complete service declaration",
+                                )
+                            }),
                             &[],
                         );
                     }
@@ -1924,18 +2064,38 @@ pub mod signatures {
             pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
         }
 
-        pub struct PreparedBoundaryAbiSignature {
-            pub id: CallingSignatureId,
-            pub template: SymbolHandle,
-            pub source_templates: Vec<SymbolHandle>,
-            pub requirement_identity: String,
-            pub declaring_application: String,
-            pub operands: Vec<CallingStaticOperand>,
+        pub struct PreparedAbiSource {
+            pub source: SymbolHandle,
             pub formals: Vec<CallingGenericFormal>,
             pub default_eligible: bool,
             pub physical_owner: Result<semantic_vocabulary::CallingDeclarationOwner, String>,
             pub telescope: Result<BoundaryTelescope, String>,
-            pub projections: Vec<Result<PreparedAbiStorage, String>>,
+            pub storage: Result<PreparedAbiStorage, String>,
+        }
+
+        pub struct PreparedBoundaryAbiSignature {
+            pub id: CallingSignatureId,
+            pub requirement_identity: String,
+            pub declaring_application: String,
+            pub operands: Vec<CallingStaticOperand>,
+            pub projections: Vec<PreparedAbiSource>,
+        }
+
+        impl PreparedBoundaryAbiSignature {
+            /// Build and Product are separate checked programs even when their
+            /// copies of a declaration have the same portable ABI key.
+            pub fn projections_in_context<'a>(
+                &'a self,
+                typed: &'a TypedTrees,
+                context: source::DependencyScope,
+            ) -> impl Iterator<Item = &'a PreparedAbiSource> {
+                self.projections.iter().filter(move |projection| {
+                    projection.source.is_valid()
+                        && typed
+                            .symbols
+                            .symbol_is_in_dependency_scope(projection.source, context)
+                })
+            }
         }
 
         pub(crate) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTrees) {
@@ -2323,7 +2483,6 @@ pub mod signatures {
             operands: Vec<CallingStaticOperand>,
             projection: Result<PreparedAbiStorage, String>,
         ) -> CallingSignatureId {
-            let physical_owner = physical_owner(typed, declaration);
             let id = CallingSignatureId::for_application(
                 &declaration.requirement_identity,
                 &declaring_application,
@@ -2331,24 +2490,6 @@ pub mod signatures {
                     .iter()
                     .map(|operand| (operand.ordinal, operand.kind, operand.identity.as_str())),
             );
-            if let Some(row) = rows.iter_mut().find(|row| {
-                row.id == id
-                    && row.requirement_identity == declaration.requirement_identity
-                    && row.declaring_application == declaring_application
-                    && row.operands == operands
-            }) {
-                if !row.source_templates.contains(&declaration.symbol) {
-                    row.source_templates.push(declaration.symbol);
-                }
-                row.projections.push(projection);
-                row.default_eligible |= declaration.default_eligible;
-                if row.physical_owner != physical_owner {
-                    row.physical_owner = Err(
-                        "declaration ABI copies disagree on their physical calling owner".into(),
-                    );
-                }
-                return id;
-            }
             let formals = typed
                 .trait_machine_signature(declaration.symbol)
                 .map(|(_, signature)| {
@@ -2364,21 +2505,32 @@ pub mod signatures {
                         .collect()
                 })
                 .unwrap_or_default();
-            rows.push(PreparedBoundaryAbiSignature {
-                id,
-                template: declaration.symbol,
-                source_templates: vec![declaration.symbol],
-                requirement_identity: declaration.requirement_identity.clone(),
-                declaring_application,
-                operands,
+            let projection = PreparedAbiSource {
+                source: declaration.symbol,
                 formals,
                 default_eligible: declaration.default_eligible,
-                physical_owner,
+                physical_owner: physical_owner(typed, declaration),
                 telescope: declaration
                     .projection
                     .as_ref()
                     .map(|prepared| prepared.telescope.clone())
                     .map_err(Clone::clone),
+                storage: projection,
+            };
+            if let Some(row) = rows.iter_mut().find(|row| {
+                row.id == id
+                    && row.requirement_identity == declaration.requirement_identity
+                    && row.declaring_application == declaring_application
+                    && row.operands == operands
+            }) {
+                row.projections.push(projection);
+                return id;
+            }
+            rows.push(PreparedBoundaryAbiSignature {
+                id,
+                requirement_identity: declaration.requirement_identity.clone(),
+                declaring_application,
+                operands,
                 projections: vec![projection],
             });
             id
@@ -2927,7 +3079,9 @@ pub mod signatures {
             refusal.map_or(Ok(()), Err)
         }
     }
-    pub use abi_signatures::{CallingStaticOperand, PreparedBoundaryAbiSignature};
+    pub use abi_signatures::{
+        CallingStaticOperand, PreparedAbiSource, PreparedAbiStorage, PreparedBoundaryAbiSignature,
+    };
 
     pub struct BoundaryCallbackSource {
         pub parameter_symbol: SymbolHandle,

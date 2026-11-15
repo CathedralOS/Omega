@@ -10,6 +10,60 @@ use target::TargetProfile;
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
+fn native_project_build_publishes_the_reached_boundary_calling_application() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
+    let profile = TargetProfile::host();
+    // The ordinary source-checking API captures the source, executes its
+    // local Build and completes the accepted publication in one session.
+    let checked = orchestration::check_source(
+        &mut compiler::CompilationSession::default(),
+        compiler::CheckedCompileRequest::new(&root, Some(profile.target_name())),
+    )
+    .result
+    .unwrap_or_else(|failure| {
+        panic!(
+            "kept native binding project: {:?}",
+            failure.into_diagnostics()
+        )
+    });
+    assert_eq!(
+        checked.build().config.native_bindings.len(),
+        4,
+        "the real Build retains all four authored target bindings"
+    );
+    assert_eq!(
+        checked.execution().native_bindings().rows.len(),
+        1,
+        "the selected target retains its own evaluated binding"
+    );
+    let published = checked
+        .terminal_publication()
+        .published()
+        .expect("source checking publishes the accepted Terminal product");
+    let module = published.artifact().semantic_module();
+    let [boundary] = module.boundary_machines.as_slice() else {
+        panic!("the kept project reaches exactly its process-ID requirement")
+    };
+    let identity = module
+        .calling_abi_identity(boundary.id)
+        .expect("the reached native boundary keeps its calling association");
+    let callable = boundary.declaration.as_ref().unwrap().source.callable;
+    assert_eq!(
+        Some(identity.requirement_identity.as_str()),
+        module.identities.text(callable)
+    );
+    let [association] = module.calling_signatures.as_slice() else {
+        panic!("the reached requirement has one exact calling association")
+    };
+    assert_eq!(association.boundary, boundary.id);
+    let declaration = module
+        .calling_abi_signature(*association.application.as_ref().unwrap())
+        .unwrap();
+    assert_eq!(declaration.identity(&module.identities).unwrap(), identity);
+}
+
+#[test]
 fn native_fixture_admission_does_not_upgrade_a_package_check() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root = repo_root()

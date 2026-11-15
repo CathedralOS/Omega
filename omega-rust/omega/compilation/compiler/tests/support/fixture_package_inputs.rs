@@ -1,9 +1,9 @@
-//! Fixture acceptance layered on ordinary executed package discovery.
+//! Fixture acceptance on top of ordinary package discovery.
 //!
 //! The application Build coordinator resolves authored declarations and dependencies,
-//! retains their completed Builds, and prepares every requested Product target.
+//! keeps their completed Builds, and prepares every requested Product target.
 //! This harness adds repository test consent to those actual package identities;
-//! it neither parses a second dependency graph nor replays Build for checking.
+//! it neither parses a second dependency graph nor reruns Build for checking.
 //!
 //! Bundled-library entry and dangerous-service bindings are explicit test policy,
 //! not production review. `accepted_entry_supplier.txt` selects a declared Product
@@ -987,7 +987,7 @@ fn dangerous_service_bindings(
         ))]);
     }
     if let Some(console) = required.console {
-        bindings.push(provider_acceptance::console_exit_binding(
+        bindings.push(provider_acceptance::console_io_binding(
             preliminary,
             owner,
             console.output,

@@ -6,9 +6,9 @@
 //! vacant place closes the ownership window ... Every return or terminal
 //! transfer from the region owing restoration ... must close the window."
 //!
-//! Programs remove an affine record or projected field from mutable incoming
-//! storage, directly or through retained exclusive references. Accepted paths
-//! restore that exact storage before handback; each failing twin breaks only
+//! Programs remove an affine record or projected field from exclusive incoming
+//! or owned storage, directly or through retained exclusive references. Accepted
+//! paths restore that exact storage before handback; each failing twin breaks only
 //! the store, observation or loan obligation it challenges.
 
 use super::*;
@@ -52,6 +52,91 @@ fn rejected(body: &str, rule: &str) {
 const NOT_RESTORED: &str =
     "the place does not hold a value again where the machine returns the borrow";
 const USED_VACANT: &str = "owned storage is used after its value was transferred or consumed";
+
+#[test]
+fn a_whole_local_owned_home_is_repaired_before_its_reference_ends() {
+    let program = |during: &str, repair: &str| {
+        format!(
+            "machine take(value: Inner, next: Inner) -> Inner {{\n\
+             let mut owner: Inner = value;\n\
+             let local: &mut Inner = &mut owner;\n\
+             let taken: Inner = move local;\n\
+             {during}\n\
+             {repair}\n\
+             taken\n}}\n"
+        )
+    };
+    accepted(&program("", "local = next;"));
+    rejected(&program("", ""), NOT_RESTORED);
+    rejected(
+        &program("let again: Inner = move local;", "local = next;"),
+        USED_VACANT,
+    );
+    rejected(
+        &program("let peek: u32 = owner.value;", "local = next;"),
+        USED_VACANT,
+    );
+}
+
+#[test]
+fn a_whole_local_repair_must_fill_the_captured_home() {
+    rejected(
+        "machine take(value: Inner, other: Inner, next: Inner) -> Inner {\n\
+         let mut owner: Inner = value;\n\
+         let mut unrelated: Inner = other;\n\
+         let local: &mut Inner = &mut owner;\n\
+         let taken: Inner = move local;\n\
+         unrelated = next;\n\
+         taken\n}\n",
+        NOT_RESTORED,
+    );
+}
+
+#[test]
+fn a_whole_owned_home_remains_captured_when_its_reference_moves() {
+    let program = |repair: &str| {
+        format!(
+            "machine take(value: Inner, next: Inner) -> Inner {{\n\
+             let mut owner: Inner = value;\n\
+             let local: &mut Inner = &mut owner;\n\
+             let taken: Inner = move local;\n\
+             let retained: &mut Inner = move local;\n\
+             {repair}\n\
+             taken\n}}\n"
+        )
+    };
+    accepted(&program("retained = next;"));
+    rejected(&program(""), NOT_RESTORED);
+}
+
+#[test]
+fn ordinary_whole_owned_transfer_does_not_owe_borrowed_storage_repair() {
+    accepted(
+        "machine take(value: Inner) -> Inner {\n\
+         let mut owner: Inner = value;\n\
+         let taken: Inner = move owner;\n\
+         taken\n}\n",
+    );
+}
+
+#[test]
+fn a_whole_qualified_owned_origin_remains_explicitly_unsupported() {
+    let source = "domain Inner::Stamped established by stamp;\n\
+         machine stamp(value: Inner) -> Inner in Stamped { value as +Stamped }\n\
+         machine take(value: Inner in Stamped, next: Inner in Stamped) -> Inner in Stamped {\n\
+         let mut owner: Inner in Stamped = value;\n\
+         let local: &mut Inner in Stamped = &mut owner;\n\
+         let taken: Inner in Stamped = move local;\n\
+         local = next;\n\
+         taken\n}\n";
+    let refusal = verdict(source).unwrap_err();
+    assert!(
+        refusal.contains(
+            "whole-referent restoration requires unqualified nonlinear owned storage without claims"
+        ),
+        "{refusal}"
+    );
+}
 
 #[test]
 fn a_local_owned_field_is_restored_before_its_reference_is_released() {
@@ -430,6 +515,14 @@ fn an_owned_field_window_publishes_and_executes_the_original_local_storage() {
     execute_restoration(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../tests/fixtures/run/ownership/owned_borrowed_field_restoration/main.omg"
+    )));
+}
+
+#[test]
+fn a_whole_local_owned_window_publishes_and_executes_the_original_storage() {
+    execute_restoration(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/ownership/owned_borrowed_root_restoration/main.omg"
     )));
 }
 

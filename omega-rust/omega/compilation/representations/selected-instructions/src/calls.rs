@@ -91,6 +91,7 @@ pub mod constraints {
         let target = call.binding.native_target()?;
         let expected_family = match call.binding.mechanism {
             NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::HostedImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => RegisterConstraintFamily::Call,
             NormalizedForeignCallMechanism::SystemCall(_) => RegisterConstraintFamily::SystemCall,
@@ -425,7 +426,7 @@ pub mod normalized_foreign {
                 &mut cursor,
                 &mut result_registers,
             )?;
-            let restore_position = if record.call.binding.same_stack_contribution().is_some() {
+            let restore_position = if record.call.binding.requires_floating_control_preservation() {
                 let restore = block.instructions.get(cursor)?;
                 if restore.kind
                     != (SelectedInstructionKind::RestoreFloatingControl {
@@ -843,6 +844,227 @@ pub mod normalized_foreign {
             use semantic_vocabulary::{
                 IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId,
             };
+
+            fn hosted_return() -> (
+                SelectedFunction,
+                SelectedBlock,
+                SelectedNormalizedForeignCall,
+            ) {
+                use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId};
+                use target_operations::{
+                    NativeBindingExecution, NormalizedForeignCallBinding,
+                    NormalizedForeignCallMechanism, TargetBoundaryResult,
+                };
+
+                let operation = OperationId::new(17).unwrap();
+                let boundary = BoundaryMachineId::new(3).unwrap();
+                let target = target::TargetProfile::LinuxX64;
+                let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                    calling_conventions::CallingPolicy::native_for_target(target.native_target()),
+                    &calling_conventions::CallSignature {
+                        parameters: Vec::new(),
+                        result: None,
+                    },
+                )
+                .unwrap()
+                .plan()
+                .clone();
+                let locator = target::normalize_foreign_locator(
+                    target::ForeignLocatorCandidate::ElfVersioned {
+                        object: b"libc.so.6".to_vec(),
+                        symbol: b"leaf".to_vec(),
+                        version: b"GLIBC_2.0".to_vec(),
+                    },
+                    target,
+                )
+                .unwrap();
+                let record = SelectedNormalizedForeignCall {
+                    instruction: SelectedInstructionId(1),
+                    invocation_site: operation.into(),
+                    call: legalized_operations::LegalizedNormalizedForeignCall {
+                        boundary,
+                        provider_execution:
+                            target_operations::ExternalExecutionBinding::NativeBinding(
+                                NativeBindingExecution::from_commitments([1; 32], [2; 32], [3; 32])
+                                    .unwrap(),
+                            ),
+                        binding: NormalizedForeignCallBinding {
+                            boundary_entry_plan: plan,
+                            mechanism: NormalizedForeignCallMechanism::HostedImport {
+                                locator,
+                                receipt: [1; 32],
+                                requirement_identity: "Foreign::leaf".to_owned(),
+                            },
+                        },
+                        scalar_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        structural_indices: Vec::new(),
+                        descriptor_input: None,
+                        result: TargetBoundaryResult::Unit,
+                        callbacks: Vec::new(),
+                    },
+                    effect: optimization_unit::EffectLink {
+                        input: 1,
+                        output: 2,
+                    },
+                    ownership: Vec::new(),
+                };
+                let slot = LocalStorageSlotId::Boundary { operation };
+                let block = SelectedBlock {
+                    id: SelectedBlockId(0),
+                    origin: crate::SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+                    instructions: vec![
+                        control_instruction(
+                            0,
+                            SelectedInstructionKind::SaveFloatingControl { slot },
+                            operation,
+                        ),
+                        control_instruction(
+                            1,
+                            SelectedInstructionKind::NormalizedForeignCall {
+                                boundary,
+                                ordinal: 0,
+                            },
+                            operation,
+                        ),
+                        control_instruction(
+                            2,
+                            SelectedInstructionKind::RestoreFloatingControl { slot },
+                            operation,
+                        ),
+                    ],
+                    terminator: crate::SelectedTerminator::Return {
+                        instruction: control_instruction(
+                            3,
+                            SelectedInstructionKind::ReturnUnit,
+                            operation,
+                        ),
+                        psi_return_edge: EdgeId::new(1).unwrap(),
+                    },
+                };
+                let function = SelectedFunction {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    provenance: Default::default(),
+                    structural: None,
+                    local_storage_slots: vec![crate::SelectedLocalStorageSlot {
+                        id: slot,
+                        byte_size: 8,
+                        alignment: 8,
+                    }],
+                    outgoing_arguments: Vec::new(),
+                    calls: Vec::new(),
+                    normalized_foreign_calls: vec![record.clone()],
+                    memory_accesses: Vec::new(),
+                    boundary_settlements: Vec::new(),
+                    entry_block: block.id,
+                    blocks: vec![block.clone()].into(),
+                    virtual_registers: Vec::new(),
+                };
+                (function, block, record)
+            }
+
+            fn control_instruction(
+                id: u32,
+                kind: SelectedInstructionKind,
+                operation: OperationId,
+            ) -> SelectedInstruction {
+                SelectedInstruction {
+                    id: SelectedInstructionId(id),
+                    kind,
+                    constraint: RegisterConstraintKey {
+                        family: RegisterConstraintFamily::Instruction,
+                        variant: 0,
+                    },
+                    operands: Vec::new(),
+                    implicit_uses: Vec::new(),
+                    implicit_defs: Vec::new(),
+                    clobbers: Vec::new(),
+                    provenance: crate::SelectedInstructionProvenance {
+                        operations: vec![operation],
+                        ..Default::default()
+                    },
+                }
+            }
+
+            #[test]
+            fn hosted_import_return_requires_its_exact_control_restore() {
+                let (function, mut block, record) = hosted_return();
+                assert!(record.call.binding.same_stack_contribution().is_none());
+                let transport = resolve(&function, &block, &record).unwrap();
+                assert_eq!(
+                    save_position(&function, &block, &record, transport.call_position),
+                    Some(0)
+                );
+                assert_eq!(transport.restore_position, Some(2));
+                assert_eq!(transport.normalization_position, 3);
+                block.instructions[2].provenance.operations = vec![OperationId::new(23).unwrap()];
+                assert!(resolve(&function, &block, &record).is_none());
+                block.instructions.pop();
+                assert!(resolve(&function, &block, &record).is_none());
+            }
+
+            #[test]
+            fn syscall_return_needs_no_user_space_control_envelope() {
+                let (function, mut block, mut record) = hosted_return();
+                record.call.binding.mechanism =
+                    target_operations::NormalizedForeignCallMechanism::SystemCall(
+                        target_operations::NormalizedSystemCallBinding {
+                            target: target::TargetProfile::LinuxX64,
+                            number: 39,
+                            requirement_identity: "Foreign::leaf".to_owned(),
+                            execution: target_operations::NormalizedForeignExecution::NativeBinding(
+                                [1; 32],
+                            ),
+                        },
+                    );
+                block
+                    .instructions
+                    .retain(|instruction| instruction.id == record.instruction);
+                let transport = resolve(&function, &block, &record).unwrap();
+                assert_eq!(transport.restore_position, None);
+                assert_eq!(transport.normalization_position, 1);
+            }
+
+            #[test]
+            fn external_completion_has_no_control_restore_continuation() {
+                let (function, mut block, mut record) = hosted_return();
+                let edge = semantic_vocabulary::EdgeId::new(5).unwrap();
+                record.invocation_site =
+                    semantic_vocabulary::InvocationSite::ExternalCompletion(edge);
+                block
+                    .instructions
+                    .retain(|instruction| instruction.id == record.instruction);
+                let mut trap = control_instruction(
+                    3,
+                    SelectedInstructionKind::Crash,
+                    OperationId::new(17).unwrap(),
+                );
+                trap.provenance = crate::SelectedInstructionProvenance {
+                    edges: vec![edge],
+                    ..Default::default()
+                };
+                block.terminator = crate::SelectedTerminator::HostedExitProcess {
+                    instruction: trap,
+                    completion_edge: edge,
+                };
+                assert_eq!(
+                    resolve(&function, &block, &record)
+                        .unwrap()
+                        .restore_position,
+                    None
+                );
+                let operation = OperationId::new(17).unwrap();
+                block.instructions.push(control_instruction(
+                    2,
+                    SelectedInstructionKind::RestoreFloatingControl {
+                        slot: LocalStorageSlotId::Boundary { operation },
+                    },
+                    operation,
+                ));
+                assert!(resolve(&function, &block, &record).is_none());
+            }
 
             #[test]
             fn scalar_result_buffer_address_rejects_other_storage_and_false_lineage() {

@@ -2149,8 +2149,18 @@ pub(crate) mod address_joins {
             block: BlockId,
             node: u32,
             operation: &O,
+            structural_types: &(impl crate::StructuralTypes + ?Sized),
             moved: impl IntoIterator<Item = PlaceId>,
         ) -> Result<(), OptimizationUnitValidationError> {
+            if let O::ReleaseReference { source, path, .. } = operation
+                && super::references::releases_view(function, structural_types, *source, path)
+                && self
+                    .borrowed_regions
+                    .source_origins_at((block, node), *source, path)
+                    .is_none_or(|origins| origins.is_empty())
+            {
+                return Err(pinned_root_disturbed(function, block, node, *source));
+            }
             let moved = moved.into_iter().collect::<Vec<_>>();
             if let Some(place) = self.descriptor_loans.conflicted_operation(
                 &self.borrowed_regions,
@@ -5944,6 +5954,23 @@ pub(crate) mod references {
         }
     }
 
+    pub(super) fn releases_view(
+        function: &PsiOptimizationFunction,
+        types: &(impl StructuralTypes + ?Sized),
+        source: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> bool {
+        structural_source_contract(function, source)
+            .and_then(|root| {
+                terminal_semantics::inline_descriptor_type(
+                    types.declarations(),
+                    root.structural_type,
+                    path,
+                )
+            })
+            .is_some_and(|leaf| leaf.shape.is_view_descriptor())
+    }
+
     pub(super) fn release(
         function: &PsiOptimizationFunction,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -5968,6 +5995,11 @@ pub(crate) mod references {
                 node,
                 "release carrier storage remains borrowed",
             ));
+        }
+        // The descriptor-flow walk checks the view's exact live source.
+        // Ordinary reference leaves still owe their child-loan closure here.
+        if releases_view(function, structural_types, source, path) {
+            return Ok(());
         }
         let position = live
             .iter()
@@ -8163,6 +8195,7 @@ mod replay {
                     block_id,
                     node_index,
                     &node.operation,
+                    structural_types,
                     consumed_places.iter().copied().chain(
                         structural_arguments
                             .iter()

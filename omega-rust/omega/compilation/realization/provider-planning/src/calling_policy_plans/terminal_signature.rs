@@ -161,6 +161,36 @@ impl CanonicalCallingSignature {
                 },
             });
         }
+        // External completion must retain the exact declared logical result,
+        // even when that result has no physical calling slot.
+        for binding in module
+            .calling_signatures
+            .iter()
+            .filter(|binding| binding.application.as_ref() == Ok(&declaration))
+        {
+            let boundary = module
+                .boundary_machine(binding.boundary)
+                .ok_or("calling result lost its exact boundary declaration")?;
+            if matches!(
+                boundary.completion,
+                semantic_vocabulary::BoundaryCompletion::External(_)
+            ) {
+                let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
+                else {
+                    return Err("external completion lost its structural logical result".into());
+                };
+                if storage.result != Some(result.structural_type) {
+                    return Err(
+                        "external calling result differs from its logical declaration".into(),
+                    );
+                }
+                terminal_semantics::inhabitation::external_result_is_erased(
+                    boundary.completion,
+                    storage.result,
+                    &module.structural_types,
+                )?;
+            }
+        }
         // Calling geometry carries no result slot for a result domain that
         // admits no value. Keep the declared logical storage unchanged; an
         // unknown domain and an inhabited zero-sized record still take their

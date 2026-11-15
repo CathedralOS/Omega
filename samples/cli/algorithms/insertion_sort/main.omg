@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Bubble sort on a fixed [i32; 6] array via compare-and-swap dispatch chains.
 //
 // Exercises: fixed-array element SWAPS (reading one slot, writing two slots) +
@@ -165,7 +166,7 @@ machine Main::pass5(main: &mut Main) {
     Main::cmp_swap_01(main);
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("insertion_sort: bubble-sorting [5,2,8,1,3,7] with compare-and-swap passes");
     // Initialize array: [5, 2, 8, 1, 3, 7].
     main.s.arr[0] = 5;
@@ -193,7 +194,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine check1(main: &mut Main) {
@@ -208,7 +209,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine check2(main: &mut Main) {
@@ -223,7 +224,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine check3(main: &mut Main) {
@@ -238,7 +239,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 
     machine check4(main: &mut Main) {
@@ -253,7 +254,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(75);
+        ProcessExit::exit_process(75);
     }
 
     machine check5(main: &mut Main) {
@@ -268,19 +269,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(76);
+        ProcessExit::exit_process(76);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

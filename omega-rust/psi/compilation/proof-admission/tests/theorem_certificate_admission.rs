@@ -1,4 +1,4 @@
-//! A theorem machine's obligation discharged through the admission and
+//! Tests a theorem machine's obligation discharged through the admission and
 //! judged by the common mathematical core.
 //!
 //! The authored theorem is `machine equal_symmetric(a: u64, b: u64)
@@ -15,11 +15,10 @@
 //! checks. The accepted fact records the kernel's decision and the
 //! judgment's measurements.
 //!
-//! The invalid controls are the four the board names: a wrong goal, a
-//! wrong proof, a forged closure and a missing dependency each reject —
-//! at the admission for the first two, and at the kernel on the exact
-//! elaborated judgment for the last two, so the kernel is shown to be
-//! load-bearing over this certificate rather than a bystander.
+//! Four invalid controls each reject: a wrong goal and a wrong proof at
+//! the admission, and a forged closure and a missing dependency at the
+//! kernel on the exact elaborated judgment. This shows the kernel really
+//! decides this certificate rather than standing by.
 
 use std::collections::BTreeSet;
 

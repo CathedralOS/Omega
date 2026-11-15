@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use domain::records;
@@ -7,7 +8,7 @@ data Main { records: Beamforming; }
 
 // Runtime input is a bounded 36-digit stream with optional ASCII whitespace.
 // Reject truncation and trailing digits rather than silently selecting fixtures.
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     transition { _ -> read(context, 0) }
     machine read(context: &mut Main, position: u64) {
         let observed: ByteRead = block Console::read_byte();
@@ -50,7 +51,7 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write("ERROR ");
         print_integer(context, status as i64 in Wrapping);
         Console::write_line("");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine report(context: &mut Main) {
         Console::write("ACTIVE ");
@@ -116,11 +117,11 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     machine done(context: &mut Main) {
         Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
-machine print_integer(context: &mut Main, value: i64 in Wrapping) reaches Console {
+machine print_integer(context: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 - 576 && value <= 576 {
         true -> sign(context, value)
         false -> invalid(context)
@@ -132,7 +133,7 @@ machine print_integer(context: &mut Main, value: i64 in Wrapping) reaches Consol
             false -> digits(context, value)
         }
     }
-    machine invalid(context: &mut Main) { Console::exit_process(70); }
+    machine invalid(context: &mut Main) { ProcessExit::exit_process(70); }
     machine negative(context: &mut Main, value: i64 in Wrapping)
     requires value >= 0 - 576 requires value < 0 {
         Console::write("-");
@@ -146,7 +147,7 @@ machine print_integer(context: &mut Main, value: i64 in Wrapping) reaches Consol
 // All report magnitudes are <=576, so three decimal places suffice.
 machine print_digits(context: &mut Main, value: i64 in Wrapping)
 requires value >= 0 requires value <= 576
-reaches Console {
+reaches ProcessExit + Console {
     transition value >= 100 {
         true -> hundreds(context, value)
         false -> short(context, value)
@@ -176,7 +177,7 @@ reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -1,7 +1,11 @@
+use omega::language::core::narrow_i32_to_u8_wrapping;
+use omega::language::core::narrow_i64_to_u8_trapping;
+use omega::language::core::widen_u8_to_i32;
+
 // Portable console surface exposed by the Omega standard library.
 //
-// This is the friendly app-facing API. Its implementation should eventually be
-// proven Omega code over explicit host capabilities, not a direct OS binding.
+// The text adapters and byte conversions are checked Omega code. Build binds
+// only the raw host operations used by the selected byte provider.
 //
 // Console and its implementation declarations share the package-root logical
 // module. Physical target directories do not introduce import namespaces.
@@ -29,12 +33,10 @@ public boundary trait Console {
     machine write_line(text: &[u8])
     reaches
         Console
-    invokes WindowsConsoleIo
     crashes none;
     machine write(text: &[u8])
     reaches
         Console
-    invokes WindowsConsoleIo
     crashes none;
     // Fill the existing writable extent without resizing it. Preserve every
     // byte, including CR and the terminating LF; callers interpret the prefix.
@@ -43,7 +45,6 @@ public boundary trait Console {
     machine read_line(out_line: &mut [u8]) -> LineReadResult
     reaches
         Console
-    invokes WindowsConsoleIo
     blocks
     crashes Trap;
     // Byte-level stdin/stdout (the settled universal console surface):
@@ -55,26 +56,72 @@ public boundary trait Console {
     machine read_byte() -> ByteRead
     reaches
         Console
-    invokes WindowsConsoleIo
     blocks
     crashes Trap;
     machine write_byte(byte: i32)
     reaches
         Console
-    invokes WindowsConsoleIo
-    crashes none;
-    machine exit_process(return_code: i32)
-    reaches
-        Console
     crashes none;
 }
 
-// Storage for target-default declarations and the namespace of the exact
-// native leaves. This data declaration is not a whole-trait implementation.
-public data ConsoleNativeProvider { }
+// Host byte I/O is a separate private boundary. The public provider calls
+// these requirements; it never calls a boundary conformer's name or selects
+// Console again while implementing Console.
+boundary trait ConsoleHost {
+    machine read_byte() -> ByteRead
+    reaches Console
+    blocks
+    crashes Trap;
+    machine write_byte(byte: i32)
+    reaches Console
+    crashes none;
+}
 
-// The selected implementation owns the complete Console map. Native leaves
-// retain their exact target identities; shared adapters use ordinary calls.
+// Raw POSIX calls move one byte through an initialized i32 cell. All hosted
+// targets here are little-endian; the checked adapter keeps only that byte.
+// Build owns the actual read/write locator for each target.
+boundary trait PosixConsoleIo {
+    machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    requires descriptor == 0 && count <= 4
+    reaches Console
+    blocks
+    crashes none;
+    machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    requires descriptor == 1 && count <= 4
+    reaches Console
+    crashes none;
+}
+
+PosixConsoleHost satisfies ConsoleHost {
+    machine read_byte() -> ByteRead
+    reaches Console
+    blocks
+    crashes Trap {
+        let mut cell: i32 = 0;
+        let count: i64 = block PosixConsoleIo::read(0, &mut cell, 1);
+        transition count {
+            1 -> byte(cell)
+            0 -> end()
+            _ -> failed(count)
+        }
+        machine byte(cell: i32) -> ByteRead {
+            let value: u8 = narrow_i32_to_u8_wrapping(cell);
+            ByteRead::Byte { value: widen_u8_to_i32(value) }
+        }
+        machine end() -> ByteRead { ByteRead::Eof }
+        machine failed(count: i64) -> ByteRead {
+            let trapped: u8 = narrow_i64_to_u8_trapping(count);
+            ByteRead::Eof
+        }
+    }
+    machine write_byte(byte: i32) reaches Console {
+        let mut cell: i32 = byte;
+        let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
+    }
+}
+
+// Build selects this complete Console map. Both text adapters use the same
+// private byte operations selected for that target.
 public NativeConsole satisfies Console {
     machine write_line(text: &[u8]) reaches Console {
         console_write_bytes(text, true);
@@ -84,17 +131,14 @@ public NativeConsole satisfies Console {
     }
     machine read_line(out_line: &mut [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
-        block ConsoleNativeProvider::read_line(out_line)
+        block console_read_line(out_line)
     }
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
-        block ConsoleNativeProvider::read_byte()
+        block ConsoleHost::read_byte()
     }
     machine write_byte(byte: i32) reaches Console {
-        ConsoleNativeProvider::write_byte(byte);
-    }
-    machine exit_process(return_code: i32) reaches Console {
-        ConsoleNativeProvider::exit_process(return_code);
+        ConsoleHost::write_byte(byte);
     }
 }
 
@@ -102,9 +146,10 @@ public NativeConsole satisfies Console {
 // service redispatch. Check capacity before reading: Full consumes no lookahead
 // and an empty destination returns Full(0). LF in the last slot still completes
 // the line. Finite storage does not promise a bound on waiting for host input.
-machine ConsoleNativeProvider::read_line(out_line: &mut [u8]) -> LineReadResult
-satisfies Console::read_line
-reaches Console {
+machine console_read_line(out_line: &mut [u8]) -> LineReadResult
+reaches Console
+blocks
+crashes Trap {
     transition { _ -> block scan(out_line, 0) }
     machine scan(out_line: &mut [u8], position: u64) -> LineReadResult {
         transition position < out_line.len {
@@ -114,7 +159,7 @@ reaches Console {
     }
     machine read(out_line: &mut [u8], position: u64, next: u64) -> LineReadResult
     requires position < out_line.len {
-        let observed: ByteRead = block ConsoleNativeProvider::read_byte();
+        let observed: ByteRead = block ConsoleHost::read_byte();
         transition observed {
             ByteRead::Byte { value } -> block store(out_line, position, next, value)
             ByteRead::Eof -> end(position)
@@ -153,7 +198,7 @@ reaches
     machine emit(byte: u8, bytes: &[u8], newline: bool)
     terminates by bytes -> Slice::Length {
         let mut output: u8 = byte;
-        ConsoleNativeProvider::write_byte(output as i32);
+        ConsoleHost::write_byte(output as i32);
         transition bytes.len > 0 {
             true -> emit(bytes[0], bytes[1..], newline)
             false -> finish(newline)
@@ -169,7 +214,7 @@ reaches
 
     machine emit_newline(byte: u8) {
         let mut output: u8 = byte;
-        ConsoleNativeProvider::write_byte(output as i32);
+        ConsoleHost::write_byte(output as i32);
     }
 
     machine done() { }

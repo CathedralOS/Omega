@@ -17,6 +17,9 @@ use omega_language_std::MacosImageData;
 use omega_language_std::MacosImageObjects;
 use omega_language_std::WindowsGuiHost;
 use omega_language_std::WindowsMessage;
+use omega_language_std::windows_message_kind;
+use omega_language_std::windows_message_window;
+use omega_language_std::windows_message_word_parameter;
 
 public WindowsGuiProvider satisfies Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
@@ -72,9 +75,9 @@ public WindowsGuiProvider satisfies Gui {
         let present: bool = WindowsGuiHost::pump_message(message);
         transition present { true -> inspect(window_state, message, close_requested) _ -> (0) }
         machine inspect(window_state: &Window, message: &WindowsMessage, close_requested: &mut bool) -> u32 {
-            let target: u64 = WindowsMessage::window(message);
-            let kind: u64 = WindowsMessage::kind(message);
-            let command: u64 = WindowsMessage::word_parameter(message) & 0xFFFF;
+            let target: u64 = windows_message_window(message);
+            let kind: u64 = windows_message_kind(message);
+            let command: u64 = windows_message_word_parameter(message) & 0xFFFF;
             // WM_CLOSE / WM_COMMAND + IDCANCEL (2) request cancellation. Keep
             // the resource live until the main loop releases its DC and closes it.
             transition target == window_state.window && (kind == 0x0010 || (kind == 0x0111 && command == 2)) {

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Greatest common divisor by Euclid's algorithm: repeatedly replace (a, b) with
 // (b, a mod b) until b is 0; a is then the GCD. gcd(48, 36) = 12. Two-and-a-half
 // millennia old and still the standard way to reduce a fraction. Showcases the
@@ -12,7 +13,7 @@ use omega_language_std::Console;
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("euclid_gcd: Euclid's algorithm on (48, 36) via the remainder loop");
     transition {
         _ -> block step(context, 48, 36)
@@ -38,12 +39,12 @@ machine Main::main(context: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(result as i32);
+        ProcessExit::exit_process(result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

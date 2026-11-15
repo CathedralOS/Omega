@@ -1,7 +1,7 @@
-// Assemble the native request from this application's canonical artifact and
-// completed entry plans. Checked provider rows keep their canonical adapters;
-// exact core primitives supply direct native leaves and narrowly keyed host
-// permission rows. Unsupported Build demands still refuse at their owner.
+// Assemble the native request from the accepted program and its selected
+// supplies. Native bindings retain their Build receipts; checked providers
+// retain their installed bodies. Core primitives use their canonical leaves
+// and exact host permissions.
 
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -30,6 +30,32 @@ fn authorize_produced_artifact(
         Some(producer),
     )
     .map_err(|error| vec![Diagnostic::error(error.to_string())])
+}
+
+// Package acceptance rows carry identities in their own tables. Join those
+// exact identities before the native admission validates the combined rows.
+fn accepted_package_permissions(
+    bindings: &[package_compilation::AcceptedSemanticBinding],
+) -> Result<native_compiler::TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let mut permissions = Vec::new();
+    for binding in bindings {
+        let source = binding.terminal_authority_permission_identities();
+        for permission in binding.terminal_authority_permissions() {
+            let requirement = source
+                .text(permission.requirement_identity())
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "accepted package permission has no exact requirement identity",
+                    )]
+                })?;
+            let mut permission = permission.clone();
+            permission.rekey_requirement_identity(identities.intern(requirement));
+            permissions.push(permission);
+        }
+    }
+    native_compiler::admit_package_permissions(permissions, identities.build())
 }
 
 pub(crate) fn prepare(
@@ -123,6 +149,20 @@ pub(crate) fn prepare(
     let policy = current_terminal_authority_policy();
     let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut permission_rows = Vec::new();
+    let package_permissions =
+        accepted_package_permissions(checked.sources().accepted_semantic_bindings())?;
+    for permission in package_permissions.rows() {
+        let requirement = package_permissions
+            .identities()
+            .text(permission.requirement_identity())
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| {
+                failure("accepted package permission lost its exact requirement identity")
+            })?;
+        let mut permission = permission.clone();
+        permission.rekey_requirement_identity(permission_identities.intern(requirement));
+        permission_rows.push(permission);
+    }
     for leaf in &leaves {
         let backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
         else {
@@ -140,8 +180,8 @@ pub(crate) fn prepare(
             ));
         }
     }
-    // The receiving host grants only the exact admitted primitive rows above.
-    // Ordinary packages and unrelated checked instructions keep no permission.
+    // Keep accepted package grants and exact core primitive grants in the
+    // same identity table. Unrelated requirements gain no permission.
     let permissions =
         native_compiler::admit_package_permissions(permission_rows, permission_identities.build())?;
     let semantic = entry
@@ -150,37 +190,87 @@ pub(crate) fn prepare(
     let physical = entry
         .physical_calling_application()
         .ok_or_else(|| failure("native entry lost its physical calling application"))?;
-    let proposals = vec![proposal.clone()];
-    // Each selected plan enters settlement with its own canonical rows. This
-    // in-process product holds no host or device review, so no row carries a
-    // reviewed execution: checked rows execute their selected machine, and an
-    // intrinsic row realizes only through its canonical declared meaning or
-    // is refused at boundary settlement.
-    let selected_plans = checked.execution().plans();
-    let unreviewed = selected_plans
-        .plans()
+    let native_supplies = checked.execution().native_bindings();
+    let accepted = checked.terminal_publication().accepted()?;
+    let declared = accepted
+        .boundary_requirements_declared()
+        .map_err(|error| vec![error])?;
+    let schemas = native_supplies
+        .rows
+        .iter()
+        .map(|supply| {
+            let requirement = declared
+                .iter()
+                .find(|requirement| requirement.boundary == supply.boundary)
+                .ok_or_else(|| {
+                    failure("selected native binding has no accepted boundary declaration")
+                })?;
+            let surface = accepted.slot_schema(requirement.slot).ok_or_else(|| {
+                failure("selected native binding lost its complete requirement schema")
+            })?;
+            Ok(effects::provider_plan::ServiceSchema::from_declaration(
+                surface,
+            ))
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let native_bindings = native_supplies
+        .rows
+        .iter()
+        .zip(&schemas)
+        .map(|(supply, schema)| native_compiler::NativeBindingInput {
+            boundary: supply.boundary,
+            binding: &supply.binding,
+            identities: &native_supplies.identities,
+            schema,
+        })
+        .collect::<Vec<_>>();
+    let calling_program = provider_planning::calling_policy_plans::CallingProgram {
+        artifact: std::sync::Arc::clone(program.artifact()),
+        evaluator: build_settings::CALLING_POLICY_EVALUATOR,
+    };
+    let plans = checked.execution().plans().plans();
+    let mut calling_applications = vec![semantic.clone(), physical.clone()];
+    // Checked providers in this product use their authenticated local machine
+    // installations and ordinary Omega calls. Their private home layouts do
+    // not become public foreign ABIs. Independent components, rejected above,
+    // require their own admitted cross-artifact calling applications.
+    for application in provider_planning::calling_policy_plans::native_calling_applications(
+        profile,
+        &calling_program,
+        &native_supplies.rows,
+    )? {
+        if !calling_applications.contains(&application) {
+            calling_applications.push(application);
+        }
+    }
+    // No row carries a separate host or device review. Checked rows execute
+    // their installed machine; intrinsic rows must realize their canonical
+    // declared meaning or be refused by boundary settlement.
+    let row_executions = plans
         .iter()
         .map(|plan| vec![None; plan.rows.len()])
         .collect::<Vec<_>>();
+    let selected_provider_provenance = plans
+        .iter()
+        .zip(&row_executions)
+        .map(
+            |(plan, row_executions)| native_compiler::CompilerIntrinsicPlanProvenance {
+                plan,
+                semantic_schema: &plan.schema,
+                row_executions,
+            },
+        )
+        .collect();
+    let proposals = vec![proposal.clone()];
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: &module.identities,
+        native_bindings: &native_bindings,
         direct_boundary_leaves: leaves.iter().collect(),
         target_profile: Some(profile),
         boundaries: BoundaryApplicationSettlement {
-            selected_provider_plans: selected_plans,
-            selected_provider_provenance: selected_plans
-                .plans()
-                .iter()
-                .zip(&unreviewed)
-                .map(
-                    |(plan, row_executions)| native_compiler::CompilerIntrinsicPlanProvenance {
-                        plan,
-                        semantic_schema: &plan.schema,
-                        row_executions,
-                    },
-                )
-                .collect(),
-            calling_applications: vec![semantic.clone(), physical.clone()],
+            selected_provider_plans: checked.execution().plans(),
+            selected_provider_provenance,
+            calling_applications,
         },
         native_target: Some(profile.native_target()),
         program_entry: Some(entry.with_checked_entry(&receipt)),
@@ -215,4 +305,69 @@ pub(crate) fn prepare(
     }
     .prepare(native)?;
     Ok((terminal, permissions, retained_inputs))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::accepted_package_permissions;
+    use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
+    use effects::{
+        ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
+    };
+    use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+
+    #[test]
+    fn package_permission_transport_keeps_each_bindings_identity_table() {
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let mut bindings = Vec::new();
+        let mut expected = Vec::new();
+        for (byte, requirement, class) in [
+            (3, "Left::write", TerminalAuthorityClass::ProcessOutput),
+            (4, "Right::read", TerminalAuthorityClass::ProcessInput),
+        ] {
+            let schema = ServiceSchemaDigest::from_digest([byte; 32]);
+            let permitted = TerminalAuthorityDisposition::from_classes([class]);
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            let permission = ServiceTerminalAuthorityPermission::new(
+                schema,
+                identities.intern(requirement),
+                permitted.clone(),
+            );
+            let binding = AcceptedSemanticBinding::new(
+                AcceptedSemanticBindingRole::ConsoleIo,
+                package,
+                "Console",
+                schema,
+                ProviderPlanDigest::from_digest([byte; 32]),
+            )
+            .unwrap()
+            .with_terminal_authority_permissions(vec![permission], &identities.build())
+            .unwrap();
+            bindings.push(binding);
+            expected.push((schema, requirement.to_owned(), permitted));
+        }
+        assert_eq!(
+            bindings[0].terminal_authority_permissions()[0].requirement_identity(),
+            bindings[1].terminal_authority_permissions()[0].requirement_identity(),
+            "the source-local indices collide before transport"
+        );
+        let accepted = accepted_package_permissions(&bindings).unwrap();
+        let actual = accepted
+            .rows()
+            .iter()
+            .map(|permission| {
+                (
+                    permission.service_schema(),
+                    accepted
+                        .identities()
+                        .text(permission.requirement_identity())
+                        .unwrap()
+                        .to_owned(),
+                    permission.permitted().clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+        assert!(accepted_package_permissions(&[]).unwrap().rows().is_empty());
+    }
 }

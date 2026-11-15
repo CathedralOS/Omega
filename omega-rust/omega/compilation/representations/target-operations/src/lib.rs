@@ -74,12 +74,13 @@ pub use boundary::{
     AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
     BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,
     BoundarySettlementRealization, ClaimCompletionOnlyRealization, CompilerBuiltinExecution,
-    DirectPortReadU8Realization, ExternalCompletionBinding, ForeignCallOperands,
-    HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
-    IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier,
-    IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, LinuxWriteLineRealization,
-    MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
+    DirectPortReadU8Realization, ExternalCompletionBinding, ExternalExecutionBinding,
+    ForeignCallOperands, HostedExitProcessI32Realization, HostedReadByteRealization,
+    HostedWriteByteI32Realization, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
+    IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
+    LinuxWriteLineRealization, MetadataOnlyPortRealization, NativeBindingExecution,
+    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
+    NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
     ProviderPlanReportIdentity, conventional_atomic_once_layout,
     conventional_atomic_once_layout_closed, conventional_float_class_layout,
@@ -88,6 +89,10 @@ pub use descriptor_input::{
     DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
     descriptor_input_guard_for_call_with_closed_scalars,
     descriptor_input_guard_with_closed_scalars,
+};
+mod element_sequence_literal;
+pub use element_sequence_literal::{
+    ConstantElementRoster, RosterGeometry, constant_element_roster,
 };
 pub mod operations;
 pub use operations::{

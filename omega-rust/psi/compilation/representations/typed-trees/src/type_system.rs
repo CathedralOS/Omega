@@ -882,22 +882,9 @@ pub(crate) mod type_predicates {
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 contains_type_predicate(program, unary.operand, active)
             }
-            ExpressionNode::Name(path)
-                if path.symbol.is_valid()
-                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Local =>
-            {
-                let state_symbol = program.symbols.get(path.symbol).parent;
-                let machine_symbol = program.symbols.get(state_symbol).parent;
-                program
-                    .machine_by_symbol(machine_symbol)
-                    .and_then(|machine| program.state_in_machine(machine, state_symbol))
-                    .and_then(|state| program.state_local_declaration(state, path.symbol))
-                    .filter(|(_, local)| !local.is_mutable)
-                    .and_then(|(_, local)| local.ordinary_value_initializer())
-                    .is_some_and(|initializer| {
-                        contains_type_predicate(program, initializer, active)
-                    })
-            }
+            ExpressionNode::Name(path) => program
+                .immutable_local_initializer(path.symbol)
+                .is_some_and(|initializer| contains_type_predicate(program, initializer, active)),
             _ => false,
         };
         active.pop();
@@ -921,18 +908,8 @@ pub(crate) mod type_predicates {
                 .collect();
         }
         match program.expression_table.expression(expression) {
-            ExpressionNode::Name(path)
-                if path.symbol.is_valid()
-                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Local =>
-            {
-                let state_symbol = program.symbols.get(path.symbol).parent;
-                let machine_symbol = program.symbols.get(state_symbol).parent;
-                if let Some(machine) = program.machine_by_symbol(machine_symbol)
-                    && let Some(state) = program.state_in_machine(machine, state_symbol)
-                    && let Some((_, local)) = program.state_local_declaration(state, path.symbol)
-                    && !local.is_mutable
-                    && let Some(initializer) = local.ordinary_value_initializer()
-                {
+            ExpressionNode::Name(path) => {
+                if let Some(initializer) = program.immutable_local_initializer(path.symbol) {
                     condition_inner(program, worlds, initializer, holds)
                 } else {
                     worlds.to_vec()

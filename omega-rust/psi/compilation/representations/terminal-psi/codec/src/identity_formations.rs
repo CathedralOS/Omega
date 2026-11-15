@@ -1,7 +1,7 @@
-//! Receive typed Id formation without granting identity truth.
+//! Receive typed `Id` formations without trusting them.
 //!
 //! The catalog abstracts checked source subjects into ordinary mathematical
-//! lambdas. The receiver rechecks their signature and requires actual Id
+//! lambdas. The receiver rechecks their signature and requires real `Id`
 //! bodies; neither an opaque structural-equality row nor a Boolean comparison
 //! can stand in for this kernel type constructor.
 

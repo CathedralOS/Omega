@@ -176,9 +176,14 @@ impl Program<'_> {
     /// only once `Units` is a literal. Each closed application stage 04 made
     /// for a call (`utf8<4096, 12288>`) is a boundary with its own literal
     /// contract, and that is what the binding supplies. So the claim reads
-    /// every one of them through the same reader their calls take, and a
-    /// claim of a requirement nothing applies is refused rather than left
-    /// unread.
+    /// every one of them through the same reader their calls take.
+    ///
+    /// A library may apply such a requirement only inside its own generic
+    /// machines (std's `macos_window_create<const Count: u64>` calls
+    /// `send_string<Count>`), so its own check may close no application at
+    /// all. Then the claim has no contract to read, and none is published:
+    /// each consumer that applies the requirement closes that application and
+    /// its call reads it through this same reader.
     fn applied_boundaries(&mut self, entry: MachineId, requirement: SymbolHandle) -> Checked<()> {
         let applications: Vec<SymbolHandle> = self
             .typed
@@ -186,15 +191,6 @@ impl Program<'_> {
             .filter(|application| application.template == requirement)
             .map(|application| application.signature.symbol)
             .collect();
-        if applications.is_empty() {
-            return Err(refuse(
-                entry,
-                Construct::Machine,
-                Unserved::Declaration(
-                    "native binding of a requirement with value parameters that nothing applies",
-                ),
-            ));
-        }
         for application in applications {
             self.boundary_declaration(entry, application)?;
         }

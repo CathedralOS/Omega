@@ -607,7 +607,7 @@ mod carriers {
         pub owner: CallSiteOwner,
         pub operation_ordinal: usize,
         pub binding: target_operations::NormalizedForeignCallBinding,
-        pub provider_execution: machine_code::ProviderExecutionRecord,
+        pub provider_execution: machine_code::ExternalExecutionRecord,
         pub caller_live_bytes: u32,
         pub scalar_arguments: Vec<machine_code::ForeignCallScalarArgumentRecord>,
         pub callback_addresses: Vec<machine_code::CallbackAddressMaterialization>,
@@ -1566,7 +1566,9 @@ pub(crate) mod installed_stack {
             entry_plan: bridge
                 .installed_interrupt()
                 .ok_or(Error::Mismatch("installed entry plan is missing"))?,
-            body_bytes: body.ceiling_bytes(),
+            body_bytes: body.ceiling_bytes().ok_or(Error::Mismatch(
+                "installed stack requires a finite demand without hosted foreign calls",
+            ))?,
             bridge_bytes: bridge.frame_bytes(),
             call_stack_bias: bridge.call_stack_bias(),
             alignment: body
@@ -2100,7 +2102,7 @@ mod normalized_foreign_calls {
                                 && field.invocation_site == record.invocation_site
                         });
                 let field = match (
-                    record.call.binding.symbolic_import(),
+                    record.call.binding.import_locator(),
                     fields.next(),
                     fields.next(),
                 ) {
@@ -2257,7 +2259,7 @@ mod normalized_foreign_calls {
                     .checked_sub(frame.red_zone_resident_bytes)
                     .and_then(|extent| {
                         extent.checked_add(
-                            if record.call.binding.same_stack_contribution().is_some()
+                            if record.call.binding.system_call().is_none()
                                 && architecture == target::Architecture::X86_64
                             {
                                 8
@@ -2269,7 +2271,7 @@ mod normalized_foreign_calls {
                     .ok_or(ObjectError::TextSizeOverflow)?;
                 let caller_live_bytes =
                     u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
-                let controls = if record.call.binding.same_stack_contribution().is_some()
+                let controls = if record.call.binding.requires_floating_control_preservation()
                     && record.invocation_site.operation().is_some()
                 {
                     Some(
@@ -2602,8 +2604,8 @@ mod normalized_foreign_calls {
                 import: record
                     .call
                     .binding
-                    .symbolic_import()
-                    .map(|(locator, _)| format!("{locator:?}")),
+                    .import_locator()
+                    .map(|locator| format!("{locator:?}")),
                 parameter: argument.map(|argument| argument.parameter_index),
                 reason,
                 transport: argument.map(|argument| {
@@ -3178,8 +3180,8 @@ mod normalized_foreign_calls {
             import: record
                 .call
                 .binding
-                .symbolic_import()
-                .map(|(locator, _)| format!("{locator:?}")),
+                .import_locator()
+                .map(|locator| format!("{locator:?}")),
             parameter: None,
             reason,
             transport: None,
@@ -3786,6 +3788,7 @@ pub(crate) mod replay {
                             target_operations::BoundaryRealization::HostedReadByte(_),
                         ) => true,
                         (machine_code::BoundaryExecutionRecord::CompilerBuiltin(_), _)
+                        | (machine_code::BoundaryExecutionRecord::NativeBinding(_), _)
                         | (
                             _,
                             target_operations::BoundaryRealization::HostedExitProcessI32(_)
@@ -5465,6 +5468,7 @@ pub(crate) mod stack_demand {
         let mut contributing_machines = std::collections::BTreeSet::new();
         let mut admitted_contribution_report_identities = std::collections::BTreeSet::new();
         let mut admitted_contribution_commitments = std::collections::BTreeSet::new();
+        let mut hosted_native_bindings = std::collections::BTreeSet::new();
         let ceiling_bytes = derive_terminal_stack_peak(
             entry,
             artifact,
@@ -5474,6 +5478,7 @@ pub(crate) mod stack_demand {
             &mut contributing_machines,
             &mut admitted_contribution_report_identities,
             &mut admitted_contribution_commitments,
+            &mut hosted_native_bindings,
             &stackless_nonreturning,
             &private_demands,
         )?;
@@ -5486,6 +5491,7 @@ pub(crate) mod stack_demand {
             contributing_machines,
             admitted_contribution_report_identities,
             admitted_contribution_commitments,
+            hosted_native_bindings,
             private_demands,
         })
     }
@@ -5503,6 +5509,7 @@ pub(crate) mod stack_demand {
         admitted_contribution_commitments: &mut std::collections::BTreeSet<
             task_plans::SameStackContributionCommitment,
         >,
+        hosted_native_bindings: &mut std::collections::BTreeSet<[u8; 32]>,
         stackless_nonreturning: &std::collections::BTreeSet<MachineId>,
         private_demands: &[(function_identity::MachineFunctionIdentity, StackDemand)],
     ) -> Result<u64, ObjectError> {
@@ -5551,6 +5558,7 @@ pub(crate) mod stack_demand {
                 contributing_machines,
                 admitted_contribution_report_identities,
                 admitted_contribution_commitments,
+                hosted_native_bindings,
                 stackless_nonreturning,
                 private_demands,
             )?;
@@ -5568,6 +5576,13 @@ pub(crate) mod stack_demand {
             .filter(|call| call.machine == machine)
         {
             let Some(contribution) = call.binding.same_stack_contribution() else {
+                if call.binding.hosted_import().is_some() {
+                    let receipt = call
+                        .binding
+                        .native_binding_receipt()
+                        .ok_or(ObjectError::InvalidPrivateFunctionIdentity)?;
+                    hosted_native_bindings.insert(receipt);
+                }
                 peak = peak.max(u64::from(call.caller_live_bytes));
                 continue;
             };
@@ -5584,6 +5599,7 @@ pub(crate) mod stack_demand {
                         .extend(&demand.admitted_contribution_report_identities);
                     admitted_contribution_commitments
                         .extend(&demand.admitted_contribution_commitments);
+                    hosted_native_bindings.extend(&demand.hosted_native_bindings);
                     Ok::<u64, ObjectError>(peak.max(demand.ceiling_bytes))
                 })?;
             let composed = u64::from(call.caller_live_bytes)
@@ -5614,6 +5630,7 @@ pub(crate) mod stack_demand {
             std::collections::BTreeSet<task_plans::AdmittedStackContributionReportId>,
         pub(crate) admitted_contribution_commitments:
             std::collections::BTreeSet<task_plans::SameStackContributionCommitment>,
+        pub(crate) hosted_native_bindings: std::collections::BTreeSet<[u8; 32]>,
         pub(crate) private_demands: Vec<(function_identity::MachineFunctionIdentity, StackDemand)>,
     }
 
@@ -5630,8 +5647,22 @@ pub(crate) mod stack_demand {
             self.entry
         }
 
-        pub const fn ceiling_bytes(&self) -> u64 {
+        pub fn ceiling_bytes(&self) -> Option<u64> {
+            (!self.requires_host_stack()).then_some(self.ceiling_bytes)
+        }
+
+        /// Known checked frames and admitted finite contributions, excluding
+        /// the unbounded foreign frames of a hosted import.
+        pub const fn known_stack_bytes(&self) -> u64 {
             self.ceiling_bytes
+        }
+
+        pub fn requires_host_stack(&self) -> bool {
+            !self.hosted_native_bindings.is_empty()
+        }
+
+        pub fn hosted_native_bindings(&self) -> &std::collections::BTreeSet<[u8; 32]> {
+            &self.hosted_native_bindings
         }
 
         pub const fn stack_alignment(&self) -> u32 {
@@ -5668,8 +5699,8 @@ pub(crate) mod stack_demand {
             self.entry
         }
 
-        fn ceiling_bytes(&self) -> u64 {
-            self.ceiling_bytes
+        fn ceiling_bytes(&self) -> Option<u64> {
+            self.ceiling_bytes()
         }
 
         fn stack_alignment(&self) -> u32 {

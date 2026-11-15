@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // With closed stdin the application rejects the missing record.
 // Expected exit: 64.
 // Expected output contains: INVALID: expected
@@ -14,7 +15,7 @@ data Collection {
     certificate: Certificate;
 }
 
-machine Collection::main(collection: &mut Collection) reaches Console {
+machine Collection::main(collection: &mut Collection) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(&mut collection.input);
     transition read {
         LineReadResult::LineComplete { count } -> newline(collection, count)
@@ -46,12 +47,12 @@ machine Collection::main(collection: &mut Collection) reaches Console {
     }
     machine invalid(collection: &mut Collection) {
         Console::write_line("INVALID: expected C A B RA RB LA(2) LB(2) H(2), eleven digits; C=1..2, A/B=1..9, ready<=latest");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Collection;
     block Collection::main(&mut entry_storage);
 }

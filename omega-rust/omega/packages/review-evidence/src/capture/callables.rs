@@ -1,7 +1,7 @@
-//! Review keeps the contracts of the declarations the package judgment accepted.
-//! Build retains its separate invocation judgment; public functions and
-//! requirements borrow Product's accepted module. Neither owner may infer a
-//! body for a declaration supplied elsewhere.
+//! Keeps, for review, the contracts of the declarations the package judgment
+//! accepted. Build keeps its own invocation judgment; public functions and
+//! requirements borrow Product's accepted module. Neither may infer a body for
+//! a declaration supplied elsewhere.
 
 use super::PackageReviewInput;
 use super::declarations::{nominal_identity, unavailable};

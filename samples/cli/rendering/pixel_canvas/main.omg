@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Pixel canvas: fixed array of structs with per-element field mutations.
 //
 // Exercises: a fixed-size array of structs ([Pixel; 4]) where each element
@@ -102,7 +103,7 @@ machine Main::set_g(main: &mut Main, idx: i32 in Saturating, val: i32 in Saturat
     machine g3(main: &mut Main, val: i32 in Saturating) { main.canvas.pixels[3].g = val; }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
     Main::set_r(main, 0, 10);
     Main::set_g(main, 0, 5);
@@ -129,7 +130,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: channel sum is 70 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main, total: i32 in Saturating) {
@@ -137,12 +138,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: wrong channel sum (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

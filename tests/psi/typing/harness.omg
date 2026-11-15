@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Gate-owned black-box typing harness. The gate package's build root binds
 // `typing_harness_main` as its own product entry; the product compiler
 // closure never includes it. Lexing, parsing and name resolution run exactly
@@ -49,7 +50,7 @@ data HarnessWord [copy] {
 // whole set then resolves and types. Malformed framing exits 253, and a set its
 // provisions cannot hold 252, without an observation.
 machine main()
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -59,7 +60,7 @@ blocks
 }
 
 public machine typing_harness_main(typing_harness: &mut TypingHarness)
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
@@ -352,31 +353,31 @@ blocks
     }
 
     machine accepted(typing_harness: &mut TypingHarness) {
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 
     machine type_rejected(typing_harness: &mut TypingHarness) {
-        Console::exit_process(249);
+        ProcessExit::exit_process(249);
     }
 
     machine resolve_rejected(typing_harness: &mut TypingHarness) {
-        Console::exit_process(248);
+        ProcessExit::exit_process(248);
     }
 
     machine parse_rejected(typing_harness: &mut TypingHarness) {
-        Console::exit_process(250);
+        ProcessExit::exit_process(250);
     }
 
     machine lex_rejected(typing_harness: &mut TypingHarness) {
-        Console::exit_process(251);
+        ProcessExit::exit_process(251);
     }
 
     machine source_full(typing_harness: &mut TypingHarness) {
-        Console::exit_process(252);
+        ProcessExit::exit_process(252);
     }
 
     machine malformed(typing_harness: &mut TypingHarness) {
-        Console::exit_process(253);
+        ProcessExit::exit_process(253);
     }
 }
 

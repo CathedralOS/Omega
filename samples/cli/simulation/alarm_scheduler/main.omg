@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 70.
 // Alarm scheduler: 5-arm case dispatch stress test.
 //
@@ -86,7 +87,7 @@ machine Alarm::dispatch(alarm: &mut Alarm, event: AlarmEvent) {
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
     let mut alarm: Alarm;
     Alarm::dispatch(&mut alarm, AlarmEvent::Set { hour: 6, minute: 30 });
@@ -133,7 +134,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad_score(main: &mut Main) {
@@ -141,7 +142,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine bad_active(main: &mut Main) {
@@ -149,7 +150,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine bad_hour(main: &mut Main) {
@@ -157,7 +158,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine bad_minute(main: &mut Main) {
@@ -165,12 +166,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -487,13 +487,8 @@ impl<'b> Walk<'b> {
     /// call in it has no normal completion, so evaluation never finishes.
     fn expression(&mut self, machine: MachineId, expression: &Expression) -> Checked<bool> {
         match &expression.kind {
-            ExpressionKind::Atomic {
-                place, operands, ..
-            } => {
-                if !self.expression(machine, place)? {
-                    return Ok(false);
-                }
-                for operand in operands {
+            ExpressionKind::Atomic(operation) => {
+                for operand in operation.inputs() {
                     if !self.expression(machine, operand)? {
                         return Ok(false);
                     }

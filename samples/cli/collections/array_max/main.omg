@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Find the maximum element of an array -- a small but real data-processing loop
 // over an invocation-local array. States carry the index and running maximum;
 // the current element exists only in the state that compares it.
@@ -10,7 +11,7 @@ use omega_language_std::Console;
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
     let numbers: [i32; 6] = [4, 15, 8, 42, 16, 23];
     let maximum: i32 = array_maximum(&numbers);
@@ -18,7 +19,7 @@ machine Main::main(context: &mut Main) reaches Console {
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
     _ = block Console::read_line(&mut pause);
-    Console::exit_process(maximum);
+    ProcessExit::exit_process(maximum);
 }
 
 machine array_maximum(numbers: &[i32; 6]) -> i32 {
@@ -64,7 +65,7 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

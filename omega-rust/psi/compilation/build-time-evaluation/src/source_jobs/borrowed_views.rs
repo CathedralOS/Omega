@@ -613,6 +613,29 @@ fn a_view_returned_by_a_call_keeps_the_loan_of_its_input() {
     );
 }
 
+#[test]
+fn ending_one_returned_view_preserves_the_other_caller_loan() {
+    let source = RETURNED_VIEW_SOURCE.replace(
+        "    see(view);\n    name[0] = 9;",
+        "    let other: &[u8] = inner(&name);\n    see(view);\n    see(other);\n    name[0] = 9;",
+    );
+    assert_ne!(source, RETURNED_VIEW_SOURCE);
+    assert_eq!(
+        run(&source).expect("both returned views have reached their last use"),
+        BuildTimeValue::Int(7)
+    );
+    let conflict = source.replace(
+        "    see(other);\n    name[0] = 9;",
+        "    name[0] = 9;\n    see(other);",
+    );
+    assert_ne!(source, conflict);
+    let refusal = run(&conflict).expect_err("ending view leaves the other loan live");
+    assert!(
+        refusal.contains("storage is changed while a conflicting reference remains live"),
+        "{refusal}"
+    );
+}
+
 // The same relation for a mutable view: writing through the view is its own
 // use, but reading the array while the view is still live is refused.
 const RETURNED_MUTABLE_VIEW_SOURCE: &str = r#"

@@ -994,6 +994,13 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
+The checked callable attachment begins with a 32-byte commitment to its complete
+declared service surface, followed by its checked machine declaration, method
+arguments and execution tag. This binds the owning package, claims, service
+reach and synchronous entries as well as the signature. Native admission matches
+the supplied service schema to this commitment before using its permissions;
+matching parameter types alone is insufficient.
+
 An element-view region is a required `u8` tag: `0` means the whole
 collection and carries no payload; `1` means a representation byte
 region and carries start value id, end value id, and obligation id, in that order;
@@ -1169,8 +1176,11 @@ compatible with either standalone marker 233 or standalone marker 234.
 The compiler-evaluation facts are retained independently of executable
 signature availability. Each callable header contains either a deferred refusal
 or its declaration custody, effective service reach, suspension/blocking flags,
-body-local termination judgment, entry-premise flag, linear/static closure
-refusals and normalized package-selection requests. The proof scope also retains
+body-local termination judgment, entry-premise flag, linear-use and pure
+invocation refusals, and normalized package-selection requests. An invocation
+refusal can accompany checked custody and selection requests. Build checks
+those requests with its existing provider admission. Pure evaluation also
+requires an eligible root and reached bodies. The proof scope retains
 successful recursive components with exact member and operational-call ordinals,
 and pending target-condition owners. Calling policy instances name their exact
 proof declaration independently of their optional emitted callable.
@@ -2721,7 +2731,7 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (134). A receiver rejects an unknown magic or stale marker
+vocabulary marker (135). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 

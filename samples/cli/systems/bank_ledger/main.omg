@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Bank ledger with fixed-capacity transaction list.
 //
 // Stresses: [i32 in Saturating; 8] fixed-array with const-indexed reads/writes, running
@@ -34,7 +35,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
     Main::deposit(main, 500);
     Main::deposit(main, 200);
@@ -68,21 +69,21 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 
     machine bad_balance(main: &mut Main) {
         Console::write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: transaction count != 6 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 }
 
@@ -147,7 +148,7 @@ machine Main::withdraw(main: &mut Main, amount: i32 in Saturating) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

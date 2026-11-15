@@ -410,7 +410,7 @@ pub(crate) fn derive_boundary_internal_call_child(
             BoundaryTraitSettlementParts {
                 occurrence: *occurrence,
                 requirement_identity: requirement_identity.to_owned(),
-                selected_plan_digest: plan.plan_digest(),
+                selected_supply: plan.plan_digest().into(),
                 target,
                 role,
                 identity: parent_identity,

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Digital root: repeatedly sum a number's decimal digits until a single digit
 // remains. For 12345 -> 1+2+3+4+5 = 15 -> 1+5 = 6. (It equals 1 + (n-1) mod 9, the
 // basis of casting out nines.) Showcases nested state-transition loops -- an outer
@@ -9,7 +10,7 @@
 use omega_language_std::Console;
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
 
     transition {
@@ -45,12 +46,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
         _ = block Console::read_line(&mut pause);
-        Console::exit_process(result as i32);
+        ProcessExit::exit_process(result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

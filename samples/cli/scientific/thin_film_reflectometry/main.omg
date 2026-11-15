@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 with input.txt; malformed or out-of-domain stdin exits 10.
 // Numerical output oracle: fixtures.json (both engines).
 use domain::input;
@@ -19,7 +20,7 @@ data Application {
     a: f64; b: f64; c: f64; d: f64;
     minimum: f64; minimum_wavelength: f64;
 }
-machine Application::main(application: &mut Application) reaches Console crashes Trap {
+machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let ambient: Number = block number(&mut application.reader);
     let substrate: Number = block number(&mut application.reader);
     let layers: Number = block number(&mut application.reader);
@@ -28,7 +29,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         true -> block options(application, ambient.value, substrate.value, layers.value, count.value)
         _ -> invalid(application)
     }
-    machine invalid(application: &mut Application) { Console::write_line("ERROR input or domain"); Console::exit_process(10); }
+    machine invalid(application: &mut Application) { Console::write_line("ERROR input or domain"); ProcessExit::exit_process(10); }
     machine options(application: &mut Application, ambient: f64, substrate: f64, layers: f64, count: f64) {
         let layer_integer: i32 in Saturating = I32::from_f64(layers);
         let count_integer: i32 in Saturating = I32::from_f64(count);
@@ -133,12 +134,12 @@ machine Application::main(application: &mut Application) reaches Console crashes
     machine done(application: &mut Application) {
         field(&mut application.reader, "minimum_R_pico=", application.minimum * 1000000000000.0);
         field(&mut application.reader, "minimum_wavelength_pico_nm=", application.minimum_wavelength * 1000000000000.0);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
     block Application::main(&mut entry_storage);
 }

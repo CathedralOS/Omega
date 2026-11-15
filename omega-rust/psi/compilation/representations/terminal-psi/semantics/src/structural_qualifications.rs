@@ -1,8 +1,8 @@
-//! A structural value's domains are part of its declared type, exactly as a
-//! scalar's are (`scalar_qualifications`). Source lowering, the sole lowered
-//! checker and artifact ingress share this judgment, so a record formal,
-//! result or field that names a domain is a contract the lowered form must
-//! keep, not a label the reader alone checked.
+//! A structural value's domains are part of its declared type, as a scalar's
+//! are (`scalar_qualifications`). Source lowering, the lowered-form checker and
+//! artifact ingress share this one judgment, so a domain named on a record
+//! parameter, result or field is a contract the lowered form must keep, not a
+//! label only the reader checked.
 //!
 //! Every root place declares its whole-value domains and the projected
 //! domains of the fields beneath it (`StructuralPathQualification`). A place
@@ -13,11 +13,17 @@
 //! (`wiki/spec/language/domains.md`: "the supplied expression's static type
 //! must carry exactly the domains the destination declares"). Membership
 //! changes only at a `StructuralQualificationChange`: an explicit cast that
-//! strictly adds or strictly erases whole-value domains, naming the issuer
-//! route of every added routed domain. No other operation produces a
-//! qualified value, except provisioning that adds only free domains.
+//! strictly adds or strictly erases the domains a value displays (its
+//! whole-value domains, or a reference's domains on its referent), naming
+//! the issuer route of every added routed domain. A cast that adds a domain
+//! with predicates continues in a block whose invariant states them of its
+//! parameter, so the edge into it proves them. No other operation produces
+//! a qualified value, except provisioning that adds only free domains.
 
-use semantic_vocabulary::{MachineId, PlaceId, StructuralDomainId, StructuralFieldId};
+use semantic_vocabulary::{
+    BlockId, CanonicalStructuralPathSegment, ContentPlaceVersion, IntegerType, MachineId, PlaceId,
+    ScalarTerm, ScalarType, StructuralCaseId, StructuralDomainId, StructuralFieldId, ValueId,
+};
 use terminal_psi::{
     OperationKind, StructuralArgument, StructuralDomainDeclaration, StructuralEstablishmentRoute,
     StructuralPathQualification, StructuralPathSegment, StructuralQualificationChange,
@@ -259,12 +265,125 @@ fn validate_declared(module: &TerminalModule, places: &Declared<'_>) -> Judged<(
     Ok(())
 }
 
+/// The domains a place displays on its value, each with whether its `self`
+/// stands beneath the place's `Referent` step: its whole-value domains, and
+/// a reference's domains on its referent, the memberships beneath that one
+/// step (`wiki/spec/language/domains.md`, "Mutable views": "A cast applies
+/// to a reference by accounting for the domains displayed on its
+/// referent"). Beside them, every other projected membership, which a
+/// change passes unchanged.
+fn displayed(
+    memberships: &Memberships,
+) -> (
+    Vec<(StructuralDomainId, bool)>,
+    Vec<&StructuralPathQualification>,
+) {
+    let mut shown: Vec<_> = memberships.whole.iter().map(|id| (*id, false)).collect();
+    let mut beneath = Vec::new();
+    for row in &memberships.projected {
+        if row.path == [StructuralPathSegment::Referent] {
+            shown.push((row.domain, true));
+        } else {
+            beneath.push(row);
+        }
+    }
+    (shown, beneath)
+}
+
+/// A structural domain's predicate, written over its subject's plain
+/// carrier, restated over the place `root` a cast establishes it on, and
+/// beneath that place's `Referent` step when `referent`.
+struct Rerooted {
+    subject: PlaceId,
+    root: PlaceId,
+    referent: bool,
+}
+
+impl Rerooted {
+    fn path(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<Vec<CanonicalStructuralPathSegment>, &'static str> {
+        if root != self.subject {
+            return Err("a domain predicate observes storage outside its subject");
+        }
+        let mut rerooted = Vec::with_capacity(path.len() + 1);
+        if self.referent {
+            rerooted.push(CanonicalStructuralPathSegment::Referent);
+        }
+        rerooted.extend_from_slice(path);
+        Ok(rerooted)
+    }
+}
+
+impl crate::substitution::clauses::ClauseBindings for Rerooted {
+    type Error = &'static str;
+
+    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, Self::Error> {
+        Err("a structural domain predicate names a value")
+    }
+
+    fn field(
+        &mut self,
+        version: ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        let path = self.path(root, path)?;
+        let root = self.root;
+        Ok(match scalar_type {
+            ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                scalar_type,
+            },
+            ScalarType::Boolean => ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            },
+            ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                format,
+            },
+        })
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: IntegerType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::ViewExtent {
+            path: self.path(root, path)?,
+            root: self.root,
+            scalar_type,
+        })
+    }
+
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<bool, Self::Error> {
+        Err("a structural cast's predicate tests a case")
+    }
+}
+
 fn validate_change(
     module: &TerminalModule,
     places: &Declared<'_>,
     change: &StructuralQualificationChange,
     source: &StructuralArgument,
     destination: &Memberships,
+    target: BlockId,
 ) -> Judged<()> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
@@ -274,22 +393,20 @@ fn validate_change(
         );
     }
     let before = places.argument(source);
-    if before.projected != destination.projected {
+    let (held, held_beneath) = displayed(&before);
+    let (shown, shown_beneath) = displayed(destination);
+    if held_beneath != shown_beneath {
         return malformed(
             machine,
             "a structural qualification change alters a projected membership",
         );
     }
-    let added: Vec<_> = destination
-        .whole
+    let added: Vec<_> = shown
         .iter()
-        .filter(|id| !before.whole.contains(id))
+        .filter(|id| !held.contains(id))
         .copied()
         .collect();
-    let removed = before
-        .whole
-        .iter()
-        .any(|id| !destination.whole.contains(id));
+    let removed = held.iter().any(|id| !shown.contains(id));
     if added.is_empty() == !removed {
         return malformed(
             machine,
@@ -303,21 +420,55 @@ fn validate_change(
         return Ok(());
     }
     let declaration = places.machine.declaration.as_ref();
-    for id in &added {
+    let held: Vec<_> = held.iter().map(|(id, _)| *id).collect();
+    for (id, referent) in &added {
         let Some(declared) = domain(module, *id) else {
             return malformed(
                 machine,
                 "a structural qualification change adds an absent domain",
             );
         };
-        if declared.predicate.is_some()
-            || declared.byte_predicate.is_some()
-            || declared.content_projection.is_some()
-        {
-            return malformed(machine, "a structural cast cannot prove a domain predicate");
+        if declared.byte_predicate.is_some() || declared.content_projection.is_some() {
+            return malformed(
+                machine,
+                "a structural cast cannot prove a byte predicate or content projection",
+            );
+        }
+        // `value as +D` proves the predicates of `D` of the operand on the
+        // edge into the block the cast continues in: that block's invariant
+        // states them of its parameter, as a scalar coercion's does
+        // (`scalar_qualifications`).
+        if let Some(predicate) = &declared.predicate {
+            let Ok(expected) = crate::substitution::clauses::substitute_clause(
+                &predicate.proposition,
+                &mut Rerooted {
+                    subject: predicate.subject,
+                    root: change.destination,
+                    referent: *referent,
+                },
+            ) else {
+                return malformed(
+                    machine,
+                    "a structural cast's domain predicate cannot be restated",
+                );
+            };
+            let retained = module.scalar_block_invariants.iter().any(|invariant| {
+                Some(invariant.machine) == machine
+                    && invariant.header == target
+                    && crate::scalar_qualifications::retains_conjunct(
+                        &invariant.predicate,
+                        &expected,
+                    )
+            });
+            if !retained {
+                return malformed(
+                    machine,
+                    "a structural cast lost its declared predicate arrival obligation",
+                );
+            }
         }
         let missing = declared
-            .missing_membership_requirements(&module.structural_domains, &before.whole)
+            .missing_membership_requirements(&module.structural_domains, &held)
             .is_none_or(|missing| missing.iter().any(|node| node.id != declared.id));
         if missing {
             return malformed(
@@ -380,7 +531,7 @@ fn validate_change(
     if change
         .establishments
         .iter()
-        .any(|row| !added.contains(&row.domain))
+        .any(|row| !added.iter().any(|(id, _)| *id == row.domain))
     {
         return malformed(
             machine,
@@ -438,7 +589,14 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                                 "a structural qualification change names another destination",
                             );
                         }
-                        validate_change(module, &places, changes[index], argument, &expected)?;
+                        validate_change(
+                            module,
+                            &places,
+                            changes[index],
+                            argument,
+                            &expected,
+                            target.id,
+                        )?;
                     }
                     None => require_exact(
                         &places,

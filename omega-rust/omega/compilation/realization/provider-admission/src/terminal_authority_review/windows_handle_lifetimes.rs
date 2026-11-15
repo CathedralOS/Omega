@@ -1,10 +1,10 @@
-//! Native resource instances are separate from their copyable integer aliases.
+//! Tracks native resource instances separately from their copyable integer aliases.
 //!
-//! The canonical-flow reader supplies checked acquisition and call occurrences.
-//! This ledger records their resource consequences; it does not discover calls,
+//! The canonical-flow reader supplies checked acquisition and call occurrences;
+//! this ledger records their effect on resources. It does not find calls,
 //! classify a readable method name, accept a source qualification as provenance,
-//! or turn an asserted digest into evidence. Close candidates remain provisional
-//! until every continuation has established preservation and absence of later use.
+//! or treat an asserted digest as evidence. A close stays provisional until
+//! every continuation shows preservation and no later use.
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};

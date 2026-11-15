@@ -1,8 +1,8 @@
 # Omega Package Source
 
-This crate turns hostile local or Git input into an immutable, content-verified
-source tree. It owns source identity, bounded tree capture, snapshot
-publication, cache custody, and direct resolved-source custody.
+This crate turns untrusted local or Git input into a read-only,
+content-verified source tree. It owns source identity, bounded tree capture,
+snapshot publication, the cache and resolved-source records.
 
 Start at `src/lib.rs`, then follow the source lifecycle:
 
@@ -37,145 +37,144 @@ src/
 └── error.rs        fail-closed acquisition errors
 ```
 
-Native process lifecycle, concrete resource limits, and bounded duplex capture
+Native process handling, concrete resource limits and bounded duplex capture
 live in [`bounded-process`](../../foundation/bounded-process/README.md).
-`git/git_command.rs` owns the launch sequence for ordinary calls, blob batches,
-and exact-object probes. Callers supply arguments, stdin, and stdout bounds;
-the owner applies command policy, counts the launch, bounds capture, and checks
-the shared resolution budget. Batch callers retain protocol interpretation and
-cache custody. A failed Git exit never becomes an object-absence response.
-The peer [`execution/`](../resolver-execution/README.md) crate owns resolver-specific
-executable and phase/root preparation. Acquisition retains no executable identity,
-command/completion provenance, platform-guarantee row, or fetch receipt.
-Successful Git resolution exposes the authored canonical lineage,
-requested revision, selected objects and materialized content, immutable
-snapshot custody, and the concrete limits and retained-storage measurements
-that were actually checked.
-Package declarations, graph reconciliation, review, and admission remain
-manager responsibilities. `SourceRelativePath` is lexical source navigation,
-not an authored workspace-member declaration.
+`git/git_command.rs` launches every Git process: ordinary calls, blob batches
+and exact-object probes. Callers supply arguments, stdin and stdout limits;
+it applies command policy, counts the launch, limits capture and
+checks the shared resolution budget. Batch callers still interpret the
+protocol and own the cache. A failed Git exit never counts as object absence.
+The sibling [`execution/`](../resolver-execution/README.md) crate prepares
+the resolver's executable, phases and roots. Acquisition keeps no executable
+identity, command/completion history, platform-guarantee row or fetch
+receipt. Successful Git resolution returns the authored canonical lineage,
+requested revision, selected objects and written content, read-only snapshot,
+and the concrete limits and storage measurements checked. The
+manager owns declarations, graph reconciliation, review and
+admission. `SourceRelativePath` is a lexical source path, not an authored
+workspace-member declaration.
 
-New local snapshot publications use an origin-bound address derived from the
-strong content digest retained by package locks. `local/snapshot/address.rs`
-owns that address and its lock name. Historical recovery selects this candidate
-directly, then verifies its metadata, exact tree, origin and retained custody.
-Only an absent direct entry permits the bounded legacy raw-tree-key search.
-A malformed direct entry remains an error even if a legacy copy exists.
-Recovery returns historical source custody, never a fresh live observation.
-The source content identity and snapshot payload format remain unchanged;
-new publication addresses and live-observation records have distinct versions.
+New local snapshots are stored at an address built from their origin and
+the strong content digest package locks record. `local/snapshot/address.rs`
+owns that address and its lock name. Recovery looks it up directly and
+verifies metadata, exact tree, origin and stored records. Only a missing
+entry allows the bounded legacy search by raw tree key; a malformed entry is
+an error even if a legacy copy exists. Recovery returns old source, never a
+fresh live observation. Source content identity and snapshot payload format
+are unchanged; the new addresses and live-observation records have their own
+versions.
 
-`source_resolver::SourceResolver` is the session entrance. Its constructors first
-retain the private root, capture host Git outside package-controlled roots, then
-create and verify the acquisition lanes. The session retains one optional Git
-selection; local resolution works when no host Git is available. Git acquisition
-receives the session's selection explicitly. Root, lane, and child-lane custody
-contain only filesystem state and never select or retain an executable.
+`source_resolver::SourceResolver` starts a session. Its constructors take
+the private root, find host Git outside package-controlled directories, then
+create and verify the acquisition lanes (storage directories). The session
+holds at most one Git choice, passed explicitly to Git acquisition; local
+resolution works without host Git. Root, lane and child-lane records hold
+only filesystem state and never choose or keep an executable.
 
-The crate root exposes ordinary whole-session entry points. Callers that
-already hold one retained lane use the responsibility paths directly:
-`git::resolution` for Git acquisition, `local::operations` and `local::model`
-for exact snapshot work, and `storage::RetainedStorageLane` for lane custody.
-These are deliberate public seams; cache machinery, native process assembly,
-object verification, and publication internals remain private.
+The crate root exposes the ordinary whole-session functions. Callers that
+already hold a lane use the modules directly: `git::resolution` for Git
+acquisition, `local::operations` and `local::model` for exact snapshot work,
+and `storage::RetainedStorageLane` for the lane itself. These modules are
+public on purpose; the cache, process setup, object verification and
+publication internals stay private.
 
-`local::operations::recover_cached_local_source_in_lane` finds historical bytes
-for a caller-known canonical local origin and accepted content digest. It first
-selects the origin/content-addressed publication; only its absence enters the
-bounded legacy metadata search. It verifies the selected snapshot under its entry
-lock. The origin is not opened; the result is historical source, not an
-observation that the live source still matches. Missing snapshots return no
-source, invalid matching trees reject, and neither creates an archive, index,
-or replacement baseline. The manager owns diagnostic fallback and policy
+`local::operations::recover_cached_local_source_in_lane` finds old bytes for
+a canonical local origin and accepted content digest that the caller knows.
+It tries the origin/content address first and runs the bounded legacy
+metadata search only if that is missing, then verifies the snapshot under its
+entry lock. It never opens the origin: the result is old source, not proof
+the live source still matches. A missing snapshot returns no source and an
+invalid matching tree is rejected; neither creates an archive, index or
+replacement baseline. The manager owns diagnostic fallback and policy
 comparison when old source is unavailable.
 
-`local::staging` replaces one existing regular file in a proposed snapshot after
-checking its expected raw-byte SHA-256. It leaves the live tree untouched and
-retains its original requested/canonical root and before-edit source identity.
-The shared publisher checks proposed snapshot bytes separately from unchanged
-live source. Landing those exact bytes produces the same source identity and
-can reuse the staged snapshot. This result is not a successful-live-resolution
-observation: callers still check concurrent source/project edits and own file
-transaction recovery. Excluded paths, symlink targets, stale input, and proposals
-over the source byte ceiling reject.
+`local::staging` replaces one existing regular file in a proposed snapshot
+after checking the file's expected raw-byte SHA-256. It leaves the live tree
+untouched and keeps the original requested/canonical root and pre-edit
+source identity. The shared publisher checks proposed bytes separately from
+unchanged live source. Landing those exact bytes gives the same source
+identity and can reuse the staged snapshot. This is not a live resolution:
+callers still check concurrent source/project edits and own file transaction
+recovery. Excluded paths, symlink targets, stale input and proposals over the
+source byte limit are rejected.
 
-Mutable local package capture excludes `.git`, root `build/`, and root
-`omega.lock` (including ASCII case variants). It is project control state, not inputs to the recorded source identity. Creating or
-updating it must not invalidate local pins. Nested policy-named files remain
-ordinary source. Symlinks into excluded control state reject, so a captured link
-cannot depend on a file omitted from its snapshot. Exact materialized trees,
-including Git snapshots, retain and hash all their lock files; verification does
-not apply mutable-worktree exclusions to already published source.
+Capturing an editable local package skips `.git`, root `build/` and root
+`omega.lock` (in any ASCII letter case). These are project control files, not
+source identity inputs, so creating or updating them must not invalidate
+local pins. Same-named files deeper in the tree are ordinary source. A
+symlink into a skipped file is rejected, so no captured link depends on a
+file missing from its snapshot. Exact written trees, Git snapshots included,
+keep and hash all lock files; verification does not apply these skips to
+published source.
 
-Whole-root and named-member acquisition both accept an operation-local
-`GitAcquisitionPin` through their `from_pin_in_lane(s)` entrances. Reuse checks
-the exact original request, retained cache, commit and root tree without
-refetching; an absent or invalid pinned cache fails. These privately issued
-pins prevent drift within one traversal, not persisted lock recovery.
+Whole-root and named-member acquisition both accept a one-operation
+`GitAcquisitionPin` through their `from_pin_in_lane(s)` functions. Reuse
+checks the exact original request, cache, commit and root tree without
+refetching; a missing or invalid pinned cache fails. These private pins stop
+drift within one traversal; they are not persisted lock recovery.
 
-`git::resolution::GitWorkspaceSession` separates authenticated tree inspection
-from package publication. `open` reads the root declaration; `open_members`
-batch-reads the requested declaration roster; the resulting catalog's
-`materialize` publishes one selected subtree. Repository metadata has its own
-ceiling, declarations retain their existing bounds, and unrelated payloads do
-not consume the selected package's entry or byte allowance. Pauses between these
-steps retain an exact commit/tree, including when another operation advances the
-same selector cache. Each resumed read revalidates cache custody and authenticates
-the requested payloads. This supplies bytes, not Build execution or admission.
+`git::resolution::GitWorkspaceSession` separates reading a verified tree
+from publishing a package. `open` reads the root declaration; `open_members`
+batch-reads the requested member declarations; the resulting catalog's
+`materialize` publishes one chosen subtree. Repository metadata has its own
+limit, declarations keep theirs, and unrelated content does not count
+against the chosen package's entry or byte allowance. Between steps the
+session stays on one exact commit/tree, even if another operation advances
+the same selector cache. Each resumed read re-checks the cache and verifies
+the requested content. This supplies bytes; it neither runs Build nor admits.
 
-The application Build path still uses whole-root capture before named selection.
-Connecting this staged resolver requires a compiler-owned handoff between
-declaration discovery and Product source: preserve one Build activation, its
-input inventory and negative observations, and exact selected-tree custody.
-Do not turn declaration-only bytes into a claimed complete source capture or
-rerun Build after expanding that capture. Cathedral's allocator acquisition is
-the pending customer for that integration; this API alone does not unblock it.
+The application's Build path still captures the whole root before named
+selection. Using this staged resolver there needs a compiler-owned handoff
+from declaration discovery to Product source that keeps one Build run, its
+input list and negative observations, and the exact chosen tree. Do not pass
+off declaration-only bytes as a complete capture, or rerun Build after
+widening it. Cathedral's allocator acquisition waits on that work; this API
+alone does not unblock it.
 
-Failed transport restores canonical repository configuration and keeps a cache
-only after post-command custody checks. Prior exact objects remain usable
-offline. Missing `source.identity` entries are discarded and rebuilt only by a
-new acquisition that permits fetching, under the existing entry lock and cache
-bounds. Offline and operation-local pin use cannot silently rebuild; recorded
-revisions never fall back to selector refresh. See `git/cache/retry.rs`.
+A failed transfer restores the canonical repository configuration and
+keeps the cache only if post-command checks pass. Earlier exact objects stay
+usable offline. A cache missing `source.identity` entries is discarded and
+rebuilt only by a new acquisition that may fetch, under the existing entry
+lock and cache limits. Offline use and one-operation pins never rebuild
+silently; recorded revisions never fall back to selector refresh. See `git/cache/retry.rs`.
 
-`git::resolution::resolve_git_source_at_revision_in_lane` instead accepts
-inert recorded `GitCommitId` and `GitTreeId` values for whole-root acquisition.
-Its explicit `Offline` mode performs no transport or revision discovery;
-`AllowFetch` reuses cached exact objects first and permits one exact-commit
-fetch only after a successful, bounded object-absence probe. Neither mode
-selects a mutable ref or `FETCH_HEAD`. Cache metadata and returned custody
-retain the original authored request, while the expected IDs determine the
-selected content. Cold creation uses their object format without `ls-remote`.
+`git::resolution::resolve_git_source_at_revision_in_lane` instead takes
+recorded `GitCommitId` and `GitTreeId` values for whole-root acquisition.
+Its `Offline` mode does no network transfer or revision lookup;
+`AllowFetch` reuses cached exact objects first and fetches one exact commit
+only after a bounded probe confirms it is absent. Neither mode uses a
+mutable ref or `FETCH_HEAD`. Cache metadata and the returned record keep the
+original authored request; the expected IDs decide the content. A new cache
+uses their object format without `ls-remote`.
 
-Absence of the recorded commit or root tree is distinct from malformed output,
-failed commands, or invalid custody. An offline absence preserves a healthy
-cache. Present objects still pass normal commit, tree, materialization, and
-snapshot authentication before issuance; recorded IDs cannot mint custody.
-Incomplete or corrupted descendant objects fail without automatic repair.
-This whole-root entrance does not select workspace members or reconstruct a
+A missing recorded commit or root tree is a different error from bad
+output, a failed command or an invalid record. Offline absence leaves a
+healthy cache intact. Present objects still pass normal commit, tree, write
+and snapshot checks before being returned; recorded IDs alone cannot create
+a valid record. Incomplete or corrupted child objects fail without automatic
+repair. This function neither chooses workspace members nor rebuilds a
 manager lock's package graph.
 
-The companion `resolve_git_workspace_member_at_revision_in_lanes` uses that
+The companion `resolve_git_workspace_member_at_revision_in_lanes` uses the
 same recorded commit/root tree with the existing bounded workspace planner.
-It authenticates root and declared-member declarations at that revision, then
-materializes only the selected member. Returned custody distinguishes the
-recorded repository root tree from the selected member tree and retains the
-declarations that justified navigation. Both storage lanes remain checked;
-unrelated repository payloads are not copied into the member snapshot. The
-manager still owns interpreting declarations and matching the lock's package
-identity and complete source graph.
+It verifies root and declared-member declarations at that revision, then
+writes only the chosen member. The returned record separates the repository
+root tree from the member tree and keeps the declarations that led there.
+Both storage lanes are checked; unrelated repository content stays out of
+the member snapshot. The manager still interprets declarations and matches
+the lock's package identity and complete source graph.
 
-Workspace-member snapshots are scoped by repository acquisition before their
-tree ID. Identical member bytes in unrelated repositories therefore retain
-disjoint physical compiler roots. This storage namespace does not enter package
-identity or content identity; it prevents content deduplication from merging
-source routing for distinct package keys.
+Workspace-member snapshots are stored under their repository acquisition,
+then tree ID, so identical member bytes from unrelated repositories get
+separate directories. This prefix is not part of package or content
+identity; it stops deduplication from merging sources of different package
+keys.
 
-Dependency direction is deliberate: the `local` and `git` adapters may use
-`identity`, `tree`, `snapshot`, `custody`, and `storage`; those shared owners
-must not depend back on either adapter. The local and Git adapters must not
-import one another. This keeps transport details out of exact-tree identity and
-makes the source lifecycle discoverable from the top down.
+Dependencies point one way on purpose: the `local` and `git` adapters may
+use `identity`, `tree`, `snapshot`, `custody` and `storage`, which must not
+depend on either adapter, and the adapters must not import each other. This
+keeps transport details out of exact-tree identity and lets a reader follow
+the source lifecycle top down.
 
 The [resolver security contract](../../../../wiki/spec/packages/resolver_security.md)
-owns required trust and transport behavior; the source owners above implement it.
+defines the required trust and transport behavior; the modules above implement it.

@@ -598,8 +598,10 @@ fn rejoin_system_call(
             target: profile,
             number,
             requirement_identity: requirement.to_owned(),
-            provider_plan_report_identity: selected_plan.report_fingerprint(),
-            provider_plan_commitment: *selected_plan.identity_digest().as_bytes(),
+            execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                report: selected_plan.report_fingerprint(),
+                commitment: *selected_plan.identity_digest().as_bytes(),
+            },
         }),
     })
 }

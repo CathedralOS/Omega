@@ -1,6 +1,5 @@
 //! The lowered-form checker can be shown a source program without running
-//! the program's Build and without the old checker
-//! (`CompilationSession::typed_frontier_without_build`, the harness behind
+//! the program's Build (`CompilationSession::typed_frontier_without_build`, the harness behind
 //! `examples/route_probe.rs`). Two standalone programs pin it: one the
 //! checker accepts, and the same program with a machine nothing calls whose
 //! addition can overflow, which it rejects because a standalone source is its
@@ -897,11 +896,9 @@ fn judged_with_dependencies(
 
 const CONSOLE_PROGRAM: &str = "tests/fixtures/run/providers/default_console_provider_reached";
 
-/// The program writes two bytes and exits through `Console`, which its
-/// Build reaches by registering the standard library as a dependency. With
-/// that edge stated, the import selects the boundary trait, each call is
-/// judged against its requirement's written contract, and the entry closure
-/// is accepted.
+/// Registering the standard library makes the program's Console import resolve.
+/// Its two output calls and separate ProcessExit call are then checked against
+/// their declared contracts.
 #[test]
 fn a_program_reaching_console_through_its_dependency_is_judged() {
     let parts = judged_with_dependencies(

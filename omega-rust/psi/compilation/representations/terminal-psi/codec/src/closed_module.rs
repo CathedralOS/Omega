@@ -1,8 +1,8 @@
-//! A closed module retains its scalar descriptors, canonical execution bytes,
-//! and their semantic identity together. Closure does not establish that a
-//! checker accepted the program or that its producer may be trusted. The encoder is
-//! the complete traversal: it refuses a symbolic width where that width occurs,
-//! without substituting a value or maintaining another list of module fields.
+//! A closed module keeps its scalar descriptors, canonical execution bytes
+//! and their semantic identity together. Closure does not show that a
+//! checker accepted the program or that its producer can be trusted. The
+//! encoder walks the whole module: it refuses a symbolic width wherever one
+//! occurs, without substituting a value or keeping a second list of fields.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

@@ -1,7 +1,7 @@
 # Compilation
 
 The compilers and their machinery, grouped by responsibility. The build system
-that calls them lives in [../build-system/](../build-system/README.md).
+that calls them is in [../build-system/](../build-system/README.md).
 
 | Directory | Responsibility |
 | --- | --- |
@@ -13,11 +13,11 @@ that calls them lives in [../build-system/](../build-system/README.md).
 | `realization/` | Provider planning, selected execution and trust reconstruction |
 | `backend/` | Target, ISA, ABI, encoding, layout, image and runtime mechanisms |
 
-The compiler crate sequences independent owners. Representations retain their own
-manifests and APIs, separate from the transformations that consume them.
-Package-owned source composition lives in
+The compiler crate sequences independent owners. Representations keep their
+own manifests and APIs, apart from the transformations that consume them.
+Package-owned source composition is in
 [../packages/package-compilation/](../packages/package-compilation/README.md).
 
 [Psi](../../psi/README.md) owns target-neutral source processing through Terminal
 Psi. The [pipeline contract](../../pipeline.md) documents that boundary and the
-remaining work to make realization consume Terminal Psi exclusively.
+remaining work to make realization consume only Terminal Psi.

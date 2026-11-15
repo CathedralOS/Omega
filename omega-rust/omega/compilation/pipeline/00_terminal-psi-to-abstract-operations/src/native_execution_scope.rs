@@ -209,6 +209,7 @@ pub(crate) mod native_admission {
             external_binding_rows: request.providers.external_binding_rows,
             settlements: &settlements,
             compiler_builtins: &compiler_builtins,
+            native_bindings: request.providers.native_bindings,
             native_callbacks: &native_callbacks,
             installed_interrupts: &installed_interrupts,
             installed_calling: request.providers.installed_calling,

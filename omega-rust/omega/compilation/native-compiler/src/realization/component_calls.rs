@@ -77,7 +77,9 @@ impl<'input> ComponentNativeCall<'input> {
                 "component native stack evidence belongs to another artifact, entry or target",
             ));
         }
-        let bytes = demand.ceiling_bytes();
+        let bytes = demand.ceiling_bytes().ok_or_else(|| {
+            invalid("component calls require a finite stack demand without hosted imports")
+        })?;
         let locator = target::NormalizedComponentLocator::for_image(
             profile,
             image.image().image().contents(),

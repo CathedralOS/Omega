@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 with input.txt (one byte 0). Empty stdin exits 64.
 // Expected output contains: CONVERGED
 // A transition dispatch covers its subject. The converged residual takes the
@@ -11,7 +12,7 @@ use domain::grid;
 use domain::solver;
 use platform::decimal;
 
-machine field(value:f64) reaches Console invokes Console {
+machine field(value:f64) reaches ProcessExit + Console invokes Console {
  let scaled:f64=value*1000000000000.0;
  transition scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   true -> emit(scaled) false -> failure()
@@ -20,15 +21,15 @@ machine field(value:f64) reaches Console invokes Console {
   let integer:i64=I64::from_f64(scaled);
   number(integer as i64 in Wrapping);
  }
- machine failure() { Console::write_line("REJECT numeric output"); Console::exit_process(70); }
+ machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }
-machine count(value:u64 in Saturating) reaches Console invokes Console {
+machine count(value:u64 in Saturating) reaches ProcessExit + Console invokes Console {
  transition value <= 1000 { true -> bounded(value) false -> failure() }
  machine bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 in Wrapping); }
- machine failure() { Console::write_line("REJECT report count"); Console::exit_process(70); }
+ machine failure() { Console::write_line("REJECT report count"); ProcessExit::exit_process(70); }
 }
 data Main { }
-machine Main::main(main: &mut Main) reaches Console invokes Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console invokes Console {
  let request:ByteRead=block Console::read_byte();
  transition request { ByteRead::Byte { value } -> block ending(value) _ -> input_error() }
  machine ending(value:i32) {
@@ -95,14 +96,14 @@ machine Main::main(main: &mut Main) reaches Console invokes Console {
   transition { _ -> report(grid,status,index+1) }
  }
  machine finish(status:i32) { transition status { 0 -> success() _ -> nonconvergence() } }
- machine success() { Console::write_line("CONVERGED"); Console::exit_process(0); }
- machine nonconvergence() { Console::write_line("NOT_CONVERGED"); Console::exit_process(2); }
- machine invalid() { Console::write_line("REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); Console::exit_process(65); }
- machine input_error() { Console::write_line("REJECT input: expected exactly one byte 0..9 or a..f"); Console::exit_process(64); }
+ machine success() { Console::write_line("CONVERGED"); ProcessExit::exit_process(0); }
+ machine nonconvergence() { Console::write_line("NOT_CONVERGED"); ProcessExit::exit_process(2); }
+ machine invalid() { Console::write_line("REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); ProcessExit::exit_process(65); }
+ machine input_error() { Console::write_line("REJECT input: expected exactly one byte 0..9 or a..f"); ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console invokes Console {
+machine entry_start() reaches ProcessExit + Console invokes Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

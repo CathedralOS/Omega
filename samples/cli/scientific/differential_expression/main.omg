@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0 for admitted data; explicit row exclusions are reported.
 use omega_language_std::Console;
 use omega::language::core::F64::square_root;
@@ -6,12 +7,12 @@ use domain::model;
 use domain::math;
 
 data Main { protocol: Protocol; study: Study; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let parsed: bool = block Protocol::read(&mut main.protocol);
     transition parsed {
  true -> metadata(main, 0, 0)
  false -> syntax(main) }
-    machine syntax(main: &mut Main) { Console::write_line("INVALID syntax"); Console::exit_process(64); }
+    machine syntax(main: &mut Main) { Console::write_line("INVALID syntax"); ProcessExit::exit_process(64); }
     machine metadata(main: &mut Main, index: i32 in Wrapping, cases: i32 in Wrapping) {
         transition index >= 0 && index < 6 {
  true -> label(main, index, cases)
@@ -32,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
  true -> counts(main, 0)
  false -> invalid(main) }
     }
-    machine invalid(main: &mut Main) { Console::write_line("INVALID metadata_or_count_range"); Console::exit_process(65); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID metadata_or_count_range"); ProcessExit::exit_process(65); }
     machine counts(main: &mut Main, index: i32 in Wrapping) {
         let field: i32 in Wrapping = index + 6;
         transition index >= 0 && index < 48 && field >= 0 && field < 54 {
@@ -55,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
  true -> factors(main, 0)
  false -> absent(main) }
     }
-    machine absent(main: &mut Main) { Console::write_line("EXCLUDED normalization_no_positive_gene"); Console::exit_process(66); }
+    machine absent(main: &mut Main) { Console::write_line("EXCLUDED normalization_no_positive_gene"); ProcessExit::exit_process(66); }
     machine factors(main: &mut Main, index: i32 in Wrapping) {
         transition index < 6 {
  true -> factor_line(main, index)
@@ -153,7 +154,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Protocol::number(&mut main.protocol, main.study.q[index]); Console::write_line("");
         transition { _ -> report(main, index + 1) }
     }
-    machine done(main: &mut Main) { Console::exit_process(0); }
+    machine done(main: &mut Main) { ProcessExit::exit_process(0); }
 }
 machine total_count(study: &Study, gene: i32 in Wrapping) -> f64 {
     count(study, gene, 0) + count(study, gene, 1) + count(study, gene, 2) + count(study, gene, 3) + count(study, gene, 4) + count(study, gene, 5)
@@ -211,7 +212,7 @@ machine adjustment(study: &Study, gene: i32 in Wrapping) -> f64 {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

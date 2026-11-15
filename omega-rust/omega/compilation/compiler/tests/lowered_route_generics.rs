@@ -1,4 +1,4 @@
-//! One generic body goes the whole way on the lowered form, from source:
+//! One generic body, read from source, works on the lowered form:
 //! it is checked once with its parameters rigid, and its certificates are
 //! decided again by the proof kernel, with no search, in each machine stage
 //! 04 generated from it. `wiki/drafts/designs/check_on_lowered_form.md`,

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: principal_component_analysis
 use omega_language_std::Console;
@@ -8,7 +9,7 @@ use domain::model;
 use domain::quality;
 use domain::report;
 data Main { input: Input; analysis: Analysis; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
  block Input::read(&mut main.input);
  transition main.input.valid && main.input.count >= 3 { true -> header(main) false -> invalid(main) }
  machine header(main: &mut Main) {
@@ -48,14 +49,14 @@ machine Main::main(main: &mut Main) reaches Console {
   qualify(&mut main.analysis);
   transition main.analysis.status == 0 { true -> output(main) false -> numerical(main) }
  }
- machine output(main: &mut Main) { report(&main.analysis); Console::exit_process(0); }
- machine invalid(main: &mut Main) { Console::write_line("error invalid input"); Console::exit_process(64); }
- machine constant(main: &mut Main) { Console::write_line("error constant feature in correlation mode"); Console::exit_process(65); }
- machine numerical(main: &mut Main) { Console::write_line("error numerical range or convergence"); Console::exit_process(66); }
+ machine output(main: &mut Main) { report(&main.analysis); ProcessExit::exit_process(0); }
+ machine invalid(main: &mut Main) { Console::write_line("error invalid input"); ProcessExit::exit_process(64); }
+ machine constant(main: &mut Main) { Console::write_line("error constant feature in correlation mode"); ProcessExit::exit_process(65); }
+ machine numerical(main: &mut Main) { Console::write_line("error numerical range or convergence"); ProcessExit::exit_process(66); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

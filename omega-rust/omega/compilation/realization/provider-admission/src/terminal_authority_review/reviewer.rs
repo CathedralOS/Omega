@@ -27,6 +27,12 @@ enum LeafKey {
         ProviderPlanDigest,
         TerminalAuthorityClosureLeafOrigin,
     ),
+    NativeBinding(
+        ServiceSchemaDigest,
+        String,
+        [u8; 32],
+        TerminalAuthorityClosureLeafOrigin,
+    ),
     ProgramRoot(
         semantic_vocabulary::MachineId,
         semantic_vocabulary::OperationId,
@@ -175,6 +181,32 @@ impl<'a> Reviewer<'a> {
             .identities
             .text(declaration.identity)
             .unwrap_or_default();
+        if let Some((execution, schema)) = self.context.native_binding(boundary) {
+            let declared = declaration
+                .declaration
+                .as_ref()
+                .and_then(|row| {
+                    self.context
+                        .input
+                        .module()
+                        .identities
+                        .text(row.source.callable)
+                })
+                .ok_or("native binding lost its exact declared requirement")?;
+            let mechanism = self
+                .context
+                .mechanism(boundary)
+                .ok_or("native binding has no admitted mechanism")?;
+            self.admit_native_leaf(
+                schema,
+                requirement,
+                declared,
+                execution.receipt(),
+                *mechanism,
+                TerminalAuthorityClosureLeafOrigin::SelectedBoundary,
+            )?;
+            return Ok(());
+        }
         let (selected_plan, selected_row, _) = self.context.selected_requirement(requirement)?;
         if let Some(authority) = self.context.component_authority(boundary)? {
             for leaf in authority.review().leaves() {
@@ -211,6 +243,31 @@ impl<'a> Reviewer<'a> {
                     // selected requirement (permissions.md, "Two-axis
                     // containment"); it inherits no foreign or boundary
                     // permission and is classified and adjudicated afresh.
+                    effects::TerminalAuthorityClosureCustody::NativeBinding {
+                        service_schema,
+                        requirement_identity,
+                        declared_requirement_identity,
+                        receipt,
+                    } => {
+                        let requirement = authority
+                            .review()
+                            .identities()
+                            .text(requirement_identity)
+                            .ok_or("component native binding lost its exact requirement")?;
+                        let declared = authority
+                            .review()
+                            .identities()
+                            .text(declared_requirement_identity)
+                            .ok_or("component native binding lost its declared requirement")?;
+                        self.admit_native_leaf(
+                            service_schema,
+                            requirement,
+                            declared,
+                            receipt,
+                            leaf.mechanism(),
+                            leaf.origin(),
+                        )?;
+                    }
                     effects::TerminalAuthorityClosureCustody::ProgramRoot { .. } => {
                         self.admit_leaf(
                             selected_plan.schema_identity_digest(),
@@ -388,15 +445,19 @@ impl<'a> Reviewer<'a> {
         Ok(())
     }
 
-    fn admit_leaf(
-        &mut self,
+    fn leaf_permission(
+        &self,
         schema: ServiceSchemaDigest,
         requirement: &str,
         declared_requirement: &str,
-        provider_plan: ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
-        origin: TerminalAuthorityClosureLeafOrigin,
-    ) -> Result<(), String> {
+    ) -> Result<
+        (
+            Option<effects::TerminalAuthorityDisposition>,
+            Option<effects::TerminalAuthorityDisposition>,
+        ),
+        String,
+    > {
         let exercised = match self.context.physical_policy.classify(mechanism) {
             Ok(exercised) => Some(exercised),
             Err(unclassified) if self.context.permission_policy.is_some() => {
@@ -417,6 +478,55 @@ impl<'a> Reviewer<'a> {
                     "receiving terminal-authority permission policy has no exact row for `{requirement}`"
                 )
             })?;
+        Ok((exercised, permitted))
+    }
+
+    fn admit_native_leaf(
+        &mut self,
+        schema: ServiceSchemaDigest,
+        requirement: &str,
+        declared_requirement: &str,
+        receipt: [u8; 32],
+        mechanism: TerminalMechanismIdentity,
+        origin: TerminalAuthorityClosureLeafOrigin,
+    ) -> Result<(), String> {
+        let (exercised, permitted) =
+            self.leaf_permission(schema, requirement, declared_requirement, mechanism)?;
+        let leaf = TerminalAuthorityClosureLeaf::native_binding(
+            schema,
+            self.identities.intern(requirement),
+            self.identities.intern(declared_requirement),
+            receipt,
+            mechanism,
+            origin,
+            exercised,
+            permitted,
+        )
+        .map_err(|error| {
+            format!("native binding exceeds its exact service permission: {error:?}")
+        })?;
+        let key = LeafKey::NativeBinding(schema, requirement.to_owned(), receipt, origin);
+        if self
+            .leaves
+            .insert(key, leaf.clone())
+            .is_some_and(|previous| previous != leaf)
+        {
+            return Err("native binding repeats with a different terminal mechanism".into());
+        }
+        Ok(())
+    }
+
+    fn admit_leaf(
+        &mut self,
+        schema: ServiceSchemaDigest,
+        requirement: &str,
+        declared_requirement: &str,
+        provider_plan: ProviderPlanDigest,
+        mechanism: TerminalMechanismIdentity,
+        origin: TerminalAuthorityClosureLeafOrigin,
+    ) -> Result<(), String> {
+        let (exercised, permitted) =
+            self.leaf_permission(schema, requirement, declared_requirement, mechanism)?;
         let leaf = TerminalAuthorityClosureLeaf::new(
             schema,
             self.identities.intern(requirement),

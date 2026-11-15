@@ -219,7 +219,7 @@ impl TerminalEffectHandler for AbsoluteValueImport {
 }
 
 fn matches_locator(binding: &NormalizedForeignCallBinding) -> Result<bool, TerminalRuntimeError> {
-    let Some((locator, _)) = binding.import() else {
+    let Some(locator) = binding.foreign_import_locator() else {
         return Ok(false);
     };
     let target = locator.target();

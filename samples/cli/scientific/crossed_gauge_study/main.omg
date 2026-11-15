@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Complete stdin application. Input: replication header, eight digit/m slots, EOF.
 // Expected output contains: crossed_gauge_study: exact crossed random-effects sample; all numbers /32
 use omega_language_std::ByteRead;
@@ -46,7 +47,7 @@ machine Main::number(main: &mut Main, value: i32 in Wrapping) reaches Console {
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("crossed_gauge_study: exact crossed random-effects sample; all numbers /32");
     transition { _ -> block header(main) }
     machine header(main: &mut Main) {
@@ -159,28 +160,28 @@ machine Main::main(main: &mut Main) reaches Console {
         let gauge_component: i32 in Wrapping = main.study.repeatability + study::model::nonnegative(main.study.operator_variance) + study::model::nonnegative(main.study.interaction_variance);
         Main::number(main, gauge_component);
         Console::write_line("interaction: retained; negative components clamped individually; no pooling");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("invalid input: expected header 2 and exactly eight digit/m slots");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
     machine insufficient(main: &mut Main) {
         Console::write_line("not identifiable: one repeat cannot separate interaction from repeatability");
-        Console::exit_process(5);
+        ProcessExit::exit_process(5);
     }
     machine missing_cell(main: &mut Main) {
         Console::write_line("not identifiable: missing part/operator cell; balanced ANOVA refused");
-        Console::exit_process(3);
+        ProcessExit::exit_process(3);
     }
     machine unequal(main: &mut Main) {
         Console::write_line("not identifiable: unequal replication; balanced ANOVA refused");
-        Console::exit_process(4);
+        ProcessExit::exit_process(4);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

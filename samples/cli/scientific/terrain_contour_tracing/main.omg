@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::widen_u8_to_i32;
@@ -9,7 +10,7 @@ use reporting::report;
 
 // One bounded record: level, policy, nine row-major elevations, optional LF.
 // Examples: 10000020000 is a closed hill; 10000000000 is flat.
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     let observed: LineReadResult = block Console::read_line(&mut context.input);
     transition observed {
         LineReadResult::LineComplete { count } -> line(context, count)
@@ -55,20 +56,20 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     machine output(context: &mut Main) {
         report(context);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(context: &mut Main) {
         Console::write_line("INVALID terrain record");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine failed(context: &mut Main) {
         Console::write_line("INVARIANT contour graph");
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }
