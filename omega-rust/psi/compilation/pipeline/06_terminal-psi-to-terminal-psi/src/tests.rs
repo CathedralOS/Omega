@@ -44,6 +44,7 @@ mod entryless;
 mod floats;
 mod guard_contradiction;
 mod handoffs;
+mod hosted_primitives;
 mod indexed_contracts;
 mod inferred_bounds;
 mod lifetime_elision;

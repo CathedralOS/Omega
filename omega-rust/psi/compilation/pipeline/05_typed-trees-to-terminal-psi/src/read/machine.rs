@@ -1826,7 +1826,7 @@ impl<'t> Program<'t> {
     pub(super) fn requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
@@ -1840,7 +1840,7 @@ impl<'t> Program<'t> {
     pub(super) fn declared_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         self.applied_requirement_signature(id, requirement, RequirementValues::Bound(arguments))
@@ -1849,7 +1849,7 @@ impl<'t> Program<'t> {
     fn applied_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         // These are the declaration's parameters, not a new family whenever
@@ -1887,7 +1887,7 @@ impl<'t> Program<'t> {
     fn read_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;

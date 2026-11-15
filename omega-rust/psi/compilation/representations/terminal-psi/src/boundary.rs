@@ -973,6 +973,21 @@ pub(crate) mod declarations {
     }
 
     impl BoundaryMachineDeclaration {
+        /// The public contract observed for this actual external operation.
+        /// Admission validates any primitive link before execution consumes it.
+        pub fn external_completion_requirement(&self) -> semantic_vocabulary::BoundaryMachineId {
+            match self
+                .declaration
+                .as_ref()
+                .map(|declaration| declaration.execution)
+            {
+                Some(CheckedBoundaryExecution::HostedPrimitive { requirement, .. }) => requirement,
+                _ => self.id,
+            }
+        }
+    }
+
+    impl BoundaryMachineDeclaration {
         /// The declared reach (fixed reach and published ceiling) that a
         /// supply of this requirement's owning service needs its own
         /// permission for. The owning service is left out because that supply
