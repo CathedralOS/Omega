@@ -285,13 +285,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### The scalar contract fixture's inferred call proof is refused by the kernel
-- Category: a proof producer and checker disagree
-- Where: `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg:26` (the call `settle(product)`)
-- Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
-- Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
-- Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
-
 ### Nominal const-domain bounds recover data properties by a name scan
 - Category: identity re-derived by a consumer
 - Where: Stage 02 `preparation_const_evaluation.rs`, `carrier_satisfies_declared_bounds`
