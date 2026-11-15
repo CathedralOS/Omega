@@ -87,13 +87,6 @@ framework or a list of unimplemented features.
 - Cost: A refactor from an explicit case to a local loses a statically determined order. Use existing proof facts to select the exact normalized fence event when they establish one case. Keep a runtime choice and an unrelated declaration from supplying ordering or proof authority.
 - Reported: 2026-11-15, Codex, while restoring the bundled atomic fence.
 
-### The record-domain catalog test has no declared predicate subject
-- Category: tests that pin the bug
-- Where: [catalog fixture](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L638), [subject requirement](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/predicates.rs#L408)
-- Saw: On clean `cdd086553fa` on macOS arm64, `a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence` fails with `spelling domain predicate without a subject symbol`. Its hand-built false and true predicate declarations leave the subject at its invalid default, so lowering never reaches the catalog assertions.
-- Cost: The control cannot distinguish false, true and absent record-domain predicates. Supply the same declaration-owned subject that real source retains, and preserve all three catalog assertions.
-- Reported: 2026-11-15, Codex, while verifying named-map invocation contracts.
-
 ### A descriptor length premise cannot cross the loop join
 - Category: knowledge crossing a boundary
 - Where: [descriptor ranking](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/rankings.rs#L720), [arrival substitution](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L675)
