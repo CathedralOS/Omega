@@ -32,26 +32,29 @@ use crate::{Unserved, refuse};
 #[path = "components_graph.rs"]
 mod graph;
 pub(crate) use graph::Components;
+#[path = "components_rankings.rs"]
+mod rankings;
 
 /// All call occurrences in body order, grouped by caller without one allocation
 /// per machine. Graph discovery and cycle admission borrow the same occurrences.
-struct CallGraph {
-    sites: Vec<CallSite>,
+struct CallGraph<'body> {
+    sites: Vec<CallSite<'body>>,
     offsets: Vec<usize>,
 }
 
-impl CallGraph {
-    fn calls(&self, machine: usize) -> &[CallSite] {
+impl CallGraph<'_> {
+    fn calls(&self, machine: usize) -> &[CallSite<'_>] {
         &self.sites[self.offsets[machine]..self.offsets[machine + 1]]
     }
 }
 
 /// One call in a body: its callee, and whether its result completes the
 /// caller.
-struct CallSite {
+struct CallSite<'body> {
     callee: MachineId,
     terminal: bool,
     required_contract: Option<semantic_vocabulary::ContractId>,
+    arguments: &'body [Expression],
 }
 
 pub(crate) fn index(machine: MachineId) -> usize {
@@ -66,7 +69,7 @@ pub(crate) fn discover(bodies: &IdTable<MachineId, Body>) -> Checked<Components>
     Ok(call_graph(bodies)?.1)
 }
 
-fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph, Components)> {
+fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph<'_>, Components)> {
     let count = bodies.len();
     let mut calls = CallGraph {
         sites: Vec::with_capacity(count),
@@ -95,9 +98,10 @@ fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph, Componen
 
 pub(crate) fn components(
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: &mut IdTable<MachineId, Signature>,
 ) -> Checked<Components> {
     let (calls, mut table) = call_graph(bodies)?;
+    rankings::carry(&calls, &table, signatures)?;
     let ranked = bodies
         .keys()
         .map(|machine| {
@@ -172,7 +176,7 @@ pub(crate) fn components(
     Ok(table)
 }
 
-fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
+fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'body>>) {
     for statement in statements {
         match statement {
             Statement::Bind { value, .. } | Statement::Evaluate(value) => expression(value, sites),
@@ -216,7 +220,7 @@ fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
 /// result as the machine's (`wiki/spec/language/machines.md`: "A machine
 /// call in a terminal `transition` arm forwards its normal result as the
 /// current invocation's result, with no continuation in that invocation.").
-fn target(target: &Target, sites: &mut Vec<CallSite>) {
+fn target<'body>(target: &'body Target, sites: &mut Vec<CallSite<'body>>) {
     match target {
         Target::Unit | Target::Crash(_) => {}
         Target::Value(value) => match &value.kind {
@@ -234,6 +238,7 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
                         callee: *callee,
                         terminal: true,
                         required_contract: *required_contract,
+                        arguments,
                     });
                 }
             }
@@ -242,7 +247,7 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
     }
 }
 
-fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
+fn expression<'body>(value: &'body Expression, sites: &mut Vec<CallSite<'body>>) {
     match &value.kind {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
@@ -318,6 +323,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
                     callee: *callee,
                     terminal: false,
                     required_contract: *required_contract,
+                    arguments,
                 });
             }
         }

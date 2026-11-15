@@ -366,6 +366,78 @@ fn a_joint_measure_checks_both_members_of_a_mutual_call_cycle() {
     );
 }
 
+#[test]
+fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
+    // The helpers permute the scalar positions while carrying the same owned
+    // record. Only the cycle root chooses a measure; its exact call bindings
+    // determine the helper observations, and every edge still owes proof.
+    let program = r#"
+        data Packet { value: u64; }
+        machine count(remaining: u64, spare: u64, payload: Packet) -> Packet
+        terminates by remaining
+        {
+            transition remaining > 0 {
+                true -> keep(payload, spare, remaining - 1)
+                false -> payload
+            }
+            machine keep(payload: Packet, spare: u64, next: u64) -> Packet {
+                again(spare, next, payload)
+            }
+            machine again(spare: u64, next: u64, payload: Packet) -> Packet {
+                count(next, spare, payload)
+            }
+        }
+    "#;
+    let typed = super::rankings::typed_with_ranking_catalog(program);
+    let result = super::entryless::judged_typed_result(&typed, false);
+    let Ok(RouteVerdict::Accepted(checked)) = result else {
+        panic!("the owned-record helper positive must be accepted: {result:?}");
+    };
+    assert!(
+        checked
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .any(|machine| machine.ranked_scc.is_some())
+    );
+    assert!(
+        checked
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .all(|machine| machine.contract.termination
+                == semantic_vocabulary::Termination::NoGuarantee),
+        "private witness transport must not add public progress promises"
+    );
+    let unchanged = program.replace("remaining - 1", "remaining");
+    assert_unchanged_measure_refuses(&unchanged);
+    let wrong_input = program.replace("count(next, spare, payload)", "count(spare, next, payload)");
+    let failures = unproved(&wrong_input);
+    assert!(!failures.is_empty());
+    for failure in &failures {
+        assert_no_descent(std::slice::from_ref(failure));
+    }
+
+    // Two different call occurrences share a helper. Choosing one candidate
+    // measure never excuses proving the other arrival's actual binding.
+    let joined = program.replace(
+        "count(next, spare, payload)",
+        "transition payload.value == 0 { true -> count(next, spare, payload) false -> count(next, spare, payload) }",
+    );
+    accepted(&joined);
+    let wrong_arrival = joined.replace(
+        "false -> count(next, spare, payload)",
+        "false -> count(spare, next, payload)",
+    );
+    let failures = unproved(&wrong_arrival);
+    assert!(!failures.is_empty());
+    for failure in &failures {
+        assert_no_descent(std::slice::from_ref(failure));
+    }
+}
+
 /// The lowered loop with one field of its ranking changed.
 fn tampered(change: impl FnOnce(&mut terminal_psi::TerminalNaturalCycle)) -> Refusal {
     let mut elaboration = lower_ranked(less_one(), witnessed(0));
