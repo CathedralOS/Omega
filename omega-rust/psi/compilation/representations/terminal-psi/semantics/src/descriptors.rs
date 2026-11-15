@@ -10111,6 +10111,319 @@ pub mod descriptor_results {
                 )
             }
 
+            fn reference_flow_module(record: bool) -> TerminalModule {
+                let scalar = StructuralTypeId::new(1).unwrap();
+                let reference = StructuralTypeId::new(2).unwrap();
+                let pair = StructuralTypeId::new(3).unwrap();
+                let declaration = |id, copyable, shape| StructuralTypeDeclaration {
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    id,
+                    identity: TerminalIdentityIndex::ABSENT,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: true,
+                    copyable,
+                    descriptor_cleanup: true,
+                    shape,
+                    scalar_restriction: None,
+                };
+                let field = |number| terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
+                    identity: TerminalIdentityIndex(number),
+                    inline_carrier: None,
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Structural(reference),
+                    storage: None,
+                };
+                let mut module = TerminalModule::declarations();
+                module.structural_types = vec![
+                    declaration(
+                        scalar,
+                        true,
+                        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                    ),
+                    declaration(
+                        reference,
+                        true,
+                        StructuralTypeShape::Reference {
+                            referent: scalar,
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    ),
+                    declaration(
+                        pair,
+                        false,
+                        StructuralTypeShape::Record {
+                            fields: vec![field(1), field(2)],
+                            storage: terminal_psi::StructuralRecordStorage::Packed,
+                        },
+                    ),
+                ];
+                let mut body = machine(1);
+                let ty = if record { pair } else { reference };
+                let source = PlaceId::new(1).unwrap();
+                body.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+                body.structural_parameters
+                    .push(StructuralParameterDeclaration {
+                        place: source,
+                        position: 0,
+                        structural_type: ty,
+                        multiplicity: if record {
+                            StructuralMultiplicity::Affine
+                        } else {
+                            StructuralMultiplicity::Unrestricted
+                        },
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    });
+                body.structural_places
+                    .push(terminal_psi::StructuralPlaceDeclaration {
+                        id: source,
+                        kind: StructuralPlaceKind::Parameter { position: 0 },
+                    });
+                for (operation, place) in [(1, 2), (2, 3)] {
+                    body.structural_places
+                        .push(terminal_psi::StructuralPlaceDeclaration {
+                            id: PlaceId::new(place).unwrap(),
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer: OperationId::new(operation).unwrap(),
+                                structural_type: ty,
+                            },
+                        });
+                }
+                module.machines = vec![body];
+                module
+            }
+
+            #[test]
+            fn projected_release_retires_only_its_reference_leaf() {
+                use crate::descriptor_lifetimes::descriptor_location_lifetime;
+                let mut module = reference_flow_module(true);
+                let body = &mut module.machines[0];
+                let source = PlaceId::new(1).unwrap();
+                let carrier = PlaceId::new(2).unwrap();
+                let ty = StructuralTypeId::new(3).unwrap();
+                let mut moved = sequence_result(
+                    1,
+                    2,
+                    ty,
+                    OperationKind::MoveStructuralValue {
+                        source: terminal_psi::StructuralArgument::whole(
+                            source,
+                            StructuralAccess::Owned,
+                        ),
+                    },
+                );
+                let OperationResult::Structural(result) = &mut moved.result else {
+                    unreachable!();
+                };
+                result.multiplicity = StructuralMultiplicity::Affine;
+                body.structural_places.pop();
+                body.blocks[0].operations = vec![
+                    moved,
+                    Operation::unsuspended(
+                        OperationId::new(2).unwrap(),
+                        OperationResult::Unit,
+                        OperationKind::ReleaseReference {
+                            source: carrier,
+                            path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(1))],
+                        },
+                    ),
+                ];
+                let id = body.id;
+                let graph = crate::descriptor_results::terminal_reference_graph_from(&module, [id])
+                    .unwrap();
+                let row = &graph[0];
+                let birth = (row.entry.0, 0);
+                let release = (row.entry.0, 1);
+                let after = (row.entry.0, 2);
+                let leaf = |number| DescriptorLocation {
+                    root: carrier,
+                    path: vec![DescriptorPathSegment::Field(
+                        semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
+                    )],
+                };
+                assert_eq!(row.flow[&release].inputs, vec![leaf(1)]);
+                assert_eq!(row.flow[&release].definitions, vec![leaf(1)]);
+                let released = descriptor_location_lifetime(&row.flow, birth, &leaf(1));
+                let sibling = descriptor_location_lifetime(&row.flow, birth, &leaf(2));
+                assert!(!released.authorized[&after].contains(&leaf(1)));
+                assert!(sibling.authorized[&after].contains(&leaf(2)));
+            }
+
+            #[test]
+            fn moving_a_carrier_retires_its_old_name_while_copying_keeps_the_source() {
+                use crate::descriptor_lifetimes::descriptor_location_lifetime;
+                let mut module = reference_flow_module(false);
+                let body = &mut module.machines[0];
+                let source = PlaceId::new(1).unwrap();
+                let moved = PlaceId::new(2).unwrap();
+                let copied = PlaceId::new(3).unwrap();
+                let ty = StructuralTypeId::new(2).unwrap();
+                body.blocks[0].operations = vec![
+                    sequence_result(
+                        1,
+                        2,
+                        ty,
+                        OperationKind::MoveStructuralValue {
+                            source: terminal_psi::StructuralArgument::whole(
+                                source,
+                                StructuralAccess::Owned,
+                            ),
+                        },
+                    ),
+                    sequence_result(
+                        2,
+                        3,
+                        ty,
+                        OperationKind::StructuralLeafCopy {
+                            source: moved,
+                            path: Vec::new(),
+                        },
+                    ),
+                ];
+                let id = body.id;
+                let graph = crate::descriptor_results::terminal_reference_graph_from(&module, [id])
+                    .unwrap();
+                let row = &graph[0];
+                let moving = (row.entry.0, 0);
+                let copying = (row.entry.0, 1);
+                let after = (row.entry.0, 2);
+                assert!(
+                    row.flow[&moving]
+                        .definitions
+                        .contains(&DescriptorLocation::whole(source))
+                );
+                assert!(
+                    !row.flow[&copying]
+                        .definitions
+                        .contains(&DescriptorLocation::whole(moved))
+                );
+                let lifetime = descriptor_location_lifetime(
+                    &row.flow,
+                    moving,
+                    &DescriptorLocation::whole(moved),
+                );
+                assert!(lifetime.authorized[&after].contains(&DescriptorLocation::whole(moved)));
+                assert!(lifetime.authorized[&after].contains(&DescriptorLocation::whole(copied)));
+                let names = crate::descriptors::descriptor_lifetimes::value_locations(
+                    &row.flow,
+                    moving,
+                    &DescriptorLocation::whole(source),
+                    true,
+                );
+                assert!(!names[&copying].contains(&DescriptorLocation::whole(source)));
+                assert!(names[&copying].contains(&DescriptorLocation::whole(moved)));
+            }
+
+            #[test]
+            fn constructing_with_fresh_permission_uses_its_retained_custody() {
+                let mut module = reference_flow_module(false);
+                let body = &mut module.machines[0];
+                let backing = PlaceId::new(1).unwrap();
+                let source = PlaceId::new(2).unwrap();
+                let carrier = PlaceId::new(3).unwrap();
+                let sibling = PlaceId::new(4).unwrap();
+                let scalar = StructuralTypeId::new(1).unwrap();
+                let reference = StructuralTypeId::new(2).unwrap();
+                let pair = StructuralTypeId::new(3).unwrap();
+                let mut parameter = body.structural_parameters[0].clone();
+                parameter.place = sibling;
+                parameter.position = 1;
+                body.structural_parameters.push(parameter);
+                body.parameter_order
+                    .push(terminal_psi::BoundaryParameterKind::Structural);
+                body.structural_parameters[0].structural_type = scalar;
+                body.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+                body.structural_places[2].kind = StructuralPlaceKind::OperationResult {
+                    producer: OperationId::new(2).unwrap(),
+                    structural_type: pair,
+                };
+                body.structural_places
+                    .push(terminal_psi::StructuralPlaceDeclaration {
+                        id: sibling,
+                        kind: StructuralPlaceKind::Parameter { position: 1 },
+                    });
+                let field = |number, place| terminal_psi::RecordFieldInitializer {
+                    field: semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
+                    value: RecordFieldValue::Structural(terminal_psi::StructuralArgument::whole(
+                        place,
+                        StructuralAccess::Owned,
+                    )),
+                };
+                body.blocks[0].operations = vec![
+                    sequence_result(
+                        1,
+                        2,
+                        reference,
+                        OperationKind::EstablishReference {
+                            source: terminal_psi::StructuralArgument::whole(
+                                backing,
+                                StructuralAccess::SharedBorrow,
+                            ),
+                            storage: None,
+                        },
+                    ),
+                    sequence_result(
+                        2,
+                        3,
+                        pair,
+                        OperationKind::EstablishRecord {
+                            fields: vec![field(1, source), field(2, sibling)],
+                        },
+                    ),
+                ];
+                for operation in &mut body.blocks[0].operations {
+                    let OperationResult::Structural(result) = &mut operation.result else {
+                        unreachable!();
+                    };
+                    result.multiplicity = StructuralMultiplicity::Affine;
+                }
+                let id = body.id;
+                let graph = crate::descriptor_results::terminal_reference_graph_from(&module, [id])
+                    .unwrap();
+                let row = &graph[0];
+                let constructor = (row.entry.0, 1);
+                let after = (row.entry.0, 2);
+                let source = DescriptorLocation::whole(source);
+                assert!(row.flow[&constructor].definitions.contains(&source));
+                assert!(
+                    !row.flow[&constructor]
+                        .definitions
+                        .contains(&DescriptorLocation::whole(sibling))
+                );
+                let mut analysis =
+                    crate::descriptor_results::DescriptorAnalysis::with_reference_slots(
+                        &module.structural_types,
+                        &graph,
+                    );
+                let original = analysis.symbolic_source_origins(id, constructor, &source);
+                assert!(original.is_some());
+                let stored = DescriptorLocation {
+                    root: carrier,
+                    path: vec![DescriptorPathSegment::Field(
+                        semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                    )],
+                };
+                assert_eq!(
+                    analysis.symbolic_source_origins(id, after, &stored),
+                    original,
+                    "the destination reads the origin before source consumption",
+                );
+                assert!(
+                    analysis
+                        .symbolic_source_origins(id, after, &source)
+                        .is_none()
+                );
+                assert!(
+                    analysis
+                        .symbolic_source_origins(id, after, &DescriptorLocation::whole(sibling))
+                        .is_some()
+                );
+            }
+
             // Replacing a descriptor cannot retarget a previously copied
             // sequence. Its two elements keep distinct sources at construction.
             #[test]
@@ -12556,6 +12869,119 @@ pub mod descriptor_results {
             },
         }
 
+        // Owned access also presents unrestricted copies. Only a call's
+        // retained affine/linear formal transfers its source custody.
+        fn consume_call(
+            arguments: &[StructuralArgument],
+            mut parameters: impl Iterator<Item = (StructuralAccess, StructuralMultiplicity)>,
+            mut consume: impl FnMut(&StructuralArgument) -> Option<()>,
+        ) -> Option<()> {
+            for argument in arguments {
+                let (access, multiplicity) = parameters.next()?;
+                if argument.access == StructuralAccess::Owned
+                    && access == StructuralAccess::Owned
+                    && multiplicity != StructuralMultiplicity::Unrestricted
+                {
+                    consume(argument)?;
+                }
+            }
+            parameters.next().is_none().then_some(())
+        }
+
+        // Authority follows the value into its destination, but a consumed
+        // carrier cannot remain another authorized spelling. Keep these
+        // definitions alongside the operation's derivations: replay reads
+        // every transported origin from the same pre-operation state.
+        fn record_owned_consumption(
+            module: &TerminalModule,
+            machine: &TerminalMachine,
+            operation: &Operation,
+            step: &mut DescriptorFlowStep,
+        ) -> Option<()> {
+            let mut consume = |argument: &StructuralArgument| {
+                step.definitions.push(descriptor_location(
+                    &module.structural_types,
+                    argument.place,
+                    machine.structural_place_type(argument.place)?,
+                    &argument.path,
+                    None,
+                )?);
+                Some(())
+            };
+            let retained = |argument: &StructuralArgument| {
+                if argument.access != StructuralAccess::Owned {
+                    return Some(false);
+                }
+                if let Some(source) = crate::structural_argument_source(machine, argument.place, 0)
+                {
+                    return Some(source.multiplicity != StructuralMultiplicity::Unrestricted);
+                }
+                match &exactly_one(machine.structural_places.iter(), |place| {
+                    place.id == argument.place
+                })?
+                .kind
+                {
+                    StructuralPlaceKind::TrivialAffineLocal { .. } => Some(true),
+                    StructuralPlaceKind::ByteSequenceLiteral { .. } => Some(false),
+                    _ => None,
+                }
+            };
+            match &operation.kind {
+                OperationKind::MoveStructuralValue { source }
+                | OperationKind::TransformContent { source, .. } => {
+                    if source.access == StructuralAccess::Owned {
+                        consume(source)?;
+                    }
+                }
+                OperationKind::StoreStructuralField { value, .. } => {
+                    if retained(value)? {
+                        consume(value)?;
+                    }
+                }
+                kind => {
+                    for argument in kind.constructor_arguments() {
+                        if retained(argument)? {
+                            consume(argument)?;
+                        }
+                    }
+                }
+            }
+            if let Some(invocation) = operation.declared_invocation() {
+                let parameters = module.invocation_structural_parameters(
+                    invocation.callee,
+                    invocation.required_contract,
+                )?;
+                consume_call(
+                    invocation.structural_arguments,
+                    parameters
+                        .iter()
+                        .map(|parameter| (parameter.access, parameter.multiplicity)),
+                    &mut consume,
+                )?;
+            } else if let OperationKind::CallDynamic {
+                interface,
+                slot,
+                structural_arguments,
+                ..
+            } = &operation.kind
+            {
+                let parameters = &module
+                    .dynamic_dispatch
+                    .interface(*interface)?
+                    .slots
+                    .get(usize::try_from(*slot).ok()?)?
+                    .structural_parameters;
+                consume_call(
+                    structural_arguments,
+                    parameters
+                        .iter()
+                        .map(|parameter| (parameter.access, parameter.multiplicity)),
+                    &mut consume,
+                )?;
+            }
+            Some(())
+        }
+
         pub(crate) fn residence_rules(
             module: &TerminalModule,
             machine: &TerminalMachine,
@@ -13081,6 +13507,11 @@ pub mod descriptor_results {
                         _ => None,
                     };
                     match &operation.kind {
+                        OperationKind::ReleaseReference { source, path } => {
+                            let source = location(*source, path, None)?;
+                            step.inputs = vec![source.clone()];
+                            step.definitions.push(source);
+                        }
                         OperationKind::ByteSequenceLength { source }
                         | OperationKind::ElementViewLength { source } => {
                             let query = descriptor_contents_query(
@@ -13987,6 +14418,7 @@ pub mod descriptor_results {
                         }
                         _ => {}
                     }
+                    record_owned_consumption(module, machine, operation, &mut step)?;
                     step.authority_derivations = step.derivations.clone();
                     step.successors.push(DescriptorFlowEdge {
                         target: (block.id, position.1 + 1),
