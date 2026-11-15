@@ -18,8 +18,8 @@ data Cell {
     value: i32;
 }
 
-data Message {
-    body: &Cell;
+data Message<'view> {
+    body: &'view Cell;
 }
 
 public boundary trait Scheduler {

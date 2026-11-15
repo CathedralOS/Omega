@@ -208,6 +208,10 @@ fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
             "policy operator operand types differ",
         ),
         (
+            "machine sum(left: u32, right: u64) -> u32 { left +% right }",
+            "policy operator operand types differ",
+        ),
+        (
             "machine sum() -> u32 { 7 +% 1 }",
             "policy operator on a wholly anonymous tree",
         ),
@@ -228,17 +232,11 @@ fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
         );
     }
 
-    let valid_but_unsupported = "machine quotient(left: u32, right: u32) -> u32 \
-        requires right > 0 ensures result == left /% right { left /% right }";
-    let RouteVerdict::FallBack(refusal) = super::entryless::judged(valid_but_unsupported, false)
-    else {
-        panic!("valid quotient contract must retain its formation-support refusal");
-    };
-    assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refusal.detail,
-        "contract policy operator in a clause term that owes a condition before it is total while \
-         reading the signature of `quotient`"
+    // The same divisor condition now forms the quotient in its guarantee.
+    // Omitting it must still fail formation rather than invent a divisor.
+    accepted(
+        "machine quotient(left: u32, right: u32) -> u32 \
+        requires right > 0 ensures result == left /% right { left /% right }",
     );
 }
 

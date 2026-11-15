@@ -575,6 +575,10 @@ pub enum TargetUnitOperation {
 pub struct TargetStructuralRuntimeIndex {
     pub operand: TargetUnitScalarArgumentSource,
     pub stride: u32,
+    /// A fixed source collection bound, or None for a descriptor-carried bound.
+    pub extent: Option<u64>,
+    /// Together with the operation owner, identifies the admitted index proof.
+    pub obligation: semantic_vocabulary::ObligationId,
 }
 
 impl TargetUnitOperation {

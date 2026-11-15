@@ -79,9 +79,11 @@ impl Qualifications {
             let identity =
                 crate::declare::nominal(typed, &sources, symbol, builder).map_err(unavailable)?;
             let clauses = source
-                .scalar_domain_predicates
+                .domain_predicates
                 .iter()
-                .find(|(owner, scalar, _)| *owner == symbol && *scalar == carrier)
+                .find(|(owner, value_type, _)| {
+                    *owner == symbol && *value_type == ValueType::plain(carrier)
+                })
                 .map(|(_, _, clauses)| clauses.clone())
                 .ok_or_else(|| unavailable("scalar domain lost its prepared source predicates"))?;
             let mut predicate = if clauses.is_empty() {

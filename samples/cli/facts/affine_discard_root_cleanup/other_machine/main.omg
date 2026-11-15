@@ -5,8 +5,8 @@ data Counter {
     value: u64;
 }
 
-data Resource dropped by drop_resource {
-    dropped: &mut Counter;
+data Resource<'view> dropped by drop_resource {
+    dropped: &'view mut Counter;
     valid: u64;
     value: u64;
 }

@@ -42,6 +42,27 @@ comparisons.
 rules could not have decided
 ([below](#what-the-integer-rules-do-not-reach)).
 
+## Forming declarations before using their facts
+
+A contract must be meaningful before it can justify another computation.
+[formation.rs](src/formation.rs) checks every partial scalar term with the
+existing canonical safety goal, prover and proof kernel. Only independently
+formed clauses supply premises. Pending clauses can use clauses formed later
+in authored order, but self-dependencies and cycles supply no evidence. Exact
+field paths distinguish entry from current contents; nested results receive
+carrier facts only after their own computations form.
+
+This check covers machine and bodyless contracts, boundary guards and declared
+data or scalar domains. Inferred input and result contracts are formed before
+their first downstream use. Its logical observations and proofs are private
+checking scratch, not runtime operations or a new saved evidence table.
+
+`prepare_replay` performs formation explicitly and returns an exclusive borrow
+of the elaboration. Replay borrows that formed module and checks the existing
+certificates without proof search. Declaration changes go through publishers
+that form the proposed contract before changing it; callers cannot mutate the
+module while replay holds its formed view.
+
 ## What it decides
 
 | Kind | Goal | Hypotheses available at its point |
@@ -225,7 +246,7 @@ already carries every identity:
 | `NormalGuarantee` | every return terminator owes one per `ensures` clause, naming its own edge and the clause's published identity | that return edge |
 | `DataDomain` | counted by `Storage::owed_are_minted` from the writes the place walk finds | the point before the operation |
 | `CrashCoverage` | a `Crash` terminator owes one for its cause; an `InvokeNoNormal` terminator, or a `Call` or `CallUnit` with crash continuations, one per cause among them | the point before the terminator or the call |
-| `ArrivalInvariant` | a `Jump`, or a `Conditional` successor, that passes scalar arguments owes one for its edge | that edge |
+| `ArrivalInvariant` | a `Jump`, or a `Conditional` successor, that passes scalar or structural arguments owes one for its edge | that edge |
 | `WellFoundedness` | each cycle of the machine's `ranked_scc` owes one, named by the identity of its edges | the entry of the cycle's first block |
 | `RankComparison` | each edge row of a ranked cycle owes one | that edge |
 

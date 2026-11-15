@@ -18,7 +18,7 @@ identity needed, so nothing is taken from elaboration's word:
 - A crashing terminator owes coverage for its cause, and a no-normal call or
   a call that may return and crash owes it per cause among its
   continuations (calls_and_outcomes.md, "Crash"). An edge that passes scalar
-  arguments owes its destination's predicate (control_flow.md: "one
+  or structural arguments owes its destination's predicate (control_flow.md: "one
   obligation for every actual incoming edge").
 
 Each of those rows must have exactly the kind the lowered form owes and be
@@ -728,45 +728,21 @@ pub(crate) fn follow_the_lowered_form(
             }
         }
         // A crashing terminator owes coverage at the point before it: its one
-        // cause, or each cause among a no-normal call's continuations. An
-        // edge that passes scalar arguments owes its destination's predicate
-        // on that edge (control_flow.md: "one obligation for every actual
-        // incoming edge").
+        // cause, or each cause among a no-normal call's continuations.
         let site = CrashSite::Block(block.id);
         let concerns = Construct::Block(block.id);
-        match &block.terminator {
-            Terminator::Crash { cause, .. } => {
-                let kind = ObligationKind::CrashCoverage {
-                    site,
-                    cause: *cause,
-                };
-                minted.owed(kind, before, concerns)?;
-            }
-            Terminator::Jump {
-                edge,
-                arguments,
-                structural_arguments,
-                ..
-            } if !arguments.is_empty() || !structural_arguments.is_empty() => {
-                let kind = ObligationKind::ArrivalInvariant { edge: *edge };
-                minted.owed(kind, ProgramPoint::Edge(*edge), concerns)?;
-            }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for successor in [when_true, when_false] {
-                    if !successor.arguments.is_empty() || !successor.structural_arguments.is_empty()
-                    {
-                        let kind = ObligationKind::ArrivalInvariant {
-                            edge: successor.edge,
-                        };
-                        minted.owed(kind, ProgramPoint::Edge(successor.edge), concerns)?;
-                    }
-                }
-            }
-            _ => {}
+        if let Terminator::Crash { cause, .. } = &block.terminator {
+            let kind = ObligationKind::CrashCoverage {
+                site,
+                cause: *cause,
+            };
+            minted.owed(kind, before, concerns)?;
+        }
+        // Every argument-passing edge owes its destination's predicate at
+        // the edge, where the proof can see the selected incoming values.
+        for (edge, _) in block.terminator.successors_with_runtime_arguments() {
+            let kind = ObligationKind::ArrivalInvariant { edge };
+            minted.owed(kind, ProgramPoint::Edge(edge), concerns)?;
         }
         if let Terminator::Return { edge, .. }
         | Terminator::ReturnUnit { edge, .. }

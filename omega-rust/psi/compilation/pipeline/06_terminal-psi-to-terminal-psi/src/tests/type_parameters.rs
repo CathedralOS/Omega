@@ -142,7 +142,7 @@ fn a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types() {
     // proved once with `item` rigid, from `forward`'s contract alone. The
     // same three proofs are accepted by the kernel in `relay<i32>` and in
     // `relay<bool>`, with no prover started. No proof names `item`.
-    let (form, found) = checked_once(11);
+    let (mut form, found) = checked_once(11);
     let tables = form.tables.machines.get(id(1)).unwrap();
     assert_eq!(
         tables.values.get(id(1)).unwrap().rigid,
@@ -157,17 +157,24 @@ fn a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types() {
     for item_type in [ValueType::plain(i32_type()), ValueType::plain(bool_type())] {
         let mut consumer = specialized(item_type, 11);
         let mut activity = ProofSearchActivity::default();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+        let started = activity.started();
         let verdicts = reverify_specialization(
-            &form,
+            &generic,
             &found,
             id(1),
-            &mut consumer,
+            &mut replay,
             id(1),
             &[],
             &mut activity,
         )
         .unwrap();
-        assert_eq!(activity.started(), 0, "carrying a proof started a prover");
+        assert_eq!(
+            activity.started(),
+            started,
+            "carrying a proof started a prover"
+        );
         assert_eq!(verdicts.len(), 3);
         for (obligation, verdict) in &verdicts {
             assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
@@ -181,7 +188,7 @@ fn a_bound_the_callee_does_not_give_is_refused_for_every_type() {
     // as a generic body, since `forward` gives `result <= 10` before the
     // add. The specialization then has no proof of its guarantee to take,
     // and nothing searches for one.
-    let (form, found) = checked_once(10);
+    let (mut form, found) = checked_once(10);
     let (_, refused) = verdicts(&form, &found, 1, guarantee)[0];
     assert!(matches!(
         refused.as_ref().unwrap_err().reason,
@@ -189,17 +196,20 @@ fn a_bound_the_callee_does_not_give_is_refused_for_every_type() {
     ));
     let mut consumer = specialized(ValueType::plain(i32_type()), 10);
     let mut activity = ProofSearchActivity::default();
+    let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let started = activity.started();
     let verdicts = reverify_specialization(
-        &form,
+        &generic,
         &found,
         id(1),
-        &mut consumer,
+        &mut replay,
         id(1),
         &[],
         &mut activity,
     )
     .unwrap();
-    assert_eq!(activity.started(), 0);
+    assert_eq!(activity.started(), started);
     let refusals: Vec<_> = verdicts
         .iter()
         .filter_map(|(_, verdict)| verdict.as_ref().err())
@@ -259,16 +269,19 @@ fn one_type_parameter_is_one_type_in_a_specialization() {
     };
     let mut form = lowered(vec![both(rigid(), rigid())], &[]);
     let found = discharge(&mut form, &mut Default::default()).unwrap();
-    let carry = |left, right| {
+    let mut carry = |left, right| {
         let mut consumer = lowered(vec![both(left, right)], &[]);
+        let mut activity = crate::ProofSearchActivity::default();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
         reverify_specialization(
-            &form,
+            &generic,
             &found,
             id(1),
-            &mut consumer,
+            &mut replay,
             id(1),
             &[],
-            &mut Default::default(),
+            &mut activity,
         )
     };
     let (int, boolean) = (ValueType::plain(i32_type()), ValueType::plain(bool_type()));

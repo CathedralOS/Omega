@@ -85,6 +85,14 @@ pub struct Plan {
     /// replaces intact discardable contents. Sorted by operation identity.
     pub stores: Vec<(OperationId, StructuralStoreDisposition)>,
     pub unavailable: Vec<Unavailable>,
+    pub reference_ends: Vec<ReferenceEnd>,
+}
+
+#[derive(Debug)]
+pub struct ReferenceEnd {
+    pub at: crate::descriptor_lifetimes::DescriptorPosition,
+    pub source: StructuralArgument,
+    pub structural_type: StructuralTypeId,
 }
 
 /// `base` describes children not overridden in the trie. A partially moved
@@ -284,6 +292,8 @@ struct Analysis<'a> {
     references: Option<crate::descriptor_results::DescriptorAnalysis<'a>>,
     machine: Option<semantic_vocabulary::MachineId>,
     position: Option<crate::descriptor_lifetimes::DescriptorPosition>,
+    reference_candidates: Option<&'a crate::reference_ends::Candidates>,
+    reference_ends: Vec<ReferenceEnd>,
 }
 
 fn index(raw: u64) -> Result<usize, Error> {
@@ -342,9 +352,105 @@ fn terminator_roots(terminator: &terminal_psi::Terminator) -> Vec<PlaceId> {
     }
 }
 
+/// A carrier's use also keeps its original storage alive. Descriptor homes
+/// and their backing are different owners: disposing the latter just because
+/// its authored name is dead invalidates a still-live reference.
+fn reference_backing_uses(
+    types: &[StructuralTypeDeclaration],
+    graph: &crate::descriptor_results::DescriptorMachine,
+    references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    candidates: Option<&crate::reference_ends::Candidates>,
+) -> Result<
+    std::collections::BTreeMap<crate::descriptor_lifetimes::DescriptorPosition, IdSet<PlaceId>>,
+    Error,
+> {
+    use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
+    use crate::descriptor_results::{DescriptorSlotKind, FlowFeasibility};
+    let mut uses = std::collections::BTreeMap::new();
+    for (at, step) in &graph.flow {
+        let mut inputs = step.inputs.clone();
+        for candidate in candidates
+            .and_then(|candidates| candidates.get(at))
+            .into_iter()
+            .flatten()
+        {
+            let argument = &candidate.argument;
+            let ty = *graph
+                .place_types
+                .get(&argument.place)
+                .ok_or(Error::malformed(
+                    "reference disposition lost its source type",
+                ))?;
+            inputs.push(
+                crate::descriptor_lifetimes::descriptor_location(
+                    types,
+                    argument.place,
+                    ty,
+                    &argument.path,
+                    None,
+                )
+                .ok_or(Error::unsupported(
+                    "reference disposition has no exact source path",
+                ))?,
+            );
+        }
+        for input in inputs {
+            let ty = *graph.place_types.get(&input.root).ok_or(Error::malformed(
+                "reference observation lost its source type",
+            ))?;
+            let slots = DescriptorSlotKind::References
+                .owned_slots(types, input.root, ty)
+                .ok_or(Error::unsupported(
+                    "reference observation has no finite owned slots",
+                ))?;
+            'slots: for mut slot in slots {
+                if !input.contains(&slot) && !slot.contains(&input) {
+                    continue;
+                }
+                for (position, segment) in slot.path.iter().enumerate() {
+                    let DescriptorPathSegment::Case(case) = segment else {
+                        continue;
+                    };
+                    let predicate = crate::descriptor_results::DescriptorCasePredicate {
+                        subject: DescriptorLocation {
+                            root: slot.root,
+                            path: slot.path[..position].to_vec(),
+                        },
+                        case: *case,
+                    };
+                    if references.case_feasibility(graph.id, *at, &predicate)
+                        == FlowFeasibility::ProvedImpossible
+                    {
+                        continue 'slots;
+                    }
+                }
+                slot.path.push(DescriptorPathSegment::Referent);
+                let source =
+                    references
+                        .location(graph.id, *at, &slot)
+                        .ok_or(Error::unsupported(
+                            "reference observation has no exact live backing",
+                        ))?;
+                if !graph.place_types.contains_key(&source.root) {
+                    return Err(Error::malformed("reference backing is outside its machine"));
+                }
+                uses.entry(*at)
+                    .or_insert_with(IdSet::new)
+                    .insert(source.root);
+            }
+        }
+    }
+    Ok(uses)
+}
+
 fn live_entries(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
+    reference_candidates: Option<&crate::reference_ends::Candidates>,
+    reference_backing: &std::collections::BTreeMap<
+        crate::descriptor_lifetimes::DescriptorPosition,
+        IdSet<PlaceId>,
+    >,
 ) -> Result<Vec<IdSet<PlaceId>>, Error> {
     let mut live = vec![IdSet::new(); machine.blocks.len()];
     loop {
@@ -367,7 +473,12 @@ fn live_entries(
             for root in terminator_roots(&block.terminator) {
                 before.insert(valid(root)?);
             }
-            for operation in block.operations.iter().rev() {
+            let end = u32::try_from(block.operations.len())
+                .map_err(|_| Error::malformed("reference observation position overflows"))?;
+            if let Some(backing) = reference_backing.get(&(block.id, end)) {
+                before.union_with(backing);
+            }
+            for (position, operation) in block.operations.iter().enumerate().rev() {
                 if let Some(result) = operation.result.as_structural() {
                     before.remove(valid(result.place)?);
                 }
@@ -378,6 +489,22 @@ fn live_entries(
                     .filter_map(storage_root)
                 {
                     before.insert(valid(used)?);
+                }
+                // A planned release is a real future use of its owned
+                // descriptor home. Keep that home until the planner can emit
+                // it; otherwise edge cleanup could close a parent while its
+                // child still runs. The final verifier reads emitted uses.
+                let position = u32::try_from(position)
+                    .map_err(|_| Error::malformed("reference end position overflows"))?;
+                if let Some(backing) = reference_backing.get(&(block.id, position)) {
+                    before.union_with(backing);
+                }
+                for candidate in reference_candidates
+                    .and_then(|candidates| candidates.get(&(block.id, position)))
+                    .into_iter()
+                    .flatten()
+                {
+                    before.insert(valid(candidate.argument.place)?);
                 }
             }
             for parameter in &block.structural_parameters {
@@ -416,7 +543,7 @@ fn live_entries(
 /// Nominal hooks, conserved claims and borrowed extraction require their own
 /// contracts, rather than an empty plan.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
-    analyze(machine, types, false, None)
+    analyze(machine, types, false, None, None)
 }
 
 /// Resolve destructive reference paths with the same descriptor graph as
@@ -426,7 +553,25 @@ pub fn plan_in(
     identity: semantic_vocabulary::MachineId,
 ) -> Result<Plan, Error> {
     let machine = module_machine(module, identity)?;
-    analyze(machine, &module.structural_types, false, Some(module))
+    analyze(machine, &module.structural_types, false, Some(module), None)
+}
+
+/// Resolve dead descriptor candidates against the same exact ownership frontier
+/// that supplies residual cleanup. Moved or already disposed leaves are not
+/// released again, and borrowed descriptor storage never grants disposition.
+pub fn plan_reference_ends(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+    candidates: &crate::reference_ends::Candidates,
+) -> Result<Plan, Error> {
+    let machine = module_machine(module, identity)?;
+    analyze(
+        machine,
+        &module.structural_types,
+        false,
+        Some(module),
+        Some(candidates),
+    )
 }
 
 /// Reconstructs the canonical schedule without trusting the supplied actions.
@@ -436,7 +581,7 @@ pub fn verify(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Plan, Error> {
-    verify_schedule(machine, analyze(machine, types, true, None)?)
+    verify_schedule(machine, analyze(machine, types, true, None, None)?)
 }
 
 /// The receiving checker reconstructs both the exact backing and its schedule.
@@ -447,7 +592,7 @@ pub fn verify_in(
     let machine = module_machine(module, identity)?;
     verify_schedule(
         machine,
-        analyze(machine, &module.structural_types, true, Some(module))?,
+        analyze(machine, &module.structural_types, true, Some(module), None)?,
     )
 }
 
@@ -513,6 +658,7 @@ fn analyze(
     types: &[StructuralTypeDeclaration],
     bound_output: bool,
     module: Option<&terminal_psi::TerminalModule>,
+    reference_candidates: Option<&crate::reference_ends::Candidates>,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::TerminalMachineResult;
@@ -761,6 +907,10 @@ fn analyze(
         // Fresh permission ownership also owes a disposition; copyability
         // only permits later copies, not forgetting this producing root.
         let tracked = !declaration.copyable
+            || terminal_psi::structural_type_contains_reference_by(
+                |id| terminal_psi::find_structural_type(types, id),
+                ty,
+            )
             || required_result.is_some_and(|multiplicity| {
                 multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             });
@@ -820,7 +970,6 @@ fn analyze(
             );
         }
     }
-    let live = live_entries(machine, types)?;
     let regions = roots
         .iter()
         .map(|root| {
@@ -845,7 +994,12 @@ fn analyze(
     if first >= machine.blocks.len() {
         return Err(Error::malformed("entry block is outside the machine"));
     }
-    let needs_backing = machine.operations().any(|operation| {
+    let needs_backing = roots.iter().flatten().any(|root| {
+        terminal_psi::structural_type_contains_reference_by(
+            |id| types.iter().find(|declaration| declaration.id == id),
+            root.structural_type,
+        )
+    }) || machine.operations().any(|operation| {
         matches!(
             &operation.kind,
             terminal_psi::OperationKind::MoveStructuralField { path, .. }
@@ -854,13 +1008,26 @@ fn analyze(
     });
     let reference_graph = if needs_backing {
         let module = module.ok_or(Error::unsupported(
-            "a borrowed reference window requires its module's exact backing",
+            "reference storage requires its module's exact backing",
         ))?;
         crate::descriptor_results::terminal_reference_graph_from(module, [machine.id])
-            .map_err(|_| Error::unsupported("a borrowed window has no reference closure"))?
+            .map_err(|_| Error::unsupported("reference storage has no complete closure"))?
     } else {
         Vec::new()
     };
+    let mut references = needs_backing.then(|| {
+        crate::descriptor_results::DescriptorAnalysis::with_reference_slots(types, &reference_graph)
+    });
+    let backing = if let Some(references) = &mut references {
+        let graph = reference_graph
+            .iter()
+            .find(|graph| graph.id == machine.id)
+            .ok_or(Error::malformed("reference storage lost its machine graph"))?;
+        reference_backing_uses(types, graph, references, reference_candidates)?
+    } else {
+        Default::default()
+    };
+    let live = live_entries(machine, types, reference_candidates, &backing)?;
     let mut analysis = Analysis {
         types,
         roots,
@@ -868,14 +1035,11 @@ fn analyze(
         unavailable_roots: Vec::new(),
         stores: Vec::new(),
         verify_stores: bound_output,
-        references: needs_backing.then(|| {
-            crate::descriptor_results::DescriptorAnalysis::with_reference_slots(
-                types,
-                &reference_graph,
-            )
-        }),
+        references,
         machine: Some(machine.id),
         position: None,
+        reference_candidates,
+        reference_ends: Vec::new(),
     };
     // Each block is entered with the frontier every arrival agrees on
     // (ownership.md, "Paths and control flow": predecessor paths must agree
@@ -910,6 +1074,7 @@ fn analyze(
         }
     }
     analysis.unavailable.clear();
+    analysis.reference_ends.clear();
     analysis.unavailable_roots = vec![None; analysis.roots.len()];
     let mut cleanup = Vec::new();
     for block in &machine.blocks {
@@ -944,6 +1109,7 @@ fn analyze(
         cleanup,
         stores: analysis.stores,
         unavailable: analysis.unavailable,
+        reference_ends: analysis.reference_ends,
     })
 }
 
@@ -1027,6 +1193,44 @@ fn validate_successor(
 }
 
 impl Analysis<'_> {
+    fn end_references(
+        &mut self,
+        state: &mut State,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+    ) -> Result<(), Error> {
+        let Some(candidates) = self
+            .reference_candidates
+            .and_then(|candidates| candidates.get(&at))
+        else {
+            return Ok(());
+        };
+        for candidate in candidates {
+            let argument = &candidate.argument;
+            let Some(root) = self.root(argument.place)?.filter(|root| root.owned) else {
+                continue;
+            };
+            let structural_type = root.structural_type;
+            let path = self.canonical(argument.place, &argument.path)?;
+            if !state.regions[index(argument.place.get())?]
+                .as_ref()
+                .is_some_and(|region| region.available(&path))
+            {
+                continue;
+            }
+            if candidate.unproved_case.is_some() {
+                return Err(Error::unsupported(
+                    "last-use reference disposition needs an established active case",
+                ));
+            }
+            self.vacate(state, argument.place, &path)?;
+            self.reference_ends.push(ReferenceEnd {
+                at,
+                source: argument.clone(),
+                structural_type,
+            });
+        }
+        Ok(())
+    }
     /// Walks one block from `state` and returns its normal edges, each with
     /// the frontier it carries and the disposals it performs. A root the
     /// successor does not read again is disposed of on the edge. With
@@ -1048,11 +1252,13 @@ impl Analysis<'_> {
             .filter(|block| block.id == block_id)
             .ok_or(Error::malformed("block is not at its identity"))?;
         for (ordinal, operation) in block.operations.iter().enumerate() {
-            self.position = Some((
+            let at = (
                 block.id,
                 u32::try_from(ordinal)
                     .map_err(|_| Error::malformed("operation position overflows"))?,
-            ));
+            );
+            self.position = Some(at);
+            self.end_references(&mut state, at)?;
             // "Suspension must retain the exclusive loan, exact hole,
             // removed-value custody, and restoration obligation without
             // exposing the incomplete owner. Its resume and cancellation
@@ -2636,6 +2842,8 @@ mod tests {
             references: None,
             machine: None,
             position: None,
+            reference_candidates: None,
+            reference_ends: Vec::new(),
         }
     }
 

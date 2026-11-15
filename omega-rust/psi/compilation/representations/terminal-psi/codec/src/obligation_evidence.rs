@@ -16,7 +16,7 @@ does not survive a stored artifact.
 */
 
 use semantic_vocabulary::{
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, StructuralPlaceKind,
+    BlockId, MachineId, ObligationId, OperationId, PlaceId, Proposition, StructuralPlaceKind,
     StructuralTypeId,
 };
 use terminal_psi::{
@@ -134,6 +134,20 @@ impl EvidenceSeals {
     }
 }
 
+/// The execution site that consumes one sealed obligation: an operation, or
+/// the terminator of a block.
+///
+/// A terminator's storage use is proved at the terminator, before any edge is
+/// chosen: a dispatch on `table.choices[index]` reads the discriminator once,
+/// whichever case follows. Its owner is therefore the block, never one of its
+/// edges, matching the site the checker states the goal at
+/// (`terminal_check_tables::obligations::ExecutionSite`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EvidenceSite {
+    Operation(OperationId),
+    Terminator(BlockId),
+}
+
 /// Why in-memory evidence cannot be attached to the requested module or scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvidenceSealValidationError {
@@ -144,14 +158,14 @@ pub enum EvidenceSealValidationError {
         machine: MachineId,
         obligation: ObligationId,
     },
-    /// No unique operation owns this seal's obligation.
+    /// No unique operation or terminator owns this seal's obligation.
     UnownedSeal {
         machine: MachineId,
         obligation: ObligationId,
     },
     SealMismatch {
         machine: MachineId,
-        operation: OperationId,
+        site: EvidenceSite,
         obligation: ObligationId,
     },
 }
@@ -211,7 +225,7 @@ impl EvidenceSeals {
 }
 
 struct OperationEvidenceGoal {
-    operation: OperationId,
+    site: EvidenceSite,
     obligation: ObligationId,
     proposition: Option<Proposition>,
 }
@@ -281,7 +295,9 @@ fn machine_place_types(
 
 struct MachineEvidenceGoals<'module> {
     machine: &'module terminal_psi::TerminalMachine,
-    operations: Vec<OperationId>,
+    /// Every execution site of the machine, sorted: its operations and the
+    /// terminator of each block.
+    sites: Vec<EvidenceSite>,
     goals: Vec<OperationEvidenceGoal>,
 }
 
@@ -303,24 +319,42 @@ impl<'module> MachineEvidenceGoals<'module> {
             .map(|declaration| (declaration.id, declaration.scalar_type))
             .collect();
         let types = terminal_semantics::SortedValueTypes::new(declarations);
-        let mut operations = Vec::new();
+        let mut sites = Vec::new();
         let mut goals = Vec::new();
         let mut places = None;
-        for operation in machine.operations() {
-            operations.push(operation.id);
+        // Operations and terminators state runtime index goals the same way:
+        // one goal per index step of each storage projection they execute.
+        let executions = machine
+            .operations()
+            .map(|operation| {
+                (
+                    EvidenceSite::Operation(operation.id),
+                    Some(operation),
+                    operation.kind.structural_projections(),
+                )
+            })
+            .chain(machine.blocks.iter().map(|block| {
+                (
+                    EvidenceSite::Terminator(block.id),
+                    None,
+                    block.terminator.storage_uses(),
+                )
+            }));
+        for (site, operation, projections) in executions {
+            sites.push(site);
             let Some(types) = &types else {
                 continue;
             };
-            if let Ok(Some((obligation, proposition))) =
-                terminal_semantics::operation_safety_goal(operation, types)
+            if let Some(Ok(Some((obligation, proposition)))) = operation
+                .map(|operation| terminal_semantics::operation_safety_goal(operation, types))
             {
                 goals.push(OperationEvidenceGoal {
-                    operation: operation.id,
+                    site,
                     obligation,
                     proposition: Some(proposition),
                 });
             }
-            for projection in operation.kind.structural_projections() {
+            for projection in projections {
                 let mut indices = projection
                     .path
                     .iter()
@@ -347,7 +381,7 @@ impl<'module> MachineEvidenceGoals<'module> {
                         types,
                         |obligation, proposition| {
                             goals.push(OperationEvidenceGoal {
-                                operation: operation.id,
+                                site,
                                 obligation,
                                 proposition: Some(proposition),
                             });
@@ -360,24 +394,24 @@ impl<'module> MachineEvidenceGoals<'module> {
                     // as a competing owner of the same obligation.
                     goals.truncate(first);
                     goals.extend(indices.map(|(_, obligation)| OperationEvidenceGoal {
-                        operation: operation.id,
+                        site,
                         obligation,
                         proposition: None,
                     }));
                 }
             }
         }
-        operations.sort_unstable();
+        sites.sort_unstable();
         goals.sort_unstable_by_key(|row| row.obligation);
         Self {
             machine,
-            operations,
+            sites,
             goals,
         }
     }
 
-    fn names_one_operation(&self, operation: OperationId) -> bool {
-        unique_by_id(&self.operations, operation, |id| *id).is_some()
+    fn names_one_site(&self, site: EvidenceSite) -> bool {
+        unique_by_id(&self.sites, site, |id| *id).is_some()
     }
 
     fn obligation(&self, obligation: ObligationId) -> Option<&OperationEvidenceGoal> {
@@ -455,26 +489,26 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
             }
         }
         for (position, seal) in self.seals.iter().enumerate() {
-            let operation = self
+            let site = self
                 .machine(seal.machine)
                 .and_then(|machine| machine.obligation(seal.obligation))
-                .map(|goal| goal.operation)
+                .map(|goal| goal.site)
                 .ok_or(EvidenceSealValidationError::UnownedSeal {
                     machine: seal.machine,
                     obligation: seal.obligation,
                 })?;
-            self.validate_at(position, operation)?;
+            self.validate_at(position, site)?;
         }
         Ok(())
     }
 
     /// Returns the original seal index and fingerprint, or absence when this
-    /// operation has no seal. The caller still accounts for every consumed
+    /// site has no seal for the obligation. The caller still accounts for every consumed
     /// seal, so a duplicate or otherwise unconsumed row cannot disappear.
     pub fn fingerprint(
         &self,
         machine: MachineId,
-        operation: OperationId,
+        site: EvidenceSite,
         obligation: ObligationId,
     ) -> Result<Option<(usize, [u8; 32])>, EvidenceSealValidationError> {
         let coordinate = (machine, obligation);
@@ -489,25 +523,25 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
         if (seal.machine, seal.obligation) != coordinate {
             return Ok(None);
         }
-        self.validate_at(position, operation)
+        self.validate_at(position, site)
             .map(|fingerprint| Some((position, fingerprint)))
     }
 
     fn validate_at(
         &self,
         position: usize,
-        operation: OperationId,
+        site: EvidenceSite,
     ) -> Result<[u8; 32], EvidenceSealValidationError> {
         let seal = &self.seals[position];
         let mismatch = || EvidenceSealValidationError::SealMismatch {
             machine: seal.machine,
-            operation,
+            site,
             obligation: seal.obligation,
         };
         let machine = self.machine(seal.machine).ok_or_else(mismatch)?;
         let goal = machine.obligation(seal.obligation).ok_or_else(mismatch)?;
-        if goal.operation != operation
-            || !machine.names_one_operation(operation)
+        if goal.site != site
+            || !machine.names_one_site(site)
             || goal.proposition.as_ref() != Some(&seal.goal)
             || !seal.intact()?
         {
@@ -1792,10 +1826,42 @@ mod projection_tests {
         for (position, seal) in seals.iter().enumerate() {
             assert_eq!(
                 validator
-                    .fingerprint(machine, operation, seal.obligation)
+                    .fingerprint(machine, EvidenceSite::Operation(operation), seal.obligation)
                     .unwrap(),
                 Some((position, seal.fingerprint))
             );
+        }
+
+        // The same read as a dispatch discriminator: the block's terminator
+        // executes it before any case edge is chosen, so the block owns both
+        // bounds and no operation or edge can claim them.
+        let mut dispatch = module.clone();
+        let block = &mut dispatch.machines[0].blocks[0];
+        let OperationKind::PrimitiveScalarRead { source, path } =
+            block.operations.pop().unwrap().kind
+        else {
+            unreachable!()
+        };
+        block.terminator = terminal_psi::Terminator::StructuralCase {
+            source,
+            path,
+            cases: vec![],
+        };
+        let site = EvidenceSite::Terminator(block.id);
+        let validator = EvidenceSealValidator::new(&dispatch, &seals);
+        assert!(validator.validate_all().is_ok());
+        for (position, seal) in seals.iter().enumerate() {
+            assert_eq!(
+                validator
+                    .fingerprint(machine, site, seal.obligation)
+                    .unwrap(),
+                Some((position, seal.fingerprint))
+            );
+            assert!(matches!(
+                validator.fingerprint(machine, EvidenceSite::Operation(operation), seal.obligation),
+                Err(EvidenceSealValidationError::SealMismatch { site: claimed, .. })
+                    if claimed == EvidenceSite::Operation(operation)
+            ));
         }
 
         let mut narrower = module.clone();
@@ -1850,7 +1916,7 @@ mod projection_tests {
             validator
                 .fingerprint(
                     machine_id(2),
-                    OperationId::new(23).unwrap(),
+                    EvidenceSite::Operation(OperationId::new(23).unwrap()),
                     ObligationId::new(2).unwrap()
                 )
                 .unwrap(),
@@ -1860,7 +1926,7 @@ mod projection_tests {
             validator
                 .fingerprint(
                     machine_id(1),
-                    OperationId::new(13).unwrap(),
+                    EvidenceSite::Operation(OperationId::new(13).unwrap()),
                     ObligationId::new(1).unwrap()
                 )
                 .unwrap(),
@@ -1954,7 +2020,7 @@ mod projection_tests {
         assert!(matches!(
             validator.fingerprint(
                 machine_id(1),
-                OperationId::new(13).unwrap(),
+                EvidenceSite::Operation(OperationId::new(13).unwrap()),
                 ObligationId::new(1).unwrap()
             ),
             Err(EvidenceSealValidationError::SealMismatch { .. })
@@ -1968,7 +2034,7 @@ mod projection_tests {
         assert!(matches!(
             validator.fingerprint(
                 machine_id(1),
-                OperationId::new(11).unwrap(),
+                EvidenceSite::Operation(OperationId::new(11).unwrap()),
                 ObligationId::new(1).unwrap()
             ),
             Err(EvidenceSealValidationError::SealMismatch { .. })

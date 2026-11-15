@@ -38,6 +38,7 @@ fn materialize_argument(
     state: &mut State,
     context_inputs: &mut Vec<BuildTimeValue>,
     destination: TypeReferenceHandle,
+    field_owner: Option<SymbolHandle>,
     value: &mut BuildTimeValue,
 ) -> Result<ExpressionHandle, String> {
     use numerics::literals::{IntegerLiteral, IntegerRadix};
@@ -48,6 +49,22 @@ fn materialize_argument(
         .contains_type_reference(destination)
     {
         return Err("invocation value has no retained formal type".into());
+    }
+    let names_lifetimes = match program.type_reference_table.type_reference(destination) {
+        TypeReferenceNode::Reference { lifetime, .. } => lifetime.is_some(),
+        TypeReferenceNode::Generic {
+            lifetime_arguments, ..
+        } => !lifetime_arguments.is_empty(),
+        _ => false,
+    };
+    if let Some(owner) = field_owner
+        && names_lifetimes
+    {
+        // Generated argument expressions keep the declaring field's lexical
+        // lifetime names even though they execute in the invocation probe.
+        program
+            .type_reference_table
+            .retain_operand_lifetime_owner(destination, owner)?;
     }
     if matches!(value, BuildTimeValue::LayoutTarget(_)) {
         let reference = match program.type_reference_table.type_reference(destination) {
@@ -112,7 +129,14 @@ fn materialize_argument(
         .clone()
     {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            return materialize_argument(program, state, context_inputs, base_type, value);
+            return materialize_argument(
+                program,
+                state,
+                context_inputs,
+                base_type,
+                field_owner,
+                value,
+            );
         }
         TypeReferenceNode::Reference {
             referee,
@@ -143,7 +167,14 @@ fn materialize_argument(
                 let elements = elements
                     .iter_mut()
                     .map(|value| {
-                        materialize_argument(program, state, context_inputs, element_type, value)
+                        materialize_argument(
+                            program,
+                            state,
+                            context_inputs,
+                            element_type,
+                            field_owner,
+                            value,
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 ExpressionNode::ArrayLiteral(
@@ -158,7 +189,14 @@ fn materialize_argument(
             let elements = elements
                 .iter_mut()
                 .map(|value| {
-                    materialize_argument(program, state, context_inputs, element_type, value)
+                    materialize_argument(
+                        program,
+                        state,
+                        context_inputs,
+                        element_type,
+                        field_owner,
+                        value,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             ExpressionNode::ArrayLiteral(
@@ -178,7 +216,14 @@ fn materialize_argument(
             let elements = elements
                 .iter_mut()
                 .map(|value| {
-                    materialize_argument(program, state, context_inputs, element_type, value)
+                    materialize_argument(
+                        program,
+                        state,
+                        context_inputs,
+                        element_type,
+                        field_owner,
+                        value,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             ExpressionNode::ArrayLiteral(
@@ -291,6 +336,7 @@ fn materialize_argument(
                         state,
                         context_inputs,
                         field.type_reference,
+                        Some(definition.symbol),
                         value,
                     )?,
                 });
@@ -618,6 +664,7 @@ pub(crate) fn prepare_value_invocation(
             } else {
                 reference.map_or(destination, |(referee, _)| referee)
             },
+            None,
             &mut snapshot,
         )
         .map_err(|reason| format!("constant argument `{}`: {reason}", parameter.name))?;

@@ -9,6 +9,7 @@
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::boundary::values::StructuralRuntimePlace;
 use crate::boundary::values::TerminalStructuralValue;
+use crate::engine::custody::consume_affine_projection_if_present;
 use crate::engine::custody::project_structural_value;
 use crate::engine::custody::resolve_structural_path_type;
 use crate::engine::custody::whole_path_discard;
@@ -2102,20 +2103,7 @@ impl TerminalExecution<'_> {
                 return Ok(authority);
             }
         }
-        let unrestricted = machine
-            .structural_parameter(place)
-            .map(|parameter| (parameter.structural_type, parameter.multiplicity))
-            .or_else(|| {
-                let (operation, structural_type) = machine.producing_operation(place)?;
-                let result = operation.result.structural()?;
-                (result.place == place && result.structural_type == structural_type)
-                    .then_some((structural_type, result.multiplicity))
-            })
-            .is_some_and(|(declared_type, multiplicity)| {
-                declared_type == structural_type
-                    && multiplicity == StructuralMultiplicity::Unrestricted
-            });
-        if unrestricted {
+        if Self::owns_unrestricted_carrier(machine, place, structural_type) {
             return Ok(StructuralAccess::Owned);
         }
         let prefix = &path[..path
@@ -2136,6 +2124,28 @@ impl TerminalExecution<'_> {
         } else {
             Err(malformed())
         }
+    }
+
+    fn owns_unrestricted_carrier(
+        machine: &terminal_psi::TerminalMachine,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> bool {
+        if let Some(parameter) = machine.structural_parameter(place) {
+            return parameter.structural_type == structural_type
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && parameter.access == StructuralAccess::Owned;
+        }
+        machine
+            .producing_operation(place)
+            .is_some_and(|(operation, declared_type)| {
+                declared_type == structural_type
+                    && operation.result.structural().is_some_and(|result| {
+                        result.place == place
+                            && result.structural_type == declared_type
+                            && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    })
+            })
     }
 
     fn resident_storage_region(
@@ -3220,14 +3230,25 @@ impl TerminalExecution<'_> {
             self.validate_access_backing(ram)?;
         }
         let mut frontier = self.live_affine_frontier.clone();
-        self.consume_affine_projection(
+        // A copied descriptor can end its own loan without an affine claim.
+        // Only its checked owner can authorize that unrestricted release.
+        if !consume_affine_projection_if_present(
+            &self.structural_types(),
+            &self.structural_values,
+            self.structural_cases.as_map(),
             &mut frontier,
             &StructuralArgument {
                 place: source,
                 path: path.to_vec(),
                 access: StructuralAccess::Owned,
             },
-        )?;
+        )? && !Self::owns_unrestricted_carrier(
+            self.program.machine(self.current_machine)?,
+            source,
+            owner.structural_type,
+        ) {
+            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
         let origin = self.reference_referents.remove(&key);
         self.live_affine_frontier = frontier;
         if path.is_empty()

@@ -315,7 +315,13 @@ pub(crate) mod operations {
             None
         };
         let resolved = selected
-            .map(|selected| super::selected_boundary_calls::resolve(operation, selected, functions))
+            .map(|selected| {
+                super::selected_boundary_calls::resolve(
+                    operation,
+                    selected,
+                    functions.get(&selected.callee).copied(),
+                )
+            })
             .transpose()?;
         let operation = resolved
             .as_ref()
@@ -1436,21 +1442,26 @@ pub(crate) mod scalar_sources {
     }
 
     pub(crate) fn runtime_indices(
-        runs: Vec<(ValueId, u32)>,
+        runs: Vec<crate::structural_layout::RuntimeIndex>,
         function: &AbstractFunction,
         sources: &ScalarSources<'_>,
         types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
     ) -> Result<Vec<TargetStructuralRuntimeIndex>, LoweringError> {
         runs.into_iter()
-        .map(|(index, stride)| {
-            let operand = resolved_source(index, function, sources)?;
-            if !matches!(types.closed_scalar(operand.scalar_type()), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
-                if integer.bits() <= 64)
-            {
-                return Err(LoweringError::ValueTypeMismatch(index));
-            }
-            Ok(TargetStructuralRuntimeIndex { operand, stride })
-        })
-        .collect()
+            .map(|selector| {
+                let operand = resolved_source(selector.index, function, sources)?;
+                if !matches!(types.closed_scalar(operand.scalar_type()), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+                    if integer.bits() <= 64)
+                {
+                    return Err(LoweringError::ValueTypeMismatch(selector.index));
+                }
+                Ok(TargetStructuralRuntimeIndex {
+                    operand,
+                    stride: selector.stride,
+                    extent: selector.extent,
+                    obligation: selector.obligation,
+                })
+            })
+            .collect()
     }
 }

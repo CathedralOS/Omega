@@ -861,6 +861,25 @@ pub mod descriptor_lifetimes {
         pub authorized: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
     }
 
+    pub fn descriptor_entry_lifetime(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        entry: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+    ) -> DescriptorLifetime {
+        DescriptorLifetime {
+            live: location_live_positions(steps, entry, descriptor, true, Some(entry)),
+            authorized: transported_locations(steps, entry, descriptor, true, false, None),
+        }
+    }
+
+    pub(crate) fn descriptor_continuation_locations(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        at: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+    ) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
+        transported_locations(steps, at, descriptor, true, false, None)
+    }
+
     pub fn descriptor_location_lifetime(
         steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
         birth: DescriptorPosition,
@@ -6980,7 +6999,7 @@ pub mod descriptor_results {
                 let mut value_types = Vec::new();
                 for observation in &contract.scalar_observations {
                     if let Some(value) = &observation.value {
-                        collect_value_types(value, &mut value_types, 0);
+                        collect_value_types(value, &mut value_types);
                     }
                 }
                 for premise in requirements.iter() {
@@ -7020,7 +7039,7 @@ pub mod descriptor_results {
                     };
                     equations.push(Proposition::Equal(observed, value.clone()));
                 }
-                visit_proposition_terms(&predicate.proposition, &mut |term| {
+                predicate.proposition.visit_scalar_terms(|term| {
                     if let Some(value) =
                         observed_byte_predicate(types, contract, predicate.subject, term)
                     {
@@ -7045,86 +7064,23 @@ pub mod descriptor_results {
             contract.qualifications.dedup();
         }
 
-        fn collect_value_types(
-            term: &ScalarTerm,
-            output: &mut Vec<(ValueId, ScalarType)>,
-            depth: usize,
-        ) {
-            visit_scalar_terms(
-                term,
-                &mut |term| {
-                    if let ScalarTerm::Value { id, scalar_type } = term {
-                        output.push((*id, *scalar_type));
-                    }
-                },
-                depth,
-            );
-        }
-
-        fn visit_scalar_terms(
-            term: &ScalarTerm,
-            visit: &mut impl FnMut(&ScalarTerm),
-            depth: usize,
-        ) {
-            if depth > 64 {
-                return;
-            }
-            visit(term);
-            for operand in term.operands() {
-                visit_scalar_terms(operand, visit, depth + 1);
-            }
-        }
-
-        fn collect_proposition_types(
-            proposition: &Proposition,
-            output: &mut Vec<(ValueId, ScalarType)>,
-        ) {
-            visit_proposition_terms(proposition, &mut |term| {
+        fn collect_value_types(term: &ScalarTerm, output: &mut Vec<(ValueId, ScalarType)>) {
+            term.visit_terms(|term| {
                 if let ScalarTerm::Value { id, scalar_type } = term {
                     output.push((*id, *scalar_type));
                 }
             });
         }
 
-        fn visit_proposition_terms(proposition: &Proposition, visit: &mut impl FnMut(&ScalarTerm)) {
-            use semantic_vocabulary::IntegerMathTerm;
-            enum Pending<'a> {
-                Proposition(&'a Proposition),
-                Math(&'a IntegerMathTerm),
-            }
-            let mut pending = vec![Pending::Proposition(proposition)];
-            while let Some(item) = pending.pop() {
-                match item {
-                    Pending::Proposition(proposition) => match proposition {
-                        semantic_vocabulary::scalar_comparison_operands!(left, right) => {
-                            visit_scalar_terms(left, visit, 0);
-                            visit_scalar_terms(right, visit, 0);
-                        }
-                        semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
-                            pending.push(Pending::Math(left));
-                            pending.push(Pending::Math(right));
-                        }
-                        Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-                            pending.extend(children.iter().map(Pending::Proposition))
-                        }
-                        Proposition::Implication {
-                            premise,
-                            conclusion,
-                        } => {
-                            pending.push(Pending::Proposition(premise));
-                            pending.push(Pending::Proposition(conclusion));
-                        }
-                        _ => {}
-                    },
-                    Pending::Math(term) => match term {
-                        IntegerMathTerm::Embed(term) => visit_scalar_terms(term, visit, 0),
-                        IntegerMathTerm::MathValue { source_type, value } => visit(
-                            &ScalarTerm::value(*value, ScalarType::Integer(*source_type)),
-                        ),
-                        _ => pending.extend(term.operands().into_iter().map(Pending::Math)),
-                    },
+        fn collect_proposition_types(
+            proposition: &Proposition,
+            output: &mut Vec<(ValueId, ScalarType)>,
+        ) {
+            proposition.visit_scalar_terms(|term| {
+                if let ScalarTerm::Value { id, scalar_type } = term {
+                    output.push((*id, *scalar_type));
                 }
-            }
+            });
         }
 
         fn observed_byte_predicate(
@@ -10767,6 +10723,52 @@ pub mod descriptor_results {
                     crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
                 );
                 assert!(replay.summary(caller, 0).is_none());
+
+                // Moving the constructed roster itself does not let it carry
+                // its own backing: its elements still hold the caller's views.
+                let mut moved = sequence_capture_module();
+                moved.structural_types[1].copyable = false;
+                let body = &mut moved.machines[0];
+                body.blocks[0].operations.truncate(1);
+                body.structural_places.retain(|place| place.id.get() <= 3);
+                body.result =
+                    TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+                        place: PlaceId::new(3).unwrap(),
+                        structural_type: sequence,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        reference_sources: Vec::new(),
+                    });
+                body.blocks[0].terminator = Terminator::ReturnStructural {
+                    edge: EdgeId::new(1).unwrap(),
+                    source: PlaceId::new(3).unwrap(),
+                    returned_claims: Vec::new(),
+                    cleanup_actions: Vec::new(),
+                };
+                let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                    &moved,
+                    [caller],
+                    &[],
+                )
+                .unwrap();
+                let mut replay = Replay::with_slot_kind(
+                    &moved.structural_types,
+                    &graph,
+                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                );
+                let result = replay.summary(caller, 0).and_then(|summary| summary.result);
+                assert!(
+                    result
+                        .as_ref()
+                        .is_none_or(|slots| slots.iter().all(|slot| !slot.origins.iter().any(
+                            |origin| matches!(
+                                origin,
+                                crate::descriptor_replay::DescriptorStoredOrigin::Carried
+                            )
+                        ))),
+                    "a roster of borrowed elements is not its own backing"
+                );
             }
 
             // Moving a borrowed sequence value retires its descriptor, not
@@ -12701,6 +12703,7 @@ pub mod descriptor_results {
             // Setup has no operation; keep it machine-scoped rather than
             // attributing it to a previously visited body or instruction.
             let mut position = None;
+            let mut detail = None;
             adapt_flow(
                 module,
                 machine,
@@ -12708,10 +12711,12 @@ pub mod descriptor_results {
                 selected_calls,
                 selector_graph,
                 &mut position,
+                &mut detail,
             )
             .ok_or(super::DescriptorGraphError::IncompleteMachine {
                 machine: machine.id,
                 position,
+                detail,
             })
         }
 
@@ -12722,6 +12727,7 @@ pub mod descriptor_results {
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
             failure_position: &mut Option<DescriptorPosition>,
+            failure_detail: &mut Option<&'static str>,
         ) -> Option<DescriptorMachine> {
             let scalar_expressions =
                 super::payload_predicates::TerminalScalarExpressions::new(machine);
@@ -12895,10 +12901,44 @@ pub mod descriptor_results {
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
                     let mut step = DescriptorFlowStep::default();
-                    operation.kind.clone().map_structural_uses(&mut |place| {
-                        step.inputs.push(DescriptorLocation::whole(place));
-                        place
-                    });
+                    // A scalar sibling does not observe the reference leaves
+                    // beside it. Retain the representation's projected uses;
+                    // reducing them to roots spuriously extends those loans.
+                    for used in operation.kind.storage_uses() {
+                        use terminal_psi::StructuralStorageUse;
+                        let (root, selected) = match used {
+                            StructuralStorageUse::Place(root) => {
+                                (root, Some(DescriptorLocation::whole(root)))
+                            }
+                            StructuralStorageUse::Projection(projection)
+                            | StructuralStorageUse::Element {
+                                descriptor: projection,
+                                ..
+                            } => (
+                                projection.root,
+                                location(projection.root, projection.path, None),
+                            ),
+                            StructuralStorageUse::Canonical { root, path }
+                            | StructuralStorageUse::ObservedField { root, path } => (
+                                root,
+                                crate::descriptor_lifetimes::canonical_descriptor_location(
+                                    &module.structural_types,
+                                    root,
+                                    *graph.place_types.get(&root)?,
+                                    path,
+                                ),
+                            ),
+                            StructuralStorageUse::Type(_) => continue,
+                        };
+                        if let Some(selected) = selected {
+                            step.inputs.push(selected);
+                        } else {
+                            // An unresolved selection can retain authority,
+                            // never establish disjointness or an early end.
+                            step.may_escape = true;
+                            step.inputs.push(DescriptorLocation::whole(root));
+                        }
+                    }
                     let result = operation.result.structural();
                     if let Some(result) = result {
                         graph.payload_producers.insert(position, result.place);
@@ -13904,6 +13944,7 @@ pub mod descriptor_results {
                                 let public = crate::selected_reference_result(
                                     module, machine.id, callee, required,
                                 )
+                                .inspect_err(|detail| *failure_detail = Some(*detail))
                                 .ok()?;
                                 let mut call = public_invocation(
                                     operation.id,
@@ -15367,6 +15408,7 @@ pub mod descriptor_results {
         IncompleteMachine {
             machine: MachineId,
             position: Option<DescriptorPosition>,
+            detail: Option<&'static str>,
         },
     }
 
@@ -15391,6 +15433,7 @@ pub mod descriptor_results {
             let Self::IncompleteMachine {
                 machine,
                 position: Some((block, index)),
+                ..
             } = self
             else {
                 return None;
@@ -15432,11 +15475,14 @@ pub mod descriptor_results {
                     formatter,
                     "descriptor storage closure has no unique machine {machine:?}"
                 ),
-                Self::IncompleteMachine { machine, position } => {
-                    write!(
-                        formatter,
-                        "descriptor storage flow cannot be reconstructed for machine {machine:?}"
-                    )?;
+                Self::IncompleteMachine {
+                    machine,
+                    position,
+                    detail,
+                } => {
+                    let detail =
+                        detail.unwrap_or("descriptor storage flow cannot be reconstructed");
+                    write!(formatter, "{detail} for machine {machine:?}")?;
                     if let Some((block, index)) = position {
                         write!(formatter, " at block {block:?}, position {index}")?;
                     }

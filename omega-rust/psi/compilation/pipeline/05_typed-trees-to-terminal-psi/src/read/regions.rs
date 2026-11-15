@@ -411,13 +411,16 @@ pub(crate) enum Elision {
     Declaration,
     /// Inside a data declaration's fields and payloads. lifetimes.md gives
     /// elision to a signature ("For an elided output, one unambiguous
-    /// reference input supplies the relation") and says of a named data
+    /// reference input supplies the relation"), says "borrow-carrying data
+    /// declares the lifetimes of its views", and says of a named data
     /// application that it must "match the declaration's lifetime arity" and
-    /// "use binders declared in the lexical owner", so a field states the
+    /// "use binders declared in the lexical owner". So a field states the
+    /// lifetime of every view it stores (`name: &'buffer [u8]`) and the
     /// lifetime arguments of every data it names, directly or behind a
     /// reference (`&'activation mut Build<'storage>`). An elided one is
-    /// refused (`elided_regions`); it never takes the named declaration's own
-    /// binders, which are not the field's owner's.
+    /// refused (`elided_region`, `elided_regions`): it never takes the named
+    /// declaration's own binders, which are not the field's owner's, nor one
+    /// region shared by every declaration that elides it.
     Members,
     /// In a machine's or requirement's inputs: each elided position is a
     /// fresh lifetime parameter of that declaration, which a call
@@ -436,10 +439,15 @@ pub(crate) enum Elision {
 impl Program<'_> {
     /// The region one elided position stands for here, or `None` where an
     /// elided lifetime keeps the region its own declaration names
-    /// (`Elision::Declaration`, and a reference's own lifetime in a field).
+    /// (`Elision::Declaration`).
     pub(crate) fn elided_region(&mut self, id: MachineId) -> Checked<Option<Region>> {
         match self.elision {
-            Elision::Declaration | Elision::Members => Ok(None),
+            Elision::Declaration => Ok(None),
+            Elision::Members => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("data field that elides a view's lifetime"),
+            )),
             Elision::Inputs(owner) => Ok(Some(self.mint_lifetime(owner))),
             Elision::Result(owner) => match self.machine_lifetimes(owner).as_slice() {
                 [only] => Ok(Some(Region::Parameter(*only))),
@@ -750,7 +758,8 @@ impl Program<'_> {
                     Region::Parameter(parameter)
                 }
                 // Elided: a fresh lifetime of the signature, a region variable
-                // of a local, or the one identity it has anywhere else.
+                // of a local, refused in a field, or the one identity it has
+                // anywhere else.
                 _ => match self.elided_region(machine)? {
                     Some(region) => region,
                     None => self.fixed_region(identity.to_owned()),

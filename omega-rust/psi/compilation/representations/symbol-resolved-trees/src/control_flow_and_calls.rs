@@ -555,6 +555,7 @@ pub mod control_flow {
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CallStorage {
     pub callee: crate::expression::ExpressionHandle,
+    pub target_is_static: bool,
             pub unresolved_name: symbols::UnresolvedName,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
@@ -996,6 +997,7 @@ pub mod control_flow {
                             } else {
                                 crate::expression::ExpressionHandle::invalid()
                             },
+                            target_is_static: call.target_is_static,
                             unresolved_name: call.unresolved_name,
                             receiver_root_symbol: call.receiver_root_symbol,
                             receiver_symbol: call.receiver_symbol,
@@ -1278,6 +1280,7 @@ pub mod control_flow {
         #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
         pub struct TableCall {
     pub callee: crate::expression::ExpressionHandle,
+    pub target_is_static: bool,
     pub unresolved_name: symbols::UnresolvedName,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,

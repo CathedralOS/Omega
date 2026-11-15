@@ -111,8 +111,11 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .iter()
         .map(|n| directory.join(n))
         .find(|p| p.is_file());
+    // A program under a `fail/` folder (`tests/fixtures/fail/`) pins the
+    // rejection it exists to produce, as a negative twin does.
     let is_negative = matches!(dir_name, "invalid" | "intended_invalid" | "out_of_bounds")
         || dir_name.starts_with("invalid_")
+        || rel_path.split('/').any(|p| p == "fail")
         || (diag_file.is_some() && rel_path.split('/').any(|p| p == "controls"));
 
     let inferred = if is_negative {
@@ -573,6 +576,85 @@ fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
     Ok(command)
 }
 
+/// Exit 1 alone also describes unrelated compiler errors. A negative sample
+/// needs a diagnostic oracle before its refusal can earn credit.
+fn expectations_usable(project: &SampleProject) -> Result<(), String> {
+    if project.rejection.is_empty() && project.rejection_any.is_empty() {
+        return Err("intended-invalid sample requires diagnostic expectations".to_owned());
+    }
+    if project
+        .rejection
+        .iter()
+        .chain(&project.rejection_any)
+        .any(|fragment| fragment.trim().is_empty())
+    {
+        return Err("intended-invalid diagnostic expectations contain a blank fragment".to_owned());
+    }
+    Ok(())
+}
+
+/// Whether a diagnostic line is a refusal the compiler gives for a program it
+/// cannot judge yet, rather than a verdict on it.
+fn unjudged_refusal(line: &str) -> bool {
+    let message = line.trim_start();
+    let message = message
+        .strip_prefix("error:")
+        .unwrap_or(message)
+        .trim_start();
+    message.starts_with("not supported yet")
+        || message.starts_with("no product route yet")
+        || line.contains("the checker does not support this construct yet")
+}
+
+/// Whether a negative sample's `--check` was refused for the reason it pins:
+/// a normal rejection (exit 1) whose diagnostics hold every
+/// `rejection_contains` fragment and, when given, one `rejection_any_contains`
+/// fragment. `sample-gate` and `sweep` both judge refusals with this.
+pub fn judge_rejection(
+    project: &SampleProject,
+    exit: Option<i32>,
+    diagnostics: &str,
+) -> Result<(), String> {
+    expectations_usable(project)?;
+    if exit != Some(1) {
+        return Err(format!("expected rejection exit 1, got {exit:?}"));
+    }
+    // A refusal the checker gives without judging the program ("not
+    // supported yet ... with no claim that it is wrong", or no product
+    // route) says nothing about the fact a negative pins, even when its text
+    // happens to contain the pinned fragment.
+    if let Some(line) = diagnostics.lines().find(|line| unjudged_refusal(line)) {
+        return Err(format!("refused without a verdict: {}", line.trim()));
+    }
+    let fold = |text: &str| {
+        if project.rejection_casefold {
+            text.to_lowercase()
+        } else {
+            text.to_owned()
+        }
+    };
+    let haystack = fold(diagnostics);
+    for frag in &project.rejection {
+        if !haystack.contains(&fold(frag)) {
+            return Err(format!(
+                "missing rejection fragment {frag:?} in: {haystack}"
+            ));
+        }
+    }
+    if !project.rejection_any.is_empty()
+        && !project
+            .rejection_any
+            .iter()
+            .any(|frag| haystack.contains(&fold(frag)))
+    {
+        return Err(format!(
+            "missing any rejection fragment {:?} in: {haystack}",
+            project.rejection_any
+        ));
+    }
+    Ok(())
+}
+
 pub fn verify_sample(
     cli: &Path,
     project: &SampleProject,
@@ -583,21 +665,7 @@ pub fn verify_sample(
         return Err("missing unambiguous entry".to_owned());
     };
     if project.role == "intended-invalid" {
-        // Exit 1 alone also describes unrelated compiler errors. A negative
-        // sample needs a diagnostic oracle before its refusal can earn credit.
-        if project.rejection.is_empty() && project.rejection_any.is_empty() {
-            return Err("intended-invalid sample requires diagnostic expectations".to_owned());
-        }
-        if project
-            .rejection
-            .iter()
-            .chain(&project.rejection_any)
-            .any(|fragment| fragment.trim().is_empty())
-        {
-            return Err(
-                "intended-invalid diagnostic expectations contain a blank fragment".to_owned(),
-            );
-        }
+        expectations_usable(project)?;
         let out = execution::output(
             with_source_inputs(
                 Command::new(cli)
@@ -609,45 +677,11 @@ pub fn verify_sample(
             evidence,
             "check",
         )?;
-        if out.status.code() != Some(1) {
-            return Err(format!(
-                "expected rejection exit 1, got {:?}",
-                out.status.code()
-            ));
-        }
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let haystack = if project.rejection_casefold {
-            stderr.to_lowercase()
-        } else {
-            stderr.into_owned()
-        };
-        for frag in &project.rejection {
-            let needle = if project.rejection_casefold {
-                frag.to_lowercase()
-            } else {
-                frag.clone()
-            };
-            if !haystack.contains(&needle) {
-                return Err(format!(
-                    "missing rejection fragment {frag:?} in: {haystack}"
-                ));
-            }
-        }
-        if !project.rejection_any.is_empty()
-            && !project.rejection_any.iter().any(|frag| {
-                let needle = if project.rejection_casefold {
-                    frag.to_lowercase()
-                } else {
-                    frag.clone()
-                };
-                haystack.contains(&needle)
-            })
-        {
-            return Err(format!(
-                "missing any rejection fragment {:?} in: {haystack}",
-                project.rejection_any
-            ));
-        }
+        judge_rejection(
+            project,
+            out.status.code(),
+            &String::from_utf8_lossy(&out.stderr),
+        )?;
         return Ok("rejected".to_owned());
     }
 
@@ -999,6 +1033,29 @@ mod tests {
         )
         .unwrap();
         project_at(directory, directory).unwrap()
+    }
+
+    /// A negative earns credit for a verdict that holds its pinned fragment,
+    /// never for a refusal the checker gave without judging the program,
+    /// even when that refusal's text holds the fragment too.
+    #[test]
+    fn a_rejection_earns_credit_only_as_a_verdict_for_the_pinned_reason() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let mut sample = invalid_sample(&directory);
+        sample.rejection = vec!["may overflow `u64`".to_owned()];
+        let verdict =
+            "cannot compile\n  error: exact arithmetic in machine `f` may overflow `u64`\n";
+        assert!(judge_rejection(&sample, Some(1), verdict).is_ok());
+        let unjudged = "cannot compile\n  error: not supported yet: exact arithmetic in machine `f` \
+                        may overflow `u64`; the checker does not support this construct yet, so the \
+                        program is refused, with no claim that it is wrong\n";
+        let refused = judge_rejection(&sample, Some(1), unjudged).unwrap_err();
+        assert!(refused.contains("refused without a verdict"), "{refused}");
+        let unrouted =
+            "error: no product route yet: Build behavior exclusion admission may overflow `u64`\n";
+        assert!(judge_rejection(&sample, Some(1), unrouted).is_err());
+        assert!(judge_rejection(&sample, Some(101), verdict).is_err());
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

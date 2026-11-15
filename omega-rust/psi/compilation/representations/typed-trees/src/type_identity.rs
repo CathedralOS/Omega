@@ -757,7 +757,7 @@ pub(crate) mod constraint_identity {
         domain: &DomainConstraint,
         context: &TypeIdentityContext<'_>,
     ) -> String {
-        let ordinary_name = declared_domain_identity(program, domain);
+        let ordinary_name = declared_domain_identity(program, domain, context);
         if context.qualification == TypeIdentityQualification::Ordinary
             && domain.arguments.is_empty()
         {
@@ -838,11 +838,20 @@ pub(crate) mod constraint_identity {
         }
     }
 
-    fn declared_domain_identity(program: &TypedTrees, domain: &DomainConstraint) -> String {
+    fn declared_domain_identity(
+        program: &TypedTrees,
+        domain: &DomainConstraint,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
         if domain.semantic_id.is_valid()
             && let Some(name) = program.semantic_domains.name(domain.semantic_id)
         {
             return name.to_owned();
+        }
+        // A selected declaration keeps its identity even when application
+        // metadata is not yet formed. Its authored alias is diagnostic only.
+        if program.symbols.symbols().nodes().is_valid(domain.symbol) {
+            return context.name(program, domain.symbol, domain.name.as_str());
         }
         domain.name.as_str().to_owned()
     }

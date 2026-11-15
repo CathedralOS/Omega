@@ -97,6 +97,14 @@ pub enum DeferredRequest {
     /// signature means matching the two telescopes binder for binder, and
     /// typing has no such comparison yet.
     TargetFamilyGenericSignature,
+    /// A membership fact, `value in Domain`, whose domain was written as a
+    /// selection resolution left late-bound and typing does not bind yet.
+    ContractMembershipSelection,
+    /// A const argument of a type application that typing does not admit
+    /// yet: the applied declaration's parameters are not ones typing finds
+    /// for that many arguments, or the argument is a record or case value
+    /// that is not typed against its declared data type.
+    ConstArgumentAdmission,
     /// A call whose scoped source lookup found no visible declaration. A
     /// violation: "an unknown machine name ... is an error wherever it
     /// appears" (`state_contracts.md`).
@@ -179,6 +187,12 @@ impl DeferredRequest {
             }
             Self::TargetFamilyGenericSignature => {
                 "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
+            }
+            Self::ContractMembershipSelection => {
+                "holding a membership fact whose domain typing does not select yet"
+            }
+            Self::ConstArgumentAdmission => {
+                "using a type application whose const argument typing does not admit yet"
             }
             Self::UndeclaredCallName => {
                 "this call has no visible declaration in its source scope: an unknown machine name is an \

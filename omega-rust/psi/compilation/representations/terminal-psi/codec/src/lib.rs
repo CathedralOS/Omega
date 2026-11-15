@@ -151,8 +151,8 @@ pub use canonical_artifact::{
 };
 pub use codec_error::CodecError;
 pub use obligation_evidence::{
-    EvidenceSealValidationError, EvidenceSealValidator, EvidenceSeals, ObligationEvidenceSeal,
-    canonical_certificate_bytes,
+    EvidenceSealValidationError, EvidenceSealValidator, EvidenceSeals, EvidenceSite,
+    ObligationEvidenceSeal, canonical_certificate_bytes,
 };
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,

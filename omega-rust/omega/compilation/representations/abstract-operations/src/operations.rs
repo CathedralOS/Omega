@@ -964,6 +964,16 @@ impl AbstractOperation {
         })
     }
 
+    /// The storage a terminator reads before choosing any of its edges: the
+    /// discriminator of a dispatch or of an empty elimination. Its runtime
+    /// indices belong to the terminator, not to an edge or an operation.
+    pub fn terminator_read_path(&self) -> Option<&[StructuralPathSegment]> {
+        match self {
+            Self::StructuralCase { path, .. } | Self::EliminateEmpty { path, .. } => Some(path),
+            _ => None,
+        }
+    }
+
     pub fn runtime_indices(&self) -> Vec<(ValueId, semantic_vocabulary::ObligationId)> {
         self.structural_paths()
             .into_iter()

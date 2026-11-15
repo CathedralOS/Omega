@@ -42,7 +42,7 @@ fn checked_once(
 /// Carries `found` into `specialization`; the count is how many provers
 /// that started.
 fn carried(
-    form: &typed_trees_to_terminal_psi::Elaboration,
+    form: &mut typed_trees_to_terminal_psi::Elaboration,
     found: &Discharge,
     specialization: Machine,
 ) -> (
@@ -52,9 +52,19 @@ fn carried(
 ) {
     let mut consumer = lower(vec![specialization]).unwrap();
     let mut activity = ProofSearchActivity::default();
-    let verdicts =
-        reverify_specialization(form, found, id(1), &mut consumer, id(1), &[], &mut activity);
-    let started = activity.started();
+    let generic = crate::prepare_replay(form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let before = activity.started();
+    let verdicts = reverify_specialization(
+        &generic,
+        found,
+        id(1),
+        &mut replay,
+        id(1),
+        &[],
+        &mut activity,
+    );
+    let started = activity.started() - before;
     (consumer, verdicts, started)
 }
 
@@ -85,12 +95,12 @@ fn a_body_over_a_value_parameter_is_checked_once_and_carried_to_two_literals() {
     // that one proof is accepted by the kernel in `clamp<7>` and in
     // `clamp<9>`, each against its own goal (`result <= 7`, `result <= 9`)
     // and its own entry requirement, with no prover started.
-    let (form, found) = checked_once(clamp(), 1);
+    let (mut form, found) = checked_once(clamp(), 1);
     let proved = verdicts(&form, &found, 1, guarantee);
     assert_eq!(proved.len(), 1);
     assert_kernel_checked(&form, 1, proved[0].0, certificate(proved[0].1));
     for units in [7, 9] {
-        let (consumer, verdicts, started) = carried(&form, &found, clamp_at(units, units));
+        let (consumer, verdicts, started) = carried(&mut form, &found, clamp_at(units, units));
         assert_eq!(started, 0, "carrying a proof started a prover");
         let verdicts = verdicts.unwrap();
         assert_eq!(verdicts.len(), 1);
@@ -124,13 +134,13 @@ fn a_proof_that_chains_two_requirements_is_carried_too() {
             vec![returns(slot(0, u32_type()))],
         )
     };
-    let (form, found) = checked_once(least, 1);
+    let (mut form, found) = checked_once(least, 1);
     let proved = verdicts(&form, &found, 1, guarantee);
     assert_eq!(proved.len(), 1);
     let evidence = certificate(proved[0].1);
     assert_eq!(evidence.assumptions.len(), 2);
     assert_kernel_checked(&form, 1, proved[0].0, evidence);
-    let (consumer, verdicts, started) = carried(&form, &found, least_at_7);
+    let (consumer, verdicts, started) = carried(&mut form, &found, least_at_7);
     assert_eq!(started, 0);
     let verdicts = verdicts.unwrap();
     assert_eq!(verdicts.len(), 1);
@@ -158,13 +168,13 @@ fn a_body_that_holds_only_at_the_literal_in_use_is_rejected() {
             .iter()
             .all(|(_, verdict)| verdict.is_ok())
     );
-    let (form, found) = checked_once(only_at_7, 1);
+    let (mut form, found) = checked_once(only_at_7, 1);
     let (_, refused) = verdicts(&form, &found, 1, guarantee)[0];
     assert!(matches!(
         refused.as_ref().unwrap_err().reason,
         RefusalReason::Unproved(_)
     ));
-    let (_, verdicts, started) = carried(&form, &found, clamp_at(7, 7));
+    let (_, verdicts, started) = carried(&mut form, &found, clamp_at(7, 7));
     assert_eq!(started, 0);
     let verdicts = verdicts.unwrap();
     assert_eq!(verdicts.len(), 1);
@@ -180,11 +190,11 @@ fn a_machine_whose_contract_is_no_instance_of_the_generic_contract_is_refused() 
     // 7 ensures result <= 9` is `clamp`'s contract at no single value of
     // `Units`, and a machine with a second formal of its own is not a
     // specialization at all. Neither gets a proof moved into it.
-    let (form, found) = checked_once(clamp(), 1);
-    let (_, verdicts, started) = carried(&form, &found, clamp_at(7, 9));
+    let (mut form, found) = checked_once(clamp(), 1);
+    let (_, verdicts, started) = carried(&mut form, &found, clamp_at(7, 9));
     assert_eq!(started, 0);
     assert_eq!(verdicts.unwrap_err().reason, RefusalReason::Unsupported);
-    let (_, verdicts, _) = carried(&form, &found, clamp());
+    let (_, verdicts, _) = carried(&mut form, &found, clamp());
     assert_eq!(verdicts.unwrap_err().reason, RefusalReason::Unsupported);
 }
 
@@ -204,12 +214,12 @@ fn a_body_that_reads_the_parameter_as_an_operand_is_not_carried() {
         requires: vec![below(value(2), number(7)), below(value(1), number(7))],
         ..reads(slot(1, u32_type()), vec![u32_type(), u32_type()])
     };
-    let (form, found) = checked_once(generic, 1);
+    let (mut form, found) = checked_once(generic, 1);
     let specialization = Machine {
         requires: vec![at_most(1, 7)],
         ..reads(unsigned(7), vec![u32_type()])
     };
-    let (_, verdicts, started) = carried(&form, &found, specialization);
+    let (_, verdicts, started) = carried(&mut form, &found, specialization);
     assert_eq!(started, 0);
     assert_eq!(verdicts.unwrap_err().reason, RefusalReason::Unsupported);
 }
@@ -250,12 +260,12 @@ fn width_identity_at(bits: u16) -> Machine {
 
 #[test]
 fn an_integer_width_body_carries_its_own_proof_to_two_closed_widths() {
-    let (form, found) = checked_once(width_identity(), 1);
+    let (mut form, found) = checked_once(width_identity(), 1);
     let proved = verdicts(&form, &found, 1, guarantee);
     assert_eq!(proved.len(), 1);
     assert_kernel_checked(&form, 1, proved[0].0, certificate(proved[0].1));
     for bits in [8, 32] {
-        let (consumer, moved, started) = carried(&form, &found, width_identity_at(bits));
+        let (consumer, moved, started) = carried(&mut form, &found, width_identity_at(bits));
         assert_eq!(started, 0, "width carry started a prover");
         let moved = moved.unwrap();
         assert_eq!(moved.len(), 1);
@@ -265,7 +275,7 @@ fn an_integer_width_body_carries_its_own_proof_to_two_closed_widths() {
 
 #[test]
 fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
-    let (form, found) = checked_once(width_identity(), 1);
+    let (mut form, found) = checked_once(width_identity(), 1);
     let mut foreign = form.clone();
     foreign
         .tables
@@ -282,7 +292,7 @@ fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
             value: id(2),
         },
     ));
-    let (_, moved, started) = carried(&foreign, &found, width_identity_at(8));
+    let (_, moved, started) = carried(&mut foreign, &found, width_identity_at(8));
     assert_eq!(started, 0);
     assert!(
         moved.is_err(),
@@ -300,12 +310,14 @@ fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
         .unwrap()
         .scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
     let mut activity = ProofSearchActivity::default();
+    let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
     let before = activity.started();
     let moved = reverify_specialization(
-        &form,
+        &generic,
         &found,
         id(1),
-        &mut consumer,
+        &mut replay,
         id(1),
         &[],
         &mut activity,

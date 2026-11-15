@@ -182,7 +182,15 @@ impl Program<'_> {
         if !cast.result_type.is_valid() {
             return unserved("domain cast typing did not account for");
         }
-        let result = self.value_type(id, cast.result_type)?;
+        // The entry preserves the operand's lifetime (domains.md, "Mutable
+        // views": "The cast preserves the referent, lifetime and access
+        // mode"). One typing left elided, a quoted literal's, is a region
+        // variable its use decides, as a literal takes the lifetime its use
+        // requires.
+        let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Variables);
+        let result = self.value_type(id, cast.result_type);
+        self.elision = elision;
+        let result = result?;
         // A literal lands in the carrier of the type the cast gives it
         // (domains.md, "Literals and expected types": "An expected type
         // selects the carrier in which an anonymous literal lands"). A
@@ -197,6 +205,14 @@ impl Program<'_> {
         let operand = self.expression(id, slots, cast.value, landing)?;
         let Some(operand_type) = operand.result else {
             return unserved("domain cast of a Unit value");
+        };
+        // The view the entry gives is the operand's, at the operand's
+        // region: the result type was read for its carrier and domains.
+        let result = match (result, operand_type) {
+            (ValueType::Record(row, qualification, _), ValueType::Record(_, _, regions)) => {
+                ValueType::Record(row, qualification, regions)
+            }
+            _ => result,
         };
         let domain = self.domain_entry_change(id, operand_type, result, cast, entry)?;
         if entry.kind == CastEntryKind::Keep {

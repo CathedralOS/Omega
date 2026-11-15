@@ -162,8 +162,8 @@ uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status
 // certain; `map_size`, `key`, `descriptor_size`, and `descriptor_version`
 // carry the freshest firmware snapshot evidence; and `status` is the last
 // status each leg's firmware call produced.
-public data UefiOsHandoffLegs {
-    table: &EfiBootServicesTable;
+public data UefiOsHandoffLegs<'table> {
+    table: &'table EfiBootServicesTable;
     image: u64;
     map: u64;
     next_map: u64;
@@ -270,8 +270,8 @@ public machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut Ue
 // The forwarding machines below isolate the projected loans of `legs` and
 // `terminal`. This is a lowering limitation, not an implicit receiver or a
 // language restriction on ordinary projected arguments.
-public data UefiOsHandoffCycle {
-    legs: UefiOsHandoffLegs;
+public data UefiOsHandoffCycle<'table> {
+    legs: UefiOsHandoffLegs<'table>;
     terminal: UefiOsHandoffTerminal;
     remaining: u64;
     exhaustion: u64;

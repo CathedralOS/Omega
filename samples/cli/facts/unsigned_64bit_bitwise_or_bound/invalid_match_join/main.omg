@@ -1,5 +1,5 @@
 // Fact: 64-bit unsigned bitwise OR base | 32u64 with bounded interval 40u64 <= combined <= 63u64 establishes 40u64 <= combined <= 63u64 across all nine places so exact subtractions 63u64 - combined and combined - 40u64 are safe.
-// Place: match join (invalid twin). The false match arm yields 64u64 so joined result reaches 127 > 63, failing contract for verify_combined.
+// Place: match join (invalid twin). The false match arm yields 64u64 so joined result reaches 127 > 63, failing contract for verify_combined. The helper states `requires true`, so it must handle `flag == false` (an omitted `requires` would be inferred from the caller).
 // Expected diagnostic: cannot prove requires contract for call
 
 machine choose_base(flag: bool) -> u64
@@ -21,7 +21,9 @@ requires combined >= 40 && combined <= 63
 
 // The flag arrives as a formal parameter, so the operand is bounded by what
 // holds for every flag; a constant actual would expose the helper's exact result.
-machine bitwise_or_join(flag: bool) -> u64 {
+machine bitwise_or_join(flag: bool) -> u64
+requires true
+{
     let base: u64 = choose_base(flag);
     let combined: u64 = base | 32u64;
     verify_combined(combined)

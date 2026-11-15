@@ -1205,6 +1205,19 @@ pub struct LegalizedRuntimeIndexOperand {
     pub accepted_fact: optimization_core::AcceptedObligationFactIdentity,
 }
 
+impl LegalizedRuntimeIndexOperand {
+    /// Compares the selector's semantic identity, geometry and proof key across
+    /// the target handoff. The target operand's ABI location is checked by its
+    /// own source-correspondence rules, not by this semantic comparison.
+    pub fn matches_target(&self, target: &target_operations::TargetStructuralRuntimeIndex) -> bool {
+        self.operand.value == target.operand.source_value()
+            && self.operand.scalar_type == target.operand.scalar_type()
+            && self.stride == target.stride
+            && self.extent == target.extent
+            && self.obligation == target.obligation
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralBinding {
     pub semantic: abstract_operations::AbstractStructuralBinding, // Source custody and destination identity.
@@ -1450,20 +1463,7 @@ impl LegalizedScalarTerminator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegalizedDescriptorOrigin {
-    Opaque,
-    Empty,
-    Argument {
-        source: terminal_psi::StructuralArgument,
-        exact: bool,
-        indirect: bool,
-    },
-    Literal {
-        machine: MachineId,
-        place: PlaceId,
-    },
-}
+pub use target_operations::TargetDescriptorOrigin as LegalizedDescriptorOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {

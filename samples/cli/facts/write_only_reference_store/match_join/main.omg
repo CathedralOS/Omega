@@ -5,7 +5,7 @@
 // arm writes an independent marker, so selecting the wrong arm is observable.
 // Expected exit: 0
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine lend<'slot>(slot: &'slot write Held, marker: &write i64) -> &'slot write Held {
     marker = 1;

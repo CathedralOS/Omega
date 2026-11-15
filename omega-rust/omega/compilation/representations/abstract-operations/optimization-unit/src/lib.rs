@@ -122,9 +122,9 @@ pub use ownership::{
     canonical_ownership_frontier_snapshot,
 };
 pub use proof::{
-    AcceptedObligationFact, AcceptedObligationFactIndexError, RuntimeEvidenceCatalog,
-    SourceCheckedScalarReceiving, attach_accepted_obligation_facts, attach_verified_module_context,
-    validate_runtime_evidence_context,
+    AcceptedObligationFact, AcceptedObligationFactIndexError, AcceptedObligationOwner,
+    RuntimeEvidenceCatalog, SourceCheckedScalarReceiving, attach_accepted_obligation_facts,
+    attach_verified_module_context, validate_runtime_evidence_context,
 };
 pub use range::{ValueRangeFact, ValueRangeRegion, ValueRangeSupport, value_range_fact_identity};
 pub use rewrite::{

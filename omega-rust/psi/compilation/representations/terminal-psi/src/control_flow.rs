@@ -2728,6 +2728,49 @@ pub(crate) mod termination {
             }
         }
 
+        /// Jump and conditional edges that bind scalar or structural values at
+        /// their destination. Dispatch edges bind from the selected payload.
+        pub fn successors_with_runtime_arguments(&self) -> impl Iterator<Item = (EdgeId, BlockId)> {
+            let with_arguments =
+                |edge, target, arguments: &[ValueId], structural: &[StructuralArgument]| {
+                    (!arguments.is_empty() || !structural.is_empty()).then_some((edge, target))
+                };
+            match self {
+                Self::Jump {
+                    edge,
+                    target,
+                    arguments,
+                    structural_arguments,
+                    ..
+                } => [
+                    with_arguments(*edge, *target, arguments, structural_arguments),
+                    None,
+                ],
+                Self::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => [when_true, when_false].map(|successor| {
+                    with_arguments(
+                        successor.edge,
+                        successor.target,
+                        &successor.arguments,
+                        &successor.structural_arguments,
+                    )
+                }),
+                Self::StructuralCase { .. }
+                | Self::EliminateEmpty { .. }
+                | Self::Return { .. }
+                | Self::ReturnUnit { .. }
+                | Self::ReturnStructural { .. }
+                | Self::Crash { .. }
+                | Self::ExternalCompletion { .. }
+                | Self::InvokeNoNormal { .. } => [None; 2],
+            }
+            .into_iter()
+            .flatten()
+        }
+
         pub fn successor_edges(&self) -> Vec<(EdgeId, BlockId)> {
             match self {
                 Self::Jump { edge, target, .. } => vec![(*edge, *target)],

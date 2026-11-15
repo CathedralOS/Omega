@@ -73,6 +73,7 @@ pub mod provider_selections;
 mod qualifications;
 mod reach;
 mod read;
+mod reference_ends;
 mod reference_results;
 pub mod selection_questions;
 mod static_contracts;
@@ -668,7 +669,7 @@ fn finish_logical_witness<'source>(
             program.requirements.push(id);
         }
     }
-    program.prepare_scalar_domain_predicates(entry)?;
+    program.prepare_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
     let mut witness = lower_program(
@@ -797,7 +798,7 @@ fn finish_reading<'source>(
         .as_ref()
         .map(|policies| program.prepare_calling_storage(diagnostic, policies))
         .transpose()?;
-    program.prepare_scalar_domain_predicates(diagnostic)?;
+    program.prepare_domain_predicates(diagnostic)?;
     let source_selection_questions = capture_source_questions(&mut program, diagnostic)?;
     let PreparedProgram {
         program: mut elaboration,
@@ -886,6 +887,7 @@ fn finish_reading<'source>(
         }
     }
     reference_results::publish(&mut elaboration, &program.selections)?;
+    finish_storage(diagnostic, &mut elaboration)?;
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
@@ -1129,6 +1131,9 @@ fn lower_program<'source>(
     module.structural_types = declared.structural_types;
     module.structural_domains = declared.structural_domains;
     module.native_layouts = declared.native_layouts;
+    if let Some(source) = declarations {
+        source.publish_structural_domains(diagnostic, &mut module)?;
+    }
     let mut tables = CheckTables::default();
     let mut qualifications = qualifications::Qualifications::declare(
         diagnostic,
@@ -1280,10 +1285,162 @@ fn lower_program<'source>(
     }
     module.identities = std::mem::take(&mut qualifications.identities).build();
     module.scalar_qualifications = qualifications.catalog.clone();
+    boundaries.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        callables,
+        services,
+        &mut qualifications,
+        &mut module,
+        declarations,
+    )?;
+    callables.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        boundaries,
+        &tables,
+        services,
+        &mut qualifications,
+        &mut module,
+    )?;
+    module.callables.declaration_envelopes = declaration_envelopes;
+    let external_provider_candidates = external_providers.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        callables,
+        boundaries,
+        services,
+        &mut qualifications,
+        &mut module,
+        typed_source,
+    )?;
+    let mut domains = IdTable::default();
+    let (static_schemas, static_conformances) = static_contracts.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        callables,
+        boundaries,
+        services,
+        &mut qualifications,
+        &mut module,
+        typed_source,
+        &external_provider_candidates,
+    )?;
+    module.scalar_qualifications = qualifications.catalog;
+    for (_, record) in records.iter() {
+        domains.push(record.requires.clone());
+    }
+    // Formation questions come from the completed module, including unread
+    // structural headers. This emits questions only; the actual static-binder
+    // roster arrives with source preparation and the checker admits it before
+    // deciding these ordinary entry goals.
+    let widths = terminal_check_tables::obligations::integer_width_parameters(&module)
+        .map_err(|(machine, detail)| refuse(machine, Construct::Machine, Unserved::Type(detail)))?;
+    for (machine, (owner, parameters)) in module.machines.iter().zip(widths) {
+        if parameters.is_empty() {
+            continue;
+        }
+        if owner != machine.id || !machine.blocks.iter().any(|block| block.id == machine.entry) {
+            return Err(refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Type("integer width formation without an owning entry"),
+            ));
+        }
+        let minted = tables.machines.get_mut(owner).ok_or_else(|| {
+            refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Type("integer width formation without machine tables"),
+            )
+        })?;
+        let source = sources.get_mut(owner).ok_or_else(|| {
+            refuse(
+                owner,
+                Construct::Machine,
+                Unserved::Type("integer width formation without source coordinates"),
+            )
+        })?;
+        for parameter in parameters {
+            let obligation =
+                minted
+                    .obligations
+                    .push(terminal_check_tables::obligations::ObligationRow {
+                    kind:
+                        terminal_check_tables::obligations::ObligationKind::IntegerWidthPositive {
+                            parameter,
+                        },
+                    created_at: terminal_check_tables::ProgramPoint::BlockEntry(machine.entry),
+                });
+            if source
+                .obligations
+                .push(SourceOrigin::Unpositioned(Unpositioned::MachineEntry).into())
+                != obligation
+            {
+                return Err(refuse(
+                    owner,
+                    Construct::Machine,
+                    Unserved::Type("integer width question/source identity mismatch"),
+                ));
+            }
+        }
+    }
+    let mut prepared = PreparedProgram {
+        source,
+        selected_calls: Vec::new(),
+        program: Elaboration {
+            module,
+            tables,
+            sources,
+            boundaries: IdTable::default(),
+            names: IdTable::default(),
+            machines: IdTable::default(),
+            private_inputs: Vec::new(),
+            local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
+            domains,
+            requirements: requirements.to_vec(),
+            requirement_ceilings,
+            selections: Vec::new(),
+            applications: Vec::new(),
+            value_parameters: IdTable::default(),
+            generic_binders: Vec::new(),
+            value_arguments: IdTable::default(),
+            generic_templates: Vec::new(),
+            conformance_witnesses: Vec::new(),
+            supplied: Vec::new(),
+            provider_candidate_intents: Vec::new(),
+            undeclared: Vec::new(),
+            check_form_envelopes: Vec::new(),
+            reach: ServiceReach::default(),
+            external_provider_candidates,
+            static_schemas,
+            static_conformances,
+        },
+    };
+    if declarations.is_none() {
+        reference_results::publish(&mut prepared.program, &[])?;
+        finish_storage(diagnostic, &mut prepared.program)?;
+    }
+    Ok(prepared)
+}
+
+fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Checked<()> {
+    let module = &mut elaboration.module;
+    let tables = &mut elaboration.tables;
+    let sources = &mut elaboration.sources;
+    reference_ends::install(module, tables, sources)?;
     for ordinal in 0..module.machines.len() {
         let machine = &module.machines[ordinal];
         let plan =
-            terminal_semantics::plain_affine::plan_in(&module, machine.id).map_err(|error| {
+            terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
                 let (concerns, operation, origin) = match error.site() {
                     Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
                         Construct::Operation(at),
@@ -1401,42 +1558,7 @@ fn lower_program<'source>(
             }
         }
     }
-    boundaries.publish(
-        diagnostic,
-        signatures.machines,
-        &outcomes,
-        &declared.records,
-        callables,
-        services,
-        &mut qualifications,
-        &mut module,
-        declarations,
-    )?;
-    callables.publish(
-        diagnostic,
-        signatures.machines,
-        &outcomes,
-        &declared.records,
-        boundaries,
-        &tables,
-        services,
-        &mut qualifications,
-        &mut module,
-    )?;
-    module.callables.declaration_envelopes = declaration_envelopes;
-    let external_provider_candidates = external_providers.publish(
-        diagnostic,
-        signatures.machines,
-        &outcomes,
-        &declared.records,
-        callables,
-        boundaries,
-        services,
-        &mut qualifications,
-        &mut module,
-        typed_source,
-    )?;
-    lower::publish_write_frames(diagnostic, &mut module, &mut tables)?;
+    lower::publish_write_frames(diagnostic, module, tables)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module
@@ -1444,111 +1566,7 @@ fn lower_program<'source>(
         .iter()
         .map(terminal_psi::UnoptimizedMachineBehavior::capture)
         .collect();
-    let mut domains = IdTable::default();
-    let (static_schemas, static_conformances) = static_contracts.publish(
-        diagnostic,
-        signatures.machines,
-        &outcomes,
-        &declared.records,
-        callables,
-        boundaries,
-        services,
-        &mut qualifications,
-        &mut module,
-        typed_source,
-        &external_provider_candidates,
-    )?;
-    module.scalar_qualifications = qualifications.catalog;
-    for (_, record) in records.iter() {
-        domains.push(record.requires.clone());
-    }
-    // Formation questions come from the completed module, including unread
-    // structural headers. This emits questions only; the actual static-binder
-    // roster arrives with source preparation and the checker admits it before
-    // deciding these ordinary entry goals.
-    let widths = terminal_check_tables::obligations::integer_width_parameters(&module)
-        .map_err(|(machine, detail)| refuse(machine, Construct::Machine, Unserved::Type(detail)))?;
-    for (machine, (owner, parameters)) in module.machines.iter().zip(widths) {
-        if parameters.is_empty() {
-            continue;
-        }
-        if owner != machine.id || !machine.blocks.iter().any(|block| block.id == machine.entry) {
-            return Err(refuse(
-                owner,
-                Construct::Machine,
-                Unserved::Type("integer width formation without an owning entry"),
-            ));
-        }
-        let minted = tables.machines.get_mut(owner).ok_or_else(|| {
-            refuse(
-                owner,
-                Construct::Machine,
-                Unserved::Type("integer width formation without machine tables"),
-            )
-        })?;
-        let source = sources.get_mut(owner).ok_or_else(|| {
-            refuse(
-                owner,
-                Construct::Machine,
-                Unserved::Type("integer width formation without source coordinates"),
-            )
-        })?;
-        for parameter in parameters {
-            let obligation =
-                minted
-                    .obligations
-                    .push(terminal_check_tables::obligations::ObligationRow {
-                    kind:
-                        terminal_check_tables::obligations::ObligationKind::IntegerWidthPositive {
-                            parameter,
-                        },
-                    created_at: terminal_check_tables::ProgramPoint::BlockEntry(machine.entry),
-                });
-            if source
-                .obligations
-                .push(SourceOrigin::Unpositioned(Unpositioned::MachineEntry).into())
-                != obligation
-            {
-                return Err(refuse(
-                    owner,
-                    Construct::Machine,
-                    Unserved::Type("integer width question/source identity mismatch"),
-                ));
-            }
-        }
-    }
-    Ok(PreparedProgram {
-        source,
-        selected_calls: Vec::new(),
-        program: Elaboration {
-            module,
-            tables,
-            sources,
-            boundaries: IdTable::default(),
-            names: IdTable::default(),
-            machines: IdTable::default(),
-            private_inputs: Vec::new(),
-            local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
-            domains,
-            requirements: requirements.to_vec(),
-            requirement_ceilings,
-            selections: Vec::new(),
-            applications: Vec::new(),
-            value_parameters: IdTable::default(),
-            generic_binders: Vec::new(),
-            value_arguments: IdTable::default(),
-            generic_templates: Vec::new(),
-            conformance_witnesses: Vec::new(),
-            supplied: Vec::new(),
-            provider_candidate_intents: Vec::new(),
-            undeclared: Vec::new(),
-            check_form_envelopes: Vec::new(),
-            reach: ServiceReach::default(),
-            external_provider_candidates,
-            static_schemas,
-            static_conformances,
-        },
-    })
+    Ok(())
 }
 
 #[cfg(test)]

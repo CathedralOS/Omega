@@ -1168,10 +1168,6 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
         "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
          value + 4294967285\n}",
     ),
-    (
-        "immutable_scalar_assigned",
-        "machine spare(value: u32) -> u32 { value = 1; value }",
-    ),
     // The read after the store is of 5.
     (
         "mut_record_stored",
@@ -1192,11 +1188,6 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
         "data Pair [copy] { a: u32; b: u32; }\n\
          machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
          pair = Pair { a: 4294967295, b: 0 };\n    pair.a + 4294967285\n}",
-    ),
-    (
-        "immutable_record_stored",
-        "data Pair [copy] { a: u32; b: u32; }\n\
-         machine spare(pair: Pair) -> u32 { pair.a = 5; pair.a }",
     ),
     // The callee stores into its own copy, so the caller's field holds 1.
     (
@@ -1230,25 +1221,20 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
 /// is about the argument: it does not survive an assignment to a scalar
 /// formal, a store into that field of a record formal, a whole assignment or
 /// an exclusive loan, and each such program is rejected for the operation
-/// that needed it. A formal that is not `mut` is still not written, and the
-/// case the route does not serve is refused by name.
+/// that needed it. Writing to an immutable by-value formal rejects at its
+/// authored target.
 #[test]
 fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
     let expected = [
         Verdict::Accepted(2),
         Verdict::Rejected,
         Verdict::Accepted(2),
-        falls_back(
-            "statement assignment to an immutable binding while reading the body of `spare`",
-        ),
         Verdict::Accepted(2),
         Verdict::Rejected,
         Verdict::Rejected,
-        falls_back("statement store into an immutable binding while reading the body of `spare`"),
         Verdict::Accepted(3),
         Verdict::Rejected,
         Verdict::Accepted(2),
@@ -1265,6 +1251,38 @@ fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+
+    for (name, declaration, parameter, assignment, target) in [
+        (
+            "immutable_scalar_assigned",
+            "machine spare(value: u32) -> u32 { value = 1; value }",
+            "value",
+            "value = 1",
+            "value",
+        ),
+        (
+            "immutable_record_stored",
+            "data Pair [copy] { a: u32; b: u32; }\n\
+             machine spare(pair: Pair) -> u32 { pair.a = 5; pair.a }",
+            "pair",
+            "a = 5",
+            "a",
+        ),
+    ] {
+        let frontier = staged_unused(name, declaration);
+        let violation = rule_violation(&frontier);
+        assert_eq!(
+            violation.statement,
+            "writing to an immutable owned binding requires `mut` while reading the body of `spare`"
+        );
+        assert_authored_site(&frontier, violation.site, "main.omg", assignment, target);
+        let mutable =
+            declaration.replacen(&format!("({parameter}:"), &format!("(mut {parameter}:"), 1);
+        assert_eq!(
+            verdict_on_unused(&format!("{name}_mut"), &mutable),
+            Verdict::Accepted(2)
+        );
+    }
 }
 
 /// Contracts retain invocation inputs while executable bindings are assigned

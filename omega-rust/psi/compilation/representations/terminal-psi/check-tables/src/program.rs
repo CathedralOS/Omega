@@ -41,6 +41,8 @@ pub enum Unpositioned {
     /// The block a call continues in after the edge that retires the homes
     /// of the record arguments it consumed.
     ArgumentRetirement,
+    /// A stored reference descriptor's last-use disposition.
+    ReferenceLastUse,
     /// The one call a conformance witness makes of the implementation.
     ConformanceWitness,
 }

@@ -78,7 +78,7 @@ impl Prover<'_> {
                 _ => {}
             }
         }
-        let mut seen = self.values.map(|_, _| false);
+        let mut seen = self.bounds.map(|_, _| false);
         while let Some(value) = pending.pop() {
             let Some(seen) = seen.get_mut(value) else {
                 continue;

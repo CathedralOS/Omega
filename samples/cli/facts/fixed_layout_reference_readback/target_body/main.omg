@@ -17,7 +17,7 @@ PayloadLayout<const Marker: u64> satisfies FixedLayout<Payload> {
         LayoutPlan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: 8 }
     }
 }
-data Envelope<T> [copy] { value: u64; pointer: &T; }
+data Envelope<'view, T> [copy] { value: u64; pointer: &'view T; }
 data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }
 EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {

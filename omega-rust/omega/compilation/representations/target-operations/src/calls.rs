@@ -153,6 +153,24 @@ pub enum TargetStructuralResultContract {
     Callable(BoundaryStructuralResultDeclaration),
 }
 
+/// Conservative backing alternatives consumed by descriptor selection. Opaque
+/// retains the existing unexpressible reference-origin disposition; view-result
+/// construction must establish a concrete alternative instead.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetDescriptorOrigin {
+    Opaque,
+    Empty,
+    Argument {
+        source: terminal_psi::StructuralArgument,
+        exact: bool,
+        indirect: bool,
+    },
+    Literal {
+        machine: semantic_vocabulary::MachineId,
+        place: semantic_vocabulary::PlaceId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetCallResult {
     Unit,
@@ -162,6 +180,9 @@ pub enum TargetCallResult {
         callee_result: TargetStructuralResultContract,
         result_home: Option<TargetStructuralHomeRequirement>,
         reference_results: Vec<TargetReferenceResult>,
+        /// View-descriptor backing alternatives established by target lowering, not
+        /// reconstructed from earlier executable bodies during selection.
+        descriptor_origins: Vec<TargetDescriptorOrigin>,
     },
 }
 

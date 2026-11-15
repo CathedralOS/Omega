@@ -13,13 +13,15 @@ local.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::StructuralAccess;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
 
 use super::authority::Access;
+use super::references::reference_access_violation;
 use super::{Program, Slot};
 use crate::body::{ExpressionKind, Statement, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
     pub(super) fn call_statement_at(
@@ -68,6 +70,26 @@ impl Program<'_> {
             )
         };
         let source = SourceOrigin::of(self.typed.expression_table.source_span(assignment.target));
+        let write_refusal = |slot: &Slot, unsupported| {
+            // A borrowed formal's slot names its referent directly, so the
+            // path has no explicit descriptor crossing to check its access.
+            match (slot.erased, slot.borrowed) {
+                (false, Some(language_core::ReferenceAccess::Shared)) => {
+                    reference_access_violation(
+                        id,
+                        source,
+                        StructuralAccess::MutableBorrow,
+                        StructuralAccess::SharedBorrow,
+                    )
+                }
+                (false, None) => reject(
+                    id,
+                    source,
+                    "writing to an immutable owned binding requires `mut`",
+                ),
+                _ => unserved(unsupported),
+            }
+        };
         match self.node(id, assignment.target)? {
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
@@ -102,7 +124,10 @@ impl Program<'_> {
                     });
                 }
                 if !slots[slot].assignable {
-                    return Err(unserved("assignment to an immutable binding"));
+                    return Err(write_refusal(
+                        &slots[slot],
+                        "assignment to an immutable binding",
+                    ));
                 }
                 // A slice formal carries a view rather than a borrowed
                 // value's storage. Keep whole-view assignment at its existing
@@ -201,7 +226,10 @@ impl Program<'_> {
                     language_core::ReferenceAccess::Mutable,
                 )?;
                 if !crossed && !byte_store && !slots[slot].assignable {
-                    return Err(unserved("store into an immutable binding"));
+                    return Err(write_refusal(
+                        &slots[slot],
+                        "store into an immutable binding",
+                    ));
                 }
                 if byte_store
                     && slots[slot].borrowed == Some(language_core::ReferenceAccess::Shared)
@@ -314,12 +342,18 @@ impl Program<'_> {
             if local.is_mutable || local.relevance != language_core::BindingRelevance::Relevant {
                 return unserved("reference capture without an immutable relevant binding");
             }
-            let value_type = self.value_type(id, *referee)?;
-            let value = self.expression(id, slots, local.initial_value, Some(value_type))?;
+            // The binding's type is read as a local's annotation is
+            // (`local_type`): an elided lifetime there is a region variable
+            // the captured reference decides, and the capture keeps that
+            // reference's exact type.
+            let declared = self.local_type(id, *referee)?;
+            let value = self.expression(id, slots, local.initial_value, Some(declared))?;
             let ExpressionKind::Slot(original) = value.kind else {
                 return unserved("reference capture without an existing reference binding");
             };
-            if slots[original].borrowed != Some(*access) || slots[original].value_type != value_type
+            let value_type = slots[original].value_type;
+            if slots[original].borrowed != Some(*access)
+                || !self.same_type(Some(value_type), declared)
             {
                 return unserved("reference capture without matching storage and access");
             }

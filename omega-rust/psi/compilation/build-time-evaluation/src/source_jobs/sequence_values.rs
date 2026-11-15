@@ -6,9 +6,15 @@ use crate::{
 };
 
 const SOURCE: &str = r#"
-data Item [copy] { number: u64; bytes: &[u8]; }
-data Holder { tag: u64; rows: [Item]; groups: [[Item]]; empty: [Item]; bytes: &[u8]; }
-data Seen { holder: Holder; observed: u64; }
+data Item<'bytes> [copy] { number: u64; bytes: &'bytes [u8]; }
+data Holder<'bytes> {
+    tag: u64;
+    rows: [Item<'bytes>];
+    groups: [[Item<'bytes>]];
+    empty: [Item<'bytes>];
+    bytes: &'bytes [u8];
+}
+data Seen<'bytes> { holder: Holder<'bytes>; observed: u64; }
 machine make() -> Holder {
     let first: Item = Item { number: 11, bytes: "first" };
     Holder {
@@ -209,9 +215,9 @@ fn source_sequence_inputs_keep_element_identity_and_literal_indices_need_live_bo
 #[test]
 fn shared_typed_sequence_arguments_keep_complete_backing_and_refuse_mutable_fabrication() {
     const SHARED: &str = r#"
-data Item [copy] { number: u64; bytes: &[u8]; }
-machine echo(items: &[Item]) -> &[Item] { items }
-machine consume(items: &[Item]) { }
+data Item<'bytes> [copy] { number: u64; bytes: &'bytes [u8]; }
+machine echo<'items, 'bytes>(items: &'items [Item<'bytes>]) -> &'items [Item<'bytes>] { items }
+machine consume<'items, 'bytes>(items: &'items [Item<'bytes>]) { }
 "#;
     let prepared = PreparedBuildMachineProgram::prepare(&super::tests::typed(SHARED), None)
         .expect("real shared typed-view source");
@@ -262,7 +268,7 @@ machine consume(items: &[Item]) { }
     accounting
         .validate_charges()
         .expect("all actual invocations accounted");
-    let mutable = SHARED.replace("&[Item]", "&mut [Item]");
+    let mutable = SHARED.replace("&'items [Item<'bytes>]", "&'items mut [Item<'bytes>]");
     let mutable = PreparedBuildMachineProgram::prepare(&super::tests::typed(&mutable), None)
         .expect("retain the exact mutable twin for checking");
     let error = entry(

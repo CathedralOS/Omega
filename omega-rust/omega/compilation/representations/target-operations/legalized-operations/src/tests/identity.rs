@@ -56,6 +56,88 @@ fn deployment_profile_changes_identity_even_with_identical_machine_geometry() {
 }
 
 #[test]
+fn call_identity_binds_both_runtime_selector_rosters() {
+    use crate::{LegalizedRuntimeIndexOperand, LegalizedScalarArgument};
+    use target_operations::{TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource};
+
+    let mut plan = call_aware_plan();
+    let index = LegalizedRuntimeIndexOperand {
+        operand: abstract_operations::AbstractResult {
+            value: id(21),
+            scalar_type: target_operations::selector_carrier_type(),
+        },
+        stride: 4,
+        extent: Some(8),
+        obligation: id(31),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([7; 32]),
+    };
+    let LegalizedScalarArgument::Structural {
+        target, indices, ..
+    } = &mut structural_call_mut(&mut plan).arguments[0]
+    else {
+        panic!("structural argument")
+    };
+    indices.push(index);
+    target.indices.push(TargetStructuralRuntimeIndex {
+        operand: TargetUnitScalarArgumentSource::Parameter {
+            parameter_index: 0,
+            source_value: index.operand.value,
+            scalar_type: index.operand.scalar_type,
+        },
+        stride: index.stride,
+        extent: index.extent,
+        obligation: index.obligation,
+    });
+    assert!(index.matches_target(&target.indices[0]));
+    // This control checks encoding sensitivity, not admission of the synthetic
+    // selector geometry by the full source/ABI correspondence validator.
+    let identity = legalized_operation_plan_identity(&plan);
+    let call_bytes = structural_call_mut(&mut plan).canonical_bytes();
+    for mutation in 0..12 {
+        let mut changed = plan.clone();
+        let LegalizedScalarArgument::Structural {
+            target, indices, ..
+        } = &mut structural_call_mut(&mut changed).arguments[0]
+        else {
+            panic!("structural argument")
+        };
+        match mutation {
+            0 => target.indices.clear(),
+            1 => target.indices[0].stride = 12,
+            2 => target.indices[0].extent = None,
+            3 => target.indices[0].obligation = id(32),
+            4 => {
+                target.indices[0].operand = TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 1,
+                    source_value: index.operand.value,
+                    scalar_type: index.operand.scalar_type,
+                }
+            }
+            5 => indices.clear(),
+            6 => indices[0].stride = 12,
+            7 => indices[0].extent = None,
+            8 => indices[0].obligation = id(32),
+            9 => {
+                indices[0].accepted_fact =
+                    optimization_core::AcceptedObligationFactIdentity::from_bytes([8; 32])
+            }
+            10 => indices[0].operand.scalar_type = ScalarType::Boolean,
+            11 => indices[0].operand.value = id(22),
+            _ => unreachable!(),
+        }
+        if matches!(mutation, 1 | 2 | 3 | 6 | 7 | 8 | 10 | 11) {
+            assert!(!indices[0].matches_target(&target.indices[0]));
+        }
+        assert_identity_drift(identity, &changed);
+        assert_ne!(
+            call_bytes,
+            structural_call_mut(&mut changed).canonical_bytes(),
+            "selector mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
     let plan = scalar_call_unit_plan();
     let identity = legalized_operation_plan_identity(&plan);

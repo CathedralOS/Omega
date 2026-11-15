@@ -37,6 +37,7 @@ mod declarations;
 mod domain_cast_accounting;
 mod equality_and_exhaustiveness;
 mod expression_lowering;
+mod expression_meanings;
 mod lowerer;
 mod operator_calls;
 mod runtime_callables;

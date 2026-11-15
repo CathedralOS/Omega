@@ -161,8 +161,9 @@ restarts in one day:
 
 - Commit as soon as the change is coherent, and amend or squash before
   publishing; a committed mechanism survives a session that does not.
-- `cargo xtask claims note` at every milestone, not only before publish; the
-  note is what a successor agent reads to continue without re-deriving the work.
+- Push the branch at every milestone, not only before publish; the pushed
+  commits and their messages are what a successor agent reads to continue
+  without re-deriving the work. A claim note disappears when its claim ends.
 
 This is per machine. Worktrees of one checkout share its MBX action cache and
 scheduler pool; separate computers — cloud executors, another host — have their

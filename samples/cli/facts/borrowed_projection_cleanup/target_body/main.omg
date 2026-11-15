@@ -1,11 +1,11 @@
 // Seed.code == 7 survives each place into borrowed anonymous storage and its exact normal cleanup, including scalar copies through returned descriptors.
 // Expected exit: 0
-data CapturedReceipt dropped by drop_captured_receipt { code: u64; counter: &mut [u64; 1]; }
+data CapturedReceipt<'view> dropped by drop_captured_receipt { code: u64; counter: &'view mut [u64; 1]; }
 machine drop_captured_receipt(receipt: &mut CapturedReceipt) requires receipt.code == 7 {
     receipt.counter[0] = ((receipt.counter[0] as u64 in Wrapping) + 1) as u64;
 }
-data CapturedView<'borrow> { receipt: &'borrow CapturedReceipt; }
-machine capture<'borrow>(receipt: &'borrow CapturedReceipt) -> CapturedView<'borrow> {
+data CapturedView<'borrow, 'view> { receipt: &'borrow CapturedReceipt<'view>; }
+machine capture<'borrow, 'view>(receipt: &'borrow CapturedReceipt<'view>) -> CapturedView<'borrow, 'view> {
     CapturedView { receipt: receipt }
 }
 machine read_captured(receipt: &CapturedReceipt) -> u64 {
@@ -19,12 +19,12 @@ machine verify_captured(code: u64, counter: &[u64; 1]) crashes Trap {
 data Seed [copy] { code: u64; }
 data CapturedToken [linear] dropped by drop_captured_token { code: u64; }
 machine drop_captured_token(token: &mut CapturedToken) requires token.code == 7 {}
-data CapturedPair dropped by drop_captured_pair { first: CapturedToken; second: CapturedToken; counter: &mut [u64; 1]; }
+data CapturedPair<'view> dropped by drop_captured_pair { first: CapturedToken; second: CapturedToken; counter: &'view mut [u64; 1]; }
 machine drop_captured_pair(pair: &mut CapturedPair) {
     pair.counter[0] = ((pair.counter[0] as u64 in Wrapping) + 1) as u64;
 }
-data CapturedPairView<'borrow> { pair: &'borrow CapturedPair; }
-machine capture_pair<'borrow>(pair: &'borrow CapturedPair) -> CapturedPairView<'borrow> {
+data CapturedPairView<'borrow, 'view> { pair: &'borrow CapturedPair<'view>; }
+machine capture_pair<'borrow, 'view>(pair: &'borrow CapturedPair<'view>) -> CapturedPairView<'borrow, 'view> {
     CapturedPairView { pair: pair }
 }
 data Receipt [linear] dropped by drop_receipt { code: u64; }

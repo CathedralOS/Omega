@@ -8622,7 +8622,7 @@ use semantics::{classify, evaluate as evaluate_semantics};
                     fact.identity == identity
                         && fact.machine == function.machine
                         && fact.owner
-                            == optimization_unit::PsiProvenance::Operation(source_operation)
+                            == optimization_unit::AcceptedObligationOwner::Operation(source_operation)
                 })
                 .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
                     if !function.facts.iter().any(|reference| {

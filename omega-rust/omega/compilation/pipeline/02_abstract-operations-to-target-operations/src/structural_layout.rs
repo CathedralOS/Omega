@@ -42,10 +42,20 @@ use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
+/// Keep the bound and its proof key when resolving a selector's byte geometry.
+/// Later stages must not recover either from an earlier executable body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RuntimeIndex {
+    pub(crate) index: semantic_vocabulary::ValueId,
+    pub(crate) stride: u32,
+    pub(crate) extent: Option<u64>,
+    pub(crate) obligation: semantic_vocabulary::ObligationId,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct StorageProjection {
     pub(crate) byte_offset: u32,
-    pub(crate) indices: Vec<(semantic_vocabulary::ValueId, u32)>,
+    pub(crate) indices: Vec<RuntimeIndex>,
     pub(crate) scalar_descriptor: bool,
 }
 
@@ -56,7 +66,7 @@ pub(crate) struct PrimitiveProjection {
 }
 
 impl PrimitiveProjection {
-    pub(crate) fn selector_runs(self) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+    pub(crate) fn selector_runs(self) -> Vec<RuntimeIndex> {
         self.pointer_slots
             .into_iter()
             .chain([self.leaf])
@@ -72,15 +82,7 @@ pub(crate) fn reference_referent_projection(
     requested: StructuralAccess,
     expected: Option<StructuralTypeId>,
     declarations: &StructuralLayouts<'_>,
-) -> Result<
-    (
-        StructuralTypeId,
-        ValueShape,
-        u32,
-        Vec<(semantic_vocabulary::ValueId, u32)>,
-    ),
-    LoweringError,
-> {
+) -> Result<(StructuralTypeId, ValueShape, u32, Vec<RuntimeIndex>), LoweringError> {
     let mut runs = Vec::new();
     while let Some(crossing) = path
         .iter()
@@ -133,7 +135,7 @@ fn primitive_access_projection(
         StructuralTypeId,
         &[StructuralPathSegment],
         &StructuralLayouts<'_>,
-    ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)>,
+    ) -> Option<(ScalarType, u32, Vec<RuntimeIndex>)>,
 ) -> Option<PrimitiveProjection> {
     let regions = reference_projection_regions(root, path, declarations)?;
     let (scalar, byte_offset, indices) = endpoint(regions.root, regions.path, declarations)?;
@@ -156,10 +158,7 @@ pub(crate) struct ReferenceProjectionRegions<'path> {
 }
 
 impl ReferenceProjectionRegions<'_> {
-    pub(crate) fn selector_runs(
-        self,
-        leaf: Vec<(semantic_vocabulary::ValueId, u32)>,
-    ) -> Vec<(semantic_vocabulary::ValueId, u32)> {
+    pub(crate) fn selector_runs(self, leaf: Vec<RuntimeIndex>) -> Vec<RuntimeIndex> {
         self.pointer_slots
             .into_iter()
             .flat_map(|slot| slot.indices)
@@ -246,7 +245,7 @@ fn contiguous_primitive_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &StructuralLayouts<'_>,
-) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
+) -> Option<(ScalarType, u32, Vec<RuntimeIndex>)> {
     if let Some((selector, prefix)) = path.split_last()
         && matches!(
             selector,
@@ -257,10 +256,10 @@ fn contiguous_primitive_projection(
         && let StructuralTypeShape::ByteSequence(carrier) = declarations.get(selected)?.shape
     {
         let scalar = primitive_projection_type(declarations.values().copied(), root, path)?;
-        let payload_offset: u32 = match carrier {
-            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => 8,
-            terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-            | terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 0,
+        let (payload_offset, extent): (u32, _) = match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => (8, Some(capacity)),
+            terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => (0, Some(capacity)),
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => (0, None),
         };
         let payload_offset = owner_offset.checked_add(payload_offset)?;
         return match selector {
@@ -269,8 +268,13 @@ fn contiguous_primitive_projection(
                 payload_offset.checked_add(u32::try_from(*index).ok()?)?,
                 indices,
             )),
-            StructuralPathSegment::RuntimeIndex { index, .. } => {
-                indices.push((*index, 1));
+            StructuralPathSegment::RuntimeIndex { index, obligation } => {
+                indices.push(RuntimeIndex {
+                    index: *index,
+                    stride: 1,
+                    extent,
+                    obligation: *obligation,
+                });
                 Some((scalar, payload_offset, indices))
             }
             _ => None,
@@ -321,7 +325,7 @@ fn contiguous_primitive_read_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &StructuralLayouts<'_>,
-) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
+) -> Option<(ScalarType, u32, Vec<RuntimeIndex>)> {
     if let Some(leaf) = contiguous_primitive_projection(root, path, declarations) {
         return Some(leaf);
     }
@@ -874,12 +878,8 @@ impl ProjectedStorage<'_> {
     }
 }
 
-type RuntimeStorageProjection<'types> = (
-    ProjectedStorage<'types>,
-    ValueShape,
-    u32,
-    Vec<(semantic_vocabulary::ValueId, u32)>,
-);
+type RuntimeStorageProjection<'types> =
+    (ProjectedStorage<'types>, ValueShape, u32, Vec<RuntimeIndex>);
 
 pub(crate) fn runtime_storage_projection<'types>(
     mut structural_type: StructuralTypeId,
@@ -978,8 +978,19 @@ pub(crate) fn runtime_storage_projection<'types>(
                         .checked_mul(*index)
                         .and_then(|offset| u32::try_from(offset).ok())
                         .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?,
-                    StructuralPathSegment::RuntimeIndex { index, .. } => {
-                        indices.push((*index, stride));
+                    StructuralPathSegment::RuntimeIndex { index, obligation } => {
+                        indices.push(RuntimeIndex {
+                            index: *index,
+                            stride,
+                            extent: match declaration.shape {
+                                StructuralTypeShape::FixedArray {
+                                    length: terminal_psi::ArrayExtent::Literal(length),
+                                    ..
+                                } => Some(length),
+                                _ => None,
+                            },
+                            obligation: *obligation,
+                        });
                         0
                     }
                     _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
@@ -1000,12 +1011,7 @@ pub(crate) fn runtime_storage_projection<'types>(
     Ok((selected_storage, shape, total_offset, indices))
 }
 
-type RuntimeProjection = (
-    StructuralTypeId,
-    ValueShape,
-    u32,
-    Vec<(semantic_vocabulary::ValueId, u32)>,
-);
+type RuntimeProjection = (StructuralTypeId, ValueShape, u32, Vec<RuntimeIndex>);
 
 #[allow(clippy::type_complexity)]
 pub(crate) fn runtime_descriptor_projection(
@@ -1038,15 +1044,7 @@ pub(crate) fn runtime_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &StructuralLayouts<'_>,
-) -> Result<
-    (
-        StructuralTypeId,
-        ValueShape,
-        u32,
-        Vec<(semantic_vocabulary::ValueId, u32)>,
-    ),
-    LoweringError,
-> {
+) -> Result<(StructuralTypeId, ValueShape, u32, Vec<RuntimeIndex>), LoweringError> {
     runtime_projection_with_leaf_type(
         structural_type,
         path,
@@ -1115,7 +1113,7 @@ pub(crate) fn storage_address_indices(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &StructuralLayouts<'_>,
-) -> Result<Vec<(semantic_vocabulary::ValueId, u32)>, LoweringError> {
+) -> Result<Vec<RuntimeIndex>, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralReference(structural_type);
     let regions =
         reference_projection_regions(structural_type, path, declarations).ok_or_else(invalid)?;
@@ -1198,6 +1196,99 @@ mod placed_geometry_tests {
         StructuralFieldDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
         TerminalIdentityIndex,
     };
+
+    #[test]
+    fn runtime_selector_geometry_retains_each_bound_and_proof_key() {
+        let inner = StructuralTypeId::new(2).unwrap();
+        let byte = StructuralTypeId::new(3).unwrap();
+        let types = [
+            StructuralTypeShape::FixedArray {
+                element: inner,
+                length: terminal_psi::ArrayExtent::Literal(5),
+            },
+            StructuralTypeShape::FixedArray {
+                element: byte,
+                length: terminal_psi::ArrayExtent::Literal(7),
+            },
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            )),
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: 13,
+            }),
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(position, shape)| StructuralTypeDeclaration {
+            id: StructuralTypeId::new(position as u64 + 1).unwrap(),
+            identity: TerminalIdentityIndex(position as u32 + 1),
+            shape,
+            requires: Vec::new(),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+        })
+        .collect::<Vec<_>>();
+        let declarations = StructuralLayouts::new(&types).unwrap();
+        let selectors = [
+            RuntimeIndex {
+                index: semantic_vocabulary::ValueId::new(8).unwrap(),
+                stride: 7,
+                extent: Some(5),
+                obligation: semantic_vocabulary::ObligationId::new(18).unwrap(),
+            },
+            RuntimeIndex {
+                index: semantic_vocabulary::ValueId::new(9).unwrap(),
+                stride: 1,
+                extent: Some(7),
+                obligation: semantic_vocabulary::ObligationId::new(19).unwrap(),
+            },
+        ];
+        let path = selectors.map(|selector| StructuralPathSegment::RuntimeIndex {
+            index: selector.index,
+            obligation: selector.obligation,
+        });
+        let (_, _, _, indices) = runtime_projection(types[0].id, &path, &declarations).unwrap();
+        assert_eq!(indices, selectors);
+        let repeated_selector = [
+            selectors[0],
+            RuntimeIndex {
+                index: selectors[0].index,
+                ..selectors[1]
+            },
+        ];
+        let repeated_path = repeated_selector.map(|selector| StructuralPathSegment::RuntimeIndex {
+            index: selector.index,
+            obligation: selector.obligation,
+        });
+        let (_, _, _, indices) =
+            runtime_projection(types[0].id, &repeated_path, &declarations).unwrap();
+        assert_eq!(
+            indices, repeated_selector,
+            "equal selector values do not collapse distinct bounds or proof occurrences"
+        );
+        for (carrier, extent) in [(types[3].id, Some(13)), (types[4].id, None)] {
+            let (_, _, _, indices) =
+                runtime_projection(carrier, &path[1..], &declarations).unwrap();
+            assert_eq!(
+                indices,
+                [RuntimeIndex {
+                    extent,
+                    ..selectors[1]
+                }]
+            );
+        }
+    }
 
     #[test]
     fn typed_byte_element_loan_retains_exact_expected_carrier() {

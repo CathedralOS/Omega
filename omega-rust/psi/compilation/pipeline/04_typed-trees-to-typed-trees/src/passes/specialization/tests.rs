@@ -609,6 +609,39 @@ fn named_symbol(program: &TypedTrees, reference: TypeReferenceHandle) -> SymbolH
 }
 
 #[test]
+fn qualified_operator_labels_do_not_hide_actual_attachment_obligations() {
+    for attached in [false, true] {
+        let Source {
+            mut program,
+            relay,
+            main,
+            byte,
+            ..
+        } = source();
+        let attachment = named(&mut program, byte, "u8");
+        let machine = program
+            .machines_mut()
+            .iter_mut()
+            .find(|machine| machine.symbol == relay.machine)
+            .unwrap();
+        machine.spelling = Some(language_core::operator_spelling::OperatorSpelling::Add);
+        machine.attached_data = Some(Identifier::generated("Distance"));
+        if attached {
+            machine.attached_data_application = attachment;
+        }
+        prepare(&mut program).unwrap();
+        assert_eq!(program.deferred_refusal(main).is_some(), attached);
+        assert_eq!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|row| row.template == relay.machine),
+            !attached
+        );
+    }
+}
+
+#[test]
 fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
     let Source {
         mut program,

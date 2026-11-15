@@ -11081,6 +11081,7 @@ mod source {
                     nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
+                    structural_contract: None,
                     provenance: target_operations::TerminalPsiProvenance {
                         operations: vec![],
                         edges: vec![],
@@ -15205,6 +15206,7 @@ mod source {
                     nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
+                    structural_contract: None,
                     provenance: TerminalPsiProvenance {
                         operations: vec![psi_operation],
                         edges: vec![edge],
@@ -16002,6 +16004,7 @@ mod source {
                         call_plan,
                         result: TargetCallResult::Structural {
                             result: result.clone(),
+                            descriptor_origins: Vec::new(),
                             callee_result:
                                 target_operations::TargetStructuralResultContract::Machine(
                                     declaration,

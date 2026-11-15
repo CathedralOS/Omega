@@ -1,6 +1,6 @@
 use omega::language::core::reflect;
 use omega::language::core::AccessPlan;
-use omega::language::core::AccessPlan::new;
+use omega::language::core::access;
 use omega::language::core::Issuance;
 use vec::VecCell;
 
@@ -9,11 +9,11 @@ machine describe_cell() -> reflect::TypeSchema {
 }
 
 machine construct_restricted_plan(schema: reflect::TypeSchema) -> AccessPlan {
-    AccessPlan::new(&schema, Issuance::Only { routes: [] })
+    access::new_plan(&schema, Issuance::Only { routes: [] })
 }
 
 machine construct_unrestricted_plan(schema: reflect::TypeSchema) -> AccessPlan {
-    AccessPlan::new(&schema, Issuance::Unrestricted)
+    access::new_plan(&schema, Issuance::Unrestricted)
 }
 
 machine return_plan(plan: AccessPlan) -> AccessPlan { plan }

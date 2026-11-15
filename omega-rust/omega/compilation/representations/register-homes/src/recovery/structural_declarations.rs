@@ -561,6 +561,8 @@ pub(super) fn encode_target_argument(
     for index in &argument.indices {
         encode_scalar_source(bytes, index.operand)?;
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
+        encode_option_u64(bytes, index.extent);
+        crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
     }
     encode_argument_source(bytes, &argument.source);
     encode_placement(bytes, &argument.destination);
@@ -584,6 +586,8 @@ pub(super) fn decode_target_argument(
             Ok(TargetStructuralRuntimeIndex {
                 operand: decode_scalar_source(cursor)?,
                 stride: cursor.u32()?,
+                extent: decode_option_u64(cursor)?,
+                obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
             })
         })
         .collect::<Result<Vec<_>, FixedViewCopyDecodeError>>()?;

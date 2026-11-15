@@ -1819,6 +1819,27 @@ mod catalogs {
             };
         }
 
+        for block in &function.blocks {
+            for node in &block.nodes {
+                // The discriminator a terminator reads before choosing an
+                // edge is owned by the block, never by one of its edges.
+                for (_, obligation) in node
+                    .operation
+                    .terminator_read_path()
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+                {
+                    require_accepted_goal_fact(
+                        unit,
+                        function.machine,
+                        optimization_unit::AcceptedObligationOwner::Terminator(block.id),
+                        Some(obligation),
+                        None,
+                    )?;
+                }
+            }
+        }
         for node in function.block_nodes() {
             let paths = node
                 .successors
@@ -2308,7 +2329,7 @@ mod catalogs {
                             .filter(|fact| {
                                 fact.machine == function.machine
                                     && fact.owner
-                                        == optimization_unit::PsiProvenance::Operation(
+                                        == optimization_unit::AcceptedObligationOwner::Operation(
                                             *psi_operation,
                                         )
                                     && Some(fact.obligation) == *resident_obligation
@@ -2529,7 +2550,7 @@ mod catalogs {
     fn require_accepted_goal_fact(
         unit: &PsiOptimizationUnit,
         machine: MachineId,
-        provenance: optimization_unit::PsiProvenance,
+        provenance: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: Option<ObligationId>,
         goal: Option<&semantic_vocabulary::Proposition>,
     ) -> Result<(), OptimizationUnitValidationError> {

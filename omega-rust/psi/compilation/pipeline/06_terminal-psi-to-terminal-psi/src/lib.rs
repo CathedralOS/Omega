@@ -60,6 +60,7 @@ mod crashes;
 mod describe;
 mod entry_inputs;
 mod external_providers;
+mod formation;
 mod graph;
 mod joins;
 mod known;
@@ -76,6 +77,7 @@ mod static_contracts;
 mod verdict;
 
 pub use ceilings::Axis as CeilingAxis;
+pub use formation::{ReplayScope, prepare_replay};
 pub use places::{ConflictingLoan, LoanConflict};
 pub use prove::ProofSearchActivity;
 pub use rankings::FiniteIntegerRanking;
@@ -410,19 +412,8 @@ fn discharge_inner(
             )
         })?;
     }
-    terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            elaboration
-                .module
-                .machines
-                .first()
-                .map(|machine| machine.id)
-                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
-            Construct::Machine,
-            &format!("invalid declared scalar qualifications: {error:?}"),
-        )
-    })?;
+    let mut scope = prepare_replay(elaboration, activity)?;
+    let elaboration = scope.source();
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
@@ -459,27 +450,28 @@ fn discharge_inner(
         .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
     let inhabitation = prepare_inhabitation(&elaboration.module, diagnostic)?;
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, &mut unreached, &inhabitation, activity)?;
-    entry_inputs::infer(elaboration, &mut unreached, &inhabitation, activity)?;
-    result_summaries::infer(elaboration, &mut unreached, &inhabitation, activity)?;
-    finalize_callable_refinements(&mut elaboration.module, activity)?;
+    scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    scope.infer_inputs(&mut unreached, &inhabitation, activity)?;
+    scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    scope.finalize_callable_refinements(activity)?;
+    let (formed, domains, checking, sources, requirements) = scope.checking();
+    let module = formed.source();
     let inputs = machine_inputs::PreparedMachineInputs::new(
-        &elaboration.module,
-        &elaboration.sources,
-        &elaboration.tables.machines,
-        &elaboration.requirements,
+        module,
+        sources,
+        &checking.machines,
+        requirements,
         carried,
     );
-    let module = &elaboration.module;
     // Observe the same immutable type family used by inference above. The
     // existing module-scoped exclusion graph serves every machine; only this
     // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
         terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
     let mut machines = IdTable::default();
-    let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
+    let identities: Vec<MachineId> = checking.machines.keys().collect();
     for id in identities {
-        let tables = elaboration.tables.machines.get_mut(id).ok_or_else(|| {
+        let tables = checking.machines.get_mut(id).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
                 id,
@@ -511,9 +503,9 @@ fn discharge_inner(
         }
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
-            module,
+            formed,
             &inhabitation,
-            &elaboration.domains,
+            domains,
             id,
             tables,
             &beyond,
@@ -618,7 +610,7 @@ fn terminal_machine(
 
 #[allow(clippy::too_many_arguments)]
 fn machine(
-    module: &TerminalModule,
+    formed: formation::FormedModule<'_>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
@@ -629,6 +621,7 @@ fn machine(
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
+    let module = formed.source();
     let machines = &module.machines;
     let invariants = &module.scalar_block_invariants;
     let lowered = terminal_machine(machines, id, id)?;
@@ -646,7 +639,7 @@ fn machine(
         context,
         reference_graph,
         ranking_bindings,
-    } = prepare_with_inhabitation(module, domains, id, tables, inhabitation)?;
+    } = prepare_with_inhabitation(formed, domains, id, tables, inhabitation)?;
     let mut references =
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
@@ -1138,13 +1131,14 @@ impl Prepared {
 /// Fills `tables.knowledge` from the lowered form and builds what deciding
 /// needs. Knowledge already present is kept: it is this machine's own.
 pub(crate) fn prepare(
-    module: &TerminalModule,
+    formed: formation::FormedModule<'_>,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
 ) -> Checked<Prepared> {
+    let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
-    prepare_with_inhabitation(module, domains, id, tables, &inhabitation)
+    prepare_with_inhabitation(formed, domains, id, tables, &inhabitation)
 }
 
 fn prepare_inhabitation(
@@ -1165,12 +1159,13 @@ fn prepare_inhabitation(
 }
 
 pub(crate) fn prepare_with_inhabitation(
-    module: &TerminalModule,
+    formed: formation::FormedModule<'_>,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<Prepared> {
+    let module = formed.source();
     let machines = &module.machines;
     let structural_types = &module.structural_types;
     let lowered = terminal_machine(machines, id, id)?;
@@ -1807,19 +1802,42 @@ fn decide(
     activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
-    let mut prover = prove::Prover::new(
+    let certificate = search_certificate(
         context,
+        &tables.values,
+        id,
+        obligation,
+        &goal,
         &hypotheses.assumptions,
         &hypotheses.axioms,
-        &tables.values,
+        unreached,
         activity,
-    );
-    let proof = prover.prove(&goal).map_err(|reason| {
+    )?;
+    verify(context, id, obligation, goal, hypotheses, certificate)
+}
+
+/// Declaration formation and executable obligations search the same proof
+/// rules. Their callers provide the exact typed inputs and independent facts;
+/// the resulting certificate still needs the kernel's acceptance.
+#[allow(clippy::too_many_arguments)]
+fn search_certificate(
+    context: &PropositionContext,
+    values: &dyn known::ProofValues,
+    id: MachineId,
+    obligation: ObligationId,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    axioms: &[Proposition],
+    unreached: &[ValueId],
+    activity: &mut ProofSearchActivity,
+) -> Checked<CertificateEnvelope> {
+    let mut prover = prove::Prover::new(context, assumptions, axioms, values, activity);
+    let proof = prover.prove(goal).map_err(|reason| {
         // Classified by the goal's form, not by which search path failed
         // last, so the outcome does not depend on search order: the form as
         // written, and the form of the operations that define the values it
         // names (`prove::reach`).
-        let cause = if prover.has_rules_for(&goal) && !prover.beyond_rules(&goal, unreached) {
+        let cause = if prover.has_rules_for(goal) && !prover.beyond_rules(goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
             UnprovedCause::NoRuleForGoalForm
@@ -1834,12 +1852,11 @@ fn decide(
             "obligation identity is not an evidence identity",
         )
     })?;
-    let certificate = CertificateEnvelope {
+    Ok(CertificateEnvelope {
         identity,
         proof_system_marker: ProofSystemMarker::CURRENT,
         proof,
-    };
-    verify(context, id, obligation, goal, hypotheses, certificate)
+    })
 }
 
 fn unproved(
@@ -1914,9 +1931,8 @@ pub(crate) fn hypotheses(
     })
 }
 
-/// Has the kernel decide `certificate` for `goal` under `hypotheses`. The
-/// only acceptance path: an obligation is discharged exactly when this
-/// returns evidence.
+/// Keep the actual program-point dependencies beside the kernel's accepted
+/// certificate so a later consumer can reconstruct the same judgment.
 pub(crate) fn verify(
     context: &PropositionContext,
     id: MachineId,
@@ -1925,15 +1941,44 @@ pub(crate) fn verify(
     hypotheses: Hypotheses,
     certificate: CertificateEnvelope,
 ) -> Checked<Evidence> {
-    let fact = verify_obligation(
+    let fact = verify_certificate(
+        context,
+        id,
+        obligation,
+        &goal,
+        &hypotheses.assumptions,
+        &hypotheses.axioms,
+        &certificate,
+    )?;
+    Ok(Evidence {
+        goal,
+        assumptions: hypotheses.assumption_rows,
+        axioms: hypotheses.axiom_rows,
+        certificate,
+        fact,
+    })
+}
+
+/// The kernel checks the exact goal and independent premises before this
+/// certificate can justify a declaration or an executable obligation.
+fn verify_certificate(
+    context: &PropositionContext,
+    id: MachineId,
+    obligation: ObligationId,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    axioms: &[Proposition],
+    certificate: &CertificateEnvelope,
+) -> Checked<AcceptedFact> {
+    verify_obligation(
         context,
         &Obligation {
             id: obligation,
             proposition: goal.clone(),
             class: ObligationClass::Derivable,
         },
-        &hypotheses.assumptions,
-        &hypotheses.axioms,
+        assumptions,
+        axioms,
         EvidenceRoute::CertificateDerived(certificate.clone()),
     )
     .map_err(|error| {
@@ -1943,13 +1988,6 @@ pub(crate) fn verify(
             UnprovedCause::KernelRefused,
             format!("kernel {error:?}"),
         )
-    })?;
-    Ok(Evidence {
-        goal,
-        assumptions: hypotheses.assumption_rows,
-        axioms: hypotheses.axiom_rows,
-        certificate,
-        fact,
     })
 }
 

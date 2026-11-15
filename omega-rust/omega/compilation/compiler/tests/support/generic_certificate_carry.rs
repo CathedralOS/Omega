@@ -233,7 +233,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             generics.push((template, checked));
         }
         let (_, forms) = generics
-            .iter()
+            .iter_mut()
             .find(|(symbol, _)| *symbol == template)
             .expect("pushed above");
         // What a search over this generated machine alone proves, with the
@@ -325,12 +325,28 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                     refinement,
                 })
                 .collect();
-            // 3. Carry the generic body's certificates; the kernel re-decides.
+            // Form both exact declarations before entering search-free replay.
+            let generic_scope =
+                match terminal_psi_to_terminal_psi::prepare_replay(generic, &mut proof_activity) {
+                    Ok(scope) => scope,
+                    Err(refusal) => {
+                        return format!("route=outside\tformation: {}", one_line(&refusal.detail));
+                    }
+                };
+            let mut consumer_scope = match terminal_psi_to_terminal_psi::prepare_replay(
+                &mut consumer,
+                &mut proof_activity,
+            ) {
+                Ok(scope) => scope,
+                Err(refusal) => {
+                    return format!("route=outside\tformation: {}", one_line(&refusal.detail));
+                }
+            };
             let carried = reverify_specialization(
-                generic,
+                &generic_scope,
                 found,
                 entry_machine,
-                &mut consumer,
+                &mut consumer_scope,
                 specialization,
                 &selections,
                 &mut proof_activity,

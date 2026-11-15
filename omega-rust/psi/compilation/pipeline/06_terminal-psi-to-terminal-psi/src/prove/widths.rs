@@ -180,8 +180,12 @@ impl Prover<'_> {
     /// The width binders of this machine's parameter-width carriers.
     pub(super) fn width_binders(&self) -> Vec<ValueId> {
         let mut binders = Vec::new();
-        for (_, row) in self.values.iter() {
-            if let ScalarType::Integer(integer) = row.scalar_type
+        for position in 0..self.values.count() {
+            let value = self
+                .values
+                .identity(position)
+                .expect("proof value owner retains each actual input identity");
+            if let Some(ScalarType::Integer(integer)) = self.values.scalar_type(value)
                 && let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width()
                 && !binders.contains(&parameter.value)
             {

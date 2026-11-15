@@ -2634,12 +2634,13 @@ mod value_ids {
     impl Proposition {
         pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId)) -> bool {
             walk(
-                self,
+                Pending::Proposition(self),
                 |value| {
                     visit(value);
                     false
                 },
                 || true,
+                |_| false,
             )
             .1
         }
@@ -2651,7 +2652,7 @@ mod value_ids {
         ) -> Option<bool> {
             let mut exhausted = false;
             let result = walk(
-                self,
+                Pending::Proposition(self),
                 |value| {
                     visit(value);
                     false
@@ -2665,22 +2666,55 @@ mod value_ids {
                         false
                     }
                 },
+                |_| false,
             );
             (!exhausted).then_some(result.1)
         }
 
         pub fn any_value_id(&self, predicate: impl FnMut(ValueId) -> bool) -> bool {
-            walk(self, predicate, || true).0
+            walk(Pending::Proposition(self), predicate, || true, |_| false).0
+        }
+
+        /// Visit every scalar computation, including terms embedded in
+        /// mathematical comparisons. A term's operands follow it in authored
+        /// occurrence order; no nesting depth silently drops a computation.
+        pub fn visit_scalar_terms(&self, mut visit: impl FnMut(&ScalarTerm)) {
+            walk(
+                Pending::Proposition(self),
+                |_| false,
+                || true,
+                |term| {
+                    visit(term);
+                    false
+                },
+            );
+        }
+    }
+
+    impl ScalarTerm {
+        /// Visit this computation and its operands using the same traversal
+        /// that reads scalar terms inside a proposition.
+        pub fn visit_terms(&self, mut visit: impl FnMut(&ScalarTerm)) {
+            walk(
+                Pending::Scalar(self),
+                |_| false,
+                || true,
+                |term| {
+                    visit(term);
+                    false
+                },
+            );
         }
     }
 
     fn walk(
-        proposition: &Proposition,
+        start: Pending<'_>,
         mut visit: impl FnMut(ValueId) -> bool,
         mut step: impl FnMut() -> bool,
+        mut scalar: impl FnMut(&ScalarTerm) -> bool,
     ) -> (bool, bool) {
         let mut complete = true;
-        let mut pending = vec![Pending::Proposition(proposition)];
+        let mut pending = vec![start];
         while let Some(node) = pending.pop() {
             if !matches!(node, Pending::Propositions(_)) && !step() {
                 return (false, false);
@@ -2722,8 +2756,12 @@ mod value_ids {
                 Pending::IntegerMath(term) => match term {
                     IntegerMathTerm::Embed(term) => pending.push(Pending::Scalar(term)),
                     IntegerMathTerm::IntegerLiteral(_) => {}
-                    IntegerMathTerm::MathValue { value, .. } => {
-                        if visit(*value) {
+                    IntegerMathTerm::MathValue { value, source_type } => {
+                        if scalar(&ScalarTerm::value(
+                            *value,
+                            crate::ScalarType::Integer(*source_type),
+                        )) || visit(*value)
+                        {
                             return (true, complete);
                         }
                     }
@@ -2733,28 +2771,33 @@ mod value_ids {
                         }
                     }
                 },
-                Pending::Scalar(term) => match term {
-                    ScalarTerm::Value { id, .. } => {
-                        if visit(*id) {
-                            return (true, complete);
+                Pending::Scalar(term) => {
+                    if scalar(term) {
+                        return (true, complete);
+                    }
+                    match term {
+                        ScalarTerm::Value { id, .. } => {
+                            if visit(*id) {
+                                return (true, complete);
+                            }
+                        }
+                        ScalarTerm::StructuralRead { .. } => {
+                            complete = false;
+                            for operand in term.operands().into_iter().rev() {
+                                pending.push(Pending::Scalar(operand));
+                            }
+                        }
+                        crate::scalar_term_predicate_quint_pattern!(..) => complete = false,
+                        ScalarTerm::Boolean(_)
+                        | ScalarTerm::Integer { .. }
+                        | ScalarTerm::IeeeFloatLiteral(_) => {}
+                        _ => {
+                            for operand in term.operands().into_iter().rev() {
+                                pending.push(Pending::Scalar(operand));
+                            }
                         }
                     }
-                    ScalarTerm::StructuralRead { .. } => {
-                        complete = false;
-                        for operand in term.operands().into_iter().rev() {
-                            pending.push(Pending::Scalar(operand));
-                        }
-                    }
-                    crate::scalar_term_predicate_quint_pattern!(..) => complete = false,
-                    ScalarTerm::Boolean(_)
-                    | ScalarTerm::Integer { .. }
-                    | ScalarTerm::IeeeFloatLiteral(_) => {}
-                    _ => {
-                        for operand in term.operands().into_iter().rev() {
-                            pending.push(Pending::Scalar(operand));
-                        }
-                    }
-                },
+                }
             }
         }
         (false, complete)
@@ -2813,6 +2856,47 @@ mod value_ids {
                 value == identifier(2)
             }));
             assert_eq!(queried, [identifier(1), identifier(2)]);
+            let mut scalar_values = Vec::new();
+            proposition.visit_scalar_terms(|term| {
+                if let ScalarTerm::Value { id, .. } = term {
+                    scalar_values.push(*id);
+                }
+            });
+            assert_eq!(scalar_values, values);
+        }
+
+        #[test]
+        fn nested_computations_survive_scalar_and_mathematical_traversal() {
+            let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            let partial = ScalarTerm::exact_integer_subtract(
+                integer,
+                ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap(),
+                ScalarTerm::value(identifier(1), ScalarType::Integer(integer)),
+            )
+            .unwrap();
+            let mut nested = partial.clone();
+            for _ in 0..80 {
+                nested = ScalarTerm::WrappingIntegerAdd {
+                    scalar_type: integer,
+                    left: Box::new(nested),
+                    right: Box::new(
+                        ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                    ),
+                };
+            }
+            let mut direct = 0;
+            nested.visit_terms(|term| direct += usize::from(term == &partial));
+            assert_eq!(direct, 1);
+            let proposition = Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::embed(nested).unwrap(),
+                IntegerMathTerm::literal(IntegerValue::Unsigned(255)),
+            );
+            let mut embedded = 0;
+            proposition.visit_scalar_terms(|term| embedded += usize::from(term == &partial));
+            assert_eq!(
+                embedded, direct,
+                "embedding must retain the inner computation"
+            );
         }
 
         #[test]

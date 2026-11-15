@@ -941,7 +941,58 @@ fn examine(
         ))));
     }
     let mut affine_unestablished = Vec::new();
+    let reference_ends = terminal_semantics::reference_ends::candidates(&elaboration.module)
+        .map_err(|error| {
+            fall_back_or_defect(refusal(
+                RefusalReason::Unsupported,
+                error.machine,
+                error
+                    .operation
+                    .map(Construct::Operation)
+                    .unwrap_or(Construct::Machine),
+                &error.detail,
+            ))
+        })?;
     for machine in &elaboration.module.machines {
+        let candidates = reference_ends.get(machine.id).ok_or_else(|| {
+            Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine.id,
+                Construct::Machine,
+                "reference disposition lost its machine",
+            ))
+        })?;
+        let ends = terminal_semantics::plain_affine::plan_reference_ends(
+            &elaboration.module,
+            machine.id,
+            candidates,
+        )
+        .map_err(|error| {
+            let concerns = match error.site() {
+                Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                    Construct::Operation(at)
+                }
+                Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
+                None => Construct::Machine,
+            };
+            let (reason, detail) = match error {
+                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                    (RefusalReason::Unsupported, detail)
+                }
+                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                    (RefusalReason::ForeignIdentity, detail)
+                }
+            };
+            fall_back_or_defect(refusal(reason, machine.id, concerns, detail))
+        })?;
+        if !ends.reference_ends.is_empty() {
+            return Err(fall_back_or_defect(refusal(
+                RefusalReason::ForeignIdentity,
+                machine.id,
+                Construct::Machine,
+                "a dead stored reference has no explicit last-use disposition",
+            )));
+        }
         let plan =
             match terminal_semantics::plain_affine::verify_in(&elaboration.module, machine.id) {
                 Ok(plan) => plan,

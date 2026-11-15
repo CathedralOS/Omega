@@ -2031,8 +2031,7 @@ use crate::boundary::results::{
 };
 use crate::boundary::values::TerminalScalarValue;
 use crate::engine::custody::{
-    commit_cleanup_action, consume_affine_projection, consume_projected_ownership,
-    rebind_structural_result_claims,
+    commit_cleanup_action, consume_projected_ownership, rebind_structural_result_claims,
 };
 use crate::engine::execution::{
     CleanupContinuation, CompletedReturn, SuspendedCall, SuspendedCallResult, TerminalExecution,
@@ -2108,20 +2107,6 @@ impl TerminalExecution<'_> {
             structural_values.get(&discard.place)?,
             self.structural_cases.as_map(),
             &discard.path,
-        )
-    }
-
-    pub(crate) fn consume_affine_projection(
-        &self,
-        frontier: &mut std::collections::BTreeSet<StructuralAffineDiscard>,
-        argument: &StructuralArgument,
-    ) -> Result<(), TerminalInterpretError> {
-        consume_affine_projection(
-            &self.structural_types(),
-            &self.structural_values,
-            self.structural_cases.as_map(),
-            frontier,
-            argument,
         )
     }
 

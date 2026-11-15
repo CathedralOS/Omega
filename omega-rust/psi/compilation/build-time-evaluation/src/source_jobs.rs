@@ -2935,6 +2935,49 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn source_jobs_execute_the_exact_visible_overload_and_refuse_incompatible_actuals() {
+        let prepared = program(
+            r#"
+            module kit;
+            public machine pick(value: u32) -> u32 { 17u32 }
+            public machine pick(value: u64) -> u64 { 64u64 }
+            machine answer32(value: u32) -> u32 { kit::pick(value) }
+            machine answer64(value: u64) -> u64 { kit::pick(value) }
+            machine incompatible(value: bool) -> u32 { kit::pick(value) }
+            "#,
+        );
+        for (name, expected) in [("answer32", 17), ("answer64", 64)] {
+            let symbol = prepared
+                .typed()
+                .realized_machine_named(name)
+                .unwrap()
+                .symbol;
+            let entry = prepared
+                .entry(symbol, symbol, &[BuildTimeValue::Int(9)])
+                .expect("complete actual types select one ordinary visible header");
+            let mut meter = terminal_work::WorkMeter::unbounded();
+            assert_eq!(
+                entry.invoke(target(), &mut meter).unwrap(),
+                BuildTimeValue::Int(expected)
+            );
+        }
+        let wrong = prepared
+            .typed()
+            .realized_machine_named("incompatible")
+            .unwrap()
+            .symbol;
+        assert_eq!(
+            prepared.typed().deferred_refusal(wrong).unwrap().request,
+            typed_trees::deferred_refusals::DeferredRequest::UnresolvedCallTarget,
+        );
+        let error = prepared
+            .entry(wrong, wrong, &[BuildTimeValue::Bool(true)])
+            .err()
+            .expect("no visible integer header accepts the Boolean operand");
+        assert!(error.contains("call"), "{error}");
+    }
+
+    #[test]
     fn prepared_calls_keep_actual_arguments_with_their_checked_source() {
         let program = program("machine answer(value: u64) -> u64 requires value > 0 { value }");
         let first = bind(&program, &[BuildTimeValue::Int(7)]).expect("first actual call");
@@ -3120,7 +3163,7 @@ pub(crate) mod tests {
     #[test]
     fn source_jobs_construct_copy_and_return_byte_fields_with_their_real_contents() {
         let entry = program(
-            "data Packet [copy] { bytes: &[u8]; }
+            "data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
             machine answer(input: Packet) -> Packet { input }",
         );
         let value = BuildTimeValue::Struct {
@@ -3176,7 +3219,7 @@ pub(crate) mod tests {
         // Numbered members keep their schema identity when materialized.
         // An authored name and its returned number select the same member.
         let entry = program(
-            "data Choice [copy] { #7 case Ready(#9 bytes: &[u8]); #8 case Empty; }
+            "data Choice<'bytes> [copy] { #7 case Ready(#9 bytes: &'bytes [u8]); #8 case Empty; }
              machine answer(value: Choice) -> Choice { value }",
         );
         let value = BuildTimeValue::Case {

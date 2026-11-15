@@ -4,8 +4,8 @@
 // Invalid: reading the write-only slot's stored descriptor to supply its own
 // replacement.
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
-data Carrier { slot: &write Held; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
+data Carrier<'view> { slot: &'view write Held<'view>; }
 
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };

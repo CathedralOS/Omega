@@ -1015,7 +1015,7 @@ impl Program<'_> {
         };
         // A literal constructs the bare carrier: "Constructing a fresh valid
         // carrier precedes establishing its qualification" (domains.md).
-        let ValueType::Record(record, Qualification::NONE, written) = result else {
+        let ValueType::Record(record, Qualification::NONE, _) = result else {
             return Err(typing("record literal of a scalar or a qualified type"));
         };
         if matches!(
@@ -1026,19 +1026,8 @@ impl Program<'_> {
                 "opaque literal requires its checked representation and supplied contents",
             ));
         }
-        // A literal is a fresh value, so the regions it is at are the ones
-        // the place it stands for asks (an argument, an initializer, a
-        // field), whatever lifetime spelling typing attached to its type: a
-        // literal passed to `from_source<'storage>(source: Source<'storage>)`
-        // carries that callee's `'storage`, which names no region the caller
-        // holds. What it holds is then judged against its field types at
-        // those regions, so a view of another region is still refused. With
-        // nothing expected it is at the regions its own type names.
-        let regions = match expected {
-            Some(ValueType::Record(row, Qualification::NONE, regions)) if row == record => regions,
-            _ => written,
-        };
-        let result = with_regions(result, regions);
+        let result = literal_value_type(result, expected);
+        let regions = result.regions();
         for reference in applications {
             if reference.is_valid() {
                 self.record_application(id, record, reference)?;
@@ -1422,6 +1411,15 @@ fn record_shape_for<'m>(
         return unserved("mixed data");
     }
     Ok(())
+}
+
+/// A fresh literal takes its destination's regions when its carrier and
+/// qualification agree. Its fields still have to form at those regions.
+/// Without a matching destination, use the literal's own type.
+pub(super) fn literal_value_type(written: ValueType, expected: Option<ValueType>) -> ValueType {
+    expected
+        .filter(|destination| destination.erased() == written.erased())
+        .unwrap_or(written)
 }
 
 /// `value_type` at `regions`, when it is a record type; a record row is the

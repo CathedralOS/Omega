@@ -49,10 +49,10 @@ fn rejection(predicate: &str, bytes: &str) -> String {
 domain [u8]::Text
 requires
     {predicate}(self);
-data Rejection {{ reason: &[u8] in Text; }}
-data Outcome {{
+data Rejection<'reason> {{ reason: &'reason [u8] in Text; }}
+data Outcome<'reason> {{
     case Accepted(value: u64);
-    case Rejected(reason: Rejection);
+    case Rejected(reason: Rejection<'reason>);
 }}
 machine refuse() -> Outcome {{
     Outcome::Rejected {{ reason: Rejection {{ reason: "{bytes}" as +Text }} }}
@@ -236,7 +236,7 @@ fn what_no_bytes_decide_is_refused() {
 domain [u8]::Text
 requires
     valid_utf8(self);
-data Rejection { reason: &[u8] in Text; }
+data Rejection<'reason> { reason: &'reason [u8] in Text; }
 "#;
     let uncast = format!(
         "{declarations}machine build_entry() {{ let r: Rejection = Rejection {{ reason: \"x\" }}; }}"
@@ -265,7 +265,7 @@ data Rejection { reason: &[u8] in Text; }
 domain [u8]::Text
 requires
     valid_utf8(self);
-data Plain { reason: &[u8]; }
+data Plain<'reason> { reason: &'reason [u8]; }
 machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Text }; }
 "#;
     let judged = judge_build(laundered);
@@ -277,7 +277,7 @@ machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Tex
 domain [u8]::Filled
 requires
     non_empty(self);
-data Named { name: &[u8] in Filled; }
+data Named<'name> { name: &'name [u8] in Filled; }
 machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
 "#;
     let refused = verdict(non_empty);

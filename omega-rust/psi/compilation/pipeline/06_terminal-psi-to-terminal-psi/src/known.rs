@@ -20,6 +20,35 @@ use semantic_vocabulary::{
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_psi::PrimitiveJudgment;
 
+/// Declaration terms have logical inputs even when they have no executable
+/// producer. The prover borrows their types and observation status from the
+/// owner that supplies the inputs.
+pub(crate) trait ProofValues {
+    fn count(&self) -> usize;
+    fn identity(&self, position: usize) -> Option<ValueId>;
+    fn scalar_type(&self, value: ValueId) -> Option<ScalarType>;
+    fn is_storage_content(&self, value: ValueId) -> bool;
+}
+
+impl ProofValues for IdTable<ValueId, ValueRow> {
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn identity(&self, position: usize) -> Option<ValueId> {
+        self.keys().nth(position)
+    }
+
+    fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
+        self.get(value).map(|row| row.scalar_type)
+    }
+
+    fn is_storage_content(&self, value: ValueId) -> bool {
+        self.get(value)
+            .is_some_and(|row| matches!(row.origin, ValueOrigin::StorageContent { .. }))
+    }
+}
+
 #[cfg(test)]
 #[path = "known/tests.rs"]
 mod tests;
@@ -202,7 +231,7 @@ impl Known {
         context: &PropositionContext,
         assumptions: &[Proposition],
         axioms: &[Proposition],
-        values: &IdTable<ValueId, ValueRow>,
+        values: &dyn ProofValues,
     ) -> Self {
         let mut facts = Vec::new();
         let mut conjuncts = Vec::new();
@@ -240,11 +269,7 @@ impl Known {
                             matches!(
                                 subject.scalar_type(),
                                 ScalarType::Boolean | ScalarType::Integer(_)
-                            ) || (fact.axiom.is_some()
-                                && matches!(
-                                    values.get(*id).map(|row| row.origin),
-                                    Some(ValueOrigin::StorageContent { .. })
-                                ))
+                            ) || (fact.axiom.is_some() && values.is_storage_content(*id))
                         }
                         // Exact operation definitions retain their selected
                         // integer meaning. A compound scalar equality learned
@@ -267,7 +292,13 @@ impl Known {
             arrival_equations: Vec::new(),
             arrival_definitions: IdTable::default(),
         };
-        let mut defined = values.map(|_, _| None);
+        let mut defined = IdTable::from_rows((0..values.count()).map(|position| {
+            let identity = values
+                .identity(position)
+                .expect("proof value owner retains each actual input identity");
+            (identity, None)
+        }))
+        .expect("proof value owner retains its exact contiguous identity namespace");
         for (index, &fact) in result.equations.iter().enumerate() {
             if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) =
                 &result.facts[fact].proposition

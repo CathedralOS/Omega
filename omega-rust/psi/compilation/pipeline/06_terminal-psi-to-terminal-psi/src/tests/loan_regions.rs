@@ -188,9 +188,8 @@ machine build_entry(left: &Cell, right: &Cell) {{
 /// the machine names: it is not returned for one.
 #[test]
 fn a_loan_of_a_local_is_not_returned_for_a_lifetime_of_the_machine() {
-    assert_ne!(
-        verdict(&format!(
-            r#"{CELLS}
+    let source = format!(
+        r#"{CELLS}
 machine leak<'a>(cell: &'a Cell) -> View<'a> {{
     let local: Cell = Cell {{ before: 1, value: 2, after: 3 }};
     View {{ cell: &local }}
@@ -199,10 +198,30 @@ machine build_entry(cell: &Cell) {{
     let view: View = leak(cell);
     let observed: bool = view.cell.value == 2;
 }}
-"#
-        )),
-        "accepted"
+"#,
     );
+    let judged = judge_build(&source);
+    let Ok(RouteVerdict::Rejected { violations, .. }) = judged else {
+        panic!("expected a lifetime rejection: {judged:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected one lifetime violation: {violations:?}");
+    };
+    let borrow = source.find("&local").unwrap();
+    assert_eq!(
+        violation.site,
+        Some(source::SourceSpan::new(
+            source::SourceId(1),
+            source::Span::new(borrow, borrow + 1),
+        ))
+    );
+    assert_eq!(
+        violation.statement,
+        "this view borrows storage owned by the current invocation, but the field it initializes \
+         requires one of the machine's declared lifetimes: local storage cannot establish that \
+         promise, even for an empty view while reading the body of `leak`"
+    );
+    assert_eq!(verdict(&source.replacen("&local", "cell", 1)), "accepted");
 }
 
 /// Where a reference that may be backed by either of two inputs still

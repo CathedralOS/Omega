@@ -5,8 +5,8 @@ data Window requires used <= 91, {
     used: u64;
 }
 
-data ViewHolder {
-    view: &Window;
+data ViewHolder<'view> {
+    view: &'view Window;
 }
 
 machine evaluate(seed: u64) -> u64

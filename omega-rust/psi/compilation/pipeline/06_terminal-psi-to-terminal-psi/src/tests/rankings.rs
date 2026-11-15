@@ -169,12 +169,15 @@ fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
                         panic!("rank edge has no certificate")
                     };
                     assert_kernel_checked(&elaboration, 1, obligation, evidence);
+                    let mut consumer = elaboration.clone();
+                    let mut activity = crate::ProofSearchActivity::default();
+                    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
                     reverify(
-                        &mut elaboration.clone(),
+                        &mut replay,
                         id(1),
                         obligation,
                         &evidence.certificate,
-                        &mut crate::ProofSearchActivity::default(),
+                        &mut activity,
                     )
                     .unwrap();
                 }

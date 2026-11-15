@@ -7231,6 +7231,51 @@ pub(crate) fn structural_parameters(
 }
 pub(crate) fn structural_contract(
     target: &TargetFunction,
+) -> Result<Option<legalized_operations::LegalizedStructuralContract>, crate::LegalizationError> {
+    let Some(contract) = &target.structural_contract else {
+        return Ok(None);
+    };
+    let parameters = structural_parameters(target).unwrap_or(&[]);
+    if parameters.len() != contract.parameters.len() {
+        return Err(crate::LegalizationError::custody());
+    }
+    Ok(Some(legalized_operations::LegalizedStructuralContract {
+        structural_types: target.graph.structural_types.clone(),
+        parameters: contract
+            .parameters
+            .iter()
+            .zip(parameters)
+            .map(
+                |(semantic, target)| legalized_operations::LegalizedCallUnitParameter {
+                    semantic: semantic.clone(),
+                    target: target.clone(),
+                },
+            )
+            .collect(),
+        structural_places: contract.places.clone(),
+        entry_claims: contract.entry_claims.clone(),
+        published_service_ceiling: contract.published_service_ceiling.clone(),
+        result: contract.result.clone(),
+    }))
+}
+
+// Only the independent audit reconstructs this contract from earlier bodies.
+pub(crate) fn validate_structural_contract(
+    target: &TargetFunction,
+    abstracted: &AbstractFunction,
+    optimized: &PsiOptimizationFunction,
+    plan: &crate::native_geometry::NativePlan<'_>,
+) -> Result<(), crate::LegalizationError> {
+    if structural_contract(target)?
+        != source_structural_contract(target, abstracted, optimized, plan)
+    {
+        return Err(crate::LegalizationError::custody());
+    }
+    Ok(())
+}
+
+pub(crate) fn source_structural_contract(
+    target: &TargetFunction,
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
     plan: &crate::native_geometry::NativePlan<'_>,

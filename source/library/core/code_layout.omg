@@ -5,7 +5,7 @@ public data CodeRegion [copy] {
     length: u64;
 }
 
-public data CodeLayout [copy] {
+public data CodeLayout<'code> [copy] {
     entry: addr;
-    regions: &[CodeRegion];
+    regions: &'code [CodeRegion];
 }

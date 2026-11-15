@@ -435,7 +435,12 @@ and `*` cannot overflow
 such a clause computes nothing in a carrier and owes no formation condition,
 which is what sets it apart from carrier arithmetic in a clause
 (`requires a + b <= 99`, which "discharge[s] representability before
-formation" and is refused until a slice states that obligation).
+formation"). The reader retains the selected operation as a canonical scalar
+term. Stage 06 proves its formation using independent, already-formed clauses
+before the containing condition can contribute facts. The same rule applies
+to fields, nested terms, result contracts and domains. Wrapping and saturating
+division still require a nonzero divisor; trapping arithmetic is refused in
+clauses because its operation may crash.
 
 A comparison is mathematical when an `embed` stands on either side beneath
 binary operators only (`mathematical`). `embed` is the builtin by the symbol
@@ -461,8 +466,7 @@ arguments.
 
 | Construct | Refusal detail |
 | --- | --- |
-| carrier arithmetic in a clause term, `requires a + b <= 99` | `contract carrier arithmetic in a clause term` |
-| a suffixed operator in a clause term, `a +% b` | `contract policy operator in a clause term` |
+| trapping arithmetic in a clause term, `a +! b` | `a trapping operator ... in a contract clause: an operation that can crash forms no proof term` |
 | a cast, or a call other than `embed`, in a clause term | `contract cast in a clause term`, `contract call in a clause term` |
 | `embed` that is not a side of a comparison or beneath its arithmetic, `embed(embed(a))` | `contract embed outside a mathematical comparison` |
 | `embed` of a Boolean, or with other than one argument | `contract embed of a value that is not an integer`, `contract embed of other than one value` |
@@ -693,6 +697,10 @@ formal without `mut`.
 - `&mut x` and `&mut p.a` lend the formal as owned storage
   (`Lender::Owner`), as they lend a `mut` local.
 
+An assignment to an immutable owned formal or local rejects at the written
+target, including a field or element of that binding. Writes through an
+existing reference follow that reference's access.
+
 Refused by name:
 
 | Construct | Refusal detail |
@@ -700,7 +708,6 @@ Refused by name:
 | an `ensures` clause or a crash route guard that names a `mut` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
 | a `mut` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
 | a `mut` formal marked `[erased]` | `parameter mutable erased parameter` |
-| an assignment to, or a store into, a formal that is not `mut` | `statement assignment to an immutable binding`, `statement store into an immutable binding` |
 
 A `mut` formal of plain data without `[copy]` is refused as that data is
 anywhere (`type data with custody`). A formal passed by reference is
@@ -803,13 +810,12 @@ the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a `requires` on a case | `type data requires` |
-| a data `requires` clause that calls a machine, compares Booleans with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
+| a data `requires` clause that calls a machine, compares Booleans with `!=`, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract term other than a field of the value or a literal` |
 | a field type constrained by a declared domain or by `Trapping` | `type constrained by a domain that is not one arithmetic policy`, `type constrained by Trapping` |
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
 | a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing data field that elides a lifetime argument` |
 | data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field or retired field identities | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities` |
-| a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
