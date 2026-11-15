@@ -377,6 +377,26 @@ pub(crate) mod provider_installation {
             })
     }
 
+    /// Whether the supplied requirement's operational contract can stand in
+    /// for the required one. Its published reach ceiling must fit inside the
+    /// required ceiling member for member: the owning service is catalogue
+    /// ownership, not reach (`wiki/spec/language/effects.md`), so a supplied
+    /// ceiling that names its own owner reaches that service like any other
+    /// member and needs the required ceiling to permit it.
+    fn operational_contract_fits(
+        required: &terminal_psi::BoundaryMachineDeclaration,
+        supplied: &terminal_psi::BoundaryMachineDeclaration,
+    ) -> bool {
+        required.kind == supplied.kind
+            && required.completion == supplied.completion
+            && (!required.unconditional_termination || supplied.unconditional_termination)
+            && required.crash_routes == supplied.crash_routes
+            && supplied
+                .published_service_ceiling
+                .iter()
+                .all(|service| required.published_service_ceiling.contains(service))
+    }
+
     fn admit_assumed_bindings(
         module: &terminal_psi::TerminalModule,
         installed: &BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
@@ -443,15 +463,7 @@ pub(crate) mod provider_installation {
             {
                 return Err(reject(AssumedBindingRejection::IncompatibleRuntimeShape));
             }
-            if required.kind != supplied.kind
-                || required.completion != supplied.completion
-                || (required.unconditional_termination && !supplied.unconditional_termination)
-                || required.crash_routes != supplied.crash_routes
-                || supplied.published_service_ceiling.iter().any(|service| {
-                    Some(*service) != supplied.owning_service
-                        && !required.published_service_ceiling.contains(service)
-                })
-            {
+            if !operational_contract_fits(required, supplied) {
                 return Err(reject(
                     AssumedBindingRejection::IncompatibleOperationalContract,
                 ));
@@ -482,6 +494,89 @@ pub(crate) mod provider_installation {
             });
         }
         Ok(admitted)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::operational_contract_fits;
+        use semantic_vocabulary::{BoundaryMachineId, ServiceId};
+        use terminal_psi::{
+            BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
+            NominalDeclarationIdentity, TerminalIdentityTableBuilder,
+        };
+
+        fn service(id: u64) -> ServiceId {
+            ServiceId::new(id).unwrap()
+        }
+
+        fn requirement(id: u64, owner: u64, ceiling: &[u64]) -> BoundaryMachineDeclaration {
+            let identity = TerminalIdentityTableBuilder::default().intern("test::Slot::call");
+            let ceiling: Vec<ServiceId> = ceiling.iter().copied().map(service).collect();
+            BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(id).unwrap(),
+                declaration: None,
+                numeric_intrinsic: None,
+                role: BoundaryDeclarationRole::Callable,
+                kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                unconditional_termination: true,
+                identity,
+                owner: NominalDeclarationIdentity::new(identity),
+                attachment: None,
+                parameter_order: Vec::new(),
+                scalar_parameters: Vec::new(),
+                crash_routes: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: BoundaryMachineResult::Unit,
+                result_reference_regions: Vec::new(),
+                requires: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                reference_outputs: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: ceiling.clone(),
+                owning_service: Some(service(owner)),
+                published_service_ceiling: ceiling,
+                published_synchronous_entries: Vec::new(),
+            }
+        }
+
+        // A supply whose ceiling names its own owning slot reaches that slot;
+        // a requirement declared `reaches none` cannot be stood in for by it.
+        #[test]
+        fn supplied_owner_in_its_ceiling_must_fit_the_required_ceiling() {
+            let required = requirement(1, 10, &[]);
+            assert!(operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[])
+            ));
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[20])
+            ));
+            assert!(operational_contract_fits(
+                &requirement(1, 10, &[20]),
+                &requirement(2, 20, &[20]),
+            ));
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[30])
+            ));
+        }
+
+        // The required owner held only as catalogue ownership contributes
+        // nothing a narrower supply must match.
+        #[test]
+        fn required_owner_outside_its_ceiling_permits_nothing_extra() {
+            let required = requirement(1, 10, &[]);
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[10])
+            ));
+        }
     }
 }
 

@@ -505,19 +505,12 @@ impl FilesystemContext {
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
     ) -> Result<(), &'static str> {
-        for service in declaration
-            .fixed_service_reach
-            .iter()
-            .chain(&declaration.published_service_ceiling)
-        {
-            if Some(*service) == declaration.owning_service {
-                continue;
-            }
+        for service in declaration.reach_beyond_owning_supply() {
             let supplied = program
                 .module()
                 .services
                 .iter()
-                .find(|row| row.id == *service)
+                .find(|row| row.id == service)
                 .and_then(|row| program.module().identities.text(row.identity))
                 .is_some_and(|identity| {
                     matches!(

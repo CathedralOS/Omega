@@ -1,6 +1,7 @@
 // We admit the declared service reach of a native import beyond its owning
-// trait when the host explicitly consents (MatchingHost) and every reached
-// service and parent-closure member belongs to the same declaring package.
+// trait (`BoundaryMachineDeclaration::reach_beyond_owning_supply`) when the
+// host explicitly consents (MatchingHost) and every reached service and
+// parent-closure member belongs to the same declaring package.
 
 use crate::execution::TerminalNativeServiceDelegation;
 use semantic_vocabulary::ServiceId;
@@ -31,13 +32,12 @@ fn describe(module: &TerminalModule, service: ServiceId) -> String {
 pub(super) fn admit_additional_services(
     module: &TerminalModule,
     owning_service: Option<ServiceId>,
-    reach: impl IntoIterator<Item = ServiceId>,
+    reach_beyond_owner: impl IntoIterator<Item = ServiceId>,
     delegation: TerminalNativeServiceDelegation,
 ) -> Result<(), String> {
-    let additional: Vec<ServiceId> = reach
-        .into_iter()
-        .filter(|service| Some(*service) != owning_service)
-        .collect();
+    let mut additional: Vec<ServiceId> = reach_beyond_owner.into_iter().collect();
+    additional.sort();
+    additional.dedup();
     if additional.is_empty() {
         return Ok(());
     }
@@ -125,7 +125,11 @@ mod tests {
         admit_additional_services(
             &module(),
             owning.map(service),
-            reach.iter().copied().map(service),
+            reach
+                .iter()
+                .copied()
+                .filter(|id| Some(*id) != owning)
+                .map(service),
             delegation,
         )
     }
