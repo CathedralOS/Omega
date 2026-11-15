@@ -87,12 +87,19 @@ framework or a list of unimplemented features.
 - Cost: A user root path grants synthesis privilege through spelling. Publish and select the existing equality protocol through an exact sealed owner. Migrate the legacy authored witnesses together with that change so a lookalike user declaration cannot acquire synthesis.
 - Reported: 2026-11-15, Codex, while auditing remaining equality-name selection.
 
-### Named predicates skip declaration-time arithmetic totality
-- Category: a verdict with nothing behind it
-- Where: [unused partial predicate](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg), [governance assertion](omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs#L185), [operator lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [proof arithmetic rules](wiki/spec/proofs/contracts.md#total-arithmetic)
-- Saw: At `dc83fcb65264`, `omega --check --target linux_x86_64` accepts the unused predicate `value + 1u32 == 1u32` over arbitrary `u32`, so the governance test panics. At `16c9a2cd0431` on macOS arm64 targeting Linux x86-64, changing only the unused predicate's addition to `+%` is refused during typing. A machine precondition with the same wrapping expression and input type compiles.
-- Cost: Check a named predicate under its own formal inputs through the same term formation as an inline contract. Pin the overflow refusal even when the predicate is unused, admit the wrapping control, and preserve the nonzero-divisor obligation. Replace the governance assertion's old `carrier arithmetic in a clause term` expectation with the actual totality refusal.
-- Reported: 2026-11-15, Claude Code and Codex, while testing refusal locations and comparing overflow controls.
+### The grouped-refusal tests expect a narrowing message Linux does not produce
+- Category: a misleading test
+- Where: [grouped refusals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/every_refusal.rs#L9), [cast reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/casts.rs#L230)
+- Saw: On Linux x86-64, at `90cdf5319782` plus the named-predicate change (which reads no cast and adds no rows when a compilation has no subjects), `every_refused_body_is_its_own_verdict` and `a_direct_reading_still_refuses_at_the_first` fail. The `f64 as f32` helpers are refused with `expression exact carrier conversion has no canonical declaration`, not the pinned `expression cast whose exact carrier conversion is not supported`. #3619 pinned the second message from a macOS arm64 run.
+- Cost: `mbx test -p terminal-psi-to-terminal-psi` is red on Linux for every agent. Decide which refusal the cast reader owes on every host and pin that one.
+- Reported: 2026-11-15, Claude Code, while testing named predicate totality (`work/psi-named-predicate-totality`).
+
+### Two stage-05 clause tests still expect the refusal #3631 replaced
+- Category: a misleading test
+- Where: [clause call reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/clause_calls.rs), [stage 05 read tests](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L1497)
+- Saw: At `90cdf5319782` plus the named-predicate change, which does not reach call reading, `a_comparison_of_embedded_integers_is_a_mathematical_proposition` and `old_retains_the_existing_scalar_or_storage_input_and_its_policy` fail. A lookalike call in a clause is now refused with `call target is not a machine declaration`, but both still pin `contract call in a clause term`.
+- Cost: `mbx test -p typed-trees-to-terminal-psi` is red. Confirm the new refusal is the one these lookalike calls owe and pin it.
+- Reported: 2026-11-15, Claude Code, while testing named predicate totality (`work/psi-named-predicate-totality`).
 
 ### Literal declaration validation still judges selected predicates in syntax
 - Category: one idea, several implementations

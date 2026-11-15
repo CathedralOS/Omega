@@ -247,6 +247,26 @@ pub struct Elaboration {
     /// judged like any other and is never published. Empty outside
     /// `elaborate`, whose forms are not programs.
     pub undeclared: Vec<(MachineId, &'static str)>,
+    /// The named predicates the subject declares, each read under its own
+    /// formals (mathematical_bindings.md, "Named mathematical definitions").
+    /// A call unfolds a predicate into its caller's clauses at the actual
+    /// arguments, which can hide partial arithmetic in the declaration, and an
+    /// unused predicate is never unfolded at all. The checker forms each one
+    /// here like any contract clause before judging a machine. Empty outside
+    /// `elaborate`.
+    pub predicates: Vec<DeclaredPredicate>,
+}
+
+/// One named predicate under its own formals: `inputs` are its scalar formals
+/// in declaration order and `proposition` is its body over them. `machine`
+/// and `source_span` only attribute a refusal; a predicate is not a machine.
+#[derive(Debug, Clone)]
+pub struct DeclaredPredicate {
+    pub name: String,
+    pub machine: MachineId,
+    pub source_span: Option<source::SourceSpan>,
+    pub inputs: Vec<terminal_psi::ValueDeclaration>,
+    pub proposition: semantic_vocabulary::Proposition,
 }
 
 /// One call through an implementation parameter in a machine stage 04

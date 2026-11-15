@@ -1,5 +1,7 @@
-// Expected diagnostic contains: carrier arithmetic in a clause term.
-// The installed arrival establishes the named source predicate before invocation.
+// Expected diagnostic contains: named predicate `reflexive`: contract arithmetic is not proved total before its condition.
+// `value + 1u32` overflows at `u32::MAX`, so the unused predicate is refused at
+// its own declaration. pass/proofs/wrapping_mathematical_predicate differs only
+// in `+%`, which wraps and is total.
 let is_zero(value: u32): core::Strict<0> = value == 0u32;
 
 let reflexive(value: u32): core::Strict<0> = value + 1u32 == 1u32;

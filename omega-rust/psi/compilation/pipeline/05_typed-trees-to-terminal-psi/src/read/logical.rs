@@ -236,6 +236,20 @@ impl MathematicalInputs {
         }
     }
 
+    /// The formals as checker inputs, in the value order `validate` uses.
+    pub(super) fn declarations(&self) -> Vec<terminal_psi::ValueDeclaration> {
+        self.inputs
+            .leaves
+            .iter()
+            .enumerate()
+            .map(|(position, leaf)| terminal_psi::ValueDeclaration {
+                id: ValueId::new(position as u64 + 1).expect("allocated formal count"),
+                scalar_type: leaf.scalar,
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            })
+            .collect()
+    }
+
     pub(super) fn validate(&self, machine: MachineId, proposition: &Proposition) -> Checked<()> {
         let context = semantic_vocabulary::PropositionContext::from_value_types(
             self.inputs
