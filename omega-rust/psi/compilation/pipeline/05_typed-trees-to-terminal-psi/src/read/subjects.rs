@@ -442,14 +442,32 @@ impl Program<'_> {
                 )))?;
             }
         }
+        // `data RegisterStorage = LayoutStorage<Registers, RegisterLayout>;`
+        // is its expansion: the same type, with the same representation and
+        // obligations (generics.md, "Transparent type aliases"). A closed
+        // alias is judged by reading that expansion as a value type. A
+        // generic alias has no type until an application fixes its
+        // binders, and nothing judges it as written yet.
+        for alias in typed.type_aliases() {
+            if self.owner(entry, alias.symbol, subjects, purpose)? != Owner::Subject {
+                continue;
+            }
+            if !alias.lifetime_parameters.is_empty()
+                || !alias.type_parameters.is_empty()
+                || !alias.conformance_bounds.is_empty()
+            {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration("generic type alias"),
+                ));
+            }
+            self.value_type(entry, alias.expansion)?;
+        }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
         let unjudged = [
-            (
-                symbols_of(typed.type_aliases(), |row| row.symbol),
-                "type alias",
-            ),
             (symbols_of(typed.measures(), |row| row.symbol), "measure"),
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
             (
