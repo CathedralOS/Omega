@@ -30,25 +30,28 @@ pub(crate) fn exact_declared_field(
     fields.next().is_none().then_some(field)
 }
 
+/// The parameters a call of `target` passes its arguments to, or `None` when
+/// typing does not select them: a machine with no state, or a name that no
+/// state, signature or operator answers alone. The caller records that on the
+/// declaration holding the call rather than refusing the program.
 pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
-) -> Result<&[StateParameter], Diagnostic> {
+) -> Option<&[StateParameter]> {
     if let Some(state) = program.state_by_symbol(target) {
-        return Ok(program.state_parameters(state));
+        return Some(program.state_parameters(state));
     }
     if let Some(machine) = program.machine_by_symbol(target) {
         return program
             .machine_states(machine)
             .first()
-            .map(|state| program.state_parameters(state))
-            .ok_or_else(|| crate::unavailable_judgment("call entry parameter types"));
+            .map(|state| program.state_parameters(state));
     }
     if let Some((_, signature)) = program.machine_parameter_signature(target) {
-        return Ok(program.state_signature_parameters(signature));
+        return Some(program.state_signature_parameters(signature));
     }
     if let Some(operator) = program.operator_definition_by_symbol(target) {
-        return Ok(program.operator_parameters(operator));
+        return Some(program.operator_parameters(operator));
     }
     let mut signatures = program
         .traits()
@@ -58,9 +61,9 @@ pub(crate) fn call_target_parameters(
     if let Some(signature) = signatures.next()
         && signatures.next().is_none()
     {
-        return Ok(program.state_signature_parameters(signature));
+        return Some(program.state_signature_parameters(signature));
     }
-    Err(crate::unavailable_judgment("selected call parameter types"))
+    None
 }
 
 pub(crate) fn selected_construction_field_type(

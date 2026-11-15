@@ -84,6 +84,14 @@ pub enum DeferredRequest {
     /// A domain cast whose operand carries a compiler-owned domain or a
     /// constraint no declaration answered, which no entry can name yet.
     DomainCastUnnamedConstraint,
+    /// A call of a mathematical definition with an argument built at its
+    /// parameter's type (a constructor, string, array or match): the
+    /// parameter has a mathematical type, and no pass lands a value there.
+    MathematicalCallDestination,
+    /// A call with an argument built at its parameter's type, whose callee's
+    /// parameters typing does not select: a machine with no state, or a name
+    /// several trait requirements share.
+    CallParameterSelection,
     /// A machine with one body per target that binds type or lifetime
     /// parameters or conformance bounds: holding each body to the shared
     /// signature means matching the two telescopes binder for binder, and
@@ -163,6 +171,12 @@ impl DeferredRequest {
             }
             Self::DomainCastUnnamedConstraint => {
                 "holding a domain cast over a compiler-owned or unresolved domain, which no pass accounts for yet"
+            }
+            Self::MathematicalCallDestination => {
+                "holding a mathematical call with an argument no pass builds at its parameter's type yet"
+            }
+            Self::CallParameterSelection => {
+                "holding a call whose callee's parameter types typing does not select yet"
             }
             Self::TargetFamilyGenericSignature => {
                 "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
