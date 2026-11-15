@@ -186,6 +186,13 @@ framework or a list of unimplemented features.
 - Cost: Supply each deployment's target observations to the constant's per-deployment run, as its layouts now are, and fold it only when the deployments agree. Publish the exact source-selected provider commitment through the existing folded-constant closure. Preserve the wrong-target, absent/repeated plan, equal-result substitution and cast refusals.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles; narrowed the same day by Claude Code after the record constant was repaired.
 
+### Stage06 checker tests cannot build after the record layout flag changed
+- Category: tests that pin the bug
+- Where: [Stage06 fixture records](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests.rs), [record layout flag](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/body.rs)
+- Saw: On clean `f7d09fdf64f` on macOS arm64, `mbx test -p terminal-psi-to-terminal-psi --lib` exits 101 with 21 E0063 errors for missing `RecordType.authored_layout`. The constructors are in `tests.rs`, `tests/arrays.rs`, `tests/empty_records.rs` and `tests/references.rs`. The flag arrived in #3512 to distinguish source-authored layouts from ordinary record storage.
+- Cost: Rust cannot build the checker suite, so none of its source or proof controls runs. Give each existing fixture its original ordinary layout intent and run the full suite. The separate loan, ranking and diagnostic fixture failures still need their own repairs.
+- Reported: 2026-11-15, Codex, while validating indexed storage in the lowered checker.
+
 ### Six Stage06 loan and ranking controls fail on clean main
 - Category: tests that pin the bug
 - Where: [two-input reference](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L256), [literal arrivals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs#L428), [slice loop ranks](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/rankings.rs#L357), [short-circuit cleanup](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/successor_loans.rs#L195)
