@@ -2338,6 +2338,7 @@ impl Analysis<'_> {
                     terminal_psi::OperationProjection {
                         root: source.place,
                         path: &source.path,
+                        field: None,
                     }
                     .into(),
                     site,
