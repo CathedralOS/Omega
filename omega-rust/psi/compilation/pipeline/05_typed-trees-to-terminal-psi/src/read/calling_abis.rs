@@ -14,6 +14,7 @@ use typed_trees::service_declarations::{PreparedServiceCatalog, ProviderSchemaDe
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
+use crate::body::BorrowedReferent;
 
 pub(crate) struct PreparedCallingAbis {
     entry: MachineId,
@@ -352,7 +353,8 @@ impl Program<'_> {
         {
             return Err("calling ABI parameter lost its retained source type".into());
         }
-        let (reference, access) = match self.typed.type_reference_table.type_reference(reference) {
+        let (reference, access, referent) =
+            match self.typed.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference {
                 referee,
                 access,
@@ -368,12 +370,21 @@ impl Program<'_> {
                     language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
                     language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
                 };
-                let (carrier, _) = self.borrowed_formal_carrier(reference, *referee);
-                (carrier, access)
+                let (carrier, referent) = self.borrowed_formal_carrier(reference, *referee);
+                (carrier, access, referent)
             }
-            _ => (reference, StructuralAccess::Owned),
+            _ => (reference, StructuralAccess::Owned, BorrowedReferent::Value),
         };
-        let structural_type = self.calling_abi_storage(entry, reference)?;
+        let mut structural_type = self.calling_abi_storage(entry, reference)?;
+        // The ABI formal names the descriptor the boundary formal publishes:
+        // a direct byte window's canonical view, access on the parameter.
+        if referent == BorrowedReferent::Slice
+            && let Some(direct) = self
+                .direct_byte_window(entry, structural_type)
+                .map_err(|error| error.detail)?
+        {
+            structural_type = direct;
+        }
         // Callback closure walks the same direct carrier as the ABI formal,
         // including a borrowed slice's descriptor. A represented parameter
         // still needs its callback storage checked.
@@ -641,9 +652,15 @@ mod descriptor_storage_tests {
         (typed, address, record, qualified, envelope)
     }
 
+    /// A direct byte window lends bytes: its ABI formal names the canonical
+    /// view (`access: None`) with the access on the parameter, the same row
+    /// its boundary formal publishes. A loan of a stored byte view lends a
+    /// descriptor the callee may replace, so it keeps the access-bearing row.
+    /// A typed element slice keeps its checked descriptor.
     #[test]
     fn borrowed_slice_abi_formals_use_the_checked_descriptor() {
         use language_core::ReferenceAccess;
+        use terminal_psi::ByteSequenceCarrier;
 
         let (mut typed, address, _, _, _) = fixture();
         let byte_symbol = typed
@@ -660,53 +677,64 @@ mod descriptor_storage_tests {
         let addresses = typed.type_reference_table.insert(TypeReferenceNode::Slice {
             element_type: address,
         });
-        let cases = [
-            (
-                bytes,
-                ReferenceAccess::Shared,
-                StructuralAccess::SharedBorrow,
-            ),
-            (
-                bytes,
-                ReferenceAccess::Mutable,
-                StructuralAccess::MutableBorrow,
-            ),
-            (
-                addresses,
-                ReferenceAccess::Shared,
-                StructuralAccess::SharedBorrow,
-            ),
-        ];
-        let written = cases.map(|(referee, access, expected_access)| {
-            let reference = typed
+        let mut reference = |referee, access| {
+            typed
                 .type_reference_table
                 .insert(TypeReferenceNode::Reference {
                     referee,
                     access,
                     lifetime: None,
-                });
-            (reference, expected_access)
-        });
+                })
+        };
+        let shared_window = reference(bytes, ReferenceAccess::Shared);
+        let mutable_window = reference(bytes, ReferenceAccess::Mutable);
+        let stored_window = reference(mutable_window, ReferenceAccess::Mutable);
+        let element_window = reference(addresses, ReferenceAccess::Shared);
         let entry = MachineId::new(1).unwrap();
         let mut program = Program::new(&typed, false);
-        let checked = written.map(|(reference, _)| {
+        let mut carrier = |reference| {
             let crate::ValueType::Record(carrier, _, _) =
                 program.value_type(entry, reference).unwrap()
             else {
                 panic!("a borrowed slice has structural descriptor storage");
             };
             carrier
-        });
+        };
+        let shared_view = carrier(shared_window);
+        let mutable_view = carrier(mutable_window);
+        let element_view = carrier(element_window);
         program.begin_declaration_storage(entry, 0).unwrap();
         let owned = program.calling_abi_parameter(entry, bytes).unwrap();
         assert_eq!(owned.access, StructuralAccess::Owned);
-        for ((reference, access), carrier) in written.into_iter().zip(checked) {
-            assert_ne!(carrier, owned.structural_type);
+        let direct = |program: &mut Program<'_>, view| {
+            program.direct_byte_window(entry, view).unwrap().unwrap()
+        };
+        let shared_direct = direct(&mut program, shared_view);
+        let mutable_direct = direct(&mut program, mutable_view);
+        // One canonical row per source view, distinct from the view itself.
+        assert_ne!(shared_direct, shared_view);
+        assert_ne!(mutable_direct, mutable_view);
+        assert_eq!(direct(&mut program, mutable_view), mutable_direct);
+        for row in [shared_direct, mutable_direct] {
+            assert_eq!(
+                program.records.get(row).unwrap().shape,
+                crate::StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None
+                })
+            );
+        }
+        for (reference, structural_type, access) in [
+            (shared_window, shared_direct, StructuralAccess::SharedBorrow),
+            (mutable_window, mutable_direct, StructuralAccess::MutableBorrow),
+            (stored_window, mutable_view, StructuralAccess::MutableBorrow),
+            (element_window, element_view, StructuralAccess::SharedBorrow),
+        ] {
+            assert_ne!(structural_type, owned.structural_type);
             assert_eq!(
                 program.calling_abi_parameter(entry, reference).unwrap(),
                 CallingAbiParameter {
-                    structural_type: carrier,
-                    callback_backing: Some(carrier),
+                    structural_type,
+                    callback_backing: Some(structural_type),
                     access,
                 },
             );

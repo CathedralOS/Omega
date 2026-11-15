@@ -90,6 +90,7 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
             position: 0,
             access,
             referent: BorrowedReferent::Slice,
+            descriptor: None,
             regions: Regions::NONE,
             home: None,
         });

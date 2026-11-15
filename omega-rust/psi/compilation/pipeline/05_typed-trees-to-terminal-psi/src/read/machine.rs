@@ -2611,6 +2611,12 @@ impl<'t> Program<'t> {
             }
         }
         let value_type = self.value_type(id, carrier)?;
+        let descriptor = match (referent, value_type) {
+            (BorrowedReferent::Slice, ValueType::Record(view, _, _)) => {
+                self.direct_byte_window(id, view)?
+            }
+            _ => None,
+        };
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require
@@ -2656,6 +2662,7 @@ impl<'t> Program<'t> {
                 position: 0,
                 access,
                 referent,
+                descriptor,
                 regions,
                 home,
             }),

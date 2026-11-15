@@ -232,6 +232,7 @@ impl Program<'_> {
             position: 0,
             access,
             referent: crate::body::BorrowedReferent::Value,
+            descriptor: None,
             regions: expected.regions(),
             home,
         };
@@ -726,6 +727,7 @@ mod tests {
                     position,
                     access: language_core::ReferenceAccess::Shared,
                     referent: crate::body::BorrowedReferent::Value,
+                    descriptor: None,
                     regions: *regions,
                     home: Some("u32".into()),
                 })

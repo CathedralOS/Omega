@@ -561,10 +561,14 @@ impl Lowering<'_> {
                 } else {
                     self.memberships(referent, value_type.qualification())?
                 };
+                // A direct byte window lends bytes, not a descriptor the
+                // callee could replace: it publishes the canonical view with
+                // the access on the parameter. The body keeps reading the
+                // place through the access-bearing row it was read as.
                 formals.records.push(StructuralParameterDeclaration {
                     place,
                     position: lane,
-                    structural_type: referent,
+                    structural_type: borrowed.descriptor.unwrap_or(referent),
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: places::borrowed_access(borrowed.access)
                         .ok_or_else(|| self.internal("a write-only borrowed formal"))?,

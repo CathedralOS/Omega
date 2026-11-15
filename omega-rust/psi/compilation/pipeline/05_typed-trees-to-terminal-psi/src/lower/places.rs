@@ -3788,6 +3788,7 @@ mod tests {
                 position: 0,
                 access: language_core::ReferenceAccess::Shared,
                 referent: crate::body::BorrowedReferent::Value,
+                descriptor: None,
                 regions: crate::body::Regions::NONE,
                 home: Some("plain-u32".into()),
             }],

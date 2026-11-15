@@ -435,7 +435,21 @@ impl Program<'_> {
                             machine,
                         )?
                         .is_some_and(|view| {
-                            view.carrier == carrier && view.identity == declaration.identity
+                            (view.carrier == carrier && view.identity == declaration.identity)
+                                // A direct byte-window formal's canonical
+                                // descriptor names the same source view.
+                                || carrier
+                                    == terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: None,
+                                    }
+                                    && matches!(
+                                        view.carrier,
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                            access: Some(_)
+                                        }
+                                    )
+                                    && super::bytes::direct_window_identity(&view.identity)
+                                        == declaration.identity
                         })
                 } else {
                     carrier.is_shared_readable_view()

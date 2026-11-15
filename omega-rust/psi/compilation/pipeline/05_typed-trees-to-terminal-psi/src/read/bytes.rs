@@ -127,6 +127,13 @@ pub(super) fn source_byte_view(
     }))
 }
 
+/// The identity of the canonical descriptor a direct byte-window formal
+/// publishes for the access-bearing view row named `view`. The two rows keep
+/// distinct identities because they are distinct structural types.
+pub(super) fn direct_window_identity(view: &str) -> String {
+    format!("direct_window({view})")
+}
+
 /// A byte view type as the reader keeps it: the descriptor's carrier, the
 /// identity of its row, and the domains displayed on its referent.
 pub(super) struct SourceByteView {
@@ -218,7 +225,7 @@ impl Program<'_> {
     pub(super) fn is_readable_byte_view(
         &self,
         machine: MachineId,
-        record: semantic_vocabulary::StructuralTypeId,
+        record: StructuralTypeId,
     ) -> Checked<bool> {
         Ok(matches!(
             self.data_type(machine, record)?.shape,
@@ -283,7 +290,7 @@ impl Program<'_> {
         &self,
         machine: MachineId,
         handle: typed_trees::expression::ExpressionHandle,
-        row: semantic_vocabulary::StructuralTypeId,
+        row: StructuralTypeId,
     ) -> Checked<()> {
         let count = semantic_vocabulary::ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -529,6 +536,57 @@ impl Program<'_> {
             ))),
             source,
         })
+    }
+
+    /// The descriptor a direct byte-window formal (`&[u8]`, `&mut [u8]`)
+    /// publishes: the canonical `BorrowedView { access: None }` row, with the
+    /// formal's access kept on the parameter. A loan of a stored view
+    /// (`&mut &mut [u8]`) keeps the access-bearing row instead, so Terminal
+    /// Psi still sees a descriptor the callee may replace and owes it output
+    /// coverage. The body reads the formal through `view`, the access-bearing
+    /// row; only the published formal names this one.
+    pub(super) fn direct_byte_window(
+        &mut self,
+        machine: MachineId,
+        view: StructuralTypeId,
+    ) -> Checked<Option<StructuralTypeId>> {
+        let row = self.data_type(machine, view)?;
+        if !matches!(
+            row.shape,
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: Some(_) })
+        ) {
+            return Ok(None);
+        }
+        let identity = direct_window_identity(&row.identity);
+        let source = self
+            .record_sources
+            .get(view)
+            .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Type("byte view without its source")))?;
+        let application = source.application.clone();
+        let region_owner = source.region_owner;
+        let canonical = StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None });
+        if let Some((id, _)) = self
+            .records
+            .iter()
+            .find(|(_, row)| row.shape == canonical && row.identity == identity)
+        {
+            return Ok(Some(id));
+        }
+        let id = self.records.push(RecordType {
+            owns_linear_claim: false,
+            copyable: false,
+            identity,
+            shape: canonical,
+            requires: Vec::new(),
+        });
+        self.record_sources.push(RecordSource {
+            declaration: SymbolHandle::invalid(),
+            application,
+            region_owner,
+            fields: Vec::new(),
+            cases: Vec::new(),
+        });
+        Ok(Some(id))
     }
 
     /// Whether the type is a borrowed byte or typed view. Its complete

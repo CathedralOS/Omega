@@ -607,6 +607,11 @@ pub struct Borrowed {
     pub access: language_core::ReferenceAccess,
     /// The authored referent, before slice references become descriptor types.
     pub referent: BorrowedReferent,
+    /// The canonical descriptor a direct byte window publishes as its
+    /// structural formal, with `access` on the parameter. `None` publishes
+    /// the referent's own row: a loan of a stored value, including a stored
+    /// view the callee may replace.
+    pub descriptor: Option<semantic_vocabulary::StructuralTypeId>,
     /// The outer loan region, kept apart from any regions inside the
     /// referent. Returning a reference must preserve this actual input.
     pub regions: Regions,
