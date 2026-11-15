@@ -154,6 +154,21 @@ fn an_owned_field_window_keeps_its_loan_after_the_carrier_moves() {
     rejected(&program(""), NOT_RESTORED);
 }
 
+/// A replacement is evaluated before the overwritten field gives up its
+/// permission. Disposing a dead carrier earlier would make this second
+/// exclusive borrow appear valid while the first still occupies the field.
+#[test]
+fn a_field_replacement_keeps_the_old_loan_during_rhs_evaluation() {
+    rejected(
+        "data Held<'storage> { item: &'storage mut Inner; }\n\
+         machine replace(owner: &mut Inner) {\n\
+             let mut held: Held = Held { item: &mut owner };\n\
+             held.item = &mut owner;\n\
+         }\n",
+        "TwiceExclusive",
+    );
+}
+
 #[test]
 fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
     let source = format!(
@@ -178,19 +193,26 @@ fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
                 .any(|operation| matches!(operation.kind, OperationKind::ReleaseReference { .. }))
         })
         .expect("the source contains an actual release");
-    let release = block
+    let observation = block
         .operations
         .iter()
-        .position(|operation| matches!(operation.kind, OperationKind::ReleaseReference { .. }))
-        .unwrap();
-    assert!(matches!(
-        block.operations[release + 1].kind,
-        OperationKind::ScalarStructuralField { .. }
-    ));
+        .rposition(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::ScalarStructuralField { .. }
+                    | OperationKind::PrimitiveScalarRead { .. }
+            )
+        })
+        .expect("the source observes its parent's scalar field");
+    let release = block.operations[..observation]
+        .iter()
+        .rposition(|operation| matches!(operation.kind, OperationKind::ReleaseReference { .. }))
+        .expect("the parent observation follows its final reference release");
     // Keep the same operations, custody and final cleanup, but move the
     // release after the parent observation. Future-use liveness is identical
     // at that observation; actual permission custody is not.
-    block.operations.swap(release, release + 1);
+    let delayed = block.operations.remove(release);
+    block.operations.insert(observation, delayed);
     elaboration.module.unoptimized_behavior = elaboration
         .module
         .machines
@@ -199,7 +221,9 @@ fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
         .collect();
     let outcome = judge(Ok(elaboration)).unwrap();
     assert!(
-        matches!(outcome, RouteVerdict::Rejected { ref conflicts, .. } if !conflicts.is_empty()),
+        matches!(outcome, RouteVerdict::Rejected { ref conflicts, .. }
+            if conflicts.iter().any(|conflict|
+                matches!(conflict.conflict, crate::LoanConflict::ObserveWhileExclusive))),
         "{outcome:?}"
     );
 }

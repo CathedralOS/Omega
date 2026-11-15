@@ -3768,12 +3768,19 @@ pub(crate) mod engine {
                 if current.path.is_empty() && !borrowed {
                     return Some(StorageResolution::Unique(current));
                 }
-                let aliases_backing = borrowed
-                    || matches!(
-                        find_structural_type(self.types, root_type)?.shape,
-                        StructuralTypeShape::Reference { .. }
-                    )
-                    || is_descriptor(self.types.iter(), root_type);
+                // A machine parameter names the lender's original home. A
+                // whole-value store replaces its contents, not that address;
+                // following the stored value would retarget retained loans to
+                // the consumed replacement. Block arrivals do transport their
+                // backing address, as do actual descriptor values.
+                let aliases_backing = matches!(
+                    definition,
+                    DescriptorDefinition::Arrival { access }
+                        if *access != StructuralAccess::Owned
+                ) || matches!(
+                    find_structural_type(self.types, root_type)?.shape,
+                    StructuralTypeShape::Reference { .. }
+                ) || is_descriptor(self.types.iter(), root_type);
                 // An Incoming origin names the entry value, not whatever its
                 // original descriptor home holds after a later reassignment.
                 let captured_crossing = captured_entry

@@ -15,7 +15,8 @@ use terminal_psi::{
 
 use crate::descriptor_lifetimes::{
     DescriptorFlowStep, DescriptorLifetime, DescriptorLocation, DescriptorPosition,
-    descriptor_entry_lifetime, descriptor_location, descriptor_location_lifetime, descriptor_path,
+    descriptor_entry_lifetime, descriptor_location, descriptor_location_lifetime,
+    descriptor_location_type, descriptor_path,
 };
 use crate::descriptor_results::{
     DescriptorAnalysis, DescriptorSlotKind, terminal_reference_graph_from,
@@ -435,11 +436,14 @@ fn store_demands(
     analysis: &mut DescriptorAnalysis<'_>,
     flow: &mut Flow,
 ) -> Result<(), Error> {
+    let reverse = reverse_flow(flow);
+    let mut pins = Vec::new();
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
             let OperationKind::StoreStructuralField {
                 destination,
                 path,
+                field,
                 value,
                 ..
             } = &operation.kind
@@ -479,12 +483,100 @@ fn store_demands(
             }
             inputs.sort();
             inputs.dedup();
+            let root_type = machine
+                .structural_place_type(*destination)
+                .ok_or(Error::at(
+                    at,
+                    "reference store destination has no root type",
+                ))?;
+            let receiver = descriptor_location(
+                &module.structural_types,
+                *destination,
+                root_type,
+                path,
+                *field,
+            )
+            .ok_or(Error::at(at, "reference store destination is unresolved"))?;
+            let receiver_type =
+                descriptor_location_type(&module.structural_types, root_type, &receiver.path)
+                    .ok_or(Error::at(
+                        at,
+                        "reference store destination type is unresolved",
+                    ))?;
+            let leaves = DescriptorSlotKind::References
+                .slots(&module.structural_types, receiver.root, receiver_type)
+                .ok_or(Error::at(
+                    at,
+                    "reference store has no finite leaf inventory",
+                ))?;
+            // The displaced permissions remain held during RHS evaluation.
+            // Demand them at the immediate predecessor, leaving the cut before
+            // the store available for their actual release. Inverting the
+            // existing transfers also covers a replacement arriving at a join.
+            for predecessor in reverse.get(&at).into_iter().flatten() {
+                let step = flow
+                    .get(predecessor)
+                    .ok_or(Error::at(at, "reference store predecessor is absent"))?;
+                for edge in step.successors.iter().filter(|edge| edge.target == at) {
+                    for leaf in &leaves {
+                        let mut selected = receiver.clone();
+                        selected.path.extend_from_slice(&leaf.path);
+                        let backing = analysis
+                            .location(machine.id, at, &selected)
+                            .ok_or(Error::at(at, "displaced reference storage is unresolved"))?;
+                        for location in BTreeSet::from([selected, backing]) {
+                            let before_edge = before_transfer(
+                                &location,
+                                edge.parameters.iter().chain(&edge.definitions),
+                                edge.derivations(),
+                            );
+                            for location in before_edge {
+                                pins.push((
+                                    *predecessor,
+                                    before_transfer(
+                                        &location,
+                                        step.definitions.iter(),
+                                        step.authority_derivations
+                                            .iter()
+                                            .map(|(source, target)| (source, target)),
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
             flow.get_mut(&at)
                 .ok_or(Error::at(at, "reference store has no flow cut"))?
                 .inputs = inputs;
         }
     }
+    for (at, locations) in pins {
+        let inputs = &mut flow
+            .get_mut(&at)
+            .ok_or(Error::at(at, "replacement evaluation cut is absent"))?
+            .inputs;
+        inputs.extend(locations);
+        inputs.sort();
+        inputs.dedup();
+    }
     Ok(())
+}
+
+fn before_transfer<'a>(
+    location: &DescriptorLocation,
+    definitions: impl Iterator<Item = &'a DescriptorLocation>,
+    derivations: impl Iterator<Item = (&'a DescriptorLocation, &'a DescriptorLocation)>,
+) -> Names {
+    let mut before = Names::new();
+    if !definitions
+        .into_iter()
+        .any(|defined| defined.contains(location))
+    {
+        before.insert(location.clone());
+    }
+    before.extend(derivations.filter_map(|(source, target)| location.transported(target, source)));
+    before
 }
 
 fn transfer(
@@ -569,6 +661,10 @@ fn reverse_flow(flow: &Flow) -> ReverseFlow {
         for edge in &step.successors {
             reverse.entry(edge.target).or_default().push(*position);
         }
+    }
+    for predecessors in reverse.values_mut() {
+        predecessors.sort_unstable();
+        predecessors.dedup();
     }
     reverse
 }
