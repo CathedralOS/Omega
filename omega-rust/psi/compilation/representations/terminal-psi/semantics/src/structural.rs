@@ -4733,6 +4733,24 @@ pub(crate) mod structural_effect {
         ) -> Option<ScalarType> {
             element_view_leaf(types, element, path).map(|leaf| leaf.scalar_type)
         }
+        /// A by-value read copies a statically selected scalar from its element.
+        pub fn element_view_read_scalar(
+            types: &[StructuralTypeDeclaration],
+            element: StructuralTypeId,
+            path: &[StructuralPathSegment],
+        ) -> Option<ScalarType> {
+            if !terminal_psi::find_structural_type(types, element)?.copyable
+                || !path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                    )
+                })
+            {
+                return None;
+            }
+            element_view_leaf_scalar(types, element, path)
+        }
         pub fn element_view_write_goal(
             types: &[StructuralTypeDeclaration],
             element: StructuralTypeId,
@@ -4762,7 +4780,8 @@ pub(crate) mod structural_effect {
     pub use byte_extent::{literal_length_equation, subslice_length_equation};
     pub use element_extent::{
         ElementViewLeaf, element_establishment_length_equation, element_subslice_length_equation,
-        element_view_leaf, element_view_leaf_scalar, element_view_write_goal,
+        element_view_leaf, element_view_leaf_scalar, element_view_read_scalar,
+        element_view_write_goal,
     };
 
     use crate::OperationSemanticError;

@@ -1962,6 +1962,9 @@ impl<'a> Storage<'a> {
                 }
                 | OperationKind::StructuralByteSequenceFieldRead {
                     obligation: owned, ..
+                }
+                | OperationKind::ElementViewRead {
+                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
@@ -1969,7 +1972,7 @@ impl<'a> Storage<'a> {
                             self.foreign(concerns, "a byte operation owns another obligation")
                         );
                     }
-                    return self.byte_element_goal(operation, types);
+                    return self.collection_index_goal(operation, types);
                 }
                 operation.kind.structural_projections()
             }
@@ -2030,7 +2033,7 @@ impl<'a> Storage<'a> {
     /// Reads and writes prove their bound against the exact descriptor
     /// measured immediately before use. A write additionally needs exclusive
     /// backing access; neither an equal count nor another view supplies it.
-    fn byte_element_goal(
+    fn collection_index_goal(
         &self,
         operation: &Operation,
         types: &IdTable<ValueId, ScalarType>,
@@ -2040,6 +2043,7 @@ impl<'a> Storage<'a> {
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
                 .expect("u8 is valid"),
         );
+        let element_read = matches!(operation.kind, OperationKind::ElementViewRead { .. });
         let (source, index, length) = match &operation.kind {
             OperationKind::ByteSequenceRead {
                 source,
@@ -2103,6 +2107,42 @@ impl<'a> Storage<'a> {
                     *length,
                 )
             }
+            OperationKind::ElementViewRead {
+                source,
+                index,
+                length,
+                path,
+                ..
+            } => {
+                let root = self.root_type(*source, concerns)?;
+                let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
+                    self.declaration(root, concerns)?.shape
+                else {
+                    return Err(self.foreign(concerns, "an element read needs a declared view"));
+                };
+                if operation.result.scalar_ref().is_none_or(|result| {
+                    terminal_semantics::element_view_read_scalar(self.types, element, path)
+                        != Some(result.scalar_type)
+                }) {
+                    return Err(
+                        self.foreign(concerns, "an element read needs a copyable scalar leaf")
+                    );
+                }
+                let source = StructuralArgument::whole(
+                    *source,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                );
+                if terminal_semantics::structural_projection_authority(
+                    self.lowered,
+                    self.types,
+                    &source,
+                )
+                .is_none_or(|access| !access.admits_referent(source.access))
+                {
+                    return Err(self.foreign(concerns, "an element read needs a readable view"));
+                }
+                (source, *index, *length)
+            }
             _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
         };
         let (block, after) = self
@@ -2127,7 +2167,11 @@ impl<'a> Storage<'a> {
         if !measured {
             return Err(self.unsupported(
                 concerns,
-                "a byte operation whose length is not its view's measurement directly before it",
+                if element_read {
+                    "an element read whose length is not its view's measurement directly before it"
+                } else {
+                    "a byte operation whose length is not its view's measurement directly before it"
+                },
             ));
         }
         let count = ScalarType::Integer(
@@ -2135,7 +2179,14 @@ impl<'a> Storage<'a> {
                 .expect("u64 is valid"),
         );
         if types.get(index).copied() != Some(count) || types.get(length).copied() != Some(count) {
-            return Err(self.foreign(concerns, "a byte operation's index or length is not a u64"));
+            return Err(self.foreign(
+                concerns,
+                if element_read {
+                    "an element read's index or length is not a u64"
+                } else {
+                    "a byte operation's index or length is not a u64"
+                },
+            ));
         }
         terminal_semantics::operation_safety_goal(operation, types)
             .map_err(crate::semantics_refusal(self.machine, operation.id))?

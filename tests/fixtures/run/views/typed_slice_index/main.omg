@@ -1,0 +1,29 @@
+// Expected exit: 0
+// Each read uses the current length of the exact borrowed slice.
+data Ticket [copy] { number: u32; }
+
+machine scalar_at(numbers: &[u32], index: u64) -> u32
+    requires index < numbers.len
+{
+    numbers[index]
+}
+
+machine ticket_number(tickets: &[Ticket]) -> u32 {
+    transition tickets.len >= 1 {
+        true -> tickets[0].number
+        _ -> 0
+    }
+}
+
+machine main() crashes Trap {
+    let numbers: [u32; 2] = [11u32, 19u32];
+    let tickets: [Ticket; 2] = [Ticket { number: 29u32 }, Ticket { number: 31u32 }];
+    let number: u32 = scalar_at(&numbers[..], 1);
+    let ticket: u32 = ticket_number(&tickets[..]);
+    transition number == 19 && ticket == 29 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

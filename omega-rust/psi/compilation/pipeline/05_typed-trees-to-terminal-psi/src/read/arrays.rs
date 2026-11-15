@@ -440,11 +440,19 @@ impl Program<'_> {
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
         let (element, qualification, extent) = self.array_element(machine, array)?;
-        if !matches!(extent, CollectionExtent::Fixed(_)) {
+        let stored_length = matches!(extent, CollectionExtent::StoredLength);
+        if stored_length && access != Access::Read {
             return Err(refuse(
                 machine,
                 Construct::Machine,
                 Unserved::Typing("sequence index needs its current length and bounds judgment"),
+            ));
+        }
+        if stored_length && !self.data_type(machine, element)?.copyable {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("copying a slice element requires a copyable element type"),
             ));
         }
         let regions = base
@@ -462,6 +470,21 @@ impl Program<'_> {
                 Unserved::Type("u64 index carrier"),
             )
         })?;
+        if stored_length {
+            let operands = self.collection_index_operand_types(machine, array.record());
+            if !typed_trees::operator::builtin_index_read_is_spelled(
+                self.typed,
+                self.lifetime_owner,
+                handle,
+                &operands,
+            ) {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Typing("slice index without its selected core operation"),
+                ));
+            }
+        }
         let index = self.expression(
             machine,
             slots,
@@ -477,6 +500,15 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
                 Unserved::Typing("array index is not a fixed integer"),
+            ));
+        }
+        if stored_length
+            && index.result.and_then(ValueType::scalar) != Some(ScalarType::Integer(index_type))
+        {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("slice index that is not a u64"),
             ));
         }
         Ok(Expression {

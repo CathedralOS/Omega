@@ -14423,33 +14423,36 @@ pub mod descriptor_results {
                             path,
                             ..
                         } => {
-                            let result = result?;
-                            let mut selected = vec![StructuralPathSegment::RuntimeIndex {
-                                index: *index,
-                                obligation: *obligation,
-                            }];
-                            selected.extend_from_slice(path);
-                            graph.contents_transfers.insert(
-                                position,
-                                descriptor_contents_transfers(
-                                    &module.structural_types,
-                                    slot_kind,
-                                    DescriptorContentsOperand {
-                                        root: *source,
-                                        root_type: *graph.place_types.get(source)?,
-                                        path: &selected,
-                                        field: None,
-                                    },
-                                    DescriptorContentsOperand {
-                                        root: result.place,
-                                        root_type: result.structural_type,
-                                        path: &[],
-                                        field: None,
-                                    },
-                                    result.structural_type,
-                                    false,
-                                )?,
-                            );
+                            if let Some(result) = result {
+                                let mut selected = vec![StructuralPathSegment::RuntimeIndex {
+                                    index: *index,
+                                    obligation: *obligation,
+                                }];
+                                selected.extend_from_slice(path);
+                                graph.contents_transfers.insert(
+                                    position,
+                                    descriptor_contents_transfers(
+                                        &module.structural_types,
+                                        slot_kind,
+                                        DescriptorContentsOperand {
+                                            root: *source,
+                                            root_type: *graph.place_types.get(source)?,
+                                            path: &selected,
+                                            field: None,
+                                        },
+                                        DescriptorContentsOperand {
+                                            root: result.place,
+                                            root_type: result.structural_type,
+                                            path: &[],
+                                            field: None,
+                                        },
+                                        result.structural_type,
+                                        false,
+                                    )?,
+                                );
+                            } else if operation.result.scalar_ref().is_none() {
+                                return None;
+                            }
                         }
                         OperationKind::EstablishRecord { fields }
                         | OperationKind::EstablishStructuralCase { fields, .. } => {

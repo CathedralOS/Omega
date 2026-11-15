@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Three diagnostic tests still expect ordinary float literals to be refused
+- Category: tests that pin the bug
+- Where: [grouped machine diagnostics](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/every_refusal.rs) (`THREE_HELPERS`)
+- Saw: The three Stage06 tests for individual, grouped and direct body refusal still use valid `f64` local literals as the source of each error. Since [float literals began to compile](https://github.com/CathedralOS/Omega/pull/3520), the clean `dcc251db7f2` macOS arm64 suite reaches a successful elaboration and no refusals for those bodies. The tests for a refused signature and unplanned lowering in the same module still pass.
+- Cost: This fixture no longer checks whether each body yields the same diagnostic alone and in a group, or whether the direct reader stops at the first. Use a body form that still produces the intended refusal and keep the ordering and identity assertions.
+- Reported: 2026-11-15, Codex, while running the Stage06 suite for typed slice indexing.
+
 ### A computed array extent blocks a layout constant before target evaluation
 - Category: knowledge crossing a boundary
 - Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [deferred type references](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L158), [checked const arguments](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs#L216)
@@ -158,12 +165,12 @@ framework or a list of unimplemented features.
 - Cost: Route ordinary callable arguments and named transition calls through the existing binder check and exact source application. Generalize the retained reach dependency to preserve the originating open or finite bound across production and readback. An empty finite bound cannot stand for omitted reach.
 - Reported: 2026-11-15, Codex, macOS arm64, while carrying the static callback witness into a saved Psi artifact.
 
-### A typed slice refuses indexing after proving its live extent
+### A typed slice stored in a field cannot use its own bounds to index
 - Category: branch per shape
-- Where: [typed collection reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L442), [collection access contract](wiki/spec/language/expressions.md#indexing-and-ranges)
-- Saw: On macOS arm64 on clean `a532f60be46`, the same fixed Ticket array supports a native and Psi typed-slice length read and an indexed read through a fixed-array reference. Its borrowed `&[Ticket]` indexed read refuses before discharge when `requires tickets.len >= 1` proves index 0, and when the same fact is established by a local branch. The source reader rejects every extent other than a fixed literal.
-- Cost: The checker cannot use ordinary contract or branch evidence to read through a typed slice's own descriptor. Feed its exact path, current length and index into the existing checked access operation. Keep an out-of-bounds index and a bound from another slice refused.
-- Reported: 2026-11-15, Codex, while checking native backing for owned record sequences.
+- Where: [scalar element read lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs) (`read_projected_scalar`), [element view operations](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views)
+- Saw: The [typed slice fixture](tests/fixtures/run/views/typed_slice_index/main.omg) checks a scalar element and a copyable record field using their own descriptor lengths. In a separate macOS arm64 probe, `windows: &Windows` observes `windows.observed.len`, where `observed: &'buffer [u32]`. With `windows.observed.len >= 1`, `windows.observed[0]` still refuses with “slice read without a whole descriptor.” Returning a scalar literal in the guarded arm runs with native and Psi exit 0 using the same record construction, loan and length read.
+- Cost: A guarded read loses the descriptor's projected path at the scalar operation. Preserve the same storage and length through its existing exact descriptor access. Keep a sibling descriptor's bound and a non-copy element read refused.
+- Reported: 2026-11-15, Codex, while checking native backing for owned record sequences. Narrowed after replaying whole descriptors and projected length.
 
 ### Console reload treats a mutable byte window as a replaceable descriptor
 - Category: knowledge crossing a boundary

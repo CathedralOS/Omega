@@ -6290,7 +6290,7 @@ pub(crate) mod storage_foundations {
             terminal_graph_from,
         };
         use terminal_semantics::{
-            collection_backing, collection_view_descriptor, element_view_leaf_scalar,
+            collection_backing, collection_view_descriptor, element_view_read_scalar,
         };
 
         fn element_view_result_place(
@@ -6523,9 +6523,11 @@ pub(crate) mod storage_foundations {
             }) else {
                 return malformed("element-view read requires an element-view source");
             };
-            let Some(expected) = element_view_leaf_scalar(&module.structural_types, element, path)
+            let Some(expected) = element_view_read_scalar(&module.structural_types, element, path)
             else {
-                return malformed("element-view read requires a scalar element leaf");
+                return malformed(
+                    "element-view read requires a static scalar leaf of a copyable element",
+                );
             };
             if operation
                 .result
