@@ -196,10 +196,13 @@ impl RealizedTargetSupply {
             }
             let mut matches = module.boundary_machines.iter().filter(|boundary| {
                 boundary.declaration.as_ref().is_some_and(|declaration| {
-                    module
-                        .identities
-                        .text(declaration.source.machine.identity())
-                        == Some(leaf.declaration_identity.as_str())
+                    module.identities.text(
+                        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
+                            declaration.source.semantic_declaration
+                        } else {
+                            declaration.source.machine.identity()
+                        },
+                    ) == Some(leaf.declaration_identity.as_str())
                         && module.identities.text(declaration.source.callable)
                             == Some(leaf.callable_identity.as_str())
                 })
@@ -207,6 +210,31 @@ impl RealizedTargetSupply {
             let (Some(boundary), None) = (matches.next(), matches.next()) else {
                 return Err("direct leaf has no unique checked boundary declaration".into());
             };
+            if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
+                leaf.validate_plain_execution(
+                    module,
+                    &input.evaluated_native_bindings,
+                    &input.evaluated_binding_identities,
+                )?;
+                let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &leaf.execution
+                else {
+                    return Err("plain native requirement lost its completed execution".into());
+                };
+                if input
+                    .external_bindings
+                    .iter()
+                    .filter(|row| {
+                        row.requirement_identity == binding.requirement_identity
+                            && row.target_name == input.target
+                    })
+                    .count()
+                    != 1
+                    || !input.external_bindings.contains(binding)
+                {
+                    return Err("plain native leaf changes its retained external binding".into());
+                }
+                continue;
+            }
             let declared = boundary
                 .declaration
                 .as_ref()

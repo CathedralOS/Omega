@@ -6,6 +6,9 @@
 //! settled supply on into the selected execution a product reads and check
 //! the produced program's target-local conditions against it.
 
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
 use build_time_evaluation::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
@@ -563,6 +566,7 @@ fn execution_inputs(
     compiler::prepare_provider_execution_inputs(
         publication,
         &sources,
+        &[], // This fixture executes no Build or dependency-native supplies.
         profile,
         &reached,
         &mut source_compiler::UnmeasuredProduction,
@@ -1005,4 +1009,125 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
             .unwrap_err(),
         "boundary requirement `Service::go` has no provider on target `linux_x86_64`: the Build selects none and the target package declares no default"
     );
+}
+
+/// Real dependency Build execution supplies the raw Console write binding.
+/// The receiver must keep its complete checked method and reject a locator
+/// receipt or Calling identity associated with any other requirement.
+#[test]
+fn a_completed_plain_binding_keeps_its_receipt_and_calling_identity() {
+    let workspace = fixture_package_inputs::repo_root()
+        .join("build")
+        .join(format!(
+            "omega-plain-boundary-native-receipts-{}",
+            std::process::id()
+        ));
+    let _ = std::fs::remove_dir_all(&workspace);
+    std::fs::create_dir_all(&workspace).unwrap();
+    let main = workspace.join("main.omg");
+    std::fs::write(
+        &main,
+        r#"
+use omega_language_std::Console;
+machine main() reaches Console crashes none { Console::write_byte(65); }
+"#,
+    )
+    .unwrap();
+    let standard = fixture_package_inputs::bundled_standard_library_root();
+    let standard = standard
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    std::fs::write(
+        workspace.join("build.omg"),
+        format!(
+            r#"
+machine build(builder: &mut Build) {{
+    Build::application(builder, "plain_boundary_native_receipts");
+    let standard: DependencyRegistration = Build::dependency(builder,
+        dependency::from_source(Source::Path {{ location: "{standard}" }}));
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}}
+"#
+        ),
+    )
+    .unwrap();
+    let profile = target::TargetProfile::host_if_supported().expect("hosted owner control");
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+                &main, Some(profile.target_name()),
+            )?;
+            let checked = fixture_package_inputs::check_fixture(
+                &mut prepared, profile.target_name(), Default::default(),
+            )?;
+            let accepted = checked.terminal_publication().accepted()?;
+            let module = accepted.module();
+            let realization = checked.execution().realization();
+            let mut leaves = realization.direct_boundary_leaves().iter().filter(|leaf|
+                matches!(&leaf.execution, backend_plan::DirectBoundaryExecution::Foreign(Ok(binding))
+                    if binding.method == "write"));
+            let leaf = leaves.next().expect("the actual Console wrapper reaches its raw write");
+            assert!(leaves.next().is_none(), "one target has one exact raw write");
+            let mut boundaries = module.boundary_machines.iter().filter(|boundary|
+                module.identities.text(boundary.identity)
+                    == Some(leaf.satisfied_requirement_identity.as_str()));
+            let boundary = boundaries.next().expect("the original raw requirement is retained");
+            assert!(boundaries.next().is_none());
+            let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary.id)
+                .expect("the raw requirement retains its complete public schema");
+            assert_eq!(leaf.satisfied_schema.declaration.as_ref(), schema.surface.as_ref());
+            let formals = boundary.scalar_contract_parameters().unwrap();
+            let count = formals.last().expect("the raw count is the last scalar formal");
+            let count = semantic_vocabulary::ScalarTerm::value(count.id, count.scalar_type);
+            fn bounds_count_at_four(
+                clause: &semantic_vocabulary::Proposition,
+                count: &semantic_vocabulary::ScalarTerm,
+            ) -> bool {
+                match clause {
+                    semantic_vocabulary::Proposition::LessOrEqual(left, right) =>
+                        left == count && right.integer_value().is_some_and(|(_, value)| matches!(value,
+                            semantic_vocabulary::IntegerValue::Unsigned(4)
+                                | semantic_vocabulary::IntegerValue::Signed(4))),
+                    semantic_vocabulary::Proposition::Conjunction(clauses) =>
+                        clauses.iter().any(|clause| bounds_count_at_four(clause, count)),
+                    _ => false,
+                }
+            }
+            assert!(boundary.scalar_requires.iter().any(|clause| bounds_count_at_four(clause, &count)),
+                "the actual count <= 4 requirement must remain on the checked boundary");
+            leaf.validate_plain_execution(module, realization.evaluated_native_bindings(),
+                realization.evaluated_binding_identities()).unwrap();
+
+            let source = accepted.closure().elaboration.boundaries.get(boundary.id)
+                .expect("the binding has its exact source correspondence");
+            let supply = checked.build().config.native_bindings.iter().find(|supply|
+                supply.selection.requirement == *source
+                    && supply.selection.target.canonical_name() == profile.target_name())
+                .expect("the dependency Build produced the actual selected locator");
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            let wrong = provider_planning::native_bindings::normalize_native_binding(
+                supply, "wrong-requirement-for-the-same-completed-locator", &mut identities,
+            ).unwrap();
+            let refusal = leaf.validate_plain_execution(module, &[wrong], &identities.build())
+                .expect_err("a completed locator for another requirement is not this supply");
+            assert!(refusal.contains("unique completed Build locator receipt"), "{refusal}");
+
+            let mut wrong = leaf.clone();
+            let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
+                panic!("the selected plain leaf is foreign")
+            };
+            binding.calling_applications.first_mut().expect("actual Calling result")
+                .abi.requirement_identity.push_str("::wrong");
+            let refusal = wrong.validate_plain_execution(module,
+                realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
+                .expect_err("an unrelated Calling ABI cannot execute this requirement");
+            assert!(refusal.contains("public declaration ABI"), "{refusal}");
+            Ok::<(), Vec<diagnostics::Diagnostic>>(())
+        }).unwrap().join().unwrap()
+    }).unwrap_or_else(|refused| panic!("completed plain binding: {refused:?}"));
+    std::fs::remove_dir_all(workspace).unwrap();
 }

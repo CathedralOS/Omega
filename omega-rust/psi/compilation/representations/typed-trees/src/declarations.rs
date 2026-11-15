@@ -105,6 +105,7 @@ pub mod boundary_completions {
         let external = program.traits().iter().any(|definition| {
             exact_process_exit_requirement(program, definition, requirement, false)
                 || exact_process_exit_requirement(program, definition, requirement, true)
+                || exact_console_exit_primitive(program, definition, requirement)
         });
         if external {
             BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
@@ -169,6 +170,55 @@ pub mod boundary_completions {
                     signature.return_type,
                 )
         })
+    }
+
+    fn exact_console_exit_primitive(
+        program: &TypedTrees,
+        definition: &crate::trait_definition::TraitDefinition,
+        requirement: SymbolHandle,
+    ) -> bool {
+        if !program.symbols.symbols().nodes().is_valid(requirement)
+            || !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(definition.symbol)
+            || !definition.is_boundary
+            || definition.is_public
+            || !definition.lifetime_parameters.is_empty()
+            || !program.trait_type_parameters(definition).is_empty()
+            || !definition.conformance_bounds.is_empty()
+            || !definition.refinement_clauses.is_empty()
+            || program
+                .symbols
+                .sealed_member_intrinsic(definition.symbol, "exit_process")
+                != Some(language_core::sealed_intrinsics::SealedIntrinsic::ConsoleExitPrimitive)
+        {
+            return false;
+        }
+        let [signature] = program.trait_machine_signatures(definition) else {
+            return false;
+        };
+        signature.symbol == requirement
+            && signature.name.as_str() == "exit_process"
+            && signature.lifetime_parameters.is_empty()
+            && program
+                .state_signature_type_parameters(signature)
+                .is_empty()
+            && signature.native_callback_parameters.is_empty()
+            && signature.invokes.is_empty()
+            && !signature.suspends
+            && !signature.blocks
+            && signature.declares_no_crash_route
+            && program
+                .state_signature_parameters(signature)
+                .iter()
+                .all(|parameter| !parameter.relevance.is_erased())
+            && exact_direct_intrinsic_signature(
+                program,
+                program.state_signature_parameters(signature),
+                signature.return_type,
+            )
     }
 
     pub fn valid_boundary_completion_declaration(

@@ -380,6 +380,8 @@ fn direct_leaves(
     target: &str,
     calling: &[calling_conventions::BoundaryCallingApplication],
     external: &[calling_conventions::ExternalBindingRow],
+    evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+    evaluated_identities: &terminal_psi::TerminalIdentityTable,
     reached: &[BoundaryMachineId],
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, String> {
     let mut leaves = Vec::new();
@@ -563,6 +565,86 @@ fn direct_leaves(
                 .map_err(|error| error.message)?,
         );
     }
+    for &id in reached {
+        let boundary = module
+            .boundary_machine(id)
+            .ok_or("plain native demand names an absent boundary")?;
+        if boundary.kind != semantic_vocabulary::BoundaryRequirementKind::Trait {
+            continue;
+        }
+        let requirement = text(module, boundary.identity)?;
+        let mut bindings = external
+            .iter()
+            .filter(|row| row.target_name == target && row.requirement_identity == requirement);
+        let Some(binding) = bindings.next() else {
+            continue;
+        };
+        if bindings.next().is_some() {
+            return Err("plain native requirement has competing retained external bindings".into());
+        }
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, id)?;
+        let mut receipts = evaluated.iter().filter(|row| {
+            row.target().target_name() == target
+                && row.receipt().build_origin().is_some_and(|origin| {
+                    evaluated_identities.text(origin.requirement_identity) == Some(requirement)
+                })
+        });
+        let (Some(receipt), None) = (receipts.next(), receipts.next()) else {
+            return Err("plain native requirement has no unique evaluated Build supply".into());
+        };
+        let mut methods = schema.surface.methods.iter().filter(|method| {
+            schema.surface.identity_text(method.requirement_identity) == requirement
+        });
+        let (Some(method), None) = (methods.next(), methods.next()) else {
+            return Err("plain native requirement lost its exact complete service method".into());
+        };
+        let mut signatures = module
+            .calling_abi_signatures
+            .iter()
+            .filter(|signature| signature.requirement_identity == boundary.identity);
+        let (Some(signature), None) = (signatures.next(), signatures.next()) else {
+            return Err(
+                "plain native requirement needs its exact published declaration ABI".into(),
+            );
+        };
+        let mut schema_value = ServiceSchema::from_declaration(Arc::clone(&schema.surface));
+        attach_calling(&mut schema_value, target, calling)?;
+        let mut identities = ProviderIdentityTable::default();
+        let requirement_id = identities.intern(requirement);
+        let original = ProviderPlan {
+            name: format!("direct-build:{target}:{requirement}"),
+            target: target.to_owned(),
+            schema: schema_value,
+            identities,
+            rows: vec![ProviderPlanRow {
+                method: method.name.clone(),
+                requirement_identity: requirement_id,
+                declared_requirement_identity: requirement_id,
+                calling_signature: Some(signature.id),
+                requirement_lifetime_partition: Vec::new(),
+                admitted_same_stack_bytes: 0,
+                binding: receipt.provider_binding(),
+            }],
+            origin_package_identity: receipt.receipt().producer_package(),
+            origin_package: text(module, boundary.owner.identity())?.to_owned(),
+            ..ProviderPlan::default()
+        };
+        let input = crate::DirectBoundaryInput::from_boundary(
+            module,
+            id,
+            crate::DirectBoundaryMechanism::Foreign(Ok(binding.clone())),
+        )
+        .map_err(|error| error.message)?;
+        let leaf = input
+            .finish(
+                &original,
+                backend_plan::DirectBoundaryExecution::Foreign(Ok(binding.clone())),
+            )
+            .map_err(|error| error.message)?;
+        leaf.validate_plain_execution(module, evaluated, evaluated_identities)?;
+        leaves.push(leaf);
+    }
+
     Ok(leaves)
 }
 
@@ -628,6 +710,8 @@ pub(super) fn realize_target_supply_detailed(
         request.target,
         &request.calling_applications,
         &request.external_bindings,
+        &request.evaluated_native_bindings,
+        &request.evaluated_binding_identities,
         request.reached,
     )?;
     for (ordinal, boundary) in request.reached.iter().enumerate() {
@@ -639,10 +723,15 @@ pub(super) fn realize_target_supply_detailed(
             .and_then(|boundary| boundary.declaration.as_ref())
             .ok_or("reached boundary has no genuine checked declaration")?;
         if !direct_boundary_leaves.iter().any(|leaf| {
-            module
-                .identities
-                .text(declaration.source.machine.identity())
-                == Some(leaf.declaration_identity.as_str())
+            module.identities.text(
+                if module.boundary_machine(*boundary).is_some_and(|row| {
+                    row.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
+                }) {
+                    declaration.source.semantic_declaration
+                } else {
+                    declaration.source.machine.identity()
+                },
+            ) == Some(leaf.declaration_identity.as_str())
                 && module.identities.text(declaration.source.callable)
                     == Some(leaf.callable_identity.as_str())
         }) {

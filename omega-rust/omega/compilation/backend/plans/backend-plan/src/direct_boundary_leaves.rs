@@ -22,6 +22,99 @@ pub enum DirectBoundaryExecution {
 }
 
 impl DirectBoundaryLeaf {
+    /// The complete source-issued application owning a directly bound raw
+    /// requirement. A native machine realization uses its conformance instead.
+    pub fn declared_schema(
+        module: &terminal_psi::TerminalModule,
+        id: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<&terminal_psi::TerminalServiceSchema, String> {
+        let boundary = module
+            .boundary_machine(id)
+            .ok_or("direct binding names an absent boundary")?;
+        if boundary.kind != semantic_vocabulary::BoundaryRequirementKind::Trait
+            || boundary.role != terminal_psi::BoundaryDeclarationRole::Callable
+            || boundary.numeric_intrinsic.is_some()
+            || boundary.declaration.as_ref().is_none_or(|declaration| {
+                declaration.execution != terminal_psi::CheckedBoundaryExecution::Provider
+            })
+        {
+            return Err(
+                "direct foreign binding needs an ordinary checked trait requirement".into(),
+            );
+        }
+        let service = boundary
+            .owning_service
+            .ok_or("direct foreign requirement has no owning service application")?;
+        let mut services = module.services.iter().filter(|row| row.id == service);
+        let (Some(service), None) = (services.next(), services.next()) else {
+            return Err("direct foreign requirement has no unique service application".into());
+        };
+        let schema = module.service_schema(boundary.owner.identity(), service.identity)?;
+        let requirement = module
+            .identities
+            .text(boundary.identity)
+            .filter(|identity| !identity.is_empty())
+            .ok_or("direct foreign requirement lost its canonical identity")?;
+        let mut methods = schema.surface.methods.iter().filter(|method| {
+            schema.surface.identity_text(method.requirement_identity) == requirement
+        });
+        if !matches!((methods.next(), methods.next()), (Some(_), None)) {
+            return Err("direct foreign requirement has no unique complete declared method".into());
+        }
+        Ok(schema)
+    }
+
+    /// Plain requirements owe their own full checked contract and a completed
+    /// Build locator. No external conformance substitutes for this association.
+    pub fn validate_plain_execution(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+        identities: &terminal_psi::TerminalIdentityTable,
+    ) -> Result<(), String> {
+        self.validate_bound_calling_custody(module)?;
+        let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
+            return Err("plain requirement has no completed foreign execution".into());
+        };
+        if binding.target_name != self.plan.target
+            || self.plan.provider_declaration.is_some()
+            || !self.plan.provider_type.is_empty()
+            || !binding.provider_type.is_empty()
+        {
+            return Err("plain binding changes its target or invents a named provider".into());
+        }
+        let mut receipts = evaluated.iter().filter(|row| {
+            row.target().target_name() == self.plan.target
+                && row.receipt().producer_package().is_some()
+                && row.receipt().build_origin().is_some_and(|origin| {
+                    identities.text(origin.requirement_identity)
+                        == Some(self.satisfied_requirement_identity.as_str())
+                })
+        });
+        let (Some(receipt), None) = (receipts.next(), receipts.next()) else {
+            return Err("plain requirement has no unique completed Build locator receipt".into());
+        };
+        receipt.reintern_producer(
+            identities,
+            &mut terminal_psi::TerminalIdentityTableBuilder::default(),
+        )?;
+        if self.plan.rows[0].binding != receipt.provider_binding() {
+            return Err("plain binding changes its evaluated locator or receipt".into());
+        }
+        match (receipt, &binding.binding) {
+            (
+                effects::provider_plan::EvaluatedNativeBinding::Import(import),
+                calling_conventions::ExternalBindingKind::Import { locator },
+            ) if import.locator() == locator => {}
+            (
+                effects::provider_plan::EvaluatedNativeBinding::Syscall(syscall),
+                calling_conventions::ExternalBindingKind::Syscall { number },
+            ) if syscall.number() == *number => {}
+            _ => return Err("plain binding changes its normalized execution mechanism".into()),
+        }
+        Ok(())
+    }
+
     pub fn validate_calling_custody(&self) -> Result<(), String> {
         self.satisfied_schema
             .declaration
@@ -157,6 +250,53 @@ impl DirectBoundaryLeaf {
             return Err(format!(
                 "direct callable route rejoins {count} exact Source/Terminal declarations"
             ));
+        }
+        let boundary = module
+            .boundary_machines
+            .iter()
+            .find(|boundary| {
+                module.identities.text(boundary.identity) == Some(route)
+                    && boundary.declaration.as_ref().is_some_and(|declaration| {
+                        module
+                            .identities
+                            .text(declaration.source.semantic_declaration)
+                            == Some(self.declaration_identity.as_str())
+                            && module.identities.text(declaration.source.callable)
+                                == Some(self.callable_identity.as_str())
+                    })
+            })
+            .ok_or("direct callable route lost its retained boundary")?;
+        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
+            let schema = Self::declared_schema(module, boundary.id)?;
+            if self.satisfied_schema.declaration.as_ref() != schema.surface.as_ref()
+                || self.satisfied_requirement_identity != route
+            {
+                return Err(
+                    "direct foreign binding changes its complete declared service contract".into(),
+                );
+            }
+            let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
+                return Err("plain foreign requirement has no evaluated foreign execution".into());
+            };
+            let declarations = module
+                .calling_abi_signatures
+                .iter()
+                .filter(|row| row.requirement_identity == boundary.identity)
+                .collect::<Vec<_>>();
+            if declarations.is_empty() || declarations.len() != binding.calling_applications.len() {
+                return Err(
+                    "direct foreign binding has no complete declared Calling roster".into(),
+                );
+            }
+            for declaration in declarations {
+                let abi = declaration.identity(&module.identities)?;
+                let application = binding
+                    .calling_application(&abi)
+                    .ok_or("direct foreign binding changes its exact declaration ABI")?;
+                if application.recomputed_commitment()? != application.commitment {
+                    return Err("direct foreign binding changes its Calling commitment".into());
+                }
+            }
         }
         Ok(())
     }

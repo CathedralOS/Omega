@@ -240,6 +240,7 @@ fn settle_execution(
                 let inputs = crate::terminal::prepare_provider_execution_inputs(
                     &source.terminal_publication,
                     &source.sources,
+                    &source.computed_build_config.config.native_bindings,
                     target,
                     &reached,
                     &mut crate::observations::PsiStageTimings::new(&mut timings),
