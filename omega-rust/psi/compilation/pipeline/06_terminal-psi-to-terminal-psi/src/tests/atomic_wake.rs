@@ -250,3 +250,107 @@ fn atomic_access_still_conflicts_with_an_outstanding_exclusive_loan() {
         "ObserveWhileExclusive",
     );
 }
+
+#[test]
+fn computed_subject_is_evaluated_once_and_transfers_its_owned_payload() {
+    execute(
+        r#"
+        data Counter { value: u32; }
+        data Owner { value: u64; }
+        data Reply { case Ready(owner: Owner); }
+        machine make(counter: &mut Counter) -> Reply requires counter.value < 2 {
+            counter.value = counter.value + 1;
+            Reply::Ready { owner: Owner { value: 97 } }
+        }
+        machine take(counter: &mut Counter) -> Owner requires counter.value < 2 {
+            match make(counter) { Reply::Ready { owner } -> owner }
+        }
+        machine build_entry() crashes Trap {
+            let mut counter: Counter;
+            let result: Owner = take(&mut counter);
+            transition counter.value == 1 && result.value == 97 {
+                true -> done()
+                _ -> wrong()
+            }
+            machine done() {}
+            machine wrong() { crash Trap; }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn computed_subject_cannot_supply_the_same_owned_payload_twice() {
+    refused(
+        r#"
+        data Owner { value: u64; }
+        data Reply { case Ready(owner: Owner); }
+        data Pair { first: Owner; second: Owner; }
+        machine make() -> Reply { Reply::Ready { owner: Owner { value: 97 } } }
+        machine bad() -> Pair {
+            match make() { Reply::Ready { owner } -> Pair { first: owner, second: owner } }
+        }
+        machine build_entry() { let pair: Pair = bad(); }
+    "#,
+        "used after its value was transferred or consumed",
+    );
+}
+
+#[test]
+fn computed_subject_is_retired_on_a_normal_value_continuation() {
+    execute(
+        r#"
+        data Owner { value: u64; }
+        data Reply { case Ready(owner: Owner); }
+        machine make() -> Reply { Reply::Ready { owner: Owner { value: 97 } } }
+        machine build_entry() crashes Trap {
+            let result: Owner = match make() { Reply::Ready { owner } -> owner };
+            transition result.value == 97 { true -> done() _ -> wrong() }
+            machine done() {}
+            machine wrong() { crash Trap; }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn computed_subject_is_retired_on_a_real_backedge() {
+    execute(
+        r#"
+        data Reply { case Ready(value: u32); }
+        machine make(value: u32) -> Reply { Reply::Ready { value: value } }
+        machine walk(value: u32) -> u32 {
+            match make(value) { Reply::Ready { value } -> step(value) }
+            machine step(value: u32) -> u32 {
+                transition value < 2 { true -> walk(value + 1) _ -> done(value) }
+                machine done(value: u32) -> u32 { value }
+            }
+        }
+        machine build_entry() crashes Trap {
+            let result: u32 = walk(0);
+            transition result == 2 { true -> done() _ -> wrong() }
+            machine done() {}
+            machine wrong() { crash Trap; }
+        }
+    "#,
+    );
+}
+
+// Borrowing a computed payload currently refuses in the reader before the
+// cleanup partition. This is fail-closed coverage, not a retirement-loan test.
+#[test]
+fn a_computed_payload_borrow_requires_a_rooted_source() {
+    refused(
+        r#"
+        data Owner { value: u64; }
+        data Reply { case Ready(owner: Owner); }
+        machine make() -> Reply { Reply::Ready { owner: Owner { value: 97 } } }
+        data Loan<'storage> { owner: &'storage Owner; }
+        machine build_entry() -> u64 {
+            let loan: Loan = match make() { Reply::Ready { owner } -> Loan { owner: &owner } };
+            loan.owner.value
+        }
+    "#,
+        "call borrow of a value that is not a place",
+    );
+}

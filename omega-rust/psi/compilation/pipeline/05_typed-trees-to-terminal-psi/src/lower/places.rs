@@ -804,6 +804,16 @@ pub(super) struct Chosen {
     parameters: Vec<Option<ValueId>>,
 }
 
+impl Chosen {
+    /// A computed subject owns its complete temporary root, including any
+    /// sibling fields outside the projected sum selected by this match.
+    pub(super) fn temporary(&self) -> Option<PlaceId> {
+        self.capture
+            .as_ref()
+            .and_then(|(_, at)| at.fresh.then_some(at.root))
+    }
+}
+
 /// A captured call loan and the staging home, if evaluating the argument
 /// created a descriptor value that its normal continuation must retire.
 pub(super) struct Lent {

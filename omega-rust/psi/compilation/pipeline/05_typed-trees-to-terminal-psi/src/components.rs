@@ -231,9 +231,9 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
         ExpressionKind::Atomic {
             place, operands, ..
         } => {
-            expression(place, sites);
+            expression(place, false, sites);
             for operand in operands {
-                expression(operand, sites);
+                expression(operand, false, sites);
             }
         }
         ExpressionKind::SavedSubject(_)
