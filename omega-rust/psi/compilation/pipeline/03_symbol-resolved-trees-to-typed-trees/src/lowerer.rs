@@ -5,7 +5,6 @@ normalization (`progress`), target-machine family telescopes, and append-only
 seeded continuation (`seeded_continuation`).
 */
 
-use crate::contracts::proof_facts::normalize_membership_selections;
 use crate::declarations::data::lower_data_definition;
 use crate::declarations::domain::lower_domain_definition;
 use crate::declarations::machine::{
@@ -1733,8 +1732,6 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
-    normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
-    crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
     crate::constructor_applications::prepare(
         lowerer.source_trees,
         &mut lowerer.typed_trees,

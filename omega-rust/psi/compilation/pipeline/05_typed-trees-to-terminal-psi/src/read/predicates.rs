@@ -64,13 +64,7 @@ impl Program<'_> {
     fn predicates(&self, id: MachineId, qualification: Qualification) -> Checked<Vec<Predicate>> {
         let mut predicates = Vec::new();
         for domain in qualification.domains.members() {
-            let Some(definition) = self.typed.domain_definition(domain) else {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Type("constrained by a domain with no declaration"),
-                ));
-            };
+            let definition = self.domain_theory(id, domain)?;
             if !has_predicates(definition) {
                 continue;
             }
@@ -324,18 +318,20 @@ impl Program<'_> {
             return Ok(());
         }
         let carrier = self.value_type(id, definition.target_type)?;
-        self.declared_domain(id, definition.symbol, carrier)?;
+        let domain = crate::body::DomainInstance {
+            declaration: definition.symbol,
+            identity: definition.semantic_id,
+        };
+        self.declared_domain(id, domain, carrier)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
-                let domains = crate::body::DomainSet::EMPTY
-                    .with(definition.symbol)
-                    .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Declaration("domain identity"),
-                        )
-                    })?;
+                let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Declaration("domain identity"),
+                    )
+                })?;
                 self.cast_predicates(
                     id,
                     Qualification {

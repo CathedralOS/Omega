@@ -82,9 +82,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
-            let Some(definition) = self.typed.domain_definition(domain) else {
-                return unserved("use of a value in a domain with no declaration");
-            };
+            let definition = self.domain_theory(id, domain)?;
             if definition.access_policy.is_some() {
                 return unserved(match access {
                     Access::Read => "read inside a value governed by an access policy",
@@ -212,14 +210,12 @@ impl Program<'_> {
                 // zero satisfies them and keeps the window when it does not.
                 // A zeroed local that is itself the qualified scalar has no
                 // such owner.
-                let free = self
-                    .typed
-                    .domain_definition(domain)
-                    .is_some_and(|definition| {
-                        (contained || !has_predicates(definition))
-                            && definition.issuance()
-                                == typed_trees::domain::DomainIssuance::Unrestricted
-                    });
+                let free = {
+                    let definition = self.domain_theory(id, domain)?;
+                    (contained || !has_predicates(definition))
+                        && definition.issuance()
+                            == typed_trees::domain::DomainIssuance::Unrestricted
+                };
                 if !free {
                     return unserved("zero-established value in a domain that must be established");
                 }

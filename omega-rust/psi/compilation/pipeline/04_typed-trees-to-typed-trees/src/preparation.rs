@@ -28,6 +28,13 @@ const PASSES: &[Pass] = &[
         run: crate::passes::specialization::prepare,
     },
     Pass {
+        name: "domain applications",
+        run: |program| {
+            program.prepare_domain_applications();
+            Ok(())
+        },
+    },
+    Pass {
         name: "record patterns",
         run: crate::passes::record_patterns::prepare,
     },
@@ -173,6 +180,119 @@ pub fn prepare_typed_trees(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_domain_family_prepares_each_retained_carrier_without_rewriting_the_source() {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::data::{TypeParameter, TypeParameterKind};
+        use typed_trees::domain::DomainDefinition;
+        use typed_trees::name::Identifier;
+        use typed_trees::types::TypeReferenceNode;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Domain, SymbolNameRef::Static("Distance"))]),
+        );
+        let domain = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+        let children = builder.insert_children(
+            domain,
+            [
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("self")),
+            ],
+        );
+        let parameter = children.handle_at(0);
+        let subject = children.handle_at(1);
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let target = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: parameter,
+                name: Identifier::generated("T"),
+            });
+        let parameters = program.data_type_parameters.insert_many([TypeParameter {
+            symbol: parameter,
+            name: Identifier::generated("T"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        }]);
+        let identity = program.semantic_domains.intern("Distance");
+        program.push_domain_definition(DomainDefinition {
+            symbol: domain,
+            name: Identifier::generated("Distance"),
+            target_type: target,
+            type_parameters: parameters,
+            subject_symbol: subject,
+            semantic_id: identity,
+            ..Default::default()
+        });
+        let mut retained = Vec::new();
+        for width in [32, 64] {
+            let symbol = program
+                .symbols
+                .builtin_atom_symbol(symbols::BuiltinTypeAtom::Integer(
+                    numerics::integer_carrier::FixedInteger::unsigned(width),
+                ))
+                .unwrap();
+            let carrier = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated("diagnostic alias"),
+                });
+            let identity = program
+                .retain_domain_application(domain, carrier, &[])
+                .unwrap();
+            assert_eq!(
+                program
+                    .retain_domain_application(domain, carrier, &[])
+                    .unwrap(),
+                identity
+            );
+            assert!(
+                program
+                    .domain_definition_for_instance(domain, identity)
+                    .is_none()
+            );
+            assert!(
+                program
+                    .retain_domain_application(domain, carrier, &[carrier])
+                    .is_err()
+            );
+            retained.push((carrier, identity));
+        }
+        assert_ne!(retained[0].1, retained[1].1);
+        let (prepared, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
+        let prepared = &*prepared;
+        for (carrier, identity) in retained {
+            let theory = prepared
+                .domain_definition_for_instance(domain, identity)
+                .unwrap();
+            assert!(prepared.domain_type_parameters(theory).is_empty());
+            assert_eq!(
+                prepared.package_qualified_type_identity(theory.target_type),
+                prepared.package_qualified_type_identity(carrier)
+            );
+            assert_eq!(
+                prepared.symbols.authored_origin(theory.subject_symbol),
+                subject
+            );
+            assert_eq!(
+                theory.symbol, domain,
+                "application retains the declaring owner"
+            );
+        }
+        let declaration = prepared.domain_definition(domain).unwrap();
+        assert_eq!(declaration.target_type, target);
+        assert_eq!(declaration.subject_symbol, subject);
+        assert_eq!(prepared.domain_type_parameters(declaration).len(), 1);
+    }
 
     #[test]
     fn the_program_keeps_its_identity_and_the_request_its_policy() {

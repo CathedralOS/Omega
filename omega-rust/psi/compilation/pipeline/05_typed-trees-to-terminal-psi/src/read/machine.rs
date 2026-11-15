@@ -736,17 +736,24 @@ impl<'t> Program<'t> {
             return false;
         };
         if !membership.domain_symbol.is_valid()
-            || !membership.domain_arguments.is_empty()
             || !typed.expression_table.expression_is_valid(membership.value)
-            || typed
+        {
+            return false;
+        }
+        let identity = if membership.semantic_domain.is_valid() {
+            membership.semantic_domain
+        } else {
+            let Some(declaration) = typed
                 .domain_definition(membership.domain_symbol)
-                .is_none_or(|domain| {
-                    // An unapplied authored membership keeps its selected
-                    // symbol even when it has no interned instance ID. An
-                    // instance ID that is present must agree with that symbol.
-                    membership.semantic_domain != language_semantics::SemanticDomainId::NULL
-                        && domain.semantic_id != membership.semantic_domain
-                })
+                .filter(|declaration| typed.domain_type_parameters(declaration).is_empty())
+            else {
+                return false;
+            };
+            declaration.semantic_id
+        };
+        if typed
+            .domain_arguments_for_instance(membership.domain_symbol, identity)
+            .is_none()
         {
             return false;
         }
@@ -782,7 +789,7 @@ impl<'t> Program<'t> {
                             matches!(constraint, TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
                                 && domain.symbol == membership.domain_symbol
-                                && domain.arguments.is_empty())
+                                && domain.semantic_id == identity)
                         })
                     {
                         return true;

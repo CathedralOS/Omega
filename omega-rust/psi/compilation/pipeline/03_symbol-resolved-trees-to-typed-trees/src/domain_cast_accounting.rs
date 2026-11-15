@@ -320,13 +320,14 @@ fn domain_label(
 }
 
 fn declared_node(program: &TypedTrees, atom: Atom) -> Option<TypeConstraintNode> {
-    let Atom::Declared(symbol, _) = atom else {
+    let Atom::Declared(symbol, semantic_id) = atom else {
         return None;
     };
     let definition = program.domain_definition(symbol)?;
     Some(TypeConstraintNode::Domain(DomainConstraint {
         name: definition.name.clone(),
         symbol,
+        semantic_id,
         ..DomainConstraint::default()
     }))
 }
@@ -627,23 +628,15 @@ fn named_domains(
                     .map(|(atom, label)| (atom, label, None))
                     .collect()
             } else {
-                let semantic_id = if arguments.is_empty() {
-                    domain.semantic_id
-                } else {
-                    let instance = typed_trees::domain::indexed_domain_instance_name(
-                        program,
-                        domain,
-                        typed_trees::domain::index_parameters(program, domain),
-                        &arguments,
-                    )?;
-                    program.semantic_domains.intern(&instance)
-                };
+                let semantic_id =
+                    program.retain_domain_application(domain.symbol, carrier, &arguments)?;
                 vec![(
                     Atom::Declared(domain.symbol, semantic_id),
                     domain_label(program, domain),
                     Some(TypeConstraintNode::Domain(DomainConstraint {
                         name: domain.name.clone(),
                         symbol: domain.symbol,
+                        semantic_id,
                         arguments,
                         ..DomainConstraint::default()
                     })),

@@ -1083,10 +1083,10 @@ pub mod domain {
         if !matches!(parameter.kind, crate::data::TypeParameterKind::Type) {
             return false;
         }
-        let Named { symbol, name } = program.type_reference_node(domain.target_type) else {
+        let Named { symbol, .. } = program.type_reference_node(domain.target_type) else {
             return false;
         };
-        *symbol == parameter.symbol || name == &parameter.name
+        symbol.is_valid() && *symbol == parameter.symbol
     }
 
     pub fn index_parameters<'program>(
@@ -1099,6 +1099,21 @@ pub mod domain {
         } else {
             parameters
         }
+    }
+
+    /// Whether the family's written index list names its exact index binders
+    /// in order. Nontrivial index patterns need their own formation judgment;
+    /// applying an argument tuple must not silently erase such a pattern.
+    pub fn has_direct_index_telescope(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+        let parameters = index_parameters(program, domain);
+        parameters.len() == domain.index_arguments.len()
+            && parameters
+                .iter()
+                .zip(&domain.index_arguments)
+                .all(|(parameter, argument)| {
+                    matches!(program.type_reference_table.type_reference(*argument),
+                    Named { symbol, .. } if symbol.is_valid() && *symbol == parameter.symbol)
+                })
     }
 
     pub fn domain_accepts_carrier(
@@ -1355,8 +1370,12 @@ pub mod domain {
             .iter()
             .any(|application| {
                 application.declaration == domain.symbol
-                    && application.theory.semantic_id == domain.semantic_id
-                    && application.theory.subject_symbol == domain.subject_symbol
+                    && application.identity == domain.semantic_id
+                    && application
+                        .theory
+                        .as_ref()
+                        .and_then(|theory| theory.as_ref().ok())
+                        .is_some_and(|theory| theory.subject_symbol == domain.subject_symbol)
                     && program
                         .domain_definition(domain.symbol)
                         .is_some_and(|declared| {
@@ -1530,8 +1549,16 @@ pub mod domain {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct AppliedDomainApplication {
         pub declaration: SymbolHandle,
+        pub identity: language_semantics::SemanticDomainId,
+        /// The declaration's whole telescope, including a generic carrier.
         pub arguments: Vec<TypeReferenceHandle>,
-        pub theory: DomainDefinition,
+        /// Whether the complete coordinate contains no remaining value/type
+        /// binders. Open applications retain meaning but still need judgment.
+        pub is_closed: bool,
+        /// Typing retains coordinates; typed preparation applies the theory.
+        /// Absence is pending work. A preparation failure stays on this exact
+        /// application; neither state is an empty predicate or proof receipt.
+        pub theory: Option<Result<DomainDefinition, String>>,
     }
 
     impl TypedTrees {
@@ -1578,7 +1605,8 @@ pub mod domain {
                         .filter(|application| {
                             self.domain_definition(application.declaration).is_some()
                         })
-                        .filter_map(|application| application.theory.cleanup_selection.as_ref()),
+                        .filter_map(|application| application.theory.as_ref()?.as_ref().ok())
+                        .filter_map(|theory| theory.cleanup_selection.as_ref()),
                 )
                 .chain(
                     self.applied_data_cleanup_selections
@@ -1602,20 +1630,27 @@ pub mod domain {
                 .map(|application| &application.selection)
         }
 
+        pub fn domain_application(
+            &self,
+            symbol: SymbolHandle,
+            identity: language_semantics::SemanticDomainId,
+        ) -> Option<&AppliedDomainApplication> {
+            self.applied_domain_applications.iter().find(|application| {
+                application.declaration == symbol && application.identity == identity
+            })
+        }
+
         pub fn domain_arguments_for_instance(
             &self,
             symbol: SymbolHandle,
             identity: language_semantics::SemanticDomainId,
         ) -> Option<&[TypeReferenceHandle]> {
             let declared = self.domain_definition(symbol)?;
-            if declared.semantic_id == identity {
+            if self.domain_type_parameters(declared).is_empty() && declared.semantic_id == identity
+            {
                 return Some(&[]);
             }
-            self.applied_domain_applications
-                .iter()
-                .find(|application| {
-                    application.declaration == symbol && application.theory.semantic_id == identity
-                })
+            self.domain_application(symbol, identity)
                 .map(|application| application.arguments.as_slice())
         }
 
@@ -1625,15 +1660,12 @@ pub mod domain {
             identity: language_semantics::SemanticDomainId,
         ) -> Option<&DomainDefinition> {
             let declared = self.domain_definition(symbol)?;
-            if declared.semantic_id == identity {
+            if self.domain_type_parameters(declared).is_empty() && declared.semantic_id == identity
+            {
                 return Some(declared);
             }
-            self.applied_domain_applications
-                .iter()
-                .find(|application| {
-                    application.declaration == symbol && application.theory.semantic_id == identity
-                })
-                .map(|application| &application.theory)
+            self.domain_application(symbol, identity)
+                .and_then(|application| application.theory.as_ref()?.as_ref().ok())
         }
     }
 

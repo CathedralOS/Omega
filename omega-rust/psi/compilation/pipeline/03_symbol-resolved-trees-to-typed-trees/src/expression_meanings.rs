@@ -24,7 +24,8 @@ pub(crate) fn prepare(
             .into_iter()
             .map(|(handle, binary)| (handle, Meaning::Operator(binary))),
     );
-    if sites.is_empty() {
+    let has_memberships = crate::contracts::proof_facts::has_pending_memberships(program);
+    if sites.is_empty() && !has_memberships {
         return Ok(());
     }
     // Typing allocates operands before their consumers. A simultaneous cast
@@ -42,5 +43,7 @@ pub(crate) fn prepare(
             }
         }
     }
+    crate::contracts::proof_facts::normalize_membership_selections(program, &owners)?;
+    crate::contracts::proof_facts::intern_proof_membership_instances(program, &owners)?;
     Ok(())
 }

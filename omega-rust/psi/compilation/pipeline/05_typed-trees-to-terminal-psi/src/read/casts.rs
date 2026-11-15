@@ -176,7 +176,6 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         use language_core::cast_form::CastEntryKind;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        let mistyped = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
         // A cast typing deferred is a row on its machine, raised before any
         // body is read; an entry without its type here was never accounted.
         if !cast.result_type.is_valid() {
@@ -221,9 +220,6 @@ impl Program<'_> {
         if let Some(domain) = domain {
             match entry.kind {
                 CastEntryKind::Add => {
-                    if cast.semantic_domain_symbol != domain {
-                        return mistyped("added domain that is not the one the entry selected");
-                    }
                     self.issue(id, domain, source)?;
                     // "Has predicates | Prove them for this value."
                     let (clauses, stated) = match (
@@ -252,7 +248,8 @@ impl Program<'_> {
                         (ValueType::Record(row, _, _), Some(_))
                             if self.is_view(id, row)?
                                 && typed_trees::byte_predicates::domain_byte_predicate(
-                                    self.typed, domain,
+                                    self.typed,
+                                    domain.declaration,
                                 )
                                 .is_some() =>
                         {
@@ -266,11 +263,7 @@ impl Program<'_> {
                         // No clause is stated of a value that is not a
                         // scalar, so a domain with predicates is not
                         // added to one unproved.
-                        _ if self
-                            .typed
-                            .domain_definition(domain)
-                            .is_none_or(super::authority::has_predicates) =>
-                        {
+                        _ if super::authority::has_predicates(self.domain_theory(id, domain)?) => {
                             return unserved(
                                 "cast that adds a domain with predicates to a value that is not a scalar",
                             );
@@ -328,7 +321,7 @@ impl Program<'_> {
         result: ValueType,
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
-    ) -> Checked<Option<symbols::SymbolHandle>> {
+    ) -> Checked<Option<crate::body::DomainInstance>> {
         use language_core::cast_form::CastEntryKind;
         let mistyped = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
         if operand.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
@@ -345,7 +338,10 @@ impl Program<'_> {
                 .typed
                 .domain_definition(cast.semantic_domain_symbol)
                 .is_some()
-                && !before.domains.contains(cast.semantic_domain_symbol)
+                && !before.domains.contains(crate::body::DomainInstance {
+                    declaration: cast.semantic_domain_symbol,
+                    identity: cast.semantic_domain_id,
+                })
             {
                 return Err(mistyped("kept domain that the operand does not carry"));
             }
@@ -373,11 +369,12 @@ impl Program<'_> {
                 "domain cast entry that does not change exactly the domain it names",
             ));
         }
-        if let Some(domain) = domain
-            && cast.semantic_domain_symbol != domain
-        {
+        if domain.is_some_and(|domain| {
+            domain.declaration != cast.semantic_domain_symbol
+                || domain.identity != cast.semantic_domain_id
+        }) {
             return Err(mistyped(
-                "domain cast entry that changes a different domain than it selects",
+                "changed domain application is not the one the entry selected",
             ));
         }
         Ok(domain)
@@ -389,14 +386,11 @@ impl Program<'_> {
     pub(super) fn domain_removal(
         &self,
         id: MachineId,
-        domain: symbols::SymbolHandle,
+        domain: crate::body::DomainInstance,
         operand: ValueType,
     ) -> Checked<()> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let definition = self
-            .typed
-            .domain_definition(domain)
-            .ok_or_else(|| unavailable("removal of a domain with no declaration"))?;
+        let definition = self.domain_theory(id, domain)?;
         if definition.access_policy.is_some() {
             return Err(unavailable(
                 "removal of a domain governed by an access policy",
@@ -448,15 +442,13 @@ impl Program<'_> {
     fn issue(
         &mut self,
         id: MachineId,
-        domain: symbols::SymbolHandle,
+        domain: crate::body::DomainInstance,
         source: SourceOrigin,
     ) -> Checked<()> {
         use language_semantics::DomainEstablishmentRoute;
         use typed_trees::domain::DomainIssuance;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        let Some(definition) = self.typed.domain_definition(domain) else {
-            return unserved("cast that adds a domain with no declaration");
-        };
+        let definition = self.domain_theory(id, domain)?;
         match definition.issuance() {
             DomainIssuance::Unrestricted => {}
             DomainIssuance::Only(routes) => {

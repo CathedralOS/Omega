@@ -221,9 +221,29 @@ impl Program<'_> {
     }
 
     /// One declared domain as a diagnostic names it.
-    pub(super) fn domain_named(&self, domain: symbols::SymbolHandle) -> String {
-        match self.typed.domain_definition(domain) {
-            Some(definition) => format!("`{}`", definition.name.as_str()),
+    pub(super) fn domain_named(&self, domain: crate::body::DomainInstance) -> String {
+        match self.typed.domain_definition(domain.declaration) {
+            Some(definition) => {
+                match self
+                    .typed
+                    .domain_arguments_for_instance(domain.declaration, domain.identity)
+                {
+                    Some([]) => format!("`{}`", definition.name.as_str()),
+                    Some(arguments) => format!(
+                        "`{}` at ({})",
+                        definition.name.as_str(),
+                        arguments
+                            .iter()
+                            .map(|argument| self.typed.display_type_reference(*argument))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                    None => format!(
+                        "`{}` with an unavailable application",
+                        definition.name.as_str()
+                    ),
+                }
+            }
             None => "a domain with no declaration".to_owned(),
         }
     }
