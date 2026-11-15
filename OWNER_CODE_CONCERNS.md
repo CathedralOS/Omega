@@ -73,12 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### A caught specialization receipt edit can leave stale index positions
-- Category: a verdict with nothing behind it
-- Where: [MachineSpecializations mutations](omega-rust/psi/compilation/representations/typed-trees/src/machine_specializations.rs#L128)
-- Saw: On `02588834b33` with the receipt index from #3298, catch a panic after `edit` or `retain` removes the first of two receipts. The row count falls to one, then `for_instance` panics at line 85 while looking up the surviving receipt through the older index position 1.
-- Cost: A caller that catches the callback panic can no longer use a table whose mutation API promises to keep row queries exact. Restore the existing index invariant on completion and unwind and check both mutation routes.
-- Reported: 2026-11-14, Codex, while restoring the Terminal codec tests and checking the landed receipt index
+### A specialized contract literal loses its const parameter carrier
+- Category: knowledge crossing a boundary
+- Where: [Stage 04 specialization control](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/tests.rs#L987)
+- Saw: At clean `fc1a8259dc0`, a generated machine for `sized<3>` with declared `const N: u64` keeps the numeral `3` in its copied contract, but the literal records signed 16-bit landing where the test expects `u64`.
+- Cost: The test cannot establish that substitution transports the const parameter's receiving type into the copied contract. Trace the original operand and typed binding separately while preserving the parameter, numeral and contract.
+- Reported: 2026-11-14, Codex, while validating the specialization receipt index
 
 ### A deferred type-expression refusal omits its declaration location
 - Category: a verdict with nothing behind it
