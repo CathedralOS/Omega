@@ -143,13 +143,6 @@ framework or a list of unimplemented features.
 - Cost: The already formulated assertion that A retains both the earlier B and later D contributions cannot run. Carry the original installation-bound declarations into selected reach and the existing review records.
 - Reported: 2026-11-15, Codex, while reconnecting the staggered package-review fixture.
 
-### Review refuses the original opaque native binding
-- Category: knowledge crossing a boundary
-- Where: [authored native binding](tests/fixtures/pass/boundary/native_provider_unoffered_read/build.omg), [inherited ceiling oracle](omega-rust/omega/compilation/compiler/tests/package_review.rs#L627)
-- Saw: The unchanged `Probe::read` fixture on `8329cdc221e` now reaches ordinary captured package review, which refuses “the complete selected installation reach or native supply” before policy recovery.
-- Cost: The test cannot show that the opaque implementation inherits the original blocking permission from its requirement. Project the exact selected native binding and its checked inherited ceiling into the existing package policy.
-- Reported: 2026-11-15, Codex, while restoring the kept native review fixture path.
-
 ### Float fixtures stop before target and requirement policy checks
 - Category: tests that pin the bug
 - Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)

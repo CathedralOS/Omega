@@ -11,7 +11,6 @@
 // digest, or `package-owner(32:<hex>)`).
 
 use super::PackageReviewOperatorCoordinate;
-#[cfg(test)]
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewNominalOwner;
 use std::fmt::Write;
@@ -34,43 +33,11 @@ impl PackageReviewOperatorCoordinate {
         if self.write_policy_requirement(&mut writer).is_ok() && writer.remaining.is_empty() {
             return true;
         }
-        let mut writer = MatchingWriter {
-            remaining: expected,
-        };
-        self.write_named_callable_requirement(&mut writer).is_ok() && writer.remaining.is_empty()
-    }
-
-    fn write_named_callable_requirement(&self, writer: &mut impl Write) -> std::fmt::Result {
-        writer.write_str("named-callable(")?;
-        write_atom(writer, "path", |value| self.write_qualified_path(value))?;
-        writer.write_char(',')?;
-        write_atom(writer, "parameters", |value| {
-            value.write_str(&self.parameter_dispatch)
-        })?;
-        writer.write_char(',')?;
-        write_atom(writer, "result-dispatch", |value| {
-            value.write_str(&self.result_dispatch)
-        })?;
-        writer.write_char(')')
-    }
-
-    fn write_qualified_path(&self, writer: &mut impl Write) -> std::fmt::Result {
-        writer.write_str("nominal(")?;
-        match self.identity.owner {
-            PackageReviewNominalOwner::Package(package) => {
-                let digest = package.digest();
-                write!(writer, "package-owner({}:", digest.len())?;
-                for byte in digest {
-                    write!(writer, "{byte:02x}")?;
-                }
-                writer.write_char(')')?;
-            }
-            PackageReviewNominalOwner::ToolchainSource(_) => writer.write_str("toolchain-owner")?,
-            PackageReviewNominalOwner::Unresolved => writer.write_str("unresolved-owner")?,
-        }
-        writer.write_char(',')?;
-        write_atom(writer, "path", |value| value.write_str(&self.identity.path))?;
-        writer.write_char(')')
+        self.identity.matches_named_callable(
+            expected,
+            &self.parameter_dispatch,
+            &self.result_dispatch,
+        )
     }
 
     fn write_policy_requirement(&self, writer: &mut impl Write) -> std::fmt::Result {
@@ -83,6 +50,64 @@ impl PackageReviewOperatorCoordinate {
                 self.result_dispatch.as_str(),
             ],
         )
+    }
+}
+
+impl PackageReviewNominalIdentity {
+    pub(crate) fn matches_named_callable(
+        &self,
+        expected: &str,
+        parameters: &str,
+        result_dispatch: &str,
+    ) -> bool {
+        let mut writer = MatchingWriter {
+            remaining: expected,
+        };
+        let encode = |writer: &mut MatchingWriter<'_>| {
+            writer.write_str("named-callable(")?;
+            write_atom(writer, "path", |value| self.write_qualified_path(value))?;
+            writer.write_char(',')?;
+            write_atom(writer, "parameters", |value| value.write_str(parameters))?;
+            writer.write_char(',')?;
+            write_atom(writer, "result-dispatch", |value| {
+                value.write_str(result_dispatch)
+            })?;
+            writer.write_char(')')
+        };
+        encode(&mut writer).is_ok() && writer.remaining.is_empty()
+    }
+
+    pub(crate) fn matches_unapplied_trait_declaration(&self, expected: &str) -> bool {
+        let Some(declaration) = expected.strip_prefix("trait-application(") else {
+            return false;
+        };
+        let mut writer = MatchingWriter {
+            remaining: declaration,
+        };
+        write_atom(&mut writer, "declaration", |value| {
+            self.write_qualified_path(value)
+        })
+        .is_ok()
+            && writer.remaining == ",arguments(),lifetimes())"
+    }
+
+    fn write_qualified_path(&self, writer: &mut impl Write) -> std::fmt::Result {
+        writer.write_str("nominal(")?;
+        match self.owner {
+            PackageReviewNominalOwner::Package(package) => {
+                let digest = package.digest();
+                write!(writer, "package-owner({}:", digest.len())?;
+                for byte in digest {
+                    write!(writer, "{byte:02x}")?;
+                }
+                writer.write_char(')')?;
+            }
+            PackageReviewNominalOwner::ToolchainSource(_) => writer.write_str("toolchain-owner")?,
+            PackageReviewNominalOwner::Unresolved => writer.write_str("unresolved-owner")?,
+        }
+        writer.write_char(',')?;
+        write_atom(writer, "path", |value| value.write_str(&self.path))?;
+        writer.write_char(')')
     }
 }
 
