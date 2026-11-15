@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Writes to immutable owned bindings are reported as unavailable
+- Category: a verdict with nothing behind it
+- Where: [assignment reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L83), [projected store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L182)
+- Saw: At `c06ddb0f570`, `immutable_scalar_assigned` and `immutable_record_stored` in `lowered_route_subjects` produce unsupported refusals while reading `spare`. Their same-carrier mutable controls accept. The reader has already identified the owned root and determined it is not assignable. The [mutability rule](wiki/spec/language/ownership.md#owned-local-mutability) requires `mut` for either write.
+- Cost: The diagnostic reports a feature gap for an invalid write and omits the assignment's source position. Preserve legal writes through an existing mutable reference held in an immutable binding.
+- Reported: 2026-11-14, Codex, while checking compiler subject fixture verdicts
+
 ### An indexed dispatch discriminator has no canonical seal owner
 - Category: knowledge crossing a boundary
 - Where: [terminator path ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L2384), [native proof provenance](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs#L20)
@@ -114,13 +121,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives stop on macOS arm64 at `borrowed completion storage has no post-call observation`. Their shared view already passed formation, and each length call's result guarantee names the view given as input. The nested state control keeps the matching length and executes.
 - Cost: Code cannot use the result guarantee to index the same existing shared window after an ordinary call. Keep the unchanged actual observation attached to the shared parameter in the ordinary completion mechanism.
 - Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
-
-### Compiler subject fixtures still expect earlier refusal reasons and outcomes
-- Category: tests that pin the bug
-- Where: [subject fixture assertions](omega-rust/omega/compilation/compiler/tests/lowered_route_subjects.rs#L315)
-- Saw: The [main compiler job](https://github.com/CathedralOS/Omega/actions/runs/43664409560/job/132661174957) at `d75251ea39f` reports precise rejections where unused-machine controls expect fallbacks or incompleteness, and appends the declaring body or signature to three old exact diagnostic strings. The unrelated policy-qualification failure in the same log is covered separately by #3313.
-- Cost: Stale expectations stop the suite before it can verify the intended exact source rules. Inspect each changed verdict’s evidence and keep the fixture and its original obligation.
-- Reported: 2026-11-14, Codex, while reviewing the main compiler checks after hosted admission was restored
 
 ### An unimported case can turn a deferred name error into a resolver failure
 - Category: knowledge crossing a boundary
@@ -230,6 +230,7 @@ framework or a list of features that remain unimplemented.
 ### Every product gate is refused at a macOS layout alias while building for Linux
 - Category: a verdict with nothing behind it
 - Where: `source/library/std/targets/macos_arm64/filesystem_abi.omg:20` (`atime: CLayout<DarwinTimespec>`); reached by `tests/product/gate.sh` through each `tests/psi/*` gate and the product roots
-- Saw: `OMEGA_TARGET=linux_x86_64 sh tests/psi/resolver/test-resolver.sh` at `372860cf534` stops after 54 s with "checked compilation failed for package `psi`: selected type alias has no retained source declaration" at that macOS-only field, before any gate case runs
+- Saw: `OMEGA_TARGET=linux_x86_64 sh tests/psi/resolver/test-resolver.sh` at `372860cf534` stops after 54 s with "checked compilation failed for package `psi`: selected type alias has no retained source declaration" at that macOS-only field, before any gate case runs. At `c06ddb0f570`, the entryless `fractional_integer_landing` fixture also stops during preparation at `DarwinTimespec` on `linux_arm64`, where `c_abi_fields::append` requires unsupported clause arithmetic. Its [reusable layout scope](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L272) has no root bindings, and [layout evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/fixed_layouts.rs#L64) then selects all declarations instead of the fixture's subject closure.
+  The [explicitly demanded scalar layout](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1203) at `59b8d53b729` reaches the same arithmetic refusal on `linux_x86_64` before checking size 24, alignment 8 and offsets `[0, 8, 16]`.
 - Cost: no product compiler gate can build its artifact on main, so source compiler repairs have no executable cases; the field belongs to another target's ABI and may be the same uncalled-library refusal as "A whole-program stage refuses every program for a library construct nobody calls"
 - Reported: 2026-11-15, Claude Code, while removing the product gate's duplicate review pass
