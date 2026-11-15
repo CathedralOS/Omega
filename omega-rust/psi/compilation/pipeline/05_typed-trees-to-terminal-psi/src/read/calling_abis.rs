@@ -18,6 +18,7 @@ use super::Program;
 pub(crate) struct PreparedCallingAbis {
     entry: MachineId,
     declarations: Vec<PreparedAbi>,
+    boundary_applications: Vec<terminal_psi::CallingSignatureDeclaration>,
 }
 
 struct PreparedAbi {
@@ -65,6 +66,7 @@ impl Program<'_> {
             return Ok(PreparedCallingAbis {
                 entry,
                 declarations: Vec::new(),
+                boundary_applications: Vec::new(),
             });
         }
         let typed = self.typed;
@@ -137,6 +139,21 @@ impl Program<'_> {
                 }
             }
         }
+        // A declaration ABI and a boundary's use of it are distinct rows.
+        // Keep the association from the same exact source declaration and
+        // catalog application that produced the requested ABI.
+        let boundary_applications = self
+            .boundary_symbols
+            .iter()
+            .filter_map(|(boundary, symbol)| {
+                let application = signatures.abi_for_boundary(*symbol)?.as_ref().ok()?;
+                ids.contains(application)
+                    .then_some(terminal_psi::CallingSignatureDeclaration {
+                        boundary,
+                        application: Ok(*application),
+                    })
+            })
+            .collect();
         let outer = std::mem::take(&mut self.scope);
         let prepared = (|| {
             let mut declarations = Vec::with_capacity(ids.len());
@@ -252,6 +269,7 @@ impl Program<'_> {
             Ok(PreparedCallingAbis {
                 entry,
                 declarations,
+                boundary_applications,
             })
         })();
         self.scope = outer;
@@ -384,6 +402,29 @@ impl PreparedCallingAbis {
             }
         }
         module.calling_abi_signatures.sort_by_key(|row| row.id);
+        for application in self.boundary_applications {
+            if module.boundary_machine(application.boundary).is_none() {
+                return Err(unavailable(
+                    self.entry,
+                    "calling ABI association lost its exact boundary",
+                ));
+            }
+            if let Some(existing) = module
+                .calling_signatures
+                .iter()
+                .find(|row| row.boundary == application.boundary)
+            {
+                if existing != &application {
+                    return Err(unavailable(
+                        self.entry,
+                        "boundary calling metadata conflicts with its exact ABI application",
+                    ));
+                }
+            } else {
+                module.calling_signatures.push(application);
+            }
+        }
+        module.calling_signatures.sort_by_key(|row| row.boundary);
         Ok(())
     }
 }

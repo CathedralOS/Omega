@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Editing an unlinked compiler test changes the production compiler identity
+- Category: verifying costs more than writing
+- Where: [compiler build-input collection](omega-rust/omega/compilation/compiler/build.rs#L32), [recursive input scan](omega-rust/omega/compilation/compiler/build.rs#L98)
+- Saw: The build identity hashes every `.rs`, `.toml` and `.omg` under `omega-rust`, including integration tests. Changing only the new control in `compiler/tests/executed_fixture_discovery.rs` rebuilt `compiler`, `package-manager` and `orchestration` in 18.21 seconds before the filtered test ran; shipped code had not changed.
+- Cost: Test edits also change the compiler-version key for accepted package inputs, causing compilation and review churn as the test tree grows. Derive the identity from actual production inputs and configuration while retaining invalidation for uncommitted implementation changes; excluding required source or trusting Git HEAD would be insufficient.
+- Reported: 2026-11-14, Codex, while checking actual project publication of native calling metadata
+
 ### Service contract projection loses the reason and declaration behind a refusal
 - Category: verifying costs more than writing
 - Where: [full service projection](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L555), [boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L623)

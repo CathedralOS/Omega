@@ -1076,6 +1076,7 @@ fn lower_generic_for<'source>(
 }
 
 fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Checked<()> {
+    let names = &elaboration.names;
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
@@ -1125,13 +1126,21 @@ fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Check
                     machine: machine.id,
                     concerns,
                     source_span: None,
-                    detail: match (operation, origin) {
-                        (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
-                            "while checking {operation} at source {} bytes {}..{}: {detail}",
-                            span.source_id.0, span.span.start, span.span.end,
-                        ),
-                        (Some(operation), _) => format!("while checking {operation}: {detail}"),
-                        (None, _) => detail.to_owned(),
+                    detail: {
+                        let detail = match (operation, origin) {
+                            (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
+                                "while checking {operation} at source {} bytes {}..{}: {detail}",
+                                span.source_id.0, span.span.start, span.span.end,
+                            ),
+                            (Some(operation), _) => format!("while checking {operation}: {detail}"),
+                            (None, _) => detail.to_owned(),
+                        };
+                        match names.get(machine.id) {
+                            Some(name) => {
+                                format!("while checking storage in `{}`: {detail}", name.machine)
+                            }
+                            None => detail,
+                        }
                     },
                 }
             })?;

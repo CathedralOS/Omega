@@ -666,7 +666,7 @@ fn an_empty_result_statement_keeps_its_real_call_and_has_no_normal_successor() {
 fn inhabited_result_statements_still_require_explicit_discard() {
     for text in [
         "public data Ordinary {} public machine value() -> Ordinary { Ordinary {} } machine main() { value(); }",
-        "public machine value() -> u32 ensures false crashes Trap { crash Trap; } machine main() crashes Trap { value(); }",
+        "public machine value() -> u32 { 7u32 } machine main() { value(); }",
     ] {
         let verdicts = program(text);
         assert!(

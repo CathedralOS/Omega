@@ -285,6 +285,7 @@ struct Arrival {
 struct Analysis<'a> {
     types: &'a [StructuralTypeDeclaration],
     roots: Vec<Option<Root>>,
+    borrowed_headers: Vec<PlaceId>,
     unavailable: Vec<Unavailable>,
     unavailable_roots: Vec<Option<Site>>,
     stores: Vec<(OperationId, StructuralStoreDisposition)>,
@@ -1028,9 +1029,15 @@ fn analyze(
         Default::default()
     };
     let live = live_entries(machine, types, reference_candidates, &backing)?;
+    let borrowed_headers = machine
+        .block_structural_parameters()
+        .filter(|parameter| parameter.access != StructuralAccess::Owned)
+        .map(|parameter| parameter.place)
+        .collect();
     let mut analysis = Analysis {
         types,
         roots,
+        borrowed_headers,
         unavailable: Vec::new(),
         unavailable_roots: Vec::new(),
         stores: Vec::new(),
@@ -1094,7 +1101,8 @@ fn analyze(
             {
                 return Err(Error::malformed(
                     "an edge leaves a frontier its successor does not enter with",
-                ));
+                )
+                .at(Site::Edge(arrival.edge)));
             }
             if !arrival.actions.is_empty() {
                 cleanup.push((arrival.edge, arrival.actions));
@@ -1441,6 +1449,24 @@ impl Analysis<'_> {
                             unrestored: true,
                         });
                     }
+                }
+            }
+            // A borrowed header names captured storage; it does not own a
+            // value that needs cleanup. End a dead name before the next header
+            // is bound, leaving its backing and all loan checks untouched.
+            // A surviving use still needs a name established on every arrival.
+            for place in &self.borrowed_headers {
+                let raw = index(place.get())?;
+                let forgotten = !needed.is_some_and(|needed| needed.contains(*place))
+                    || owned_there.is_some_and(|there| there.regions[raw].is_none());
+                if forgotten && let Some(region) = &outgoing.regions[raw] {
+                    if !region.available(&[]) {
+                        return Err(Error::unsupported(
+                            "borrowed block storage still owes restoration at its last use",
+                        )
+                        .at(Site::Edge(edge)));
+                    }
+                    outgoing.regions[raw] = None;
                 }
             }
             // "At reconvergence, predecessors must agree on the exact live
@@ -2588,6 +2614,98 @@ mod tests {
     }
 
     #[test]
+    fn a_dead_borrowed_header_can_rejoin_a_path_that_never_entered_it() {
+        use terminal_psi::{
+            Block, BoundaryParameterKind, Operation, OperationKind, OperationResult, SuccessorEdge,
+            Terminator, ValueDeclaration,
+        };
+        let types = reconvergence_types();
+        let mut machine = borrowed_backedge(StructuralAccess::SharedBorrow);
+        machine.contract.parameters.push(ValueDeclaration {
+            id: id(1),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        });
+        machine
+            .contract
+            .parameter_order
+            .insert(0, BoundaryParameterKind::Scalar);
+        let edge = |raw, target, structural_arguments| SuccessorEdge {
+            edge: id(raw),
+            target: id(target),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments,
+            cleanup_actions: Vec::new(),
+        };
+        machine.blocks[0].terminator = Terminator::Conditional {
+            condition: id(1),
+            when_true: edge(
+                1,
+                2,
+                vec![StructuralArgument::whole(
+                    id(1),
+                    StructuralAccess::SharedBorrow,
+                )],
+            ),
+            when_false: edge(2, 3, Vec::new()),
+        };
+        let use_header = Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument::whole(
+                    id(2),
+                    StructuralAccess::SharedBorrow,
+                )],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        );
+        machine.blocks[1].operations.push(use_header.clone());
+        machine.blocks[1].terminator = Terminator::Jump {
+            edge: id(3),
+            target: id(3),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            cleanup_actions: Vec::new(),
+        };
+        machine.blocks.push(Block::plain(
+            id(3),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: id(4),
+                cleanup_actions: Vec::new(),
+            },
+        ));
+        let planned = plan(&machine, &types)
+            .expect("the dead borrowed name is not an ownership obligation at the join");
+        assert!(planned.unavailable.is_empty());
+        assert!(
+            planned.cleanup.is_empty(),
+            "retiring a borrowed name must not discard its backing"
+        );
+        let mut use_header = use_header;
+        use_header.id = id(2);
+        machine.blocks[2].operations.push(use_header);
+        assert!(
+            !plan(&machine, &types)
+                .expect("the joined frontier remains available for checking")
+                .unavailable
+                .is_empty(),
+            "a path that never received the header cannot use that borrow after the join"
+        );
+    }
+
+    #[test]
     fn borrowed_block_storage_survives_a_backedge_without_becoming_owned() {
         let types = reconvergence_types();
         for access in [
@@ -2828,6 +2946,7 @@ mod tests {
     fn owned_analysis(types: &[StructuralTypeDeclaration]) -> Analysis<'_> {
         Analysis {
             types,
+            borrowed_headers: Vec::new(),
             roots: vec![Some(Root {
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 owned: true,
