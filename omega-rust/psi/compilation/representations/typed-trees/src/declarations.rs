@@ -1366,16 +1366,13 @@ pub mod domain {
         }
         let subject = program.symbols.get(domain.subject_symbol);
         let applied_subject = program
-            .applied_domain_applications
-            .iter()
-            .any(|application| {
-                application.declaration == domain.symbol
-                    && application.identity == domain.semantic_id
-                    && application
-                        .theory
-                        .as_ref()
-                        .and_then(|theory| theory.as_ref().ok())
-                        .is_some_and(|theory| theory.subject_symbol == domain.subject_symbol)
+            .domain_application(domain.symbol, domain.semantic_id)
+            .is_some_and(|application| {
+                application
+                    .theory
+                    .as_ref()
+                    .and_then(|theory| theory.as_ref().ok())
+                    .is_some_and(|theory| theory.subject_symbol == domain.subject_symbol)
                     && program
                         .domain_definition(domain.symbol)
                         .is_some_and(|declared| {
@@ -1561,6 +1558,95 @@ pub mod domain {
         pub theory: Option<Result<DomainDefinition, String>>,
     }
 
+    /// Rows stay in preparation order; the exact-key index is derived from
+    /// those rows and never persisted as another application authority.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct AppliedDomainApplications {
+        rows: Vec<AppliedDomainApplication>,
+        by_application:
+            std::collections::HashMap<(SymbolHandle, language_semantics::SemanticDomainId), usize>,
+    }
+
+    impl AppliedDomainApplications {
+        pub fn iter(&self) -> std::slice::Iter<'_, AppliedDomainApplication> {
+            self.rows.iter()
+        }
+
+        pub(crate) fn len(&self) -> usize {
+            self.rows.len()
+        }
+
+        pub(crate) fn get(&self, position: usize) -> Option<&AppliedDomainApplication> {
+            self.rows.get(position)
+        }
+
+        pub(crate) fn find(
+            &self,
+            declaration: SymbolHandle,
+            identity: language_semantics::SemanticDomainId,
+        ) -> Option<&AppliedDomainApplication> {
+            self.by_application
+                .get(&(declaration, identity))
+                .and_then(|position| self.rows.get(*position))
+        }
+
+        pub(crate) fn insert(&mut self, application: AppliedDomainApplication) -> bool {
+            let key = (application.declaration, application.identity);
+            let std::collections::hash_map::Entry::Vacant(entry) = self.by_application.entry(key)
+            else {
+                return false;
+            };
+            entry.insert(self.rows.len());
+            self.rows.push(application);
+            true
+        }
+
+        pub(crate) fn set_theory(
+            &mut self,
+            position: usize,
+            theory: Result<DomainDefinition, String>,
+        ) {
+            self.rows[position].theory = Some(theory);
+        }
+    }
+
+    impl compiler_storage::Record for AppliedDomainApplications {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            self.rows.write(output)
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            let rows = Vec::<AppliedDomainApplication>::read(input)?;
+            let allocation = rows
+                .len()
+                .checked_mul(std::mem::size_of::<(
+                    (SymbolHandle, language_semantics::SemanticDomainId),
+                    usize,
+                )>())
+                .ok_or_else(|| input.error("domain application index allocation overflow"))?;
+            input.allocate(allocation)?;
+            let mut result = Self {
+                by_application: std::collections::HashMap::with_capacity(rows.len()),
+                rows,
+            };
+            for (position, row) in result.rows.iter().enumerate() {
+                if result
+                    .by_application
+                    .insert((row.declaration, row.identity), position)
+                    .is_some()
+                {
+                    return Err(input.error("duplicate exact domain application"));
+                }
+            }
+            Ok(result)
+        }
+    }
+
     impl TypedTrees {
         pub fn conjunctive_proof_facts(
             &self,
@@ -1635,9 +1721,7 @@ pub mod domain {
             symbol: SymbolHandle,
             identity: language_semantics::SemanticDomainId,
         ) -> Option<&AppliedDomainApplication> {
-            self.applied_domain_applications.iter().find(|application| {
-                application.declaration == symbol && application.identity == identity
-            })
+            self.applied_domain_applications.find(symbol, identity)
         }
 
         pub fn domain_arguments_for_instance(

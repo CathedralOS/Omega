@@ -2767,7 +2767,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
     }
 
-    for application in &program.applied_domain_applications {
+    for application in program.applied_domain_applications.iter() {
         if !retained.derived_declaration_references()
             || !retained.declaration(application.declaration)
         {

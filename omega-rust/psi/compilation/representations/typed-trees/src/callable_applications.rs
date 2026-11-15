@@ -1404,14 +1404,12 @@ pub(crate) mod domain_scopes {
                 return Ok(definition.semantic_id);
             }
             let identity = self.semantic_domains.intern(&identity);
-            if !self.applied_domain_applications.iter().any(|application| {
-                application.declaration == declaration && application.identity == identity
-            }) {
+            if self.domain_application(declaration, identity).is_none() {
                 let is_closed = arguments
                     .iter()
                     .all(|argument| domain::index_argument_is_closed(self, *argument));
                 self.applied_domain_applications
-                    .push(domain::AppliedDomainApplication {
+                    .insert(domain::AppliedDomainApplication {
                         declaration,
                         identity,
                         arguments: arguments.to_vec(),
@@ -1428,11 +1426,14 @@ pub(crate) mod domain_scopes {
         pub fn prepare_domain_applications(&mut self) {
             let mut position = 0;
             while position < self.applied_domain_applications.len() {
-                if self.applied_domain_applications[position].theory.is_none()
+                if self
+                    .applied_domain_applications
+                    .get(position)
+                    .is_some_and(|row| row.theory.is_none())
                     && let Err(reason) = self.prepare_domain_application(position)
                 {
-                    self.applied_domain_applications[position].theory =
-                        Some(Err(reason.to_owned()));
+                    self.applied_domain_applications
+                        .set_theory(position, Err(reason.to_owned()));
                 }
                 position += 1;
             }
@@ -1510,7 +1511,8 @@ pub(crate) mod domain_scopes {
                 theory.cleanup_selection =
                     Some(self.apply_cleanup_selection(&mut application, selection, declaration)?);
             }
-            self.applied_domain_applications[position].theory = Some(Ok(theory));
+            self.applied_domain_applications
+                .set_theory(position, Ok(theory));
             Ok(())
         }
 
@@ -1561,6 +1563,55 @@ pub(crate) mod domain_scopes {
         use crate::name::Identifier;
         use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn domain_application_lookup_is_exact_and_rebuilt_from_stored_rows() {
+            use compiler_storage::{RecordLimits, decode, encode};
+            use language_semantics::SemanticDomainId;
+
+            let mut applications = domain::AppliedDomainApplications::default();
+            for (declaration, identity) in [
+                (SymbolHandle::from_parts(7, 2), SemanticDomainId(42)),
+                (SymbolHandle::from_parts(7, 3), SemanticDomainId(42)),
+                (SymbolHandle::from_parts(7, 2), SemanticDomainId(41)),
+            ] {
+                assert!(applications.insert(domain::AppliedDomainApplication {
+                    declaration,
+                    identity,
+                    arguments: Vec::new(),
+                    is_closed: true,
+                    theory: Some(Err(format!("refusal for {}", identity.0))),
+                }));
+            }
+            let rows = applications.iter().cloned().collect::<Vec<_>>();
+            assert!(!applications.insert(rows[0].clone()));
+            let bytes = encode(&applications, RecordLimits::default()).unwrap();
+            let restored: domain::AppliedDomainApplications =
+                decode(&bytes, RecordLimits::default()).unwrap();
+            assert_eq!(restored.iter().cloned().collect::<Vec<_>>(), rows);
+            for row in restored.iter() {
+                assert_eq!(restored.find(row.declaration, row.identity), Some(row));
+            }
+            assert!(
+                restored
+                    .find(rows[0].declaration, SemanticDomainId(40))
+                    .is_none()
+            );
+            let malformed = encode(
+                &vec![rows[0].clone(), rows[0].clone()],
+                RecordLimits::default(),
+            )
+            .unwrap();
+            let error =
+                decode::<domain::AppliedDomainApplications>(&malformed, RecordLimits::default())
+                    .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("duplicate exact domain application"),
+                "{error}"
+            );
+        }
 
         #[test]
         fn a_generic_domain_carrier_is_its_binder_not_a_matching_diagnostic_name() {
