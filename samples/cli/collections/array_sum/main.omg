@@ -30,7 +30,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     main.nums[0] = 0x7735_9400;
     main.nums[1] = 0x0BEB_C200;
     main.i = 0;
-    main.sum = 0;
+    main.sum = 0i64 as +Wrapping;
 
     transition {
         _ -> block step(main)
