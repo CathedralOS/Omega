@@ -637,6 +637,7 @@ fn finish_reading<'source>(
         bodies.push(body);
     }
     program.finish_declarations(diagnostic)?;
+    let components = components::components(&bodies, &mut program.signatures)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
@@ -659,6 +660,7 @@ fn finish_reading<'source>(
         &program.requirements,
         program.publication,
         Some(&program),
+        components,
     )?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
@@ -759,13 +761,17 @@ pub fn lower_generic(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
 ) -> Checked<Elaboration> {
+    // This model-level entrance borrows its caller's headers. Source preparation
+    // above already owns and completes the same signature table in place.
+    let mut signatures = signatures.clone();
+    let components = components::components(bodies, &mut signatures)?;
     lower_generic_for(
         Some(entry),
         bodies,
         body::Signatures {
             declarations: &IdTable::default(),
             declaration_aliases: None,
-            machines: signatures,
+            machines: &signatures,
             boundaries: &IdTable::default(),
             completions: &IdTable::default(),
         },
@@ -773,6 +779,7 @@ pub fn lower_generic(
         requirements,
         terminal_codec::TerminalPublication::Portable,
         None,
+        components,
     )
     .map(|prepared| prepared.program)
 }
@@ -785,6 +792,7 @@ fn lower_generic_for<'source>(
     requirements: &[MachineId],
     publication: terminal_codec::TerminalPublication,
     declarations: Option<&read::Program<'source>>,
+    components: components::Components,
 ) -> Checked<PreparedProgram<'source>> {
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     for requirement in requirements {
@@ -801,7 +809,6 @@ fn lower_generic_for<'source>(
     for (machine, body) in bodies.iter() {
         operational::positions(machine, body)?;
     }
-    let components = components::components(bodies, signatures.machines)?;
     // One source owner fixes the local inference boundary. Result clauses
     // retain their private publication restriction; local non-return does not
     // become a public clause and can use every eligible body in that unit.
@@ -1250,6 +1257,8 @@ mod publication_scope_tests {
             ranking: None,
         });
         let lower = |publication| {
+            let mut signatures = signatures.clone();
+            let components = components::components(&bodies, &mut signatures).unwrap();
             lower_generic_for(
                 Some(entry),
                 &bodies,
@@ -1264,6 +1273,7 @@ mod publication_scope_tests {
                 &[],
                 publication,
                 None,
+                components,
             )
             .unwrap()
             .program
