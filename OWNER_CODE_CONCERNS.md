@@ -129,12 +129,6 @@ framework or a list of unimplemented features.
 - Cost: Declaration-dependent meaning has another implementation before ordinary checking. Retain selected declarations, scope, substitutions and exact destination/initializer through the existing forward evaluation handoff; keep literal decoding and anonymous primitive normalization. Under **EARLY-TERMINAL-JOBS**, check matching declaration/static-argument/construction outcomes and independence from unrelated incompatible operators, preserving false unused-declaration, overflow, zero-divisor, carrier, arity and uncertain-predicate refusals. Removing this evaluator must not remove those obligations.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
-### Constant-index finalization searches argument storage to recover its owner
-- Category: re-deriving
-- Where: [receiving parameter search](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L236), [finalization caller](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L5029)
-- Saw: At `c30b00a0b878`, production `finalize_const_argument_selections` calls `carrier::receiving_parameters` with an argument span. It scans child types, constants, parameters, returns, fields, payloads, locals, lexical inputs, generated instances and domain constraints for that span, then recovers the receiving declaration's parameters. Conflicting owners return `None`. This is source inspection; no incorrect finalization or timing was measured.
-- Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
-- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
 ### A narrow installation bound rejects a valid selected child
 - Category: knowledge crossing a boundary
