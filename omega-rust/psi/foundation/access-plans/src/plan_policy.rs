@@ -833,9 +833,9 @@ pub(crate) mod boundary_reach {
 pub(crate) mod normalized_identities {
     use crate::access_fields::AccessLayoutCommitment;
     use crate::{
-        AccessExposure, AccessFields, AccessFieldsId, AccessPlanId, AtomicCapability,
-        AtomicPermissions, BoundaryReach, ExternalCapability, ExternalRead, ExternalReadBehavior,
-        FieldAccess, PeerWritability, ResourceProfileId, ResourceRegion, StableCapability,
+        AccessExposure, AccessFields, AccessFieldsId, AtomicCapability, AtomicPermissions,
+        BoundaryReach, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
+        PeerWritability, PlacementId, ResourceProfileId, ResourceRegion, StableCapability,
         TransferRule,
     };
     use extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
@@ -957,7 +957,7 @@ pub(crate) mod normalized_identities {
     pub(crate) fn non_authoritative_access_compatibility_fingerprint(
         access: AccessFieldsId,
         reach: &BoundaryReach,
-    ) -> AccessPlanId {
+    ) -> PlacementId {
         let mut hash = semantic_vocabulary::Fnv1a::new();
         hash.bytes(b"omega.placement-plan.v1");
         hash.u64(access.compatibility_fingerprint());
@@ -965,7 +965,7 @@ pub(crate) mod normalized_identities {
         for service in reach.services() {
             hash.u64(service.normalized_identity());
         }
-        AccessPlanId(hash.finish().max(1))
+        PlacementId(hash.finish().max(1))
     }
 
     pub(crate) fn authoritative_access_layout_commitment(
@@ -979,7 +979,7 @@ pub(crate) mod normalized_identities {
     }
 
     pub(crate) fn authoritative_access_interpretation(
-        plan: &crate::ValidatedAccessPlan,
+        plan: &crate::ValidatedPlacement,
     ) -> ExtentContentInterpretation {
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
             b"omega.placement-plan.authoritative.v1\0",

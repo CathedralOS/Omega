@@ -25,6 +25,7 @@ and boundary modules directly, while `const_value.rs`, `content.rs`,
 #![forbid(unsafe_code)]
 
 pub(crate) use optimization::codec_bytes;
+pub mod reflection;
 pub mod boundary_values {
     use arena::{Arena, Handle, HandleSpan};
 

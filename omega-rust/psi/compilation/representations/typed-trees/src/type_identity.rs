@@ -3762,9 +3762,7 @@ pub(crate) mod package_policy_reading_tests {
             FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
         };
         use crate::{AccessFieldPlan, AccessViewPlan, AccessorTarget};
-        use access_plans::{
-            AccessFields, AccessPlan, BoundaryReach, FieldAccess, validate_access_plan,
-        };
+        use access_plans::{AccessFields, BoundaryReach, FieldAccess, validate_placement};
         use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
         use numerics::arithmetic::ArithmeticDomain;
         use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
@@ -3972,12 +3970,8 @@ pub(crate) mod package_policy_reading_tests {
                     access.key_at(0).expect("first field"),
                     access.key_at(1).expect("second field"),
                 ];
-                let placement = validate_access_plan(AccessPlan {
-                    layout,
-                    access,
-                    reach: BoundaryReach::default(),
-                })
-                .expect("an inaccessible placement validates");
+                let placement = validate_placement(layout, access, BoundaryReach::default())
+                    .expect("an inaccessible placement validates");
                 let field =
                     |key, name: &str, member_identity, accessor: &str, targets| AccessFieldPlan {
                         access_key: key,

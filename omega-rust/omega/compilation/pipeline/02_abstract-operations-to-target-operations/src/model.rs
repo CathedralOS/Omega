@@ -316,7 +316,7 @@ pub enum AccessViewInputTranslationError {
     InputIsNotDirectEntry,
     UnsupportedEntryFunctionShape(MachineId),
     SelectionRowMismatch,
-    AccessPlanIdentityMismatch,
+    PlacementIdentityMismatch,
     AccessPlanHasNoConcreteSize,
     TargetPointerShapeUnsupported,
     AbiPlan(PlanDiagnostic),

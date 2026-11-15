@@ -6,6 +6,7 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+pub(crate) mod access_plan_values;
 mod build_activation;
 mod const_argument_jobs;
 mod constant_jobs;

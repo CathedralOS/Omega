@@ -499,3 +499,13 @@ pub fn read_leaf(
         _ => Err("Terminal result leaf is outside the compiler-owned vocabulary".into()),
     }
 }
+
+/// Project complete semantic access-plan data from the existing bound query
+/// and result receipts. The result remains descriptive: this operation does
+/// not admit a policy invocation, authorize a domain or join physical backing.
+pub fn access_plan_result(
+    query: &crate::PureTerminalEvaluationReceipt,
+    result: &crate::PureTerminalEvaluationReceipt,
+) -> Result<access_plans::AccessPlan, String> {
+    crate::source_jobs::access_plan_values::normalize(query, result)
+}

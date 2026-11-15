@@ -1,10 +1,10 @@
 //! Checks admitted backing profiles against access and relocation demands.
 
 pub(crate) mod resource_compatibility {
-    use crate::{AccessFieldKey, AccessPlanId, ResourceProfileId};
+    use crate::{AccessFieldKey, PlacementId, ResourceProfileId};
     use crate::{
         AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalRead,
-        ExternalReadBehavior, FieldAccess, FieldRegion, ResourceRegion, ValidatedAccessPlan,
+        ExternalReadBehavior, FieldAccess, FieldRegion, ResourceRegion, ValidatedPlacement,
         ValidatedResourceProfile,
     };
 
@@ -33,7 +33,7 @@ pub(crate) mod resource_compatibility {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct AccessResourceCompatibility {
-        pub(crate) placement: AccessPlanId,
+        pub(crate) placement: PlacementId,
         profile: ResourceProfileId,
         pub(crate) base: BaseCongruence,
         pub(crate) fields: Vec<EffectiveFieldSupply>,
@@ -57,7 +57,7 @@ pub(crate) mod resource_compatibility {
     }
 
     pub fn validate_initialization_resources(
-        plan: &ValidatedAccessPlan,
+        plan: &ValidatedPlacement,
         profile: &ValidatedResourceProfile,
     ) -> Result<InitializationResourceCompatibility, AccessPlanDiagnostic> {
         let placement = validate_access_resources(plan, profile)?;
@@ -171,7 +171,7 @@ pub(crate) mod resource_compatibility {
     }
 
     impl AccessResourceCompatibility {
-        pub const fn placement(&self) -> AccessPlanId {
+        pub const fn placement(&self) -> PlacementId {
             self.placement
         }
 
@@ -193,7 +193,7 @@ pub(crate) mod resource_compatibility {
     }
 
     pub fn validate_access_resources(
-        plan: &ValidatedAccessPlan,
+        plan: &ValidatedPlacement,
         profile: &ValidatedResourceProfile,
     ) -> Result<AccessResourceCompatibility, AccessPlanDiagnostic> {
         if plan.access.layout_size_bytes > profile.length {
@@ -816,7 +816,7 @@ pub(crate) mod resource_profile_admission {
         pub fn initialization_compatibility(
             &self,
             loan: &ExtentLoan<'_>,
-            plan: &crate::ValidatedAccessPlan,
+            plan: &crate::ValidatedPlacement,
         ) -> Result<crate::InitializationResourceCompatibility, AccessPlanDiagnostic> {
             if loan.polarity() != extents::LoanPolarity::Exclusive {
                 return Err(AccessPlanDiagnostic(
@@ -1039,12 +1039,12 @@ pub(crate) mod resource_profile_validation {
 
 pub(crate) mod run_relocation {
     use crate::{
-        AccessPlanDiagnostic, InitializationResourceCompatibility, ValidatedAccessPlan,
+        AccessPlanDiagnostic, InitializationResourceCompatibility, ValidatedPlacement,
         ValidatedResourceProfile, require_stable_region_supply, validate_initialization_resources,
     };
 
     pub fn validate_run_relocation_resources(
-        plan: &ValidatedAccessPlan,
+        plan: &ValidatedPlacement,
         count: u64,
         destination_base: u64,
         source: &ValidatedResourceProfile,
