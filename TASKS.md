@@ -97,6 +97,11 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Lowering, checker, and data-flow
 
+- **CHECKER-WRONG-ACCEPTS.** The lowered-form checker accepts 18 negative programs it must refuse, so each is a soundness bug: its verdict is the only one a compilation gets. Found by the Windows-target sweep of 14 November at `b3b8010cec`; `mbx xtask sweep --filter <fact> --target windows_x86_64` shows the current state.
+  - Shift and mask bounds: `signed_shift_left_bound` (7 places), `narrow_to_narrow_truncation_64to8_mask_bound` (5), and one place each of `scalar_width_shifts`, `signed_64bit_bitwise_and_mask_bound`, `unsigned_64bit_bitwise_and_mask_bound`, `unsigned_64bit_bitwise_or_bound` and `unsigned_shift_right_bound`, all under `samples/cli/facts/`.
+  - Target selection: `tests/fixtures/fail/targets/distinct_roots_exclusion_selected_body`.
+- **NEGATIVE-TWIN-REASONS.** 254 negative programs, across 58 facts, are refused for a different error than the one they pin in `expected.txt` or `sample.json`, so they prove nothing about the fact they were written for (the same sweep, where `xtask sweep` lists them as "Rejected for another reason"). Most stop earlier in the program, on a domain-cast refusal ("this value's type carries no domain", about 110), an unproved operation safety condition (about 45) or a storage rule. For each fact, fix the checker if it refuses the twin wrongly; otherwise repair the twin so it differs from its positive only in the fact's own input, keeping the pinned diagnostic unchanged.
+
 - **SAME-FAMILY-RECORD-TRANSPORT.** Admit explicitly supplied records across proved-compatible indices without forwarding machines ([contract and acceptance](wiki/spec/proofs/contracts.md#exact-matching-and-evidence-transport)); extends **OPERATION-RECORD-IMPLEMENTATIONS** and indexed-value compatibility.
   - Extend the shared record/callable compatibility judgment in the lowered-form checker, not conformance search. A requirement-bound selection crosses to a provably equal application of the same requirement declaration and stays bound to it; keep dependency-ordered evidence and mutable source handback through specialization, projection and published Psi; migrate the blanket reindexing refusal.
 
