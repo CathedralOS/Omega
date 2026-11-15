@@ -73,6 +73,20 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### The private-operator twin in `lowered_route_qualified` expects wording typing no longer prints
+- Category: tests that pin the bug
+- Where: `omega-rust/omega/compilation/compiler/tests/support/qualified_operator_homes.rs:133`
+- Saw: with `Distance::add` made private, typing refuses with "builtin operator `+` takes unqualified operands only, but `distance_left` has type `u32 in Distance` and no operator `+` is declared for it" (`03_symbol-resolved-trees-to-typed-trees/src/operator_calls.rs`, wording from #3541); the test accepts only "not a plain or policy-qualified scalar", "no visible operator" or "private operator", so `domain_operators_cross_package_boundaries_without_importing_their_module` fails at dc83fcb65264.
+- Cost: the lowered-form checker's area tests are red for a correct refusal; the oracle should name the refusal by what it checks, not by retired text.
+- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
+
+### A `fail/` proof fixture compiles, so `lowered_route_governance` fails at its base
+- Category: a verdict with nothing behind it
+- Where: `tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg`, `omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs:44`
+- Saw: `omega --check --target linux_x86_64` on the fixture prints `compiled 237 source file(s)` at dc83fcb65264, although its header expects `carrier arithmetic in a clause term`; `an_invalid_bound_entry_reports_the_routes_rejection` panics with "the compilation must be rejected after Psi 04".
+- Cost: the governance test is red for every agent that runs the lowered-form checker's area tests, and an unused partial predicate (`value + 1u32 == 1u32`) is accepted without the rejection the fixture pins.
+- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
+
 ### Equality preparation reconstructs resolved types from names
 - Category: re-deriving
 - Where: [operand scope](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L722), [field comparison](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L515), [operand lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L3356)

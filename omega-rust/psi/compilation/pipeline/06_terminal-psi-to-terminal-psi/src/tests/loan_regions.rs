@@ -156,7 +156,8 @@ machine build_entry{binders}(holder: &mut View{holder}, cell: &{cell}Cell) {{
     // lent, which no slice answers yet.
     assert_eq!(
         verdict(&stashed("<'s>", "<'s>", "'s ")),
-        "a reference retained in caller storage needs its checked output-loan correspondence"
+        "a reference retained in caller storage needs its checked output-loan correspondence \
+         in machine `build_entry`"
     );
 }
 

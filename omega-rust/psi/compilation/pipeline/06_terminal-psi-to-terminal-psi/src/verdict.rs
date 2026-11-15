@@ -927,15 +927,17 @@ fn examine(
     let mut unsupported = Unsupported::default();
     let reference_ends = terminal_semantics::reference_ends::candidates(&elaboration.module)
         .map_err(|error| {
-            fall_back_or_defect(refusal(
-                RefusalReason::Unsupported,
-                error.machine,
-                error
-                    .operation
-                    .map(Construct::Operation)
-                    .unwrap_or(Construct::Machine),
-                &error.detail,
-            ))
+            fall_back_or_defect(
+                Roster::of(&elaboration).locate(refusal(
+                    RefusalReason::Unsupported,
+                    error.machine,
+                    error
+                        .operation
+                        .map(Construct::Operation)
+                        .unwrap_or(Construct::Machine),
+                    &error.detail,
+                )),
+            )
         })?;
     for machine in &elaboration.module.machines {
         let candidates = reference_ends.get(machine.id).ok_or_else(|| {
@@ -973,7 +975,9 @@ fn examine(
                     unsupported.note(machine.id, refused);
                     continue;
                 }
-                return Err(fall_back_or_defect(refused));
+                return Err(fall_back_or_defect(
+                    Roster::of(&elaboration).locate(refused),
+                ));
             }
         };
         if !ends.reference_ends.is_empty() {
@@ -1010,7 +1014,9 @@ fn examine(
                         unsupported.note(machine.id, refused);
                         continue;
                     }
-                    return Err(fall_back_or_defect(refused));
+                    return Err(fall_back_or_defect(
+                        Roster::of(&elaboration).locate(refused),
+                    ));
                 }
             };
         let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
@@ -1044,7 +1050,7 @@ fn examine(
             });
         }
     }
-    if let Some(first) = unsupported.verdict(further) {
+    if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
         return Err(Ok(RouteVerdict::FallBack(first)));
     }
     match crate::discharge_carrying(&mut elaboration, carried) {
@@ -1053,7 +1059,9 @@ fn examine(
             discharged,
             affine_unestablished,
         }),
-        Err(refused) => Err(fall_back_or_defect(refused)),
+        Err(refused) => Err(fall_back_or_defect(
+            Roster::of(&elaboration).locate(refused),
+        )),
     }
 }
 
@@ -1121,7 +1129,7 @@ fn conclude(
                     unsupported.note(machine, refused.clone());
                     continue;
                 }
-                return fall_back_or_defect(refused.clone());
+                return fall_back_or_defect(Roster::of(&elaboration).locate(refused.clone()));
             };
             let concerns = Construct::Obligation(obligation);
             let row =
@@ -1171,7 +1179,9 @@ fn conclude(
                 RefusalReason::NotConserved
                 | RefusalReason::Conflict
                 | RefusalReason::Violation
-                | RefusalReason::ForeignIdentity => return fall_back_or_defect(refused.clone()),
+                | RefusalReason::ForeignIdentity => {
+                    return fall_back_or_defect(Roster::of(&elaboration).locate(refused.clone()));
+                }
             };
             let concerns = Construct::Obligation(consumed.opened_by);
             let row = terminal_check_tables::row(
@@ -1234,7 +1244,7 @@ fn conclude(
                 continue;
             }
             if refused.reason != RefusalReason::Unestablished {
-                return fall_back_or_defect(refused.clone());
+                return fall_back_or_defect(Roster::of(&elaboration).locate(refused.clone()));
             }
             let mut declared = None;
             for consumed in &result.windows {
@@ -1259,7 +1269,7 @@ fn conclude(
             });
         }
     }
-    if let Some(first) = unsupported.verdict(further) {
+    if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
         return Ok(RouteVerdict::FallBack(first));
     }
     let exceeded = match crate::ceilings::judge(&elaboration.module, &elaboration.tables) {
@@ -1267,7 +1277,7 @@ fn conclude(
             .into_iter()
             .map(|excess| exceeded_reach(&elaboration, excess))
             .collect::<Checked<Vec<_>>>()?,
-        Err(refused) => return fall_back_or_defect(refused),
+        Err(refused) => return fall_back_or_defect(Roster::of(&elaboration).locate(refused)),
     };
     if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {
         return Ok(RouteVerdict::Rejected {
@@ -1320,7 +1330,7 @@ fn conclude(
         .pending_evaluation_conditions
         .insert_many(pending);
     if let Err(refused) = accept_proof_callables(&mut elaboration, &discharged) {
-        return fall_back_or_defect(refused);
+        return fall_back_or_defect(Roster::of(&elaboration).locate(refused));
     }
     // A generic check form is never published (`validate_publication`), so
     // its evidence needs no seal, and a seal cannot encode a parameter
@@ -1328,7 +1338,7 @@ fn conclude(
     let seals = if elaboration.generic_binders.is_empty() {
         match discharged.operation_seals(&elaboration) {
             Ok(seals) => seals,
-            Err(refused) => return fall_back_or_defect(refused),
+            Err(refused) => return fall_back_or_defect(Roster::of(&elaboration).locate(refused)),
         }
     } else {
         Vec::new()
@@ -1469,8 +1479,13 @@ impl Unsupported {
         }
     }
 
-    fn verdict(self, further: &mut Vec<Refusal>) -> Option<Refusal> {
-        let mut refused = self.0.into_iter().map(|(_, refused)| refused);
+    /// The first refusal, with the rest put in `further`, each named and
+    /// placed by `roster`.
+    fn verdict(self, roster: Roster<'_>, further: &mut Vec<Refusal>) -> Option<Refusal> {
+        let mut refused = self
+            .0
+            .into_iter()
+            .map(|(_, refused)| roster.locate(refused));
         let first = refused.next()?;
         further.extend(refused);
         Some(first)
@@ -1691,22 +1706,73 @@ fn reaches_itself(
 
 /// Where an operation, edge or block arises in the source, from
 /// elaboration's own correspondence; a position is never guessed.
+/// Where construct `at` arises in the source, when the correspondence keeps
+/// a row for it.
+fn site_of(
+    sources: &terminal_check_tables::program::MachineSources,
+    at: Construct,
+) -> Option<SourceOrigin> {
+    match at {
+        Construct::Operation(operation) => sources.operations.get(operation),
+        Construct::Edge(edge) => sources.edges.get(edge),
+        Construct::Block(block) => sources.blocks.get(block),
+        Construct::Obligation(obligation) => sources.obligations.get(obligation),
+        Construct::Machine
+        | Construct::Value(_)
+        | Construct::Place(_)
+        | Construct::Invocation(_) => None,
+    }
+    .copied()
+}
+
+/// The names and source correspondence of one judged compilation part, used
+/// to say where a refusal is. A refusal leaves the checker as a diagnostic
+/// that a person must be able to find, even inside a dependency such as
+/// `std`: `locate` names its machine and, when the refusal has no span of
+/// its own, places it at its construct or else at the machine's declaration.
+/// Machine identities are local to one part, so a roster serves only the
+/// refusals of the elaboration it was taken from.
+#[derive(Clone, Copy)]
+struct Roster<'a> {
+    names: &'a semantic_vocabulary::IdTable<MachineId, terminal_check_tables::names::MachineNames>,
+    sources:
+        &'a semantic_vocabulary::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
+}
+
+impl<'a> Roster<'a> {
+    fn of(elaboration: &'a Elaboration) -> Self {
+        Self {
+            names: &elaboration.names,
+            sources: &elaboration.sources,
+        }
+    }
+
+    fn locate(self, mut refused: Refusal) -> Refusal {
+        let names = self.names.get(refused.machine);
+        if refused.source_span.is_none() {
+            refused.source_span = self
+                .sources
+                .get(refused.machine)
+                .and_then(|sources| site_of(sources, refused.concerns))
+                .and_then(SourceOrigin::authored_span)
+                .or_else(|| names.and_then(|names| names.declared));
+        }
+        if let Some(name) = names
+            .map(|names| names.machine.as_str())
+            .filter(|name| !name.is_empty())
+        {
+            refused.detail.push_str(&format!(" in machine `{name}`"));
+        }
+        refused
+    }
+}
+
 fn source_of(
     sources: &terminal_check_tables::program::MachineSources,
     machine: MachineId,
     at: Construct,
 ) -> Checked<SourceOrigin> {
-    let site = match at {
-        Construct::Operation(operation) => sources.operations.get(operation),
-        Construct::Edge(edge) => sources.edges.get(edge),
-        Construct::Block(block) => sources.blocks.get(block),
-        Construct::Machine
-        | Construct::Value(_)
-        | Construct::Place(_)
-        | Construct::Obligation(_)
-        | Construct::Invocation(_) => None,
-    };
-    site.copied().ok_or_else(|| {
+    site_of(sources, at).ok_or_else(|| {
         refusal(
             RefusalReason::ForeignIdentity,
             machine,
@@ -1729,7 +1795,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
             unestablished: vec![UnestablishedUse {
                 machine: refused.machine,
                 at: refused.concerns,
-                site: None,
+                site: refused.source_span.map(SourceOrigin::Authored),
                 detail: refused.detail,
                 declared: None,
             }],
@@ -1802,13 +1868,25 @@ mod unsupported_tests {
             unsupported.note(MachineId::new(machine).unwrap(), refused(machine, detail));
         }
         let mut further = Vec::new();
-        let first = unsupported.verdict(&mut further).unwrap();
+        let (names, sources) = (
+            semantic_vocabulary::IdTable::default(),
+            semantic_vocabulary::IdTable::default(),
+        );
+        let roster = Roster {
+            names: &names,
+            sources: &sources,
+        };
+        let first = unsupported.verdict(roster, &mut further).unwrap();
         assert_eq!(first.detail, "a");
         let rest: Vec<_> = further
             .iter()
             .map(|refused| refused.detail.as_str())
             .collect();
         assert_eq!(rest, ["c", "d"]);
-        assert!(Unsupported::default().verdict(&mut further).is_none());
+        assert!(
+            Unsupported::default()
+                .verdict(roster, &mut further)
+                .is_none()
+        );
     }
 }
