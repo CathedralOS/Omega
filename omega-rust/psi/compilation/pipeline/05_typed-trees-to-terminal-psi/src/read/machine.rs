@@ -455,7 +455,8 @@ impl<'t> Program<'t> {
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
         let widths = std::mem::replace(&mut self.width_scope, outer_widths);
-        let (signature, names, value_parameters) = read?;
+        let (signature, names, value_parameters) =
+            read.map_err(|refusal| self.read_failure_at(refusal, symbol, "the signature"))?;
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
         {
@@ -2598,7 +2599,22 @@ impl<'t> Program<'t> {
         let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.read_body(id, symbol);
         self.lifetime_owner = owner;
-        read
+        read.map_err(|refusal| self.read_failure_at(refusal, symbol, "the body"))
+    }
+
+    // The outer caller may only receive a refusal, without the partial machine
+    // roster. Keep the actual declaration here, where its identity is known.
+    fn read_failure_at(
+        &self,
+        mut refusal: terminal_check_tables::Refusal,
+        declaration: SymbolHandle,
+        part: &str,
+    ) -> terminal_check_tables::Refusal {
+        refusal.detail.push_str(&format!(
+            " while reading {part} of `{}`",
+            self.typed.symbols.display_path(declaration, "::")
+        ));
+        refusal
     }
 
     fn read_body(&mut self, id: MachineId, symbol: SymbolHandle) -> Checked<Body> {
@@ -2797,7 +2813,9 @@ impl<'t> Program<'t> {
                     continue;
                 }
                 StatementNode::LocalData(local) => {
-                    let (slot, statement) = self.local(id, &slots, local)?;
+                    let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
+                        self.read_failure_at(refusal, local.symbol, "the local binding")
+                    })?;
                     if let Some(truth) = self.static_truth(local.initial_value) {
                         self.static_truths.push((local.symbol, truth));
                     }

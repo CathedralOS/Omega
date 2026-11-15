@@ -1,8 +1,8 @@
 /*
 We deterministically project an `AbstractOperationPlan` into a bare
 `PsiOptimizationUnit` seed and its per-function `PsiOptimizationFunction` graphs.
-We check that machine and block IDs are strictly increasing, slice the flat
-operation stream into basic blocks, and extract each node's scalar definitions,
+We check that machine and block IDs are strictly increasing, preserve the explicit
+block ownership, and extract each node's scalar definitions,
 operand uses, control-flow successor edges, provenance sites, and ownership
 events in a single pass. This seed carries no admission authority until verified
 Terminal module catalogs and frontier facts are attached.
@@ -21,8 +21,6 @@ use super::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitBuildError {
     MissingBlocks(MachineId),
-    FirstBlockDoesNotStartAtZero(MachineId),
-    InvalidBlockOffset { machine: MachineId, offset: usize },
     UnorderedBlock(MachineId, BlockId),
     UnorderedMachine(MachineId),
     NodeIndexOverflow(MachineId),
@@ -83,22 +81,11 @@ pub fn reconstruct_psi_optimization_unit_seed(
 pub fn reconstruct_psi_optimization_function_seed(
     function: &AbstractFunction,
 ) -> Result<PsiOptimizationFunction, OptimizationUnitBuildError> {
-    if function.block_entries.is_empty() {
+    if function.blocks.is_empty() {
         return Err(OptimizationUnitBuildError::MissingBlocks(function.machine));
     }
-    if function.block_entries[0].operation_offset != 0 {
-        return Err(OptimizationUnitBuildError::FirstBlockDoesNotStartAtZero(
-            function.machine,
-        ));
-    }
     let mut previous_block = None;
-    for entry in &function.block_entries {
-        if entry.operation_offset > function.operations.len() {
-            return Err(OptimizationUnitBuildError::InvalidBlockOffset {
-                machine: function.machine,
-                offset: entry.operation_offset,
-            });
-        }
+    for entry in &function.blocks {
         if previous_block.is_some_and(|previous| previous >= entry.block) {
             return Err(OptimizationUnitBuildError::UnorderedBlock(
                 function.machine,
@@ -151,7 +138,7 @@ pub fn reconstruct_psi_optimization_function_seed(
         .chain(function.result.structural().map(|result| result.place))
         .collect::<BTreeSet<_>>();
     let mut effect_token = 0u64;
-    for entry in &function.block_entries {
+    for entry in &function.blocks {
         for parameter in &entry.structural_parameters {
             structural_places.push(StructuralPlaceDeclaration {
                 id: parameter.place,
@@ -163,18 +150,8 @@ pub fn reconstruct_psi_optimization_function_seed(
             declared_places.insert(parameter.place);
         }
     }
-    let mut blocks = Vec::with_capacity(function.block_entries.len());
-    for (block_index, entry) in function.block_entries.iter().enumerate() {
-        let end = function
-            .block_entries
-            .get(block_index + 1)
-            .map_or(function.operations.len(), |next| next.operation_offset);
-        if end < entry.operation_offset {
-            return Err(OptimizationUnitBuildError::InvalidBlockOffset {
-                machine: function.machine,
-                offset: end,
-            });
-        }
+    let mut blocks = Vec::with_capacity(function.blocks.len());
+    for entry in &function.blocks {
         let block_parameter_rows = entry
             .parameters
             .iter()
@@ -192,11 +169,8 @@ pub fn reconstruct_psi_optimization_function_seed(
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut nodes = Vec::with_capacity(end - entry.operation_offset);
-        for (local_index, operation) in function.operations[entry.operation_offset..end]
-            .iter()
-            .enumerate()
-        {
+        let mut nodes = Vec::with_capacity(entry.operations.len());
+        for (local_index, operation) in entry.operations.iter().enumerate() {
             let node = u32::try_from(local_index)
                 .map_err(|_| OptimizationUnitBuildError::NodeIndexOverflow(function.machine))?;
             let provenance = operation_node_provenance(operation);

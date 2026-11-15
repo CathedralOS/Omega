@@ -956,15 +956,10 @@ dependencies = [
  "numerics",
  "runtime-abi",
  "semantic-vocabulary",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-psi",
  "terminal-semantics",
- "tokens-to-syntax-trees",
- "typed-trees",
 ]
 
 [[package]]
@@ -1664,14 +1659,11 @@ version = "0.1.0"
 dependencies = [
  "backend-plan",
  "boundary-applications",
- "component-description",
  "diagnostics",
  "effects",
  "language-semantics",
- "optimization-core",
  "semantic-vocabulary",
  "target",
- "terminal-codec",
  "terminal-psi",
 ]
 

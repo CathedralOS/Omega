@@ -335,12 +335,11 @@ mod calls {
         machine_symbol: SymbolHandle,
         target: &str,
     ) -> SymbolHandle {
-        let named = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target);
-        if named.is_valid() {
-            return named;
-        }
-
-        child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], "entry")
+        crate::symbols::select_machine_entry(target, |name| {
+            let state = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], name);
+            state.is_valid().then_some(state)
+        })
+        .unwrap_or_else(SymbolHandle::invalid)
     }
 
     /*

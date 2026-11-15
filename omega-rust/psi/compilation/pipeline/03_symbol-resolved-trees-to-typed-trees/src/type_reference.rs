@@ -1256,7 +1256,10 @@ pub(crate) mod const_arguments {
             fn a_definition_spelled_like_a_sort_keeps_its_refusal() {
                 let (mut program, _) = sort_application(false, 1);
                 let error = normalize(&mut program, 0).unwrap_err();
-                assert!(error.message.contains("no product route yet"));
+                assert_eq!(
+                    error.message,
+                    "typing could not complete the check (closed const argument declaration custody)"
+                );
             }
 
             #[test]
@@ -1474,11 +1477,9 @@ pub(crate) mod const_arguments {
                     } else {
                         // With no header or two, typing cannot say which
                         // parameter the argument answers.
-                        assert!(
-                            outcome
-                                .unwrap_err()
-                                .message
-                                .contains("no product route yet")
+                        assert_eq!(
+                            outcome.unwrap_err().message,
+                            "typing could not complete the check (closed const argument declaration custody)"
                         );
                     }
                     if header_count == 1 && !argument_scope {

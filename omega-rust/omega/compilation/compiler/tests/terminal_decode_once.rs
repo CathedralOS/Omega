@@ -378,7 +378,7 @@ fn exercise_owned_and_borrowed_instances() {
         published.semantic_bytes(),
         retained.artifact().semantic_bytes()
     );
-    let (transferred_module, _) = published.into_semantics();
+    let transferred_module = published.into_semantics();
     assert_eq!(
         machine_storage,
         transferred_module.module().machines.as_ptr()

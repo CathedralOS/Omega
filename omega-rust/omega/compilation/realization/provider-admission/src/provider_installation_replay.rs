@@ -52,7 +52,7 @@ pub(super) fn replay_installed_provider_calls(
     }
     let mut calls = Vec::new();
     for caller in &plan.functions {
-        for operation in &caller.operations {
+        for operation in caller.operations() {
             if let AbstractOperation::ExternalCompletion {
                 psi_edge,
                 boundary,
