@@ -66,6 +66,14 @@ struct WidthBinding {
     parameter: semantic_vocabulary::WidthParameter,
 }
 
+/// Source-unit permissions for local inference. Outcome inference changes
+/// executable continuations; result inference currently extends a callable's
+/// contract, so only private bodies may receive those additional clauses.
+pub(crate) struct LocalSummaryBodies {
+    pub outcomes: Vec<MachineId>,
+    pub result_contracts: Vec<MachineId>,
+}
+
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub declaration_metadata: Vec<SymbolHandle>,
@@ -182,6 +190,9 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    /// Resolved domain declarations actually used by this verification unit.
+    /// Lowering publishes these meanings, not just the carrier of their values.
+    pub declared_domains: Vec<(SymbolHandle, ValueType)>,
     /// Only completed source contracts enter this stage-local query cache.
     /// It contains no value facts and is never published as evidence.
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -347,6 +358,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            declared_domains: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -835,21 +847,6 @@ mod tests {
             );
             assert_eq!(refusal.detail, expected);
         }
-    }
-
-    /// `+!` is refused by name before its operands are read: no type carries
-    /// `Trapping` on this route. The `%` and `|` forms are read
-    /// (`compiler/tests/route_probe.rs`).
-    #[test]
-    fn a_trapping_operator_is_refused_before_its_operands_are_read() {
-        let typed = TypedTrees::default();
-        let node = ExpressionNode::Binary(TableBinaryExpression {
-            policy: numerics::arithmetic::ArithmeticDomain::Trapping,
-            left: ExpressionHandle::invalid(),
-            operator: BinaryOperator::Add,
-            right: ExpressionHandle::invalid(),
-        });
-        assert_eq!(refused(&typed, node), "expression Trapping policy operator");
     }
 
     /// `result` in a contract is taken by the owner identity stage 02

@@ -13,10 +13,10 @@ use build_settings::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBu
 use package_compilation::{
     AcceptedSemanticBinding, PackageBuildHandoff, PackageSourceConsumptionCommitment,
 };
-use package_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
-use package_source::ImmutableSourceResolution;
+use review_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
+use source_acquisition::ImmutableSourceResolution;
 
-use package_evidence::record::SemanticBindingReviewCandidate;
+use review_evidence::record::SemanticBindingReviewCandidate;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CompilerIssuedPackageReview {
@@ -95,10 +95,10 @@ impl CompilerIssuedPackageReview {
 
 pub(super) fn policy_rows_and_commitment(
     policy: &PackagePolicyBaseline,
-) -> Result<(Vec<PackagePolicyRow>, [u8; 32]), package_evidence::encoding::PackageReviewEncodingError>
+) -> Result<(Vec<PackagePolicyRow>, [u8; 32]), review_evidence::encoding::PackageReviewEncodingError>
 {
     let (rows, _) = policy
-        .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())?;
+        .canonical_rows_with_limits(review_evidence::record::PackagePolicyRowLimits::default())?;
     let commitment = crate::digest_encoder::content_identity(&policy.canonical_bytes()?);
     Ok((rows, commitment))
 }

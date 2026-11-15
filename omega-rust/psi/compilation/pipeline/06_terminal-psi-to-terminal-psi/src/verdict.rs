@@ -129,9 +129,10 @@ impl AcceptedClosure {
     /// it (`wiki/spec/language/state_contracts.md`, "Unreachable branches":
     /// "This is an advisory diagnostic, not an inherent language error").
     ///
-    /// Each statement after a call that never returns is one warning at the
-    /// first such statement, followed by one note at the call
-    /// (state_contracts.md, "Statements after a call that never returns").
+    /// An expression without a normal result causes one warning at the first
+    /// following statement and one note at that expression. Calls and actual
+    /// uninhabited values use the same continuation rule (state_contracts.md,
+    /// "Published no-return").
     pub fn advisories(&self) -> Vec<Diagnostic> {
         let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
@@ -142,12 +143,12 @@ impl AcceptedClosure {
             let owner = describe::owner(self.elaboration.names.get(machine), unreachable.call);
             advisories.push(located(
                 Diagnostic::warning(format!(
-                    "unreachable statement in {owner}: the call before it never returns, so this statement and every statement after it never execute"
+                    "unreachable statement in {owner}: the preceding expression cannot complete normally, so this statement and every statement after it never execute"
                 )),
                 unreachable.statement,
             ));
             advisories.push(located(
-                Diagnostic::note("this call never returns"),
+                Diagnostic::note("this expression cannot complete normally"),
                 unreachable.call,
             ));
         }

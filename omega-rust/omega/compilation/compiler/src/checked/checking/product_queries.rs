@@ -8,19 +8,24 @@ use diagnostics::Diagnostic;
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 
 pub struct ProductQueries {
-    preparation: compilation_products::SourcePreparation,
+    preparation: products::SourcePreparation,
     sources: Option<package_compilation::source_assembly::DeferredProductSources>,
-    initial: psi_compiler::SourceContinuation,
+    initial: source_compiler::SourceContinuation,
     inputs: Option<package_compilation::PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
-    retained: Option<(ProductQueryInputs, psi_compiler::SourceContinuation)>,
+    /// The build dependencies the Build has prepared when it asks: a later
+    /// stage of a staged Build calls their code, and a query that code makes
+    /// is answered at its own occurrence.
+    prepared: Vec<ProductQueryDependency>,
+    retained: Option<(ProductQueryInputs, source_compiler::SourceContinuation)>,
 }
 
 impl ProductQueries {
     pub(super) fn new(
-        frontier: &compilation_products::TypedCompilationFrontier,
+        frontier: &products::TypedCompilationFrontier,
         inputs: Option<package_compilation::PackageCompilationInputs>,
         execution_profile: Option<target::TargetProfile>,
+        prepared: Vec<ProductQueryDependency>,
     ) -> Self {
         Self {
             preparation: frontier.preparation.clone(),
@@ -31,6 +36,7 @@ impl ProductQueries {
             initial: frontier.source.clone(),
             inputs,
             execution_profile,
+            prepared,
             retained: None,
         }
     }
@@ -48,7 +54,9 @@ impl ProductQueries {
         query: &BuildProductQuery,
         dependencies: Vec<ProductQueryDependency>,
     ) -> Result<BuildProductDescription, Vec<Diagnostic>> {
-        let inputs = ProductQueryInputs::new(self.inputs.clone(), dependencies).map_err(refuse)?;
+        let inputs = ProductQueryInputs::new(self.inputs.clone(), dependencies)
+            .and_then(|inputs| inputs.with_prepared_build_dependencies(self.prepared.clone()))
+            .map_err(refuse)?;
         if self
             .retained
             .as_ref()
@@ -69,6 +77,7 @@ impl ProductQueries {
                         self.execution_profile,
                         self.inputs.as_ref(),
                         &mut timings,
+                        None,
                     )?
                     .source
                 }
@@ -97,19 +106,19 @@ impl ProductQueries {
         })?;
         let occurrence = source::SourceSpan::new(selected, query.occurrence.span);
         match query.operation {
-            psi_compiler::TerminalBuildQueryOperation::SchemaPath
-            | psi_compiler::TerminalBuildQueryOperation::ProviderPath => Err(refuse(
+            source_compiler::TerminalBuildQueryOperation::SchemaPath
+            | source_compiler::TerminalBuildQueryOperation::ProviderPath => Err(refuse(
                 "description inspection belongs to its issuing Build activation, not source resolution",
             )),
-            psi_compiler::TerminalBuildQueryOperation::Schema => source
+            source_compiler::TerminalBuildQueryOperation::Schema => source
                 .describe_schema(occurrence, &query.path)
                 .map(BuildProductDescription::Schema)
                 .map_err(refuse),
-            psi_compiler::TerminalBuildQueryOperation::Provider => source
+            source_compiler::TerminalBuildQueryOperation::Provider => source
                 .describe_provider(occurrence, &query.path)
                 .map(BuildProductDescription::Provider)
                 .map_err(refuse),
-            psi_compiler::TerminalBuildQueryOperation::Entry => source
+            source_compiler::TerminalBuildQueryOperation::Entry => source
                 .describe_entry(
                     occurrence,
                     &query.path,

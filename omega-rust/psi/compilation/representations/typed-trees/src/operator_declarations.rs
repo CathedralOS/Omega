@@ -412,9 +412,9 @@ pub mod operator {
                 TypeReferenceNode::Reference {
                     referee, lifetime, ..
                 } => lifetime.is_none() && closed_boundary_application_type(program, *referee),
-                TypeReferenceNode::Constrained { .. }
-                | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. } => false,
+                TypeReferenceNode::Constrained { .. } | TypeReferenceNode::ConstExpression(_) => {
+                    false
+                }
                 TypeReferenceNode::FixedArray {
                     element_type,
                     length: FixedArrayLength::Literal(_),
@@ -1339,8 +1339,7 @@ pub mod operator {
                         collect_type_parameter_occurrences(program, *argument, normalizer);
                     }
                 }
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::DynamicTrait { symbol, .. } => {
+                TypeReferenceNode::Named { symbol, .. } => {
                     normalizer.canonical_index(*symbol);
                 }
                 TypeReferenceNode::ConstExpression(_) => {}
@@ -2205,28 +2204,6 @@ pub mod operator {
                         && closed_multiplicity_arguments(
                             program,
                             program.data_type_parameters(definition),
-                            program.type_reference_handles(*arguments),
-                            depth + 1,
-                        )
-                }
-                TypeReferenceNode::DynamicTrait {
-                    symbol, arguments, ..
-                } => {
-                    if !symbol.is_valid() {
-                        return false;
-                    }
-                    let mut declarations = program
-                        .traits()
-                        .iter()
-                        .filter(|item| item.symbol == *symbol);
-                    let Some(declaration) = declarations.next() else {
-                        return false;
-                    };
-                    declarations.next().is_none()
-                        && declaration.lifetime_parameters.is_empty()
-                        && closed_multiplicity_arguments(
-                            program,
-                            program.trait_type_parameters(declaration),
                             program.type_reference_handles(*arguments),
                             depth + 1,
                         )

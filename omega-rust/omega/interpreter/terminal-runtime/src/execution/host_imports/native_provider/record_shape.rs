@@ -778,4 +778,5 @@ fn shape(
 }
 
 #[cfg(test)]
+#[path = "record_shape_tests.rs"]
 mod tests;

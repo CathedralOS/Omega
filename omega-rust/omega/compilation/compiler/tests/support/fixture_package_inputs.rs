@@ -110,9 +110,9 @@ fn derive_program_entry_binding(
     // modules from an immutable capture and refuses a live directory. Bind the
     // library with the capture acquisition gives every other local package,
     // rather than by its bare path.
-    let capture = package_source::local::operations::capture_local_source_input(
+    let capture = source_acquisition::local::operations::capture_local_source_input(
         standard_library_root,
-        package_source::LocalSourceLimits::default(),
+        source_acquisition::LocalSourceLimits::default(),
     )
     .map_err(|error| {
         vec![Diagnostic::error(format!(
@@ -252,11 +252,8 @@ pub fn produce_fixture_products(
                     cause:
                         package_manager::review::CompileResolvedPackageReviewCause::Compilation {
                             failure:
-                                compilation_products::CompileFailure::Diagnostics(diagnostics)
-                                | compilation_products::CompileFailure::SourceCompletion {
-                                    diagnostics,
-                                    ..
-                                },
+                                products::CompileFailure::Diagnostics(diagnostics)
+                                | products::CompileFailure::SourceCompletion { diagnostics, .. },
                             ..
                         },
                     ..
@@ -780,7 +777,7 @@ fn assumed_fixture_permissions(
     profile: TargetProfile,
     preliminary: &compiler::CheckedCompilation,
 ) -> Result<Option<compiler::TerminalPermissionAcceptance>, Vec<Diagnostic>> {
-    use package_evidence::record::PackagePolicyRowKind;
+    use review_evidence::record::PackagePolicyRowKind;
     let assumed = fixture_consent(
         authored_project_root,
         "accepted_assumed_bindings.txt",
@@ -817,9 +814,9 @@ fn assumed_fixture_permissions(
             "fixture permission consent requires a root package",
         )]
     })?;
-    let policy = package_evidence::project_checked_package_policy(preliminary, profile, package)?;
+    let policy = review_evidence::project_checked_package_policy(preliminary, profile, package)?;
     let mut rows: Vec<_> = policy
-        .acceptance_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())
+        .acceptance_rows_with_limits(review_evidence::record::PackagePolicyRowLimits::default())
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?
         .0
         .into_iter()
@@ -838,8 +835,8 @@ fn assumed_fixture_permissions(
         .collect();
     rows.sort_unstable_by_key(|(key, _)| *key);
     Ok(Some(
-        package_evidence::permission_acceptance::TerminalPermissionAcceptance {
-            schema_version: package_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+        review_evidence::permission_acceptance::TerminalPermissionAcceptance {
+            schema_version: review_evidence::record::PACKAGE_POLICY_ROW_VERSION,
             package,
             target: profile,
             rows,

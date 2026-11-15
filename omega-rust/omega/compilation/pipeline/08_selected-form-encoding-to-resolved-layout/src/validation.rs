@@ -9,7 +9,7 @@ use machine_code::{
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
     resolved_machine_layout_identity as layout_identity,
 };
-use physical_instructions::{
+use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineInstruction,
     PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
 };
@@ -636,7 +636,7 @@ mod tests {
         DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
         SelectedFormEncodingState, SelectedFormMachineDisposition,
     };
-    use physical_instructions::{
+    use post_allocation_machine::{
         PostAllocationMachineBlock, PostAllocationMachineFunction, PostAllocationMachineInstruction,
     };
     use selected_instructions::{

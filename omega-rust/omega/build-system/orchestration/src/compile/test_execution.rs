@@ -24,12 +24,12 @@ the backing to the real filesystem; where a host cannot supply the private
 filesystem, that engine is reported unavailable rather than run on the host's.
 */
 
-use compilation_products::{
+use compiler::CompilationOutput;
+use diagnostics::Diagnostic;
+use products::{
     CompileReport, PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry,
     TestRosterStatus,
 };
-use compiler::CompilationOutput;
-use diagnostics::Diagnostic;
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalRuntimeRequest,
@@ -50,13 +50,10 @@ pub(crate) fn run_tests(
     tests: Vec<PendingTestProduct>,
     notes: Vec<TestRosterEntry>,
 ) -> Result<
-    (
-        Vec<TestRosterEntry>,
-        compilation_products::SourceCompletionAccounting,
-    ),
+    (Vec<TestRosterEntry>, products::SourceCompletionAccounting),
     compiler::CompilationProductError,
 > {
-    let mut accounting = compilation_products::SourceCompletionAccounting::default();
+    let mut accounting = products::SourceCompletionAccounting::default();
     let mut failures = Vec::new();
     let mut roster = Vec::with_capacity(tests.len() + notes.len());
     for test in tests {
@@ -83,12 +80,9 @@ pub(crate) fn run_tests(
 }
 
 fn run_test(
-    product: Result<
-        Box<compilation_products::PendingNativeProduct>,
-        compilation_products::CompileFailure,
-    >,
+    product: Result<Box<products::PendingNativeProduct>, products::CompileFailure>,
     identity: &TestRootIdentity,
-    accounting: &mut compilation_products::SourceCompletionAccounting,
+    accounting: &mut products::SourceCompletionAccounting,
 ) -> Result<TestRosterStatus, String> {
     let product = product.map_err(|failure| {
         if let Some(charged) = failure.source_completion_accounting() {
@@ -100,7 +94,7 @@ fn run_test(
         Ok(CompilationOutput::Report(report)) => report,
         Ok(_) => return Err("native completion produced no test report".to_owned()),
         Err(error) => {
-            let failure = compilation_products::CompileFailure::from(error);
+            let failure = products::CompileFailure::from(error);
             if let Some(charged) = failure.source_completion_accounting() {
                 accounting.append(charged.clone());
             }

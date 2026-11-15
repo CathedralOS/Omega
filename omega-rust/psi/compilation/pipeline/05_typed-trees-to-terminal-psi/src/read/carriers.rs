@@ -229,7 +229,6 @@ impl Program<'_> {
                     TypeReferenceNode::Reference { .. }
                     | TypeReferenceNode::FixedArray { .. }
                     | TypeReferenceNode::Slice { .. }
-                    | TypeReferenceNode::DynamicTrait { .. }
                     | TypeReferenceNode::Unit => Some(CarrierFacts::NOT_INTEGER),
                     TypeReferenceNode::Named { .. }
                     | TypeReferenceNode::Constrained { .. }

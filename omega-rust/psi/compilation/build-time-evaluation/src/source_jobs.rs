@@ -88,7 +88,7 @@ pub struct PreparedBuildMachineEntry {
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     purpose: source::DependencyScope,
     source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
-    accepted: Arc<psi_terminal_production::AcceptedTerminalSource>,
+    accepted: Arc<terminal_production::AcceptedTerminalSource>,
     arguments: Vec<crate::BuildTimeValue>,
     context_inputs: Vec<crate::BuildTimeValue>,
 }
@@ -123,7 +123,7 @@ impl PreparedBuildMachineEntry {
         &self.arguments
     }
 
-    pub(crate) fn accepted(&self) -> &psi_terminal_production::AcceptedTerminalSource {
+    pub(crate) fn accepted(&self) -> &terminal_production::AcceptedTerminalSource {
         &self.accepted
     }
 
@@ -136,7 +136,7 @@ impl PreparedBuildMachineEntry {
     pub fn invoke(
         &self,
         target: crate::InvocationTarget<'_>,
-        meter: &mut psi_work::WorkMeter,
+        meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
         let produced = self.produce_invocation()?;
         let admitted = self.admit_invocation(&produced, target)?;
@@ -153,7 +153,7 @@ impl PreparedBuildMachineEntry {
         let produced = Arc::new(self.produce_invocation()?);
         let admitted = self.admit_invocation(&produced, target)?;
         let account = crate::evaluation_accounting::pure_terminal_invocation_account()?;
-        let mut meter = psi_work::WorkMeter::with_invocation(account.clone(), None)
+        let mut meter = terminal_work::WorkMeter::with_invocation(account.clone(), None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
         let result = self
             .execute_invocation(&produced, &admitted, &mut meter)
@@ -183,20 +183,18 @@ impl PreparedBuildMachineEntry {
         result
     }
 
-    fn produce_invocation(
-        &self,
-    ) -> Result<psi_terminal_production::ProducedTerminalProgram, String> {
+    fn produce_invocation(&self) -> Result<terminal_production::ProducedTerminalProgram, String> {
         self.accepted
             .produce(
                 Default::default(),
-                &mut psi_terminal_production::UnmeasuredProduction,
+                &mut terminal_production::UnmeasuredProduction,
             )
             .map_err(|errors| diagnostics::join_messages(&errors))
     }
 
     fn admit_invocation(
         &self,
-        produced: &psi_terminal_production::ProducedTerminalProgram,
+        produced: &terminal_production::ProducedTerminalProgram,
         target: crate::InvocationTarget<'_>,
     ) -> Result<terminal_installation::AdmittedCompilerEvaluation, String> {
         if target.name.is_none()
@@ -287,9 +285,9 @@ impl PreparedBuildMachineEntry {
 
     fn execute_invocation(
         &self,
-        produced: &psi_terminal_production::ProducedTerminalProgram,
+        produced: &terminal_production::ProducedTerminalProgram,
         admitted: &terminal_installation::AdmittedCompilerEvaluation,
-        meter: &mut psi_work::WorkMeter,
+        meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
         use terminal_interpreter::{
             TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
@@ -418,7 +416,7 @@ impl PreparedBuildMachineProgram {
             &typed_trees::expression::StaticMachineArgument,
             SymbolHandle,
         )>,
-        supplies: &[psi_terminal_production::TerminalSourceSupply],
+        supplies: &[terminal_production::TerminalSourceSupply],
     ) -> Result<PreparedBuildMachineEntry, String> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
@@ -451,9 +449,9 @@ impl PreparedBuildMachineProgram {
         )
         .map_err(|errors| diagnostics::join_messages(&errors))?;
         let source = Arc::new(source);
-        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
             source,
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[caller],
                 // Evaluating this call requests its dependency closure, not a
@@ -815,7 +813,7 @@ impl PreparedBuildMachineProgram {
     pub fn entry_for_supply(
         &self,
         requester: SymbolHandle,
-        supply: psi_terminal_production::TerminalSourceSupply,
+        supply: terminal_production::TerminalSourceSupply,
         arguments: &[crate::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, String> {
         self.source
@@ -893,7 +891,7 @@ pub(crate) mod tests {
     fn run(
         program: &PreparedBuildMachineProgram,
         arguments: &[BuildTimeValue],
-        meter: &mut psi_work::WorkMeter,
+        meter: &mut terminal_work::WorkMeter,
     ) -> Result<BuildTimeValue, String> {
         bind(program, arguments)?.invoke(target(), meter)
     }
@@ -946,7 +944,7 @@ pub(crate) mod tests {
         let entry = prepared
             .entry(selected, selected, std::slice::from_ref(&value))
             .unwrap();
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(entry.invoke(target, &mut meter).unwrap(), value);
         assert!(meter.usage().total_units() > 0);
         assert_eq!(entry.arguments(), std::slice::from_ref(&value));
@@ -963,7 +961,7 @@ pub(crate) mod tests {
             .entry(transport, transport, std::slice::from_ref(&wrapped))
             .unwrap();
         let returned = entry
-            .invoke(target, &mut psi_work::WorkMeter::unbounded())
+            .invoke(target, &mut terminal_work::WorkMeter::unbounded())
             .unwrap();
         let BuildTimeValue::Struct { fields, .. } = returned else {
             panic!("the real enclosing record must remain a record")
@@ -991,7 +989,7 @@ pub(crate) mod tests {
         let entry = prepared
             .entry(selected, selected, &[BuildTimeValue::LayoutTarget(other)])
             .unwrap();
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert!(
             entry
                 .invoke(target, &mut meter)
@@ -1377,9 +1375,9 @@ pub(crate) mod tests {
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
         )
         .unwrap();
-        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
             Arc::new(portable_source),
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[requester],
                 subjects: &[],
@@ -1552,7 +1550,7 @@ pub(crate) mod tests {
                 .unwrap();
             source.trait_machine_signatures(owner)[0].symbol
         };
-        let binding = psi_terminal_production::TerminalSourceSupply {
+        let binding = terminal_production::TerminalSourceSupply {
             slot: requirement("A"),
             provider: implementation("P").symbol,
         };
@@ -1582,12 +1580,12 @@ pub(crate) mod tests {
                 .is_empty()
         );
         let value = entry
-            .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+            .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
             .unwrap();
         assert_eq!(value, BuildTimeValue::Int(7));
 
         assert!(
-            psi_terminal_production::TerminalSourceSupply {
+            terminal_production::TerminalSourceSupply {
                 provider: implementation("Q").symbol,
                 ..binding
             }
@@ -1596,7 +1594,7 @@ pub(crate) mod tests {
         );
         assert!(binding.realization(&source, requirement("B")).is_err());
         assert!(
-            psi_terminal_production::TerminalSourceSupply {
+            terminal_production::TerminalSourceSupply {
                 provider: SymbolHandle::invalid(),
                 ..binding
             }
@@ -1619,7 +1617,7 @@ pub(crate) mod tests {
         let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
         assert_eq!(
             entry
-                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .unwrap(),
             value
         );
@@ -1645,7 +1643,7 @@ pub(crate) mod tests {
         let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
         assert_eq!(
             entry
-                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .unwrap(),
             value
         );
@@ -1677,9 +1675,9 @@ pub(crate) mod tests {
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
         )
         .expect("prepare the actual source declarations");
-        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
             Arc::new(source),
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[Some(package)],
@@ -1916,6 +1914,125 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn callable_queries_use_the_same_landed_application_as_invocation() {
+        // The value exceeds i128, but its declared carrier admits it. Both
+        // selecting this declaration and invoking it must retain that value;
+        // another declaration's same-spelled N is not the same binder.
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            machine selected<const N: u128>() -> u32 { 7u32 }
+            machine other<const N: u128>() -> u32 { 9u32 }
+            machine answer() -> reflect::CallableInfo {
+                reflect::callable(selected<170141183460469231731687303715884105728>)
+            }
+            machine alternate() -> reflect::CallableInfo {
+                reflect::callable(other<170141183460469231731687303715884105728>)
+            }
+            machine used() -> u32 { selected<170141183460469231731687303715884105728>() }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let mut descriptions = Vec::new();
+        for name in ["answer", "alternate"] {
+            let symbol = query_machine(&source, name);
+            let value = program
+                .entry(symbol, symbol, &[])
+                .unwrap()
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+                .unwrap();
+            descriptions.push(value);
+        }
+        assert_ne!(descriptions[0], descriptions[1]);
+        let used = query_machine(&source, "used");
+        assert_eq!(
+            program
+                .entry(used, used, &[])
+                .unwrap()
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+                .unwrap(),
+            BuildTimeValue::Int(7)
+        );
+        let (owner, call) = returned_source_call(&source, "answer");
+        let call = source.expression_table.call_node(call).unwrap();
+        let [operand] = source.expression_table.expression_handles(call.arguments) else {
+            panic!("one declaration operand")
+        };
+        let selected = source
+            .declaration_operand_from_expression(*operand)
+            .unwrap();
+        let original = typed_trees::reflection::construction::callable_description_identity(
+            &source, &selected, owner,
+        )
+        .unwrap();
+        let mut crossed = selected.clone();
+        crossed.symbol = query_machine(&source, "other");
+        assert!(
+            typed_trees::reflection::construction::callable_description_identity(
+                &source, &crossed, owner
+            )
+            .is_err()
+        );
+        assert!(!original.0);
+        let selected_machine = source.machine_by_symbol(selected.symbol).unwrap();
+        let other_machine = source.machine_by_symbol(crossed.symbol).unwrap();
+        let selected_binder = source.machine_type_parameters(selected_machine)[0].symbol;
+        let other_binder = source.machine_type_parameters(other_machine)[0].symbol;
+        assert_eq!(
+            source.symbols.name(selected_binder),
+            source.symbols.name(other_binder)
+        );
+        assert_ne!(selected_binder, other_binder);
+        let (_, used_call) = returned_source_call(&source, "used");
+        let application = source
+            .expression_table
+            .call_node(used_call)
+            .unwrap()
+            .authored_machine_application;
+        let [binding] = source
+            .expression_table
+            .static_machine_application_bindings(application)
+        else {
+            panic!("ordinary formation retains its exact binder")
+        };
+        assert_eq!(binding.parameter, selected_binder);
+        let source_application = typed_trees::expression::StaticMachineArgument {
+            symbol: selected.symbol,
+            application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                member: Default::default(),
+                lifetime_arguments: Box::default(),
+                arguments: source
+                    .expression_table
+                    .static_machine_application_arguments(application)
+                    .to_vec()
+                    .into_boxed_slice(),
+            })),
+            ..Default::default()
+        };
+        let invoked_identity = typed_trees::type_identity::portable_applied_index_identity(
+            &source,
+            typed_trees::type_identity::IndexIdentityArgument::StaticArgument(&source_application),
+            used,
+            &[],
+        )
+        .and_then(|identity| source.type_identity_text(identity))
+        .unwrap();
+        assert_eq!(original.1[1], invoked_identity.as_bytes());
+        let typed_trees::static_applications::StaticMachineBindingValue::Const(value) =
+            binding.value
+        else {
+            panic!("the binding retains its value, not its carrier")
+        };
+        assert_eq!(
+            source
+                .static_const_literal_from_type_reference(value)
+                .unwrap()
+                .value_bignum()
+                .unwrap()
+                .to_string(),
+            "170141183460469231731687303715884105728"
+        );
+    }
+
+    #[test]
     fn source_call_requests_keep_their_authored_operand_and_owner() {
         let source = with_reflection(
             "use omega::language::core::reflect;
@@ -1955,7 +2072,7 @@ pub(crate) mod tests {
         }
         assert_ne!(descriptions[0], descriptions[1]);
         let (requester, expression) = returned_source_call(source, "not_callable");
-        let meter = psi_work::WorkMeter::unbounded();
+        let meter = terminal_work::WorkMeter::unbounded();
         let error = program
             .entry_call(requester, expression, &[])
             .err()
@@ -2005,7 +2122,7 @@ pub(crate) mod tests {
             .unwrap()
             .entry(selected, selected, &[])
             .unwrap()
-            .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+            .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
             .expect("the store uses the selector captured before replacement");
         let BuildTimeValue::Struct { fields, .. } = result else {
             panic!("actual report")
@@ -2176,7 +2293,7 @@ pub(crate) mod tests {
         if !call.machine_arguments.is_empty() {
             call.machine_arguments[0].type_reference = stale;
         }
-        let meter = psi_work::WorkMeter::unbounded();
+        let meter = terminal_work::WorkMeter::unbounded();
         let error = PreparedBuildMachineProgram::prepare(&stale_source, None)
             .unwrap()
             .entry_call(requester, expression, &[])
@@ -2268,7 +2385,7 @@ pub(crate) mod tests {
             program
                 .entry(symbol, symbol, &[])
                 .expect("query entry")
-                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .expect("actual source query execution")
         };
         let first = query("answer");
@@ -2353,13 +2470,13 @@ pub(crate) mod tests {
                         variant: case.into(),
                         payload: Vec::new(),
                     }],
-                    &mut psi_work::WorkMeter::unbounded(),
+                    &mut terminal_work::WorkMeter::unbounded(),
                 )
                 .expect("the actual case test chooses its arm"),
                 BuildTimeValue::Int(expected),
             );
         }
-        let mut refused = psi_work::WorkMeter::unbounded();
+        let mut refused = terminal_work::WorkMeter::unbounded();
         let error = run(
             &cases,
             &[BuildTimeValue::Case {
@@ -2383,7 +2500,7 @@ pub(crate) mod tests {
                 run(
                     &membership,
                     &[BuildTimeValue::Int(value)],
-                    &mut psi_work::WorkMeter::unbounded(),
+                    &mut terminal_work::WorkMeter::unbounded(),
                 )
                 .expect("the actual domain predicate chooses its arm"),
                 BuildTimeValue::Int(expected),
@@ -2398,14 +2515,14 @@ pub(crate) mod tests {
                 run(
                     &negated,
                     &[BuildTimeValue::Bool(value)],
-                    &mut psi_work::WorkMeter::unbounded(),
+                    &mut terminal_work::WorkMeter::unbounded(),
                 )
                 .expect("the captured negation chooses its actual arm"),
                 BuildTimeValue::Int(if value { 0 } else { 41 }),
             );
         }
         let invalid = program(&negation_source.replacen("value: bool", "value: u64", 1));
-        let mut refused = psi_work::WorkMeter::unbounded();
+        let mut refused = terminal_work::WorkMeter::unbounded();
         let error = run(&invalid, &[BuildTimeValue::Int(0)], &mut refused)
             .expect_err("a Boolean result does not turn an integer operand into Bool");
         assert!(error.contains("unary operand type"), "{error}");
@@ -2415,13 +2532,13 @@ pub(crate) mod tests {
     #[test]
     fn source_jobs_prove_requires_at_the_actual_arguments_before_execution() {
         let entry = program("machine answer(value: u64) -> u64 requires value > 0 { value }");
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(
             run(&entry, &[BuildTimeValue::Int(1)], &mut meter).expect("proved actual call"),
             BuildTimeValue::Int(1)
         );
         assert!(meter.usage().total_units() > 0);
-        let mut refused = psi_work::WorkMeter::unbounded();
+        let mut refused = terminal_work::WorkMeter::unbounded();
         let error = run(&entry, &[BuildTimeValue::Int(0)], &mut refused)
             .expect_err("callee requires are not assumptions of its caller");
         assert!(error.contains("requires"), "{error}");
@@ -2552,7 +2669,7 @@ pub(crate) mod tests {
             run(
                 &entry,
                 &[argument(1)],
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("established record"),
             BuildTimeValue::Int(1)
@@ -2561,7 +2678,7 @@ pub(crate) mod tests {
             run(
                 &entry,
                 &[argument(0)],
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect_err("the zero field cannot establish Positive")
             .contains("requires")
@@ -2572,7 +2689,7 @@ pub(crate) mod tests {
         };
         fields.push(("extra".into(), BuildTimeValue::Int(2)));
         assert!(
-            run(&entry, &[extra], &mut psi_work::WorkMeter::unbounded())
+            run(&entry, &[extra], &mut terminal_work::WorkMeter::unbounded())
                 .expect_err("all supplied fields remain obligations")
                 .contains("field")
         );
@@ -2586,7 +2703,7 @@ pub(crate) mod tests {
             run(
                 &shared,
                 std::slice::from_ref(&bytes),
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("real shared backing"),
             bytes
@@ -2595,13 +2712,20 @@ pub(crate) mod tests {
             run(
                 &shared,
                 &[BuildTimeValue::Text(Vec::new())],
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("empty real backing"),
             BuildTimeValue::Text(Vec::new())
         );
         let mutable = program("machine answer(bytes: &mut [u8]) -> &mut [u8] { bytes }");
-        assert!(run(&mutable, &[bytes], &mut psi_work::WorkMeter::unbounded()).is_err());
+        assert!(
+            run(
+                &mutable,
+                &[bytes],
+                &mut terminal_work::WorkMeter::unbounded()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2617,7 +2741,7 @@ pub(crate) mod tests {
         let result = run(
             &entry,
             std::slice::from_ref(&value),
-            &mut psi_work::WorkMeter::unbounded(),
+            &mut terminal_work::WorkMeter::unbounded(),
         )
         .expect("byte field keeps its backing");
         let BuildTimeValue::Struct { type_name, fields } = &result else {
@@ -2651,7 +2775,7 @@ pub(crate) mod tests {
             run(
                 &entry,
                 std::slice::from_ref(&result),
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("readback retains its complete formal identity"),
             result
@@ -2670,7 +2794,7 @@ pub(crate) mod tests {
             variant: "Ready".into(),
             payload: vec![("bytes".into(), BuildTimeValue::Text(vec![0, 255, b'x']))],
         };
-        let returned = run(&entry, &[value], &mut psi_work::WorkMeter::unbounded())
+        let returned = run(&entry, &[value], &mut terminal_work::WorkMeter::unbounded())
             .expect("authored member selects its exact numbered case");
         assert_eq!(
             returned,
@@ -2683,12 +2807,12 @@ pub(crate) mod tests {
             run(
                 &entry,
                 std::slice::from_ref(&returned),
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("returned identities rejoin the same formal"),
             returned
         );
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         let unknown = BuildTimeValue::Case {
             variant: "#99".into(),
             payload: vec![("#9".into(), BuildTimeValue::Text(vec![]))],
@@ -2785,7 +2909,7 @@ pub(crate) mod tests {
                     .contains("recursive machine-call cycle has no ordinary termination proof"),
             "{intended}"
         );
-        let mut meter = psi_work::WorkMeter::with_budget(100);
+        let mut meter = terminal_work::WorkMeter::with_budget(100);
         let error = entry
             .invoke(target(), &mut meter)
             .expect_err("a work ceiling cannot substitute for progress admission");
@@ -2803,7 +2927,8 @@ pub(crate) mod tests {
         ] {
             let mut sources = source::SourceMap::default();
             let policy = "machine answer() -> u64 { 17u64 } machine request() -> u64 { 0u64 }";
-            let unused = "data NotReady<T> { value: T; }";
+            // A declaration the full check of a subject does not read yet.
+            let unused = "data NotReady<'held, T> { value: &'held T; }";
             let policy_id = sources
                 .add_with_metadata(
                     "/policy-package/policy.omg".into(),
@@ -2845,7 +2970,7 @@ pub(crate) mod tests {
             if owner.is_some() {
                 assert_eq!(
                     entry
-                        .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                        .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                         .expect("one invocation does not claim the unused generic declaration"),
                     BuildTimeValue::Int(17)
                 );
@@ -2870,9 +2995,9 @@ pub(crate) mod tests {
             .expect("typed preparation refuses nothing in this source");
             let source = Arc::new(source);
             let full_subject = |subject| {
-                psi_terminal_production::AcceptedTerminalSource::judge(
+                terminal_production::AcceptedTerminalSource::judge(
                     Arc::clone(&source),
-                    psi_terminal_production::TerminalSourceCompilation {
+                    terminal_production::TerminalSourceCompilation {
                         declaration_metadata: &[],
                         entries: &[callee],
                         subjects: &[subject],
@@ -3029,7 +3154,7 @@ pub(crate) mod tests {
                 && error.contains(&format!("{:?}", packages[1])),
             "{error}"
         );
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(entry.invoke(target(), &mut meter).unwrap_err(), error);
         assert_eq!(meter.usage().total_units(), 0);
         let complete = PreparedBuildMachineProgram::prepare(
@@ -3128,7 +3253,7 @@ pub(crate) mod tests {
                     &[BuildTimeValue::Int(1)],
                 )
                 .unwrap();
-            let mut meter = psi_work::WorkMeter::unbounded();
+            let mut meter = terminal_work::WorkMeter::unbounded();
             let result = entry.invoke(target(), &mut meter);
             if has_body_edge {
                 assert_eq!(result.unwrap(), BuildTimeValue::Int(1));
@@ -3341,7 +3466,7 @@ pub(crate) mod tests {
             error.contains("no direct dependency selection authority"),
             "{error}"
         );
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(entry.invoke(target(), &mut meter).unwrap_err(), error);
         assert_eq!(meter.usage().total_units(), 0);
 

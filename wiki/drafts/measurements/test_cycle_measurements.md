@@ -31,8 +31,8 @@ Those are historical outcomes, not claims about today's tests.
 
 | Workload | Recorded samples |
 | --- | --- |
-| package-source, 32 threads | 66.180, 63.884, 62.318 |
-| package-source, 8 threads | 48.332, 58.196, 53.957 |
+| source-acquisition, 32 threads | 66.180, 63.884, 62.318 |
+| source-acquisition, 8 threads | 48.332, 58.196, 53.957 |
 | package-manager, 32 threads | 65.608, 68.279, 76.395 |
 | Both package binaries together, 8 threads each | 95.654, 96.588, 105.522 |
 | Source confirmation, 8 threads | 61.203, 64.053 |
@@ -44,7 +44,7 @@ the package binaries reduced their combined elapsed phase compared with the
 sum of standalone measurements, but substantial interference remained. These
 results do not justify a universal thread cap. Splitting Cargo package builds
 also changes feature-unification conditions: package-manager enables
-package-source's `test-fixtures` feature.
+source-acquisition's `test-fixtures` feature.
 
 ## Whole-run and selection limits
 
@@ -61,7 +61,7 @@ following roughly 72 seconds of compilation, with 7,684 passes, the same three
 reported failures, and 14 ignored tests. Neither establishes a nextest-only
 speedup or a passing baseline.
 
-An actual narrow nextest listing for an `x86-encoding/src/lib.rs` change selected
+An actual narrow nextest listing for an `x86_64-encoding/src/lib.rs` change selected
 1,067 active library tests in 20 library binaries, compared with 7,687 tests in
 117 binaries normally. This measured test-count reduction, not elapsed-time
 improvement; package-manager remained selected.

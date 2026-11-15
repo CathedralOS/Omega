@@ -199,14 +199,15 @@ pub(crate) mod build_selections {
         // Test-group registration is authorized by the Build's own `tests`
         // facet, the operand it was authored on; every other selection by the
         // original Build value.
-        let preparation = find(match &request {
-            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet() => {
-                "prepare_tests"
-            }
-            _ => "prepare",
+        let tests_facet = matches!(&request,
+            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet());
+        let preparation = find(if tests_facet {
+            "prepare_tests"
+        } else {
+            "prepare"
         })?;
         let commit = find(operation)?;
-        let value_helpers = match &request {
+        let mut value_helpers = match &request {
             BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
             _ if operation == "bind_native" => vec![(1, "build_selection_target")],
             _ if operation == "select_provider" => {
@@ -218,6 +219,9 @@ pub(crate) mod build_selections {
             }
             _ => Vec::new(),
         };
+        if !tests_facet {
+            value_helpers.insert(0, (0, "build_selection_receiver"));
+        }
         let table = &mut target.expression_table;
         let mut members = Default::default();
         let mut member_symbols = Default::default();
@@ -903,15 +907,6 @@ pub(crate) mod capture_product_operands {
                     constraints: self.graph.constraints.insert_many(constraints),
                 }
             }
-            Source::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-                ..
-            } => ProductOperandType::Dynamic {
-                name: self.type_name(name, *symbol, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference)?,
-                arguments: self.types(*arguments)?,
-            },
             Source::ConstExpression(value) => {
                 ProductOperandType::ConstExpression(self.expression(value.expression)?)
             }
@@ -2701,6 +2696,28 @@ pub(crate) mod product_selections {
         evidence_count: usize,
         span: source::SourceSpan,
     ) -> Result<Option<typed_trees::expression::BuildSelectionRequest>, Diagnostic> {
+        // The Build prelude's operations live in its module `Build`, and
+        // static normalization folds a module qualifier into the written
+        // name. A designated operation has no declaration for that name to
+        // resolve to, so its call arrives as `Build::bind` with no namespace
+        // symbol at all. Read the qualifier back as the prelude module it
+        // names, the same lookup the testing facet uses; any other qualifier
+        // names no Build operation and stays an ordinary unresolved call.
+        let (namespace, name) = match name.rsplit_once("::") {
+            Some((qualifier, operation)) if !namespace.is_valid() && !target.is_valid() => (
+                source
+                    .symbols
+                    .find_top_level_by_name_and_kinds_from_source_matching(
+                        qualifier,
+                        &[symbols::SymbolKind::Module],
+                        span,
+                        |namespace| source.symbols.is_build_prelude_symbol(namespace),
+                    )
+                    .unwrap_or_else(symbols::SymbolHandle::invalid),
+                operation,
+            ),
+            _ => (namespace, name),
+        };
         if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
             use language_semantics::declaration_selection::{
                 EnumExclusionRequest, ExclusionVocabulary,

@@ -10,7 +10,7 @@ mod fixture_package_inputs;
 mod native_entry_controls;
 
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
-use package_evidence::PackageReviewProjectionError;
+use review_evidence::PackageReviewProjectionError;
 
 #[test]
 fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
@@ -189,8 +189,8 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
 
 #[test]
 fn review_policy_round_trip_preserves_authored_and_inferred_reach() {
-    use package_evidence::encoding::PackagePolicyRecoveryLimits;
-    use package_evidence::record::PackagePolicyBaseline;
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
 
     let root = fixture_package_inputs::repo_root();
     for (fixture, expected) in [
@@ -543,9 +543,9 @@ fn review_records_dynamic_slot_origin_and_qualification() {
         .policy
         .canonical_bytes()
         .expect("encode slot metadata policy");
-    let recovered = package_evidence::record::PackagePolicyBaseline::recover_canonical(
+    let recovered = review_evidence::record::PackagePolicyBaseline::recover_canonical(
         &bytes,
-        package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+        review_evidence::encoding::PackagePolicyRecoveryLimits::default(),
     )
     .expect("recover slot metadata policy");
     let recovered_view = recovered
@@ -573,9 +573,9 @@ fn review_records_dynamic_slot_origin_and_qualification() {
 fn reviewed_and_recovered(
     fixture: &str,
     target: &str,
-) -> package_evidence::record::PackagePolicyBaseline {
-    use package_evidence::encoding::PackagePolicyRecoveryLimits;
-    use package_evidence::record::PackagePolicyBaseline;
+) -> review_evidence::record::PackagePolicyBaseline {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
 
     let fixture = fixture_package_inputs::repo_root().join(fixture);
     let prepared =
@@ -631,7 +631,7 @@ fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope()
 
 #[test]
 fn toolchain_boundary_applications_recover_against_their_owner_qualified_requirement() {
-    use package_evidence::record::PackageReviewNominalOwner;
+    use review_evidence::record::PackageReviewNominalOwner;
 
     // `value + 1.0` closes an application of the toolchain `Float::add`
     // overload, whose requirement identity typed Psi qualifies with the
@@ -811,7 +811,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     )
     .expect("discover the exact closed registrar binding");
     let product =
-        compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        compiler::CompilationProduct::Native(products::NativeProductRequest {
             installation_assumptions: Vec::new(),
             retain_native_inputs: true,
             image: Default::default(),
@@ -1123,11 +1123,9 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     }
     native_entry_controls::inspect(&report, &scratch)
         .expect("preserve the original native entry readback falsifiers");
-    let published = compilation_products::publication::publish_compilation(
-        report,
-        &scratch.join("native-output"),
-    )
-    .expect("publish the checked native executable");
+    let published =
+        products::publication::publish_compilation(report, &scratch.join("native-output"))
+            .expect("publish the checked native executable");
     let observed = std::process::Command::new(published.checked_native_executable_path().unwrap())
         .env("DYLD_LIBRARY_PATH", &provider)
         .output()
@@ -1142,7 +1140,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
 
 /// Use a genuine accepted constant invocation; cleanup must retain its cost
 /// even though the successful caller result contains no receipt fields.
-fn build_constant_cleanup_history() -> compilation_products::SourceCompletionAccounting {
+fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
     let text =
         "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}";
     let mut sources = source::SourceMap::default();
@@ -1165,11 +1163,11 @@ fn build_constant_cleanup_history() -> compilation_products::SourceCompletionAcc
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let entry = typed.realized_machine_named("build").unwrap().symbol;
-    let prepared = psi_compiler::SourcePreparationRequest {
+    let prepared = source_compiler::SourcePreparationRequest {
         program: typed,
         accounting: Default::default(),
         admission: Default::default(),
-        compilation: psi_compiler::TerminalSourceCompilation {
+        compilation: source_compiler::TerminalSourceCompilation {
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Build,
@@ -1237,14 +1235,13 @@ fn build_constant_cleanup_failure_preserves_the_primary_typed_cause() {
     session.resources().record_source_completion(history);
     let staging = force_build_cleanup_failure(workspace.path());
     let primary = package_manager::operations::PackageInspectionError::from(
-        compilation_products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
+        products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
             "actual primary inspection failure",
         )]),
     );
     assert!(primary.source_completion_accounting().receipts().is_empty());
     let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
-    let Some(compilation_products::CompileFailure::Diagnostics(diagnostics)) =
-        failure.compilation_failure()
+    let Some(products::CompileFailure::Diagnostics(diagnostics)) = failure.compilation_failure()
     else {
         panic!("cleanup must preserve the original typed compilation cause")
     };
@@ -1416,7 +1413,7 @@ fn captured_review_compilation(
 ) -> (
     platform_custody::temporary_directory::TemporaryDirectory,
     orchestration::BuildSession,
-    Result<compilation_products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
+    Result<products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
 ) {
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "accepted-package-review",
@@ -1477,8 +1474,8 @@ fn captured_review_compilation(
 
 #[test]
 fn accepted_package_review_keeps_declarations_and_refuses_detached_source() {
-    use package_evidence::record::PackagePolicyBaseline;
-    use package_evidence::{
+    use review_evidence::record::PackagePolicyBaseline;
+    use review_evidence::{
         PackageReviewInput, project_checked_package_policy, project_package_review,
     };
 
@@ -1538,7 +1535,7 @@ machine main() {}
     );
     assert_eq!(
         build.identity().owner(),
-        package_evidence::record::PackageReviewNominalOwner::Package(package)
+        review_evidence::record::PackageReviewNominalOwner::Package(package)
     );
     // The authored Build calls `application`, whose public contract reaches
     // and enters BuildRequestOperations. Review must retain that nonempty
@@ -1550,7 +1547,7 @@ machine main() {}
         .expect("the actual Build request protocol must remain visible");
     assert!(matches!(
         request.owner(),
-        package_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
+        review_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
     ));
     assert_eq!(build.checked_service_reach().concrete(), Some(realized));
     assert_eq!(build.service_reach_dependency().concrete(), realized);
@@ -1569,20 +1566,20 @@ machine main() {}
     let roster = checked.terminal_publication().roster().unwrap().clone();
     let other_judgment = roster.judge(std::sync::Arc::clone(&source)).unwrap();
     let publication = std::sync::Arc::new(
-        compilation_products::ProductTerminalPublication::judge(
+        products::ProductTerminalPublication::judge(
             source,
             roster,
             checked.terminal_publication().optimizations().clone(),
         )
         .unwrap(),
     );
-    let inspection = std::sync::Arc::new(compilation_products::SelectedProviderSource::new(
+    let inspection = std::sync::Arc::new(products::SelectedProviderSource::new(
         std::sync::Arc::clone(checked.source_inspection().inventory()),
         std::sync::Arc::clone(checked.execution().shared_plans()),
     ));
     let rewrap = |build| {
-        compilation_products::CheckedCompilation::from_settled_execution(
-            compilation_products::CheckedCompilationInputs {
+        products::CheckedCompilation::from_settled_execution(
+            products::CheckedCompilationInputs {
                 settled: checked.execution().clone(),
                 source_inspection: std::sync::Arc::clone(&inspection),
                 build: std::sync::Arc::new(build),

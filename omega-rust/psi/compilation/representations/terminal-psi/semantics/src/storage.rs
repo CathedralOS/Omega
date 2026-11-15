@@ -3,6 +3,7 @@ Semantic judgments for activation storage, arrival storage, borrowed storage pro
 storage dependency tracking across `TerminalMachine` blocks.
 */
 
+#[path = "storage_type_graph.rs"]
 pub mod type_graph;
 
 pub mod activation_storage {

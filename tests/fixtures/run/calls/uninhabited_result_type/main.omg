@@ -14,9 +14,37 @@ crashes Trap
     }
 }
 
+public machine scalar_stop(fatal: bool) -> u32
+ensures !fatal
+crashes Trap
+{
+    transition fatal {
+        true -> halt()
+        false -> 7u32
+    }
+}
+
+public machine checked_scalar(value: u32, fatal: bool) -> u32
+ensures result == value
+crashes Trap
+{
+    transition fatal {
+        true -> scalar_stop(true)
+        false -> value
+    }
+}
+
+public machine empty_value(value: Never) -> u32
+ensures result == 7u32
+{
+    let preserved: u32 = value;
+    preserved
+}
+
 machine main() crashes Trap {
     let actual: u32 = checked_value(7, false);
-    transition actual == 7 {
+    let reported: u32 = checked_scalar(actual, false);
+    transition reported == 7 {
         true -> done()
         false -> wrong()
     }

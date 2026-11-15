@@ -5,11 +5,11 @@
 // assumed bindings, wire demands, and behavior exclusions) populate
 // `ComputedBuildConfig`.
 
-use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
+use products::ComputedBuildConfig;
 
 pub(super) fn admit(
-    source: &mut psi_compiler::SourceContinuation,
+    source: &mut source_compiler::SourceContinuation,
     computed: &mut ComputedBuildConfig,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -17,7 +17,7 @@ pub(super) fn admit(
         .map(|inputs| inputs.rejoin_package_provider_selections(source))
         .transpose()?
         .unwrap_or_default();
-    let admitted = source.admit_product_policy(psi_compiler::ProductPolicyRequest {
+    let admitted = source.admit_product_policy(source_compiler::ProductPolicyRequest {
         activation: computed.selected_build_machine_symbol,
         declared: &computed.declared_product_selections,
         executed: &computed.product_selection_requests,

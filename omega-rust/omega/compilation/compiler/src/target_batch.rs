@@ -28,9 +28,9 @@ use crate::product_execution::{
 };
 use crate::terminal::produce_retained_terminal_artifacts;
 use crate::{CompileRequest, TargetProductOutcome};
-use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
-use compilation_products::{CheckedProductSource, RequestedCompileProduct};
 use diagnostics::Diagnostic;
+use products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
+use products::{CheckedProductSource, RequestedCompileProduct};
 
 pub struct PreparedCompilation {
     shared: std::sync::Arc<SharedCompileInputs>,

@@ -160,7 +160,7 @@ fn generic_array_extents_keep_their_lexical_value_binding() {
 /// policy "does not license a zero divisor": `/%` with nothing known about
 /// the divisor is rejected. A suffix excuses no other operation: the bare
 /// `+` beside a `+%` is still Exact and still owes its range. `+!` is its own
-/// crash site, which no type on this route carries yet: refused by name.
+/// crash site, covered by the private body's inferred route.
 #[test]
 fn an_operator_suffix_chooses_the_policy_of_one_operation() {
     let spare = |body: &str| {
@@ -176,9 +176,106 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
             "let wrapped: u32 = left +% right; left + right",
             "rejected",
         ),
-        ("trapping_add", "left +! right", "not-supported"),
+        ("trapping_add", "left +! right", "accepted"),
     ] {
         assert_eq!(verdicts(name, &spare(body)), [expected], "{name}");
+    }
+}
+
+/// Each primitive owns its trap predicate. Publishing Trap covers that site;
+/// promising no crash requires proving the operation defined instead.
+#[test]
+fn trapping_primitives_retain_their_crash_predicate() {
+    for (name, expression, safe) in [
+        ("add", "left +! right", "left <= 10 && right <= 10"),
+        ("subtract", "left -! right", "left >= right"),
+        ("multiply", "left *! right", "left <= 10 && right <= 10"),
+        ("divide", "left /! right", "right > 0"),
+        ("remainder", "left %! right", "right > 0"),
+        ("shift_left", "left <<! right", "left <= 10 && right <= 2"),
+        ("shift_right", "left >>! right", "right < 32"),
+    ] {
+        for (case, contract, expected) in [
+            ("published", "crashes Trap".to_owned(), "accepted"),
+            ("uncovered", "crashes none".to_owned(), "rejected"),
+            (
+                "disproved",
+                format!("requires {safe} crashes none"),
+                "accepted",
+            ),
+        ] {
+            let source = format!(
+                "machine spare(left: u32, right: u32) -> u32 {contract} {{ {expression} }}\n\
+                 machine main() {{ }}"
+            );
+            assert_eq!(
+                verdicts(&format!("trapping_{name}_{case}"), &source),
+                [expected],
+                "{name}/{case}"
+            );
+        }
+    }
+}
+
+#[test]
+fn trapping_normal_results_are_retained_in_guarantees() {
+    // Observe the denotation using clause forms the current prover handles.
+    // The Exact twin must prove the same result; changing only the guarantee
+    // to a wrong result must reject under either operation.
+    for operator in ["+", "+!"] {
+        for (name, result, expected) in [
+            ("exact_result", 7, "accepted"),
+            ("wrong_result", 8, "rejected"),
+        ] {
+            let source = format!(
+                "machine spare(left: u32, right: u32) -> u32 requires left == 3 && right == 4 \
+                 ensures result == {result} crashes none {{ left {operator} right }}\n machine main() {{ }}"
+            );
+            assert_eq!(verdicts(name, &source), [expected], "{operator}/{name}");
+        }
+    }
+}
+
+/// Publication preserves the same operation and its crash site. The overflow
+/// twin changes only the first argument, leaving the observed operations intact.
+#[test]
+fn trapping_primitives_run_and_overflow_at_their_own_site() {
+    let kept = std::fs::read_to_string(unbuilt_frontier::repository(
+        "tests/fixtures/run/arithmetic/trapping_primitives/main.omg",
+    ))
+    .expect("the focused runtime witness is kept beside its test");
+    let overflowing = kept.replace("added(3, 4)", "added(4294967295, 4)");
+    assert_ne!(kept, overflowing);
+    for (name, source, completes) in [
+        ("trapping_runs", kept, true),
+        ("trapping_overflows", overflowing, false),
+    ] {
+        let found = judged(name, &source);
+        let [Ok(RouteVerdict::Accepted(closure))] = found.as_slice() else {
+            panic!("{name}: {found:?}");
+        };
+        let publication = closure.publish().expect("the accepted module publishes");
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap();
+        if completes {
+            assert!(
+                matches!(
+                    status,
+                    terminal_interpreter::TerminalExecutionStatus::Complete(_)
+                ),
+                "{name}: {status:?}"
+            );
+        } else {
+            assert!(
+                matches!(status, terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)
+                if crash.cause == semantic_vocabulary::CrashCause::Trap
+                    && matches!(crash.site, terminal_interpreter::TerminalCrashSite::Operation { .. })),
+                "{name}: {status:?}"
+            );
+        }
     }
 }
 
@@ -1469,6 +1566,94 @@ fn an_owned_sum_is_dispatched_and_disposed_of_once() {
         verdicts("owned_sum_moved_twice", &program("chosen")),
         ["rejected"]
     );
+}
+
+/// A generic argument takes its role from the binder it fills
+/// (`wiki/spec/language/modules.md`, "Builtin type names"): with
+/// `const u16: u64` in scope, `identity<u16>` hands the type binder the
+/// builtin type, where it used to hand it the constant. In the same program,
+/// `count<u16>` supplies that constant to a value binder. A
+/// type equality whose operand is a parameter spelled `i32` names both
+/// meanings, and an array extent inside a generic argument reads the
+/// parameter that hides a same-spelled constant, in a signature, a local's
+/// type and a call's static argument.
+#[test]
+fn a_static_argument_is_read_by_its_binder_role() {
+    let outcomes = judged(
+        "type_binder_reads_the_builtin_type",
+        "const u16: u64 = 3;\n\
+             const bool: bool = true;\n\
+             machine identity<T>(value: T) -> T { value }\n\
+             machine count<const N: u64>() -> u64 { N }\n\
+             machine choose<const Condition: bool>() -> bool { Condition }\n\
+             machine main() {\n\
+                 let number: u16 = identity<u16>(7u16);\n\
+                 let quantity: u64 = count<u16>();\n\
+                 let truth: bool = identity<bool>(true);\n\
+                 let decision: bool = choose<bool>();\n\
+             }\n",
+    );
+    assert_eq!(outcomes.len(), 4, "{outcomes:?}");
+    for outcome in outcomes {
+        assert!(
+            matches!(outcome, Ok(RouteVerdict::Accepted(_))),
+            "{outcome:?}"
+        );
+    }
+    let extent = "is a runtime value: `count` is a parameter or local here";
+    for (name, source, reason) in [
+        (
+            "type_equality_with_a_builtin_spelled_parameter",
+            "machine pick<T>(i32: u32, value: T) -> u32 requires T == i32 { i32 }\n\
+             machine main() { }\n",
+            "`i32` here is the parameter `i32`, a value, not the builtin type `i32`",
+        ),
+        (
+            "generic_argument_extent_in_a_signature",
+            "data Buffer<T> { item: T; }\n\
+             const count: u64 = 4;\n\
+             machine f(count: u64, buffer: Buffer<[u8; count]>) -> u64 { count }\n\
+             machine main() { }\n",
+            extent,
+        ),
+        (
+            "generic_argument_extent_in_a_local",
+            "data Buffer<T> { item: T; }\n\
+             const count: u64 = 2;\n\
+             machine f(count: u64) -> u64 {\n\
+                 let buffer: Buffer<[u8; count]> = Buffer { item: [1, 2] };\n\
+                 count\n\
+             }\n\
+             machine main() { let n: u64 = f(2); }\n",
+            extent,
+        ),
+        (
+            "generic_argument_extent_in_a_call",
+            "machine identity<T>(value: T) -> T { value }\n\
+             const count: u64 = 2;\n\
+             machine f(count: u64) -> u64 {\n\
+                 let bytes: [u8; 2] = identity<[u8; count]>([1, 2]);\n\
+                 count\n\
+             }\n\
+             machine main() { let n: u64 = f(2); }\n",
+            extent,
+        ),
+    ] {
+        let stopped = {
+            let _compilation = COMPILATIONS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            unbuilt_frontier::staged(name, source)
+        };
+        let messages = match stopped {
+            Ok(_) => panic!("{name}: must stop before the checker"),
+            Err(messages) => messages,
+        };
+        assert!(
+            messages.iter().any(|message| message.contains(reason)),
+            "{name}: {messages:?}"
+        );
+    }
 }
 
 /// A builtin type name such as `u32` or `i1` exists only in the type role

@@ -13,7 +13,7 @@ closed phase vocabulary, root validation, command preparation, and resource
 limits. `prepare(phase, working_root)` requires one working root for every phase;
 there is no optional-root combination or second phase dispatch to reconstruct it.
 
-Its [path custody checks](src/resolver_execution/path_custody.rs) enforce absolute,
+Its [path custody checks](src/path_custody.rs) enforce absolute,
 lexically canonical, bounded paths and keep the executable outside controlled
 roots, including their canonical targets. Tests live below the same owner.
 `lib.rs` exports these operations and the shared bounded-process carriers.

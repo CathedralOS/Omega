@@ -661,6 +661,7 @@ mod legality;
 pub mod live_ranges;
 pub mod liveness;
 pub mod machine_effects;
+mod tied_registers;
 
 pub use legality::stage_optimized_allocation_legality_for_frameless_leaf;
 pub use legality::{

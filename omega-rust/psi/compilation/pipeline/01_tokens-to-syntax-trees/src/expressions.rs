@@ -90,6 +90,7 @@ pub(crate) mod context {
         }
     }
 }
+#[path = "expressions_frames.rs"]
 pub(crate) mod frames;
 pub(crate) mod membership {
     use crate::grammar::expressions::context::ExpressionContext;

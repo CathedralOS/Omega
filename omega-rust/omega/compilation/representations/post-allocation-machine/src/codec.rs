@@ -10,6 +10,7 @@ mismatch between the header identity and the recomputed content digest.
 */
 
 #[cfg(test)]
+#[path = "codec_tests.rs"]
 mod tests;
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;

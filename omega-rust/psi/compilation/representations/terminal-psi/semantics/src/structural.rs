@@ -5709,8 +5709,26 @@ pub(crate) mod zeroed_structural {
         root: StructuralTypeId,
         accepts_field: impl Fn(&StructuralFieldDeclaration) -> bool,
     ) -> bool {
+        zeroed_structural_types_and_fields_satisfy(types, root, |_| true, accepts_field)
+    }
+
+    /// Check declaration-level contracts as well as fields without expanding
+    /// a fixed array once per element or visiting inactive sum payloads.
+    pub fn zeroed_structural_types_and_fields_satisfy<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        accepts_type: impl Fn(&StructuralTypeDeclaration) -> bool,
+        accepts_field: impl Fn(&StructuralFieldDeclaration) -> bool,
+    ) -> bool {
         let declarations: Vec<_> = types.collect();
-        zeroed_declaration_graph(&declarations, root, false, false, &accepts_field)
+        zeroed_declaration_graph(
+            &declarations,
+            root,
+            false,
+            false,
+            &accepts_type,
+            &accepts_field,
+        )
     }
 
     fn zeroed_declaration_graph(
@@ -5718,6 +5736,7 @@ pub(crate) mod zeroed_structural {
         root: StructuralTypeId,
         allow_established_fields: bool,
         modulo_references: bool,
+        accepts_type: &impl Fn(&StructuralTypeDeclaration) -> bool,
         accepts_field: &impl Fn(&StructuralFieldDeclaration) -> bool,
     ) -> bool {
         let mut active = vec![false; declarations.len()];
@@ -5739,6 +5758,9 @@ pub(crate) mod zeroed_structural {
                 continue;
             }
             if active[position] {
+                return false;
+            }
+            if !accepts_type(declarations[position]) {
                 return false;
             }
             if declarations[position]
@@ -5908,6 +5930,7 @@ pub(crate) mod zeroed_structural {
             root,
             !established_fields.is_empty(),
             modulo_references,
+            &|_| true,
             &|_| true,
         ) {
             return None;

@@ -9,6 +9,7 @@
 // drift.
 
 use crate::record::accessors::field_projection_accessors;
+#[path = "policy_rows_limits.rs"]
 mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 

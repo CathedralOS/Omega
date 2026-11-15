@@ -4,6 +4,252 @@ applied machine instances, trait and conformance scopes, domain scopes, and
 requirement instances in `TypedTrees`.
 */
 
+impl crate::TypedTrees {
+    /// Land a static scalar at its binder's carrier before either describing
+    /// or specializing the application. Names arrive already resolved; only
+    /// the canonical value codec, never a rendered decimal name, supplies a value.
+    pub fn prepare_callable_scalar_argument(
+        &self,
+        primitive: crate::types::PrimitiveType,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> Result<crate::expression::ExpressionNode, &'static str> {
+        use crate::expression::ExpressionNode;
+        use crate::types::PrimitiveType;
+        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
+
+        if argument.application.is_some() || argument.evidence_projection.is_some() {
+            return Err("a static scalar requires a closed value operand");
+        }
+        if let Some(literal) = &argument.const_literal
+            && (argument.symbol.is_valid()
+                || !argument.path.is_empty()
+                || (argument.type_reference.is_valid()
+                    && self
+                        .static_const_literal_from_type_reference(argument.type_reference)
+                        .as_ref()
+                        != Some(literal)))
+        {
+            return Err("a scalar literal cannot also select another operand");
+        }
+        let literal = argument.const_literal.clone().or_else(|| {
+            argument
+                .type_reference
+                .is_valid()
+                .then(|| self.static_const_literal_from_type_reference(argument.type_reference))
+                .flatten()
+        });
+        if let Some(literal) = literal {
+            let landed_type = primitive
+                .landed_landing_fixed()
+                .ok_or("an integer argument requires an integer carrier")?;
+            let landing = IntegerLanding {
+                landed_type,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            };
+            if literal.landing().is_some_and(|stated| stated != landing)
+                || !literal
+                    .value_bignum()
+                    .is_some_and(|value| landed_type.value_carrier().admits(&value))
+            {
+                return Err("a static integer is outside its declared carrier");
+            }
+            return Ok(ExpressionNode::Integer(literal.with_landing(landing)));
+        }
+        if primitive == PrimitiveType::Bool
+            && let Some(value) = argument.closed_boolean()
+        {
+            return Ok(ExpressionNode::Boolean(value));
+        }
+        let canonical = if argument.symbol.is_valid() {
+            if self
+                .const_declaration_by_symbol(argument.symbol)
+                .is_some_and(|declaration| {
+                    !matches!(
+                        self.type_reference_node(declaration.declared_type),
+                        crate::types::TypeReferenceNode::Named { .. }
+                    ) || self.primitive_type_reference(declaration.declared_type) != Some(primitive)
+                })
+            {
+                return Err("a named constant does not have its binder's carrier");
+            }
+            crate::canonical_const_declaration_value(self, argument.symbol)
+        } else if argument.type_reference.is_valid() {
+            match self.type_reference_node(argument.type_reference) {
+                crate::types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                    CanonicalConstValue::from_atom(name.as_str())
+                }
+                crate::types::TypeReferenceNode::ConstExpression(value) => {
+                    if let ExpressionNode::Boolean(value) = self.expression_table.expression(*value)
+                    {
+                        Some(CanonicalConstValue::boolean(*value))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        } else {
+            argument
+                .path
+                .first()
+                .filter(|_| argument.path.len() == 1)
+                .and_then(|name| CanonicalConstValue::from_atom(name.as_str()))
+        }
+        .ok_or("a static scalar requires its canonical closed value")?;
+        match canonical
+            .decode_encoding()
+            .ok_or("a static scalar has a malformed canonical value")?
+        {
+            DecodedCanonicalConstValue::Integer {
+                integer_type,
+                value,
+            } if primitive.landed_landing_fixed() == Some(integer_type) => {
+                let text = value.to_string();
+                let literal = IntegerLiteral::from_parts(
+                    text.starts_with('-'),
+                    IntegerRadix::Decimal,
+                    text.trim_start_matches('-'),
+                )
+                .map_err(|_| "a canonical integer lost its literal representation")?;
+                Ok(ExpressionNode::Integer(literal.with_landing(
+                    IntegerLanding {
+                        landed_type: integer_type,
+                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                    },
+                )))
+            }
+            DecodedCanonicalConstValue::Boolean(value) if primitive == PrimitiveType::Bool => {
+                Ok(ExpressionNode::Boolean(value))
+            }
+            _ => Err("a static scalar does not have its binder's carrier"),
+        }
+    }
+
+    /// Form the declaration's complete supported tuple without requesting an
+    /// executable instance. The generic type node retains the selected owner
+    /// and arguments in that owner's exact binder order, including landed values.
+    pub(crate) fn prepare_callable_operand_application(
+        &mut self,
+        selected: &crate::expression::StaticMachineArgument,
+        owner: symbols::SymbolHandle,
+    ) -> Result<
+        (
+            crate::types::TypeReferenceHandle,
+            Vec<crate::static_applications::StaticMachineBinding>,
+        ),
+        &'static str,
+    > {
+        use crate::data::TypeParameterKind;
+        use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        use crate::types::TypeReferenceNode;
+        let owner = self.static_operand_region_supplier(selected, owner)?;
+        let machine = self
+            .machine_by_symbol(selected.symbol)
+            .or_else(|| self.machine_holding_state(selected.symbol))
+            .ok_or("a callable application requires its selected declaration")?;
+        let declaration = machine.symbol;
+        let name = machine.name.clone();
+        let parameters = self.machine_callable_parameters(machine);
+        let application = selected.application.as_deref();
+        if application.is_some_and(|application| application.member.is_valid())
+            || application.map_or(0, |application| application.arguments.len()) != parameters.len()
+            || application.map_or(0, |application| application.lifetime_arguments.len())
+                != machine.lifetime_parameters.len()
+            || parameters
+                .iter()
+                .any(|parameter| parameter.bounds != crate::data::DataProperties::default())
+            || (application.is_some()
+                && (!machine.conformance_bounds.is_empty()
+                    || !machine.declared_type_equations.is_empty()))
+        {
+            return Err("a callable application requires its complete admitted tuple and premises");
+        }
+        let Some(application) = application else {
+            let reference = self.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: declaration,
+                name,
+            });
+            self.type_reference_table
+                .retain_operand_lifetime_owner(reference, owner)?;
+            return Ok((reference, Vec::new()));
+        };
+        let mut arguments = Vec::with_capacity(parameters.len());
+        let mut bindings = Vec::with_capacity(parameters.len());
+        for (parameter, argument) in parameters.iter().zip(&application.arguments) {
+            let reference = match parameter.kind {
+                TypeParameterKind::Type => {
+                    if argument.const_literal.is_some()
+                        || argument.evidence_projection.is_some()
+                        || (!argument.type_reference.is_valid()
+                            && (!self.symbols.symbols().nodes().is_valid(argument.symbol)
+                                || !matches!(
+                                    self.symbols.get(argument.symbol).kind,
+                                    symbols::SymbolKind::BuiltinType
+                                        | symbols::SymbolKind::Data
+                                        | symbols::SymbolKind::TypeParameter
+                                )))
+                    {
+                        return Err("a callable type argument requires its resolved type");
+                    }
+                    let reference = self.static_operand_type_reference_in_scope(argument, owner)?;
+                    if matches!(
+                        self.type_reference_node(reference),
+                        TypeReferenceNode::ConstExpression(_)
+                    ) {
+                        return Err("a callable type argument cannot be a value");
+                    }
+                    reference
+                }
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
+                    if !matches!(
+                        self.type_reference_node(type_reference),
+                        TypeReferenceNode::Named { .. }
+                    ) {
+                        return Err("a callable scalar requires its admitted declared carrier");
+                    }
+                    let primitive = self
+                        .primitive_type_reference(type_reference)
+                        .ok_or("a callable scalar requires its admitted carrier")?;
+                    let value = self.prepare_callable_scalar_argument(primitive, argument)?;
+                    let expression = self.expression_table.insert(value);
+                    self.type_reference_table
+                        .insert(TypeReferenceNode::ConstExpression(expression))
+                }
+                _ => {
+                    return Err(
+                        "a callable application requires its admitted callable or conformance argument",
+                    );
+                }
+            };
+            arguments.push(reference);
+            bindings.push(StaticMachineBinding {
+                parameter: parameter.symbol,
+                value: if parameter.kind.is_const_or_value() {
+                    StaticMachineBindingValue::Const(reference)
+                } else {
+                    StaticMachineBindingValue::Type(reference)
+                },
+            });
+        }
+        let arguments = self
+            .type_reference_table
+            .insert_type_reference_handles(arguments);
+        let reference = self
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: declaration,
+                base_name: name,
+                lifetime_arguments: application.lifetime_arguments.to_vec(),
+                arguments,
+            });
+        self.type_reference_table
+            .retain_operand_lifetime_owner(reference, owner)?;
+        Ok((reference, bindings))
+    }
+}
+
 pub(crate) mod call_targets {
     pub(crate) mod applications {
         use super::super::CallableApplication;
@@ -3819,15 +4065,6 @@ pub(crate) mod payloads {
                         arguments: self.type_arguments(program, arguments)?,
                     }
                 }
-                types::TypeReferenceNode::DynamicTrait {
-                    symbol,
-                    name,
-                    arguments,
-                } => types::TypeReferenceNode::DynamicTrait {
-                    symbol: self.symbol(symbol),
-                    name,
-                    arguments: self.type_arguments(program, arguments)?,
-                },
                 types::TypeReferenceNode::ConstExpression(expression) => {
                     types::TypeReferenceNode::ConstExpression(self.expression(program, expression)?)
                 }

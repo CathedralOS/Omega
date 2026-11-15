@@ -21,7 +21,7 @@ pub use machine_code::{
     target_frame_layout_identity,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use physical_instructions::PostAllocationMachineIdentity;
+use post_allocation_machine::PostAllocationMachineIdentity;
 pub use register_environment::FrameAbiPreservationConvention;
 use register_environment::{
     ValidatedTargetRegisterEnvironment, selected_abi_preservation,
@@ -297,7 +297,7 @@ fn call_site_stack_contract(
 
 fn body_writes_link_register(
     environment: &ValidatedTargetRegisterEnvironment,
-    function: &physical_instructions::PostAllocationMachineFunction,
+    function: &post_allocation_machine::PostAllocationMachineFunction,
 ) -> Result<bool, TargetFrameLayoutError> {
     let policy = frame_unwind_policy(environment.target())
         .ok_or(TargetFrameLayoutError::UnsupportedTarget)?;
@@ -320,7 +320,7 @@ fn body_writes_link_register(
         .any(|unit| link.units.contains(unit)))
 }
 
-fn contains_call(function: &physical_instructions::PostAllocationMachineFunction) -> bool {
+fn contains_call(function: &post_allocation_machine::PostAllocationMachineFunction) -> bool {
     function.instructions().any(|instruction| {
         matches!(
             instruction.alternative.key.family,
@@ -334,12 +334,12 @@ fn contains_call(function: &physical_instructions::PostAllocationMachineFunction
 }
 
 fn stable_address_loans(
-    function: &physical_instructions::PostAllocationMachineFunction,
+    function: &post_allocation_machine::PostAllocationMachineFunction,
 ) -> Vec<LocalStorageSlotId> {
     function
         .instructions()
         .filter_map(|instruction| match instruction.address {
-            Some(physical_instructions::PhysicalAddressOperation::FrameAddress {
+            Some(post_allocation_machine::PhysicalAddressOperation::FrameAddress {
                 slot: FrameStorageSlotId::Local(slot),
                 ..
             }) if !matches!(slot, LocalStorageSlotId::Spill { .. }) => Some(slot),

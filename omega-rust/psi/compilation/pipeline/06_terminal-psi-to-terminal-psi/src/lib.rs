@@ -66,6 +66,7 @@ mod minted;
 mod operational;
 mod places;
 mod prove;
+mod ranking;
 mod result_summaries;
 mod reuse;
 mod verdict;
@@ -367,6 +368,19 @@ pub fn discharge_carrying(
 }
 
 fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
+    terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            elaboration
+                .module
+                .machines
+                .first()
+                .map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+            Construct::Machine,
+            &format!("invalid declared scalar qualifications: {error:?}"),
+        )
+    })?;
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
@@ -395,10 +409,17 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     // summarized under no input, and what it returns because of the input
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
+    let diagnostic = elaboration
+        .module
+        .machines
+        .first()
+        .map(|machine| machine.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+    let inhabitation = prepare_inhabitation(&elaboration.module, diagnostic)?;
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, &mut unreached)?;
-    entry_inputs::infer(elaboration, &mut unreached)?;
-    result_summaries::infer(elaboration, &mut unreached)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
+    entry_inputs::infer(elaboration, &mut unreached, &inhabitation)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
     let inputs = machine_inputs::PreparedMachineInputs::new(
         &elaboration.module,
         &elaboration.sources,
@@ -443,6 +464,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
             module,
+            &inhabitation,
             &elaboration.domains,
             id,
             tables,
@@ -545,6 +567,7 @@ fn terminal_machine(
 
 fn machine(
     module: &TerminalModule,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
@@ -568,7 +591,7 @@ fn machine(
         graph,
         context,
         reference_graph,
-    } = prepare(module, domains, id, tables)?;
+    } = prepare_with_inhabitation(module, domains, id, tables, inhabitation)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
@@ -1075,6 +1098,34 @@ pub(crate) fn prepare(
     id: MachineId,
     tables: &mut MachineTables,
 ) -> Checked<Prepared> {
+    let inhabitation = prepare_inhabitation(module, id)?;
+    prepare_with_inhabitation(module, domains, id, tables, &inhabitation)
+}
+
+fn prepare_inhabitation(
+    module: &TerminalModule,
+    id: MachineId,
+) -> Checked<terminal_semantics::inhabitation::Inhabitation> {
+    terminal_semantics::inhabitation::Inhabitation::prepare(
+        &terminal_semantics::inhabitation::TerminalContracts::new(&module.structural_types),
+    )
+    .map_err(|_| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            "structural type contracts do not form one inhabitation family",
+        )
+    })
+}
+
+pub(crate) fn prepare_with_inhabitation(
+    module: &TerminalModule,
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+    id: MachineId,
+    tables: &mut MachineTables,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+) -> Checked<Prepared> {
     let machines = &module.machines;
     let structural_types = &module.structural_types;
     let lowered = terminal_machine(machines, id, id)?;
@@ -1084,9 +1135,12 @@ pub(crate) fn prepare(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
+    // A ranking is admitted whole before any of its comparisons is decided,
+    // and a terminating machine may leave no cycle unranked (`ranking`).
+    ranking::admit(id, lowered, tables, &graph)?;
     let reference_graph = places::reference_graph(module, id)?;
     if fill {
         let references = std::cell::RefCell::new(
@@ -1243,6 +1297,13 @@ fn result_equation(
     {
         return Ok(Some(semantics.result_equation().clone()));
     }
+    // A Trapping operation's normal successor is reached only where it did
+    // not trap, and there it computed the Exact primitive's result.
+    if let Some(semantics) =
+        terminal_semantics::trapping_integer_semantics(operation, types).map_err(&refuse)?
+    {
+        return Ok(Some(semantics.result_equation().clone()));
+    }
     Ok(
         terminal_semantics::goal_free_scalar_leaf_semantics(operation, types)
             .map_err(&refuse)?
@@ -1315,7 +1376,6 @@ pub(crate) fn callee(
             // (`operational::judge`, which every discharge runs first).
             if !declaration.requires.is_empty()
                 || !declaration.normal_qualifications.is_empty()
-                || !declaration.scalar_domain_requirements.is_empty()
                 || declaration.structural_parameters.iter().any(|formal| {
                     !formal.qualifications.is_empty()
                         || !formal.projected_qualifications.is_empty()
@@ -1809,15 +1869,19 @@ fn stated_goal(
             joins::arrival_goal(lowered, id, obligation, edge, tables)
         }
         ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(module, lowered, tables, id, obligation, site, cause)
+            crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
+        }
+        ObligationKind::WellFoundedness { component } => {
+            ranking::floor_goal(lowered, id, obligation, component)
+        }
+        ObligationKind::RankComparison { component, edge } => {
+            ranking::comparison_goal(lowered, id, obligation, component, edge)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
-        | ObligationKind::EstablishmentDebt { .. }
-        | ObligationKind::WellFoundedness { .. }
-        | ObligationKind::RankComparison { .. } => Err(refusal(
+        | ObligationKind::EstablishmentDebt { .. } => Err(refusal(
             RefusalReason::Unsupported,
             id,
             concerns,

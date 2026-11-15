@@ -6,16 +6,14 @@
 // production inside the compiler.
 
 use super::CompilationSession;
-use compilation_products::{
-    CheckedCompileRequest, CompileFailure, NativeProductRequest, PreparedPackageBuild,
-};
 use diagnostics::Diagnostic;
+use products::{CheckedCompileRequest, CompileFailure, NativeProductRequest, PreparedPackageBuild};
 
 pub struct PackageCompilationRequest {
     pub occurrences: Vec<PackageSourceRequest>,
     pub product: crate::CompilationProduct,
     pub terminal_permissions:
-        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        Option<review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 pub enum PackageSourceRequest {
@@ -104,7 +102,7 @@ impl SourceBuildDeclaration {
 }
 
 pub struct CompletedBuild {
-    source: compilation_products::SettledPackageBuild,
+    source: products::SettledPackageBuild,
     products: Vec<PreparedPackageBuild>,
 }
 
@@ -196,12 +194,28 @@ impl PackageBuildInvocation {
     pub fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.execution()
     }
+
+    /// Whether the stage of this Build that just ran ended at a dependency
+    /// preparation with statements of the entry still to check and run
+    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages").
+    pub fn has_later_stage(&self) -> bool {
+        self.source.has_later_stage()
+    }
+
+    /// Checks the next stage of this Build with the build dependencies its
+    /// earlier stages prepared, each under the alias it was registered by.
+    /// Afterwards `execution` is that stage's, to be resumed from the
+    /// activation that returned, and `product_queries` answers its queries.
+    pub fn prepare_next_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        super::run_on_compile_thread(|| self.source.prepare_next_stage(prepared))
+    }
 }
 
 impl PackageBuild {
-    pub fn source_completion_accounting(
-        &self,
-    ) -> &compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
         self.source.source_completion_accounting()
     }
 
@@ -247,7 +261,7 @@ impl PackageBuild {
 pub struct PreparedPackageProduct {
     pub build: PackageBuild,
     pub product: crate::CompilationProduct,
-    pub permissions: Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+    pub permissions: Option<review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 impl CompilationSession {
@@ -350,7 +364,7 @@ impl CompilationSession {
         &mut self,
         build: PackageBuild,
         declaration_path: &str,
-    ) -> Result<psi_compiler::ProducedBuildProvider, CompileFailure> {
+    ) -> Result<source_compiler::ProducedBuildProvider, CompileFailure> {
         super::run_on_compile_thread(|| {
             let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
             let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
@@ -358,7 +372,7 @@ impl CompilationSession {
                 super::checking::check_product_source(source, Some(&inputs), &rollback, None)?;
             let publication = &checked.terminal_publication;
             let accepted = publication.accepted()?;
-            let supply = psi_compiler::AcceptedTerminalSource::build_backing_supply(
+            let supply = source_compiler::AcceptedTerminalSource::build_backing_supply(
                 accepted.source(),
                 inputs.root(),
                 declaration_path,
@@ -367,7 +381,7 @@ impl CompilationSession {
             if !roster.supplies.contains(&supply) {
                 roster.supplies.push(supply);
             }
-            let supplied = compilation_products::ProductTerminalPublication::judge(
+            let supplied = products::ProductTerminalPublication::judge(
                 std::sync::Arc::clone(accepted.source()),
                 roster,
                 publication.optimizations().clone(),
@@ -464,7 +478,7 @@ impl CompilationSession {
                     crate::CompilationProduct::Native(request) => {
                         Some(crate::CompilationProduct::Native(NativeProductRequest {
                             retain_native_inputs: false,
-                            image: compilation_products::NativeImageDemand::Emit,
+                            image: products::NativeImageDemand::Emit,
                             private_entry_ram: Vec::new(),
                             ..request.clone()
                         }))
@@ -537,28 +551,26 @@ impl CompilationSession {
                             pending.tests = identities
                                 .into_iter()
                                 .zip(tests)
-                                .map(|(identity, product)| {
-                                    compilation_products::PendingTestProduct {
-                                        identity,
-                                        product: match product {
-                                            Ok(crate::CompilationOutput::Native(pending)) => {
-                                                Ok(pending)
-                                            }
-                                            Ok(crate::CompilationOutput::Report(report)) => {
-                                                Err(CompileFailure::source_completion(
-                                                    vec![Diagnostic::error(
-                                                        "test root lost its native product",
-                                                    )],
-                                                    report.source_completion_accounting().clone(),
-                                                ))
-                                            }
-                                            Ok(_) => Err(vec![Diagnostic::error(
-                                                "test root lost its native product",
-                                            )]
-                                            .into()),
-                                            Err(error) => Err(CompileFailure::from(error)),
-                                        },
-                                    }
+                                .map(|(identity, product)| products::PendingTestProduct {
+                                    identity,
+                                    product: match product {
+                                        Ok(crate::CompilationOutput::Native(pending)) => {
+                                            Ok(pending)
+                                        }
+                                        Ok(crate::CompilationOutput::Report(report)) => {
+                                            Err(CompileFailure::source_completion(
+                                                vec![Diagnostic::error(
+                                                    "test root lost its native product",
+                                                )],
+                                                report.source_completion_accounting().clone(),
+                                            ))
+                                        }
+                                        Ok(_) => Err(vec![Diagnostic::error(
+                                            "test root lost its native product",
+                                        )]
+                                        .into()),
+                                        Err(error) => Err(CompileFailure::from(error)),
+                                    },
                                 })
                                 .collect();
                             crate::CompilationOutput::Native(pending)

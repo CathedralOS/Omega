@@ -248,7 +248,7 @@ impl PackageReviewInput<'_> {
 /// boundary correspondence. Equal-looking names cannot replace this edge, and
 /// the shared application owner must reproduce the canonical service identity.
 fn service_identities(
-    accepted: &psi_compiler::AcceptedTerminalSource,
+    accepted: &source_compiler::AcceptedTerminalSource,
     exact_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<Vec<(ServiceId, PackageReviewNominalIdentity)>, Vec<Diagnostic>> {
     use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
@@ -346,7 +346,7 @@ fn reviewed_services(
 }
 
 fn body_effects(
-    accepted: &psi_compiler::AcceptedTerminalSource,
+    accepted: &source_compiler::AcceptedTerminalSource,
     machine: MachineId,
 ) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
     let module = accepted.module();

@@ -15,8 +15,8 @@ stop (`product_execution.rs`).
 */
 
 /*
-We separate compilation sequencing from product custody (`compilation_products`)
-and target-neutral language semantics (`psi_compiler`). This crate never
+We separate compilation sequencing from product custody (`products`)
+and target-neutral language semantics (`source_compiler`). This crate never
 executes Build effects directly or reinterprets Checked Psi outside the stage
 owners; instead, we hold the opaque continuation across application-driven Build
 stepping and route each settled target through its exact stop (`Check`,
@@ -53,20 +53,20 @@ pub use crate::checked::{
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
-pub use compilation_products::{
+pub use execution_settlement::settled_slot_schemas;
+pub use native_compiler::SourceEvaluatedImportSettlement;
+pub use package_compilation::BuildExecutionInputs;
+pub use product_execution::{
+    CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
+};
+pub use products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileOutputKind, CompileReport,
     CompileRequest, CompileTargetOutcome, CompilerRequestOutcome, ExecutablePublicationReceipt,
     OptimizationRollbackReceipt, RequestedCompileProduct, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
-pub use execution_settlement::settled_slot_schemas;
-pub use native_compiler::SourceEvaluatedImportSettlement;
-pub use package_compilation::BuildExecutionInputs;
-pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
-pub use product_execution::{
-    CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
-};
-pub use psi_compiler::ProducedTerminalProgram;
+pub use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
+pub use source_compiler::ProducedTerminalProgram;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
 pub use terminal::prepare_program_entry;

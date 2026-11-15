@@ -78,7 +78,7 @@ use typed_trees::{
 mod named_conformances;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let mut generated = Vec::new();
+    let mut generated = GeneratedMachines::default();
     let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
     let mut instances = symbols::SymbolMap::default();
     let mut indexed = 0;
@@ -152,6 +152,52 @@ struct Generated {
     arguments: Vec<Identity>,
     machine: SymbolHandle,
     state: SymbolHandle,
+}
+
+/// Every machine this pass generated, in the order the applications were
+/// first met, and an index answering "has this application already been
+/// generated?" without reading rows of other applications.
+///
+/// One application makes one machine, so a closed application is looked up
+/// before it is generated. Scanning `rows` for that made the pass quadratic
+/// in the number of distinct closed applications, across unrelated
+/// templates too. `by_application` holds row numbers ordered by template,
+/// then by the complete argument key; a lookup is a binary search comparing
+/// whole keys, never a digest. Rows stay in encounter order: nothing reads a
+/// row's position as anything but a stable name.
+#[derive(Default)]
+struct GeneratedMachines {
+    rows: Vec<Generated>,
+    by_application: Vec<u32>,
+}
+
+impl GeneratedMachines {
+    /// The row generated for `template` at `arguments`, or the place in
+    /// `by_application` where that application belongs.
+    fn search(&self, template: SymbolHandle, arguments: &[Identity]) -> Result<usize, usize> {
+        let wanted = (symbol_order(template), arguments);
+        self.by_application
+            .binary_search_by(|&row| {
+                let row = &self.rows[row as usize];
+                (symbol_order(row.template), row.arguments.as_slice()).cmp(&wanted)
+            })
+            .map(|slot| self.by_application[slot] as usize)
+    }
+
+    /// Append `made` and index it at `slot`, the place [`Self::search`]
+    /// reported for its application.
+    fn insert(&mut self, slot: usize, made: Generated) -> &Generated {
+        let row = u32::try_from(self.rows.len()).expect("generated machines fit a u32 row");
+        self.rows.push(made);
+        self.by_application.insert(slot, row);
+        &self.rows[row as usize]
+    }
+}
+
+/// A total order on symbols for sorted lookups: by arena slot, then by
+/// generation, exactly the parts symbol equality compares.
+fn symbol_order(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
 }
 
 /// A call as the trees hold one: an expression, or a statement that
@@ -290,7 +336,7 @@ fn entered_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(Symbol
 fn serve(
     program: &mut TypedTrees,
     site: Site,
-    generated: &mut Vec<Generated>,
+    generated: &mut GeneratedMachines,
     instances: &symbols::SymbolMap<Option<usize>>,
 ) -> Served<()> {
     let Some(applied) = site.applied(program) else {
@@ -383,15 +429,16 @@ fn serve(
         .iter()
         .map(|operand| operand.identity.clone())
         .collect::<Vec<_>>();
-    let entry = match generated
-        .iter()
-        .find(|existing| existing.template == callee && existing.arguments == key)
-    {
-        Some(existing) => existing,
-        None => {
+    let entry = match generated.search(callee, &key) {
+        Ok(row) => &generated.rows[row],
+        Err(slot) => {
             let made = generate(program, callee, applied.application, &operands)?;
-            generated.push(made);
-            generated.last().expect("the machine just generated")
+            if made.template != callee || made.arguments != key {
+                return Err(Stop::Defect(
+                    "a generated machine changed the application it was generated for",
+                ));
+            }
+            generated.insert(slot, made)
         }
     };
     let target = if names_state {
@@ -630,6 +677,37 @@ enum Identity {
     Scalar(String),
 }
 
+/// Applications are indexed in sorted order ([`GeneratedMachines`]). The
+/// order only has to agree with equality: same variant and same payload.
+impl Ord for Identity {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Type(left), Self::Type(right)) => left.cmp(right),
+            (Self::Declaration(left), Self::Declaration(right)) => {
+                symbol_order(*left).cmp(&symbol_order(*right))
+            }
+            (Self::Scalar(left), Self::Scalar(right)) => left.cmp(right),
+            _ => self.rank().cmp(&other.rank()),
+        }
+    }
+}
+
+impl PartialOrd for Identity {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Identity {
+    fn rank(&self) -> u8 {
+        match self {
+            Self::Type(_) => 0,
+            Self::Declaration(_) => 1,
+            Self::Scalar(_) => 2,
+        }
+    }
+}
+
 /// One static argument read for the parameter it is given to. Every kind of
 /// parameter is bound through this one shape; a kind with no reading yet is
 /// unserved.
@@ -682,7 +760,17 @@ impl Operand {
                     }
                     Scalar::Parameter(symbol) => Identity::Declaration(symbol),
                 };
-                (identity, StaticMachineBindingValue::Const(*type_reference))
+                let reference = if let Some(value) = &scalar {
+                    let expression = program.expression_table.insert(value.expression());
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::ConstExpression(expression))
+                } else {
+                    program
+                        .static_operand_type_reference(argument)
+                        .map_err(|_| Stop::Unserved(None))?
+                };
+                (identity, StaticMachineBindingValue::Const(reference))
             }
             // A runtime value, a machine and a proposition each need their
             // own reading of the argument; none is built yet.
@@ -768,41 +856,19 @@ enum Scalar {
 /// `true` or `false` and nothing else, for a parameter of type `bool`; or
 /// only the name of a parameter in scope. A literal that states another type
 /// than the parameter's is not the parameter's value. An argument that
-/// names a constant or would have to be evaluated is unserved: no machine
-/// runs here.
+/// names a completed constant uses its canonical value; no machine runs here.
 fn closed_scalar(
     program: &TypedTrees,
     parameter_type: TypeReferenceHandle,
     argument: &StaticMachineArgument,
 ) -> Served<Scalar> {
-    let primitive = program.primitive_type_reference(parameter_type);
-    if primitive == Some(typed_trees::types::PrimitiveType::Bool)
-        && let Some(value) = argument.closed_boolean()
+    if let Some(primitive) = program.primitive_type_reference(parameter_type)
+        && let Ok(value) = program.prepare_callable_scalar_argument(primitive, argument)
     {
-        return Ok(Scalar::Closed(Value::Boolean(value)));
-    }
-    if let Some(literal) = &argument.const_literal {
-        let only_a_literal = StaticMachineArgument {
-            const_literal: Some(literal.clone()),
-            ..StaticMachineArgument::default()
-        };
-        let landed_type =
-            primitive.and_then(typed_trees::types::PrimitiveType::landed_landing_fixed);
-        let (true, Some(landed_type)) = (*argument == only_a_literal, landed_type) else {
-            return Err(Stop::Unserved(None));
-        };
-        let landing = numerics::literals::IntegerLanding {
-            landed_type,
-            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-        };
-        return match literal.landing() {
-            None => Ok(Scalar::Closed(Value::Integer(
-                literal.with_landing(landing),
-            ))),
-            Some(stated) if stated == landing => {
-                Ok(Scalar::Closed(Value::Integer(literal.clone())))
-            }
-            Some(_) => Err(Stop::Unserved(None)),
+        return match value {
+            ExpressionNode::Integer(literal) => Ok(Scalar::Closed(Value::Integer(literal))),
+            ExpressionNode::Boolean(value) => Ok(Scalar::Closed(Value::Boolean(value))),
+            _ => Err(Stop::Defect("prepared callable scalar is not a scalar")),
         };
     }
     let symbol = argument.symbol;

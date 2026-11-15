@@ -1,5 +1,6 @@
-//! Publication retains the exact judged module together with its closed scalar
-//! descriptors and the bytes that established their identity. The encoder is
+//! A closed module retains its scalar descriptors, canonical execution bytes,
+//! and their semantic identity together. Closure does not establish that a
+//! checker accepted the program or that its producer may be trusted. The encoder is
 //! the complete traversal: it refuses a symbolic width where that width occurs,
 //! without substituting a value or maintaining another list of module fields.
 

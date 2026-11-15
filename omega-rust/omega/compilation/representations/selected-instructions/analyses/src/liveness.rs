@@ -1004,65 +1004,32 @@ pub mod compute {
                 }
             }
         }
+        if early_rows.is_empty() {
+            return Ok(());
+        }
+        let ties = crate::tied_registers::TiedRegisters::new(
+            tied_edges,
+            early_rows
+                .iter()
+                .filter_map(|(_, _, definition, source, _)| source.map(|_| *definition)),
+        );
         for (instruction, def_operand, definition, tied_source, unrelated) in &early_rows {
-            let valid_tie = tied_source.is_none_or(|source| {
-                let component = tied_component(source, &tied_edges);
-                tied_edges.contains(&(source, *definition))
-                    && component.contains(definition)
-                    && early_rows
-                        .iter()
-                        .filter(|(_, _, candidate, candidate_source, _)| {
-                            candidate_source.is_some() && component.contains(candidate)
-                        })
-                        .count()
-                        == 1
-            });
-            let untied_definition_is_free = tied_source.is_some()
-                || tied_edges
-                    .iter()
-                    .all(|(left, right)| left != definition && right != definition);
-            if !valid_tie
-                || !untied_definition_is_free
-                || unrelated.iter().any(|(register, _)| {
-                    tied_edges
-                        .iter()
-                        .any(|(left, right)| left == register || right == register)
-                })
-            {
+            let valid_definition = match tied_source {
+                Some(source) => ties.is_only_early_definition(*source, *definition),
+                None => !ties.contains(*definition),
+            };
+            let tied_unrelated = unrelated
+                .iter()
+                .find(|(register, _)| ties.contains(*register));
+            if !valid_definition || tied_unrelated.is_some() {
                 return Err(LivenessError::UnsupportedEarlyClobber {
                     function: function_index,
                     instruction: *instruction,
-                    operand: unrelated
-                        .iter()
-                        .find(|(register, _)| {
-                            tied_edges
-                                .iter()
-                                .any(|(left, right)| left == register || right == register)
-                        })
-                        .map_or(*def_operand, |(_, operand)| *operand),
+                    operand: tied_unrelated.map_or(*def_operand, |(_, operand)| *operand),
                 });
             }
         }
         Ok(())
-    }
-
-    fn tied_component(
-        seed: VirtualRegisterId,
-        edges: &[(VirtualRegisterId, VirtualRegisterId)],
-    ) -> BTreeSet<VirtualRegisterId> {
-        let mut component = BTreeSet::from([seed]);
-        loop {
-            let previous_len = component.len();
-            for (left, right) in edges {
-                if component.contains(left) || component.contains(right) {
-                    component.insert(*left);
-                    component.insert(*right);
-                }
-            }
-            if component.len() == previous_len {
-                return component;
-            }
-        }
     }
 
     fn materialize_block(

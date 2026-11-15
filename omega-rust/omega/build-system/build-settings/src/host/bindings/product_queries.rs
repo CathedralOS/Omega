@@ -15,7 +15,7 @@ use evaluation_accounting::EvaluationStorageLease;
 use language_semantics::declaration_selection::{
     DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
 };
-use psi_compiler::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
+use source_compiler::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 use std::sync::Arc;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectRejection, TerminalEffectResult, TerminalStructuralValue,

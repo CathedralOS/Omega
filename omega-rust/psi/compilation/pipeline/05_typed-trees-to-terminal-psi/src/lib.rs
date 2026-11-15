@@ -61,6 +61,7 @@ mod operational;
 mod outcome;
 mod policy;
 mod proof_scope;
+mod qualifications;
 mod read;
 mod reference_results;
 mod suspension;
@@ -74,8 +75,8 @@ fn named_captures(typed: &TypedTrees) -> NamedCaptures {
 
 pub use body::{
     Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainSet, Expression,
-    ExpressionKind, Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement,
-    StorageShape, Strict, Target, Termination, ValueType, self_place,
+    ExpressionKind, Policy, Qualification, Ranking, RecordField, RecordType, Selector, Signature,
+    Statement, StorageShape, Strict, Target, Termination, ValueType, self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use compilation::{PreparedSource, prepare_compilation};
@@ -793,11 +794,11 @@ fn lower_generic_for<'source>(
         operational::positions(machine, body)?;
     }
     let components = components::components(bodies, signatures.machines)?;
-    // Result facts and non-return are both checked body summaries. Their
-    // source visibility is decided once by the same verification-unit owner;
-    // a requirement or independent caller cannot borrow a selected body.
-    let local_results = declarations
-        .map(|source| source.local_result_bodies(entry))
+    // One source owner fixes the local inference boundary. Result clauses
+    // retain their private publication restriction; local non-return does not
+    // become a public clause and can use every eligible body in that unit.
+    let local_summaries = declarations
+        .map(|source| source.local_summary_bodies(entry))
         .transpose()?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
@@ -819,8 +820,11 @@ fn lower_generic_for<'source>(
         bodies,
         signatures,
         requirements,
-        local_results.as_deref(),
+        local_summaries
+            .as_ref()
+            .map(|local| local.outcomes.as_slice()),
         &declared.records.inhabitation,
+        &components,
     )?;
     // Declaration checking publishes no executable arrival or root reach.
     if let Some(entry) = entry {
@@ -834,13 +838,6 @@ fn lower_generic_for<'source>(
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
         source.publish_services(diagnostic, &mut module)?;
-        source.publish_boundaries(
-            diagnostic,
-            signatures,
-            &outcomes,
-            &declared.records,
-            &mut module,
-        )?;
     } else if !signatures.boundaries.is_empty() {
         return Err(refuse(
             diagnostic,
@@ -849,6 +846,68 @@ fn lower_generic_for<'source>(
         ));
     }
     let mut tables = CheckTables::default();
+    let mut qualifications = qualifications::Qualifications::declare(
+        diagnostic,
+        declarations,
+        std::mem::take(&mut module.identities),
+    )?;
+    if let Some(source) = declarations {
+        source.publish_boundaries(
+            diagnostic,
+            signatures,
+            &outcomes,
+            &declared.records,
+            &mut qualifications,
+            &mut module,
+        )?;
+    }
+    for (_, record) in records.iter() {
+        for field in record
+            .fields()
+            .iter()
+            .chain(record.cases().iter().flat_map(|case| &case.fields))
+        {
+            if let ValueType::Scalar(scalar_type, qualifier) = field.value_type {
+                let set = qualifications.scalar(diagnostic, scalar_type, qualifier)?;
+                if !set.is_empty() {
+                    qualifications
+                        .catalog
+                        .fields
+                        .push(terminal_psi::ScalarFieldQualification {
+                            field: field.id,
+                            value_type: semantic_vocabulary::QualifiedScalarType {
+                                scalar_type,
+                                qualifications: set,
+                            },
+                        });
+                }
+            }
+        }
+    }
+    qualifications
+        .catalog
+        .fields
+        .sort_unstable_by_key(|field| field.field);
+    for (value_type, structural_type) in declared.records.primitive_types() {
+        if let ValueType::Scalar(scalar_type, qualifier) = value_type {
+            let set = qualifications.scalar(diagnostic, scalar_type, qualifier)?;
+            if !set.is_empty() {
+                qualifications.catalog.primitives.push(
+                    terminal_psi::ScalarPrimitiveQualification {
+                        structural_type,
+                        value_type: semantic_vocabulary::QualifiedScalarType {
+                            scalar_type,
+                            qualifications: set,
+                        },
+                    },
+                );
+            }
+        }
+    }
+    qualifications
+        .catalog
+        .primitives
+        .sort_unstable_by_key(|row| row.structural_type);
     let mut sources = IdTable::default();
     if let Some(source) = declarations {
         for (id, original) in source.declaration_representatives.iter() {
@@ -875,6 +934,7 @@ fn lower_generic_for<'source>(
                     signatures,
                     &outcomes,
                     &declared.records,
+                    &mut qualifications,
                 )?);
         }
     }
@@ -908,6 +968,7 @@ fn lower_generic_for<'source>(
             &outcomes,
             &declared.records,
             requirements.contains(&id),
+            &mut qualifications,
         )?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
@@ -918,6 +979,8 @@ fn lower_generic_for<'source>(
         source.designated.push(lowered.designated);
         source.calls.push(lowered.calls);
     }
+    module.identities = qualifications.identities.build();
+    module.scalar_qualifications = qualifications.catalog;
     for machine in &mut module.machines {
         let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
             .map_err(|error| {
@@ -1110,7 +1173,7 @@ fn lower_generic_for<'source>(
             names: IdTable::default(),
             machines: IdTable::default(),
             private_inputs: Vec::new(),
-            local_results: local_results.unwrap_or_default(),
+            local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
             domains,
             requirements: requirements.to_vec(),
             selections: Vec::new(),

@@ -22,7 +22,7 @@ pub use machine_code::{
     WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
-use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
+use post_allocation_machine::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::{
@@ -110,7 +110,7 @@ enum EntryAssumptionKind {
 
 struct ValidationInputs<'a> {
     selected: &'a selected_instructions::SelectedInstructionPlan,
-    machine: &'a physical_instructions::PostAllocationMachinePlan,
+    machine: &'a post_allocation_machine::PostAllocationMachinePlan,
     physical: &'a ValidatedPhysicalRegisterModel,
     encoding: &'a StagedOptimizedSelectedFormEncoding,
     layout: &'a ResolvedMachineLayout,
@@ -1317,7 +1317,7 @@ fn frame_permissions(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_preservation_writes(
-    machine: &physical_instructions::PostAllocationMachineInstruction,
+    machine: &post_allocation_machine::PostAllocationMachineInstruction,
     encoding: &SelectedFormEncodingRow,
     callee_saved: &BTreeSet<RegisterUnitId>,
     link_units: &BTreeSet<RegisterUnitId>,
@@ -2264,7 +2264,7 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::SaveFloatingControl { slot }
+                == post_allocation_machine::PhysicalAddressOperation::SaveFloatingControl { slot }
                 && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
         }
         (
@@ -2278,7 +2278,9 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::RestoreFloatingControl { slot }
+                == post_allocation_machine::PhysicalAddressOperation::RestoreFloatingControl {
+                    slot,
+                }
                 && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
         }
         (
@@ -2359,7 +2361,7 @@ fn validate_non_return(
             byte_count == u16::from(width.byte_size())
                 && address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::LoadPacked {
+                    == post_allocation_machine::PhysicalAddressOperation::LoadPacked {
                         base_operand: 0,
                         byte_offset,
                         width,
@@ -2372,7 +2374,7 @@ fn validate_non_return(
         ) => {
             address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::StorePacked {
+                    == post_allocation_machine::PhysicalAddressOperation::StorePacked {
                         base_operand: 0,
                         byte_offset,
                         width,
@@ -2387,7 +2389,7 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Structural { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::HostedReadByte { slot }
+                == post_allocation_machine::PhysicalAddressOperation::HostedReadByte { slot }
                 && effects.trap == MachineEncodedTrapBehavior::HostedReadFailureV1
         }
         (
@@ -2399,7 +2401,7 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot }
+                == post_allocation_machine::PhysicalAddressOperation::HostedWriteByteI32 { slot }
                 && effects.trap == MachineEncodedTrapBehavior::HostedWriteFailureV1
         }
         (
@@ -2413,7 +2415,7 @@ fn validate_non_return(
             matches!(byte_size, 1 | 2 | 4 | 8)
                 && address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::Store {
+                    == post_allocation_machine::PhysicalAddressOperation::Store {
                         base_operand: 0,
                         byte_offset,
                         byte_size,
@@ -2426,7 +2428,7 @@ fn validate_non_return(
         ) => {
             address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::AddressOffset {
+                    == post_allocation_machine::PhysicalAddressOperation::AddressOffset {
                         base_operand: 0,
                         byte_offset,
                     }
@@ -2441,7 +2443,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load8Indexed {
+                == post_allocation_machine::PhysicalAddressOperation::Load8Indexed {
                     base_operand: 0,
                     index_operand: 1,
                 }
@@ -2456,7 +2458,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load64 {
+                == post_allocation_machine::PhysicalAddressOperation::Load64 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2470,7 +2472,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load8 {
+                == post_allocation_machine::PhysicalAddressOperation::Load8 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2484,7 +2486,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load16 {
+                == post_allocation_machine::PhysicalAddressOperation::Load16 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2512,7 +2514,7 @@ fn validate_non_return(
                 && effects.external_operand_reads == if form.write { vec![0, 1] } else { vec![0] }
                 && effects.external_operand_writes == if form.write { vec![] } else { vec![1] }
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::AccessorScalarAccess {
+                    == post_allocation_machine::PhysicalAddressOperation::AccessorScalarAccess {
                         base_operand: 0,
                         byte_offset,
                         form,
@@ -2528,7 +2530,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load32 {
+                == post_allocation_machine::PhysicalAddressOperation::Load32 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2539,7 +2541,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset }
+                == post_allocation_machine::PhysicalAddressOperation::Store64 { slot, byte_offset }
         }
         (_, MachineEncodedMemoryEffect::NoneV1, _) => !matches!(
             kind,
@@ -2828,7 +2830,7 @@ fn validated_aarch64_addressed_form_fixture(
     instruction: SelectedInstructionId,
     alternative: selected_instructions::MachineAlternativeKey,
     kind: SelectedInstructionKind,
-    symbolic: physical_instructions::PhysicalAddressOperation,
+    symbolic: post_allocation_machine::PhysicalAddressOperation,
 ) -> (
     machine_code::SelectedFormEncodedRowStore,
     SelectedFormEncodingRow,
@@ -2904,7 +2906,7 @@ mod tests {
         X86BranchRelaxationIdentity,
     };
     use optimization_core::Optimization;
-    use physical_instructions::PhysicalAddressOperation;
+    use post_allocation_machine::PhysicalAddressOperation;
     use selected_instructions::{
         AtomicForm, AtomicWidth, FloatResultPolicyForm, IeeeFloatArithmeticForm,
         IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier,
@@ -2923,7 +2925,7 @@ mod tests {
             post_allocation_manifest:
                 optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([2; 32]),
             post_allocation_machine:
-                physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
+                post_allocation_machine::PostAllocationMachineIdentity::from_bytes([3; 32]),
             register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes(
                 [4; 32],
             ),

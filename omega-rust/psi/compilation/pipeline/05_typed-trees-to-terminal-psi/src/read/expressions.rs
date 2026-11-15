@@ -306,15 +306,8 @@ impl<'t> Program<'t> {
             ExpressionNode::Binary(binary) => {
                 // A suffixed operator (`+%`, `+|`, `+!`) names its policy at
                 // this one node (`wiki/spec/language/numeric_values.md`,
-                // "Policy operators"). `Trapping` is no policy a type can
-                // carry here, so its form is refused by name.
-                let suffix = match crate::policy::suffix(binary.policy) {
-                    crate::policy::Suffix::Unwritten => None,
-                    crate::policy::Suffix::Total(policy) => Some(policy),
-                    crate::policy::Suffix::Trapping => {
-                        return unserved("Trapping policy operator");
-                    }
-                };
+                // "Policy operators").
+                let suffix = crate::body::Policy::of_domain(binary.policy);
                 // What an operand expects from outside: an arithmetic or shift
                 // result has its (value) operand's type, `&&`/`||` operands
                 // are Boolean, comparison operands expect nothing. An

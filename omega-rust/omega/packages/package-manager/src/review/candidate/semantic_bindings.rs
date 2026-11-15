@@ -18,8 +18,8 @@ use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use package_evidence::SemanticBindingProjectionError;
 use provider_admission::{filesystem_host_permission_rows, time_host_permission_rows};
+use review_evidence::SemanticBindingProjectionError;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi_to_abstract_operations::provider_admission;
 
@@ -209,7 +209,7 @@ pub(super) fn projection_error(
             CompileResolvedPackageReviewsError::new(
                 crate::review::CompileResolvedPackageReviewCause::Compilation {
                     package: consumer.clone(),
-                    failure: compilation_products::CompileFailure::Diagnostics(diagnostics),
+                    failure: products::CompileFailure::Diagnostics(diagnostics),
                 },
             )
         }

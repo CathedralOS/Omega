@@ -155,7 +155,7 @@ fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionStatus, Stri
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     Ok(instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
         .unwrap())
 }
 
@@ -502,5 +502,80 @@ machine build_entry(named: &mut Named) {{
     assert!(
         verdict.starts_with("rejected") && verdict.contains("1 conflicts"),
         "{verdict}"
+    );
+}
+
+/// The same record made by a helper and taken by value by another.
+const HANDED_ON: &str = r#"
+machine wrap<'storage, 'name>(named: &'storage mut Named<'name>) -> Holder<'storage, 'name> {
+    Holder { named: named }
+}
+machine consume(holder: Holder) {
+    let mut owned: Holder = holder;
+    update(&mut owned, 41);
+}
+"#;
+
+/// A record that holds a reference is passed straight on as an owned
+/// argument, `consume(wrap(named))`, and the machine that takes it lends it
+/// to a helper (`samples/cli/facts/build_activation_borrow/parameter`:
+/// `configure_parameter(wrap(builder))`). lifetimes.md, "Carried-loan
+/// transport": "Moving a borrow-carrying value transfers its exact contained
+/// loan paths and access." The entry traps unless the helper's store landed
+/// in the record it lent, so a store confined to a copy takes the trapping
+/// arm.
+#[test]
+fn a_record_holding_a_reference_is_passed_on_as_an_owned_argument() {
+    let program = |expected: u64| {
+        format!(
+            r#"{NAMED}{HANDED_ON}
+machine journey(named: &mut Named) {{ consume(wrap(named)); }}
+machine entry() crashes Trap {{
+    let mut named: Named = Named {{ name: "abc", value: 5 }};
+    journey(&mut named);
+    transition named.value == {expected} {{
+        true -> done()
+        false -> bad()
+    }}
+    machine done() {{}}
+    machine bad() {{ crash Trap; }}
+}}
+"#
+        )
+    };
+    let complete = terminal_interpreter::TerminalExecutionStatus::Complete(
+        terminal_interpreter::TerminalExecutionResult::Unit,
+    );
+    assert_eq!(run(&program(41)), Ok(complete.clone()));
+    // The oracle is live: expecting the value the record started with traps.
+    let stale = run(&program(5)).unwrap();
+    assert_ne!(stale, complete, "{stale:?}");
+}
+
+/// The twin: the reference the record holds still suspends the lent storage
+/// until the record is handed on. Writing that storage by its own name
+/// before then is a conflict (loans.md: a mutable child suspends that branch
+/// of its parent until the child's lineage closes); the same write after the
+/// record was taken is accepted.
+#[test]
+fn a_record_passed_on_as_an_owned_argument_excludes_its_parent_until_then() {
+    let program = |before: &str, after: &str| {
+        format!(
+            r#"{NAMED}{HANDED_ON}
+machine build_entry(named: &mut Named) {{
+    let holder: Holder = wrap(named);
+    {before}
+    consume(holder);
+    {after}
+}}
+"#
+        )
+    };
+    let direct = "named.value = 7;";
+    assert_eq!(verdict(&program("", direct)), "accepted");
+    let overlapped = verdict(&program(direct, ""));
+    assert!(
+        overlapped.starts_with("rejected") && overlapped.contains("1 conflicts"),
+        "{overlapped}"
     );
 }

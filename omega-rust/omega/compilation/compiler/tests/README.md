@@ -59,7 +59,7 @@ omega run tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit/main
 
 The authored success is process exit 70, not 0; compilation failure is CLI
 exit 200. `run --both` also compares checked interpretation; supply finite
-stdin as described in the [CLI guide](../../../application/cli/README.md).
+stdin as described in the [CLI guide](../../../application/README.md).
 The local lock retains this project's exact source/compiler acceptance, not a
 portable fixture oracle. Source or compiler changes require fresh review, not
 copying bindings or deleting a stale lock to turn it into an unlocked request.

@@ -20,12 +20,14 @@ fn invocation(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     elaborate(
         boundary_calls::typed(text),
         terminal_codec::TerminalPublication::Invocation,
+        &[],
     )
 }
 
 fn elaborate(
     typed: typed_trees::TypedTrees,
     publication: terminal_codec::TerminalPublication,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     let entry = typed
         .machines()
@@ -39,7 +41,7 @@ fn elaborate(
         typed_trees_to_terminal_psi::Compilation {
             declaration_metadata: &[],
             entries: &[entry],
-            subjects: &[],
+            subjects,
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
@@ -451,7 +453,19 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
 #[test]
 fn a_call_with_no_normal_return_keeps_its_acknowledgement() {
     let text = LOOP.replace("_ -> done()", "_ -> block again(false)");
-    let accepted = accepted(&text);
+    // This test uses a body-derived outcome, so declare the anonymous source
+    // unit explicitly. A closure-only request supplies no local summary unit.
+    let local = |text: &str| {
+        judge(elaborate(
+            boundary_calls::typed(text),
+            terminal_codec::TerminalPublication::Invocation,
+            &[None],
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(accepted) = local(&text) else {
+        panic!("the acknowledged local call must be accepted")
+    };
     assert!(
         accepted.elaboration.module.machines[0]
             .blocks
@@ -461,9 +475,29 @@ fn a_call_with_no_normal_return_keeps_its_acknowledgement() {
                 terminal_psi::Terminator::InvokeNoNormal { .. }
             ))
     );
-    violation(
-        &text.replace("block again(true)", "again(true)"),
-        "requires a block acknowledgement",
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(32))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
+        ),
+        "{status:?}"
+    );
+    let RouteVerdict::Rejected { violations, .. } =
+        local(&text.replace("block again(true)", "again(true)"))
+    else {
+        panic!("non-return must not erase the call acknowledgement")
+    };
+    assert!(
+        violations.iter().any(|violation| violation
+            .message()
+            .contains("requires a block acknowledgement")),
+        "{violations:?}"
     );
 }
 
@@ -493,6 +527,7 @@ fn canonical_roundtrip_keeps_bounds_and_source_acknowledgements() {
     let RouteVerdict::Accepted(accepted) = judge(elaborate(
         typed,
         terminal_codec::TerminalPublication::Portable,
+        &[],
     ))
     .unwrap() else {
         panic!("portable source must be accepted");

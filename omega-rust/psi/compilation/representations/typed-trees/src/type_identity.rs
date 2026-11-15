@@ -1312,6 +1312,43 @@ pub(crate) mod identity_context {
     use symbols::JoinedPath;
     use symbols::SymbolHandle;
 
+    use super::normalized_identities::{IdentityPart, TypeIdentityId};
+
+    /// A compound identity whose parts are normalized, before the caller
+    /// chooses to intern it or only to read its text.
+    pub(crate) struct Composite {
+        tag: &'static str,
+        parts: Vec<IdentityPart>,
+    }
+
+    impl Composite {
+        pub(crate) fn new(
+            tag: impl Spelled,
+            parts: impl IntoIterator<Item = IdentityPart>,
+        ) -> Self {
+            Self {
+                tag: tag.spelling(),
+                parts: parts.into_iter().collect(),
+            }
+        }
+
+        pub(crate) fn intern(self, program: &TypedTrees) -> TypeIdentityId {
+            program
+                .type_identities
+                .intern_composite(self.tag, self.parts)
+        }
+
+        pub(crate) fn text(self, program: &TypedTrees) -> String {
+            program
+                .type_identities
+                .composite_text(self.tag, &self.parts)
+        }
+    }
+
+    fn text_identity(program: &TypedTrees, text: String) -> TypeIdentityId {
+        program.type_identities.intern(&text)
+    }
+
     pub(crate) mod match_dispatch {
 
         use super::{TypeIdentityContext, atom, bare, compound, normalize_index_expression};
@@ -2278,23 +2315,23 @@ pub(crate) mod identity_context {
         name: &str,
         lifetimes: &[crate::name::Identifier],
         regions: &[LifetimeParameterIdentity],
-        arguments: impl Iterator<Item = String>,
+        arguments: impl Iterator<Item = IdentityPart>,
         context: &TypeIdentityContext<'_>,
-    ) -> String {
+    ) -> Composite {
         let mut arguments = arguments.peekable();
         if context.declared_carrier && arguments.peek().is_none() {
-            return compound(
+            return Composite::new(
                 TypeForm::Named,
-                [normalize_const_or_nominal_name(
+                [IdentityPart::Text(normalize_const_or_nominal_name(
                     program,
                     symbol,
                     name,
                     Label::Name,
                     context,
-                )],
+                ))],
             );
         }
-        compound(
+        Composite::new(
             TypeForm::Generic,
             std::iter::once(atom(Label::Name, &context.name(program, symbol, name)))
                 .chain(
@@ -2312,6 +2349,7 @@ pub(crate) mod identity_context {
                             })
                         }),
                 )
+                .map(IdentityPart::Text)
                 .chain(arguments),
         )
     }
@@ -2324,7 +2362,7 @@ pub(crate) mod identity_context {
         regions: &[LifetimeParameterIdentity],
         mut arguments: arena::HandleSpan<TypeReferenceHandle>,
         context: &TypeIdentityContext<'_>,
-    ) -> String {
+    ) -> Composite {
         if arguments.is_empty()
             && let Some(definition) = program.unique_data_definition_by_symbol(symbol)
             && program.data_type_parameters(definition).is_empty()
@@ -2383,15 +2421,15 @@ pub(crate) mod identity_context {
                 || context.invalid_application.is_none()
                 || context.declared_carrier)
         {
-            return compound(
+            return Composite::new(
                 TypeForm::Named,
-                [normalize_const_or_nominal_name(
+                [IdentityPart::Text(normalize_const_or_nominal_name(
                     program,
                     symbol,
                     name.as_str(),
                     Label::Name,
                     context,
-                )],
+                ))],
             );
         }
         generic_type_identity(
@@ -2406,7 +2444,7 @@ pub(crate) mod identity_context {
                         super::storage_identity::independent_value_index(program, symbol, parameter)
                     })
                 {
-                    return bare(TypeForm::Unit);
+                    return IdentityPart::Text(bare(TypeForm::Unit));
                 }
                 if context.invalid_application.is_some()
                     && parameters.get(ordinal).is_some_and(|parameter| {
@@ -2416,26 +2454,28 @@ pub(crate) mod identity_context {
                         )
                     })
                 {
-                    return match program.static_operand_from_type_reference(*argument) {
-                        Ok(selected) => substitution::index_argument(
-                            program,
-                            super::IndexIdentityArgument::StaticArgument(&selected),
-                            context,
-                        ),
-                        Err(_) => substitution::rejected(context),
-                    };
+                    return IdentityPart::Text(
+                        match program.static_operand_from_type_reference(*argument) {
+                            Ok(selected) => substitution::index_argument(
+                                program,
+                                super::IndexIdentityArgument::StaticArgument(&selected),
+                                context,
+                            ),
+                            Err(_) => substitution::rejected(context),
+                        },
+                    );
                 }
                 let is_index = parameters
                     .get(ordinal)
                     .is_some_and(|parameter| parameter.kind.is_const_or_value());
                 if is_index {
-                    substitution::index_argument(
+                    IdentityPart::Text(substitution::index_argument(
                         program,
                         super::IndexIdentityArgument::TypeReference(*argument),
                         context,
-                    )
+                    ))
                 } else {
-                    normalize_type_reference(program, *argument, context)
+                    IdentityPart::Identity(normalize_type_identity(program, *argument, context))
                 }
             }),
             context,
@@ -2527,15 +2567,18 @@ pub(crate) mod identity_context {
                     )],
                 ));
             }
-            return Some(generic_type_identity(
-                program,
-                head,
-                "",
-                &lifetimes,
-                &[],
-                arguments.into_iter(),
-                context,
-            ));
+            return Some(
+                generic_type_identity(
+                    program,
+                    head,
+                    "",
+                    &lifetimes,
+                    &[],
+                    arguments.into_iter().map(IdentityPart::Text),
+                    context,
+                )
+                .text(program),
+            );
         }
         if let Some(origin) = program
             .data_definition_by_symbol(argument.symbol)
@@ -2555,11 +2598,29 @@ pub(crate) mod identity_context {
         ))
     }
 
+    /// The text of a type's identity, for a caller that spells it into
+    /// a larger text of its own.
     pub(crate) fn normalize_type_reference(
         program: &TypedTrees,
         type_reference: TypeReferenceHandle,
         context: &TypeIdentityContext<'_>,
     ) -> String {
+        let identity = normalize_type_identity(program, type_reference, context);
+        program
+            .type_identities
+            .text(identity)
+            .expect("a normalized identity was minted by the program's table")
+            .to_owned()
+    }
+
+    /// The identity of a type under `context`. A compound type is composed
+    /// from its children's identities, so a type whose structure the program
+    /// has already met finds its identity without spelling its text again.
+    pub(crate) fn normalize_type_identity(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> TypeIdentityId {
         if let Some(encountered) = context.encountered_regions {
             let has_regions = match program.type_reference_table.type_reference(type_reference) {
                 TypeReferenceNode::Reference { .. } => true,
@@ -2576,8 +2637,7 @@ pub(crate) mod identity_context {
                             .trait_definition_by_symbol(*base_symbol)
                             .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
                 }
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::DynamicTrait { symbol, .. } => {
+                TypeReferenceNode::Named { symbol, .. } => {
                     program
                         .data_definition_by_symbol(*symbol)
                         .is_some_and(|declaration| !declaration.lifetime_parameters.is_empty())
@@ -2597,7 +2657,10 @@ pub(crate) mod identity_context {
             program.type_reference_table.type_reference(type_reference)
             && let Some((argument, outer)) = context.applied_argument(*symbol)
         {
-            return substitution::index_argument(program, argument, &outer);
+            return text_identity(
+                program,
+                substitution::index_argument(program, argument, &outer),
+            );
         }
         if let TypeReferenceNode::Named { symbol, .. } =
             program.type_reference_table.type_reference(type_reference)
@@ -2610,7 +2673,7 @@ pub(crate) mod identity_context {
                 .iter()
                 .find(|(binder, _)| binder == symbol)
         {
-            return normalize_type_reference(
+            return normalize_type_identity(
                 program,
                 *reference,
                 &TypeIdentityContext {
@@ -2626,7 +2689,7 @@ pub(crate) mod identity_context {
                 .and_then(|definition| definition.generic_instance)
             && generic_instance != type_reference
         {
-            return normalize_type_reference(program, generic_instance, context);
+            return normalize_type_identity(program, generic_instance, context);
         }
         if let TypeReferenceNode::Named { symbol, .. } =
             program.type_reference_table.type_reference(type_reference)
@@ -2638,7 +2701,7 @@ pub(crate) mod identity_context {
                 .find(|(_, (candidate, _))| candidate == symbol)
             && *replacement != type_reference
         {
-            return normalize_type_reference(
+            return normalize_type_identity(
                 program,
                 *replacement,
                 &context.replacement_context_at(ordinal),
@@ -2650,7 +2713,7 @@ pub(crate) mod identity_context {
             if refined != type_reference
                 && crate::domain::index_argument_is_closed(program, refined)
             {
-                return normalize_type_reference(program, refined, context);
+                return normalize_type_identity(program, refined, context);
             }
         }
         match program.type_reference_table.type_reference(type_reference) {
@@ -2658,13 +2721,16 @@ pub(crate) mod identity_context {
                 referee,
                 access,
                 lifetime,
-            } => compound(
+            } => Composite::new(
                 match access {
                     language_core::ReferenceAccess::Shared => TypeForm::Reference,
                     language_core::ReferenceAccess::Mutable => TypeForm::MutableReference,
                     language_core::ReferenceAccess::WriteOnly => TypeForm::WriteOnlyReference,
                 },
-                std::iter::once(normalize_type_reference(program, *referee, context)).chain(
+                std::iter::once(IdentityPart::Identity(normalize_type_identity(
+                    program, *referee, context,
+                )))
+                .chain(
                     context
                         .invalid_application
                         .filter(|_| !context.declared_carrier)
@@ -2691,44 +2757,59 @@ pub(crate) mod identity_context {
                                     )
                                 },
                             )
-                        }),
+                        })
+                        .map(IdentityPart::Text),
                 ),
-            ),
+            )
+            .intern(program),
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
             } => {
                 if context.declared_carrier || context.erase_constraints {
-                    return normalize_type_reference(program, *base_type, context);
+                    return normalize_type_identity(program, *base_type, context);
                 }
                 let (base, mut all_constraints) =
                     normalize_constrained_base(program, *base_type, context);
                 all_constraints.extend(normalized_constraints(program, *constraints, context));
                 all_constraints.sort();
                 all_constraints.dedup();
-                compound(
+                Composite::new(
                     TypeForm::Constrained,
-                    std::iter::once(base).chain(
-                        all_constraints
-                            .into_iter()
-                            .map(NormalizedConstraint::encode),
-                    ),
+                    std::iter::once(base)
+                        .chain(
+                            all_constraints
+                                .into_iter()
+                                .map(NormalizedConstraint::encode),
+                        )
+                        .map(IdentityPart::Text),
                 )
+                .intern(program)
             }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
-            } => compound(
+            } => Composite::new(
                 TypeForm::Array,
                 [
-                    normalize_type_reference(program, *element_type, context),
-                    normalize_array_length(program, length, context),
+                    IdentityPart::Identity(normalize_type_identity(
+                        program,
+                        *element_type,
+                        context,
+                    )),
+                    IdentityPart::Text(normalize_array_length(program, length, context)),
                 ],
-            ),
-            TypeReferenceNode::Slice { element_type } => compound(
+            )
+            .intern(program),
+            TypeReferenceNode::Slice { element_type } => Composite::new(
                 TypeForm::Slice,
-                [normalize_type_reference(program, *element_type, context)],
-            ),
+                [IdentityPart::Identity(normalize_type_identity(
+                    program,
+                    *element_type,
+                    context,
+                ))],
+            )
+            .intern(program),
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
@@ -2745,36 +2826,25 @@ pub(crate) mod identity_context {
                     .operand_lifetimes(type_reference),
                 *arguments,
                 context,
-            ),
-            TypeReferenceNode::ConstExpression(expression) => compound(
+            )
+            .intern(program),
+            TypeReferenceNode::ConstExpression(expression) => Composite::new(
                 TypeForm::IndexExpression,
-                [normalize_index_expression(program, *expression, context)],
-            ),
-            TypeReferenceNode::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-            } => compound(
-                TypeForm::DynamicTrait,
-                std::iter::once(atom(
-                    Label::Name,
-                    &context.name(program, *symbol, name.as_str()),
-                ))
-                .chain(
-                    program
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .map(|argument| normalize_type_reference(program, *argument, context)),
-                ),
-            ),
+                [IdentityPart::Text(normalize_index_expression(
+                    program,
+                    *expression,
+                    context,
+                ))],
+            )
+            .intern(program),
             TypeReferenceNode::Named { symbol, name: _ }
                 if context.signature_owners.is_some() && !symbol.is_valid() =>
             {
-                substitution::rejected(context)
+                text_identity(program, substitution::rejected(context))
             }
-            TypeReferenceNode::Named { symbol, name } => compound(
+            TypeReferenceNode::Named { symbol, name } => Composite::new(
                 TypeForm::Named,
-                [normalize_const_or_nominal_name(
+                [IdentityPart::Text(normalize_const_or_nominal_name(
                     program,
                     if context.identifies_constructed_values() {
                         program.implementation_value_head(*symbol)
@@ -2784,9 +2854,10 @@ pub(crate) mod identity_context {
                     name.as_str(),
                     Label::Name,
                     context,
-                )],
-            ),
-            TypeReferenceNode::Unit => bare(TypeForm::Unit),
+                ))],
+            )
+            .intern(program),
+            TypeReferenceNode::Unit => text_identity(program, bare(TypeForm::Unit)),
         }
     }
 
@@ -3348,9 +3419,66 @@ pub(crate) mod normalized_identities {
 
     pub type NormalizedTypeIdentity = TypeIdentityId;
 
-    #[derive(Clone, Default, PartialEq, Eq, Debug)]
+    #[derive(Default)]
     pub struct TypeIdentityTable {
         texts: arena::OwnedTextInterner,
+        composites: std::sync::RwLock<CompositeIndex>,
+    }
+
+    /*
+        A compound identity is spelled `tag(part,part,...)`, and most of its
+        parts are identities of their own. `composites` finds the identity of a
+        compound this table has already spelled by its tag and parts, so asking
+        again for a type built from known identities neither spells its text
+        nor copies its children's text into it. Each entry stands for one
+        distinct structure, minted with its text, and names the identity that
+        text interns to; a structure written with a text part where another
+        has an identity part reaches the same identity. Only the texts are the
+        table's record: the index is rebuilt as identities are asked for again.
+    */
+    type CompositeIndex = std::collections::HashMap<
+        (&'static str, Vec<IdentityPart>),
+        TypeIdentityId,
+        symbols::BuildSymbolHasher,
+    >;
+
+    /// One part of a compound identity: an identity of this table, or text
+    /// that is not itself one (a name, a length, a region).
+    #[derive(Clone, PartialEq, Eq, Hash)]
+    pub(crate) enum IdentityPart {
+        Identity(TypeIdentityId),
+        Text(String),
+    }
+
+    impl Clone for TypeIdentityTable {
+        fn clone(&self) -> Self {
+            Self {
+                texts: self.texts.clone(),
+                composites: std::sync::RwLock::new(
+                    self.composites
+                        .read()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .clone(),
+                ),
+            }
+        }
+    }
+
+    impl PartialEq for TypeIdentityTable {
+        fn eq(&self, other: &Self) -> bool {
+            self.texts == other.texts
+        }
+    }
+
+    impl Eq for TypeIdentityTable {}
+
+    impl std::fmt::Debug for TypeIdentityTable {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter
+                .debug_struct("TypeIdentityTable")
+                .field("texts", &self.texts)
+                .finish_non_exhaustive()
+        }
     }
 
     /*
@@ -3386,6 +3514,7 @@ pub(crate) mod normalized_identities {
             input.record(|input| {
                 Ok(Self {
                     texts: compiler_storage::Record::read(input)?,
+                    composites: Default::default(),
                 })
             })
         }
@@ -3411,6 +3540,76 @@ pub(crate) mod normalized_identities {
 
         pub fn text(&self, identity: TypeIdentityId) -> Option<&str> {
             self.texts.text(identity.slot()?)
+        }
+
+        /// The identity of `tag(parts...)`, spelling its text only the first
+        /// time this table meets that structure.
+        pub(crate) fn intern_composite(
+            &self,
+            tag: &'static str,
+            parts: Vec<IdentityPart>,
+        ) -> TypeIdentityId {
+            let key = (tag, parts);
+            if let Some(identity) = self
+                .composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .get(&key)
+            {
+                return *identity;
+            }
+            let identity = self.intern(&self.composite_text(key.0, &key.1));
+            self.composites
+                .write()
+                .unwrap_or_else(|error| error.into_inner())
+                .entry(key)
+                .or_insert(identity);
+            identity
+        }
+
+        /// The text of `tag(parts...)` without interning it.
+        pub(crate) fn composite_text(&self, tag: &str, parts: &[IdentityPart]) -> String {
+            fn spelled<'table>(
+                table: &'table TypeIdentityTable,
+                part: &'table IdentityPart,
+            ) -> &'table str {
+                match part {
+                    IdentityPart::Identity(identity) => table
+                        .text(*identity)
+                        .expect("a part identity was minted by this table"),
+                    IdentityPart::Text(text) => text,
+                }
+            }
+            let part = |each| spelled(self, each);
+            let mut output = String::with_capacity(
+                tag.len()
+                    + parts.len()
+                    + 1
+                    + parts.iter().map(|each| part(each).len()).sum::<usize>(),
+            );
+            output.push_str(tag);
+            output.push('(');
+            for (index, each) in parts.iter().enumerate() {
+                if index > 0 {
+                    output.push(',');
+                }
+                output.push_str(part(each));
+            }
+            output.push(')');
+            output
+        }
+
+        #[cfg(test)]
+        pub(crate) fn composite_count(&self) -> usize {
+            self.composites
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .len()
+        }
+
+        #[cfg(test)]
+        pub(crate) fn text_count(&self) -> usize {
+            self.texts.len()
         }
 
         pub fn by_text(&self, text: &str) -> TypeIdentityId {
@@ -4052,7 +4251,6 @@ pub(crate) mod package_policy_reading_tests {
             Slice => TypeReferenceNode::Slice { .. },
             Generic => TypeReferenceNode::Generic { .. },
             ConstExpression => TypeReferenceNode::ConstExpression(_),
-            DynamicTrait => TypeReferenceNode::DynamicTrait { .. },
             Named => TypeReferenceNode::Named { .. },
             Unit => TypeReferenceNode::Unit,
         });
@@ -4290,20 +4488,6 @@ pub(crate) mod package_policy_reading_tests {
             let lifetime_only = fixture.generic("Container", Vec::new());
             witnesses.push(witness("generic without operands", lifetime_only, &[1]));
 
-            let hooks = {
-                let two = fixture.integer(7);
-                let seven = fixture.index(two);
-                let arguments = fixture
-                    .program
-                    .type_reference_table
-                    .insert_type_reference_handles(vec![payload, five, seven]);
-                fixture.type_node(TypeReferenceNode::DynamicTrait {
-                    symbol: fixture.symbol("Hooks"),
-                    name: Identifier::generated("Hooks"),
-                    arguments,
-                })
-            };
-            witnesses.push(witness("dynamic trait", hooks, &[1, 3]));
             witnesses.push(witness("integer constant", five, &[]));
             witnesses.push(witness("canonical constant", canonical, &[]));
 
@@ -4826,6 +5010,53 @@ pub(crate) mod package_policy_reading_tests {
             failures.len(),
             witnesses.len(),
             failures.join("\n"),
+        );
+    }
+
+    #[test]
+    fn a_repeated_identity_request_spells_no_new_text() {
+        // Asking again for identities the table already holds must reach the
+        // same identities through its composite index, minting no text and no
+        // structure: retained storage follows distinct types, not requests.
+        let mut fixture = Fixture::new();
+        let mut witnesses = type_witnesses(&mut fixture);
+        witnesses.extend(constraint_witnesses(&mut fixture));
+        witnesses.extend(expression_witnesses(&mut fixture));
+        let element = fixture.named("Payload");
+        let mut deep = element;
+        for _ in 0..12 {
+            deep = fixture.type_node(TypeReferenceNode::Slice { element_type: deep });
+        }
+        let ask = |fixture: &Fixture| {
+            let mut identities = witnesses
+                .iter()
+                .map(|witness| {
+                    fixture.render(witness.reference, &witness.binders, &witness.substitutions)
+                })
+                .collect::<Vec<_>>();
+            for reference in [element, deep] {
+                let identity = fixture.program.normalized_type_identity(reference);
+                identities.push(fixture.program.type_identity_text(identity).unwrap());
+            }
+            identities
+        };
+        let first = ask(&fixture);
+        let table = &fixture.program.type_identities;
+        let (texts, composites) = (table.text_count(), table.composite_count());
+        assert!(composites > 0, "compound types are found by structure");
+        assert_eq!(ask(&fixture), first);
+        assert_eq!(table.text_count(), texts, "a repeated request minted text");
+        assert_eq!(
+            table.composite_count(),
+            composites,
+            "a repeated request minted a structure"
+        );
+        let [.., element, deep] = first.as_slice() else {
+            unreachable!("the element and the deep slice are asked last")
+        };
+        assert_eq!(
+            deep,
+            &(0..12).fold(element.clone(), |inner, _| format!("slice({inner})")),
         );
     }
 
@@ -5845,7 +6076,6 @@ pub(crate) mod result_dispatch_terms {
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Unit => {}
         }
@@ -6365,9 +6595,11 @@ pub(crate) mod substitution {
                     if !program.contains_type_reference(argument.type_reference) {
                         return rejected(context);
                     }
+                    let selected = program
+                        .static_operand_from_type_reference(argument.type_reference)
+                        .ok();
                     if context.invalid_application.is_some()
-                        && let Ok(selected) =
-                            program.static_operand_from_type_reference(argument.type_reference)
+                        && let Some(selected) = &selected
                         && selected.symbol.is_valid()
                         && matches!(
                             program.symbols.get(selected.symbol).kind,
@@ -6376,14 +6608,18 @@ pub(crate) mod substitution {
                     {
                         return index_argument(
                             program,
-                            IndexIdentityArgument::StaticArgument(&selected),
+                            IndexIdentityArgument::StaticArgument(selected),
                             context,
                         );
                     }
+                    // A retained scalar reference supplies the same value as
+                    // its literal operand, not a type with a numeric name.
                     if matches!(
                         program.type_reference_node(argument.type_reference),
                         TypeReferenceNode::ConstExpression(_)
-                    ) {
+                    ) || selected.as_ref().is_some_and(|selected| {
+                        crate::static_const_argument_value(program, selected).is_some()
+                    }) {
                         return index_reference(program, argument.type_reference, context);
                     }
                     return normalize_type_reference(program, argument.type_reference, context);
@@ -6763,21 +6999,25 @@ pub(crate) mod substitution {
         }
     }
 
-    fn integer(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option<i128> {
+    fn integer(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        spelling: &str,
+    ) -> Option<numerics::bignum::BigInt> {
         if !symbol.is_valid() {
-            if let Ok(value) = spelling.parse() {
+            if let Some(value) = numerics::bignum::BigInt::from_decimal_str(spelling) {
                 return Some(value);
             }
             let value = CanonicalConstValue::from_atom(spelling)?;
             return match value.identity().decode_encoding()? {
-                DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
+                DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
                 _ => None,
             };
         }
         let declaration = program.const_declaration_by_symbol(symbol)?;
         let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
         match CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128(),
+            DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
             _ => None,
         }
     }
@@ -6896,7 +7136,7 @@ use crate::type_system::type_identity::coordinates::CoordinateTag;
 use crate::type_system::type_identity::identity_context::SubstitutionSemantics;
 use crate::type_system::type_identity::identity_context::TypeIdentityContext;
 pub use crate::type_system::type_identity::identity_context::TypeIdentityQualification;
-use crate::type_system::type_identity::identity_context::normalize_type_reference;
+use crate::type_system::type_identity::identity_context::normalize_type_identity;
 use crate::type_system::type_identity::result_dispatch_terms::collect_result_dispatch_terms;
 use crate::types::TypeReferenceHandle;
 use language_semantics::type_identity::vocabulary::{Label, TypeForm};
@@ -6989,7 +7229,7 @@ pub fn applied_carrier_identity_in_region_scope(
     argument_owner: SymbolHandle,
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
-    let identity = normalize_type_reference(
+    let identity = normalize_type_identity(
         program,
         reference,
         &TypeIdentityContext {
@@ -7002,7 +7242,7 @@ pub fn applied_carrier_identity_in_region_scope(
             ..TypeIdentityContext::default()
         },
     );
-    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+    (!invalid.get()).then_some(identity)
 }
 
 pub fn applied_index_identity_in_region_scope(
@@ -7028,7 +7268,7 @@ pub fn applied_declared_carrier_identity(
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
-    let identity = normalize_type_reference(
+    let identity = normalize_type_identity(
         program,
         reference,
         &TypeIdentityContext {
@@ -7040,7 +7280,7 @@ pub fn applied_declared_carrier_identity(
             ..TypeIdentityContext::default()
         },
     );
-    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+    (!invalid.get()).then_some(identity)
 }
 
 pub fn applied_index_identity(
@@ -7149,7 +7389,7 @@ pub fn descriptive_type_identity_in_region_scope(
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let elided = Cell::new(false);
-    let identity = normalize_type_reference(
+    let identity = normalize_type_identity(
         program,
         request.type_reference,
         &TypeIdentityContext {
@@ -7168,7 +7408,7 @@ pub fn descriptive_type_identity_in_region_scope(
             ..TypeIdentityContext::default()
         },
     );
-    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
+    (!invalid.get()).then_some(identity)
 }
 
 fn qualified_applied_type_identity(
@@ -7181,7 +7421,7 @@ fn qualified_applied_type_identity(
     resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
-    let identity = normalize_type_reference(
+    let identity = normalize_type_identity(
         program,
         reference,
         &TypeIdentityContext {
@@ -7196,7 +7436,7 @@ fn qualified_applied_type_identity(
             ..TypeIdentityContext::default()
         },
     );
-    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
+    (!invalid.get()).then_some(identity)
 }
 
 pub fn applied_lifetime_identity(
@@ -8174,7 +8414,7 @@ impl TypedTrees {
             return true;
         }
         let normalize = |request: TypeIdentityRequest<'_>, semantics| {
-            normalize_type_reference(
+            normalize_type_identity(
                 self,
                 request.type_reference,
                 &TypeIdentityContext {
@@ -8195,19 +8435,16 @@ impl TypedTrees {
         &self,
         request: TypeIdentityRequest<'_>,
     ) -> NormalizedTypeIdentity {
-        program_intern_type_identity(
+        normalize_type_identity(
             self,
-            normalize_type_reference(
-                self,
-                request.type_reference,
-                &TypeIdentityContext {
-                    storage_value_indices: true,
-                    binders: request.binders,
-                    substitutions: request.substitutions,
-                    qualification: request.qualification,
-                    ..TypeIdentityContext::default()
-                },
-            ),
+            request.type_reference,
+            &TypeIdentityContext {
+                storage_value_indices: true,
+                binders: request.binders,
+                substitutions: request.substitutions,
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
         )
     }
 
@@ -8242,7 +8479,7 @@ impl TypedTrees {
     ) -> Option<NormalizedTypeIdentity> {
         let invalid = Cell::new(false);
         let regions = Cell::new(false);
-        let identity = normalize_type_reference(
+        let identity = normalize_type_identity(
             self,
             request.type_reference,
             &TypeIdentityContext {
@@ -8258,7 +8495,7 @@ impl TypedTrees {
                 ..TypeIdentityContext::default()
             },
         );
-        (!invalid.get() && !regions.get()).then_some(program_intern_type_identity(self, identity))
+        (!invalid.get() && !regions.get()).then_some(identity)
     }
 
     pub fn region_free_scoped_type_identity(
@@ -8270,7 +8507,7 @@ impl TypedTrees {
             return None;
         }
         let encountered_regions = Cell::new(false);
-        let identity = normalize_type_reference(
+        let identity = normalize_type_identity(
             self,
             request.type_reference,
             &TypeIdentityContext {
@@ -8282,7 +8519,7 @@ impl TypedTrees {
                 ..TypeIdentityContext::default()
             },
         );
-        (!encountered_regions.get()).then(|| program_intern_type_identity(self, identity))
+        (!encountered_regions.get()).then_some(identity)
     }
 
     fn type_identity_with_substitution_semantics(
@@ -8291,23 +8528,20 @@ impl TypedTrees {
         substitution_semantics: SubstitutionSemantics,
         substitution_scope_starts: &[usize],
     ) -> NormalizedTypeIdentity {
-        program_intern_type_identity(
+        normalize_type_identity(
             self,
-            normalize_type_reference(
-                self,
-                request.type_reference,
-                &TypeIdentityContext {
-                    binders: request.binders,
-                    substitutions: request.substitutions,
-                    substitution_semantics,
-                    substitution_scope_starts,
-                    active_const_substitutions: &[],
-                    exact_toolchain_sources: &[],
-                    missing_exact_nominal_owner: None,
-                    qualification: request.qualification,
-                    ..TypeIdentityContext::default()
-                },
-            ),
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                substitutions: request.substitutions,
+                substitution_semantics,
+                substitution_scope_starts,
+                active_const_substitutions: &[],
+                exact_toolchain_sources: &[],
+                missing_exact_nominal_owner: None,
+                qualification: request.qualification,
+                ..TypeIdentityContext::default()
+            },
         )
     }
 
@@ -8316,22 +8550,19 @@ impl TypedTrees {
         request: ExactOwnerTypeIdentityRequest<'_>,
     ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
-        let identity = program_intern_type_identity(
+        let identity = normalize_type_identity(
             self,
-            normalize_type_reference(
-                self,
-                request.type_reference,
-                &TypeIdentityContext {
-                    binders: request.binders,
-                    substitutions: request.substitutions,
-                    substitution_semantics: SubstitutionSemantics::Transitive,
-                    active_const_substitutions: &[],
-                    exact_toolchain_sources: request.exact_toolchain_sources,
-                    missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
-                    qualification: TypeIdentityQualification::PackageQualified,
-                    ..TypeIdentityContext::default()
-                },
-            ),
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                substitutions: request.substitutions,
+                substitution_semantics: SubstitutionSemantics::Transitive,
+                active_const_substitutions: &[],
+                exact_toolchain_sources: request.exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
+                qualification: TypeIdentityQualification::PackageQualified,
+                ..TypeIdentityContext::default()
+            },
         );
         (!missing_exact_nominal_owner.get()).then_some(identity)
     }

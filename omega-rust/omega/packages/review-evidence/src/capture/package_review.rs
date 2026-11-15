@@ -9,8 +9,8 @@ then applies the caller's budget before returning any review capsule.
 use crate::SemanticBindingProjectionError;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::PackageReviewEvidence;
-use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
+use products::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 

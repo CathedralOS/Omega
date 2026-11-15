@@ -2,7 +2,9 @@
 // old source producer. No satisfies/adapter checking or source-plan selection
 // is performed by this data owner.
 
+#[path = "provenance_replay.rs"]
 mod provenance_replay;
+#[path = "provider_rows.rs"]
 pub(crate) mod provider_rows;
 
 use effects::provider_plan::{ProviderPlan, ServiceSchema};

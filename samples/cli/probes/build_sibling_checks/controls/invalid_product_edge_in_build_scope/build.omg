@@ -2,7 +2,7 @@
 // it. Importing the alias into this build activation asks for an
 // unrequested purpose row and must be rejected.
 
-use prod::main;
+use prod;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_product_edge_in_build_scope");
@@ -10,13 +10,4 @@ machine build(builder: &mut Build) {
     dependency::with_alias(&mut prod_dependency, "prod");
     let prod_registration: DependencyRegistration = Build::dependency(builder, prod_dependency);
     builder.freestanding = true;
-    let observed: i32 = a_value();
-    transition observed == 10 {
-        true -> done()
-        _ -> wrong()
-    }
-    machine done() {
-    }
-    machine wrong() {
-    }
 }

@@ -124,7 +124,7 @@ fn validate() -> Result<(), String> {
     }
     // Compilation retains the checked product. Its ordinary publication
     // transition installs the executable and consumes pre-publication custody.
-    let report = compilation_products::publication::publish_compilation(
+    let report = products::publication::publish_compilation(
         report,
         &output.join("native-build"),
     )

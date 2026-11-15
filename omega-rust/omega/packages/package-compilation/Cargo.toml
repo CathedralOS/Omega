@@ -9,7 +9,7 @@ compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
-package-source = { path = "../source-acquisition" }
+source-acquisition = { path = "../source-acquisition" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
@@ -18,7 +18,7 @@ optimization-core = { path = "../../foundation/optimization-core" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
+source-compiler = { path = "../../../psi/compilation/source-compiler" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../foundation/platform-custody" }

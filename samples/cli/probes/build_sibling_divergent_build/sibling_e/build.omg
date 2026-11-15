@@ -1,11 +1,14 @@
-use shared::main;
+use shared;
 
-machine build(builder: &mut Build) {
+machine build(builder: &mut Build)
+suspends
+{
     Build::package(builder, "sibling_e");
     let mut shared_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../shared" });
     dependency::with_alias(&mut shared_dependency, "shared");
     let shared_registration: DependencyRegistration = Build::build_dependency(builder, shared_dependency);
-    let observed: i32 = seed();
+    suspend Build::prepare_dependency(builder, shared_registration);
+    let observed: i32 = shared::seed();
     transition observed == 3 {
         true -> done()
         _ -> wrong()
