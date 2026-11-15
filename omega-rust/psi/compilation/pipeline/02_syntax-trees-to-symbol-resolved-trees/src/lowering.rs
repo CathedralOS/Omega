@@ -1670,9 +1670,12 @@ pub(crate) mod expression {
                 DiagnosticName::from_str(member, base_name.source_span()),
             );
         }
+        let member_symbols =
+            expression_table(lowerer).reserve_name_path_member_symbols(path.count());
         let receiver = expression_table(lowerer).insert(ExpressionNode::Name(
             symbol_resolved_trees::expression::TableNamePath {
                 members: path,
+                member_symbols,
                 ..Default::default()
             },
         ));
