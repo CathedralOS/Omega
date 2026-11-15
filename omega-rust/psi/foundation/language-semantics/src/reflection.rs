@@ -534,7 +534,9 @@ pub(crate) mod runtime_image {
 }
 
 pub(crate) mod schema_nodes {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, compiler_storage::Record,
+    )]
     pub struct SchemaNodeHandle(pub(crate) u32);
 
     impl SchemaNodeHandle {
@@ -648,6 +650,25 @@ pub struct SemanticSchemaGraph {
     root: SchemaNodeHandle,
     authority: SchemaQueryAuthority,
     revision: u64,
+}
+
+// Compiler snapshots use the same complete image as ordinary schema values.
+// Reusing its decoder preserves root and visibility checks without maintaining
+// another serialization of the graph or its static parameter-kind labels.
+impl compiler_storage::Record for SemanticSchemaGraph {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.runtime_image(), output)
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let image = <Vec<u8> as compiler_storage::Record>::read(input)?;
+        Self::from_runtime_image(&image).map_err(|reason| input.error(reason))
+    }
 }
 
 impl SemanticSchemaGraph {

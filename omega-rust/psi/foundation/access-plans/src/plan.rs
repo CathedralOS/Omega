@@ -7,7 +7,7 @@ use layout_plans::LayoutPlanReport;
 
 /// Rules describe who may use a value. Layout and storage are checked
 /// separately; these descriptions alone grant no access permission.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AccessPlan {
     pub schema: language_semantics::reflection::SemanticSchemaGraph,
     /// None adds no restriction; Some(empty) explicitly admits nobody.

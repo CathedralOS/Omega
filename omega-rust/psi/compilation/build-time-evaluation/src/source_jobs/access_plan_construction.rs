@@ -496,6 +496,16 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
     let result = last_receipt(&accounting);
     let normalized = crate::terminal_values::access_plan_result(query, &result)
         .expect("exact query and result correspondence");
+    // Domain snapshots retain this same complete result, including borrowed
+    // function descriptions and the schema's original query visibility.
+    let encoded = compiler_storage::encode(&normalized, compiler_storage::RecordLimits::default())
+        .expect("record the actual normalized policy result");
+    let retained = compiler_storage::decode::<access_plans::AccessPlan>(
+        &encoded,
+        compiler_storage::RecordLimits::default(),
+    )
+    .expect("recover the same complete normalized policy result");
+    assert_eq!(retained, normalized);
     let issuers = normalized.issuance.as_ref().expect("explicit Only choice");
     assert_eq!(issuers.len(), 2);
     assert_eq!(

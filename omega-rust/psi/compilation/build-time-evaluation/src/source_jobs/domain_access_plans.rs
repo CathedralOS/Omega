@@ -209,11 +209,11 @@ fn evaluate_domain(
     if normalized.reach.services().len() != 0 {
         return Err("no product route yet: an access plan that requires boundary reach".into());
     }
-    let issuance = match normalized.issuance {
+    let issuance = match &normalized.issuance {
         None => CheckedIssuance::Unrestricted,
         Some(routes) => {
             let mut checked = Vec::with_capacity(routes.len());
-            for route in &routes {
+            for route in routes {
                 let route = authenticated_route(descriptions, route)?;
                 if !checked.contains(&route) {
                     checked.push(route);
@@ -224,6 +224,7 @@ fn evaluate_domain(
     };
     Ok(CheckedDomainAccessPlan {
         plan_machine,
+        normalized,
         issuance,
     })
 }
