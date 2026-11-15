@@ -104,7 +104,6 @@ pub fn boundary_result_slots(
             }
             slots.push(DescriptorResultSlot {
                 path: descriptor.path,
-                elements: None,
                 origins: vec![DescriptorStoredOrigin::Provider(DescriptorProviderOrigin {
                     boundary: boundary.id,
                     output: DescriptorProviderOutput::Result(path.clone()),

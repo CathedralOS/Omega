@@ -4464,7 +4464,7 @@ pub(crate) mod references {
                                         | DescriptorStoredOrigin::IncomingContents { .. }
                                         | DescriptorStoredOrigin::Provider(_)
                                         | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::AccessFormation { .. }
-                                        | DescriptorStoredOrigin::Carried => None,
+                                        | DescriptorStoredOrigin::Carried { .. } => None,
                                     }
                                 })
                                 .collect::<Option<Vec<_>>>()?;

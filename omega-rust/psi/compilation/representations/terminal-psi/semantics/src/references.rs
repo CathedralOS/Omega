@@ -593,7 +593,7 @@ pub(crate) mod reference_completion {
                     }
                     DescriptorStoredOrigin::Invocation { .. }
                     | DescriptorStoredOrigin::AccessFormation { .. }
-                    | DescriptorStoredOrigin::Carried => {
+                    | DescriptorStoredOrigin::Carried { .. } => {
                         return Err(
                             "returned provider dependency needs its admitted retention resource",
                         );
