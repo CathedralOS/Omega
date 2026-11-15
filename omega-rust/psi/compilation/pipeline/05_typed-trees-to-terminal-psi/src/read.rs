@@ -688,7 +688,8 @@ mod tests {
         );
         assert_eq!(
             refusal.detail,
-            "declaration holding a call selected by its receiver's type, which no pass serves yet"
+            "declaration holding a call selected by its receiver's type, which no pass serves yet \
+             while reading the signature of `holder`"
         );
         // The same declaration without the row is read like its twin.
         typed.deferred_refusals.clear();
