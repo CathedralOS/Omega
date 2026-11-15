@@ -94,13 +94,6 @@ framework or a list of unimplemented features.
 - Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
-### Build readiness refuses its authored operands before suspension
-- Category: knowledge crossing a boundary
-- Where: [kept readiness call](tests/fixtures/pass/build/explicit_provider_readiness_exit/build.omg#L10), [static operand reader](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L6817), [fixture staging test](omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs#L179)
-- Saw: Clean `a343c6b50a9` refuses the first Build in `executed_bindings_select_targets_and_retained_legs_keep_separate_staging` at `build.omg:10:13` (bytes 556..577). `Build::await_provider<ProgramImage, backing::TestImage>` reports “applied callable has an unrepresented static type operand” before readiness can suspend. The same refusal in the full test poisons the mutex shared by six other cases.
-- Cost: The test cannot check that the completed Build resumes with its exact backing, excludes the untaken UEFI target, or reuses settlement across the two Product legs. Carry the existing authored supplier selection into checked readiness and preserve those assertions.
-- Reported: 2026-11-15, Codex, macOS arm64, while checking the fixture review harness.
-
 ### A narrow installation bound rejects a valid selected child
 - Category: knowledge crossing a boundary
 - Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
