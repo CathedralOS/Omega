@@ -73,13 +73,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Constant validation refuses a case the source reader already materialized
-- Category: knowledge crossing a boundary
-- Where: [constant materialization check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/constant_values.rs#L214)
-- Saw: On macOS arm64 with the bundled-fence repair, using `const selected: Policy = Policy::Read` in a two-case copyable sum refuses with “constant of a sum type requires its case materializer.” Constructing `Policy::Read` inline and taking the same checked case branch exits 0 in both engines. A named `FenceOrdering::Receive` constant stops at the same earlier check.
-- Cost: The compiler already reads the retained initializer before it compares it with the decoded constant. Compare the materialized variant's exact nominal declaration, case, and payload through the existing agreement check. Refuse a mismatch in any of them.
-- Reported: 2026-11-15, Codex, while tracing static named fence arguments.
-
 ### A fence loses the ordering known from a local initializer
 - Category: branch per shape
 - Where: [fence argument reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L196), [ordering rules](wiki/spec/language/concurrency.md#orderings)
@@ -124,10 +117,10 @@ framework or a list of unimplemented features.
 
 ### A constant snapshot loses a checked element qualification
 - Category: knowledge crossing a boundary
-- Where: [observed result records](omega-rust/psi/compilation/build-time-evaluation/src/terminal_values.rs#L356), [constant array recovery](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L338), [checked element construction](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L324)
-- Saw: On macOS arm64 with the copyable record constant repair on `4a720b7a9b5`, the accepted invocation behind `const issued_tickets: [Ticket in Stamped; 2] = make();` returns both field values and passes the constant receipt check. Product then refuses the reconstructed element at “typing array literal element.” Calling the original `make()` directly preserves the qualification through both engines. Ordinary computed and literal `[Ticket; 2]` constants also run in both engines.
-- Cost: The snapshot holds a record's field bits and declared type while the invocation checked qualification on each element path. Separate copy-eligible refinement facts from authority that a constant may not grant. Use the invocation's existing checked result to authenticate any recoverable refinement and refuse authority-bearing snapshots at their constant boundary.
-- Reported: 2026-11-15, Codex, while carrying evaluated record-array constants to named use.
+- Where: [constant reconstruction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L674), [Product judgment](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L277), [collection membership check](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs#L589)
+- Saw: On macOS arm64 at clean `637ee209d8a`, the checked `make()` result has the `Stamped` qualification on every element and returns `Ticket.number` values 3 and 5. The constant receipt validates, then Product refuses the reconstructed `issued_tickets` array at `typing array literal element`. An unrestricted `Stamped` tag produces the same refusal. Both direct calls and both plain record-array constants run in native and Psi.
+- Cost: A named constant loses the checked facts carried by its initializer's result. Rejoin the existing accepted result to checked constant construction so portable validation can verify the exact value and nested qualifications. Preserve the issuer checks and refuse runtime authority at the constant boundary.
+- Reported: 2026-11-15, Codex, while carrying evaluated record-array constants to named use. Reproduced and traced again at `637ee209d8a`.
 
 ### A textual merge can pass Admission with a Rust type error
 - Category: verifying costs more than writing

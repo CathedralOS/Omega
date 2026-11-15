@@ -328,6 +328,7 @@ pub mod type_system;
 pub mod values;
 pub(crate) mod canonical_values {
     use crate::TypedTrees;
+    use crate::data::{DataDefinition, DataField, DataVariant};
     use crate::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
     use crate::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
     use language_semantics::const_value::DecodedCanonicalConstValue;
@@ -395,6 +396,33 @@ pub(crate) mod canonical_values {
         }
     }
 
+    fn aggregate_declaration<'a>(
+        program: &'a TypedTrees,
+        carrier: TypeReferenceHandle,
+        type_name: &str,
+    ) -> Option<&'a DataDefinition> {
+        let carrier = program.unwrapped_type_reference(carrier)?;
+        let symbol = program.type_reference_node(carrier).as_named_symbol()?;
+        let declaration = program.data_definition_by_symbol(symbol)?;
+        (symbol.is_valid() && declaration.name.as_str() == type_name).then_some(declaration)
+    }
+
+    fn named_case<'a>(
+        program: &'a TypedTrees,
+        declaration: &'a DataDefinition,
+        name: &str,
+    ) -> Option<&'a DataVariant> {
+        let mut matching = program
+            .data_members(declaration)
+            .iter()
+            .filter_map(|member| member.as_variant())
+            .filter(|case| case.name.as_str() == name);
+        let (Some(case), None) = (matching.next(), matching.next()) else {
+            return None;
+        };
+        case.symbol.is_valid().then_some(case)
+    }
+
     fn record(
         program: &mut TypedTrees,
         declared_type: TypeReferenceHandle,
@@ -402,27 +430,14 @@ pub(crate) mod canonical_values {
         case_name: Option<&str>,
         fields: &[(String, DecodedCanonicalConstValue)],
     ) -> Option<ExpressionNode> {
-        let declared_type = program.unwrapped_type_reference(declared_type)?;
-        let symbol = &program
-            .type_reference_node(declared_type)
-            .as_named_symbol()?;
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol.is_valid() && definition.symbol == *symbol)?;
-        if definition.name.as_str() != type_name {
-            return None;
-        }
+        let definition = aggregate_declaration(program, declared_type, type_name)?;
         let mut literal = TableStructLiteral {
             type_name: definition.name.clone(),
             type_symbol: definition.symbol,
             ..TableStructLiteral::default()
         };
         let declared_fields = if let Some(case_name) = case_name {
-            let variant = program.data_members(definition).iter().find_map(|member| {
-                let variant = member.as_variant()?;
-                (variant.name.as_str() == case_name).then_some(variant)
-            })?;
+            let variant = named_case(program, definition, case_name)?;
             literal.case_name = Some(variant.name.clone());
             literal.case_symbol = Some(variant.symbol);
             program.data_payload_fields(variant).to_vec()
@@ -521,45 +536,79 @@ pub(crate) mod canonical_values {
                         matches_materialized(program, *element_type, *expression, value)
                     })
             }
-            (
-                ExpressionNode::StructLiteral(actual),
-                DecodedCanonicalConstValue::Record { type_name, fields },
-            ) => {
-                let Some(underlying) = program.unwrapped_type_reference(carrier) else {
+            (ExpressionNode::StructLiteral(actual), value) => {
+                let (type_name, case_name, fields) = match value {
+                    DecodedCanonicalConstValue::Record { type_name, fields } => {
+                        (type_name, None, fields)
+                    }
+                    DecodedCanonicalConstValue::Variant {
+                        type_name,
+                        case_name,
+                        fields,
+                    } => (type_name, Some(case_name.as_str()), fields),
+                    _ => return false,
+                };
+                let Some(declaration) = aggregate_declaration(program, carrier, type_name) else {
                     return false;
                 };
-                let Some(symbol) = program.type_reference_node(underlying).as_named_symbol() else {
+                if actual.type_symbol != declaration.symbol {
                     return false;
-                };
-                let Some(record) = program.data_definition_by_symbol(symbol) else {
-                    return false;
-                };
-                let members = program.data_members(record);
+                }
                 let expressions = program.expression_table.struct_fields(actual.fields);
-                actual.type_symbol == symbol
-                    && actual.case_symbol.is_none()
-                    && actual.case_name.is_none()
-                    && type_name == record.name.as_str()
-                    && members.len() == fields.len()
-                    && expressions.len() == fields.len()
-                    && members.iter().zip(expressions).zip(fields).all(
-                        |((member, expression), (name, value))| {
-                            member.as_field().is_some_and(|field| {
-                                field.symbol == expression.field_symbol
-                                    && field.name == expression.name
-                                    && field.name.as_str() == name
-                                    && matches_materialized(
-                                        program,
-                                        field.type_reference,
-                                        expression.value,
-                                        value,
-                                    )
-                            })
-                        },
-                    )
+                if let Some(case_name) = case_name {
+                    let Some(case) = named_case(program, declaration, case_name) else {
+                        return false;
+                    };
+                    actual.case_symbol == Some(case.symbol)
+                        && actual.case_name.as_ref() == Some(&case.name)
+                        && matches_fields(
+                            program,
+                            program.data_payload_fields(case).iter().map(Some),
+                            expressions,
+                            fields,
+                        )
+                } else {
+                    actual.case_symbol.is_none()
+                        && actual.case_name.is_none()
+                        && matches_fields(
+                            program,
+                            program
+                                .data_members(declaration)
+                                .iter()
+                                .map(|member| member.as_field()),
+                            expressions,
+                            fields,
+                        )
+                }
             }
             _ => false,
         }
+    }
+
+    fn matches_fields<'a>(
+        program: &TypedTrees,
+        declared: impl ExactSizeIterator<Item = Option<&'a DataField>>,
+        expressions: &[TableStructLiteralField],
+        fields: &[(String, DecodedCanonicalConstValue)],
+    ) -> bool {
+        declared.len() == fields.len()
+            && expressions.len() == fields.len()
+            && declared
+                .zip(expressions)
+                .zip(fields)
+                .all(|((field, expression), (name, value))| {
+                    field.is_some_and(|field| {
+                        field.symbol == expression.field_symbol
+                            && field.name == expression.name
+                            && field.name.as_str() == name
+                            && matches_materialized(
+                                program,
+                                field.type_reference,
+                                expression.value,
+                                value,
+                            )
+                    })
+                })
     }
 
     impl TypedTrees {
