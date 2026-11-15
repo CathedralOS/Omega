@@ -94,13 +94,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Nothing checks that a host-supplied shared typed view keeps its backing through a returned view, or that immutable host values cannot supply an exclusive one. Identify the probe caller's actual view argument as the borrow `echo` returns.
 - Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls
 
-### A shared reference copy traps when its loan is released
-- Category: knowledge crossing a boundary
-- Where: [shared reference copy control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L995), [release operation](omega-rust/psi/interpreter/src/storage_references.rs#L3201)
-- Saw: On clean `72401d8d9e2` on macOS arm64, the original reference to `owner.value` and its ordinary shared copy both pass checking and invocation publication. The interpreter then traps at machine 2, block 3, operation 12 with `ReleaseReference` and `AffineFrontierMismatch`, before the owner replacement can demonstrate that both borrows ended. The same control completed before the stored-reference release change on clean `4d3852b953f`.
-- Cost: Accepted source cannot execute its checked cleanup. Preserve the fresh loan's affine formation and the shared copy's unrestricted custody while making release consume only the ownership the checked place actually carries. Keep the negative control that retags the copy as affine.
-- Reported: 2026-11-14, Codex, while comparing the local-loan escape fix against the rebased Stage 06 suite
-
 ### Existing match and reference controls reach obligations with no lowered owner
 - Category: knowledge crossing a boundary
 - Where: [owned match results](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/owned_match_results.rs), [loan-region negative](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L237), [obligation roster check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/minted.rs#L752)
