@@ -703,9 +703,11 @@ mod tests {
                 .handles()
                 .map(|symbol| (symbol, ValueType::record(carrier))),
         );
+        let bodies = semantic_vocabulary::IdTable::default();
+        let components = crate::components::components(&bodies, &program.signatures).unwrap();
         let elaboration = crate::lower_generic_for(
             None,
-            &semantic_vocabulary::IdTable::default(),
+            &bodies,
             crate::body::Signatures {
                 machines: &program.signatures,
                 declarations: &program.declaration_signatures,
@@ -717,6 +719,7 @@ mod tests {
             &[],
             terminal_codec::TerminalPublication::Invocation,
             Some(&program),
+            components,
         )
         .unwrap();
         let domains = &elaboration.program.module.structural_domains;
