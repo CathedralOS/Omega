@@ -248,7 +248,7 @@ impl<'b> Walk<'b> {
                             if !(changed && cyclic) {
                                 continue;
                             }
-                            for &caller in components.callers(this) {
+                            for caller in components.callers(this) {
                                 if components.same_component(caller, this)
                                     && !refused[caller]
                                     && !std::mem::replace(&mut stale[caller], true)

@@ -1008,8 +1008,8 @@ pub enum ExpressionKind {
         subject: Box<Expression>,
         case: usize,
     },
-    /// Value-position `match` whose arms are scalar: the subject is
-    /// evaluated once, the selected arm's value is the result
+    /// Value-position `match`: evaluate the subject once and transfer the
+    /// selected scalar or owned result to its continuation or normal return
     /// (`wiki/spec/language/expressions.md`: "Value-position `match` |
     /// Subject once; first matching arm only.").
     ///
