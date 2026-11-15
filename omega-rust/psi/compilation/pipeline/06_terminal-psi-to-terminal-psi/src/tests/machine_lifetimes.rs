@@ -200,6 +200,159 @@ machine take(view: &[u8]) { }
     }
 }
 
+const LITERAL_MATCH: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/fixtures/run/calls/caller_chosen_literal_match/main.omg"
+));
+
+fn literal_match_source() -> String {
+    LITERAL_MATCH.replace("machine main()", "machine build_entry()")
+}
+
+/// A selected literal retains its image backing when it arrives through a
+/// value-match join; the result's lifetime does not depend on its Boolean input.
+#[test]
+fn a_literal_match_keeps_each_incoming_view_for_a_caller_chosen_result() {
+    let verdict = judge_build(&literal_match_source());
+    let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+        panic!("the literal match must be judged: {verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
+        "both match arms must retain their original bytes: {status:?}"
+    );
+}
+
+/// A place declaration alone cannot supply a descriptor value. Its exact
+/// unique producer supplies the source contract; missing or duplicate producer
+/// rows, and roots that denote only a result or unestablished storage, do not.
+#[test]
+fn a_literal_arrival_source_retains_its_exact_establishment() {
+    let Ok(RouteVerdict::Accepted(accepted)) = judge_build(&literal_match_source()) else {
+        panic!("the literal match must be judged");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let module = publication.artifact.view().module();
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.structural_places.iter().any(|root| {
+                matches!(
+                    root.kind,
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+                )
+            })
+        })
+        .unwrap();
+    let root = machine
+        .structural_places
+        .iter()
+        .find(|root| {
+            matches!(
+                root.kind,
+                semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+            )
+        })
+        .unwrap();
+    let structural_type = root.kind.produced_structural_type().unwrap();
+    let source = terminal_semantics::structural_argument_source(machine, root.id, 0).unwrap();
+    assert_eq!(source.structural_type, structural_type);
+    assert_eq!(source.access, terminal_psi::StructuralAccess::Owned);
+    assert_eq!(
+        source.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+    );
+    let matches = |operation: &&terminal_psi::Operation| matches!(operation.kind, terminal_psi::OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == root.id);
+    let establishment = machine.operations().find(matches).unwrap().clone();
+    let mut missing = machine.clone();
+    for block in &mut missing.blocks {
+        block
+            .operations
+            .retain(|operation| operation.id != establishment.id);
+    }
+    assert!(terminal_semantics::structural_argument_source(&missing, root.id, 0).is_none());
+    let mut duplicate = machine.clone();
+    let mut second = establishment;
+    second.id = semantic_vocabulary::OperationId::new(
+        machine
+            .operations()
+            .map(|operation| operation.id.get())
+            .max()
+            .unwrap()
+            + 1,
+    )
+    .unwrap();
+    duplicate.blocks[0].operations.push(second);
+    assert!(terminal_semantics::structural_argument_source(&duplicate, root.id, 0).is_none());
+    for kind in [
+        semantic_vocabulary::StructuralPlaceKind::Result,
+        semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal: 0,
+            structural_type,
+            construction: None,
+        },
+    ] {
+        let mut other = machine.clone();
+        other
+            .structural_places
+            .iter_mut()
+            .find(|candidate| candidate.id == root.id)
+            .unwrap()
+            .kind = kind;
+        assert!(terminal_semantics::structural_argument_source(&other, root.id, 0).is_none());
+    }
+}
+
+#[test]
+fn a_caller_chosen_result_is_not_a_view_of_a_local_even_when_empty() {
+    let local_view = |result: &str| {
+        format!(
+            "machine build_entry() {{ take(leak()); }}\n\
+             machine leak<'out>() -> &'out [u8] {{\n\
+                 let bytes: [u8; 2] = [98u8, 98u8];\n\
+                 let view: &[u8] = &bytes[..];\n\
+                 {result}\n\
+             }}\n\
+             machine take(view: &[u8]) {{ }}"
+        )
+    };
+    let local_match = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/calls/caller_chosen_local_match/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    for source in [
+        local_view("view"),
+        local_view("view[0u64..0u64]"),
+        local_match,
+    ] {
+        let verdict = judge_build(&source);
+        let Ok(RouteVerdict::Rejected { violations, .. }) = &verdict else {
+            panic!("local backing must receive a lifetime rejection: {source}\n{verdict:?}");
+        };
+        assert!(
+            violations.iter().any(|violation| {
+                violation
+                    .statement
+                    .contains("local storage cannot establish")
+            }),
+            "the rejected obligation must be the local backing lifetime: {violations:?}"
+        );
+    }
+}
+
 /// The twins return a view that is valid only for an input's lifetime: the
 /// spec's `leak`, and a view an input record holds. "It cannot assume the
 /// choice coincides with an input lifetime", so each machine is rejected,

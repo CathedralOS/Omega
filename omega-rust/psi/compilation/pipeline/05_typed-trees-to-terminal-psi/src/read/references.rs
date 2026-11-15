@@ -390,7 +390,10 @@ impl Program<'_> {
         if slot.borrowed.is_some() {
             return Ok(slot.borrowed_regions);
         }
-        let region = self.fixed_region(format!("storage:{machine:?}:{:?}", slot.symbol));
+        let region = super::regions::Region::Storage {
+            machine,
+            root: slot.symbol,
+        };
         Ok(self.intern_regions(vec![region]))
     }
 
