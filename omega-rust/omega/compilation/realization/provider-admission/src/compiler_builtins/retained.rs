@@ -142,10 +142,12 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     selected: &'a effects::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
-    boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-    external_providers: &[terminal_psi::ExternalProviderConformance],
-    identities: &terminal_psi::TerminalIdentityTable,
+    module: &terminal_psi::TerminalModule,
+    direct_leaves: &[backend_plan::DirectBoundaryLeaf],
 ) -> Result<Vec<TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
+    let boundaries = &module.boundary_machines;
+    let external_providers = &module.external_providers;
+    let identities = &module.identities;
     let plans = selected.plans();
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
@@ -225,15 +227,45 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
-        let identity = match selected_external_execution(
-            external_providers,
-            identities,
-            &boundary.owner,
-            &plans[selected_row.plan_index],
-            selected_row.row,
-            selected_row.execution,
-            selected_row.external_realization,
-        ) {
+        // The selected direct call already records its declaration and target
+        // implementation. Validate that evidence here instead of asking an
+        // external provider to supply it again.
+        let mut direct = direct_leaves
+            .iter()
+            .filter(|leaf| leaf.plan == plans[selected_row.plan_index]);
+        let direct = match (direct.next(), direct.next()) {
+            (leaf, None) => leaf,
+            _ => {
+                diagnostics.push(Diagnostic::error(
+                    "compiler-builtin proposal has competing direct callable custody",
+                ));
+                continue;
+            }
+        };
+        let identity = match if let Some(leaf) = direct {
+            leaf.validate_bound_calling_custody(module).and_then(|()| {
+                if &leaf.satisfied_schema != selected_row.semantic_schema
+                    || leaf.execution
+                        != backend_plan::DirectBoundaryExecution::Intrinsic(selected_row.execution)
+                {
+                    return Err(
+                        "direct callable settlement changes its retained schema or execution"
+                            .into(),
+                    );
+                }
+                Ok(selected_row.execution)
+            })
+        } else {
+            selected_external_execution(
+                external_providers,
+                identities,
+                &boundary.owner,
+                &plans[selected_row.plan_index],
+                selected_row.row,
+                selected_row.execution,
+                selected_row.external_realization,
+            )
+        } {
             Ok(identity) => identity,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -426,9 +458,8 @@ pub fn admit_terminal_intrinsics<'selection>(
         selected,
         provenance,
         demanded,
-        &module.boundary_machines,
-        &module.external_providers,
-        &module.identities,
+        module,
+        &[],
     )?;
     let retained = prepare_retained_compiler_builtins(&proposals, selected.plans())?;
     let mut operations = Vec::with_capacity(retained.len());

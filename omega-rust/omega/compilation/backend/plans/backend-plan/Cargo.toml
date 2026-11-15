@@ -19,3 +19,6 @@ terminal-installation = { path = "../../../../../psi/compilation/terminal-instal
 effects = { path = "../effects" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 target = { path = "../../target" }
+language-core = { path = "../../../../../psi/foundation/language-core" }
+language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }

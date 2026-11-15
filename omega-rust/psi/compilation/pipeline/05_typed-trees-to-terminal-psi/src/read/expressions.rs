@@ -221,6 +221,16 @@ impl<'t> Program<'t> {
                     ScalarType::Integer(integer),
                 )
             }
+            ExpressionNode::Integer(literal)
+                if literal.landing().is_none()
+                    && matches!(expected_scalar, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
+                    unreachable!("float destination selected this landing");
+                };
+                let value = self.anonymous_float(id, handle, format)?;
+                (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected_scalar)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -297,6 +307,16 @@ impl<'t> Program<'t> {
             {
                 let truth = self.static_truth(handle).unwrap_or_default();
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
+            }
+            ExpressionNode::Binary(_)
+                if self.wholly_anonymous(handle)
+                    && matches!(expected_scalar, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
+                    unreachable!("float destination selected this landing");
+                };
+                let value = self.anonymous_float(id, handle, format)?;
+                (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
                 let (value, integer) = self.anonymous_value(id, handle, expected_scalar)?;
@@ -497,7 +517,13 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
-            ExpressionNode::Float(_) => return unserved("float literal"),
+            ExpressionNode::Float(literal) => {
+                let value = self.float_literal(id, literal, expected_scalar)?;
+                (
+                    ExpressionKind::Float(value),
+                    ScalarType::IeeeFloat(value.format()),
+                )
+            }
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
                 return self.indexed(id, slots, indexed, handle, expected, Access::Read);
@@ -1282,6 +1308,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
     left.result == right.result
         && match (&left.kind, &right.kind) {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
+            (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,
             (
                 ExpressionKind::LayoutObservation { subject: a, measurement: am },
                 ExpressionKind::LayoutObservation { subject: b, measurement: bm },
@@ -1445,6 +1472,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::Atomic(_)
                 | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
+                | ExpressionKind::Float(_)
                 | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }

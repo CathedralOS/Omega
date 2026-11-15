@@ -847,6 +847,8 @@ pub(crate) mod declarations {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum CheckedBoundaryExecution {
         Provider,
+        /// Exact sealed numeric declaration, realized by the selected target table.
+        NumericPrimitive,
         /// The actual primitive remains distinct from the public requirement.
         HostedPrimitive {
             operation: language_core::sealed_intrinsics::HostedOperation,
@@ -878,6 +880,7 @@ pub(crate) mod declarations {
                     Some(StaticInterruptOperation::FinishCompletion)
                 }
                 Self::Provider
+                | Self::NumericPrimitive
                 | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::AccessInitialize
@@ -894,6 +897,7 @@ pub(crate) mod declarations {
         pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
             match self {
                 Self::Provider
+                | Self::NumericPrimitive
                 | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::StaticInterruptInstall

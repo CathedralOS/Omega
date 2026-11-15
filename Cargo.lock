@@ -115,12 +115,15 @@ dependencies = [
  "diagnostics",
  "effects",
  "function-identity",
+ "language-core",
+ "language-semantics",
  "optimization-core",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

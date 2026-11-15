@@ -497,6 +497,7 @@ impl<'b> Walk<'b> {
             }
             ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
             | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Boolean(_)

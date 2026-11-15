@@ -185,7 +185,8 @@ pub(crate) fn boundary(
         terminal_psi::NominalDeclarationIdentity,
         terminal_psi::CheckedBoundaryCallable,
     ),
-    service: semantic_vocabulary::ServiceId,
+    service: Option<semantic_vocabulary::ServiceId>,
+    numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<terminal_psi::BoundaryMachineDeclaration> {
     let signature = signatures.get(
@@ -289,16 +290,13 @@ pub(crate) fn boundary(
             "external completion has no empty declared result",
         ));
     }
-    let primitive = matches!(
-        metadata.1.execution,
-        terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
-    );
+    let primitive = metadata.1.execution.compiler_owned();
     Ok(terminal_psi::BoundaryMachineDeclaration {
         id,
         identity: metadata.1.source.callable,
         owner: metadata.0,
         declaration: Some(metadata.1),
-        numeric_intrinsic: None,
+        numeric_intrinsic,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
         kind: if primitive {
             semantic_vocabulary::BoundaryRequirementKind::Machine
@@ -330,7 +328,7 @@ pub(crate) fn boundary(
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         fixed_service_reach: reach.clone(),
-        owning_service: (!primitive).then_some(service),
+        owning_service: if primitive { None } else { service },
         published_service_ceiling: reach.clone(),
         published_synchronous_entries: entries.clone(),
     })

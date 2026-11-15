@@ -6,7 +6,7 @@ the driver that reads one body statement by statement.
 
 use crate::body::Qualification;
 use language_semantics::{TerminationGuarantee, TerminationInterface};
-use semantic_vocabulary::{MachineId, ValueId};
+use semantic_vocabulary::{MachineId, ScalarType, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
@@ -1854,6 +1854,78 @@ impl<'t> Program<'t> {
         Ok((signature, names))
     }
 
+    /// Core's authenticated numeric catalog supplies its exact pure contract.
+    /// The receiver independently checks this same contract and all declared
+    /// source coordinates; selecting it here grants no target realization.
+    pub(super) fn numeric_primitive_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Signature> {
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        if self.typed.symbols.sealed_intrinsic(target)
+            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            return Err(unavailable(
+                "numeric primitive has no exact catalog custody",
+            ));
+        }
+        let requirement =
+            typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
+                self.typed, target,
+            )
+            .ok_or_else(|| unavailable("numeric primitive has no complete declaration"))?;
+        let meaning = self
+            .typed
+            .numeric_intrinsic_execution(target)
+            .ok_or_else(|| unavailable("numeric primitive has no closed semantic meaning"))?;
+        let ensures =
+            terminal_semantics::numeric_primitives::ensures(meaning).map_err(unavailable)?;
+        let parameters = requirement
+            .parameters
+            .iter()
+            .map(|formal| {
+                let (value_type, erased, borrowed) = self.formal(id, formal)?;
+                if erased || borrowed.is_some() || formal.is_const || formal.is_mutable {
+                    return Err(unavailable("numeric primitive has a noncanonical formal"));
+                }
+                Ok(value_type)
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        let result = self.result_type(id, requirement.return_type)?;
+        let expected = meaning
+            .signature()
+            .ok_or_else(|| unavailable("numeric primitive has no scalar signature"))?;
+        let expected_operand = expected
+            .operand
+            .scalar_type()
+            .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
+        if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
+            || result != Some(ValueType::plain(ScalarType::Boolean))
+        {
+            return Err(unavailable(
+                "numeric primitive differs from its canonical scalar signature",
+            ));
+        }
+        Ok(Signature {
+            operational: crate::body::OperationalCeilings {
+                suspension: Some(false),
+                blocking: Some(false),
+            },
+            parameters,
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result,
+            requires: Vec::new(),
+            ensures,
+            crashes: CrashCeiling::DeclaredNone,
+            reaches: crate::Ceiling::Authored(Vec::new()),
+            invokes: crate::Ceiling::Authored(Vec::new()),
+            termination: Termination::Promised,
+            ranking: None,
+        })
+    }
+
     /// Read the types, logical clauses and ceilings of a requirement.
     /// Boundary publication retains its suspension and blocking flags on the
     /// checked declaration, and an actual call still owes their proof. Other
@@ -3238,6 +3310,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
@@ -3432,6 +3505,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => {}

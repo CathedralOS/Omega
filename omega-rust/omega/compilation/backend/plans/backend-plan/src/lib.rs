@@ -21,6 +21,8 @@ and settlement projections to native preparation and installation admission.
 */
 
 mod callback_artifacts;
+mod canonical_schemas;
+pub use canonical_schemas::{compiler_primitive_schemas, hosted_requirement_schema};
 mod direct_boundary_leaves;
 pub mod synchronous_invocations;
 mod target_providers;

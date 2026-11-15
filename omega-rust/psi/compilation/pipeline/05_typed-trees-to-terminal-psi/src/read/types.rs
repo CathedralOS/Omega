@@ -1120,6 +1120,95 @@ impl Program<'_> {
         }
     }
 
+    /// A wholly anonymous calculation has one exact rational value. Its float
+    /// destination rounds that completed value once, including when a division
+    /// introduced a fractional intermediate.
+    pub(super) fn anonymous_float(
+        &self,
+        id: MachineId,
+        expression: ExpressionHandle,
+        format: semantic_vocabulary::IeeeFloatFormat,
+    ) -> Checked<semantic_vocabulary::IeeeFloatValue> {
+        let evaluated = closed_numeric::evaluate_anonymous_value::<true>(
+            self.typed,
+            expression,
+            &[],
+            &mut |expression| {
+                closed_numeric::has_anonymous_operator_meaning(self.typed, expression)
+            },
+        )
+        .ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("anonymous operation without an exact meaning"),
+            )
+        })?;
+        Ok(round_float(
+            format,
+            numerics::bignum::ExactFloat::Finite(evaluated.value),
+        ))
+    }
+
+    /// A literal keeps its explicit format, or lands in its receiving format.
+    /// Decimal spelling is rounded directly by FloatSemantics; reading a binary32
+    /// literal through host binary64 first would round twice. Presented bits
+    /// (including NaN payloads and signed zero) are already landed and stay exact.
+    pub(super) fn float_literal(
+        &self,
+        id: MachineId,
+        literal: &numerics::literals::FloatLiteral,
+        expected: Option<ScalarType>,
+    ) -> Checked<semantic_vocabulary::IeeeFloatValue> {
+        use numerics::float_semantics::{FloatFormat, FloatSemantics};
+        use numerics::literals::FloatFormat as Landing;
+        use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+        let format = literal
+            .landing()
+            .or(match expected {
+                Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => Some(Landing::F32),
+                Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => Some(Landing::F64),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("anonymous float literal without an expected float type"),
+                )
+            })?;
+        if let Some((presented, bits)) = literal.presented_bits() {
+            return match presented {
+                Landing::F32 => u32::try_from(bits)
+                    .map(IeeeFloatValue::Binary32)
+                    .map_err(|_| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Expression("binary32 literal has excess representation bits"),
+                        )
+                    }),
+                Landing::F64 => Ok(IeeeFloatValue::Binary64(bits)),
+            };
+        }
+        let semantic_format = match format {
+            Landing::F32 => FloatFormat::BINARY32,
+            Landing::F64 => FloatFormat::BINARY64,
+        };
+        let value =
+            FloatSemantics::from_decimal(semantic_format, literal.text()).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("float literal has no exact numeric meaning"),
+                )
+            })?;
+        Ok(match format {
+            Landing::F32 => IeeeFloatValue::Binary32(value.to_f32().to_bits()),
+            Landing::F64 => IeeeFloatValue::Binary64(value.to_f64().to_bits()),
+        })
+    }
+
     /// An integer literal's value and type: the type stage 04 landed it in,
     /// or else the type its context expects. Both, when present, must agree.
     pub(super) fn literal(
@@ -1169,6 +1258,27 @@ impl Program<'_> {
             Some(value) if integer.admits(value) => Ok((value, integer)),
             Some(_) | None => unserved("integer literal outside its type"),
         }
+    }
+}
+
+/// Format is a semantic type, independent of the host's floating registers.
+fn round_float(
+    format: semantic_vocabulary::IeeeFloatFormat,
+    exact: numerics::bignum::ExactFloat,
+) -> semantic_vocabulary::IeeeFloatValue {
+    use numerics::float_semantics::{FloatFormat, FloatSemantics};
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+    match format {
+        IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(
+            FloatSemantics::round_exact(FloatFormat::BINARY32, exact)
+                .to_f32()
+                .to_bits(),
+        ),
+        IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(
+            FloatSemantics::round_exact(FloatFormat::BINARY64, exact)
+                .to_f64()
+                .to_bits(),
+        ),
     }
 }
 
