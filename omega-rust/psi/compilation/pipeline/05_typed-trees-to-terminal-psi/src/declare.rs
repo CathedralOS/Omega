@@ -51,8 +51,6 @@ use typed_trees::{MachineInstantiation, TypedTrees};
 use crate::{Elaboration, Signature};
 
 const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v2\0";
-/// Domain of the commitment a generated machine makes to its application.
-const APPLICATION_DOMAIN: &[u8] = b"omega.lowered-machine-static-application.v1\0";
 
 /// Feeds the contract's structured fields into its domain-separated digest.
 struct Commitment(DomainDigestEncoder);
@@ -596,8 +594,8 @@ fn application(
 }
 
 // The same supplied arguments must identify a body and a permission naming
-// that body. Keeping their commitment calculation here prevents a policy from
-// matching a generic template while losing one of its actual arguments.
+// that body. The receiver uses the same shared commitment calculation so a
+// copied hash cannot hide changed arguments.
 fn application_bindings_commitment(
     typed: &TypedTrees,
     callable: &str,
@@ -606,13 +604,13 @@ fn application_bindings_commitment(
     prepared: &mut Option<PreparedApplication>,
 ) -> Result<[u8; 32], &'static str> {
     use typed_trees::static_applications::StaticMachineBindingValue;
-    let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
-    callable.hash(&mut commitment);
+    let mut commitment =
+        language_semantics::conformance_identity::MachineApplicationCommitment::new(callable)?;
     for binding in bindings {
         match &binding.value {
             StaticMachineBindingValue::Type(type_reference) => {
                 let argument = type_argument(typed, *type_reference)?;
-                argument.hash(&mut commitment);
+                commitment.type_argument(&argument)?;
                 if let Some(prepared) = prepared.as_mut() {
                     prepared.parameter_kinds.push(0);
                     prepared
@@ -635,39 +633,22 @@ fn application_bindings_commitment(
                 }
                 let identity =
                     semantic_identity(typed, typed.implementation_value_head(named), identities)?;
-                (
-                    "implementation",
-                    identities.text(identity).ok_or(
-                        "an application's implementation identity is absent from its table",
-                    )?,
-                )
-                    .hash(&mut commitment);
+                commitment.conformance_argument(identities.text(identity).ok_or(
+                    "an application's implementation identity is absent from its table",
+                )?)?;
             }
             // generics.md, "Closed applications and canonical identity":
             // a value argument is part of the application's identity. It is
             // stated by the exact binder's type and the prepared value's
-            // canonical spelling, so `7` given to a `u8` and to a `u64`
+            // canonical typed encoding, so `7` given to a `u8` and to a `u64`
             // parameter, or a value and a type, never commit alike. A
             // Boolean is stated the same way, by `true` or `false`: its
             // parameter's type is `bool`, which no integer literal lands in.
             StaticMachineBindingValue::Const(value_reference) => {
-                let (carrier, value) = const_argument(typed, binding.parameter, *value_reference)?;
-                ("value", carrier.as_str(), value.as_str()).hash(&mut commitment);
+                let argument = const_argument(typed, binding.parameter, *value_reference)?;
+                commitment.const_argument(&argument)?;
                 if let Some(prepared) = prepared.as_mut() {
-                    let operand = typed.static_operand_from_type_reference(*value_reference)?;
-                    let argument = typed_trees::type_identity::portable_applied_index_identity(
-                        typed,
-                        typed_trees::type_identity::IndexIdentityArgument::StaticArgument(&operand),
-                        binding.parameter,
-                        &[],
-                    )
-                    .and_then(|identity| typed.type_identity_text(identity))
-                    .filter(|identity| !identity.is_empty())
-                    .ok_or("a generated value argument lost its canonical index identity")?;
                     prepared.parameter_kinds.push(1);
-                    // The binder/value check and commitment above retain the
-                    // declared carrier. The telescope uses the same value
-                    // identity as reflection and public requirement calls.
                     prepared
                         .telescope
                         .push(ClosedReachParameter::Const { argument });
@@ -681,7 +662,7 @@ fn application_bindings_commitment(
             }
         }
     }
-    Ok(commitment.0.finish())
+    Ok(commitment.finish())
 }
 
 /// Bind an authenticated description's retained operand to the same callable
@@ -837,7 +818,8 @@ fn const_argument(
     typed: &TypedTrees,
     binder: SymbolHandle,
     reference: typed_trees::types::TypeReferenceHandle,
-) -> Result<(String, String), &'static str> {
+) -> Result<language_semantics::const_value::CanonicalConstValue, &'static str> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
     use typed_trees::data::TypeParameterKind;
     use typed_trees::expression::ExpressionNode;
 
@@ -857,12 +839,24 @@ fn const_argument(
         .primitive_type_reference(type_reference)
         .ok_or("an application's value binder needs its admitted scalar carrier")?;
     let value = typed.static_operand_from_type_reference(reference)?;
-    let value = match typed.prepare_callable_scalar_argument(primitive, &value)? {
-        ExpressionNode::Integer(literal) => literal.canonical_spelling().as_str().to_owned(),
-        ExpressionNode::Boolean(value) => if value { "true" } else { "false" }.to_owned(),
+    let decoded = match typed.prepare_callable_scalar_argument(primitive, &value)? {
+        ExpressionNode::Integer(literal) => DecodedCanonicalConstValue::Integer {
+            integer_type: primitive
+                .landed_landing_fixed()
+                .ok_or("an application's integer binding has no admitted carrier")?,
+            value: literal
+                .value_bignum()
+                .ok_or("an application's integer binding has no canonical value")?,
+        },
+        ExpressionNode::Boolean(value) => DecodedCanonicalConstValue::Boolean(value),
         _ => return Err("an application's value binding has no admitted scalar value"),
     };
-    Ok((carrier, value))
+    let mut value = CanonicalConstValue::from_decoded(&decoded, "")
+        .ok_or("an application's value binding has no canonical encoding")?;
+    // The outer type names the exact source binder. The encoding retains the
+    // landed scalar type and value checked against that binder above.
+    value.type_name = carrier;
+    Ok(value)
 }
 
 /// Close a generated body against the template contract this compilation

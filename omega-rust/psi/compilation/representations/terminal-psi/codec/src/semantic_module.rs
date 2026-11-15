@@ -2348,7 +2348,7 @@ pub(crate) mod reach_application_wire {
                 }
                 ClosedReachParameter::Const { argument } => {
                     writer.u8(1);
-                    writer.string("reach const argument", argument)?;
+                    writer.string("reach const argument", &argument.atom())?;
                 }
                 ClosedReachParameter::Proposition { argument } => {
                     writer.u8(2);
@@ -2466,7 +2466,12 @@ pub(crate) mod reach_application_wire {
                     argument: reader.string("reach const argument")?,
                 },
                 1 => ClosedReachParameter::Const {
-                    argument: reader.string("reach proposition argument")?,
+                    argument: language_semantics::const_value::CanonicalConstValue::from_atom(
+                        &reader.string("reach const argument")?,
+                    )
+                    .ok_or(CodecError::MalformedStructuralFoundation(
+                        "reach const argument has no canonical value",
+                    ))?,
                 },
                 2 => ClosedReachParameter::Proposition {
                     argument: reader.string("reach requirement")?,

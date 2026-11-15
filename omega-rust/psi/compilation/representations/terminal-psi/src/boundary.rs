@@ -1775,9 +1775,15 @@ pub(crate) mod reach_applications {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum ClosedReachParameter {
-        Type { argument: String },
-        Const { argument: String },
-        Proposition { argument: String },
+        Type {
+            argument: String,
+        },
+        Const {
+            argument: language_semantics::const_value::CanonicalConstValue,
+        },
+        Proposition {
+            argument: String,
+        },
         Machine(ClosedReachMachineBinding),
     }
 

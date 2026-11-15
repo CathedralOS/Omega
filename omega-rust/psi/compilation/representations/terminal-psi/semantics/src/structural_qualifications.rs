@@ -1161,11 +1161,17 @@ fn machine_caller_application_matches(
             {
                 return Ok(false);
             }
+            crate::calls::closed_reach::validate_machine_application_arguments(module, current)
+                .map_err(error)?;
             for (argument, parameter) in arguments.iter().zip(&application.telescope) {
                 match parameter {
-                    terminal_psi::ClosedReachParameter::Type { argument: expected }
-                    | terminal_psi::ClosedReachParameter::Const { argument: expected } => {
+                    terminal_psi::ClosedReachParameter::Type { argument: expected } => {
                         if argument != expected {
+                            return Ok(false);
+                        }
+                    }
+                    terminal_psi::ClosedReachParameter::Const { argument: expected } => {
+                        if expected.scalar_index_identity().as_deref() != Some(argument.as_str()) {
                             return Ok(false);
                         }
                     }

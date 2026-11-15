@@ -3003,6 +3003,38 @@ pub(crate) mod tests {
             )
             .expect("a different value cannot borrow the checked application's caller identity")
         );
+        // Changing both descriptions cannot reuse the old application's hash,
+        // even when its body, source identity and route are left untouched.
+        let mut changed_account = module.clone();
+        let body = changed_account
+            .machines
+            .iter_mut()
+            .find(|body| body.id == current)
+            .unwrap();
+        let terminal_psi::ClosedReachParameter::Const { argument } =
+            &mut body.closed_reach_application.as_mut().unwrap().telescope[0]
+        else {
+            panic!("the exact generated body retains its scalar argument")
+        };
+        assert_eq!(argument.encoding.matches(value).count(), 1);
+        argument.encoding = argument
+            .encoding
+            .replace(value, "170141183460469231731687303715884105729");
+        let error = terminal_semantics::structural_qualifications::caller_matches_machine(
+            &changed_account,
+            current,
+            &changed_value,
+        )
+        .expect_err("matching altered descriptions cannot authenticate an unchanged commitment");
+        assert_eq!(
+            error.detail,
+            "machine application arguments differ from their retained commitment"
+        );
+        assert_eq!(
+            terminal_semantics::closed_reach::validate_closed_reach_applications(&changed_account),
+            Err("machine application arguments differ from their retained commitment"),
+            "the independent receiving owner rejects the same unused argument inconsistency",
+        );
         let typed_trees::static_applications::StaticMachineBindingValue::Const(value) =
             binding.value
         else {
