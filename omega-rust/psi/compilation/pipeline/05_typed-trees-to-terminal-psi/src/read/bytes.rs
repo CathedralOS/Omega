@@ -285,12 +285,11 @@ impl Program<'_> {
         })
     }
 
-    pub(super) fn byte_range_selection(
+    pub(super) fn byte_range_operator_operands(
         &self,
         machine: MachineId,
-        handle: typed_trees::expression::ExpressionHandle,
         row: semantic_vocabulary::StructuralTypeId,
-    ) -> Checked<()> {
+    ) -> [Option<TypeReferenceHandle>; 3] {
         let count = semantic_vocabulary::ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid"),
@@ -309,7 +308,16 @@ impl Program<'_> {
                     .then_some(reference)
             },
         );
-        let operands = [reference, count_reference, count_reference];
+        [reference, count_reference, count_reference]
+    }
+
+    pub(super) fn byte_range_selection(
+        &self,
+        machine: MachineId,
+        handle: typed_trees::expression::ExpressionHandle,
+        row: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<()> {
+        let operands = self.byte_range_operator_operands(machine, row);
         if !typed_trees::operator::resolve_indexed_spelling_for_operands(
             self.typed,
             language_core::OperatorSpelling::Range,

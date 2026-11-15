@@ -214,16 +214,7 @@ impl<'t> Program<'t> {
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
         let value = self.read_expression(id, slots, handle, expected)?;
-        let owner = self.symbols.get(id).copied().unwrap_or_default();
-        let operands = match &value.kind {
-            ExpressionKind::Strict { left, right, .. }
-            | ExpressionKind::ShortCircuit { left, right, .. } => [left.result, right.result],
-            ExpressionKind::Index { base, index } => [base.result, index.result],
-            _ => [None, None],
-        };
-        let operands = operands
-            .map(|operand| operand.and_then(|operand| self.operator_operand_reference(operand)));
-        self.complete_builtin_operator(id, owner, handle, operands)?;
+        self.complete_formed_operator(id, handle, &value)?;
         Ok(value)
     }
 
@@ -668,6 +659,7 @@ impl<'t> Program<'t> {
             }
             _ => return self.expression(id, slots, target, expected),
         };
+        self.complete_formed_operator(id, target, &value)?;
         if access == Access::Replace {
             return Ok(value);
         }

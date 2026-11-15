@@ -743,8 +743,11 @@ pub(crate) fn follow_the_lowered_form(
                 minted.owed(kind, before, concerns)?;
             }
             Terminator::Jump {
-                edge, arguments, ..
-            } if !arguments.is_empty() => {
+                edge,
+                arguments,
+                structural_arguments,
+                ..
+            } if !arguments.is_empty() || !structural_arguments.is_empty() => {
                 let kind = ObligationKind::ArrivalInvariant { edge: *edge };
                 minted.owed(kind, ProgramPoint::Edge(*edge), concerns)?;
             }
@@ -754,7 +757,8 @@ pub(crate) fn follow_the_lowered_form(
                 ..
             } => {
                 for successor in [when_true, when_false] {
-                    if !successor.arguments.is_empty() {
+                    if !successor.arguments.is_empty() || !successor.structural_arguments.is_empty()
+                    {
                         let kind = ObligationKind::ArrivalInvariant {
                             edge: successor.edge,
                         };

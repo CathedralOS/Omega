@@ -185,7 +185,7 @@ impl Program<'_> {
             return Ok(());
         }
         let owner = self.contract_operator_owner(id, scope)?;
-        self.complete_builtin_operator(id, owner, expression, operands)
+        self.complete_builtin_operator(id, owner, expression, &operands)
     }
 
     fn contract_operator_owner(

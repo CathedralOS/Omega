@@ -784,7 +784,10 @@ machine entry() crashes none {
         panic!("a selected call without its public header must be refused");
     };
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
-    assert_eq!(refused.detail, "an invocation row names another callee");
+    assert_eq!(
+        refused.detail,
+        "invocation row and lowered call name different targets"
+    );
 }
 
 #[test]

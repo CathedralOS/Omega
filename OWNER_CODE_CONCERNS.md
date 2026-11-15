@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Focused compiler controls spend twenty-two minutes in code generation
+- Category: Verifying costs more than writing
+- Where: [compiler test targets](omega-rust/omega/compilation/compiler/Cargo.toml#L110), [compiler feature alignment](omega-rust/omega/compilation/compiler/Cargo.toml#L102), and the `coherent-native-controls-24-01` receipt in continuation claim `18e81ab82af520780000000018e96239`
+- Saw: On macOS arm64 at `a827cf2c269`, a fixed-source nextest selection of 24 controls across 12 binaries spent 22m17s building before 176.905s of test execution. The command used the retained CLI feature union, optimization level 1, two codegen units and three jobs; 1,219 tests were not selected. Actual compiler processes remained active. The source of this build cost has not been established.
+- Cost: Each affected-source iteration waits about twenty-two minutes before exposing the next semantic refusal. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
+- Reported: 2026-11-14, Codex, while carrying stored-machine programs through Console and native-binding preparation
+
 ### Callback and interrupt records lose the machine that owns their operation
 - Category: Re-deriving
 - Where: [terminal-psi/src/lib.rs:352](omega-rust/psi/compilation/representations/terminal-psi/src/lib.rs#L352), [executable preparation](omega-rust/omega/compilation/compiler/src/executable.rs), and [codec/src/foundation_validation.rs:2261](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L2261)

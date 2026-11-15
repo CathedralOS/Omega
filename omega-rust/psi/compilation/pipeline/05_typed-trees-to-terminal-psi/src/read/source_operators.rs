@@ -13,7 +13,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 
 use super::Program;
-use crate::body::{Policy, ValueType};
+use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
 
 impl Program<'_> {
     pub(super) fn complete_anonymous_operators(
@@ -23,7 +23,7 @@ impl Program<'_> {
         operators: &[ExpressionHandle],
     ) -> Checked<()> {
         for &expression in operators {
-            self.complete_builtin_operator(machine, owner, expression, [None, None])?;
+            self.complete_builtin_operator(machine, owner, expression, &[None, None])?;
         }
         Ok(())
     }
@@ -34,6 +34,18 @@ impl Program<'_> {
         &self,
         operand: ValueType,
     ) -> Option<TypeReferenceHandle> {
+        if let ValueType::Record(record, Qualification::NONE, _) = operand {
+            return self
+                .record_sources
+                .get(record)
+                .and_then(|source| source.application.as_ref())
+                .map(|application| application.reference)
+                .filter(|reference| {
+                    self.typed
+                        .type_reference_table
+                        .contains_type_reference(*reference)
+                });
+        }
         let ValueType::Scalar(scalar, qualification) = operand else {
             return None;
         };
@@ -71,6 +83,46 @@ impl Program<'_> {
             )
     }
 
+    /// Publish the operation this reader actually formed. Reads, writable
+    /// places and explicit view adapters share the same source association.
+    pub(super) fn complete_formed_operator(
+        &mut self,
+        machine: MachineId,
+        expression: ExpressionHandle,
+        value: &Expression,
+    ) -> Checked<()> {
+        let owner = self.symbols.get(machine).copied().unwrap_or_default();
+        match &value.kind {
+            ExpressionKind::ByteSubslice { base, .. } | ExpressionKind::ArrayView { base, .. }
+                if matches!(
+                    self.typed.expression_table.expression(expression),
+                    ExpressionNode::Indexed(_)
+                ) =>
+            {
+                let Some(ValueType::Record(record, Qualification::NONE, _)) = base.result else {
+                    return Ok(());
+                };
+                let operands = self.byte_range_operator_operands(machine, record);
+                self.complete_builtin_operator(machine, owner, expression, &operands)
+            }
+            _ => {
+                let operands = match &value.kind {
+                    ExpressionKind::Strict { left, right, .. }
+                    | ExpressionKind::ShortCircuit { left, right, .. } => {
+                        [left.result, right.result]
+                    }
+                    ExpressionKind::Index { base, index }
+                    | ExpressionKind::ByteElement { base, index } => [base.result, index.result],
+                    _ => [None, None],
+                }
+                .map(|operand| {
+                    operand.and_then(|operand| self.operator_operand_reference(operand))
+                });
+                self.complete_builtin_operator(machine, owner, expression, &operands)
+            }
+        }
+    }
+
     pub(super) fn mathematical_operator_operands(&self) -> [Option<TypeReferenceHandle>; 2] {
         let reference = self
             .typed
@@ -90,7 +142,7 @@ impl Program<'_> {
         machine: MachineId,
         source_owner: SymbolHandle,
         expression: ExpressionHandle,
-        operands: [Option<TypeReferenceHandle>; 2],
+        operands: &[Option<TypeReferenceHandle>],
     ) -> Checked<()> {
         let typed = self.typed;
         let refuse = |detail: String| Refusal {
@@ -167,10 +219,28 @@ impl Program<'_> {
         // declaration. Bare operations still check their actual operand types.
         let suffixed = matches!(node, ExpressionNode::Binary(binary)
             if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact);
+        if matches!(node, ExpressionNode::Indexed(_)) {
+            let Some(spelling) = spelling else {
+                return Ok(());
+            };
+            // A formed collection operation retains its actual source type.
+            // Unknown collections and selected user operators stay pending.
+            if operands.first().is_none_or(Option::is_none)
+                || !typed_trees::operator::resolve_indexed_spelling_for_operands(
+                    typed,
+                    spelling,
+                    operands,
+                    typed.expression_table.source_span(expression),
+                )
+                .is_empty()
+            {
+                return Ok(());
+            }
+        }
         if !suffixed
             && let Some(spelling) = spelling
             && !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                typed, owner, expression, spelling, &operands,
+                typed, owner, expression, spelling, operands,
             )
         {
             // A declaration or abstract operator requirement still needs its

@@ -199,9 +199,9 @@ impl Program<'_> {
                 return Err(unavailable("byte range with a mutable borrow"));
             }
             self.authorized(machine, backing_type, Access::Read)?;
-            return self
-                .byte_subslice(machine, slots, base, range, borrow.target, source)
-                .map(Some);
+            let value = self.byte_subslice(machine, slots, base, range, borrow.target, source)?;
+            self.complete_formed_operator(machine, borrow.target, &value)?;
+            return Ok(Some(value));
         }
         if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
             return Err(unavailable(
@@ -239,7 +239,7 @@ impl Program<'_> {
         let regions = self.storage_loan_regions(machine, slots, &base)?;
         // The source array and its own type stay on the operand. The result
         // is a descriptor with the actual backing's lifetime, not the context's.
-        Ok(Some(Expression {
+        let value = Expression {
             call_context: None,
             kind: ExpressionKind::ArrayView {
                 base: Box::new(base),
@@ -248,7 +248,9 @@ impl Program<'_> {
             },
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
-        }))
+        };
+        self.complete_formed_operator(machine, borrow.target, &value)?;
+        Ok(Some(value))
     }
 
     pub(super) fn array_literal(
