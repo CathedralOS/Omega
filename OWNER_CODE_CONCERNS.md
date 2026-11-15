@@ -133,7 +133,7 @@ framework or a list of unimplemented features.
 - Category: verifying costs more than writing
 - Where: [standard-library entry check](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L144), [source-check storage uses](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3929)
 - Saw: With the kept callback fixture bytes on macOS arm64 at `8329cdc221e`, the run was still checking the standard library after 10m21s and was stopped. A process sample shows `derive_entry_from_inputs` inside fixed-layout evaluation, with Psi 06 repeatedly walking `Storage::uses`, `reaching`, and `supplied`. The test already prepared the C provider.
-- Cost: The original exact callback binding and native saved-input substitution checks never run within that interval. Trace the repeated storage paths and retain the exact entry schema through the existing checked owner before revisiting the native assertions.
+- Cost: Exact-value and case queries still retrace reconverging copies: the twelve-branch storage control scans 475,120 rows for the exact value. Initialization queries now expand each copy equation once, but that does not establish the callback's end-to-end cost. Replay the actual supplier capture on macOS arm64, retain the route-owned entry schema, and reach the original exact callback binding and native saved-input substitution checks; a loose standard-library source check is not that path.
 - Reported: 2026-11-15, Codex, while replaying the native callback fixture after repairing its path.
 
 
