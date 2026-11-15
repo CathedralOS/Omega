@@ -1,13 +1,12 @@
-//! In-crate replay coverage for `validate_final_text_relocation_envelope`,
-//! the format-neutral proof that final `.text` preserves every encoded bit
-//! except the exact immediate fields named by checked relocation records.
-//! Until now this route was reached only through image-emission's
-//! `final_image_validation`; these tests pin the boundary inside the owning
-//! crate: relocations applied through the shared patcher replay
-//! through the envelope, each relocation kind masks only its declared field
-//! bits, an emitter-appended suffix stays outside text custody, malformed
-//! or overlapping fields fail closed, and the returned evidence digests
-//! bind the exact relocation plan rather than its presentation order.
+//! Tests, inside the owning crate, of `validate_final_text_relocation_envelope`:
+//! the format-neutral proof that final `.text` keeps every encoded bit except
+//! the exact immediate fields that checked relocation records name.
+//! Image-emission's `final_image_validation` also calls it. These tests pin
+//! that relocations applied through the shared patcher replay through the
+//! envelope, each relocation kind masks only its declared field bits, a
+//! suffix the emitter appends stays outside the envelope, malformed or
+//! overlapping fields are rejected, and the returned evidence digests bind
+//! the exact relocation plan rather than its presentation order.
 
 mod common;
 

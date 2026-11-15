@@ -15,7 +15,7 @@
 // root source, or `main` when none is named and the source declares one, is
 // bound to the target's `ProgramEntry`), prepares the product exactly as the
 // product check does up to Psi 04's frozen typed trees, and stops there. Psi
-// 05, validation's judgments and Psi 06 never run: the shared source
+// 05 and Psi 06 never run: the shared source
 // preparation returns its frozen owner directly after Psi 04. The caller
 // judges the returned frontier with
 // `terminal_psi_to_terminal_psi::judge_compilation`.

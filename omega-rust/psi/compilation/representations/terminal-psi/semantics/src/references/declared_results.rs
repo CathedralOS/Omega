@@ -1,10 +1,10 @@
-//! Selected and rigid calls keep every backing source allowed by the public
-//! lifetime, even when an implementing body always returns one input. Both
+//! Selected and rigid calls keep every backing source the public lifetime
+//! allows, even when an implementing body always returns one input. Both
 //! read the one declared account on the public machine contract
 //! (`MachineContract::result_lifetimes`): a selected call through its public
-//! header, a rigid call through the bodiless requirement itself. This is a
-//! borrowed query over that header, not another published result or a source
-//! of backing permission.
+//! header, a rigid call through the bodiless requirement itself. This only
+//! borrows that header; it publishes no other result and grants no backing
+//! permission.
 
 use std::borrow::Cow;
 

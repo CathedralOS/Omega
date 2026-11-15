@@ -1,18 +1,18 @@
-//! Review the unchanged Windows customer under two independent receiver inputs.
+//! Review the unchanged Windows program under two independent receiver inputs.
 //!
-//! Ordinary CLI production makes no receiver-admission claim. This consumer
-//! supplies one explicitly, without translating package acceptance or abstract
-//! service reach into permission. It deliberately grants all six filesystem
-//! classes to each raw requirement owned by the reviewed bundled std package;
-//! these are broad filesystem grants, not minimal per-operation permissions.
+//! Ordinary CLI production claims no receiver admission. This test supplies
+//! one explicitly, without treating package acceptance or abstract service
+//! reach as permission. It deliberately grants all six filesystem classes to
+//! each raw requirement owned by the reviewed bundled std package; these are
+//! broad filesystem grants, not minimal per-operation permissions.
 //! Generic ordinary close gets an empty grant, while namespace-removal close
 //! keeps the filesystem grant. The structural process-exit intrinsic and the
 //! trusted std Console::exit_process requirement get termination permission.
-//! The positive additionally grants ProcessOutput to the original trusted
-//! WindowsFilesystemTransferIo::write_file requirement: generic WriteFile can
-//! write a console. The original filesystem-only table stays a refusal control.
-//! Physical classification stays independently supplied by the existing
-//! toolchain policy, so an unsupported leaf must refuse.
+//! The positive also grants ProcessOutput to the original trusted
+//! WindowsFilesystemTransferIo::write_file requirement, because generic
+//! WriteFile can write a console. The original filesystem-only table stays
+//! a refusal control. The existing toolchain policy still supplies physical
+//! classification independently, so an unsupported leaf must refuse.
 
 use effects::{
     CompilerIntrinsicExecutionIdentity, PortableFilesystemAuthorityFacet, TerminalAuthorityClass,

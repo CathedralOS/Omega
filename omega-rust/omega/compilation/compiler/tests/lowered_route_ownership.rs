@@ -1,7 +1,7 @@
-//! Plain owned data is judged from actual transfers on the lowered form. The
-//! positive retains call-result/local identities through publication and runs;
-//! the negative borrows the same local after an earlier operand consumed it.
-//! Each program is typed without running its Build
+//! The lowered-form checker judges plain owned data by its actual transfers.
+//! The positive keeps call-result/local identities through publication
+//! and runs; the negative borrows the same local after an earlier operand
+//! consumed it. Each program is typed without running its Build
 //! (`support/unbuilt_frontier.rs`).
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;

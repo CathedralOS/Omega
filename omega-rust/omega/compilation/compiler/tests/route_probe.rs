@@ -1,6 +1,5 @@
 //! The lowered-form checker can be shown a source program without running
-//! the program's Build and without the old checker
-//! (`CompilationSession::typed_frontier_without_build`, the harness behind
+//! the program's Build (`CompilationSession::typed_frontier_without_build`, the harness behind
 //! `examples/route_probe.rs`). Two standalone programs pin it: one the
 //! checker accepts, and the same program with a machine nothing calls whose
 //! addition can overflow, which it rejects because a standalone source is its

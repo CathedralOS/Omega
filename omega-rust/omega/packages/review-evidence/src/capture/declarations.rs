@@ -1,7 +1,7 @@
-//! Declaration facts are read from the source the package judgment accepted.
-//! This projection does not infer behavior from syntax: callable behavior is
-//! read separately from the retained module, and an unserved declaration form
-//! prevents a complete review instead of disappearing from its inventory.
+//! Reads declaration facts for review from the source the package judgment
+//! accepted. It infers no behavior from syntax: callable behavior is read
+//! separately from the retained module, and an unhandled declaration form makes
+//! the review incomplete instead of vanishing from its inventory.
 
 use super::PackageReviewInput;
 use crate::record::{
