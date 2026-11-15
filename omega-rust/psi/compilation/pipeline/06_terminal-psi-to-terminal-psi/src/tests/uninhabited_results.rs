@@ -134,6 +134,36 @@ fn a_false_default_domain_preserves_the_actual_call_and_sibling_value() {
 }
 
 #[test]
+fn reachable_value_body_falloff_is_a_language_violation() {
+    for (declarations, result) in [
+        ("", "u32"),
+        ("public data Empty requires false {}", "Empty"),
+    ] {
+        let source = format!(
+            "{declarations} public machine produce() -> {result} {{}} \
+             machine main() {{ let received: u32 = produce(); }}"
+        );
+        let verdicts = program(&source);
+        let [Ok(RouteVerdict::FallBack(refusal))] = verdicts.as_slice() else {
+            panic!("the reachable body end must be refused: {verdicts:?}");
+        };
+        assert_eq!(refusal.reason, RefusalReason::Violation, "{refusal:?}");
+        assert_eq!(refusal.detail, "value machine can fall off its end");
+    }
+
+    accepted(
+        "public machine produce() -> u32 { 7u32 } \
+         machine main() { let received: u32 = produce(); }",
+    );
+    let stopped = accepted(
+        "public data Empty requires false {} \
+         public machine produce() -> Empty crashes Trap { crash Trap; } \
+         machine main() crashes Trap { let received: u32 = produce(); }",
+    );
+    check_no_normal(&stopped);
+}
+
+#[test]
 fn canonical_process_exit_publishes_never_without_a_receiving_value() {
     let typed = super::build_purpose::frontier_with_core(
         "use omega::language::core::Never; \

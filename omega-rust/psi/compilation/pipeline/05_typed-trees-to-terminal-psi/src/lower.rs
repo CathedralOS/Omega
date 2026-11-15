@@ -85,7 +85,7 @@ use self::places::{Bound, Records, Witness};
 use crate::body::{Body, Signature, Signatures, Statement, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
-use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse};
+use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject};
 
 #[derive(Debug)]
 pub(crate) struct Lowered {
@@ -1012,10 +1012,13 @@ impl<'a> Lowering<'a> {
                     self.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
                 }
                 Some(_) => {
-                    return Err(refuse(
+                    // An open block reaches the end without a value. This is
+                    // invalid for every declared value result, including an
+                    // empty type whose body must never complete normally.
+                    return Err(reject(
                         self.id,
-                        Construct::Machine,
-                        Unserved::Completion("value machine can fall off its end"),
+                        SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn),
+                        "value machine can fall off its end",
                     ));
                 }
             }
