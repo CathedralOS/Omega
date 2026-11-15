@@ -241,10 +241,6 @@ pub struct StagedOptimizedAllocationLegality {
 }
 
 impl StagedOptimizedAllocationLegality {
-    pub const fn live_range_stage(&self) -> &StagedOptimizedLiveRanges {
-        &self.ranges
-    }
-
     staged_producer_accessors!(
         ranges; ranges, liveness, selected, register_environment, selections, budget_per_pass
     );

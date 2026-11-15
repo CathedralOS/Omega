@@ -45,10 +45,7 @@ use semantic_vocabulary::{
 use target_operations::MachineRegister;
 use terminal_psi::StructuralPathSegment;
 
-use crate::{
-    InternalUnitScalarArgumentSourceRecord, ScalarCleanupPreservationEvidence,
-    ScalarControlFlowEvidence,
-};
+use crate::InternalUnitScalarArgumentSourceRecord;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitParameterHomeRecord {
@@ -69,16 +66,6 @@ pub struct UnitParameterRecord {
     pub multiplicity: terminal_psi::StructuralMultiplicity,
     pub access: terminal_psi::StructuralAccess,
     pub shape: ValueShape,
-}
-
-impl UnitParameterRecord {
-    pub fn matches_home(&self, home: &UnitParameterHomeRecord) -> bool {
-        self.place == home.place
-            && self.structural_type == home.structural_type
-            && self.multiplicity == home.multiplicity
-            && self.access == home.access
-            && self.shape == home.shape
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -162,13 +149,6 @@ pub struct UnitAffineScalarRecordEstablishmentRecord {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UnitStackEvidence {
-    pub frame: Option<StackAdjustmentPair>, // Function-lifetime stack allocation and matching release
-    pub aarch64_return_link: Option<Aarch64ReturnLinkEvidence>, // AArch64 incoming link register slot in function-lifetime frame
-    pub stack_alignment: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitCallStackEvidence {
     pub outbound: Option<StackAdjustmentPair>, // Outgoing argument/shadow allocation and matching release around call
 }
@@ -193,30 +173,6 @@ pub struct Aarch64ReturnLinkEvidence {
     pub frame_byte_offset: u32,
     pub store_offset: usize,
     pub load_offset: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScalarStackEvidence {
-    pub mutations: Vec<ScalarStackMutation>,
-    pub control_flow: ScalarControlFlowEvidence,
-    pub stack_alignment: u32,
-    pub cleanup_preservation: Option<ScalarCleanupPreservationEvidence>, // ABI-result preservation around appended scalar-return cleanup suffix
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ScalarStackMutation {
-    pub offset: usize,
-    pub byte_count: usize,
-    pub kind: ScalarStackMutationKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScalarStackMutationKind {
-    Allocate { byte_size: u32 },
-    Release { byte_size: u32 },
-    X86ReleasePreservingFlags { byte_size: u32 },
-    X86Push,
-    X86Pop,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

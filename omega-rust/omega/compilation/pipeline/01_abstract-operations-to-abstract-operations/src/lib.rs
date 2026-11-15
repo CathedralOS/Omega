@@ -95,8 +95,6 @@ pub(crate) use rules::registry::{
 
 #[cfg(feature = "test-support")]
 pub mod test_support {
-    pub use crate::run_psi_pipeline;
-
     pub use crate::analyses::{
         AnalysisRevision, ValueRangeFact, ValueRangeSupport, value_range_fact_identity,
     };
@@ -158,16 +156,6 @@ pub fn optimize_abstract_operations(
         return Err(AbstractOptimizationError::EmptySelectionChangedPlan);
     }
     Ok(published)
-}
-
-#[cfg(any(test, feature = "test-support"))]
-pub fn run_psi_pipeline(
-    verified: VerifiedPsiOptimizationUnit,
-    selections: &OptimizationSelections,
-    budget_per_pass: OptimizationWorkBudget,
-) -> Result<OptimizationRun, OptimizationRunError> {
-    let projection = selections.project_psi();
-    run_psi_pipeline_for_projection(verified, selections, &projection, budget_per_pass)
 }
 
 pub(crate) fn run_psi_pipeline_for_projection(

@@ -237,28 +237,6 @@ pub mod provider_declarations {
                 Self::BoundaryOperatorFamily(family) => &family.authored_path,
             }
         }
-        pub fn selects_schema(
-            &self,
-            schema_symbol: SymbolHandle,
-            requirement_identity: &str,
-            application: Option<&str>,
-        ) -> bool {
-            match self {
-                Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
-                    identity.symbol == schema_symbol
-                        && identity
-                            .application_identity
-                            .as_deref()
-                            .is_none_or(|selected| Some(selected) == application)
-                }
-                Self::BoundaryOperatorFamily(family) => {
-                    family.coordinates.iter().any(|coordinate| {
-                        coordinate.symbol == schema_symbol
-                            && coordinate.requirement_identity == requirement_identity
-                    })
-                }
-            }
-        }
         pub fn same_declaration_as(&self, other: &Self) -> bool {
             match (self, other) {
                 (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => {
