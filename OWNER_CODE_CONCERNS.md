@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Both tests stop before checking source identity and substitutions. Build live owner and different-owner symbols in the fixture so the original refusal and acceptance controls reach their intended checks.
 - Reported: 2026-11-14, Codex, while checking shared formal write diagnostics
 
-### Model-audit attribution uses a moving main timestamp
-- Category: knowledge crossing a boundary
-- Where: [global cutoff](tools/xtask/src/provenance.rs#L134), [default audit interval](tools/xtask/src/provenance.rs#L556)
-- Saw: Without `--full-session`, provenance filters the transcript from the latest commit timestamp of `origin/main`. A concurrent fetch of another agent's merged work changes that cutoff while the current outcome is still running; generating its footer again can omit the earlier work. Full-session attribution instead includes unrelated earlier outcomes.
-- Cost: The required per-change audit depends on unrelated merges rather than the work it describes. Bind an explicit stable work interval and preserve it across fetch/rebase; changing only the remote tip must not change attribution for that interval.
-- Reported: 2026-11-14, Codex, while preparing the native target-selector handoff
-
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: tests that pin the bug
 - Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L253), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L239)

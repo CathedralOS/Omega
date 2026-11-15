@@ -10,7 +10,7 @@
 //! - `cargo xtask doctor [--json <path>]`
 //! - `cargo xtask claims <status|claim|release|note> [options]`
 //! - `cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>]`
-//! - `cargo xtask worktree <status|acquire|release|clean> [options]`
+//! - `cargo xtask worktree <status|acquire|begin|release|clean> [options]`
 //! - `cargo xtask managed-cache-retention [--repository <dir>]`
 //! - `cargo xtask retire-attached-machines [--write] <path>...`
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
@@ -38,6 +38,7 @@ mod rust_producer_omission;
 mod samples;
 mod source_closure;
 mod sweep;
+mod work_interval;
 mod worktree;
 
 use std::io::{self, Write};
