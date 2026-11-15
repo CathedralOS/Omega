@@ -80,6 +80,13 @@ framework or a list of unimplemented features.
 - Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
 - Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
 
+### Mixed case constructors use different field namespaces in their two validators
+- Category: one idea, several implementations
+- Where: [membership field lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs#L162), [constructor roster validation](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L10155)
+- Saw: The codec checks the ordered common-field plus selected-payload roster for a Mixed case. The membership checker searches only the selected payload when a case is present, so it cannot associate a common initializer with its declared field. Common and payload field IDs belong to separate namespaces; a first-match fallback would not resolve that disagreement.
+- Cost: A constructor admitted by one validator can fail the other. Both should consume the same declaration roster and preserve each field's namespace and exact memberships. This predates the byte-case repair and is not on its current Calling-policy sum path.
+- Reported: 2026-11-15, Codex, while carrying shared-byte contracts through the original Cathedral package and native consumer.
+
 ### Float fixtures stop before target and requirement policy checks
 - Category: tests that pin the bug
 - Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)
@@ -109,10 +116,3 @@ framework or a list of unimplemented features.
 - Cost: Even an empty body batch needs a copy of unrelated typed storage with the current projection owner. Moving the copy into projection leaves the cost. Per-table copy-on-write still copies body arenas that completion appends to, and `Arena` exposes contiguous spans. If repeated nonempty completion proves costly, use the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share immutable declaration and type storage and publish body replacements through stable handles. Preserve exact source authority, refusal behavior, and signature and inferred-summary dependencies.
 - Measured: The two Build routes from the [earlier measurement](wiki/drafts/measurements/selected_body_copies.md) on macOS arm64 at `d66164cd0f5` each selected 75 source files with zero bodies to finish. Activation requested 32,333,303 bytes across 14,553 allocations and cloned 101 arenas. Projection's typed extraction allocated zero bytes. Neither route measures repeated nonempty continuations.
 - Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals; narrowed 2026-11-15, Claude Code, after removing the projection copy
-
-### Mixed case constructors use different field namespaces in their two validators
-- Category: one idea, several implementations
-- Where: [membership field lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs#L162), [constructor roster validation](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L10155)
-- Saw: The codec checks the ordered common-field plus selected-payload roster for a Mixed case. The membership checker searches only the selected payload when a case is present, so it cannot associate a common initializer with its declared field. Common and payload field IDs belong to separate namespaces; a first-match fallback would not resolve that disagreement.
-- Cost: A constructor admitted by one validator can fail the other. Both should consume the same declaration roster and preserve each field's namespace and exact memberships. This predates the byte-case repair and is not on its current Calling-policy sum path.
-- Reported: 2026-11-15, Codex, while carrying shared-byte contracts through the original Cathedral package and native consumer.
