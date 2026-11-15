@@ -1620,20 +1620,34 @@ pub mod trait_definition {
             typed: &'a crate::TypedTrees,
             requirement: symbols::SymbolHandle,
         ) -> Result<&'a crate::machine::Machine, &'static str> {
+            const NO_UNIQUE_REALIZATION: &str =
+                "provider does not give the supplied requirement exactly one machine";
+            // A named implementation's row identifies the realization even
+            // when it selects a machine declared outside the implementation.
+            if let Some((_, row, _)) = typed
+                .named_conformance_member(self.provider, requirement)
+                .map_err(|_| NO_UNIQUE_REALIZATION)?
+            {
+                if row.requirement != requirement {
+                    return Err(NO_UNIQUE_REALIZATION);
+                }
+                return typed
+                    .machine_by_symbol(row.realization_machine)
+                    .ok_or(NO_UNIQUE_REALIZATION);
+            }
+            // Read retired data-owned sources far enough for the normal
+            // declaration check to report the attachment violation.
             let mut realizing = typed.machines().iter().filter(|machine| {
                 crate::provider_declarations::satisfaction_provider_declaration(typed, machine)
                     == Some(self.provider)
-                    && (typed
+                    && typed
                         .machine_trait_conformances(machine)
                         .iter()
                         .any(|clause| clause.requirement_symbol == requirement)
-                        || typed
-                            .owned_conformance_realization(machine.symbol)
-                            .is_some_and(|(_, row)| row.requirement == requirement))
             });
             match (realizing.next(), realizing.next()) {
                 (Some(machine), None) => Ok(machine),
-                _ => Err("provider does not give the supplied requirement exactly one machine"),
+                _ => Err(NO_UNIQUE_REALIZATION),
             }
         }
     }
