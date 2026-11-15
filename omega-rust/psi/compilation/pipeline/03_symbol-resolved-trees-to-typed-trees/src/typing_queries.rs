@@ -387,7 +387,11 @@ fn declared_projection_type(
                                 member.selection.field_symbol(),
                             )?
                         }
-                        ExpressionNode::Indexed(_) => collection_element_type(program, reference)?,
+                        ExpressionNode::Indexed(indexed)
+                            if table.range_node(indexed.index).is_none() =>
+                        {
+                            collection_element_type(program, reference)?
+                        }
                         _ => {
                             return Err(crate::unavailable_judgment("assignment storage selector"));
                         }

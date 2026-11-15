@@ -557,7 +557,6 @@ fn elaborate_witness_call(
                             call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: borrowed.access,
-                                formation: borrowed.access,
                                 place: Box::new(place),
                                 home: borrowed.home.clone(),
                             },

@@ -132,7 +132,6 @@ pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Ex
     of(
         ExpressionKind::Borrow {
             access,
-            formation: access,
             place: Box::new(place),
             home: home.then(|| String::from("u32")),
         },
@@ -1372,11 +1371,14 @@ machine pair_left(left: u32) {{ }}"
     );
     // The exclusive loan overlaps another loan of its storage.
     for call in ["both(&mut pair, &pair)", "both(&pair, &mut pair)"] {
-        assert_eq!(
-            verdict(&program("mut pair", call)),
-            "call exclusive loan for a shared formal beside another loan of its storage while \
-             reading the body of `build_entry`",
-            "{call}"
+        let judged = judge_build(&program("mut pair", call));
+        assert!(
+            matches!(&judged,
+                Ok(RouteVerdict::Rejected { conflicts, .. }) if conflicts.iter().any(|conflict|
+                    conflict.conflict == LoanConflict::ExclusiveAndShared
+                        && conflict.message().contains("conflicting loans"))
+            ),
+            "the actual exclusive formation must conflict: {call}: {judged:?}"
         );
     }
     // The other direction has no row: observation does not become mutation.

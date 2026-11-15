@@ -148,7 +148,7 @@ impl Program<'_> {
         let Some(range) = self.typed.expression_table.range_node(indexed.index) else {
             return Ok(None);
         };
-        let ValueType::Record(view, Qualification::NONE, _) = expected else {
+        let ValueType::Record(mut view, Qualification::NONE, _) = expected else {
             return Ok(None);
         };
         let StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
@@ -174,9 +174,28 @@ impl Program<'_> {
                     "the explicit array view lends only immutable access; a mutable parameter cannot grant writable access to that backing",
                 ));
             }
-            return Err(unavailable(
-                "array view access differs from its explicit borrow",
-            ));
+            // The formation keeps the written access and its actual source
+            // type. A call may lend this descriptor's backing for observation;
+            // the destination never changes the loan being formed here.
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(argument);
+            let Some(ValueType::Record(actual, Qualification::NONE, _)) =
+                self.view_type(machine, reference)?
+            else {
+                return Err(unavailable("array view without its retained source type"));
+            };
+            if self.data_type(machine, actual)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(requested),
+                })
+            {
+                return Err(unavailable(
+                    "array view differs from its written source type",
+                ));
+            }
+            view = actual;
         }
         let mut base = self.expression(machine, slots, indexed.collection, None)?;
         if let Some((referent, _)) = self.reference_referent(
