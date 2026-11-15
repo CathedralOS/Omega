@@ -655,16 +655,9 @@ pub(super) fn reviewed_services(
 pub(super) fn validate_body_effect_inventory(
     module: &TerminalModule,
 ) -> Result<(), Vec<Diagnostic>> {
-    if !module
-        .root_service_reach
-        .installation_dependencies
-        .is_empty()
-        || !module.dynamic_dispatch.interfaces.is_empty()
-        || !module.dynamic_dispatch.tables.is_empty()
+    if !module.dynamic_dispatch.interfaces.is_empty() || !module.dynamic_dispatch.tables.is_empty()
     {
-        return Err(unavailable(
-            "the accepted module's unresolved installation or dynamic effects",
-        ));
+        return Err(unavailable("the accepted module's dynamic effects"));
     }
     if module
         .unoptimized_behavior
