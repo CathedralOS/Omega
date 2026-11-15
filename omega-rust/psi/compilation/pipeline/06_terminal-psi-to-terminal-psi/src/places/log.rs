@@ -549,6 +549,8 @@ impl Storage<'_> {
             }
             // A comparison observes both views and stores nothing.
             OperationKind::ByteSequenceEqual { .. } => self.compared_byte_views(operation)?,
+            // A fence orders observations without replacing any stored value.
+            OperationKind::AtomicFence { .. } => {}
             // The operations that only observe storage.
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }

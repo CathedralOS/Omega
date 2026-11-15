@@ -3208,11 +3208,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
-        ExpressionKind::Atomic {
-            place, operands, ..
-        } => {
-            spans(place, binder, out);
-            for operand in operands {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
                 spans(operand, binder, out);
             }
         }
@@ -3400,11 +3397,8 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
 
 fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
     match &expression.kind {
-        ExpressionKind::Atomic {
-            place, operands, ..
-        } => {
-            expression_slot_uses(place, uses);
-            for operand in operands {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
                 expression_slot_uses(operand, uses);
             }
         }

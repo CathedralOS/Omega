@@ -93,11 +93,8 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             "a suspend-marked call must be a complete statement, simple let initializer, transition subject or terminal expression".to_owned()));
     }
     match &value.kind {
-        ExpressionKind::Atomic {
-            place, operands, ..
-        } => {
-            expression(machine, place)?;
-            for operand in operands {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
                 expression(machine, operand)?;
             }
         }
