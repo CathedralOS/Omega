@@ -237,6 +237,86 @@ impl Fixture {
 }
 
 #[test]
+fn a_runnable_product_batch_requires_a_named_implementation() {
+    let pass = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/pass/build/product_declaration_batch/main.omg"
+    ));
+    let fail = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/fail/build/product_declaration_batch/main.omg"
+    ));
+    let expected = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/fail/build/product_declaration_batch/expected.txt"
+    ))
+    .trim();
+    assert_eq!(
+        pass, fail,
+        "only the selected provider changes in the Build twin"
+    );
+    for (program, provider) in [(pass, "SelectedLookup"), (fail, "UnrelatedLookup")] {
+        // The harness supplies completed Build events. The kept Build files
+        // bind the same declarations for all four hosted targets in CLI runs.
+        let build = format!(
+            "machine build(builder: &mut Build) {{ Build::select_provider<LookupService, {provider}>(builder, linux_x86_64); }}"
+        );
+        let fixture = Fixture::new(&build, program, None);
+        let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
+        let selected = fixture.collect(&events);
+        if provider == "SelectedLookup" {
+            assert_eq!(selected.unwrap().len(), 1);
+        } else {
+            assert_eq!(selected.unwrap_err()[0].message, expected);
+        }
+    }
+}
+
+#[test]
+fn a_provider_batch_keeps_the_source_of_applied_type_arguments() {
+    use typed_trees::product_operand::{ProductApplicationDemand, ProductSourceLookups};
+
+    // The selected trait and implementation must apply to the same exact data
+    // type, even when both data declarations have the same empty storage.
+    let product = "public data Tag {} public data Other {}\n\
+        public boundary trait Service<T> { machine tick() reaches none crashes none; }\n\
+        public First<T> satisfies Service<T> { machine tick() reaches none crashes none {} }";
+    for actual in ["Tag", "Other"] {
+        let build = format!(
+            "machine build(builder: &mut Build) {{ Build::select_provider<Service<Tag>, First<{actual}>>(builder, linux_x86_64); }}"
+        );
+        let mut fixture = Fixture::new(&build, product, None);
+        let source = fixture.typed.clone();
+        let lookups = ProductSourceLookups::new(&source);
+        for (request, author) in fixture.declared.iter().zip(&fixture.authors) {
+            for (position, operand) in request.operands.iter().enumerate() {
+                typed_trees_to_typed_trees::prepare_product_operand_application(
+                    &mut fixture.typed,
+                    &lookups,
+                    operand,
+                    request.operation.product_operand_role(position).unwrap(),
+                    *author,
+                    None,
+                    ProductApplicationDemand::FormationOnly,
+                )
+                .unwrap();
+            }
+        }
+        let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
+        let selected = fixture.collect(&events);
+        if actual == "Tag" {
+            assert_eq!(selected.unwrap().len(), 1);
+        } else {
+            assert!(
+                selected.unwrap_err()[0]
+                    .message
+                    .contains("does not satisfy the selected application")
+            );
+        }
+    }
+}
+
+#[test]
 fn a_service_audit_needs_an_event_from_its_exact_author() {
     let fixture = Fixture::for_operation(
         r#"
