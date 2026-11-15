@@ -506,6 +506,22 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
     )
     .expect("recover the same complete normalized policy result");
     assert_eq!(retained, normalized);
+    let mut foreign_region = normalized.clone();
+    foreign_region.readers[0].0 = typed_trees::reflection::SchemaNodeHandle::INVALID;
+    let encoded =
+        compiler_storage::encode(&foreign_region, compiler_storage::RecordLimits::default())
+            .expect("stage the same result with a foreign region handle");
+    let error = compiler_storage::decode::<access_plans::AccessPlan>(
+        &encoded,
+        compiler_storage::RecordLimits::default(),
+    )
+    .expect_err("a restored result cannot name a region outside its schema");
+    assert!(
+        error
+            .to_string()
+            .contains("exact semantic subject or field"),
+        "{error}"
+    );
     let issuers = normalized.issuance.as_ref().expect("explicit Only choice");
     assert_eq!(issuers.len(), 2);
     assert_eq!(

@@ -7,7 +7,7 @@ use layout_plans::LayoutPlanReport;
 
 /// Rules describe who may use a value. Layout and storage are checked
 /// separately; these descriptions alone grant no access permission.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccessPlan {
     pub schema: language_semantics::reflection::SemanticSchemaGraph,
     /// None adds no restriction; Some(empty) explicitly admits nobody.
@@ -33,6 +33,37 @@ pub struct AccessPlan {
         )>,
     )>,
     pub reach: BoundaryReach,
+}
+
+// A restored compiler snapshot crosses a byte-input boundary. Reapply the
+// existing normalization rules before any consumer relies on region handles
+// or sorted rows; this does not authenticate a caller or supply backing.
+impl compiler_storage::Record for AccessPlan {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.schema, output)?;
+        compiler_storage::Record::write(&self.issuance, output)?;
+        compiler_storage::Record::write(&self.readers, output)?;
+        compiler_storage::Record::write(&self.writers, output)?;
+        compiler_storage::Record::write(&self.observations, output)?;
+        compiler_storage::Record::write(&self.reach, output)
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let plan = Self {
+            schema: compiler_storage::Record::read(input)?,
+            issuance: compiler_storage::Record::read(input)?,
+            readers: compiler_storage::Record::read(input)?,
+            writers: compiler_storage::Record::read(input)?,
+            observations: compiler_storage::Record::read(input)?,
+            reach: compiler_storage::Record::read(input)?,
+        };
+        normalize_access_plan(plan).map_err(|reason| input.error(reason.to_string()))
+    }
 }
 
 /// Canonicalize descriptive policy data before it is joined to an actual
