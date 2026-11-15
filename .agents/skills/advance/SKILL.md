@@ -51,6 +51,10 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    shrinking to its witness. At initial dispatch, `--path`
    can name the witness/board paths or subsystem directory from the recorded
    diagnostic; workers refine paths if needed after tracing.
+   A claim lasts two hours from when it was taken or last renewed. Run
+   `cargo xtask claims renew` from the worktree after each push (it renews
+   every claim that worktree took; `claims note` also renews). A lapsed claim
+   cannot be renewed: claim again. Release it when the work lands.
 
 ## Step 2: Reproduce & Trace Before Editing (Worker-Owned Under Swarm)
 
