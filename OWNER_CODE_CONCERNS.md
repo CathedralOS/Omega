@@ -73,13 +73,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### A runtime selector makes an initialized affine array look incomplete
-- Category: branch per shape
-- Where: [affine receiving-region check](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L2407)
-- Saw: On macOS arm64 at `12ee91e4303`, an owned local array starts with two initialized records whose `identifier` fields hold shared byte views. With `let index: u64 = 1;`, the assignment `settings[index].identifier = "omega";` refuses at the field with “runtime-indexed replacement in an incomplete affine array”. The source moves no element. The literal-index twin runs native and Psi to exit 0 with both the original sibling and replacement length checks.
-- Cost: A local store with a proved selector cannot obtain the same receiving region as the literal store. Reproduce with the [existing intact-array rule](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/calling_policies.rs#L690) and keep the genuinely incomplete array refused when a move can leave a hole at the selected position.
-- Reported: 2026-11-15, Codex, while tracing descriptor writeback through a borrowed array.
-
 ### The bounded concat probe describes an operation its source no longer uses
 - Category: the documents disagree
 - Where: [probe guide](samples/cli/probes/bounded_concat/README.md#L5), [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [fixed-array rule](wiki/spec/language/domains.md#domains-and-qualification)

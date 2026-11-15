@@ -325,6 +325,29 @@ struct Analysis<'a> {
     reference_ends: Vec<ReferenceEnd>,
 }
 
+/// The inline array whose established contents a retained runtime selector
+/// needs. It covers any element the operation could select, so it grants no
+/// exact extraction or vacant initialization.
+pub(crate) fn runtime_array_region(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<Segment>> {
+    let indexed = path
+        .iter()
+        .position(|segment| segment.runtime_index().is_some())?;
+    let (array, indexed_type) =
+        crate::canonical_static_projection(types.iter(), root, &path[..indexed])?;
+    // An element view's elements are outside the storage that holds the
+    // view. Only a fixed inline array's region covers its elements.
+    (matches!(indexed_type.shape, StructuralTypeShape::FixedArray { .. })
+        && matches!(
+            crate::runtime_read_projection_tip(types.iter(), root, path),
+            Some(crate::Position::Declared(_) | crate::Position::ScalarField(_))
+        ))
+    .then_some(array)
+}
+
 fn index(raw: u64) -> Result<usize, Error> {
     usize::try_from(raw)
         .ok()
@@ -2750,35 +2773,8 @@ impl Analysis<'_> {
             }
             return Ok((descriptor, false));
         }
-        let Some(indexed) = path
-            .iter()
-            .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
-        else {
-            return Err(outside);
-        };
-        let Some((array, indexed_type)) = crate::canonical_static_projection(
-            self.types.iter(),
-            declaration.structural_type,
-            &path[..indexed],
-        ) else {
-            return Err(outside);
-        };
-        // An element view's elements lie outside the storage that holds the
-        // view, so only an inline array's region covers its elements. The
-        // rest of the path must still be a projection the types declare.
-        if !matches!(
-            indexed_type.shape,
-            terminal_psi::StructuralTypeShape::FixedArray { .. }
-        ) || !matches!(
-            crate::runtime_read_projection_tip(
-                self.types.iter(),
-                declaration.structural_type,
-                path,
-            ),
-            Some(crate::Position::Declared(_) | crate::Position::ScalarField(_))
-        ) {
-            return Err(outside);
-        }
+        let array =
+            runtime_array_region(self.types, declaration.structural_type, path).ok_or(outside)?;
         Ok((array, false))
     }
 
