@@ -1076,6 +1076,8 @@ pub(crate) mod control_flow {
             cases: &[TargetControlCaseSuccessor],
             expected_source: PlaceId,
             expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
+            indices: &[target_operations::TargetStructuralRuntimeIndex],
+            scalar_sources: &sources::AvailableSources<'_>,
         ) -> bool {
             let available = match source {
                 TargetStructuralCaseSource::Home(home) => {
@@ -1121,7 +1123,7 @@ pub(crate) mod control_flow {
             if !available {
                 return false;
             }
-            let Ok((selected, expected_offset, _, expected_layout)) = dispatch_projection(
+            let Ok((selected, expected_offset, _, expected_layout, elements)) = dispatch_projection(
                 optimized,
                 expected_source,
                 path,
@@ -1131,7 +1133,10 @@ pub(crate) mod control_flow {
             ) else {
                 return false;
             };
-            if expected_offset != byte_offset || expected_layout != *layout {
+            if expected_offset != byte_offset
+                || expected_layout != *layout
+                || !super::super::unit::runtime_indices_rejoin(indices, &elements, scalar_sources)
+            {
                 return false;
             }
             let Some(declaration) =
@@ -1709,7 +1714,9 @@ pub(crate) mod control_flow {
                 }
                 (
                     TargetControlTerminator::StructuralCase {
+                        psi_block,
                         source,
+                        indices,
                         path,
                         byte_offset,
                         layout,
@@ -1718,12 +1725,13 @@ pub(crate) mod control_flow {
                         region_byte_size,
                     },
                     AbstractOperation::StructuralCase {
+                        psi_block: expected_block,
                         source: expected_source,
                         path: expected_path,
                         cases: expected_cases,
                     },
                 ) => {
-                    path == expected_path
+                    psi_block == expected_block && path == expected_path
                         && structural_cases::matches(
                             graph,
                             optimized,
@@ -1738,6 +1746,8 @@ pub(crate) mod control_flow {
                             cases,
                             *expected_source,
                             expected_cases,
+                            indices,
+                            &available,
                         )
                 }
                 (

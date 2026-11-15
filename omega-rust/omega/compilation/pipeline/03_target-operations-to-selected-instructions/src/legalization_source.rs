@@ -2729,6 +2729,7 @@ pub(crate) mod scalar_graph {
             targeted: &target_operations::TargetControlTerminator,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let AbstractOperation::StructuralCase {
+                psi_block,
                 source,
                 path,
                 cases,
@@ -2737,6 +2738,8 @@ pub(crate) mod scalar_graph {
                 return Err(Error::custody());
             };
             let target_operations::TargetControlTerminator::StructuralCase {
+                psi_block: stored_block,
+                indices: stored_indices,
                 source: stored_source,
                 path: stored_path,
                 byte_offset,
@@ -2748,13 +2751,12 @@ pub(crate) mod scalar_graph {
             else {
                 return Err(Error::custody());
             };
-            if stored_source.place() != *source || stored_path != path {
+            if stored_block != psi_block || stored_source.place() != *source || stored_path != path
+            {
                 return Err(Error::custody());
             }
             let byte_offset = *byte_offset;
-            if pointer_slots
-                .iter()
-                .any(|slot| slot.scalar_descriptor || slot.index_start != slot.index_end)
+            if pointer_slots.iter().any(|slot| slot.scalar_descriptor)
                 || byte_offset
                     .checked_add(layout.shape.byte_size)
                     .is_none_or(|end| end > *region_byte_size)
@@ -2762,6 +2764,12 @@ pub(crate) mod scalar_graph {
                 return Err(Error::custody());
             }
             let root_shape = stored_source.layout().shape();
+            let indices = crate::legalization::runtime_indices::retained_operands(
+                &unit.accepted_obligation_facts,
+                function.machine,
+                terminal_psi::ExecutionSite::Block(*psi_block),
+                stored_indices,
+            )?;
             let layout = layout.clone();
             let source = scalar_graph_input::structural_case::case_source(function, *source)?;
             if cases.len() != node.successors.len()
@@ -2830,6 +2838,8 @@ pub(crate) mod scalar_graph {
                 });
             }
             Ok(LegalizedScalarTerminator::StructuralCase {
+                psi_block: *psi_block,
+                indices,
                 source,
                 path: path.clone(),
                 root_shape,

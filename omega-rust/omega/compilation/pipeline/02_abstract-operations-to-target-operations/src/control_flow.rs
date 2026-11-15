@@ -1022,6 +1022,7 @@ mod structural_case {
         provenance: &mut TerminalPsiProvenance,
     ) -> Result<TargetControlTerminator, LoweringError> {
         let AbstractOperation::StructuralCase {
+            psi_block,
             source,
             path,
             cases,
@@ -1036,18 +1037,25 @@ mod structural_case {
             || regions
                 .pointer_slots
                 .iter()
-                .any(|slot| slot.scalar_descriptor || !slot.indices.is_empty())
+                .any(|slot| slot.scalar_descriptor)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let pointer_slots = prepared_pointer_slots(&regions.pointer_slots)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        let (selected_type, _, byte_offset) =
-            crate::structural_layout::resolve_structural_projection_path(
+        let (selected_type, _, byte_offset, leaf_indices) =
+            crate::structural_layout::runtime_projection(
                 regions.root,
                 regions.path,
                 structural_types,
             )?;
+        let region_root = regions.root;
+        let indices = super::scalar_sources::runtime_indices(
+            regions.selector_runs(leaf_indices),
+            function,
+            &super::scalar_sources::ScalarSources::from(&*live),
+            structural_types,
+        )?;
         let declaration = structural_types
             .get(selected_type)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
@@ -1068,10 +1076,10 @@ mod structural_case {
         // or a sum stored in a larger record addresses the outer region,
         // and the target row has to carry that size: selection no longer
         // walks the type to recover it.
-        let region_byte_size = if pointer_slots.is_empty() && regions.root == selected_type {
+        let region_byte_size = if pointer_slots.is_empty() && region_root == selected_type {
             layout.shape.byte_size
         } else {
-            crate::structural_layout::structural_shape(regions.root, structural_types)?.byte_size
+            crate::structural_layout::structural_shape(region_root, structural_types)?.byte_size
         };
         if byte_offset
             .checked_add(layout.shape.byte_size)
@@ -1171,8 +1179,10 @@ mod structural_case {
             .edges
             .extend(cases.iter().map(|case| case.psi_edge));
         Ok(TargetControlTerminator::StructuralCase {
+            psi_block: *psi_block,
             source: home,
             path: path.clone(),
+            indices,
             byte_offset,
             layout,
             pointer_slots,

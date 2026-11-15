@@ -2446,6 +2446,7 @@ fn adapt(
                 source,
                 path,
                 cases,
+                ..
             } = operation
             {
                 let subject = location(*source, path, None)?;

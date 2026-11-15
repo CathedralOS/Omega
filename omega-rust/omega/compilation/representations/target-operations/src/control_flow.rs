@@ -135,8 +135,11 @@ pub enum TargetControlTerminator {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     StructuralCase {
+        /// Original checked terminator, independent of this graph's current block.
+        psi_block: BlockId,
         source: TargetStructuralCaseSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
         /// Pointer words crossed to reach the sum, in chase order.

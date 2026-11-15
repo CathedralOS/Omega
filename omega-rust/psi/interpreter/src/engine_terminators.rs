@@ -2272,6 +2272,22 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched settle_structural_case")
         };
+        // Resolve each selector once at the common read, before a case chooses
+        // an edge. Use the same checked runtime projection as ordinary reads;
+        // the retained terminator and its obligation coordinates stay unchanged.
+        let mut selected_path;
+        let path = if path.iter().any(|segment| segment.runtime_index().is_some()) {
+            selected_path = path.clone();
+            self.select_runtime_projection(
+                *source,
+                self.live_structural_type(*source)?,
+                path,
+                &mut selected_path,
+            )?;
+            selected_path.as_slice()
+        } else {
+            path.as_slice()
+        };
         for (position, segment) in path.iter().enumerate() {
             if let StructuralPathSegment::Case(case) = segment
                 && self.observe_structural_case(*source, &path[..position])? != *case
