@@ -2,7 +2,7 @@
 // Place: match_join.
 // Expected exit: 0
 data Tally { total: u64; }
-data Mark dropped by drop_mark { slot: &mut Tally; code: u64; }
+data Mark<'view> dropped by drop_mark { slot: &'view mut Tally; code: u64; }
 machine drop_mark(mark: &mut Mark) requires mark.code == 7 {
     mark.slot.total = mark.code;
 }

@@ -36,16 +36,16 @@ public data DecodeResult<T> {
 // unforgeable; public structural data has the visibility semantics described
 // in guide chapter 15. A zero-copy preserving decoder ties the view's loan to
 // its input, while an owned-copy package may use an owned remainder carrier.
-public data OpaqueWireRemainder {
+public data OpaqueWireRemainder<'bytes> {
     codec_identity: u64;
-    bytes_and_ordering: &[u8];
+    bytes_and_ordering: &'bytes [u8];
 }
 
 // The ordinary preserving package carrier. Code may inspect or update the
 // validated known value without assigning semantic meaning to the remainder.
-public data Relayed<T> {
+public data Relayed<'bytes, T> {
     value: T;
-    remainder: OpaqueWireRemainder;
+    remainder: OpaqueWireRemainder<'bytes>;
 }
 
 // Encode through a validated policy plan. Dynamic carriers retain their
@@ -71,7 +71,7 @@ public trait ProjectingDecode<Policy, Value> {
 // Validate all known members and retain unknown bytes/order information for a
 // later faithful relay through the same codec realization.
 public trait PreservingDecode<Policy, Value> {
-    machine decode_preserving(bytes: &[u8]) -> DecodeResult<Relayed<Value>>;
+    machine decode_preserving<'bytes>(bytes: &'bytes [u8]) -> DecodeResult<Relayed<'bytes, Value>>;
 }
 
 // Source-owned adapters may report a verdict alongside their output slots.
@@ -178,9 +178,9 @@ public data EncodedField [copy] {
     end: u64;
 }
 
-public data EncodeContext {
-    storage: &mut [u8];
-    fields: &mut [EncodedField];
+public data EncodeContext<'storage, 'fields> {
+    storage: &'storage mut [u8];
+    fields: &'fields mut [EncodedField];
     used: u64;
     count: u64;
     valid: bool;
@@ -549,8 +549,8 @@ public data ScalarSlot [copy] {
     signed: i64;
     unsigned: u64;
 }
-public data ScalarPlanContext {
-    slots: &mut [ScalarSlot];
+public data ScalarPlanContext<'slots> {
+    slots: &'slots mut [ScalarSlot];
     count: u64;
     valid: bool;
 }

@@ -5,7 +5,7 @@
 // replacement.
 const CHOSEN: u64 = 1;
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };

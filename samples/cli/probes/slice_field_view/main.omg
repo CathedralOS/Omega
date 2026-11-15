@@ -15,7 +15,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-data Sample { readings: &[i32]; }
+data Sample<'view> { readings: &'view [i32]; }
 data Counts { tally: u64; }
 
 machine Counts::clone(source: &Counts) -> Counts {

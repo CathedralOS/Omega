@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 
-data Holder {
-    view: &[u64];
+data Holder<'view> {
+    view: &'view [u64];
 }
 
 machine read_guarded(view: &[u64]) -> i32

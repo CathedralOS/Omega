@@ -4,7 +4,7 @@
 // Place: call result. Another call forwards the write-only slot.
 // Expected exit: 0
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine forward(slot: &write Held) -> &write Held { &write slot }
 machine main() crashes Trap {

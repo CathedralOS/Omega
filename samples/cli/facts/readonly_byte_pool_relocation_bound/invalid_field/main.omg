@@ -1,8 +1,8 @@
 // Fact: a read-only byte-pool slice literal ("omega") establishes a static 5-byte length bound (bytes.len >= 5u64 && bytes.len <= 5u64), proving safe indexed byte projection bytes[4u64] and exact length subtraction bytes.len - 5u64 across all nine places.
 // Place: field (invalid twin).
 
-data Held {
-    bytes: &[u8];
+data Held<'view> {
+    bytes: &'view [u8];
 }
 
 machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap

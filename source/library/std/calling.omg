@@ -273,14 +273,14 @@ public data BoundaryEntryPlan {
     state: StatePlan;
 }
 
-public data CallingPolicyRejection {
+public data CallingPolicyRejection<'reason> {
     // Rejections borrow their diagnostic literal; qualification adds no storage.
-    reason: &[u8] in Utf8;
+    reason: &'reason [u8] in Utf8;
 }
 
-public data BoundaryPlanResult {
+public data BoundaryPlanResult<'reason> {
     case Accepted(plan: BoundaryEntryPlan);
-    case Rejected(reason: CallingPolicyRejection);
+    case Rejected(reason: CallingPolicyRejection<'reason>);
 }
 
 public trait CallingPolicy {
