@@ -5110,8 +5110,12 @@ mod declaration_invocations {
             Ok(Some((
                 machine.symbol,
                 StateSignature {
-                    symbol: state.symbol,
-                    name: state.name.clone(),
+                    // The machine authored the contracts and effect rows;
+                    // its generated entry supplies only the runtime telescope.
+                    // Keeping the entry as owner loses the machine's written
+                    // reach (and mis-scopes reserved result/region bindings).
+                    symbol: machine.symbol,
+                    name: machine.name.clone(),
                     spelling: machine.spelling,
                     lifetime_parameters: machine.lifetime_parameters.clone(),
                     type_parameters: machine.type_parameters,
