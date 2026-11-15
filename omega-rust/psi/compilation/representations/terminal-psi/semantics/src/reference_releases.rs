@@ -19,7 +19,7 @@ use crate::descriptor_lifetimes::{
     descriptor_location_type, descriptor_path,
 };
 use crate::descriptor_results::{
-    DescriptorAnalysis, DescriptorSlotKind, terminal_reference_graph_from,
+    DescriptorAnalysis, DescriptorSlotKind, terminal_borrowed_storage_graph_from,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -977,11 +977,17 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
     {
         return Ok(Vec::new());
     }
-    let graph = terminal_reference_graph_from(module, [identity]).map_err(|_| Error {
-        at: None,
-        detail: "reference release graph is incomplete",
-    })?;
-    let mut analysis = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
+    // A reference result can obtain its backing through a view inside the
+    // callee. Authenticate that complete body correspondence with the same
+    // borrowed-storage graph used by receiving analysis; a references-only
+    // graph drops those intermediate origins before checking the header.
+    let graph =
+        terminal_borrowed_storage_graph_from(module, [identity], &[]).map_err(|_| Error {
+            at: None,
+            detail: "reference release graph is incomplete",
+        })?;
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
     let mut flow = analysis.flow(identity).ok_or(Error {
         at: None,
         detail: "reference release flow is unresolved",
