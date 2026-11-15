@@ -655,6 +655,7 @@ fn validate_and_collect_returns(
                 row.control,
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
                     | FunctionFragmentControlProvenance::OperationTrap { .. }
+                    | FunctionFragmentControlProvenance::EliminateEmpty { .. }
                     | FunctionFragmentControlProvenance::Crash { .. }
                     | FunctionFragmentControlProvenance::InternalCall {
                         owner: target_operations::CallSiteOwner::InvokeNoNormal(_),
@@ -1288,6 +1289,7 @@ fn validate_function(
                 source_row.control,
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
                     | FunctionFragmentControlProvenance::OperationTrap { .. }
+                    | FunctionFragmentControlProvenance::EliminateEmpty { .. }
                     | FunctionFragmentControlProvenance::Crash { .. }
                     | FunctionFragmentControlProvenance::InternalCall {
                         owner: target_operations::CallSiteOwner::InvokeNoNormal(_),

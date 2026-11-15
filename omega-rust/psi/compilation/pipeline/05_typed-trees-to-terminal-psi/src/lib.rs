@@ -1094,6 +1094,7 @@ fn lower_generic_for<'source>(
                 }
                 Terminator::Crash { .. }
                 | Terminator::InvokeNoNormal { .. }
+                | Terminator::EliminateEmpty { .. }
                 | Terminator::ExternalCompletion { .. } => {}
             }
         }

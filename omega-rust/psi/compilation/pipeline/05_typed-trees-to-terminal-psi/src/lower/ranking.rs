@@ -86,6 +86,7 @@ fn successors(block: &terminal_psi::Block) -> Vec<(EdgeId, BlockId, &[ValueId])>
             .collect(),
         Terminator::InvokeNoNormal { .. }
         | Terminator::ExternalCompletion { .. }
+        | Terminator::EliminateEmpty { .. }
         | Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
         | Terminator::ReturnStructural { .. }

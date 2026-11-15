@@ -14154,7 +14154,7 @@ pub mod descriptor_results {
                         step.may_escape = true;
                         graph.normal_exits.push(position);
                     }
-                    Terminator::Crash { .. } => {}
+                    Terminator::Crash { .. } | Terminator::EliminateEmpty { .. } => {}
                     Terminator::ExternalCompletion {
                         structural_arguments,
                         ..

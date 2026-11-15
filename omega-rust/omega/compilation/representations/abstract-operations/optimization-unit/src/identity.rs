@@ -3057,6 +3057,7 @@ pub(crate) mod operation_encoding {
             | O::ReturnStructural { .. }
             | O::InvokeNoNormal { .. }
             | O::ExternalCompletion { .. }
+            | O::EliminateEmpty { .. }
             | O::Crash { .. } => control::encode(bytes, operation),
         }
     }
@@ -3676,6 +3677,16 @@ pub(crate) mod operation_encoding {
                     bytes.slice(structural_arguments, encode_structural_argument);
                     encode_ids(bytes, requirement_obligations);
                     encode_ids(bytes, frontier_lower_bound);
+                }
+                O::EliminateEmpty {
+                    psi_edge,
+                    source,
+                    path,
+                } => {
+                    bytes.u8(240);
+                    bytes.id(*psi_edge);
+                    bytes.id(*source);
+                    bytes.slice(path, encode_structural_path_segment);
                 }
                 O::Crash {
                     psi_edge,

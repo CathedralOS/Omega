@@ -1651,7 +1651,8 @@ pub(crate) mod place_observations {
             | O::ByteSequenceRead { source, .. }
             | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
             | O::StructuralScalarFieldRead { source, .. }
-            | O::StructuralCase { source, .. } => {
+            | O::StructuralCase { source, .. }
+            | O::EliminateEmpty { source, .. } => {
                 references.insert(*source);
             }
             O::ByteSequenceLength { source, .. }
@@ -2504,6 +2505,7 @@ pub(crate) mod relocation_rewrites {
                     } if result.place == picked => member,
                     O::EstablishTrivialAffineLocal { place, .. } if place.id == picked => member,
                     O::StructuralCase { source, .. }
+                    | O::EliminateEmpty { source, .. }
                     | abstract_operations::scalar_storage_observation_pattern!(source, ..)
                     | O::ByteSequenceRead { source, .. }
                     | O::StructuralByteSequenceFieldLength { source, .. }
@@ -3048,6 +3050,7 @@ pub(crate) mod scalar_case_frontiers {
                 match &node.operation {
                     abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                     | O::ReturnStructural { psi_edge, .. }
+                    | O::EliminateEmpty { psi_edge, .. }
                     | O::Crash { psi_edge, .. } => {
                         edge_rows.insert(*psi_edge, (block.id, *psi_edge, false));
                         sites.push(OwnershipFrontierSite::EdgeEntry(*psi_edge));

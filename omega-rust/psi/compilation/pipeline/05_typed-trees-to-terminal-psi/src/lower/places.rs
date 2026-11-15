@@ -2422,6 +2422,7 @@ impl<'a> Lowering<'a> {
             payloads.push(payload_fields);
         }
         let mut rest: Option<(BlockId, Chosen)> = None;
+        let mut excluded = Vec::new();
         let mut edges = Vec::with_capacity(data.cases().len());
         for (position, case) in data.cases().iter().enumerate() {
             let (target, payload_fields) = match arms.iter().position(|arm| *arm == position) {
@@ -2443,6 +2444,19 @@ impl<'a> Lowering<'a> {
                             block
                         }
                     };
+                    (block, Vec::new())
+                }
+                None if self.records.inhabitation.case_status(at.record, position)
+                    == terminal_semantics::inhabitation::Status::ProvedEmpty =>
+                {
+                    // The complete case roster remains executable control.
+                    // Its impossible alternative observes the real payload
+                    // namespace; it neither fabricates a value nor acquires
+                    // ownership of a payload reached through a loan.
+                    let block = self.block(source);
+                    let mut payload = path.clone();
+                    payload.push(StructuralPathSegment::Case(case.id));
+                    excluded.push((block, payload));
                     (block, Vec::new())
                 }
                 None => {
@@ -2477,6 +2491,15 @@ impl<'a> Lowering<'a> {
             path,
             cases: edges,
         })?;
+        for (block, path) in excluded {
+            self.enter(block);
+            let edge = self.edge(Destination::NoNormal, source)?;
+            self.terminate(Terminator::EliminateEmpty {
+                edge,
+                source: at.root,
+                path,
+            })?;
+        }
         Ok(Reached::Value((blocks, rest)))
     }
 

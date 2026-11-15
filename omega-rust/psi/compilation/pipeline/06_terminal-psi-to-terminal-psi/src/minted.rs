@@ -243,6 +243,7 @@ fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
         | Terminator::ReturnStructural { edge, .. } => vec![(*edge, Destination::Return)],
         Terminator::InvokeNoNormal { edge, .. }
         | Terminator::ExternalCompletion { edge, .. }
+        | Terminator::EliminateEmpty { edge, .. }
         | Terminator::Crash { edge, .. } => vec![(*edge, Destination::NoNormal)],
     }
 }

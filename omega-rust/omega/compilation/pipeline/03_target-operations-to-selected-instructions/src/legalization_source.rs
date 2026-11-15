@@ -2902,6 +2902,27 @@ pub(crate) mod scalar_graph {
                         ownership: node.ownership.clone(),
                     })
                 }
+                AbstractOperation::EliminateEmpty {
+                    psi_edge,
+                    source,
+                    path,
+                } => {
+                    if !matches!(targeted,
+                        target_operations::TargetControlTerminator::EliminateEmpty {
+                            psi_edge: target_edge, source: target_source, path: target_path
+                        } if target_edge == psi_edge && target_source == source && target_path == path)
+                    {
+                        return Err(Error::custody());
+                    }
+                    Ok(LegalizedScalarTerminator::EliminateEmpty {
+                        psi_edge: *psi_edge,
+                        source: *source,
+                        path: path.clone(),
+                        work: node.work.clone(),
+                        effect: node.effect,
+                        ownership: node.ownership.clone(),
+                    })
+                }
                 AbstractOperation::Crash {
                     psi_edge,
                     cause,

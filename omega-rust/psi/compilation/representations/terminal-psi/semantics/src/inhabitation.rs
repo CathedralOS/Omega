@@ -6,7 +6,10 @@
 //! propagates each exclusion once, including through cycles with a real false seed.
 
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, StructuralTypeId, ValueId};
-use terminal_psi::{StructuralFieldDeclaration, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
+};
 
 /// A borrowed view of one completed type family. Rows have strictly increasing
 /// actual IDs; appending rows must not change an already prepared contract.
@@ -27,6 +30,18 @@ pub trait TypeContracts {
     /// must never become a vacuous proof of emptiness.
     fn cases(&self, index: usize) -> Option<usize>;
     fn visit_owned_fields(&self, index: usize, visit: impl FnMut(Option<usize>, StructuralTypeId));
+}
+
+/// The actual stored value observed by an empty-domain terminal. A final
+/// `Case` selects a payload namespace, so availability and read footprints
+/// observe its containing sum; all earlier projections remain exact. The full
+/// semantic path still names the selected namespace for emptiness and case
+/// evidence. This projection alone grants neither case selection nor emptiness.
+pub fn observed_storage_path(path: &[StructuralPathSegment]) -> &[StructuralPathSegment] {
+    match path.split_last() {
+        Some((StructuralPathSegment::Case(_), carrier)) => carrier,
+        _ => path,
+    }
 }
 
 /// Whether actual retained clauses exclude every value by Boolean constants
@@ -304,6 +319,134 @@ impl Inhabitation {
         }
     }
 
+    /// A case position belongs to one prepared type, not to a global case
+    /// namespace. Validate it before using even an empty owner's contract.
+    pub fn case_status(&self, owner: StructuralTypeId, case: usize) -> Status {
+        let Some(index) = self.ids.binary_search(&owner).ok() else {
+            return Status::Unknown;
+        };
+        let row = &self.types[index];
+        let end = self
+            .types
+            .get(index + 1)
+            .map_or(self.cases.len(), |next| next.first_case);
+        if row.cases_left.is_none() || case >= end - row.first_case {
+            return Status::Unknown;
+        }
+        if row.empty || self.cases[row.first_case + case].empty {
+            Status::ProvedEmpty
+        } else {
+            Status::Unknown
+        }
+    }
+
+    /// Positive declared-domain emptiness at one exact observation path.
+    /// Source availability, active-case evidence and loans are separate
+    /// judgments. A final case denotes its payload namespace, not a value
+    /// fabricated in a new home. No unknown or malformed path proves empty.
+    ///
+    /// The borrowed catalog is prepared once with this query. Each step uses
+    /// its binary declaration lookup; no per-observation arena scan occurs.
+    /// Static fields, cases, fixed indices and readable referents are served;
+    /// ranges, representation views and dynamic selectors remain unknown.
+    pub fn declared_path_status(
+        &self,
+        contracts: &TerminalContracts<'_>,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Status {
+        let Some(mut declaration) = contracts.declaration(root) else {
+            return Status::Unknown;
+        };
+        let mut payload = None;
+        for segment in path {
+            match segment {
+                StructuralPathSegment::Case(case_id) if payload.is_none() => {
+                    let (StructuralTypeShape::Sum { cases }
+                    | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
+                    else {
+                        return Status::Unknown;
+                    };
+                    let mut matching = cases
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, case)| case.id == *case_id);
+                    let Some((position, case)) = matching.next() else {
+                        return Status::Unknown;
+                    };
+                    if matching.next().is_some() {
+                        return Status::Unknown;
+                    }
+                    payload = Some((position, case));
+                }
+                StructuralPathSegment::Field(identity) => {
+                    if identity.is_absent() {
+                        return Status::Unknown;
+                    }
+                    let fields = match payload.take() {
+                        Some((_, case)) => &case.fields,
+                        None => match &declaration.shape {
+                            StructuralTypeShape::Record { fields, .. }
+                            | StructuralTypeShape::Mixed { fields, .. } => fields,
+                            _ => return Status::Unknown,
+                        },
+                    };
+                    let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                    let Some(field) = matching.next() else {
+                        return Status::Unknown;
+                    };
+                    if matching.next().is_some() || field.relevance.is_erased() {
+                        return Status::Unknown;
+                    }
+                    let Some(child) = field
+                        .field_type
+                        .as_structural()
+                        .and_then(|id| contracts.declaration(id))
+                    else {
+                        return Status::Unknown;
+                    };
+                    declaration = child;
+                }
+                StructuralPathSegment::FixedIndex(index) if payload.is_none() => {
+                    let StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } = declaration.shape
+                    else {
+                        return Status::Unknown;
+                    };
+                    if *index >= length {
+                        return Status::Unknown;
+                    }
+                    let Some(child) = contracts.declaration(element) else {
+                        return Status::Unknown;
+                    };
+                    declaration = child;
+                }
+                StructuralPathSegment::Referent if payload.is_none() => {
+                    let StructuralTypeShape::Reference {
+                        referent, access, ..
+                    } = declaration.shape
+                    else {
+                        return Status::Unknown;
+                    };
+                    if access == StructuralAccess::WriteOnlyBorrow {
+                        return Status::Unknown;
+                    }
+                    let Some(child) = contracts.declaration(referent) else {
+                        return Status::Unknown;
+                    };
+                    declaration = child;
+                }
+                _ => return Status::Unknown,
+            }
+        }
+        match payload {
+            Some((position, _)) => self.case_status(declaration.id, position),
+            None => self.status(declaration.id),
+        }
+    }
+
     fn exclude(&mut self, index: usize, queue: &mut Vec<usize>) {
         if !self.types[index].empty {
             self.types[index].empty = true;
@@ -339,6 +482,23 @@ impl<'a> TerminalContracts<'a> {
         let mut declarations: Vec<_> = declarations.into_iter().collect();
         declarations.sort_unstable_by_key(|declaration| declaration.id);
         Self { declarations }
+    }
+
+    fn declaration(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
+        let index = self
+            .declarations
+            .binary_search_by_key(&id, |row| row.id)
+            .ok()?;
+        // A malformed duplicate catalog cannot choose one contract as authority.
+        if index > 0 && self.declarations[index - 1].id == id
+            || self
+                .declarations
+                .get(index + 1)
+                .is_some_and(|next| next.id == id)
+        {
+            return None;
+        }
+        Some(self.declarations[index])
     }
 }
 
@@ -474,6 +634,114 @@ mod tests {
 
     fn prepare(declarations: &[StructuralTypeDeclaration]) -> Inhabitation {
         Inhabitation::prepare(&TerminalContracts::new(declarations)).unwrap()
+    }
+
+    #[test]
+    fn case_emptiness_is_local_to_the_exact_declared_roster() {
+        let mut sum_type = declaration(2, sum(&[&[], &[1]]));
+        let declarations = [empty(1), sum_type.clone()];
+        let query = prepare(&declarations);
+        let contracts = TerminalContracts::new(&declarations);
+        assert_eq!(query.case_status(id(2), 0), Status::Unknown);
+        assert_eq!(query.case_status(id(2), 1), Status::ProvedEmpty);
+        assert_eq!(query.status(id(2)), Status::Unknown);
+        assert_eq!(
+            query.declared_path_status(
+                &contracts,
+                id(2),
+                &[StructuralPathSegment::Case(
+                    StructuralCaseId::new(2).unwrap()
+                )]
+            ),
+            Status::ProvedEmpty
+        );
+        assert_eq!(
+            query.declared_path_status(
+                &contracts,
+                id(2),
+                &[StructuralPathSegment::Case(
+                    StructuralCaseId::new(3).unwrap()
+                )]
+            ),
+            Status::Unknown
+        );
+        sum_type.requires.push(Proposition::Falsehood);
+        let declarations = [empty(1), sum_type];
+        let query = prepare(&declarations);
+        assert_eq!(query.case_status(id(2), 2), Status::Unknown);
+        assert_eq!(query.case_status(id(1), 0), Status::Unknown);
+        assert_eq!(query.case_status(id(99), 0), Status::Unknown);
+    }
+
+    #[test]
+    fn observing_an_empty_referent_needs_an_explicit_readable_crossing() {
+        let declarations = [
+            empty(1),
+            declaration(
+                2,
+                StructuralTypeShape::Reference {
+                    referent: id(1),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ),
+            declaration(
+                3,
+                StructuralTypeShape::Reference {
+                    referent: id(1),
+                    access: StructuralAccess::WriteOnlyBorrow,
+                },
+            ),
+        ];
+        let query = prepare(&declarations);
+        let contracts = TerminalContracts::new(&declarations);
+        assert_eq!(
+            query.declared_path_status(&contracts, id(2), &[]),
+            Status::Unknown
+        );
+        assert_eq!(
+            query.declared_path_status(&contracts, id(2), &[StructuralPathSegment::Referent]),
+            Status::ProvedEmpty
+        );
+        assert_eq!(
+            query.declared_path_status(&contracts, id(3), &[StructuralPathSegment::Referent]),
+            Status::Unknown
+        );
+        assert_eq!(
+            query.declared_path_status(&contracts, id(1), &[StructuralPathSegment::Referent]),
+            Status::Unknown
+        );
+    }
+
+    #[test]
+    fn empty_owner_never_authorizes_a_malformed_or_vacant_path() {
+        let declarations = [
+            empty(1),
+            declaration(
+                2,
+                StructuralTypeShape::FixedArray {
+                    element: id(1),
+                    length: ArrayExtent::Literal(0),
+                },
+            ),
+        ];
+        let query = prepare(&declarations);
+        let contracts = TerminalContracts::new(&declarations);
+        assert_eq!(
+            query.declared_path_status(
+                &contracts,
+                id(1),
+                &[StructuralPathSegment::Field(TerminalIdentityIndex(9))]
+            ),
+            Status::Unknown
+        );
+        assert_eq!(
+            query.declared_path_status(&contracts, id(2), &[StructuralPathSegment::FixedIndex(0)]),
+            Status::Unknown
+        );
+        assert_eq!(
+            query.declared_path_status(&contracts, id(99), &[]),
+            Status::Unknown
+        );
     }
 
     #[test]
