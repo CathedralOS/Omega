@@ -1345,7 +1345,15 @@ impl Analysis<'_> {
         if self.root(root)?.is_none() {
             return Ok(());
         }
-        let captured = self.canonical(root, &captured)?;
+        let (captured, inline) = self.observed(root, &captured)?;
+        // An incoming descriptor can name storage outside its carrier. The
+        // typed observation still checks that carrier, but only an exact
+        // inline region can hold a vacancy in this frontier: extraction uses
+        // `canonical`, which refuses indirect and runtime-selected regions.
+        // Their loan obligations remain with reference checking.
+        if !inline {
+            return Ok(());
+        }
         if !state.regions[index(root.get())?]
             .as_ref()
             .is_some_and(|region| region.available(&captured))
