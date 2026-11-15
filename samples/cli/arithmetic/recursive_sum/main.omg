@@ -57,17 +57,17 @@ terminates by s -> Slice::Length
     }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("recursive_sum: recursive slice sum + count via value-returning machines");
     // Initialize the array elements.
-    main.arr[0] = 5;
-    main.arr[1] = 10;
-    main.arr[2] = 15;
-    main.arr[3] = 20;
+    main.arr[0] = 5 as +Wrapping;
+    main.arr[1] = 10 as +Wrapping;
+    main.arr[2] = 15 as +Wrapping;
+    main.arr[3] = 20 as +Wrapping;
 
     // Compute sum via recursive value-returning call.
     let s: &[i32 in Wrapping] = &main.arr[..];
-    let sum_result: i32 = sum(s, 0);
+    let sum_result: i32 = sum(s, 0 as +Wrapping);
 
     // Check sum == 50 directly on the local.
     transition sum_result == 50 {
@@ -78,14 +78,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_sum(main: &mut Main) {
         Console::write_line("FAIL: recursive sum did not equal 50 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
     machine check_count(main: &mut Main) {
         // Compute count via recursive value-returning call.
         let s2: &[i32 in Wrapping] = &main.arr[..];
-        let cnt: i32 = count(s2, 0);
+        let cnt: i32 = count(s2, 0 as +Wrapping);
 
         // Check element count == 4.
         transition cnt == 4 {
@@ -97,14 +97,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: recursive count did not equal 4 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: sum=50 and count=4 both verified (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 }
@@ -112,5 +112,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
