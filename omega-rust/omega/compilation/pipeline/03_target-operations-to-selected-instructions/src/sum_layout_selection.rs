@@ -363,6 +363,333 @@ fn stored_sum_rows_select_the_same_instructions_as_main() {
     assert_eq!(dump, expected, "selected opcodes, offsets, tags, and sizes");
 }
 
+#[test]
+fn retained_scalar_store_geometry_is_checked_against_its_source() {
+    let mut names = TerminalIdentityTableBuilder::default();
+    let field = StructuralFieldId::new(1).unwrap();
+    let field_name = names.intern("value");
+    let mut cell = reference_type(1, names.intern("Cell"), ty(1));
+    cell.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![scalar_field(1, field_name, u64_type())],
+    };
+    let mut parameter = parameter(ty(1));
+    parameter.access = StructuralAccess::MutableBorrow;
+    let source = TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(1),
+        source_value: ValueId::new(1).unwrap(),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(43),
+    };
+    let operation = AbstractOperation::StructuralScalarFieldStore {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+            parameter.clone(),
+        ),
+        path: Vec::new(),
+        field,
+        value: AbstractResult {
+            value: source.source_value(),
+            scalar_type: source.scalar_type(),
+        },
+        range_obligation: None,
+    };
+    let function = function_with_body(
+        vec![parameter.clone()],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: op(1),
+                    result: source.source_value(),
+                    scalar_type: ScalarType::Integer(u64_type()),
+                    value: IntegerValue::Unsigned(43),
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![cell], function);
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let row = TargetUnitOperation::StructuralScalarFieldStore {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(parameter),
+        path: Vec::new(),
+        field,
+        destination_storage: target_operations::TargetStructuralArgumentSource::Placement(
+            target.functions[0].graph.parameters[0].placement.clone(),
+        ),
+        field_byte_offset: 0,
+        field_byte_size: 8,
+        source,
+        indices: Vec::new(),
+    };
+    target.functions[0].graph.blocks[0]
+        .operations
+        .push(row.clone());
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        available.push((source.source_value(), source));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("retained scalar store matches its source");
+    for mutation in 0..4 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::StructuralScalarFieldStore {
+            field_byte_offset,
+            field_byte_size,
+            source: value,
+            path,
+            ..
+        } = &mut forged
+        else {
+            panic!("store");
+        };
+        match mutation {
+            0 => *field_byte_offset = 1,
+            1 => *field_byte_size = 4,
+            2 => {
+                let TargetUnitScalarArgumentSource::IntegerImmediate { value, .. } = value else {
+                    panic!("integer source");
+                };
+                *value = IntegerValue::Unsigned(47);
+            }
+            _ => path.push(StructuralPathSegment::FixedIndex(0)),
+        }
+        assert!(audit(&forged).is_err(), "tampered scalar store {mutation}");
+    }
+}
+
+#[test]
+fn retained_reference_selectors_project_without_bodies_and_audit_exact_geometry() {
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut cell = reference_type(1, names.intern("Cell"), ty(1));
+    cell.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![scalar_field(1, names.intern("value"), u64_type())],
+    };
+    let mut array = cell.clone();
+    array.id = ty(2);
+    array.identity = names.intern("Cells");
+    array.shape = StructuralTypeShape::FixedArray {
+        element: ty(1),
+        length: terminal_psi::ArrayExtent::Literal(2),
+    };
+    let reference = reference_type(3, names.intern("CellRef"), ty(1));
+    let obligation = semantic_vocabulary::ObligationId::new(1).unwrap();
+    let index = TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(1),
+        source_value: ValueId::new(1).unwrap(),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(1),
+    };
+    let source = terminal_psi::StructuralArgument {
+        place: place(1),
+        access: StructuralAccess::SharedBorrow,
+        path: vec![StructuralPathSegment::RuntimeIndex {
+            index: index.source_value(),
+            obligation,
+        }],
+    };
+    let mut result = structural_result(place(2), ty(3));
+    result.multiplicity = StructuralMultiplicity::Affine;
+    let operation = AbstractOperation::EstablishReference {
+        psi_operation: op(2),
+        result: result.clone(),
+        source: source.clone(),
+        storage: None,
+    };
+    let function = function_with_body(
+        vec![parameter(ty(2))],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: op(1),
+                    result: index.source_value(),
+                    scalar_type: ScalarType::Integer(u64_type()),
+                    value: IntegerValue::Unsigned(1),
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![cell, array, reference], function);
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let row = TargetUnitOperation::EstablishReference {
+        psi_operation: op(2),
+        result_home: TargetStructuralHomeRequirement {
+            origin: TargetStructuralHomeOrigin::OperationResult {
+                operation: op(2),
+                result: result.clone(),
+            },
+            layout: TargetStructuralHomeLayout::Aggregate(
+                calling_conventions::ValueShape::integer(8, 8),
+            ),
+        },
+        source: source.clone(),
+        storage: None,
+        indices: vec![target_operations::TargetStructuralRuntimeIndex {
+            operand: index,
+            stride: 8,
+            extent: Some(2),
+            obligation,
+        }],
+    };
+    target.functions[0].graph.blocks[0]
+        .operations
+        .push(row.clone());
+    let fact = optimization_unit::AcceptedObligationFact::new(
+        plan.psi,
+        [6; 32],
+        machine(),
+        optimization_unit::PsiProvenance::Operation(op(2)),
+        obligation,
+        vec![7],
+    );
+    // No source function or geometry catalog is available to construction.
+    let lowered = crate::legalization_source::scalar_graph::instruction::project_reference(
+        machine(),
+        std::slice::from_ref(&fact),
+        &row,
+    )
+    .unwrap();
+    let legalized_operations::LegalizedScalarInstructionKind::EstablishReference {
+        result: actual,
+        source: actual_source,
+        indices,
+        shape,
+        ..
+    } = lowered
+    else {
+        panic!("reference");
+    };
+    assert_eq!((actual, actual_source), (result, source));
+    assert_eq!(shape, calling_conventions::ValueShape::integer(8, 8));
+    assert_eq!(
+        (
+            indices[0].operand.value,
+            indices[0].stride,
+            indices[0].extent,
+            indices[0].accepted_fact
+        ),
+        (index.source_value(), 8, Some(2), fact.identity)
+    );
+    assert!(
+        crate::legalization_source::scalar_graph::instruction::project_reference(
+            machine(),
+            &[],
+            &row
+        )
+        .is_err()
+    );
+    assert!(
+        crate::legalization_source::scalar_graph::instruction::project_reference(
+            MachineId::new(2).unwrap(),
+            &[fact],
+            &row,
+        )
+        .is_err()
+    );
+
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        available.push((index.source_value(), index));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("reference selector matches the independent source geometry");
+    for mutation in 0..7 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::EstablishReference {
+            indices,
+            result_home,
+            source,
+            ..
+        } = &mut forged
+        else {
+            panic!("reference");
+        };
+        match mutation {
+            0 => indices[0].stride = 4,
+            1 => indices[0].extent = Some(3),
+            2 => indices[0].obligation = semantic_vocabulary::ObligationId::new(2).unwrap(),
+            3 => {
+                let TargetUnitScalarArgumentSource::IntegerImmediate { value, .. } =
+                    &mut indices[0].operand
+                else {
+                    panic!("index");
+                };
+                *value = IntegerValue::Unsigned(0);
+            }
+            4 => indices.clear(),
+            5 => {
+                result_home.layout = TargetStructuralHomeLayout::Aggregate(
+                    calling_conventions::ValueShape::integer(16, 8),
+                )
+            }
+            _ => source.path.clear(),
+        }
+        assert!(
+            audit(&forged).is_err(),
+            "forged reference geometry {mutation}"
+        );
+    }
+}
+
 fn tag_only() -> String {
     let mut names = TerminalIdentityTableBuilder::default();
     let sum = sum_type(1, names.intern("TagOnly"), &mut names, &[]);

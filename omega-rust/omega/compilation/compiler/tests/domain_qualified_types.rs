@@ -305,8 +305,13 @@ trait Grants {
 domain Pass::Granted established by Grants::grant;
 ";
 
+///
+/// The lowered form carries that edge only as the closed conformance
+/// application of a selected call, so a conformer nothing selects cannot be
+/// shown to the lowered checker as the domain's issuer. Its cast is refused
+/// by name, never published as membership the checker cannot authenticate.
 #[test]
-fn a_declared_conformer_adds_the_domain_its_requirement_routes() {
+fn a_declared_conformer_adding_a_requirement_routed_record_domain_is_refused_by_name() {
     let verdicts = verdicts(
         "requirement_route",
         &format!(
@@ -315,7 +320,13 @@ fn a_declared_conformer_adds_the_domain_its_requirement_routes() {
         ),
     );
     assert!(
-        !verdicts.is_empty() && verdicts.iter().all(|verdict| verdict == "accepted"),
+        verdicts
+            .iter()
+            .any(|verdict| verdict.starts_with("not-supported")
+                && verdict.contains("record domain issued through a requirement route"))
+            && verdicts
+                .iter()
+                .all(|verdict| !verdict.starts_with("defect")),
         "{verdicts:#?}"
     );
 }

@@ -329,11 +329,14 @@ pub(crate) fn invocation<'a>(
                     "published operational contract differs from its declared or inferred envelope",
                 ));
             }
-            if boundary.structural_parameters.iter().any(|formal| {
-                !formal.qualifications.is_empty()
-                    || !formal.projected_qualifications.is_empty()
-                    || !formal.additional_input_qualifications.is_empty()
-            }) || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
+            // A formal's own domains are its type, judged with every call's
+            // structural arguments. Additional provider obligations still
+            // need their independent proof and publication.
+            if boundary
+                .structural_parameters
+                .iter()
+                .any(|formal| !formal.additional_input_qualifications.is_empty())
+                || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
                 if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
             {
                 return Err(crate::refusal(

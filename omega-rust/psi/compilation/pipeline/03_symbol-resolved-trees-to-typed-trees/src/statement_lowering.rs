@@ -517,7 +517,7 @@ pub(crate) mod statement {
             let root_type = lower_type_reference_into_table(lowerer, &declared_root)?;
             let mut current = root_type;
             for step in steps.into_iter().rev() {
-                current = match step {
+                let projected = match step {
                     ProjectionStep::Element(selector) => {
                         // Retain the exact authored operand even though reading
                         // an element type supplies no index/bounds evidence.
@@ -527,23 +527,29 @@ pub(crate) mod statement {
                         crate::typing_queries::collection_element_type(
                             &lowerer.typed_trees,
                             current,
-                        )?
+                        )
+                        .ok()
                     }
                     ProjectionStep::Field(member) => {
-                        let symbol =
-                            declared_projection_field(&lowerer.typed_trees, current, member)
-                                .ok_or_else(|| {
-                                    crate::unavailable_judgment(
-                                        "collection field declaration identity",
-                                    )
-                                })?;
-                        crate::typing_queries::collection_field_type(
-                            &lowerer.typed_trees,
-                            current,
-                            symbol,
-                        )?
+                        declared_projection_field(&lowerer.typed_trees, current, member).and_then(
+                            |symbol| {
+                                crate::typing_queries::collection_field_type(
+                                    &lowerer.typed_trees,
+                                    current,
+                                    symbol,
+                                )
+                                .ok()
+                            },
+                        )
                     }
                 };
+                let Some(projected) = projected else {
+                    // Applied field views are prepared after declaration
+                    // lowering. Keep this initializer for ordinary capture
+                    // inference and judgment once its declaration is read.
+                    return Ok(None);
+                };
+                current = projected;
             }
             Ok(Some(current))
         }

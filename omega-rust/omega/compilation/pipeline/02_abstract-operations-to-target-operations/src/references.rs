@@ -1964,6 +1964,23 @@ pub(crate) fn commit_argument_moves(
     }
 }
 
+fn formation_indices(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    source: &StructuralArgument,
+) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, LoweringError> {
+    let root = source_contract(function, live, source.place)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let runs = crate::structural_layout::reference_formation_indices(root, &source.path, types)?;
+    super::scalar_sources::runtime_indices(
+        runs,
+        function,
+        &super::scalar_sources::ScalarSources::from(live),
+        types,
+    )
+}
+
 pub(crate) fn establish(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
@@ -2028,6 +2045,7 @@ pub(crate) fn establish(
     if !compatible {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
+    let indices = formation_indices(function, live, types, source)?;
     let mut root = normalized_source(function, live, types, source)?;
     if let Some(storage) = storage {
         root = root.projected(&[StructuralPathSegment::RepresentationView {
@@ -2052,6 +2070,7 @@ pub(crate) fn establish(
         result_home,
         source: source.clone(),
         storage: *storage,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
@@ -2115,6 +2134,7 @@ pub(crate) fn establish_access(
     )
     .map_err(|_| invalid())?;
     let correspondence = expected.clone();
+    let indices = formation_indices(function, live, types, source)?;
     let root = normalized_source(function, live, types, source)?;
     if root.origins().iter().any(|origin| {
         origin.path.iter().any(|segment| {
@@ -2145,6 +2165,7 @@ pub(crate) fn establish_access(
         result_home,
         source: source.clone(),
         correspondence,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())

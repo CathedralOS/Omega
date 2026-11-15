@@ -70,6 +70,7 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
         let argument = of_type(
             ExpressionKind::Borrow {
                 access,
+                formation: access,
                 place: Box::new(actual),
                 home: None,
             },

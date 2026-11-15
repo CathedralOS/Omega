@@ -604,6 +604,7 @@ fn witness_call(
                             call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: borrowed.access,
+                                formation: borrowed.access,
                                 place: Box::new(place),
                                 home: borrowed.home.clone(),
                             },
@@ -1129,22 +1130,13 @@ fn lower_program<'source>(
     }
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
-    module.structural_domains = declared.structural_domains;
     module.native_layouts = declared.native_layouts;
-    if let Some(source) = declarations {
-        source.publish_structural_domains(diagnostic, &mut module)?;
-    }
     let mut tables = CheckTables::default();
     let mut qualifications = qualifications::Qualifications::declare(
         diagnostic,
         declarations,
         std::mem::take(&mut module.identities),
-        module
-            .structural_domains
-            .iter()
-            .map(|domain| domain.semantic_domain.get())
-            .max()
-            .unwrap_or(0),
+        declared.structural_domains,
     )?;
     for (_, record) in records.iter() {
         for field in record
@@ -1335,6 +1327,11 @@ fn lower_program<'source>(
         &external_provider_candidates,
     )?;
     module.scalar_qualifications = qualifications.catalog;
+    module.structural_domains = qualifications.structural;
+    qualifications
+        .structural_changes
+        .sort_unstable_by_key(|change| (change.machine, change.edge, change.argument_ordinal));
+    module.structural_qualification_changes = qualifications.structural_changes;
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
     }

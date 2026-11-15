@@ -77,6 +77,7 @@ mod sequence_regions;
 mod source_operators;
 mod stored_references;
 mod stored_views;
+mod structural_domains;
 mod successor_loans;
 mod termination;
 mod type_parameters;

@@ -114,7 +114,7 @@ impl Lowering<'_> {
         self.jump_with_structural(target, arguments, Vec::new(), source)
     }
 
-    fn jump_with_structural(
+    pub(super) fn jump_with_structural(
         &mut self,
         target: BlockId,
         arguments: Vec<ValueId>,
@@ -732,7 +732,7 @@ impl Lowering<'_> {
                 self.parameter(join, result, scalar_type)?;
                 Value::Scalar(result)
             }
-            ValueType::Record(record, ..) => {
+            ValueType::Record(record, qualification, _) => {
                 let (place, _) = self.root(
                     semantic_vocabulary::StructuralPlaceKind::BlockParameter {
                         block: join,
@@ -740,14 +740,18 @@ impl Lowering<'_> {
                     },
                     record,
                 )?;
+                // Every arm delivers the match's one type, domains included;
+                // the checker holds each arrival to them.
+                let (qualifications, projected_qualifications) =
+                    self.memberships(record, qualification)?;
                 let parameter = StructuralParameterDeclaration {
                     place,
                     position: 0,
                     structural_type: record,
                     multiplicity: self.records.multiplicity(record, self.id)?,
                     access: StructuralAccess::Owned,
-                    qualifications: self.records.qualifications(self.id, result_type)?,
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                     additional_input_qualifications: Vec::new(),
                 };
                 let id = self.id;

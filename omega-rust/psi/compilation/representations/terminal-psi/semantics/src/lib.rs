@@ -45,6 +45,7 @@ pub mod scalar_qualifications;
 pub mod scalars;
 pub mod storage;
 pub mod structural;
+pub mod structural_qualifications;
 pub mod substitution;
 pub mod suspension_frontier;
 

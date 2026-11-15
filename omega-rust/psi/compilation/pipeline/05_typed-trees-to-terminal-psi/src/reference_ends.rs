@@ -16,7 +16,13 @@ pub(crate) fn install(
 ) -> Checked<()> {
     let candidates = terminal_semantics::reference_ends::candidates(module).map_err(|error| {
         terminal_check_tables::Refusal {
-            source_span: None,
+            source_span: error.operation.and_then(|operation| {
+                sources
+                    .get(error.machine)?
+                    .operations
+                    .get(operation)?
+                    .authored_span()
+            }),
             reason: terminal_check_tables::RefusalReason::Unsupported,
             machine: error.machine,
             concerns: error

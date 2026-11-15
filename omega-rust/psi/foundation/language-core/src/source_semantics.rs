@@ -408,6 +408,21 @@ impl ReferenceAccess {
         !matches!(self, Self::WriteOnly)
     }
 
+    /// Whether a loan formed at this access may hand `lent` to its holder.
+    /// loans.md, "Reborrow lineage and access": a Mutable parent may form a
+    /// Shared child, "Freeze mutation until the complete shared cohort
+    /// ends", and "Attenuation never changes the parent's original access".
+    /// So `&mut place` written for a `&T` formal is an exclusive formation
+    /// that lends shared access; every other formation lends what it forms.
+    pub const fn forms(self, lent: Self) -> bool {
+        matches!(
+            (self, lent),
+            (Self::Shared, Self::Shared)
+                | (Self::Mutable, Self::Mutable | Self::Shared)
+                | (Self::WriteOnly, Self::WriteOnly)
+        )
+    }
+
     pub const fn borrow_prefix(self) -> &'static str {
         match self {
             Self::Mutable => "&mut ",

@@ -858,7 +858,7 @@ pub(crate) mod structural_result_wire {
 
     use terminal_psi::{
         ResultQualificationEstablishment, StructuralMultiplicity, StructuralOperationResult,
-        StructuralResultDeclaration,
+        StructuralQualificationChange, StructuralResultDeclaration,
     };
 
     use super::CodecError;
@@ -867,7 +867,7 @@ pub(crate) mod structural_result_wire {
     };
     use super::wire::{Reader, Writer, strictly_increasing};
     use super::wire_fields::{
-        ClaimBinding, Field, Id, Ids, List, Multiplicity, PathQualification, wire_record,
+        ClaimBinding, Field, Id, Ids, List, Multiplicity, PathQualification, U32, wire_record,
     };
     use crate::sections::semantic_module::structural_place_wire::{
         decode_reference_origin_path, decode_structural_path, encode_reference_origin_path,
@@ -1057,6 +1057,14 @@ pub(crate) mod structural_result_wire {
             claims: List<ClaimBinding>,
         }
         Establishment: ResultQualificationEstablishment { domain: Id, route: RouteIndex }
+        QualificationChange: StructuralQualificationChange {
+            machine: Id,
+            edge: Id,
+            argument_ordinal: U32,
+            source: Id,
+            destination: Id,
+            establishments: List<Establishment>,
+        }
     }
 
     struct RouteIndex;

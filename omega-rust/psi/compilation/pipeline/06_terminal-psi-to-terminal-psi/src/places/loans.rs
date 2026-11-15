@@ -619,19 +619,12 @@ impl<'a> Storage<'a> {
                 ));
             }
             self.byte_array_presentation(argument, parameter, concerns)?;
-            let (expected_lender, parent, from, permitted) = self.source_lender(
-                &lent,
-                &argument.path,
-                access,
-                self.borrowed_resource(parameter.structural_type),
-                concerns,
-            )?;
             let (obligation, row) = tables
                 .obligations
                 .iter()
                 .find(|(id, row)| {
-                    matches!(row.kind, ObligationKind::Loan { captured, access: borrowed, .. }
-                    if captured == place && borrowed == access)
+                    matches!(row.kind, ObligationKind::Loan { captured, access: formation, .. }
+                    if captured == place && formation.forms(access))
                         && row.created_at == before
                         && !claimed[index(id.get())]
                 })
@@ -641,9 +634,26 @@ impl<'a> Storage<'a> {
                         "a loan the call forms has no exact occurrence row",
                     )
                 })?;
-            let ObligationKind::Loan { lender, .. } = row.kind else {
+            // The loan is judged at the access the program formed, which
+            // may exceed what the callee receives (`&mut place` for a `&T`
+            // formal): its source must admit that formation, and it
+            // conflicts with overlapping live loans as an exclusive loan.
+            let ObligationKind::Loan {
+                lender,
+                access: formation,
+                ..
+            } = row.kind
+            else {
                 unreachable!()
             };
+            let access = formation;
+            let (expected_lender, parent, from, permitted) = self.source_lender(
+                &lent,
+                &argument.path,
+                access,
+                self.borrowed_resource(parameter.structural_type),
+                concerns,
+            )?;
             if expected_lender.is_some_and(|expected| expected != lender) {
                 return Err(self.foreign(
                     concerns,
@@ -870,19 +880,12 @@ impl<'a> Storage<'a> {
         let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
             self.foreign(concerns, "reference formation has no captured place row")
         })?;
-        let (expected_lender, parent, from, permitted) = self.source_lender(
-            &raw,
-            &source.path,
-            access,
-            BorrowedResource::Storage,
-            concerns,
-        )?;
         let (obligation, row) = tables
             .obligations
             .iter()
             .find(|(id, row)| {
-                matches!(row.kind, ObligationKind::Loan { captured: actual, access: borrowed, .. }
-                if actual == captured && borrowed == access)
+                matches!(row.kind, ObligationKind::Loan { captured: actual, access: formation, .. }
+                if actual == captured && formation.forms(access))
                     && row.created_at == before
                     && !claimed[index(id.get())]
             })
@@ -892,9 +895,23 @@ impl<'a> Storage<'a> {
                     "reference formation has no exact Loan occurrence row",
                 )
             })?;
-        let ObligationKind::Loan { lender, .. } = row.kind else {
+        // Judged at the written formation, as a call's loans are.
+        let ObligationKind::Loan {
+            lender,
+            access: formation,
+            ..
+        } = row.kind
+        else {
             unreachable!()
         };
+        let access = formation;
+        let (expected_lender, parent, from, permitted) = self.source_lender(
+            &raw,
+            &source.path,
+            access,
+            BorrowedResource::Storage,
+            concerns,
+        )?;
         if expected_lender.is_some_and(|expected| expected != lender) {
             return Err(self.foreign(
                 concerns,
@@ -1425,10 +1442,15 @@ impl<'a> Storage<'a> {
                         | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                 )
             }) {
-            Some(references.flow(self.machine).ok_or_else(|| {
+            Some(references.flow(self.machine).map_err(|error| {
                 self.unsupported(
-                    Construct::Machine,
-                    "persistent loans have no complete descriptor flow",
+                    error
+                        .operation(module)
+                        .map(Construct::Operation)
+                        .unwrap_or(Construct::Machine),
+                    error
+                        .detail()
+                        .unwrap_or("persistent loans have no complete descriptor flow"),
                 )
             })?)
         } else {

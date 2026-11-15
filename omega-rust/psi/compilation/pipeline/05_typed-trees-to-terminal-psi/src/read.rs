@@ -25,6 +25,7 @@ serve is refused when it is set, never ignored.
 mod arrays;
 mod authority;
 mod boundaries;
+pub(crate) use authority::has_predicates;
 mod bytes;
 mod callables;
 pub(crate) mod calling;

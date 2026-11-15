@@ -2517,6 +2517,7 @@ mod structural_scalar {
             field: *field,
             destination_storage,
             field_byte_offset,
+            field_byte_size,
             source,
             indices,
         });

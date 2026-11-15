@@ -427,18 +427,17 @@ impl Program<'_> {
         }
         // A declared type is the initializer's expected type; without one the
         // local takes the initializer's type.
-        // Unit is resolution's inference sentinel for captures without a
-        // declared result, such as arithmetic. Read those without an expected
-        // type so the checked initializer selects its own carrier.
-        let infer_capture = local.is_operand_capture
-            && local.type_is_inferred
+        // Unit is resolution's sentinel for a local whose type still
+        // needs inference. Read that initializer without an expected type
+        // so its checked expression selects the carrier.
+        let needs_inference = local.type_is_inferred
             && matches!(
                 self.typed
                     .type_reference_table
                     .type_reference(local.type_reference),
                 typed_trees::types::TypeReferenceNode::Unit
             );
-        let declared = if local.type_reference.is_valid() && !infer_capture {
+        let declared = if local.type_reference.is_valid() && !needs_inference {
             Some(self.local_type(id, local.type_reference)?)
         } else {
             None

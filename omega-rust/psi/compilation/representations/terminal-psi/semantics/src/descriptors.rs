@@ -15412,7 +15412,17 @@ pub mod descriptor_results {
         },
     }
 
+    pub const INEXACT_REFERENCE_BACKING: &str =
+        "reference use without exact live backing correspondence";
+
     impl DescriptorGraphError {
+        pub const fn detail(self) -> Option<&'static str> {
+            match self {
+                Self::IncompleteMachine { detail, .. } => detail,
+                Self::MissingOrAmbiguousMachine(_) => None,
+            }
+        }
+
         pub const fn machine(self) -> MachineId {
             match self {
                 Self::MissingOrAmbiguousMachine(machine)

@@ -164,7 +164,15 @@ impl TerminalBuildHost {
                 );
             }
         }
-        let original = TerminalStructuralValue::minted(1, parameter.structural_type, Vec::new());
+        // The evaluator is the only issuer of the Build it lends (guest code
+        // cannot construct one), so the value it presents carries exactly the
+        // memberships the entry's formal declares, its sealed fields' included.
+        let mut original = TerminalStructuralValue::minted(
+            1,
+            parameter.structural_type,
+            parameter.qualifications.clone(),
+        );
+        original.projected_qualifications = parameter.projected_qualifications.clone();
         let requests = TerminalBuildRequestHost::new(
             artifact,
             produced.build_requests(),

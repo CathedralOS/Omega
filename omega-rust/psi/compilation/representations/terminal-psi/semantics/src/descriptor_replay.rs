@@ -13,7 +13,7 @@ mod location_map;
 use location_map::LocationMap;
 
 pub(crate) mod analysis {
-    use super::engine::Origin;
+    use super::engine::{Origin, StorageResolution};
     use super::*;
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
@@ -971,7 +971,8 @@ pub(crate) mod analysis {
         pub fn flow(
             &mut self,
             identity: MachineId,
-        ) -> Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>> {
+        ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError>
+        {
             self.prepare_flow(identity, None)
         }
 
@@ -991,7 +992,7 @@ pub(crate) mod analysis {
                     ))
                 })
                 .collect::<Option<_>>()?;
-            self.prepare_flow(identity, Some(rules))
+            self.prepare_flow(identity, Some(rules)).ok()
         }
 
         fn prepare_flow(
@@ -1000,29 +1001,57 @@ pub(crate) mod analysis {
             mut residence_rules: Option<
                 &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
             >,
-        ) -> Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>> {
-            self.replay.prepare_states(identity)?;
-            let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+        ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError>
+        {
+            let incomplete = |position| DescriptorGraphError::IncompleteMachine {
+                machine: identity,
+                position,
+                detail: None,
+            };
+            self.replay
+                .prepare_states(identity)
+                .ok_or_else(|| incomplete(None))?;
+            let machine = self
+                .replay
+                .machine(identity)
+                .ok_or_else(|| incomplete(None))?;
+            let states = self
+                .replay
+                .snapshots
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| incomplete(None))?;
             let mut flow = machine.flow.clone();
             for (position, step) in &mut flow {
                 let Some(before) = states.get(position) else {
                     continue;
                 };
+                let incomplete_step = || incomplete(Some(*position));
                 let canonical = |location: &DescriptorLocation| {
-                    self.replay
-                        .canonical_storage(machine, before, location, None)
+                    match self.replay.resolve_storage(machine, before, location, None) {
+                        Some(StorageResolution::Unique(location)) => Ok(location),
+                        // Exact flow can refuse a use without discarding its site or
+                        // treating one of several possible backings as established.
+                        Some(StorageResolution::Alternatives) => {
+                            Err(DescriptorGraphError::IncompleteMachine {
+                                machine: identity,
+                                position: Some(*position),
+                                detail: Some(INEXACT_REFERENCE_BACKING),
+                            })
+                        }
+                        None => Err(incomplete_step()),
+                    }
                 };
                 step.definitions = step
                     .definitions
                     .iter()
                     .map(canonical)
-                    .collect::<Option<_>>()?;
+                    .collect::<Result<_, _>>()?;
                 let aliases = before
                     .slots
                     .keys()
                     .filter_map(|location| {
-                        let canonical_location = canonical(location)?;
+                        let canonical_location = canonical(location).ok()?;
                         step.definitions
                             .iter()
                             .any(|definition| definition.contains(&canonical_location))
@@ -1036,7 +1065,7 @@ pub(crate) mod analysis {
                     .inputs
                     .iter()
                     .map(canonical)
-                    .collect::<Option<Vec<_>>>()?;
+                    .collect::<Result<Vec<_>, _>>()?;
                 for input in &step.inputs {
                     if input.path.is_empty()
                         && let Some(Some(origins)) = before.slots.get(input)
@@ -1053,17 +1082,13 @@ pub(crate) mod analysis {
                 step.derivations = step
                     .derivations
                     .iter()
-                    .map(|(source, destination)| {
-                        Some((canonical(source)?, canonical(destination)?))
-                    })
-                    .collect::<Option<_>>()?;
+                    .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
+                    .collect::<Result<_, DescriptorGraphError>>()?;
                 step.authority_derivations = step
                     .authority_derivations
                     .iter()
-                    .map(|(source, destination)| {
-                        Some((canonical(source)?, canonical(destination)?))
-                    })
-                    .collect::<Option<_>>()?;
+                    .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
+                    .collect::<Result<_, DescriptorGraphError>>()?;
                 if residence_rules.is_some() {
                     for edge in &mut step.successors {
                         for binding in &mut edge.bindings {
@@ -1082,7 +1107,10 @@ pub(crate) mod analysis {
                 else {
                     continue;
                 };
-                let summary = self.replay.cached_invocation_summary(call)?;
+                let summary = self
+                    .replay
+                    .cached_invocation_summary(call)
+                    .ok_or_else(incomplete_step)?;
                 step.may_escape |= summary.invalidates_contents;
                 let mut outputs = Vec::new();
                 for effect in &summary.effects {
@@ -1099,10 +1127,14 @@ pub(crate) mod analysis {
                     {
                         continue;
                     }
-                    let query =
-                        self.replay
-                            .actual_contents(call, effect.parameter, &effect.steps)?;
-                    let targets = self.replay.contents_targets(machine, before, &query)?;
+                    let query = self
+                        .replay
+                        .actual_contents(call, effect.parameter, &effect.steps)
+                        .ok_or_else(incomplete_step)?;
+                    let targets = self
+                        .replay
+                        .contents_targets(machine, before, &query)
+                        .ok_or_else(incomplete_step)?;
                     let strong = targets.len() == 1
                         && matches!(
                             targets.first(),
@@ -1121,7 +1153,7 @@ pub(crate) mod analysis {
                             }
                             DescriptorPayloadTarget::Storage {
                                 completed: Some(_), ..
-                            } => return None,
+                            } => return Err(incomplete_step()),
                             DescriptorPayloadTarget::Incoming(query) => {
                                 step.inputs.push(query.observation());
                                 step.may_escape = true;
@@ -1129,7 +1161,9 @@ pub(crate) mod analysis {
                                     match origin {
                                         DescriptorStoredOrigin::IncomingSlot { position, path } => {
                                             step.inputs.push(
-                                                self.replay.actual_slot(call, *position, path)?,
+                                                self.replay
+                                                    .actual_slot(call, *position, path)
+                                                    .ok_or_else(incomplete_step)?,
                                             )
                                         }
                                         DescriptorStoredOrigin::IncomingContents {
@@ -1138,12 +1172,19 @@ pub(crate) mod analysis {
                                             ..
                                         } => step.inputs.push(
                                             self.replay
-                                                .actual_contents(call, *position, steps)?
+                                                .actual_contents(call, *position, steps)
+                                                .ok_or_else(incomplete_step)?
                                                 .observation(),
                                         ),
-                                        DescriptorStoredOrigin::Parameter { position, .. } => step
-                                            .inputs
-                                            .push(call.arguments.get(*position)?.as_ref()?.clone()),
+                                        DescriptorStoredOrigin::Parameter { position, .. } => {
+                                            step.inputs.push(
+                                                call.arguments
+                                                    .get(*position)
+                                                    .and_then(Option::as_ref)
+                                                    .ok_or_else(incomplete_step)?
+                                                    .clone(),
+                                            )
+                                        }
                                         _ => {}
                                     }
                                 }
@@ -1152,7 +1193,7 @@ pub(crate) mod analysis {
                     }
                 }
                 if let Some(result) = &call.result {
-                    for slot in summary.result.as_ref()? {
+                    for slot in summary.result.as_ref().ok_or_else(incomplete_step)? {
                         let mut destination = result.clone();
                         destination.path.extend_from_slice(&slot.path);
                         outputs.push((destination, slot.origins.as_slice(), true));
@@ -1165,9 +1206,7 @@ pub(crate) mod analysis {
                     for path in &summary.unknown_results {
                         let mut destination = result.clone();
                         destination.path.extend_from_slice(path);
-                        let destination =
-                            self.replay
-                                .canonical_storage(machine, before, &destination, None)?;
+                        let destination = canonical(&destination)?;
                         if !step.definitions.contains(&destination) {
                             step.definitions.push(destination.clone());
                         }
@@ -1175,13 +1214,16 @@ pub(crate) mod analysis {
                             call.arguments.iter().zip(&call.argument_contents)
                         {
                             match argument {
-                                Some(source) => step.derivations.push((
-                                    self.replay
-                                        .canonical_storage(machine, before, source, None)?,
-                                    destination.clone(),
-                                )),
+                                Some(source) => step
+                                    .derivations
+                                    .push((canonical(source)?, destination.clone())),
                                 None => {
-                                    step.inputs.push(contents.as_ref()?.observation());
+                                    step.inputs.push(
+                                        contents
+                                            .as_ref()
+                                            .ok_or_else(incomplete_step)?
+                                            .observation(),
+                                    );
                                     step.may_escape = true;
                                 }
                             }
@@ -1189,9 +1231,7 @@ pub(crate) mod analysis {
                     }
                 }
                 for (destination, origins, strong) in outputs {
-                    let destination =
-                        self.replay
-                            .canonical_storage(machine, before, &destination, None)?;
+                    let destination = canonical(&destination)?;
                     if strong && !step.definitions.contains(&destination) {
                         step.definitions.push(destination.clone());
                     }
@@ -1233,9 +1273,18 @@ pub(crate) mod analysis {
                                 continue;
                             }
                             DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                                let Some(source) = call.arguments.get(*position)?.as_ref() else {
-                                    let mut query =
-                                        call.argument_contents.get(*position)?.as_ref()?.clone();
+                                let Some(source) = call
+                                    .arguments
+                                    .get(*position)
+                                    .ok_or_else(incomplete_step)?
+                                    .as_ref()
+                                else {
+                                    let mut query = call
+                                        .argument_contents
+                                        .get(*position)
+                                        .and_then(Option::as_ref)
+                                        .ok_or_else(incomplete_step)?
+                                        .clone();
                                     query.steps.extend(
                                         path.iter().cloned().map(DescriptorContentsStep::Address),
                                     );
@@ -1250,8 +1299,12 @@ pub(crate) mod analysis {
                             DescriptorStoredOrigin::IncomingContents {
                                 position, steps, ..
                             } => {
-                                let mut query =
-                                    call.argument_contents.get(*position)?.as_ref()?.clone();
+                                let mut query = call
+                                    .argument_contents
+                                    .get(*position)
+                                    .and_then(Option::as_ref)
+                                    .ok_or_else(incomplete_step)?
+                                    .clone();
                                 query.steps.extend_from_slice(steps);
                                 step.inputs.push(query.observation());
                                 step.may_escape = true;
@@ -1261,20 +1314,30 @@ pub(crate) mod analysis {
                                 position,
                                 projection,
                             } => {
-                                let Some(source) = call.arguments.get(*position)?.as_ref() else {
-                                    let query = call.argument_contents.get(*position)?.as_ref()?;
+                                let Some(source) = call
+                                    .arguments
+                                    .get(*position)
+                                    .ok_or_else(incomplete_step)?
+                                    .as_ref()
+                                else {
+                                    let query = call
+                                        .argument_contents
+                                        .get(*position)
+                                        .and_then(Option::as_ref)
+                                        .ok_or_else(incomplete_step)?;
                                     step.inputs.push(query.observation());
                                     step.may_escape = true;
                                     continue;
                                 };
                                 let mut source = source.clone();
                                 if !projection.path.is_empty() {
-                                    let root_type = *machine.place_types.get(&source.root)?;
-                                    let mut spelling = descriptor_path(
-                                        self.replay.types,
-                                        root_type,
-                                        &source.path,
-                                    )?;
+                                    let root_type = *machine
+                                        .place_types
+                                        .get(&source.root)
+                                        .ok_or_else(incomplete_step)?;
+                                    let mut spelling =
+                                        descriptor_path(self.replay.types, root_type, &source.path)
+                                            .ok_or_else(incomplete_step)?;
                                     spelling.extend_from_slice(&projection.path);
                                     source = descriptor_location(
                                         self.replay.types,
@@ -1282,25 +1345,26 @@ pub(crate) mod analysis {
                                         root_type,
                                         &spelling,
                                         None,
-                                    )?;
+                                    )
+                                    .ok_or_else(incomplete_step)?;
                                 }
                                 source
                             }
                         };
-                        let pair = (
-                            self.replay
-                                .canonical_storage(machine, before, &source, None)?,
-                            destination.clone(),
-                        );
+                        let pair = (canonical(&source)?, destination.clone());
                         if spatial
                             && matches!(origin, DescriptorStoredOrigin::Parameter { .. })
                             && let Some(rules) = residence_rules.as_deref_mut()
                         {
                             let source_type = descriptor_location_type(
                                 self.replay.types,
-                                *machine.place_types.get(&pair.0.root)?,
+                                *machine
+                                    .place_types
+                                    .get(&pair.0.root)
+                                    .ok_or_else(incomplete_step)?,
                                 &pair.0.path,
-                            )?;
+                            )
+                            .ok_or_else(incomplete_step)?;
                             if !DescriptorSlotKind::Views.is_slot(self.replay.types, source_type) {
                                 rules
                                     .captures
@@ -1326,7 +1390,7 @@ pub(crate) mod analysis {
                     }
                 }
             }
-            Some(flow)
+            Ok(flow)
         }
     }
 }

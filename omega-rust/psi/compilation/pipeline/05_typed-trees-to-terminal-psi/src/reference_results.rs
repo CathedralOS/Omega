@@ -442,10 +442,12 @@ fn publish_parents(
             .map_err(|error| graph_unavailable(module, error))?;
         let mut analysis =
             DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
-        let flow = analysis.flow(machine.id).ok_or_else(|| {
+        let flow = analysis.flow(machine.id).map_err(|error| {
             unavailable(
-                machine.id,
-                "reference parent has no complete descriptor flow",
+                error.machine(),
+                error
+                    .detail()
+                    .unwrap_or("reference parent has no complete descriptor flow"),
             )
         })?;
         let mut parents = Vec::new();
@@ -485,13 +487,12 @@ fn publish_parents(
                             continue;
                         };
                         if row.created_at != before
-                            || access
-                                != reference_access(source.access).ok_or_else(|| {
-                                    unavailable(
-                                        machine.id,
-                                        "reference formation has no borrowed access",
-                                    )
-                                })?
+                            || !access.forms(reference_access(source.access).ok_or_else(|| {
+                                unavailable(
+                                    machine.id,
+                                    "reference formation has no borrowed access",
+                                )
+                            })?)
                         {
                             continue;
                         }
@@ -566,7 +567,9 @@ fn publish_parents(
                             else {
                                 continue;
                             };
-                            if row.created_at != before || actual != access || claimed.contains(&id)
+                            if row.created_at != before
+                                || !actual.forms(access)
+                                || claimed.contains(&id)
                             {
                                 continue;
                             }

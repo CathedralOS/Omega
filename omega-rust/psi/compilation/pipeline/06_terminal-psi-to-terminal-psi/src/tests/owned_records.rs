@@ -58,6 +58,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
     let borrowed = of_type(
         ExpressionKind::Borrow {
             access: ReferenceAccess::Mutable,
+            formation: ReferenceAccess::Mutable,
             place: Box::new(place(0, point())),
             home: None,
         },

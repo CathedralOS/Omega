@@ -5138,6 +5138,7 @@ wire_record! {
         structural_types: List<StructuralType>,
         structural_referents: List<Referent>,
         structural_domains: List<declaration_wire::Domain>,
+        structural_qualification_changes: List<super::structural_result_wire::QualificationChange>,
         services: List<declaration_wire::Service>,
         root_service_reach: RootServiceReach,
         access_view_plans: List<AccessViewPlan>,

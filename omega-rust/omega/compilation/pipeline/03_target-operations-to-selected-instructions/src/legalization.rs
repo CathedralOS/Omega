@@ -11,7 +11,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v59",
+            b"omega.terminal-target-legalization-independent-replay.v61",
         )
     }
 
@@ -410,22 +410,6 @@ pub(crate) mod runtime_indices {
                 .ok_or(LegalizationError::custody())?
         };
         operands(optimized, unit, owner, &elements)
-    }
-
-    pub(crate) fn reference_source(
-        optimized: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: OperationId,
-        source: &terminal_psi::StructuralArgument,
-    ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
-        let root = read_root_type(optimized, source.place).ok_or(LegalizationError::custody())?;
-        let path = match source.path.split_last() {
-            Some((terminal_psi::StructuralPathSegment::Referent, prefix)) => prefix,
-            _ => source.path.as_slice(),
-        };
-        let geometry = reference_formation_geometry(root, path, unit.geometry())
-            .ok_or(LegalizationError::custody())?;
-        operands(optimized, unit, operation, &geometry.elements)
     }
 
     pub(crate) fn collection_view(

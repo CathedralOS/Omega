@@ -39,6 +39,30 @@ pub fn prepare_replay<'source>(
             &format!("invalid declared scalar qualifications: {error:?}"),
         )
     })?;
+    // A record formal, result or field in a domain is a contract of the
+    // lowered form, judged here before anything is inferred from it.
+    terminal_semantics::structural_qualifications::validate(&elaboration.module).map_err(
+        |error| {
+            crate::refusal(
+                RefusalReason::ForeignIdentity,
+                error
+                    .machine
+                    .or_else(|| {
+                        elaboration
+                            .module
+                            .machines
+                            .first()
+                            .map(|machine| machine.id)
+                    })
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                &format!(
+                    "invalid declared structural qualifications: {}",
+                    error.detail
+                ),
+            )
+        },
+    )?;
     module(&elaboration.module, activity)?;
     Ok(ReplayScope { elaboration })
 }

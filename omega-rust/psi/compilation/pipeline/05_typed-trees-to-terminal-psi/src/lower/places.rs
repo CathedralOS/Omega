@@ -62,7 +62,7 @@ mod contents;
 use crate::body::Qualification;
 use semantic_vocabulary::{
     BlockId, DomainSemanticId, IdTable, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
-    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    StructuralCaseId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
@@ -106,56 +106,6 @@ pub(crate) struct Records<'a> {
     /// `payload_identities[sum][case][position]`: the same for a payload
     /// field.
     payload_identities: IdTable<StructuralTypeId, Vec<Vec<TerminalIdentityIndex>>>,
-    /// A qualification keeps both its source declaration and the exact view
-    /// carrier. Equal byte geometry cannot substitute another view's region.
-    byte_domains: Vec<(symbols::SymbolHandle, StructuralTypeId, StructuralDomainId)>,
-}
-
-impl Records<'_> {
-    pub(crate) fn qualifications(
-        &self,
-        machine: MachineId,
-        value_type: ValueType,
-    ) -> Checked<Vec<StructuralDomainId>> {
-        let qualification = value_type.qualification();
-        if qualification.domains.is_empty() {
-            return Ok(Vec::new());
-        }
-        let unavailable = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
-        let ValueType::Record(carrier, _, _) = value_type else {
-            return Err(unavailable(
-                "qualified structural home has no exact carrier",
-            ));
-        };
-        if qualification.policy.is_some() {
-            return Err(unavailable("byte domain has an arithmetic policy"));
-        }
-        let mut qualifications = Vec::new();
-        for source in qualification.domains.members() {
-            let mut matches = self
-                .byte_domains
-                .iter()
-                .filter(|(owner, row, _)| *owner == source && *row == carrier);
-            let Some((_, _, domain)) = matches.next() else {
-                return Err(unavailable(
-                    "byte domain has no exact source and carrier declaration",
-                ));
-            };
-            if matches.next().is_some() {
-                return Err(unavailable(
-                    "byte domain repeats its source and carrier declaration",
-                ));
-            }
-            qualifications.push(*domain);
-        }
-        qualifications.sort_unstable();
-        if qualifications.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(unavailable(
-                "byte qualifications repeat a domain declaration",
-            ));
-        }
-        Ok(qualifications)
-    }
 }
 
 /// What a module with these record types must declare: Terminal Psi's
@@ -165,7 +115,7 @@ pub(crate) struct Declared<'a> {
     pub records: Records<'a>,
     pub identities: TerminalIdentityTable,
     pub structural_types: Vec<StructuralTypeDeclaration>,
-    pub structural_domains: Vec<StructuralDomainDeclaration>,
+    pub structural_domains: crate::qualifications::StructuralDomains,
     pub native_layouts: NativeLayoutCatalog,
 }
 
@@ -595,11 +545,13 @@ pub(crate) fn declare<'a, 'b>(
             primitives,
             field_identities,
             payload_identities,
-            byte_domains: domain_bindings,
         },
         identities: identities.build(),
         structural_types,
-        structural_domains,
+        structural_domains: crate::qualifications::StructuralDomains {
+            declarations: structural_domains,
+            source_bindings: domain_bindings,
+        },
         native_layouts,
     })
 }
@@ -856,6 +808,141 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
+    /// The projected memberships every value of `record` carries: one row
+    /// per domain a field beneath it declares, at that field's path.
+    /// `wiki/spec/language/dependent_values.md`: "A data declaration's field
+    /// qualifications and `requires` clauses define its default domain", so
+    /// a field's domains are a property of every place of its owner, and the
+    /// lowered form states them there rather than on the field.
+    pub(crate) fn projected_memberships(
+        &self,
+        record: StructuralTypeId,
+        qualifications: &crate::qualifications::Qualifications,
+        machine: MachineId,
+    ) -> Checked<Vec<terminal_psi::StructuralPathQualification>> {
+        let mut rows = Vec::new();
+        // A primitive home's type is not a record: it has no field beneath
+        // it, and its scalar domains are on its own type.
+        if self
+            .primitives
+            .iter()
+            .any(|(_, _, primitive)| *primitive == record)
+        {
+            return Ok(rows);
+        }
+        self.collect_memberships(record, &mut Vec::new(), qualifications, machine, &mut rows)?;
+        rows.sort_unstable();
+        rows.dedup();
+        Ok(rows)
+    }
+
+    fn collect_memberships(
+        &self,
+        record: StructuralTypeId,
+        prefix: &mut Vec<StructuralPathSegment>,
+        qualifications: &crate::qualifications::Qualifications,
+        machine: MachineId,
+        rows: &mut Vec<terminal_psi::StructuralPathQualification>,
+    ) -> Checked<()> {
+        // A data type cannot contain itself by value, so the walk is bounded
+        // by its nesting; the bound only refuses a malformed table.
+        if prefix.len() > 2 * self.types.len() + 2 {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("data type contains itself by value"),
+            ));
+        }
+        let declaration =
+            terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
+        // A reference's referent has its type's field domains beneath it.
+        // Its whole-value domains are not part of the reference type, so a
+        // reference value names none for its referent.
+        if let StorageShape::Reference { referent, .. } = declaration.shape {
+            if self
+                .primitives
+                .iter()
+                .any(|(_, _, primitive)| *primitive == referent)
+            {
+                return Ok(());
+            }
+            prefix.push(StructuralPathSegment::Referent);
+            self.collect_memberships(referent, prefix, qualifications, machine, rows)?;
+            prefix.pop();
+            return Ok(());
+        }
+        let mut members: Vec<(
+            Option<StructuralCaseId>,
+            &RecordField,
+            TerminalIdentityIndex,
+        )> = Vec::new();
+        let missing = || {
+            refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("a field has no declared identity"),
+            )
+        };
+        for (position, field) in declaration.fields().iter().enumerate() {
+            let identity = terminal_check_tables::row(
+                &self.field_identities,
+                record,
+                machine,
+                Construct::Machine,
+            )?
+            .get(position)
+            .copied()
+            .ok_or_else(missing)?;
+            members.push((None, field, identity));
+        }
+        for (ordinal, case) in declaration.cases().iter().enumerate() {
+            for (position, field) in case.fields.iter().enumerate() {
+                let identity = terminal_check_tables::row(
+                    &self.payload_identities,
+                    record,
+                    machine,
+                    Construct::Machine,
+                )?
+                .get(ordinal)
+                .and_then(|fields| fields.get(position))
+                .copied()
+                .ok_or_else(missing)?;
+                members.push((Some(case.id), field, identity));
+            }
+        }
+        for (case, field, identity) in members {
+            let ValueType::Record(inner, qualification, _) = field.value_type else {
+                continue;
+            };
+            // A byte view's domain is decided by the bytes it shows: the
+            // field's own type carries its predicates (`read::bytes`), and
+            // the byte judgment holds every store to them.
+            if !field.byte_predicates.is_empty() || self.is_byte_sequence(inner) {
+                continue;
+            }
+            let depth = prefix.len();
+            if let Some(case) = case {
+                prefix.push(StructuralPathSegment::Case(case));
+            }
+            prefix.push(StructuralPathSegment::Field(identity));
+            for domain in qualifications.structural(machine, inner, qualification)? {
+                rows.push(terminal_psi::StructuralPathQualification {
+                    path: prefix.clone(),
+                    domain,
+                });
+            }
+            self.collect_memberships(inner, prefix, qualifications, machine, rows)?;
+            prefix.truncate(depth);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn is_byte_sequence(&self, record: StructuralTypeId) -> bool {
+        self.types
+            .get(record)
+            .is_some_and(|row| matches!(row.shape, StorageShape::ByteSequence(_)))
+    }
+
     pub(crate) fn primitive_types(
         &self,
     ) -> impl Iterator<Item = (ValueType, StructuralTypeId)> + '_ {
@@ -1010,6 +1097,13 @@ struct Located {
     fresh: bool,
 }
 
+/// A structural root's whole-value domains and the projected domains of the
+/// fields beneath it.
+pub(super) type Memberships = (
+    Vec<semantic_vocabulary::StructuralDomainId>,
+    Vec<terminal_psi::StructuralPathQualification>,
+);
+
 /// An evaluated operand of a record literal.
 #[derive(Clone, Copy)]
 enum Operand {
@@ -1021,14 +1115,14 @@ fn owned_result(
     place: PlaceId,
     record: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
-    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    (qualifications, projected_qualifications): Memberships,
 ) -> StructuralOperationResult {
     StructuralOperationResult {
         place,
         structural_type: record,
         multiplicity,
         qualifications,
-        projected_qualifications: Vec::new(),
+        projected_qualifications,
         additional_input_qualifications: Vec::new(),
         qualification_establishments: Vec::new(),
         claims: Vec::new(),
@@ -1355,6 +1449,113 @@ impl<'a> Lowering<'a> {
         }))
     }
 
+    /// `value as +D` or `value as -D` on a record: a jump, at the cast, to a
+    /// block whose one structural parameter is the result in its new
+    /// domains, and the module's row naming that edge as the explicit change
+    /// (`terminal_psi::StructuralQualificationChange`). A routed domain's row
+    /// names the route this machine issues it by. `as =D` keeps the type, so
+    /// it is the operand itself.
+    fn requalify(&mut self, operand: &Expression, expression: &Expression) -> Evaluation<Located> {
+        let Some(ValueType::Record(record, after, _)) = expression.result else {
+            return Err(self.internal("a record cast has no record result"));
+        };
+        let before = operand
+            .result
+            .map_or(Qualification::NONE, ValueType::qualification);
+        let (whole, projected) = self.memberships(record, after)?;
+        let held = self.qualifications.structural(self.id, record, before)?;
+        if held == whole {
+            return self.located(operand);
+        }
+        let added: Vec<_> = whole
+            .iter()
+            .filter(|domain| !held.contains(domain))
+            .copied()
+            .collect();
+        if !added.is_empty() && held.iter().any(|domain| !whole.contains(domain)) {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("a record cast that both adds and removes domains"),
+            ));
+        }
+        let establishments = self
+            .qualifications
+            .structural_establishments(self.id, &added)?;
+        let value = continuing!(self.record(operand));
+        let cast = self.block(expression.source);
+        let (place, exact) = self.root(
+            StructuralPlaceKind::BlockParameter {
+                block: cast,
+                position: 0,
+            },
+            record,
+        )?;
+        let parameter = terminal_psi::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            structural_type: record,
+            multiplicity: self.records.multiplicity(record, self.id)?,
+            access: StructuralAccess::Owned,
+            qualifications: whole,
+            projected_qualifications: projected,
+            additional_input_qualifications: Vec::new(),
+        };
+        let id = self.id;
+        self.blocks
+            .get_mut(cast)
+            .ok_or(Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine: id,
+                concerns: Construct::Block(cast),
+                source_span: None,
+                detail: String::from("a record cast's block is past its function"),
+            })?
+            .structural_parameters
+            .push(parameter);
+        let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
+            .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
+        self.jump_with_structural(
+            cast,
+            Vec::new(),
+            vec![StructuralArgument::whole(value, StructuralAccess::Owned)],
+            expression.source,
+        )?;
+        self.qualifications
+            .structural_changes
+            .push(terminal_psi::StructuralQualificationChange {
+                machine: id,
+                edge,
+                argument_ordinal: 0,
+                source: value,
+                destination: place,
+                establishments,
+            });
+        self.enter(cast);
+        Ok(Reached::Value(Located {
+            root: place,
+            place: exact,
+            path: Vec::new(),
+            record,
+            fresh: true,
+        }))
+    }
+
+    /// The memberships of a root holding a value of `record` in
+    /// `qualification`: the type's own domains and its fields'.
+    pub(super) fn memberships(
+        &self,
+        record: StructuralTypeId,
+        qualification: Qualification,
+    ) -> Checked<Memberships> {
+        Ok((
+            self.qualifications
+                .structural(self.id, record, qualification)?,
+            self.records
+                .projected_memberships(record, self.qualifications, self.id)?,
+        ))
+    }
+
     /// Emits an operation whose result is a fresh record root.
     pub(super) fn produce(
         &mut self,
@@ -1362,10 +1563,10 @@ impl<'a> Lowering<'a> {
         value_type: ValueType,
         kind: OperationKind,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
-        let ValueType::Record(record, _, _) = value_type else {
+        let ValueType::Record(record, qualification, _) = value_type else {
             return Err(self.internal("a structural result has no complete record type"));
         };
-        let qualifications = self.records.qualifications(self.id, value_type)?;
+        let memberships = self.memberships(record, qualification)?;
         let (place, exact) = self.root(
             StructuralPlaceKind::OperationResult {
                 producer: operation,
@@ -1384,7 +1585,7 @@ impl<'a> Lowering<'a> {
         .unwrap_or(type_multiplicity);
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
-            OperationResult::Structural(owned_result(place, record, multiplicity, qualifications)),
+            OperationResult::Structural(owned_result(place, record, multiplicity, memberships)),
             kind,
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
@@ -1506,7 +1707,11 @@ impl<'a> Lowering<'a> {
                     OperationKind::EstablishByteSequenceLiteral {
                         destination: root,
                         bytes: bytes.clone(),
-                        qualifications: self.records.qualifications(self.id, value_type)?,
+                        qualifications: self.qualifications.structural(
+                            self.id,
+                            record,
+                            value_type.qualification(),
+                        )?,
                     },
                 )?;
                 self.write(
@@ -1577,14 +1782,14 @@ impl<'a> Lowering<'a> {
                     }
                 };
                 let multiplicity = self.records.multiplicity(record, self.id)?;
-                let qualifications = self.records.qualifications(self.id, value_type)?;
+                let memberships = self.memberships(record, value_type.qualification())?;
                 self.draft()?.operations.push(Operation::unsuspended(
                     operation,
                     OperationResult::Structural(owned_result(
                         root,
                         record,
                         multiplicity,
-                        qualifications,
+                        memberships,
                     )),
                     kind,
                 ));
@@ -1776,25 +1981,17 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
             }
-            ExpressionKind::Requalify(operand) => {
-                // Requalification uses the same copy or affine transfer as
-                // other structural transport. Its new roster is checked
-                // against the source; its bytes and backing do not change.
-                let at = continuing!(self.located(operand));
-                let root = continuing!(self.copy_or_move_record(at, value_type, expression.source));
-                Ok(Reached::Value(Located {
-                    root,
-                    place: self.exact_root(root)?,
-                    path: Vec::new(),
-                    record,
-                    fresh: true,
-                }))
-            }
+            // The operand's value under another set of domains: nothing is
+            // computed (domains.md: "removing `D` with a cast changes no bits
+            // or geometry"), but the result is a distinct place of a distinct
+            // type, reached through the cast's own edge.
+            ExpressionKind::Requalify(operand) => self.requalify(operand, expression),
             ExpressionKind::Establish { .. } => {
                 Err(self.internal("a cast that proves predicates of a data value"))
             }
             ExpressionKind::Borrow {
                 access,
+                formation,
                 place,
                 home,
             } => {
@@ -1805,18 +2002,33 @@ impl<'a> Lowering<'a> {
                 else {
                     return Err(self.internal("a persistent loan has no reference descriptor type"));
                 };
-                if Some(declared) != borrowed_access(*access) {
+                if Some(declared) != borrowed_access(*access) || !formation.forms(*access) {
                     return Err(self.internal("a reference formation changed its source access"));
                 }
                 let reinterpret = place.result.map(ValueType::erased)
                     != Some(self.storage_value_type(referent)?.erased());
-                if reinterpret && *access != language_core::ReferenceAccess::Shared {
+                // An exclusive formation lending shared access is still
+                // exclusive here.
+                if reinterpret && *formation != language_core::ReferenceAccess::Shared {
                     return Err(refuse(
                         self.id,
                         Construct::Machine,
                         Unserved::Expression(
                             "exclusive reference view without restoration evidence",
                         ),
+                    ));
+                }
+                // A reference type names its referent's storage type, which
+                // carries the referent's field domains but not domains of
+                // the whole referent: such a reference would erase them.
+                if let Some(ValueType::Record(lent, qualification, _)) = place.result
+                    && !self.records.is_byte_sequence(lent)
+                    && !qualification.domains.is_empty()
+                {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Expression("persistent reference to a data value in a domain"),
                     ));
                 }
                 // A persistent reference borrows the original storage. The
@@ -1849,10 +2061,13 @@ impl<'a> Lowering<'a> {
                 };
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
+                // The occurrence records the written formation: an exclusive
+                // loan holds its place for as long as the shared reference
+                // it lends lives.
                 self.obligation(
                     ObligationKind::Loan {
                         captured: lent.place,
-                        access: *access,
+                        access: *formation,
                         lender: lent.lender,
                     },
                     before,
@@ -3621,6 +3836,7 @@ mod tests {
                             call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: language_core::ReferenceAccess::Shared,
+                                formation: language_core::ReferenceAccess::Shared,
                                 place: Box::new(Expression {
                                     call_context: None,
                                     kind: ExpressionKind::Slot(3),
