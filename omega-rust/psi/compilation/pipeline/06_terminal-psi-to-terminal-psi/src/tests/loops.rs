@@ -7,6 +7,7 @@ fn compare(operation: Strict, left: Expression, right: Expression) -> Expression
     expression(
         ExpressionKind::Strict {
             operation,
+            policy: None,
             left: Box::new(left),
             right: Box::new(right),
         },

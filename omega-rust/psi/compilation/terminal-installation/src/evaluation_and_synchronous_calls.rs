@@ -1620,8 +1620,6 @@ pub(crate) mod synchronous_calls {
         OperationKind, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
     };
 
-    use crate::AdmittedTargetMachineSelections;
-
     pub struct SynchronousCallClosure<'module> {
         pub machines: Vec<&'module terminal_psi::TerminalMachine>,
         pub boundaries: BTreeSet<BoundaryMachineId>,
@@ -1630,7 +1628,6 @@ pub(crate) mod synchronous_calls {
     pub struct SynchronousCallGraph<'module> {
         module: &'module TerminalModule,
         machines: BTreeMap<MachineId, &'module terminal_psi::TerminalMachine>,
-        target_members: Option<&'module AdmittedTargetMachineSelections>,
         entry_bridge: Option<(BoundaryMachineId, MachineId)>,
         boundary_calls: Vec<(BoundaryMachineId, MachineId)>,
     }
@@ -1645,7 +1642,6 @@ pub(crate) mod synchronous_calls {
 
         pub fn new(
             module: &'module TerminalModule,
-            target_members: Option<&'module AdmittedTargetMachineSelections>,
             entry_bridge: Option<(BoundaryMachineId, MachineId)>,
         ) -> Result<Self, String> {
             let mut machines = BTreeMap::new();
@@ -1660,7 +1656,6 @@ pub(crate) mod synchronous_calls {
             Ok(Self {
                 module,
                 machines,
-                target_members,
                 entry_bridge,
                 boundary_calls: Vec::new(),
             })
@@ -1709,17 +1704,12 @@ pub(crate) mod synchronous_calls {
             if let Some((_, entry)) = self.entry_bridge.filter(|(head, _)| *head == boundary) {
                 return Ok((Some(entry), true));
             }
-            match crate::admitted_boundary_member(self.module, self.target_members, boundary)? {
-                Some(TargetMachineCallable::Machine(member)) => Ok((Some(member), false)),
-                Some(TargetMachineCallable::Boundary(_)) | None => {
-                    let callee = self
-                        .boundary_calls
-                        .binary_search_by_key(&boundary, |(boundary, _)| *boundary)
-                        .ok()
-                        .map(|index| self.boundary_calls[index].1);
-                    Ok((callee, true))
-                }
-            }
+            let callee = self
+                .boundary_calls
+                .binary_search_by_key(&boundary, |(boundary, _)| *boundary)
+                .ok()
+                .map(|index| self.boundary_calls[index].1);
+            Ok((callee, true))
         }
 
         pub fn from_root(
@@ -1886,7 +1876,7 @@ pub(crate) mod synchronous_calls {
                 rows: (1..=3).map(MachineId::new).collect(),
             });
             module.identities = identities.build();
-            let calls = SynchronousCallGraph::new(&module, None, None).unwrap();
+            let calls = SynchronousCallGraph::new(&module, None).unwrap();
             let pending = calls.dynamic_callees(0, 0, false).unwrap();
             assert_eq!(pending, vec![MachineId::new(1).unwrap()]);
             let pending = calls.dynamic_callees(0, 0, true).unwrap();

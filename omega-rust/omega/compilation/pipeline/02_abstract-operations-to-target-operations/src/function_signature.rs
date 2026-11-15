@@ -228,8 +228,7 @@ pub(crate) mod borrowed_storage {
                 );
                 requested.extend(
                     function
-                        .operations
-                        .iter()
+                        .operations()
                         .filter_map(|operation| operation.materialized_structural_result())
                         .map(|(_, result)| result.structural_type),
                 );

@@ -660,6 +660,7 @@ fn finish_reading<'source>(
         Some(&program),
     )?;
     calling_abis.publish(&mut elaboration.module)?;
+    program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
     declare::declare(program.typed(), &program, &mut elaboration)
         .and_then(|()| {
             declare::provider_candidates(
@@ -981,9 +982,10 @@ fn lower_generic_for<'source>(
     }
     module.identities = qualifications.identities.build();
     module.scalar_qualifications = qualifications.catalog;
-    for machine in &mut module.machines {
-        let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
-            .map_err(|error| {
+    for ordinal in 0..module.machines.len() {
+        let machine = &module.machines[ordinal];
+        let plan =
+            terminal_semantics::plain_affine::plan_in(&module, machine.id).map_err(|error| {
                 let (concerns, operation, origin) = match error.site() {
                     Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
                         Construct::Operation(at),
@@ -1034,6 +1036,7 @@ fn lower_generic_for<'source>(
                     },
                 }
             })?;
+        let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership
         // frontier; source syntax alone cannot distinguish them. The checker

@@ -6,7 +6,7 @@ Semantic judgments for borrowed byte/element descriptors, observable descriptor 
 
 pub mod descriptor_lifetimes {
 
-    use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralFieldId};
+    use semantic_vocabulary::{BlockId, PlaceId};
     use std::collections::{BTreeMap, BTreeSet};
 
     pub(crate) mod arrivals {
@@ -137,6 +137,23 @@ pub mod descriptor_lifetimes {
             for segment in path {
                 let declaration = declaration(types, tip?)?;
                 let canonical = match segment {
+                    StructuralPathSegment::RepresentationView {
+                        structural_type,
+                        stored_scalar,
+                    } if case_fields.is_none() => {
+                        tip = Some(
+                            crate::representation_view_declaration(
+                                types.iter(),
+                                *structural_type,
+                                *stored_scalar,
+                            )?
+                            .id,
+                        );
+                        DescriptorPathSegment::RepresentationView {
+                            structural_type: *structural_type,
+                            stored_scalar: *stored_scalar,
+                        }
+                    }
                     StructuralPathSegment::Referent if case_fields.is_none() => {
                         let StructuralTypeShape::Reference { referent, .. } = declaration.shape
                         else {
@@ -300,6 +317,23 @@ pub mod descriptor_lifetimes {
             for segment in path {
                 let declaration = declaration(types, tip?)?;
                 result.push(match segment {
+                    DescriptorPathSegment::RepresentationView {
+                        structural_type,
+                        stored_scalar,
+                    } if case_fields.is_none() => {
+                        tip = Some(
+                            crate::representation_view_declaration(
+                                types.iter(),
+                                *structural_type,
+                                *stored_scalar,
+                            )?
+                            .id,
+                        );
+                        StructuralPathSegment::RepresentationView {
+                            structural_type: *structural_type,
+                            stored_scalar: *stored_scalar,
+                        }
+                    }
                     DescriptorPathSegment::Referent if case_fields.is_none() => {
                         let StructuralTypeShape::Reference { referent, .. } = declaration.shape
                         else {
@@ -557,7 +591,8 @@ pub mod descriptor_lifetimes {
         }
 
         fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) -> bool {
-            left.contains(right) || right.contains(left)
+            left.root == right.root
+                && crate::storage::place_paths::may_overlap(&left.path, &right.path)
         }
     }
     pub use locations::{
@@ -574,15 +609,26 @@ pub mod descriptor_lifetimes {
         pub path: Vec<DescriptorPathSegment>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    pub enum DescriptorPathSegment {
-        Referent,
-        Field(StructuralFieldId),
-        FixedIndex(u64),
-        Case(StructuralCaseId),
-    }
+    pub use terminal_psi::ResolvedStructuralPathSegment as DescriptorPathSegment;
 
     impl DescriptorLocation {
+        /// Retain a captured address without translating its storage steps.
+        /// A runtime selector needs its capture point; an extent is metadata.
+        pub fn captured(root: PlaceId, path: &[DescriptorPathSegment]) -> Option<Self> {
+            if path.iter().any(|step| {
+                matches!(
+                    step,
+                    DescriptorPathSegment::RuntimeIndex { .. } | DescriptorPathSegment::Extent
+                )
+            }) {
+                return None;
+            }
+            Some(Self {
+                root,
+                path: path.to_vec(),
+            })
+        }
+
         pub fn whole(root: PlaceId) -> Self {
             Self {
                 root,
@@ -2352,7 +2398,7 @@ pub mod descriptor_results {
                 let address = steps[..count]
                     .iter()
                     .map(|step| match step {
-                        DescriptorContentsStep::Address(step) => Some(step.clone()),
+                        DescriptorContentsStep::Address(step) => Some(*step),
                         _ => None,
                     })
                     .collect::<Option<Vec<_>>>()?;
@@ -2515,6 +2561,13 @@ pub mod descriptor_results {
                         Some(&terminal_psi::find_structural_type(types, container)?.shape)
                     };
                     inline.push(match step {
+                        // Storage coordinates do not establish a scalar
+                        // value equation across a change of presentation.
+                        DescriptorContentsStep::Address(
+                            DescriptorPathSegment::RepresentationView { .. }
+                            | DescriptorPathSegment::RuntimeIndex { .. }
+                            | DescriptorPathSegment::Extent,
+                        ) => return None,
                         DescriptorContentsStep::Address(DescriptorPathSegment::Referent) => false,
                         DescriptorContentsStep::Address(DescriptorPathSegment::Case(_)) => true,
                         DescriptorContentsStep::Address(DescriptorPathSegment::Field(_)) => {
@@ -2537,7 +2590,7 @@ pub mod descriptor_results {
                         }
                     });
                     match step {
-                        DescriptorContentsStep::Address(segment) => path.push(segment.clone()),
+                        DescriptorContentsStep::Address(segment) => path.push(*segment),
                         DescriptorContentsStep::AnyElement { element } => {
                             base = *element;
                             path.clear();
@@ -2554,7 +2607,7 @@ pub mod descriptor_results {
                         .steps
                         .iter()
                         .map(|step| match step {
-                            DescriptorContentsStep::Address(segment) => Some(segment.clone()),
+                            DescriptorContentsStep::Address(segment) => Some(*segment),
                             DescriptorContentsStep::AnyElement { .. } => None,
                         })
                         .collect::<Option<_>>()?,
@@ -2580,7 +2633,7 @@ pub mod descriptor_results {
                         .steps
                         .iter()
                         .map_while(|step| match step {
-                            DescriptorContentsStep::Address(segment) => Some(segment.clone()),
+                            DescriptorContentsStep::Address(segment) => Some(*segment),
                             DescriptorContentsStep::AnyElement { .. } => None,
                         })
                         .collect(),
@@ -2618,7 +2671,7 @@ pub mod descriptor_results {
                 let mut path = Vec::new();
                 for step in &self.steps {
                     match step {
-                        DescriptorContentsStep::Address(segment) => path.push(segment.clone()),
+                        DescriptorContentsStep::Address(segment) => path.push(*segment),
                         DescriptorContentsStep::AnyElement { element } => {
                             tip = location_type(tip, &path, original)??;
                             let declaration = terminal_psi::find_structural_type(types, tip)?;
@@ -2999,7 +3052,7 @@ pub mod descriptor_results {
             let mut address = Vec::new();
             for step in steps {
                 match step {
-                    DescriptorContentsStep::Address(segment) => address.push(segment.clone()),
+                    DescriptorContentsStep::Address(segment) => address.push(*segment),
                     DescriptorContentsStep::AnyElement { element } => {
                         let prefix = descriptor_path(types, carrier, &address)?;
                         path.extend(prefix.iter().cloned());
@@ -6690,8 +6743,36 @@ pub mod descriptor_results {
                     DescriptorPathSegment::Referent => {
                         Some(CanonicalStructuralPathSegment::Referent)
                     }
+                    DescriptorPathSegment::RepresentationView { .. }
+                    | DescriptorPathSegment::RuntimeIndex { .. }
+                    | DescriptorPathSegment::Extent => None,
                 })
                 .collect()
+        }
+
+        #[cfg(test)]
+        #[test]
+        fn storage_presentations_and_selectors_do_not_become_static_proof_paths() {
+            let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+            assert_eq!(
+                canonical_path(&[DescriptorPathSegment::Field(field)]),
+                Some(vec![CanonicalStructuralPathSegment::Field(field)])
+            );
+            for segment in [
+                DescriptorPathSegment::RepresentationView {
+                    structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                    stored_scalar: None,
+                },
+                DescriptorPathSegment::RuntimeIndex {
+                    selector: semantic_vocabulary::ValueId::new(1).unwrap(),
+                },
+                DescriptorPathSegment::Extent,
+            ] {
+                assert_eq!(
+                    canonical_path(&[DescriptorPathSegment::Field(field), segment]),
+                    None
+                );
+            }
         }
 
         pub(crate) fn observation_type(
@@ -13099,6 +13180,34 @@ pub mod descriptor_results {
                                     *graph.place_types.get(&source.place)?,
                                     position,
                                 )?;
+                            if let OperationKind::EstablishReference {
+                                storage: Some(storage),
+                                ..
+                            } = &operation.kind
+                            {
+                                let StructuralTypeShape::Reference { referent, .. } =
+                                    find_structural_type(
+                                        &module.structural_types,
+                                        result?.structural_type,
+                                    )?
+                                    .shape
+                                else {
+                                    return None;
+                                };
+                                // The loan keeps the source address and its
+                                // new presentation together. Dropping this
+                                // step would compare the record to its bytes
+                                // as though they were different allocations.
+                                let view =
+                                    Projection::new(&[StructuralPathSegment::RepresentationView {
+                                        structural_type: referent,
+                                        stored_scalar: storage.stored_scalar,
+                                    }]);
+                                backing_projection = Some(match backing_projection {
+                                    Some(prefix) => prefix.then(&view),
+                                    None => view,
+                                });
+                            }
                             step.derivations
                                 .push((source_location.clone(), destination.clone()));
                             // Inline collections lend their current storage

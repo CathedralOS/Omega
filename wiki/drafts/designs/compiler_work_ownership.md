@@ -33,13 +33,13 @@ are not already served APIs.
 
 | Stage | Observed ownership or dependency | Proposed work boundary |
 | --- | --- | --- |
-| Psi 00–01 | [Source groups](../../../omega-rust/psi/compilation/source-compiler/src/lib.rs) lex then parse each file with reusable scratch; groups run concurrently on a process-global Rayon pool. Discovery also has separate syntax work that admission repeats. | Retain syntax pages and their source-relative index within the invocation. Keep semantic source authority separate. |
+| Psi 00–01 | [Source groups](../../../omega-rust/psi/compilation/source-compiler/src/lib.rs) lex then parse each file with reusable scratch; groups run concurrently on the invocation's [execution budget](../../../omega-rust/psi/foundation/execution-admission/README.md). Logical-module discovery parses each file into a standalone page that admission adopts under the admitted source identity instead of parsing again. | Keep semantic source authority separate from retained syntax. |
 | Psi 02 | [Resolution](../../../omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs#L2496) orders normalization, identities, constants and selections through a mutable owner. A later phase needs facts established earlier. | Prepare declaration/scope/selection inputs, then resolve independent body uses into owned tables. Preserve each phase's preconditions; do not declare all resolution independent. |
 | Psi 03 | [Typing](../../../omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596) loops through declaration families with one mutable lowerer and then closes the cohort. Shared-snapshot completion can clone owned arenas. | Share immutable declaration/type/signature tables; produce body-local tables and explicit closure inputs. Retain necessary cohort closure before consumers use its results. |
 | Psi 04 | [Specialization](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L83) appends generated machines and scans prior instances linearly. [Record-pattern preparation](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/record_patterns.rs) follows it. | Deduplicate canonical instance requests through an exact key index, reserve identities, and generate independent bodies through a bounded work queue once `LOWERED-FORM-CHECKER` stabilizes Psi 04. Keep pass ordering and stop/refusal behavior. |
 | Psi 05 | [Structural lowering](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L882) prepares shared signatures, outcomes, compact SCC call components (#3201) and records; `lower::machine` returns owned results and `plain_affine::plan` runs per machine. `outcome.rs` settles outcomes callee-first over those components, iterating only inside a cycle. | If lowering cost warrants it, dynamically schedule independent lowering jobs and assemble in `MachineId` order. Preserve recursive-component relationships and source correspondence. |
 | Psi 06 | [Discharge](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L380) runs result inference, private-input inference, then result inference again, prepares indexed per-machine branch and carried-proof inputs (#3212), and discharges disjoint `MachineTables`. Per-machine `graph.rs` dominance is still quadratic. | Repair per-machine dominance and proof-origin cloning first, then expose independent final machine checks over settled inputs. Later, if costly, schedule independent ready summary branches under the same budget. Preserve cycle policy and proof admission. |
-| Omega 00–09 | Native jobs traverse the [numbered representation pipeline](../../../omega-rust/pipeline.md#connected-program-route); native completion spawns up to four 256 MiB-stack scoped workers. | Share an explicit foundation-owned invocation budget with Psi work. Keep the stage sequence inside a native job; no pool per native stage. |
+| Omega 00–09 | Native jobs traverse the [numbered representation pipeline](../../../omega-rust/pipeline.md#connected-program-route); native completion runs at most four jobs at a time on the same invocation execution budget as Psi parsing. | Keep the stage sequence inside a native job; no pool per native stage. |
 
 ## Full proposed flow
 
@@ -125,16 +125,16 @@ full tree until the invocation ends.
 
 **One execution budget across the Psi/Omega firewall.** Invocation-wide admission
 covers source groups, product/target jobs and machine batches. Because `psi/`
-cannot import `omega/` crates, the shared execution-admission handle and worker
-pool belong in a target-neutral foundation crate and enter Psi through explicit
-invocation parameters. That replaces `01_tokens-to-syntax-trees`'s
-process-global `OnceLock<rayon::ThreadPool>`, which currently defaults to all
-logical cores without consulting shared-host build budgets. Both parser workers
-(`PARSE_STACK_SIZE`) and compile workers (`COMPILE_STACK_SIZE`) also reserve
-256 MiB stacks today for recursive syntax and type walks; scaling active workers
-under one shared pool therefore pairs with moving recursive walks onto flat
-tables (`PIPELINE-ARCHITECTURE-ENFORCEMENT`) so stack reservations do not
-multiply across workers. Prefer existing coarse independent work when it fills
+cannot import `omega/` crates, the shared worker budget lives in the
+target-neutral [`execution-admission`](../../../omega-rust/psi/foundation/execution-admission/README.md)
+foundation crate. The CLI creates one `ExecutionBudget` per invocation and runs
+the command on it; lexing, parsing and native completion fan out onto those
+same workers, so the invocation's active workers and their 256 MiB stacks are
+bounded once. The budget bounds workers, not memory: native completion keeps
+its own in-flight cap of four jobs beneath it. The 256 MiB stacks exist for
+recursive syntax and type walks; widening concurrency further pairs with moving
+those walks onto flat tables (`PIPELINE-ARCHITECTURE-ENFORCEMENT`) so stack
+reservations do not multiply across workers. Prefer existing coarse independent work when it fills
 the budget; expose ready body jobs when it does not. Nested operations reuse
 admission or stay inline. Never hold every permit while waiting for child jobs
 that require those permits. Body walks and obligation loops remain sequential
@@ -186,6 +186,26 @@ changes. Indexing per-machine inputs does not by itself require a scheduler stud
 Combined changes satisfy the evidence for each kind; do not hide a concurrency
 change inside a storage refactor.
 
+### Optional adjacent-stage overlap
+
+After independently owned body outputs exist, distinguish cheap output
+combination, waiting for unrelated stragglers, and necessary shared-fact closure.
+A stage boundary need not be a whole-program scheduling barrier: a body may
+advance only when its declared input and required shared facts are settled.
+Keep cheap joins that strand no material downstream work. An API accepting one
+whole-program owner is not, by itself, evidence that every consumer needs that
+barrier.
+
+Trial one adjacent pair with no unresolved cross-body inference, using the same
+transforms and execution budget while retaining the other joins. The driver may
+continue directly into the next ready transform without a queue handoff; stages
+still consume their declared representations. Blocked work releases workers and
+permits, and backpressure bounds in-flight storage. Preserve settled-summary and
+final-acceptance gates. Keep the overlap only if it meets the elapsed-time,
+CPU-work, memory and determinism criteria below. This is a follow-on experiment,
+not a scheduler-rewrite requirement or another repair-queue defect without a
+concrete unnecessary dependency.
+
 ### Baseline and decision before changing scheduling
 
 Select a small workload set, not a new fixture corpus: a representative large
@@ -235,8 +255,9 @@ walks all bodies is a candidate repair, not automatically an unavoidable join.
    per-machine immediate-dominator trees instead of quadratic dominance matrices
    (`06/src/graph.rs`), compact proof origins instead of upfront derivation
    cloning (`06/src/known.rs`), indexed
-   specialization instance lookup (`04/src/passes/specialization.rs`), and
-   invocation-scoped syntax reuse across logical-module discovery. Validate each
+   specialization instance lookup (`04/src/passes/specialization.rs`).
+   Invocation-scoped syntax reuse across logical-module discovery has landed.
+   Validate each
    as a standalone sequential repair without a scheduler rewrite.
 2. Re-measure the cheaper compiler on the surviving lowered-form route. Note
    that historical ~3,200-second Psi 05 measurements (#2788) belonged to the
@@ -245,8 +266,7 @@ walks all bodies is a candidate repair, not automatically an unavoidable join.
    reconstruction and proof discharge over disjoint `MachineTables`. Compare
    post-inference Psi 06 against Psi 05 on current workloads and choose one
    boundary only when measured compile time justifies threading.
-3. Unify execution admission in a target-neutral foundation crate (respecting
-   shared-host budgets and 256 MiB stack constraints), run a dynamically
+3. On the shared invocation budget (`execution-admission`), run a dynamically
    work-stolen batch over the chosen boundary, preserve lowest-`MachineId`
    refusal order and deterministic assembly, and compare against the same
    candidate at one worker. A failed threading hypothesis is revised or dropped;
@@ -264,13 +284,6 @@ must likewise earn its complexity through a measured critical-path bottleneck.
 Open entries in [OWNER_CODE_CONCERNS.md](../../../OWNER_CODE_CONCERNS.md#entries)
 directly tied to this ownership direction:
 
-- **Execution admission:** replace the unconstrained global parser pool and
-  separate native executor cap with one foundation-owned invocation budget;
-  account for 256 MiB stacks (`PIPELINE-ARCHITECTURE-ENFORCEMENT`), heavy-tailed
-  body stealing and lowest-`MachineId` refusal order before trialing
-  post-inference Psi 06 or Psi 05.
-- **Syntax retention:** parse unchanged captured bytes once where safely reusable;
-  preserve separate semantic source identity and bound retained discovery storage.
 - **Body ownership:** remove whole-program cloning for selected body completion;
   preserve unchanged pages and explicit signature/summary dependencies once
   `LOWERED-FORM-CHECKER` frontend churn settles.
@@ -289,6 +302,12 @@ Already landed sequential prerequisites from the initial queue:
 - **Outcome propagation:** `05_typed-trees-to-terminal-psi/src/outcome.rs`
   settles call outcomes callee-first over the #3201 components, so a body
   outside a cycle is walked once instead of once per whole-program round.
+- **Execution admission:** lexing, parsing and native completion share one
+  `execution-admission` budget created per invocation, replacing the parser's
+  process-global pool and native completion's private threads. Trialing
+  post-inference Psi 06 or Psi 05 on it still needs the 256 MiB stack
+  accounting (`PIPELINE-ARCHITECTURE-ENFORCEMENT`), heavy-tailed body stealing
+  and lowest-`MachineId` refusal order described above.
 
 Resolution scheduling, specialization queues and summary scheduling remain
 design hypotheses here, not extra queue entries implying that parallelism is

@@ -8,7 +8,7 @@ hosted receiver or physical entry settlement.
 */
 
 use diagnostics::Diagnostic;
-use terminal_installation::admit_target_machine_selections;
+use terminal_installation::terminal_target_context;
 use terminal_psi_to_abstract_operations::{
     NativeProgramEntrySettlement, TerminalAccessViewEstablishment,
     ValidatedNativeProgramEntrySettlement, VerifiedNativeArtifactInput,
@@ -30,7 +30,7 @@ pub fn admit_executable_entry(
             "source-selected entry deployment does not own the native target",
         ));
     }
-    let selections = admit_target_machine_selections(artifact.view(), source_profile.target_name());
+    let selections = terminal_target_context(artifact.view(), source_profile.target_name());
     let selected_entry = selections
         .entry(
             artifact.view().identity(),
@@ -43,13 +43,10 @@ pub fn admit_executable_entry(
         || terminal != artifact.semantic_module()
         || input
             .optimization_input()
-            .target_machine_selections()
+            .target_context()
             .is_some_and(|retained| retained != &selections)
         || terminal.entry != Some(terminal_psi::TargetMachineCallable::Machine(plan.entry))
-            && (input
-                .optimization_input()
-                .target_machine_selections()
-                .is_none()
+            && (input.optimization_input().target_context().is_none()
                 || program_entry.checked_entry.is_none())
         || program_entry.checked_entry.is_some_and(|receipt| {
             program_entry

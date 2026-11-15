@@ -393,11 +393,7 @@ fn original_windows_import<'a>(
             "Windows handle call {boundary:?} substitutes its complete admitted foreign key"
         ));
     }
-    let calling_boundary = crate::selected_calling_boundary(
-        context.input.module(),
-        context.input.target_machine_selections(),
-        boundary,
-    )?;
+    let calling_boundary = boundary;
     let declaration = context
         .input
         .module()

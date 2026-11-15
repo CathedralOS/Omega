@@ -48,7 +48,7 @@ use std::path::Path;
 pub(crate) mod compile_thread {
     use diagnostics::Diagnostic;
 
-    pub const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+    pub const COMPILE_STACK_SIZE: usize = execution_admission::WORKER_STACK_SIZE;
 
     thread_local! {
         static ON_COMPILER_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -61,7 +61,8 @@ pub(crate) mod compile_thread {
         T: Send,
         Failure: From<Vec<Diagnostic>> + Send,
     {
-        if ON_COMPILER_WORKER.get() {
+        // An invocation budget worker already has the large stack.
+        if ON_COMPILER_WORKER.get() || execution_admission::on_budget_worker() {
             return work();
         }
         std::thread::scope(|scope| {

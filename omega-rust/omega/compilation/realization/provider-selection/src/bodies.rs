@@ -1,6 +1,6 @@
 /*
 Selected execution bodies: Psi's checked bodies, external numeric execution
-meaning, pre-optimization callback roots, and target-body availability.
+meaning, and pre-optimization callback roots.
 
 select_checked_body and select_terminal_checked_body join selected rows to Psi's
 checked declaration and application inventory without reconstructing source
@@ -15,14 +15,11 @@ the selected realization.
 */
 
 mod callback_roots;
-pub(crate) use callback_roots::{CallbackApplicationUse, InstalledHelperUse};
-mod target_bodies;
 
 pub use callback_roots::{
     CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
 };
 pub use language_semantics::CheckedBodyCandidate;
-pub use target_bodies::{DirectTargetBodyAbsences, reject_reached_inert_calls};
 
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;

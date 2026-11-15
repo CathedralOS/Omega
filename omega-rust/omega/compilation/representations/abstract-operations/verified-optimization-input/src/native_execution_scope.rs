@@ -110,7 +110,7 @@ mod storage {
 
 #[derive(Debug)]
 pub enum NativeExecutionScopeError {
-    TargetFamily(String),
+    TargetContext(String),
     InstalledInterrupt(String),
     MissingMachine(MachineId),
     MissingBoundary(BoundaryMachineId),
@@ -121,7 +121,7 @@ pub enum NativeExecutionScopeError {
 impl std::fmt::Display for NativeExecutionScopeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::TargetFamily(error) | Self::InstalledInterrupt(error) => {
+            Self::TargetContext(error) | Self::InstalledInterrupt(error) => {
                 formatter.write_str(error)
             }
             Self::MissingMachine(machine) => write!(
@@ -148,7 +148,7 @@ impl std::error::Error for NativeExecutionScopeError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeExecutionScope {
-    target_selections: terminal_installation::AdmittedTargetMachineSelections,
+    target_context: terminal_installation::TerminalTargetContext,
     entry: MachineId,
     selected_provider_closure: [u8; 32],
     source_provider_selection: effects::SelectedProviderPlanFacts,
@@ -175,7 +175,7 @@ impl NativeExecutionScope {
     pub(crate) fn derive(
         artifact: terminal_codec::TerminalArtifactView<'_>,
         entry: MachineId,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        targets: &terminal_installation::TerminalTargetContext,
         entry_call: Option<&crate::SelectedProgramEntryCall>,
         selected: (
             &[SelectedProviderAdapter],
@@ -186,7 +186,7 @@ impl NativeExecutionScope {
     ) -> Result<Self, NativeExecutionScopeError> {
         let module = artifact.module();
         if targets.terminal_psi() != artifact.identity() {
-            return Err(NativeExecutionScopeError::TargetFamily(
+            return Err(NativeExecutionScopeError::TargetContext(
                 "native execution scope target selections name another Terminal artifact".into(),
             ));
         }
@@ -195,18 +195,6 @@ impl NativeExecutionScope {
             .machines
             .iter()
             .enumerate()
-            .filter(|(_, machine)| {
-                module.target_machine_families.iter().all(|family| {
-                    let callable = terminal_psi::TargetMachineCallable::Machine(machine.id);
-                    !family
-                        .members
-                        .iter()
-                        .any(|member| member.callable == callable)
-                        || targets
-                            .member(family.canonical)
-                            .is_ok_and(|selected| selected.callable() == callable)
-                })
-            })
             .map(|(position, machine)| (machine.id, position))
             .collect::<Vec<_>>();
         function_positions.sort_unstable_by_key(|(machine, _)| *machine);
@@ -251,7 +239,7 @@ impl NativeExecutionScope {
                 .copied(),
         );
         let mut scope = Self {
-            target_selections: targets.clone(),
+            target_context: targets.clone(),
             entry,
             selected_provider_closure: *selected_plans.identity_digest().as_bytes(),
             source_provider_selection: selected_plans.clone(),
@@ -310,7 +298,6 @@ impl NativeExecutionScope {
                         OperationKind::BoundaryCall { boundary, .. } => {
                             scope.retain_boundary(
                                 module,
-                                targets,
                                 entry_call,
                                 &index,
                                 assumptions,
@@ -337,7 +324,6 @@ impl NativeExecutionScope {
                 if let Terminator::ExternalCompletion { boundary, .. } = block.terminator {
                     scope.retain_boundary(
                         module,
-                        targets,
                         entry_call,
                         &index,
                         assumptions,
@@ -357,7 +343,6 @@ impl NativeExecutionScope {
     fn retain_boundary(
         &mut self,
         module: &TerminalModule,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
         entry_call: Option<&crate::SelectedProgramEntryCall>,
         index: &ScopeBoundaryIndex<'_>,
         assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
@@ -383,7 +368,6 @@ impl NativeExecutionScope {
         {
             return self.retain_boundary(
                 module,
-                targets,
                 entry_call,
                 index,
                 assumptions,
@@ -391,13 +375,6 @@ impl NativeExecutionScope {
                 *supplied,
                 pending,
             );
-        }
-        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
-            terminal_installation::admitted_boundary_member(module, Some(targets), boundary)
-                .map_err(NativeExecutionScopeError::TargetFamily)?
-        {
-            pending.push(member);
-            return Ok(());
         }
         let Some(candidates) = index.candidates_by_boundary.get(&boundary) else {
             return Ok(());
@@ -449,13 +426,13 @@ impl NativeExecutionScope {
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         entry: MachineId,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        targets: &terminal_installation::TerminalTargetContext,
         selection: &effects::SelectedProviderPlanFacts,
         adapters: &[SelectedProviderAdapter],
     ) -> Result<(), &'static str> {
-        if artifact.identity() != self.target_selections.terminal_psi()
+        if artifact.identity() != self.target_context.terminal_psi()
             || entry != self.entry
-            || targets != &self.target_selections
+            || targets != &self.target_context
             || selection != &self.source_provider_selection
             || adapters != self.local_adapters
         {
@@ -471,7 +448,7 @@ impl NativeExecutionScope {
     pub fn full_module_scalar_demand(
         module: &TerminalModule,
         entry: MachineId,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        targets: &terminal_installation::TerminalTargetContext,
         layouts: &terminal_installation::AdmittedTargetLayouts,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         let mut machines = module
@@ -487,7 +464,7 @@ impl NativeExecutionScope {
             .collect::<Vec<_>>();
         boundaries.sort_unstable();
         let full = Self {
-            target_selections: targets.clone(),
+            target_context: targets.clone(),
             entry,
             selected_provider_closure: [0; 32],
             source_provider_selection: effects::SelectedProviderPlanFacts::default(),
@@ -500,15 +477,15 @@ impl NativeExecutionScope {
             boundaries,
             selected_candidate_positions: (0..module.provider_candidates.len()).collect(),
         };
-        full.scalar_application_demand(module, targets, layouts)
+        full.scalar_application_demand(module, layouts)
     }
 
     pub const fn entry(&self) -> MachineId {
         self.entry
     }
 
-    pub fn target_selections(&self) -> &terminal_installation::AdmittedTargetMachineSelections {
-        &self.target_selections
+    pub fn target_context(&self) -> &terminal_installation::TerminalTargetContext {
+        &self.target_context
     }
 
     pub fn source_provider_selection(&self) -> &effects::SelectedProviderPlanFacts {
@@ -538,8 +515,8 @@ impl NativeExecutionScope {
         proposal: &crate::TerminalNativeRealizationProposal,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         self.require_source_selection(&proposal.providers().selection)?;
-        if self.target_selections.terminal_psi() != artifact.identity()
-            || self.target_selections.target() != proposal.target_profile().target_name()
+        if self.target_context.terminal_psi() != artifact.identity()
+            || self.target_context.target() != proposal.target_profile().target_name()
             || self.source_checked_entry.as_ref() != Some(proposal.program_entry().checked_entry())
             || self.callbacks != proposal.occurrences().callbacks
         {
@@ -572,12 +549,12 @@ impl NativeExecutionScope {
     pub(crate) fn require_input_context(
         &self,
         plan: &abstract_operations::AbstractOperationPlan,
-        targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
+        targets: Option<&terminal_installation::TerminalTargetContext>,
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
-        if self.target_selections.terminal_psi() != plan.psi
+        if self.target_context.terminal_psi() != plan.psi
             || self.entry != plan.entry
-            || targets != Some(&self.target_selections)
+            || targets != Some(&self.target_context)
             || self.selected_provider_closure != selected_provider_closure
         {
             return Err(
@@ -636,7 +613,6 @@ impl NativeExecutionScope {
     pub fn scalar_value_demand(
         &self,
         module: &TerminalModule,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         let mut demanded = std::collections::BTreeSet::new();
         for machine in module
@@ -655,19 +631,10 @@ impl NativeExecutionScope {
             let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
                 continue;
             };
-            let machine = match entry {
-                terminal_psi::TargetMachineCallable::Machine(machine) => *machine,
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
-                    let Ok(member) = targets.member(*entry) else {
-                        continue;
-                    };
-                    let terminal_psi::TargetMachineCallable::Machine(machine) = member.callable()
-                    else {
-                        continue;
-                    };
-                    machine
-                }
+            let terminal_psi::TargetMachineCallable::Machine(machine) = entry else {
+                continue;
             };
+            let machine = *machine;
             if !self.contains_machine(machine) {
                 continue;
             }
@@ -688,11 +655,10 @@ impl NativeExecutionScope {
     pub fn scalar_application_demand(
         &self,
         module: &TerminalModule,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
         layouts: &terminal_installation::AdmittedTargetLayouts,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         let mut applications = self.storage_extent_demand(module, layouts)?;
-        applications.extend(self.scalar_value_demand(module, targets)?);
+        applications.extend(self.scalar_value_demand(module)?);
         Ok(applications.into_iter().collect())
     }
 
@@ -822,15 +788,14 @@ mod scope_tests {
             terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
         let reloaded =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
-        let targets =
-            terminal_installation::admit_target_machine_selections(reloaded.view(), target);
+        let targets = terminal_installation::terminal_target_context(reloaded.view(), target);
         let entry = targets
             .entry(
                 reloaded.view().identity(),
                 reloaded.semantic_module(),
                 reloaded.semantic_module().entry.unwrap(),
             )
-            .map_err(|reason| NativeExecutionScopeError::TargetFamily(reason.to_string()))?;
+            .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.to_string()))?;
         NativeExecutionScope::derive(
             reloaded.view(),
             entry,
@@ -877,36 +842,11 @@ mod scope_tests {
     }
 
     #[test]
-    fn selected_scope_preserves_exact_target_member_choice() {
-        let mut module = graph();
-        let callable = |value| terminal_psi::TargetMachineCallable::Machine(machine_id(value));
-        module
-            .target_machine_families
-            .push(terminal_psi::TargetMachineFamily {
-                canonical: callable(1),
-                head_contract: [1; 32],
-                members: vec![
-                    terminal_psi::TargetMachineFamilyMember {
-                        target: "macos_arm64".into(),
-                        callable: callable(1),
-                        supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                    },
-                    terminal_psi::TargetMachineFamilyMember {
-                        target: "windows_x86_64".into(),
-                        callable: callable(2),
-                        supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                    },
-                ],
-            });
+    fn target_context_does_not_select_source_bodies() {
+        let module = graph();
         assert_eq!(
             scope(module.clone(), "macos_arm64").unwrap().machines(),
-            &[machine_id(1)]
-        );
-        module.entry = Some(callable(2));
-        assert!(scope(module.clone(), "macos_arm64").is_err());
-        assert_eq!(
-            scope(module, "windows_x86_64").unwrap().machines(),
-            &[machine_id(2), machine_id(3)]
+            scope(module, "windows_x86_64").unwrap().machines()
         );
     }
 }

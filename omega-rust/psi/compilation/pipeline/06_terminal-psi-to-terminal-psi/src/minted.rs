@@ -48,8 +48,8 @@ accepted on it.
 */
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition, PsiSemanticId,
-    ScalarType, StructuralTypeId, ValueId,
+    BlockId, CrashCause, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition,
+    PsiSemanticId, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -58,8 +58,8 @@ use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, ModuleInvocationInputs, StructuralTypeDeclaration, TerminalMachine,
-    TerminalMachineResult, Terminator, ValueDeclaration,
+    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
 use crate::{refusal, semantics_refusal};
@@ -584,6 +584,18 @@ pub(crate) fn follow_the_lowered_form(
                 minted.call(
                     InvocationSite::Operation(operation.id),
                     inputs,
+                    before,
+                    Construct::Operation(operation.id),
+                )?;
+            }
+            // A Trapping operation is its own `Trap` site (numeric_values.md,
+            // "Overflow policies").
+            if matches!(operation.kind, OperationKind::TrappingInteger { .. }) {
+                minted.owed(
+                    ObligationKind::CrashCoverage {
+                        site: CrashSite::Operation(operation.id),
+                        cause: CrashCause::Trap,
+                    },
                     before,
                     Construct::Operation(operation.id),
                 )?;

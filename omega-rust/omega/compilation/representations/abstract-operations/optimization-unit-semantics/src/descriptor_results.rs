@@ -281,7 +281,7 @@ mod scalar_expressions {
         #[cfg(test)]
         mod tests {
             use abstract_operations::{
-                AbstractBlockEntry, AbstractFunction, AbstractFunctionResult,
+                AbstractBlock, AbstractFunction, AbstractFunctionResult,
                 AbstractOperation as Operation, AbstractParameter, AbstractResult,
                 AbstractStructuralCallResult, AbstractSuccessor, ValueBinding,
             };
@@ -335,22 +335,20 @@ mod scalar_expressions {
             fn function(
                 machine: u64,
                 parameters: Vec<StructuralParameterDeclaration>,
-                block_entries: Vec<AbstractBlockEntry>,
-                operations: Vec<Operation>,
+                blocks: Vec<AbstractBlock>,
             ) -> AbstractFunction {
                 AbstractFunction {
                     machine: MachineId::new(machine).unwrap(),
                     attachment: None,
                     nominal_cleanup_subject: None,
-                    entry: block_entries[0].block,
+                    entry: blocks[0].block,
                     parameters: Vec::new(),
                     structural_parameters: parameters,
                     result: AbstractFunctionResult::Unit,
                     entry_claims: Vec::new(),
                     block_entry_claims: Vec::new(),
                     published_service_ceiling: Vec::new(),
-                    block_entries,
-                    operations,
+                    blocks,
                 }
             }
 
@@ -385,33 +383,45 @@ mod scalar_expressions {
                     structural_bindings: Vec::new(),
                     cleanup_actions: Vec::new(),
                 });
-                let conditional = operations.len();
-                operations.push(Operation::Conditional {
-                    condition: ValueId::new(2).unwrap(),
-                    when_true: successor(2),
-                    when_false: successor(3),
-                });
-                operations.extend([4, 5].map(|number| Operation::ReturnUnit {
-                    psi_edge: EdgeId::new(number).unwrap(),
-                    cleanup_actions: Vec::new(),
-                }));
-                let entries = [0, conditional, conditional + 1, conditional + 2]
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, operation_offset)| AbstractBlockEntry {
-                        block: block(index as u64 + 1),
+                let entries = vec![
+                    AbstractBlock {
+                        block: block(1),
                         structural_parameters: Vec::new(),
-                        parameters: if index == 1 {
-                            vec![AbstractParameter {
-                                value: ValueId::new(2).unwrap(),
-                                scalar_type: ScalarType::Boolean,
-                            }]
-                        } else {
-                            Vec::new()
-                        },
-                        operation_offset,
-                    })
-                    .collect();
+                        parameters: Vec::new(),
+                        operations,
+                    },
+                    AbstractBlock {
+                        block: block(2),
+                        structural_parameters: Vec::new(),
+                        parameters: vec![AbstractParameter {
+                            value: ValueId::new(2).unwrap(),
+                            scalar_type: ScalarType::Boolean,
+                        }],
+                        operations: vec![Operation::Conditional {
+                            condition: ValueId::new(2).unwrap(),
+                            when_true: successor(2),
+                            when_false: successor(3),
+                        }],
+                    },
+                    AbstractBlock {
+                        block: block(3),
+                        structural_parameters: Vec::new(),
+                        parameters: Vec::new(),
+                        operations: vec![Operation::ReturnUnit {
+                            psi_edge: EdgeId::new(4).unwrap(),
+                            cleanup_actions: Vec::new(),
+                        }],
+                    },
+                    AbstractBlock {
+                        block: block(4),
+                        structural_parameters: Vec::new(),
+                        parameters: Vec::new(),
+                        operations: vec![Operation::ReturnUnit {
+                            psi_edge: EdgeId::new(5).unwrap(),
+                            cleanup_actions: Vec::new(),
+                        }],
+                    },
+                ];
                 let caller = function(
                     1,
                     vec![
@@ -419,7 +429,6 @@ mod scalar_expressions {
                         parameter(2, 1, StructuralAccess::Owned),
                     ],
                     entries,
-                    operations,
                 );
                 let callee = function(
                     2,
@@ -427,19 +436,18 @@ mod scalar_expressions {
                         parameter(3, 0, StructuralAccess::MutableBorrow),
                         parameter(4, 1, StructuralAccess::Owned),
                     ],
-                    vec![AbstractBlockEntry {
+                    vec![AbstractBlock {
                         block: block(5),
                         structural_parameters: Vec::new(),
                         parameters: Vec::new(),
-                        operation_offset: 0,
+                        operations: vec![
+                            replacement(3, 4),
+                            Operation::ReturnUnit {
+                                psi_edge: EdgeId::new(6).unwrap(),
+                                cleanup_actions: Vec::new(),
+                            },
+                        ],
                     }],
-                    vec![
-                        replacement(3, 4),
-                        Operation::ReturnUnit {
-                            psi_edge: EdgeId::new(6).unwrap(),
-                            cleanup_actions: Vec::new(),
-                        },
-                    ],
                 );
                 let functions = [caller, callee]
                     .iter()

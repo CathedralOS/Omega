@@ -1,7 +1,7 @@
 /*
 We construct bounded native boundary-value signature graphs (`BoundaryValueLayout`)
 and short-lived Terminal storage projections (`TerminalBoundaryRecipes`) from
-Psi's closed value recipes and canonical Terminal structural types. We pack
+retained structural types and closed realization inputs. We pack
 fields for a concrete target, classify homogeneous float aggregates, and record
 exact per-occurrence opaque selection coordinates without choosing an opaque
 representation or authorizing boundary crossings.
@@ -566,11 +566,17 @@ mod tests {
         append_boundary_value_shape,
     };
     use calling_conventions::{BoundaryValueClass, BoundaryValueShape, ValueShape};
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
-    use typed_trees::TypedTrees;
+    use semantic_vocabulary::{
+        IeeeFloatFormat, IntegerSign, IntegerType, ScalarApplicationId, ScalarType,
+        StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        ArrayExtent, BindingRelevance, ByteSequenceCarrier, StructuralAccess,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityTableBuilder,
+        TerminalModule,
+    };
+    use terminal_semantics::StorageGeometryError;
 
     #[test]
     fn scalar_recipes_require_the_exact_closed_projection() {
@@ -746,49 +752,133 @@ mod tests {
         }
     }
 
-    fn typed(source: &str) -> TypedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolved");
-        lower_symbol_resolved_trees(&resolved).expect("typed")
+    /// Geometry tests start at the same retained storage declarations as native
+    /// realization, not a second recipe producer that reopens typed source.
+    struct StorageTypes {
+        module: TerminalModule,
+        identities: TerminalIdentityTableBuilder,
+        field_count: u64,
     }
 
-    fn symbol(typed: &TypedTrees, name: &str) -> symbols::SymbolHandle {
-        typed
-            .data_definition_by_name_str(name)
-            .expect("fixture declaration")
-            .symbol
+    impl StorageTypes {
+        fn new() -> Self {
+            Self {
+                module: TerminalModule::declarations(),
+                identities: TerminalIdentityTableBuilder::default(),
+                field_count: 0,
+            }
+        }
+
+        fn insert(&mut self, name: &str, shape: StructuralTypeShape) -> StructuralTypeId {
+            let id = StructuralTypeId::new(self.module.structural_types.len() as u64 + 1)
+                .expect("fixture type");
+            self.module
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    id,
+                    identity: self.identities.intern(name),
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: false,
+                    shape,
+                    scalar_restriction: None,
+                });
+            id
+        }
+
+        fn record(
+            &mut self,
+            name: &str,
+            fields: impl IntoIterator<Item = (&'static str, StructuralFieldType)>,
+        ) -> StructuralTypeId {
+            let fields = fields
+                .into_iter()
+                .map(|(field_name, field_type)| {
+                    self.field_count += 1;
+                    StructuralFieldDeclaration {
+                        inline_carrier: None,
+                        id: StructuralFieldId::new(self.field_count).expect("fixture field"),
+                        identity: self.identities.intern(&format!("{name}::{field_name}")),
+                        relevance: BindingRelevance::Relevant,
+                        field_type,
+                        storage: None,
+                    }
+                })
+                .collect();
+            self.insert(
+                name,
+                StructuralTypeShape::Record {
+                    fields,
+                    storage: StructuralRecordStorage::Packed,
+                },
+            )
+        }
+
+        fn finish(mut self) -> TerminalModule {
+            self.module.identities = self.identities.build();
+            self.module
+        }
     }
 
-    fn data_recipes(
-        typed: &TypedTrees,
-        names: &[&str],
-    ) -> (
-        language_semantics::boundary_values::BoundaryValueRecipes,
-        Vec<arena::Handle<language_semantics::boundary_values::BoundaryValueRecipe>>,
-    ) {
-        let mut preparation =
-            typed_trees::boundary_values::BoundaryValuePreparation::new(typed, &[], &[]);
-        let roots = names
-            .iter()
-            .map(|name| preparation.data(symbol(typed, name), name))
-            .collect();
-        (preparation.finish(), roots)
+    fn unsigned(bits: u16) -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap())
+    }
+
+    fn no_extent(application: ScalarApplicationId) -> Result<u64, StorageGeometryError> {
+        Err(StorageGeometryError::UnresolvedExtent(application))
     }
 
     #[test]
     fn records_preserve_padding_float_classification_and_distinct_occurrences() {
-        let typed =
-            typed("data Padded { tag: u8; value: u64; } data Floats { left: f32; right: f32; }");
-        let (recipes, roots) = data_recipes(&typed, &["Padded", "Floats", "Padded"]);
-        drop(typed);
+        let mut types = StorageTypes::new();
+        let padded = types.record(
+            "Padded",
+            [
+                ("tag", StructuralFieldType::Scalar(unsigned(8))),
+                ("value", StructuralFieldType::Scalar(unsigned(64))),
+            ],
+        );
+        let floats = types.record(
+            "Floats",
+            [
+                (
+                    "left",
+                    StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
+                ),
+                (
+                    "right",
+                    StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
+                ),
+            ],
+        );
+        let module = types.finish();
+        let mut recipes = TerminalBoundaryRecipes::new(&module, "macos_arm64", &no_extent);
+        let roots = [padded, floats, padded].map(|subject| recipes.value(subject).unwrap());
+        let tag = StructuralFieldId::new(1).unwrap();
+        assert_eq!(recipes.record_field(padded, tag).unwrap(), (roots[0], 0));
+        assert!(
+            recipes
+                .record_field(floats, tag)
+                .unwrap_err()
+                .contains("no exact live field"),
+            "a field from another record cannot match by ordinal"
+        );
         let mut values =
             BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target());
-        let (padded, padded_root) = values.value_type(&recipes, roots[0]).expect("padded");
+        let (padded, padded_root) = values
+            .value_type(recipes.recipes(), roots[0])
+            .expect("padded");
         assert_eq!(padded, ValueShape::integer(16, 8));
-        let (floats, floats_root) = values.value_type(&recipes, roots[1]).expect("floats");
+        let (floats, floats_root) = values
+            .value_type(recipes.recipes(), roots[1])
+            .expect("floats");
         assert_eq!(floats, ValueShape::homogeneous_float_aggregate(4, 2));
-        let (_, repeated_root) = values.value_type(&recipes, roots[2]).expect("repeated");
+        let (_, repeated_root) = values
+            .value_type(recipes.recipes(), roots[2])
+            .expect("repeated");
         assert_ne!(padded_root, repeated_root);
         let graph = values.graph();
         for (root, offsets) in [
@@ -811,14 +901,42 @@ mod tests {
 
     #[test]
     fn arrays_and_unsized_references_retain_their_structural_classes() {
-        let typed = typed(
-            "domain [u8]::Utf8 requires valid_utf8(self); \
-             data Values { words: [u16; 3]; slice: &[u8]; text: &[u8] in Utf8; scalar: &u64; }",
+        let mut types = StorageTypes::new();
+        let word = types.insert("u16", StructuralTypeShape::PrimitiveScalar(unsigned(16)));
+        let words = types.insert(
+            "[u16; 3]",
+            StructuralTypeShape::FixedArray {
+                element: word,
+                length: ArrayExtent::Literal(3),
+            },
         );
-        let (recipes, roots) = data_recipes(&typed, &["Values"]);
-        drop(typed);
+        let view = StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        });
+        let bytes = types.insert("ByteSlice", view.clone());
+        let text = types.insert("TextView", view);
+        let scalar = types.insert("u64", StructuralTypeShape::PrimitiveScalar(unsigned(64)));
+        let scalar = types.insert(
+            "&u64",
+            StructuralTypeShape::Reference {
+                referent: scalar,
+                access: StructuralAccess::SharedBorrow,
+            },
+        );
+        let values = types.record(
+            "Values",
+            [
+                ("words", StructuralFieldType::Structural(words)),
+                ("slice", StructuralFieldType::Structural(bytes)),
+                ("text", StructuralFieldType::Structural(text)),
+                ("scalar", StructuralFieldType::Structural(scalar)),
+            ],
+        );
+        let module = types.finish();
+        let mut recipes = TerminalBoundaryRecipes::new(&module, "uefi_x64", &no_extent);
+        let root = recipes.value(values).unwrap();
         let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target());
-        let (shape, root) = values.value_type(&recipes, roots[0]).expect("values");
+        let (shape, root) = values.value_type(recipes.recipes(), root).expect("values");
         assert_eq!(shape, ValueShape::integer(48, 8));
         let graph = values.graph();
         let BoundaryValueClass::Record { first_field, .. } = graph.shapes[usize::from(root)].class
@@ -842,39 +960,48 @@ mod tests {
 
     #[test]
     fn unsupported_by_value_carriers_fail_at_layout_construction() {
-        for (source, name, reason) in [
-            (
-                "data Recursive { next: Recursive; }",
-                "Recursive",
-                "recursive by-value",
-            ),
-            (
-                "data TooWide { words: [u64; 8192]; }",
-                "TooWide",
-                "exceeds 65535 bytes",
-            ),
-            ("data Empty {}", "Empty", "zero-sized"),
+        for (name, reason) in [
+            ("Recursive", "recursive by-value"),
+            ("TooWide", "exceeds 65535 bytes"),
+            ("Empty", "zero-sized"),
+            ("Opaque", "needs its selected representation"),
         ] {
-            let typed = typed(source);
-            let (recipes, roots) = data_recipes(&typed, &[name]);
-            drop(typed);
-            let mut values =
-                BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target());
-            let error = values
-                .value_type(&recipes, roots[0])
+            let mut types = StorageTypes::new();
+            let subject = match name {
+                "Recursive" => types.record(
+                    name,
+                    [(
+                        "next",
+                        StructuralFieldType::Structural(StructuralTypeId::new(1).unwrap()),
+                    )],
+                ),
+                "TooWide" => {
+                    let word =
+                        types.insert("u64", StructuralTypeShape::PrimitiveScalar(unsigned(64)));
+                    let words = types.insert(
+                        "[u64; 8192]",
+                        StructuralTypeShape::FixedArray {
+                            element: word,
+                            length: ArrayExtent::Literal(8192),
+                        },
+                    );
+                    types.record(name, [("words", StructuralFieldType::Structural(words))])
+                }
+                "Empty" => types.record(name, []),
+                "Opaque" => types.insert(name, StructuralTypeShape::Opaque),
+                _ => unreachable!("listed unsupported carrier"),
+            };
+            let module = types.finish();
+            let mut recipes = TerminalBoundaryRecipes::new(&module, "uefi_x64", &no_extent);
+            let error = recipes
+                .value(subject)
+                .and_then(|root| {
+                    BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target())
+                        .value_type(recipes.recipes(), root)
+                })
                 .expect_err("unsupported carrier");
-            assert!(error.contains(reason), "{error}");
+            assert!(error.contains(reason), "{name}: {error}");
         }
-        let typed = typed("boundary data Opaque;");
-        let (recipes, roots) = data_recipes(&typed, &["Opaque"]);
-        drop(typed);
-        let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target());
-        assert!(
-            values
-                .value_type(&recipes, roots[0])
-                .expect_err("unselected opaque")
-                .contains("selects no exact")
-        );
     }
 
     #[test]

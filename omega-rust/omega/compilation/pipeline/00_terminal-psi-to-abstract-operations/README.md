@@ -37,7 +37,7 @@ which preserves the established public names through reexports.
   The [scope walk](../../representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs)
   also retains cleanup, installed-interrupt and code-layout requirements, plus
   functions referenced by dynamic dispatch tables. Reached calls can require
-  additional direct or target-family implementations; demand completion checks
+  additional direct or Build-selected provider implementations; demand completion checks
   those additions and binds the final choices after completion. Original build
   choices remain distinct from that completed selection.
 - [retained_terminal.rs](src/retained_terminal.rs) orchestrates lowering and
@@ -112,7 +112,9 @@ then calls [machine lowering](src/lowering.rs) directly.
 That owner prepares block/value rosters, visits blocks in order, dispatches
 [operations](src/lowering.rs) and
 [terminators](src/lowering.rs), and assembles the abstract
-function. Scalar, Unit and structural results share this traversal; there is no
+function. Each abstract block owns its operations and final control transfer;
+there is no flat body plus a separate block-offset roster. Scalar, Unit and
+structural results share this traversal; there is no
 separate forwarding or ordinary-machine route to navigate.
 
 No earlier program, StateGraph, or caller-created module substitutes for the

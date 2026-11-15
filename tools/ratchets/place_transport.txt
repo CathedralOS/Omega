@@ -18,14 +18,15 @@
 1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs
 3 omega-rust/psi/compilation/representations/terminal-psi/codec/src/wire_fields.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs
-3 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs
+2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs
+1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/place_paths.rs
 3 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs
 4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs
 5 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/src/boundary.rs
 6 omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs
 10 omega-rust/psi/compilation/representations/terminal-psi/src/proof.rs
-6 omega-rust/psi/compilation/representations/terminal-psi/src/types_and_values.rs
+7 omega-rust/psi/compilation/representations/terminal-psi/src/types_and_values.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/calls_and_control_flow.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs

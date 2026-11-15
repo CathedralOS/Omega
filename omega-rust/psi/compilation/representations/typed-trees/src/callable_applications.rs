@@ -1808,8 +1808,7 @@ pub(crate) mod machine_instances {
         ) -> Result<Option<MachineInstantiation<'_>>, &'static str> {
             let mut receipts = self
                 .machine_specializations
-                .iter()
-                .filter(|receipt| receipt.instance == instance)
+                .for_instance(instance)
                 .map(MachineInstantiation::Specialization)
                 .chain(
                     self.captured_machine_applications
@@ -1909,10 +1908,7 @@ pub(crate) mod machine_instances {
                     return Err("static call has cyclic invocation ownership");
                 }
                 visited.push(owner);
-                let mut instances = self
-                    .machine_specializations
-                    .iter()
-                    .filter(|instance| instance.instance == owner);
+                let mut instances = self.machine_specializations.for_instance(owner);
                 let Some(instance) = instances.next() else {
                     return Ok(false);
                 };
@@ -4710,6 +4706,231 @@ mod declaration_invocations {
             Ok(true)
         }
 
+        /// A selected body and its public requirement have distinct binders.
+        /// Close the public header from the exact retained body application,
+        /// then keep that occurrence beside the ordinary closed requirement.
+        pub fn prepare_selected_requirement_application(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+            dispatch: &crate::StaticRequirementDispatch,
+            original: SymbolHandle,
+        ) -> Result<(), &'static str> {
+            use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(application)
+                || !self.symbols.symbols().nodes().is_valid(original)
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(dispatch.evidence_parameter)
+            {
+                return Err("selected public application has stale source coordinates");
+            }
+            let invocation = self.static_machine_application(application).clone();
+            let receipt = self
+                .machine_instantiation(invocation.lexical_owner)?
+                .ok_or("selected public application lost its supplying instance")?;
+            let bound = self
+                .evidence_bound_requirement(
+                    receipt.template(),
+                    dispatch.evidence_parameter,
+                    original,
+                )
+                .map_err(|_| "selected public application lost its exact bound")?
+                .ok_or("selected public application has no requirement bound")?;
+            if bound.signature.symbol != dispatch.requirement
+                || bound.application.declaration.symbol != dispatch.declaring_trait
+            {
+                return Err("selected public application changed its requirement");
+            }
+            let source = self
+                .applied_callable_signature(&bound.application, bound.signature.symbol)
+                .or_else(|| {
+                    bound
+                        .application
+                        .keeps_declared_signatures(self)
+                        .then_some(bound.signature)
+                })
+                .ok_or("selected public application lost its applied source header")?
+                .clone();
+            let environment = bound.application.environment();
+            let required = self.state_signature_type_parameters(&source).to_vec();
+            if required.is_empty() {
+                return Ok(());
+            }
+            let (_, declaration) = self
+                .trait_machine_signature(source.symbol)
+                .ok_or("selected public application lost its authored requirement")?;
+            let authored = self.state_signature_type_parameters(declaration).to_vec();
+            let provider = self
+                .machine_by_symbol(invocation.binding_declaration)
+                .ok_or("selected public application lost its binding declaration")?;
+            if provider.symbol != dispatch.realization_machine {
+                return Err("selected public application binds another realization");
+            }
+            let supplied = self.machine_callable_parameters(provider);
+            let mut bindings = self
+                .static_machine_application_bindings(application)
+                .to_vec();
+            if required.len() != authored.len()
+                || required.len() != supplied.len()
+                || supplied.len() != bindings.len()
+                || !source.lifetime_parameters.is_empty()
+                || !invocation.lifetime_bindings.is_empty()
+            {
+                return Err("selected public application needs its complete invocation telescope");
+            }
+            bindings.sort_unstable_by_key(|binding| {
+                (
+                    binding.parameter.arena_index(),
+                    binding.parameter.generation(),
+                )
+            });
+            if bindings
+                .windows(2)
+                .any(|pair| pair[0].parameter == pair[1].parameter)
+            {
+                return Err("selected realization repeats an invocation binder");
+            }
+            let mut public_bindings = Vec::with_capacity(required.len());
+            let mut public_arguments = Vec::with_capacity(required.len());
+            for ((required, authored), supplied) in required.iter().zip(authored).zip(supplied) {
+                let crate::data::TypeParameterKind::Const {
+                    type_reference: expected,
+                } = required.kind
+                else {
+                    return Err("selected public application has an unserved binder kind");
+                };
+                let crate::data::TypeParameterKind::Const {
+                    type_reference: actual,
+                } = supplied.kind
+                else {
+                    return Err("selected realization has another binder kind");
+                };
+                let primitive = self
+                    .primitive_type_reference(expected)
+                    .filter(|expected| self.primitive_type_reference(actual) == Some(*expected))
+                    .ok_or("selected realization value binder has another carrier")?;
+                let Ok(position) = bindings.binary_search_by_key(
+                    &(supplied.symbol.arena_index(), supplied.symbol.generation()),
+                    |binding| {
+                        (
+                            binding.parameter.arena_index(),
+                            binding.parameter.generation(),
+                        )
+                    },
+                ) else {
+                    return Err("selected realization binder has no unique argument");
+                };
+                let binding = &bindings[position];
+                let StaticMachineBindingValue::Const(reference) = binding.value else {
+                    return Err("selected realization binder has no static value");
+                };
+                let argument = self.static_operand_from_type_reference(reference)?;
+                self.prepare_callable_scalar_argument(primitive, &argument)?;
+                public_bindings.push(StaticMachineBinding {
+                    parameter: authored.symbol,
+                    value: StaticMachineBindingValue::Const(reference),
+                });
+                public_arguments.push(argument);
+            }
+            let mut existing = self
+                .applied_callable_signatures
+                .declaration_rows(application, invocation.lexical_owner);
+            let previous = existing.next().map(|(handle, _)| handle);
+            if existing.next().is_some() {
+                return Err("selected call has several prepared public applications");
+            }
+            drop(existing);
+            let arguments = self
+                .static_machine_application_arguments(application)
+                .iter()
+                .map(|argument| {
+                    self.declared_static_operand_identity(
+                        crate::type_identity::DeclaredStaticOperandIdentityRequest {
+                            operand: crate::type_identity::IndexIdentityArgument::StaticArgument(
+                                argument,
+                            ),
+                            lexical_owner: invocation.lexical_owner,
+                            binders: &[],
+                            lifetime_binders: &[],
+                        },
+                    )
+                    .ok_or("selected call argument has no exact declared identity")
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let public = self.expression_table.retain_static_machine_application(
+                source.symbol,
+                source.name.clone(),
+                &public_arguments,
+            );
+            let row = self.expression_table.static_machine_application_mut(public);
+            row.lexical_owner = invocation.lexical_owner;
+            row.binding_declaration = source.symbol;
+            self.expression_table
+                .set_static_machine_application_bindings(public, &public_bindings);
+            let trait_arguments = self.materialize_trait_application_arguments(&environment)?;
+            let closed = self.instantiate_requirement_application(
+                &environment,
+                source.symbol,
+                &trait_arguments,
+                public,
+            )?;
+            let signature = self
+                .closed_requirement_application(closed)
+                .ok_or("selected public application lost its closed requirement")?
+                .signature
+                .clone();
+            let bindings = self
+                .expression_table
+                .snapshot_static_machine_bindings(application);
+            let arguments = self.callable_argument_identities.insert_many(arguments);
+            let prepared = AppliedCallableSignature {
+                owner: AppliedCallableOwner::RequirementInvocation {
+                    declaration: source.symbol,
+                    application,
+                    lexical_owner: invocation.lexical_owner,
+                    source,
+                    bindings,
+                    lifetimes: Default::default(),
+                    arguments,
+                },
+                signature,
+            };
+            if let Some(previous) = previous {
+                self.applied_callable_signatures
+                    .replace(previous, prepared)?;
+            } else {
+                self.applied_callable_signatures.insert(prepared);
+            }
+            Ok(())
+        }
+
+        pub(crate) fn selected_requirement_invocation_signature(
+            &self,
+            owner: SymbolHandle,
+            application: StaticMachineApplicationHandle,
+            source: &StateSignature,
+        ) -> Result<Option<&StateSignature>, &'static str> {
+            if !application.is_valid() {
+                return Ok(None);
+            }
+            let mut rows = self
+                .applied_callable_signatures
+                .declaration_rows(application, owner);
+            let Some((_, prepared)) = rows.next() else {
+                return Ok(None);
+            };
+            if rows.next().is_some()
+                || !self.bodyless_application_matches(prepared, source.symbol, source, application)
+            {
+                return Err("selected public application changed after preparation");
+            }
+            Ok(Some(&prepared.signature))
+        }
+
         /// Look up this occurrence, not another call with equal rendered
         /// arguments. Mutated source bindings cannot reuse an earlier header.
         pub fn bodyless_callable_signature(
@@ -4791,7 +5012,10 @@ mod declaration_invocations {
                 && self.symbols.symbols().nodes().is_valid(*lexical_owner)
                 && *lexical_owner == invocation.lexical_owner
                 && source == actual_source
-                && prepared.signature.symbol == source.symbol
+                && (prepared.signature.symbol == source.symbol
+                    || self
+                        .closed_requirement_application(prepared.signature.symbol)
+                        .is_some_and(|closed| closed.template == source.symbol))
                 && bindings.len() == actual_bindings.len()
                 && invocation.bindings.len() == actual_bindings.len()
                 && source.type_parameters.len() == actual_bindings.len()
@@ -5200,9 +5424,8 @@ pub(crate) mod requirement_instances {
             let source_owner = self
                 .static_machine_application(application.application)
                 .lexical_owner;
-            let mut matches = self.machine_specializations.iter().filter(|receipt| {
+            let mut matches = self.machine_specializations.for_instance(provider).filter(|receipt| {
             if receipt.template != realization
-                || receipt.instance != provider
                 || !receipt.binding_application.is_valid()
             {
                 return false;
@@ -6681,9 +6904,8 @@ pub(crate) mod signatures {
                         signature::AuthoredInvocationTarget::Service(symbol) => {
                             signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
                         }
-                        signature::AuthoredInvocationTarget::Unresolved => {
-                            signature::AuthoredInvocationTarget::Unresolved
-                        }
+                        unresolved @ (signature::AuthoredInvocationTarget::Unresolved
+                        | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
                     };
                     program
                         .signature_invokes
@@ -7414,7 +7636,7 @@ pub(crate) mod table {
             let mut replacement = Arena::default();
             let replacement_one = replacement.insert(selection(second));
             let replacement_two = replacement.insert(selection(second));
-            assert_eq!(replacement.revision(), clone.revision());
+            assert_ne!(replacement.revision(), clone.revision());
             table = replacement.into();
             assert!(rows(&table, first).is_empty());
             assert_eq!(rows(&table, second), [replacement_one, replacement_two]);

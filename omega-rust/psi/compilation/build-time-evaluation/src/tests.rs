@@ -293,6 +293,72 @@ fn typed_base_scoped(
 }
 
 #[test]
+fn a_proof_universe_level_is_not_an_ordinary_evaluation_request() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    use typed_trees::mathematical::MathematicalType;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::TypeReferenceNode;
+
+    let (_, _, base, pending) = typed_base(&[(
+        "program/main.omg",
+        "let small(value: u64): core::Strict<0> = embed(value) <= 100;
+machine holder() { let value: u32 = 0; }
+",
+    )]);
+    let mut typed = base.typed().clone();
+    crate::PreCheckEvaluation::defer_declared_requests(&mut typed).unwrap();
+    assert!(typed.deferred_refusals.is_empty());
+    assert!(pending.activate_sources(&typed).is_ok());
+
+    let [predicate] = typed.mathematical_definitions() else {
+        panic!("the written predicate");
+    };
+    let MathematicalType::Ordinary(result) = typed.mathematical_type(predicate.result) else {
+        panic!("the written sort");
+    };
+    let TypeReferenceNode::Generic { arguments, .. } =
+        typed.type_reference_table.type_reference(*result)
+    else {
+        panic!("the sort applied to its level");
+    };
+    let [level] = typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("the one universe level");
+    };
+    let level = *level;
+    assert!(matches!(
+        typed.type_reference_table.type_reference(level),
+        TypeReferenceNode::ConstExpression(_)
+    ));
+
+    assert!(
+        typed_trees::references::collect_program_references(&typed)
+            .type_references
+            .contains(&level)
+    );
+
+    // A shared type handle does not make its other occurrence a proof
+    // level. The ordinary type request still belongs to its lexical holder.
+    let holder = typed.realized_machine_named("holder").unwrap();
+    let local = typed.machine_states(holder)[0]
+        .statement_nodes
+        .handles()
+        .next()
+        .unwrap();
+    let holder = holder.symbol;
+    let StatementNode::LocalData(binding) = typed.statement_table.statement_mut(local) else {
+        panic!("the written local");
+    };
+    binding.type_reference = level;
+    assert_eq!(
+        crate::source_frontier::declared_jobs(&typed).unwrap(),
+        [(holder, DeferredRequest::TypeExpressionEvaluation)]
+    );
+}
+
+#[test]
 fn an_evaluation_request_in_a_declaration_refuses_that_declaration_only() {
     use typed_trees::deferred_refusals::DeferredRequest;
     use typed_trees::statement::StatementNode;
@@ -353,17 +419,32 @@ machine served() { }
     );
     assert!(pending.activate_sources(&typed).is_ok());
 
-    // The step that would evaluate layout policies has no evaluator
-    // either: it records the same requests and stops nothing.
+    // Layout evaluation must leave a different unserved request in place.
     let mut prepared = typed.clone();
     prepared.deferred_refusals.clear();
-    crate::evaluate_fixed_layout_applications(&mut prepared, &[], None).unwrap();
+    crate::evaluate_fixed_layout_applications(
+        &mut prepared,
+        &[],
+        None,
+        None,
+        source::DependencyScope::Product,
+        &mut Default::default(),
+    )
+    .unwrap();
     assert_eq!(prepared.deferred_refusals, typed.deferred_refusals);
 
     // The twin: the same program as written requests nothing.
     let mut plain = base.typed().clone();
     crate::PreCheckEvaluation::defer_declared_requests(&mut plain).unwrap();
-    crate::evaluate_fixed_layout_applications(&mut plain, &[], None).unwrap();
+    crate::evaluate_fixed_layout_applications(
+        &mut plain,
+        &[],
+        None,
+        None,
+        source::DependencyScope::Product,
+        &mut Default::default(),
+    )
+    .unwrap();
     assert!(plain.deferred_refusals.is_empty());
 }
 

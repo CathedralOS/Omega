@@ -90,6 +90,40 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
     }
 }
 
+/// A scalar's storage keeps its own builtin identity when a loan presents
+/// different bits. Use the inverse of `atom_type`, including floats and
+/// addresses, rather than borrowing the destination's identity.
+pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<BuiltinTypeAtom> {
+    Ok(match scalar {
+        ScalarType::Boolean => BuiltinTypeAtom::Bool,
+        ScalarType::Integer(integer) if integer.is_address() => BuiltinTypeAtom::Address,
+        ScalarType::Integer(integer) => {
+            let bits = integer.bits().ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("scalar lender has an unresolved integer width"),
+                )
+            })?;
+            BuiltinTypeAtom::Integer(
+                FixedInteger::new(integer.sign(), u64::from(bits)).ok_or_else(|| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("scalar lender has no fixed integer carrier"),
+                    )
+                })?,
+            )
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            BuiltinTypeAtom::F32
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            BuiltinTypeAtom::F64
+        }
+    })
+}
+
 /// The integer type a literal landed on, through the same width table.
 fn landed_type(
     landed: numerics::literals::LandedIntegerType,
@@ -578,7 +612,8 @@ impl Program<'_> {
             } = self.typed.type_reference_table.type_reference(handle)
             && !arguments.is_empty()
             && lifetime_arguments.is_empty()
-            && self.typed.closed_data_definition(handle).is_some()
+            && (self.typed.closed_data_definition(handle).is_some()
+                || self.typed.layout_storage_arguments(handle).is_some())
         {
             return self.record_at(id, handle);
         }
@@ -808,33 +843,31 @@ impl Program<'_> {
         self.scalar_type(id, handle).map(ValueType::plain)
     }
 
-    /// Rejects a type whose domain name nothing in the program has, in this
-    /// source or any library: `state_contracts.md`, "Statements after a call
-    /// that never returns": "an unknown machine name or malformed type is an
-    /// error wherever it appears". A name typing did not bind but that
-    /// something has (a domain of another carrier, two visible candidates)
-    /// is left to `declared_domain`, which refuses what it does not read.
+    /// Rejects a type whose domain name no domain visible from its source
+    /// has, as typing classified it: `state_contracts.md`, "Statements after
+    /// a call that never returns": "an unknown machine name or malformed
+    /// type is an error wherever it appears". A name typing did not bind but
+    /// that some visible domain has (a domain of another carrier, two
+    /// visible candidates) is left to `declared_domain`, which refuses what
+    /// it does not read.
     fn named_domain(
         &self,
         id: MachineId,
         domain: &typed_trees::types::DomainConstraint,
     ) -> Checked<()> {
-        if self.typed.domain_definition(domain.symbol).is_some() {
+        if self.typed.domain_definition(domain.symbol).is_some() || !domain.names_no_visible_domain
+        {
             return Ok(());
         }
         let Some(written) = domain.source_selection else {
             return Ok(());
         };
         let name = domain.name.as_str();
-        let leaf = name.rsplit("::").next().unwrap_or(name);
-        if self.typed.names_nothing_has(vec![leaf]).is_empty() {
-            return Ok(());
-        }
         Err(crate::reject(
             id,
             crate::SourceOrigin::of(written.source_span),
             format!(
-                "this type names the domain `{name}`, which nothing in the program declares: \
+                "this type names the domain `{name}`, but no domain of that name is visible here: \
                  an unknown name in a type is an error wherever it appears"
             ),
         ))
@@ -1057,6 +1090,32 @@ impl Program<'_> {
         match value {
             Some(value) if integer.admits(value) => Ok((value, integer)),
             Some(_) | None => unserved("integer literal outside its type"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn served_scalar_atoms_keep_their_storage_identity() {
+        let machine = MachineId::new(1).unwrap();
+        for atom in BuiltinTypeAtom::ALL {
+            if symbols::PrimitiveType::from_builtin_atom(atom).is_none() {
+                continue;
+            }
+            let scalar = atom_type(atom, machine).unwrap();
+            assert_eq!(scalar_atom(scalar, machine).unwrap(), atom);
+        }
+        // Dynamically installed widths must retain their sign and width too,
+        // rather than becoming one of the fixed root-slot integer atoms.
+        for bits in [1, 7, 31, 65, 127] {
+            for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+                let atom = BuiltinTypeAtom::Integer(FixedInteger::new(sign, bits).unwrap());
+                let scalar = atom_type(atom, machine).unwrap();
+                assert_eq!(scalar_atom(scalar, machine).unwrap(), atom);
+            }
         }
     }
 }

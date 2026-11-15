@@ -1,0 +1,27 @@
+// Expected exit: 0. Every Trapping primitive's normal result is observed.
+// The overflow twin changes only added's argument. Its unused result must
+// still trap; an incorrectly wrapped result would allow a normal exit.
+machine added(left: u32, right: u32) -> u32 crashes Trap { left +! right }
+
+machine computed(left: u32, right: u32) -> bool crashes Trap {
+    let sum: u32 = left +! right;
+    let difference: u32 = sum -! right;
+    let product: u32 = difference *! right;
+    let quotient: u32 = product /! right;
+    let remainder: u32 = product %! right;
+    let shifted: u32 = quotient <<! 2;
+    let restored: u32 = shifted >>! 2;
+    sum == 7 && difference == 3 && product == 12 && quotient == 3
+        && remainder == 0 && shifted == 12 && restored == 3
+        && restored +! remainder == 3
+}
+
+machine main() crashes Trap {
+    let unused: u32 = added(3, 4);
+    transition computed(3, 4) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

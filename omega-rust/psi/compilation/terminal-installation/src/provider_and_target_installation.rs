@@ -1,8 +1,8 @@
 /*
 Catalog provider and assumed-binding installation (`provider_installation`),
 component providers and memberships (`component_provider` and
-`component_memberships`), and tagged target-machine family selection
-(`target_families`).
+`component_memberships`), and artifact-bound target observation context
+(`target_context`).
 */
 
 pub(crate) mod provider_installation {
@@ -377,6 +377,26 @@ pub(crate) mod provider_installation {
             })
     }
 
+    /// Whether the supplied requirement's operational contract can stand in
+    /// for the required one. Its published reach ceiling must fit inside the
+    /// required ceiling member for member: the owning service is catalogue
+    /// ownership, not reach (`wiki/spec/language/effects.md`), so a supplied
+    /// ceiling that names its own owner reaches that service like any other
+    /// member and needs the required ceiling to permit it.
+    fn operational_contract_fits(
+        required: &terminal_psi::BoundaryMachineDeclaration,
+        supplied: &terminal_psi::BoundaryMachineDeclaration,
+    ) -> bool {
+        required.kind == supplied.kind
+            && required.completion == supplied.completion
+            && (!required.unconditional_termination || supplied.unconditional_termination)
+            && required.crash_routes == supplied.crash_routes
+            && supplied
+                .published_service_ceiling
+                .iter()
+                .all(|service| required.published_service_ceiling.contains(service))
+    }
+
     fn admit_assumed_bindings(
         module: &terminal_psi::TerminalModule,
         installed: &BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
@@ -443,15 +463,7 @@ pub(crate) mod provider_installation {
             {
                 return Err(reject(AssumedBindingRejection::IncompatibleRuntimeShape));
             }
-            if required.kind != supplied.kind
-                || required.completion != supplied.completion
-                || (required.unconditional_termination && !supplied.unconditional_termination)
-                || required.crash_routes != supplied.crash_routes
-                || supplied.published_service_ceiling.iter().any(|service| {
-                    Some(*service) != supplied.owning_service
-                        && !required.published_service_ceiling.contains(service)
-                })
-            {
+            if !operational_contract_fits(required, supplied) {
                 return Err(reject(
                     AssumedBindingRejection::IncompatibleOperationalContract,
                 ));
@@ -482,6 +494,89 @@ pub(crate) mod provider_installation {
             });
         }
         Ok(admitted)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::operational_contract_fits;
+        use semantic_vocabulary::{BoundaryMachineId, ServiceId};
+        use terminal_psi::{
+            BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
+            NominalDeclarationIdentity, TerminalIdentityTableBuilder,
+        };
+
+        fn service(id: u64) -> ServiceId {
+            ServiceId::new(id).unwrap()
+        }
+
+        fn requirement(id: u64, owner: u64, ceiling: &[u64]) -> BoundaryMachineDeclaration {
+            let identity = TerminalIdentityTableBuilder::default().intern("test::Slot::call");
+            let ceiling: Vec<ServiceId> = ceiling.iter().copied().map(service).collect();
+            BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(id).unwrap(),
+                declaration: None,
+                numeric_intrinsic: None,
+                role: BoundaryDeclarationRole::Callable,
+                kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                unconditional_termination: true,
+                identity,
+                owner: NominalDeclarationIdentity::new(identity),
+                attachment: None,
+                parameter_order: Vec::new(),
+                scalar_parameters: Vec::new(),
+                crash_routes: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: BoundaryMachineResult::Unit,
+                result_reference_regions: Vec::new(),
+                requires: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                reference_outputs: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: ceiling.clone(),
+                owning_service: Some(service(owner)),
+                published_service_ceiling: ceiling,
+                published_synchronous_entries: Vec::new(),
+            }
+        }
+
+        // A supply whose ceiling names its own owning slot reaches that slot;
+        // a requirement declared `reaches none` cannot be stood in for by it.
+        #[test]
+        fn supplied_owner_in_its_ceiling_must_fit_the_required_ceiling() {
+            let required = requirement(1, 10, &[]);
+            assert!(operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[])
+            ));
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[20])
+            ));
+            assert!(operational_contract_fits(
+                &requirement(1, 10, &[20]),
+                &requirement(2, 20, &[20]),
+            ));
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[30])
+            ));
+        }
+
+        // The required owner held only as catalogue ownership contributes
+        // nothing a narrower supply must match.
+        #[test]
+        fn required_owner_outside_its_ceiling_permits_nothing_extra() {
+            let required = requirement(1, 10, &[]);
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[10])
+            ));
+        }
     }
 }
 
@@ -991,101 +1086,32 @@ pub(crate) mod component_memberships {
     }
 }
 
-pub(crate) mod target_families {
-    use terminal_psi::{TargetMachineCallable, TargetMachineSupply, TerminalPsiIdentity};
+pub(crate) mod target_context {
+    use terminal_psi::{TargetMachineCallable, TerminalPsiIdentity};
 
-    pub fn admitted_boundary_member(
-        module: &terminal_psi::TerminalModule,
-        selections: Option<&AdmittedTargetMachineSelections>,
-        boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
-        let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
-        let families = &module.target_machine_families;
-        let Ok(position) = families.binary_search_by_key(&head, |family| family.canonical) else {
-            return Ok(None);
-        };
-        if families[position]
-            .members
-            .iter()
-            .any(|member| member.callable == head)
-        {
-            return Ok(None);
-        }
-        let selections = selections.ok_or_else(|| {
-            format!("target-family head {boundary:?} has no invocation deployment selection")
-        })?;
-        let member = selections.member(head).map_err(|error| error.to_string())?;
-        match (member.callable(), member.supply()) {
-            (
-                terminal_psi::TargetMachineCallable::Machine(machine),
-                terminal_psi::TargetMachineSupply::CheckedBody
-                | terminal_psi::TargetMachineSupply::Boundary,
-            ) => Ok(Some(terminal_psi::TargetMachineCallable::Machine(machine))),
-            (terminal_psi::TargetMachineCallable::Boundary(member), supply)
-                if supply != terminal_psi::TargetMachineSupply::CheckedBody =>
-            {
-                Ok(Some(terminal_psi::TargetMachineCallable::Boundary(member)))
-            }
-            _ => Err(format!(
-                "target-family head {boundary:?} selected incompatible callable {:?} for `{}`",
-                member.callable(),
-                selections.target(),
-            )),
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct TargetMachineSelection {
-        head: TargetMachineCallable,
-        callable: TargetMachineCallable,
-        supply: TargetMachineSupply,
-    }
-
-    impl TargetMachineSelection {
-        pub const fn head(&self) -> TargetMachineCallable {
-            self.head
-        }
-
-        pub const fn callable(&self) -> TargetMachineCallable {
-            self.callable
-        }
-
-        pub const fn supply(&self) -> TargetMachineSupply {
-            self.supply
-        }
-    }
-
+    /// Bind target-dependent observations to one code artifact. This context
+    /// does not choose a source body or authorize any boundary provider.
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct AdmittedTargetMachineSelections {
+    pub struct TerminalTargetContext {
         terminal_psi: TerminalPsiIdentity,
         target: String,
-        selections: Vec<TargetMachineSelection>,
     }
 
-    impl AdmittedTargetMachineSelections {
-        /// Resolve an ordinary entry without manufacturing a deployment.
-        /// Target-family members require the caller's explicit selection.
+    impl TerminalTargetContext {
         pub fn resolve_entry(
             selected: Option<&Self>,
             identity: TerminalPsiIdentity,
             module: &terminal_psi::TerminalModule,
             root: TargetMachineCallable,
-        ) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
-            if let Some(selected) = selected {
-                return selected.entry(identity, module, root);
+        ) -> Result<semantic_vocabulary::MachineId, TerminalEntryError> {
+            if selected.is_some_and(|selected| selected.terminal_psi != identity) {
+                return Err(TerminalEntryError::TerminalIdentityMismatch);
             }
             let TargetMachineCallable::Machine(machine) = root else {
-                return Err(TargetMachineSelectionError::MissingDeployment { head: root });
+                return Err(TerminalEntryError::NonExecutableEntry(root));
             };
-            if module
-                .target_machine_families
-                .iter()
-                .any(|family| family.members.iter().any(|member| member.callable == root))
-            {
-                return Err(TargetMachineSelectionError::MissingDeployment { head: root });
-            }
             if module.machine(machine).is_none() {
-                return Err(TargetMachineSelectionError::MissingMachine(machine));
+                return Err(TerminalEntryError::MissingMachine(machine));
             }
             Ok(machine)
         }
@@ -1095,35 +1121,8 @@ pub(crate) mod target_families {
             identity: TerminalPsiIdentity,
             module: &terminal_psi::TerminalModule,
             root: TargetMachineCallable,
-        ) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
-            if self.terminal_psi != identity {
-                return Err(TargetMachineSelectionError::TerminalIdentityMismatch);
-            }
-            match root {
-                TargetMachineCallable::Machine(machine) => {
-                    if module.machine(machine).is_none() {
-                        return Err(TargetMachineSelectionError::NonExecutableEntry {
-                            head: root,
-                            target: self.target.clone(),
-                        });
-                    }
-                    for family in &module.target_machine_families {
-                        if family.members.iter().any(|member| member.callable == root)
-                            && self.member(family.canonical)?.callable() != root
-                        {
-                            return Err(TargetMachineSelectionError::NonExecutableEntry {
-                                head: family.canonical,
-                                target: self.target.clone(),
-                            });
-                        }
-                    }
-                    Ok(machine)
-                }
-                head @ TargetMachineCallable::Boundary(_) => {
-                    let member = self.member(head)?;
-                    executable_entry(head, member, &self.target)
-                }
-            }
+        ) -> Result<semantic_vocabulary::MachineId, TerminalEntryError> {
+            Self::resolve_entry(Some(self), identity, module, root)
         }
 
         pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
@@ -1133,154 +1132,41 @@ pub(crate) mod target_families {
         pub fn target(&self) -> &str {
             &self.target
         }
-
-        pub fn selections(&self) -> &[TargetMachineSelection] {
-            &self.selections
-        }
-
-        pub fn member(
-            &self,
-            head: TargetMachineCallable,
-        ) -> Result<&TargetMachineSelection, TargetMachineSelectionError> {
-            self.selections
-                .binary_search_by_key(&head, |selection| selection.head)
-                .map(|position| &self.selections[position])
-                .map_err(|_| TargetMachineSelectionError::MissingMember {
-                    head,
-                    target: self.target.clone(),
-                })
-        }
-    }
-
-    fn executable_entry(
-        head: TargetMachineCallable,
-        member: &TargetMachineSelection,
-        target: &str,
-    ) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
-        match (member.callable(), member.supply()) {
-            (
-                TargetMachineCallable::Machine(machine),
-                TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
-            ) => Ok(machine),
-            _ => Err(TargetMachineSelectionError::NonExecutableEntry {
-                head,
-                target: target.to_owned(),
-            }),
-        }
-    }
-
-    fn selected_member(
-        family: &terminal_psi::TargetMachineFamily,
-        target: &str,
-    ) -> Option<TargetMachineSelection> {
-        let member = borrowed_selected_member(family, target)?;
-        Some(TargetMachineSelection {
-            head: family.canonical,
-            callable: member.callable,
-            supply: member.supply,
-        })
-    }
-
-    fn borrowed_selected_member<'family>(
-        family: &'family terminal_psi::TargetMachineFamily,
-        target: &str,
-    ) -> Option<&'family terminal_psi::TargetMachineFamilyMember> {
-        let position = family
-            .members
-            .binary_search_by(|member| member.target.as_str().cmp(target))
-            .ok()?;
-        family.members.get(position)
-    }
-
-    pub fn resolve_target_machine_member<'module>(
-        module: &'module terminal_psi::TerminalModule,
-        callable: TargetMachineCallable,
-        target: &str,
-    ) -> Result<Option<&'module terminal_psi::TargetMachineFamilyMember>, TargetMachineSelectionError>
-    {
-        let Some(family) = module
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == callable)
-        else {
-            return Ok(None);
-        };
-        if family
-            .members
-            .iter()
-            .any(|member| member.callable == callable)
-        {
-            return Ok(None);
-        }
-        borrowed_selected_member(family, target)
-            .map(Some)
-            .ok_or_else(|| TargetMachineSelectionError::MissingMember {
-                head: callable,
-                target: target.to_owned(),
-            })
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TargetMachineSelectionError {
+    pub enum TerminalEntryError {
         TerminalIdentityMismatch,
-        MissingDeployment {
-            head: TargetMachineCallable,
-        },
         MissingMachine(semantic_vocabulary::MachineId),
-        NonExecutableEntry {
-            head: TargetMachineCallable,
-            target: String,
-        },
-        MissingMember {
-            head: TargetMachineCallable,
-            target: String,
-        },
+        NonExecutableEntry(TargetMachineCallable),
     }
 
-    impl std::fmt::Display for TargetMachineSelectionError {
+    impl std::fmt::Display for TerminalEntryError {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Self::MissingDeployment { head } => write!(
-                    formatter,
-                    "entry {head:?} requires an explicit deployment selection"
-                ),
                 Self::MissingMachine(machine) => {
                     write!(formatter, "entry machine {machine:?} is absent")
                 }
                 Self::TerminalIdentityMismatch => {
-                    formatter.write_str("entry selection names a different Terminal artifact")
+                    formatter.write_str("entry context names a different Psi artifact")
                 }
-                Self::NonExecutableEntry { head, target } => write!(
-                    formatter,
-                    "target family {head:?} has no executable entry for deployment tag `{target}`",
-                ),
-                Self::MissingMember { head, target } => write!(
-                    formatter,
-                    "target family {head:?} has no member for deployment tag `{target}`"
-                ),
+                Self::NonExecutableEntry(root) => {
+                    write!(formatter, "entry {root:?} is not an executable machine")
+                }
             }
         }
     }
 
-    impl std::error::Error for TargetMachineSelectionError {}
+    impl std::error::Error for TerminalEntryError {}
 
-    // Selection reads only the module's target families and its identity, so
-    // portable artifacts and invocation-published code select the same way.
-    pub fn admit_target_machine_selections<'code>(
+    pub fn terminal_target_context<'code>(
         artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
         target: &str,
-    ) -> AdmittedTargetMachineSelections {
+    ) -> TerminalTargetContext {
         let artifact = artifact.into();
-        let selections = artifact
-            .module()
-            .target_machine_families
-            .iter()
-            .filter_map(|family| selected_member(family, target))
-            .collect();
-        AdmittedTargetMachineSelections {
+        TerminalTargetContext {
             terminal_psi: artifact.identity(),
             target: target.to_owned(),
-            selections,
         }
     }
 }

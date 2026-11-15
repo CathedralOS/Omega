@@ -24,7 +24,7 @@ and report settlement inside a `PendingNativeProduct`:
 Non-native `CompilationOutput` variants (`Report`, `Inspection`, etc.) are
 already complete and pass through `complete_product` and `complete_products`
 unchanged. When multiple native targets are present, `complete_products` drains
-them across bounded compiler-stack workers via `queue::execute`.
+them on the invocation's execution budget via `queue::execute`.
 
 */
 

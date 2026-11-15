@@ -9,8 +9,8 @@
 // executes that boundary refuses it at admission.
 //
 // `validate_external_provider_owners` and `admit_terminal_intrinsics` rejoin
-// external provider declarations and admit closed numeric operations for an
-// existing Terminal executor without granting host, device, or ISA feature
+// the external provider declarations of retained requirements and admit closed
+// numeric operations for an existing Terminal executor without granting host, device, or ISA feature
 // authority.
 
 use super::super::NativeCompilerBuiltinSettlement;
@@ -284,15 +284,13 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     }
 }
 
+// A selected external realization needs its exact declaring owner only where
+// the module retains the requirement as a boundary or boundary application:
+// native realization and intrinsic admission both execute selected rows by that
+// demand, so a selected row nothing retains is never realized. Every consumer
+// shares this one demand contract rather than asking for declarations of rows
+// the program never executes.
 pub fn validate_external_provider_owners(
-    external_providers: &[terminal_psi::ExternalProviderConformance],
-    identities: &terminal_psi::TerminalIdentityTable,
-    declarations: &[effects::provider_plan::ProviderPlan],
-) -> Result<(), String> {
-    validate_provider_owners(external_providers, identities, declarations, |_, _| true)
-}
-
-fn validate_retained_external_provider_owners(
     module: &terminal_psi::TerminalModule,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
@@ -311,7 +309,7 @@ fn validate_retained_external_provider_owners(
                     )
                 })
         })
-        .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+        .collect::<Result<BTreeSet<_>, _>>()?;
     for demand in &module.boundary_application_demands {
         let identity = demand.requirement().overload();
         if identity.is_empty() {
@@ -319,32 +317,31 @@ fn validate_retained_external_provider_owners(
         }
         retained.insert(identity);
     }
-    validate_provider_owners(
+    validate_retained_provider_owners(
         &module.external_providers,
         &module.identities,
-        selected.plans(),
-        |plan, row| {
+        selected,
+        &retained,
+    )
+}
+
+fn validate_retained_provider_owners(
+    external_providers: &[terminal_psi::ExternalProviderConformance],
+    identities: &terminal_psi::TerminalIdentityTable,
+    facts: &effects::SelectedProviderPlanFacts,
+    retained: &BTreeSet<&str>,
+) -> Result<(), String> {
+    let requires_declaration =
+        |plan: &ProviderPlan, row: &effects::provider_plan::ProviderPlanRow| {
             retained.iter().any(|requirement| {
-                selected.selected_row_matches_requirement(
+                facts.selected_row_matches_requirement(
                     requirement,
                     plan.identities.text(row.requirement_identity),
                     plan.report_fingerprint(),
                 )
             })
-        },
-    )
-}
-
-fn validate_provider_owners(
-    external_providers: &[terminal_psi::ExternalProviderConformance],
-    identities: &terminal_psi::TerminalIdentityTable,
-    declarations: &[effects::provider_plan::ProviderPlan],
-    requires_declaration: impl Fn(
-        &effects::provider_plan::ProviderPlan,
-        &effects::provider_plan::ProviderPlanRow,
-    ) -> bool,
-) -> Result<(), String> {
-    for selected in declarations {
+        };
+    for selected in facts.plans() {
         if selected.row_numeric_realizations.len() != selected.rows.len() {
             return Err("selected external declarations have incomplete row custody".into());
         }
@@ -423,7 +420,7 @@ pub fn admit_terminal_intrinsics<'selection>(
     demanded: &std::collections::BTreeSet<String>,
 ) -> Result<AdmittedTerminalIntrinsics, Vec<Diagnostic>> {
     let module = artifact.module();
-    validate_retained_external_provider_owners(module, selected)
+    validate_external_provider_owners(module, selected)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let proposals = derive_selected_intrinsic_settlement_proposals(
         selected,
@@ -541,5 +538,64 @@ mod tests {
                 format: semantic_vocabulary::IeeeFloatFormat::Binary64,
             })
         ));
+    }
+
+    fn intrinsic_plan(realization: &str) -> effects::SelectedProviderPlanFacts {
+        let mut plan = ProviderPlan {
+            name: "selected".into(),
+            provider_type: "NativeFloats".into(),
+            provider_declaration: Some("NativeFloats".into()),
+            row_numeric_realizations: vec![Some(realization.into())],
+            target: "linux_x86_64".into(),
+            ..Default::default()
+        };
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        declaration.trait_name = declaration.identities.intern("Float");
+        declaration
+            .methods
+            .push(effects::provider_plan::ServiceMethod {
+                name: "add".into(),
+                requirement_owner: "Float".into(),
+                requirement_identity: declaration.identities.intern("Float::add"),
+                ..Default::default()
+            });
+        let requirement = plan.identities.intern("Float::add");
+        plan.rows.push(effects::provider_plan::ProviderPlanRow {
+            method: "add".into(),
+            requirement_identity: requirement,
+            declared_requirement_identity: requirement,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                machine: "float_add".into(),
+            },
+        });
+        effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap()
+    }
+
+    #[test]
+    fn external_realization_owner_is_demanded_only_for_retained_requirements() {
+        let facts = intrinsic_plan("NativeFloatAdd");
+        let identities = terminal_psi::TerminalIdentityTable::default();
+        // A selected float row the program never retains needs no declaration:
+        // a scalar-only module must not be refused for metadata it never runs.
+        assert_eq!(
+            validate_retained_provider_owners(&[], &identities, &facts, &BTreeSet::new()),
+            Ok(())
+        );
+        let unrelated = BTreeSet::from(["Integer::add"]);
+        assert_eq!(
+            validate_retained_provider_owners(&[], &identities, &facts, &unrelated),
+            Ok(())
+        );
+        // Once the module retains the requirement, its declaration is required.
+        let retained = BTreeSet::from(["Float::add"]);
+        let refusal =
+            validate_retained_provider_owners(&[], &identities, &facts, &retained).unwrap_err();
+        assert!(
+            refusal.contains("has no retained external implementation for `Float::add`"),
+            "{refusal}"
+        );
     }
 }

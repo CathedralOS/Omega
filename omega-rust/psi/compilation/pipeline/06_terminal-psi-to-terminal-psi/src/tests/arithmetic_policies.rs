@@ -48,6 +48,7 @@ fn operate(
     of(
         ExpressionKind::Strict {
             operation,
+            policy: result.policy(),
             left: Box::new(left),
             right: Box::new(right),
         },
@@ -127,6 +128,62 @@ fn an_add_under_a_policy_is_total_and_the_exact_add_is_not() {
             1,
             "{operation:?}"
         );
+    }
+}
+
+#[test]
+fn a_policy_result_requires_a_matching_qualified_operand() {
+    use terminal_semantics::scalar_qualifications::{ScalarQualificationError, validate};
+
+    for (policy, other_policy) in [
+        (Policy::Wrapping, Policy::Saturating),
+        (Policy::Saturating, Policy::Wrapping),
+    ] {
+        let result_type = qualified(policy);
+        for carried in 0..2 {
+            let mut parameters = vec![plain(), plain(), qualified(other_policy)];
+            parameters[carried] = result_type;
+            let add = operate(
+                Strict::Add,
+                named(0, parameters[0]),
+                named(1, parameters[1]),
+                result_type,
+            );
+            let mut closure = accepted(vec![unit(parameters, vec![Statement::Evaluate(add)])]);
+            let module = &mut closure.elaboration.module;
+            let machine = &module.machines[0];
+            let matching = machine.parameters[carried].qualifications;
+            let unqualified = machine.parameters[1 - carried].qualifications;
+            let other = machine.parameters[2].qualifications;
+            let result = machine
+                .operations()
+                .next()
+                .unwrap()
+                .result
+                .scalar_ref()
+                .unwrap();
+            assert!(!matching.is_empty());
+            assert!(unqualified.is_empty());
+            assert_ne!(matching, other);
+            assert_eq!(result.qualifications, matching);
+            assert!(validate(module).is_ok());
+
+            let rejects_forged_result = |module: &terminal_psi::TerminalModule| {
+                assert!(matches!(
+                    validate(module),
+                    Err(ScalarQualificationError::MalformedStructuralFoundation(
+                        "ordinary scalar operation cannot establish a declared domain"
+                    ))
+                ));
+            };
+
+            module.machines[0].parameters[carried].qualifications = unqualified;
+            rejects_forged_result(module);
+
+            module.machines[0].parameters[carried].qualifications = matching;
+            module.machines[0].parameters[1 - carried].qualifications = other;
+            rejects_forged_result(module);
+        }
     }
 }
 

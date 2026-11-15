@@ -1297,6 +1297,13 @@ fn result_equation(
     {
         return Ok(Some(semantics.result_equation().clone()));
     }
+    // A Trapping operation's normal successor is reached only where it did
+    // not trap, and there it computed the Exact primitive's result.
+    if let Some(semantics) =
+        terminal_semantics::trapping_integer_semantics(operation, types).map_err(&refuse)?
+    {
+        return Ok(Some(semantics.result_equation().clone()));
+    }
     Ok(
         terminal_semantics::goal_free_scalar_leaf_semantics(operation, types)
             .map_err(&refuse)?
@@ -1862,7 +1869,7 @@ fn stated_goal(
             joins::arrival_goal(lowered, id, obligation, edge, tables)
         }
         ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(module, lowered, tables, id, obligation, site, cause)
+            crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }
         ObligationKind::WellFoundedness { component } => {
             ranking::floor_goal(lowered, id, obligation, component)

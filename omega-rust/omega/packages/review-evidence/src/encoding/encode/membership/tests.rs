@@ -204,7 +204,7 @@ fn a_rejected_identity_reports_the_text_the_grammar_stopped_on() {
         .expect("a rejected identity is kept");
     assert_eq!(excerpt.field(), "runtime type identity");
     assert_eq!(excerpt.identity_length(), identity.len());
-    assert_eq!(excerpt.stopped_at(), identity.find(",elided"));
+    assert_eq!(excerpt.stopped_at(), identity.find("elided-region"));
     assert_eq!(excerpt.text(), identity);
     assert_eq!(
         rejecting.unreadable_identity(),

@@ -27,9 +27,9 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 - Flat module layout:
   - `register_allocation.rs`: stage entry routing identity, completed rewrite runs, declared recovery rules, and runtime spill fallback.
   - `assignment.rs`: baseline, transformed, recovery, runtime-spill, and post-allocation manifest staging.
-  - `home_assignment.rs`: transition-free constraint solver, interference/early-clobber preparation, and independent home replay.
+  - `home_assignment.rs`: transition-free constraint solver and interference/early-clobber preparation (no home replay).
   - `rewrites.rs`: fixed-occurrence materialization, fixed-view segment-home staging, settlement-gap alignment, and active-resident rematerialization staging.
-  - `fixed_view_copy_recovery.rs`: fixed-view copy materialization and independent CFG replay.
+  - `fixed_view_copy_recovery.rs`: fixed-view copy materialization (no CFG replay).
   - `pressure_rematerialization_recovery.rs`: active-resident immediate rematerialization under register pressure.
   - `runtime_spill_and_split.rs`: runtime value spilling, live-range splitting, and runtime rematerialization.
   - `reanalysis.rs`: liveness, live-range, and legality reanalysis over fixed-view copy graphs.
@@ -101,7 +101,7 @@ mod rewrites;
 mod runtime_spill_and_split;
 mod selected_input {
     use crate::{
-        ValidatedFixedOccurrences, ValidatedFixedViewCopies, ValidatedPressureRematerialization,
+        MaterializedFixedViewCopies, ValidatedFixedOccurrences, ValidatedPressureRematerialization,
         ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
     };
     use optimization_core::OptimizationUnitIdentity;
@@ -162,11 +162,11 @@ mod selected_input {
 
     validated_selected_analysis!(ValidatedFixedOccurrences);
 
-    impl sealed::Sealed for ValidatedFixedViewCopies {}
+    impl sealed::Sealed for MaterializedFixedViewCopies {}
 
-    impl ValidatedSelectedAnalysis for ValidatedFixedViewCopies {}
+    impl ValidatedSelectedAnalysis for MaterializedFixedViewCopies {}
 
-    impl SelectedProgramView for ValidatedFixedViewCopies {
+    impl SelectedProgramView for MaterializedFixedViewCopies {
         fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
             std::sync::Arc::clone(&self.plan().transformed)
         }
@@ -196,10 +196,10 @@ pub use reanalysis::{
 pub(crate) use rewrites::*;
 pub use rewrites::{
     FixedOccurrencesError, FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy,
-    FixedViewCopySourceEvidence, OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError, PressureRematerializationError,
-    PressureRematerializationPolicy, RuntimeRematerializationError, RuntimeSpillError,
-    RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences, ValidatedFixedViewCopies,
+    FixedViewCopySourceEvidence, MaterializedFixedViewCopies,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
+    PressureRematerializationError, PressureRematerializationPolicy, RuntimeRematerializationError,
+    RuntimeSpillError, RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences,
     ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
     ValidatedRuntimeSplit, fixed_view_copy_identity, materialize_selected_fixed_occurrences,
     probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
@@ -232,11 +232,11 @@ pub(crate) use assignment::baseline::{
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
 };
 pub use assignment::home_assignment::{
-    FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity, RegisterHomePlan,
-    ValidatedRegisterHomes, VirtualRegisterHome, register_home_identity,
+    AssignedRegisterHomes, FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity,
+    RegisterHomePlan, VirtualRegisterHome, register_home_identity,
 };
 pub(crate) use assignment::home_assignment::{
-    RegisterHomeError, RegisterHomeValidationReceipt, assign_register_homes,
+    RegisterHomeError, RegisterHomeReceipt, assign_register_homes,
 };
 pub use assignment::post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,

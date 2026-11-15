@@ -1,7 +1,7 @@
 /*
-Whole-artifact `CanonicalTerminalArtifact` container codec (`encode_canonical_artifact`,
-`decode_canonical_artifact`) and retained execution-code wrapper (`TerminalExecutionCode`,
-`encode_execution_code`, `decode_execution_code`).
+Whole-artifact encoding and retained execution-code ownership. The immutable closed
+module owns semantic identity; borrowing or retaining it never creates a second
+module/identity pair that a later consumer has to reconcile.
 */
 
 use crate::cursor::Cursor;
@@ -21,7 +21,6 @@ const ARTIFACT_FORMAT_MARKER: u16 = 3;
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalArtifactView<'artifact> {
     closed: &'artifact ClosedTerminalModule,
-    identity: terminal_psi::TerminalPsiIdentity,
 }
 
 impl<'artifact> TerminalArtifactView<'artifact> {
@@ -34,7 +33,7 @@ impl<'artifact> TerminalArtifactView<'artifact> {
     }
 
     pub const fn identity(self) -> terminal_psi::TerminalPsiIdentity {
-        self.identity
+        self.closed.identity()
     }
 }
 
@@ -204,22 +203,15 @@ impl CanonicalTerminalArtifact {
     pub fn view(&self) -> TerminalArtifactView<'_> {
         TerminalArtifactView {
             closed: &self.semantic_module,
-            identity: self.manifest.semantic(),
         }
     }
 
-    pub fn into_semantics(self) -> (ClosedTerminalModule, terminal_psi::TerminalPsiIdentity) {
-        (
-            std::sync::Arc::unwrap_or_clone(self.semantic_module),
-            self.manifest.semantic(),
-        )
+    pub fn into_semantics(self) -> ClosedTerminalModule {
+        std::sync::Arc::unwrap_or_clone(self.semantic_module)
     }
 
     pub fn retain_code(&self) -> crate::RetainedTerminalCode {
-        crate::RetainedTerminalCode::new(
-            std::sync::Arc::clone(&self.semantic_module),
-            self.manifest.semantic(),
-        )
+        crate::RetainedTerminalCode::new(std::sync::Arc::clone(&self.semantic_module))
     }
 
     pub fn semantic_module(&self) -> &TerminalModule {
@@ -320,13 +312,12 @@ pub(crate) mod execution_code {
     #[derive(Debug, Clone, Copy)]
     pub struct TerminalExecutionView<'code> {
         closed: &'code ClosedTerminalModule,
-        identity: TerminalPsiIdentity,
     }
 
     impl<'code> TerminalExecutionView<'code> {
         pub fn custody_identity(self) -> TerminalExecutionIdentity {
             TerminalExecutionIdentity {
-                semantic: self.identity,
+                semantic: self.closed.identity(),
                 invocation: self.closed.module().identities.invocation_scope().cloned(),
             }
         }
@@ -337,7 +328,7 @@ pub(crate) mod execution_code {
             self.closed
         }
         pub const fn identity(self) -> TerminalPsiIdentity {
-            self.identity
+            self.closed.identity()
         }
     }
 
@@ -364,7 +355,6 @@ pub(crate) mod execution_code {
         fn from(artifact: TerminalArtifactView<'code>) -> Self {
             Self {
                 closed: artifact.closed_module(),
-                identity: artifact.identity(),
             }
         }
     }
@@ -372,21 +362,16 @@ pub(crate) mod execution_code {
     #[derive(Clone)]
     pub struct RetainedTerminalCode {
         module: Arc<ClosedTerminalModule>,
-        identity: TerminalPsiIdentity,
     }
 
     impl RetainedTerminalCode {
-        pub(crate) fn new(
-            module: Arc<ClosedTerminalModule>,
-            identity: TerminalPsiIdentity,
-        ) -> Self {
-            Self { module, identity }
+        pub(crate) fn new(module: Arc<ClosedTerminalModule>) -> Self {
+            Self { module }
         }
 
         pub fn view(&self) -> TerminalExecutionView<'_> {
             TerminalExecutionView {
                 closed: &self.module,
-                identity: self.identity,
             }
         }
     }
@@ -394,7 +379,6 @@ pub(crate) mod execution_code {
     #[derive(Debug, PartialEq, Eq)]
     pub struct InvocationTerminalCode {
         module: Arc<ClosedTerminalModule>,
-        identity: TerminalPsiIdentity,
     }
 
     impl InvocationTerminalCode {
@@ -413,22 +397,19 @@ pub(crate) mod execution_code {
                     "invocation code requires a retained local-code owner",
                 ));
             }
-            let identity = module.identity();
             Ok(Self {
                 module: Arc::new(module),
-                identity,
             })
         }
 
         pub fn view(&self) -> TerminalExecutionView<'_> {
             TerminalExecutionView {
                 closed: &self.module,
-                identity: self.identity,
             }
         }
 
         pub fn retain_code(&self) -> RetainedTerminalCode {
-            RetainedTerminalCode::new(Arc::clone(&self.module), self.identity)
+            RetainedTerminalCode::new(Arc::clone(&self.module))
         }
     }
 
@@ -476,5 +457,108 @@ pub(crate) mod execution_code {
         CanonicalTerminalArtifactError::Semantic(crate::CodecError::MalformedStructuralFoundation(
             "invocation code is not a portable Terminal artifact",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{InvocationTerminalCode, TerminalExecutionView};
+    use terminal_psi::TerminalIdentityTableBuilder;
+
+    fn closed_module(invocation: bool) -> ClosedTerminalModule {
+        let mut module = TerminalModule::declarations();
+        if invocation {
+            let mut identities = TerminalIdentityTableBuilder::for_invocation();
+            identities
+                .intern_invocation_local("local_callable")
+                .unwrap();
+            module.identities = identities.build();
+        }
+        ClosedTerminalModule::new(module).unwrap()
+    }
+
+    fn optimization_record(module: &ClosedTerminalModule) -> PsiOptimizationExecutionRecord {
+        PsiOptimizationExecutionRecord::new(
+            optimization::PsiOptimizationSelections::default(),
+            module.identity(),
+            module.identity(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn every_portable_handoff_uses_the_closed_modules_identity_and_storage() {
+        let closed = closed_module(false);
+        let identity = closed.identity();
+        let record = optimization_record(&closed);
+        let artifact = CanonicalTerminalArtifact::from_closed_parts(closed, record, None).unwrap();
+        let retained = artifact.retain_code();
+        let execution: TerminalExecutionView<'_> = artifact.view().into();
+        assert_eq!(artifact.view().identity(), identity);
+        assert_eq!(artifact.manifest().semantic(), identity);
+        assert_eq!(execution.identity(), identity);
+        assert_eq!(retained.view().identity(), identity);
+        assert!(std::ptr::eq(execution.module(), retained.view().module()));
+
+        let decoded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+        assert_eq!(decoded.view().identity(), identity);
+        assert_eq!(decoded.semantic_bytes(), artifact.semantic_bytes());
+
+        let transferred = artifact.into_semantics();
+        assert_eq!(transferred.identity(), identity);
+        assert!(std::ptr::eq(transferred.module(), retained.view().module()));
+        drop(transferred);
+        assert_eq!(retained.view().identity(), identity);
+        assert_eq!(retained.view().closed_module().identity(), identity);
+    }
+
+    #[test]
+    fn a_manifest_cannot_substitute_another_modules_semantic_identity() {
+        let record = optimization_record(&closed_module(false));
+        let mut changed = TerminalModule::declarations();
+        let mut identities = TerminalIdentityTableBuilder::default();
+        identities.intern("different_program");
+        changed.identities = identities.build();
+        let changed = ClosedTerminalModule::new(changed).unwrap();
+        assert!(matches!(
+            CanonicalTerminalArtifact::from_closed_parts(changed, record, None),
+            Err(CanonicalTerminalArtifactError::Manifest(
+                ArtifactManifestError::Optimization(
+                    crate::PsiOptimizationExecutionRecordError::OutputMismatch
+                )
+            ))
+        ));
+    }
+
+    #[test]
+    fn retained_invocation_code_preserves_its_owner_without_becoming_portable() {
+        let first = InvocationTerminalCode::from_closed_module(closed_module(true)).unwrap();
+        let second = InvocationTerminalCode::from_closed_module(closed_module(true)).unwrap();
+        assert_eq!(first.view().identity(), second.view().identity());
+        assert_ne!(
+            first.view().custody_identity(),
+            second.view().custody_identity()
+        );
+
+        let identity = first.view().custody_identity();
+        let retained = first.retain_code();
+        let clone = retained.clone();
+        assert!(std::ptr::eq(
+            first.view().module(),
+            retained.view().module()
+        ));
+        drop(first);
+        drop(retained);
+        assert_eq!(clone.view().custody_identity(), identity);
+        assert_eq!(
+            clone.view().identity(),
+            clone.view().closed_module().identity()
+        );
+
+        let closed = closed_module(true);
+        let record = optimization_record(&closed);
+        assert!(CanonicalTerminalArtifact::from_closed_parts(closed, record, None).is_err());
+        assert!(InvocationTerminalCode::from_closed_module(closed_module(false)).is_err());
     }
 }

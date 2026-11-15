@@ -141,7 +141,6 @@ pub(super) fn validate(
             registration,
             request.profile,
             request.installed_calling,
-            input.target_machine_selections(),
         )?;
         let declaration = module
             .boundary_machine(registration.installer)
@@ -692,10 +691,8 @@ pub(super) fn acknowledgement_entry(
     registration: &TerminalInstalledInterruptRegistration,
     profile: target::TargetProfile,
     calling: &[calling_conventions::BoundaryCallingApplication],
-    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
 ) -> Result<u32, String> {
-    let boundary =
-        crate::selected_calling_boundary(module, targets, registration.registrar_boundary)?;
+    let boundary = registration.registrar_boundary;
     let abi = module.calling_abi_identity(boundary)?;
     let mut candidates = calling.iter().filter(|row| {
         row.abi == abi

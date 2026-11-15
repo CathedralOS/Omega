@@ -136,7 +136,7 @@ impl Program<'_> {
                 // evaluates the replacement while old loans remain active,
                 // ends the overwritten field's carried loans, then installs
                 // the replacement's exact loans."
-                let place = self.assigned_place(id, slots, assignment.target)?;
+                let place = self.place(id, slots, assignment.target, None, Access::Replace)?;
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };

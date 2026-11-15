@@ -244,7 +244,7 @@ impl FunctionFragmentReplayInputs {
 
     pub fn register_homes(
         &self,
-    ) -> &selected_instructions_to_register_homes::ValidatedRegisterHomes {
+    ) -> &selected_instructions_to_register_homes::AssignedRegisterHomes {
         self.allocation().current().homes()
     }
 
@@ -295,7 +295,7 @@ impl FunctionFragmentReplayInputs {
 struct CurrentFunctionFragmentInput {
     program: ResolvedMachineProgram,
     machine: register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
-    homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
+    homes: selected_instructions_to_register_homes::AssignedRegisterHomes,
     environment: register_environment::ValidatedTargetRegisterEnvironment,
     exit: StagedWholeFunctionExitContract,
     manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -405,7 +405,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
 
     pub fn register_homes(
         &self,
-    ) -> &selected_instructions_to_register_homes::ValidatedRegisterHomes {
+    ) -> &selected_instructions_to_register_homes::AssignedRegisterHomes {
         &self.current.homes
     }
 

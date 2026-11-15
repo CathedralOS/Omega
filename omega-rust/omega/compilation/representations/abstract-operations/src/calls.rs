@@ -6,26 +6,18 @@ Dynamic requirement slots have no machine body and therefore no parameter places
 while direct machines carry parameter and result declarations. We unify both
 behind `AbstractCallSignature`, `StructuralCallFormal`, and `StructuralCallResult`
 so native argument planning never fabricates a dummy machine or borrows a table
-row's private declaration. We also keep `AbstractOperationPlanWithAccessViewInputs`
-separate from ordinary structural parameters so pointer-shaped `Access<P, T>`
-views are never mistaken for owned structural backing.
+row's private declaration.
 */
 
-use crate::{AbstractFunction, AbstractOperationPlan, AbstractResult};
+use crate::{AbstractFunction, AbstractResult};
 use semantic_vocabulary::{MachineId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration as ResultDeclaration,
     OutcomeSpecificCallEvidence, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration as ParameterDeclaration,
-    StructuralPathQualification, StructuralResultDeclaration, TerminalAccessViewInput,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal as StructuralFormal,
+    StructuralPathQualification, StructuralResultDeclaration, TerminalDynamicSlot,
+    TerminalDynamicStructuralFormal as StructuralFormal,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractOperationPlanWithAccessViewInputs {
-    pub plan: AbstractOperationPlan,
-    pub access_view_inputs: Vec<TerminalAccessViewInput>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractBoundaryResult {

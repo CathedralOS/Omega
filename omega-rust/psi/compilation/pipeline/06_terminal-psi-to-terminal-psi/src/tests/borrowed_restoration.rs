@@ -6,10 +6,10 @@
 //! vacant place closes the ownership window ... Every return or terminal
 //! transfer from the region owing restoration ... must close the window."
 //!
-//! Each program lends a `Holder` whose `inner` field is not copyable and
-//! moves that field out. The accepted ones store a replacement into the
-//! same field before the machine returns; each failing twin differs in the
-//! one store or use the rule is about.
+//! Programs remove an affine record or projected field from mutable incoming
+//! storage, directly or through retained exclusive references. Accepted paths
+//! restore that exact storage before handback; each failing twin breaks only
+//! the store, observation or loan obligation it challenges.
 
 use super::*;
 
@@ -285,4 +285,113 @@ fn an_untracked_copyable_carrier_does_not_erase_an_explicit_window() {
             ..
         })
     ));
+}
+
+/// A retained descriptor spells access through its own exclusive loan while
+/// the hole and its repair remain on the original incoming parameter.
+#[test]
+fn an_exclusive_local_can_open_and_repair_its_captured_parameter_window() {
+    let program = |restore: &str| {
+        format!(
+            "machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
+             let local: &mut Inner = &mut holder;\n    \
+             let taken: Inner = move local;\n    {restore}\n    taken\n}}\n"
+        )
+    };
+    accepted(&program("local = next;"));
+    rejected(&program(""), NOT_RESTORED);
+}
+
+#[test]
+fn a_retained_exclusive_window_executes_the_original_caller_storage() {
+    execute_restoration(RETAINED_ROOT_RESTORATION);
+}
+
+const RETAINED_ROOT_RESTORATION: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/fixtures/run/ownership/retained_borrowed_root_restoration/main.omg"
+));
+
+#[test]
+fn a_local_reference_to_another_parameter_does_not_repair_a_window() {
+    rejected(
+        "machine swap(holder: &mut Inner, other: &mut Inner, next: Inner) -> Inner {\n    \
+         let local: &mut Inner = &mut holder;\n    \
+         let another: &mut Inner = &mut other;\n    \
+         let taken: Inner = move local;\n    another = next;\n    taken\n}\n",
+        NOT_RESTORED,
+    );
+}
+
+#[test]
+fn a_local_reference_cannot_extract_the_same_borrowed_value_twice() {
+    rejected(
+        "machine swap(holder: &mut Inner, next: Inner) -> Inner {\n    \
+         let local: &mut Inner = &mut holder;\n    \
+         let taken: Inner = move local;\n    let twice: Inner = move local;\n    \
+         local = next;\n    taken\n}\n",
+        USED_VACANT,
+    );
+}
+
+#[test]
+fn a_shared_local_reference_does_not_acquire_an_owned_window() {
+    assert_ne!(
+        verdict(
+            "machine take(holder: &Inner) -> Inner {\n    \
+             let local: &Inner = &holder;\n    let taken: Inner = move local;\n    taken\n}\n"
+        ),
+        Err("accepted".into())
+    );
+}
+
+#[test]
+fn a_window_through_exclusive_descendants_keeps_the_original_parameter() {
+    let program = |restore: &str| {
+        format!(
+            "machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
+             let parent: &mut Inner = &mut holder;\n    \
+             let local: &mut Inner = &mut parent;\n    \
+             let taken: Inner = move local;\n    {restore}\n    taken\n}}\n"
+        )
+    };
+    accepted(&program("local = next;"));
+    rejected(&program(""), NOT_RESTORED);
+}
+
+#[test]
+fn a_retained_window_cannot_bypass_a_live_descendant_loan() {
+    let program = |before: &str, during: &str| {
+        format!(
+            "machine observe(value: &u32) {{ }}\n\
+             machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
+             let local: &mut Inner = &mut holder;\n    \
+             let child: &u32 = &local.value;\n    {before}\n    \
+             let taken: Inner = move local;\n    {during}\n    \
+             local = next;\n    taken\n}}\n"
+        )
+    };
+    accepted(&program("observe(child);", ""));
+    rejected(&program("", "observe(child);"), "conflict:");
+}
+
+#[test]
+fn an_exclusive_reference_field_opens_the_same_captured_window() {
+    let source = RETAINED_ROOT_RESTORATION
+        .replace(
+            "data Item { value: u32; }",
+            "data Item { value: u32; }\ndata Loan<'storage> { item: &'storage mut Item; }",
+        )
+        .replace(
+            "let local: &mut Item = &mut owner;",
+            "let local: Loan = Loan { item: &mut owner };",
+        )
+        .replace("move local;", "move local.item;")
+        // Assigning the field replaces its descriptor. Transfer that same
+        // permission to a local before repairing through its referent.
+        .replace(
+            "local = next;",
+            "let repair: &mut Item = local.item;\n    repair = next;",
+        );
+    execute_restoration(&source);
 }

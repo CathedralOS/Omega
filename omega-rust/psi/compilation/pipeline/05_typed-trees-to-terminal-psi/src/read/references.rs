@@ -234,17 +234,51 @@ impl Program<'_> {
             regions: expected.regions(),
             home,
         };
-        let (mut value, _) = self.lent(machine, slots, argument, &formal, referent)?;
-        let crate::ExpressionKind::Borrow { place, .. } = &value.kind else {
+        let (value, _) = self.lent(machine, slots, argument, &formal, referent)?;
+        if !matches!(value.kind, crate::ExpressionKind::Borrow { .. }) {
             unreachable!()
         };
-        if !self.same_type(place.result, referent) {
+        // A view's loan result carries its chosen presentation; its backing
+        // place retains the original type. Empty-value compatibility grants
+        // no permission to reinterpret either storage type.
+        if !self.same_type(value.result, referent) {
             return Err(refuse(
                 machine,
                 Construct::Machine,
                 Unserved::Typing("reference formation changes its referent type"),
             ));
         }
+        self.finish_reference_value(machine, slots, value, expected, source)
+    }
+
+    /// The destination describes the view; its lifetime still comes from the
+    /// actual place the ordinary loan reader captured. A recast changes only
+    /// the presentation, so the next stage must judge its representation.
+    pub(super) fn finish_reference_value(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        mut value: crate::Expression,
+        expected: ValueType,
+        source: crate::SourceOrigin,
+    ) -> Checked<crate::Expression> {
+        let Some((referent, _)) = self.reference_referent(machine, expected)? else {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("reference formation without its destination descriptor"),
+            ));
+        };
+        let ValueType::Record(row, _, _) = expected else {
+            unreachable!()
+        };
+        let crate::ExpressionKind::Borrow { place, .. } = &value.kind else {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("reference formation without its captured source"),
+            ));
+        };
         let outer = self.formed_loan_regions(machine, slots, place)?;
         let mut tuple = self.region_tuple(outer).to_vec();
         tuple.extend_from_slice(self.region_tuple(referent.regions()));

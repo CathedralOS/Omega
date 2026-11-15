@@ -1026,7 +1026,42 @@ mod continuations {
         }
 
         #[test]
-        fn implicit_call_identity_requires_the_exact_first_state() {
+        fn implicit_call_identity_uses_the_selected_entry_regardless_of_child_order() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+            let declaration = source::SourceSpan::new(source::SourceId(0), source::Span::new(0, 6));
+            for (names, selected) in [(["other", "entry"], 1), (["entry", "helper"], 1)] {
+                let mut builder = SymbolTableBuilder::default();
+                let machine = builder.insert_root(
+                    SymbolKind::Machine,
+                    SymbolNameRef::OwnedSource {
+                        value: "helper",
+                        source_span: declaration,
+                    },
+                );
+                let children = builder.insert_children(
+                    machine,
+                    names.map(|name| (SymbolKind::State, SymbolNameRef::Static(name))),
+                );
+                let program = SymbolResolvedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                let custody = crate::selection::call_identity::call_declaration_source;
+                assert_eq!(
+                    custody(&program, children.handle_at(selected)),
+                    Ok(declaration)
+                );
+                assert!(
+                    custody(&program, children.handle_at(0))
+                        .unwrap_err()
+                        .contains("not its exact owning entry")
+                );
+            }
+        }
+
+        #[test]
+        fn implicit_call_entry_retains_its_authored_machine_source() {
             let text = "machine helper(value: u64) -> u64 { value }";
             let mut sources = source::SourceMap::default();
             let source = sources.add("calls/main.omg".into(), text.into()).source_id;
@@ -2904,11 +2939,31 @@ mod primitive_family_binding_tests {
         let domains = program.domain_definitions.iter().collect::<Vec<_>>();
         assert_eq!(domains.len(), 2);
         assert_ne!(domains[0].symbol, domains[1].symbol);
-        for domain in domains {
-            assert_eq!(
-                domain.semantic_roles.denotation_dimension,
-                Some(domain.semantic_id)
-            );
+        assert_eq!(program.machines.len(), 2);
+        let source_of = |symbol| program.symbols.symbol_source_span(symbol).unwrap();
+        let sources = program.symbols.source_map().unwrap();
+        for scope in [DependencyScope::Build, DependencyScope::Product] {
+            let domain = domains
+                .iter()
+                .find(|domain| {
+                    sources
+                        .file_at(source_of(domain.symbol))
+                        .unwrap()
+                        .dependency_scope
+                        == scope
+                })
+                .expect("each checked scope declares a domain");
+            let source = source_of(domain.symbol).source_id;
+            let mut bindings = program
+                .machines
+                .iter()
+                .filter(|binding| source_of(binding.symbol).source_id == source);
+            let binding = bindings
+                .next()
+                .expect("each checked instance declares a binding");
+            assert!(bindings.next().is_none());
+            assert_eq!(binding.operator_home_domain, domain.symbol);
+            assert_eq!(domain.semantic_roles.denotation_dimension, None);
         }
     }
 
@@ -2940,14 +2995,24 @@ mod primitive_family_binding_tests {
             .begin_source_activation(std::sync::Arc::new(sources), Vec::new())
             .unwrap()
             .finish();
-        assert_eq!(
+        assert_eq!(program.machines.len(), 2);
+        let sources = program.symbols.source_map().unwrap();
+        let binding_in = |scope| {
             program
                 .machines
                 .iter()
-                .filter(|machine| program.symbols.symbol_source_is_selected(machine.symbol))
-                .count(),
-            1
-        );
+                .find(|machine| {
+                    let span = program.symbols.symbol_source_span(machine.symbol).unwrap();
+                    sources.file_at(span).unwrap().dependency_scope == scope
+                })
+                .expect("both checked instances remain in the retained forest")
+        };
+        let build = binding_in(DependencyScope::Build);
+        let product = binding_in(DependencyScope::Product);
+        assert!(!program.symbols.symbol_source_is_selected(build.symbol));
+        assert!(program.symbols.symbol_source_is_selected(product.symbol));
+        assert_ne!(build.operator_home_domain, product.operator_home_domain);
+        let product_home = product.operator_home_domain;
         super::reject_duplicate_direct_token_bindings(&program).unwrap();
 
         // A newly selected binding still has to name its semantic home. The
@@ -2980,14 +3045,29 @@ mod primitive_family_binding_tests {
                 retained_base: Some(std::sync::Arc::new(program.clone())),
             });
             if qualified {
-                result.unwrap();
+                let extension = result.unwrap();
+                let binding = extension
+                    .machines
+                    .iter()
+                    .find(|machine| {
+                        extension
+                            .symbols
+                            .symbol_source_span(machine.symbol)
+                            .is_some_and(|span| span.source_id == source)
+                    })
+                    .expect("the new Product binding remains in the resolved extension");
+                assert_eq!(binding.operator_home_domain, product_home);
             } else {
                 let errors = result.unwrap_err();
+                let [error] = errors.as_slice() else {
+                    panic!("expected one missing-home diagnostic: {errors:?}");
+                };
+                assert_eq!(error.source_span.map(|span| span.source_id), Some(source));
                 assert!(
-                    errors
-                        .iter()
-                        .any(|error| error.message.contains("no operand names the carrier of")),
-                    "{errors:?}"
+                    error
+                        .message
+                        .contains("no operand carries its home domain `Quantity`"),
+                    "{error:?}"
                 );
             }
         }

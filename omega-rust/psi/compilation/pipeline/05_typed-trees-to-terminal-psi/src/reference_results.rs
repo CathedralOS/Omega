@@ -174,12 +174,13 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
                     .iter()
                     .rposition(|step| *step == terminal_check_tables::bindings::Segment::Referent)
                 {
-                    let parent = descriptor_name(root, &segments[..crossing]).ok_or_else(|| {
-                        unavailable(
-                            machine.id,
-                            "reference parent has no exact static descriptor path",
-                        )
-                    })?;
+                    let parent = DescriptorLocation::captured(root, &segments[..crossing])
+                        .ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "reference parent has no exact static descriptor path",
+                            )
+                        })?;
                     children.push((id, row.created_at, parent));
                 }
             }
@@ -244,7 +245,9 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
                         }
                         let (root, path) = captured_path(tables, captured)
                             .map_err(|reason| unavailable(machine.id, reason))?;
-                        if descriptor_name(root, &path).as_ref() == Some(&source_location) {
+                        if DescriptorLocation::captured(root, &path).as_ref()
+                            == Some(&source_location)
+                        {
                             matching.push(id);
                         }
                     }
@@ -317,7 +320,8 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
                             }
                             let (root, path) = captured_path(tables, captured)
                                 .map_err(|reason| unavailable(machine.id, reason))?;
-                            if descriptor_name(root, &path).as_ref() == Some(&location) {
+                            if DescriptorLocation::captured(root, &path).as_ref() == Some(&location)
+                            {
                                 found = Some(id);
                                 break;
                             }
@@ -437,29 +441,6 @@ fn captured_path(
         }
     }
     Err("reference capture does not reach its exact storage root")
-}
-
-fn descriptor_name(
-    root: semantic_vocabulary::PlaceId,
-    path: &[terminal_check_tables::bindings::Segment],
-) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
-    use terminal_check_tables::bindings::Segment;
-    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
-    Some(DescriptorLocation {
-        root,
-        path: path
-            .iter()
-            .map(|step| {
-                Some(match step {
-                    Segment::Field(field) => DescriptorPathSegment::Field(*field),
-                    Segment::Case(case) => DescriptorPathSegment::Case(*case),
-                    Segment::FixedIndex(index) => DescriptorPathSegment::FixedIndex(*index),
-                    Segment::Referent => DescriptorPathSegment::Referent,
-                    Segment::RuntimeIndex { .. } | Segment::Extent => return None,
-                })
-            })
-            .collect::<Option<Vec<_>>>()?,
-    })
 }
 
 fn formation_position(

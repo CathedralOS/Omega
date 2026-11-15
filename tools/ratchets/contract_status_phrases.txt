@@ -18,7 +18,6 @@
 2 wiki/spec/packages/topology.md
 1 wiki/spec/resources/allocation.md
 1 wiki/spec/terminal-psi/byte_views.md
-1 wiki/spec/terminal-psi/encoding.md
 1 wiki/spec/terminal-psi/fact_validity.md
 1 wiki/spec/terminal-psi/ownership.md
 1 wiki/spec/terminal-psi/product.md

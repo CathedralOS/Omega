@@ -896,7 +896,7 @@ pub(crate) mod instance {
                             .machine(execution.current_machine)?
                             .result
                             .structural()
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .place;
                         observe_leaf(execution, source, &returned.observation_value(), path)
                     }
@@ -1099,7 +1099,7 @@ pub(crate) mod instance {
             path: &[Path],
         ) -> Result<TerminalStorageObservationValue<'static>, TerminalStorageObservationError>
         {
-            let selected = value.result_case.ok_or_else(malformed)?;
+            let selected = value.result_case.ok_or(malformed())?;
             if path.is_empty() {
                 return Ok(TerminalStorageObservationValue::Storage(
                     crate::TerminalStorageContents::Case(selected),
@@ -1123,7 +1123,7 @@ pub(crate) mod instance {
             };
             let declaration = terminal_psi::find_structural_case(cases, selected)
                 .and_then(|case| case.fields.iter().find(|candidate| candidate.id == *field))
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let stored_scalar = declaration
                 .storage
                 .as_ref()
@@ -1154,7 +1154,7 @@ pub(crate) mod instance {
                 let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
                     return Err(TerminalStorageObservationError::UnknownPath);
                 };
-                let length = length.literal().ok_or_else(malformed)?;
+                let length = length.literal().ok_or(malformed())?;
                 if *index >= length {
                     return Err(TerminalStorageObservationError::UnknownPath);
                 }
@@ -1168,9 +1168,9 @@ pub(crate) mod instance {
                         usize::try_from(*index)
                             .map_err(|_| malformed())?
                             .checked_mul(remaining)
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 structural_type = element;
             }
             let declaration = execution.structural_declaration(structural_type)?;
@@ -1180,7 +1180,7 @@ pub(crate) mod instance {
             if remaining != 1 {
                 return Err(malformed().into());
             }
-            let scalar = *value.elements().get(offset).ok_or_else(malformed)?;
+            let scalar = *value.elements().get(offset).ok_or(malformed())?;
             if scalar.scalar_type() != scalar_type {
                 return Err(malformed().into());
             }
@@ -2201,7 +2201,7 @@ pub(crate) mod program {
                 &self,
                 identity: &Declaration::Identity,
             ) -> Result<&'storage Declaration, TerminalInterpretError> {
-                self.get(identity).ok_or_else(malformed)
+                self.get(identity).ok_or(malformed())
             }
 
             pub(crate) fn values(
@@ -2359,20 +2359,17 @@ pub(crate) mod program {
                 .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
             let selected =
                 installation.and_then(|installation| installation.target_machines.as_ref());
-            let machine = terminal_installation::AdmittedTargetMachineSelections::resolve_entry(
+            let machine = terminal_installation::TerminalTargetContext::resolve_entry(
                 selected,
                 self.identity.semantic(),
                 &self.catalogs,
                 root,
             )
             .map_err(|error| match error {
-                terminal_installation::TargetMachineSelectionError::MissingDeployment { head } => {
-                    TerminalInterpretError::TargetMachineSelectionMissing(head)
-                }
-                terminal_installation::TargetMachineSelectionError::MissingMachine(_) => {
+                terminal_installation::TerminalEntryError::MissingMachine(_) => {
                     TerminalInterpretError::VerifiedEntryMachineMissing
                 }
-                other => TerminalInterpretError::TargetMachineSelection(other),
+                other => TerminalInterpretError::TerminalEntry(other),
             })?;
             self.machines()
                 .get(&machine)
@@ -2420,7 +2417,7 @@ pub(crate) mod program {
             &self,
             machine_id: MachineId,
         ) -> Result<&terminal_psi::TerminalMachine, TerminalInterpretError> {
-            self.machines().get(&machine_id).ok_or_else(malformed)
+            self.machines().get(&machine_id).ok_or(malformed())
         }
 
         pub(crate) fn verified_machine(
@@ -2484,25 +2481,11 @@ pub(crate) mod program {
                 .is_ok()
         }
 
-        pub(crate) fn is_target_family_head(&self, boundary: BoundaryMachineId) -> bool {
-            let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
-            self.catalogs
-                .target_machine_families
-                .binary_search_by_key(&head, |family| family.canonical)
-                .ok()
-                .is_some_and(|position| {
-                    !self.catalogs.target_machine_families[position]
-                        .members
-                        .iter()
-                        .any(|member| member.callable == head)
-                })
-        }
-
         pub(crate) fn import_declaration(
             &self,
             slot: BoundaryMachineId,
         ) -> Option<&BoundaryMachineDeclaration> {
-            if self.has_provider(&slot) || self.is_target_family_head(slot) {
+            if self.has_provider(&slot) {
                 return None;
             }
             self.boundary_machines().get(&slot).filter(|declaration| {
@@ -2680,9 +2663,9 @@ pub(crate) mod program {
         ) -> Result<Self, TerminalArtifactInterpretError> {
             let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
                 .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-            let (module, identity) = artifact.into_semantics();
+            let module = artifact.into_semantics();
             Ok(Self::from_admitted(AdmittedTerminalProgram {
-                identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
+                identity: terminal_codec::TerminalExecutionIdentity::portable(module.identity()),
                 catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
                 target_layouts: None,
                 scalar_geometry: None,
@@ -2711,7 +2694,7 @@ pub(crate) mod program {
                 .target_machines
                 .is_some_and(|selected| selected.terminal_psi() != self.program.identity.semantic())
             {
-                return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
+                return Err(TerminalInterpretError::TargetContextIdentityMismatch);
             }
             let mut installation = request
                 .installation
@@ -2825,18 +2808,6 @@ pub(crate) mod program {
                     "compiler primitive cannot be replaced by an external supply",
                 ));
             }
-            if self.program.is_target_family_head(boundary) {
-                let member = crate::engine::calls::target_families::selected_member(
-                    &self.program,
-                    installation.target_machines.as_ref(),
-                    boundary,
-                )?;
-                if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
-                    return Err(rejected(
-                        "a checked target-family member cannot be replaced by an external supply",
-                    ));
-                }
-            }
             if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
                 return Err(rejected(
                     "external completion requires separate domain admission",
@@ -2864,7 +2835,6 @@ pub(crate) mod program {
                     declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
                         && !compiler_owns_boundary_execution(declaration)
                         && !self.program.has_provider(&declaration.id)
-                        && !self.program.is_target_family_head(declaration.id)
                 })
         }
 
@@ -3222,6 +3192,40 @@ pub(crate) mod program {
     }
 
     #[cfg(test)]
+    mod envelope_load_tests {
+        use super::*;
+
+        #[test]
+        fn loading_an_envelope_keeps_identity_with_its_owned_semantics() {
+            let mut module = TerminalModule::declarations();
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            let declaration = identities.intern("envelope_owned_declaration");
+            module.identities = identities.build();
+            let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+            let identity = closed.identity();
+            let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+                Default::default(),
+                identity,
+                identity,
+            )
+            .unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_closed_parts(closed, record, None)
+                    .unwrap();
+            let bytes = artifact.to_bytes();
+            let program = TerminalProgram::load_envelope(&bytes).unwrap();
+            drop(bytes);
+            drop(artifact);
+            assert_eq!(program.terminal_psi(), identity);
+            assert_eq!(program.closed_module().unwrap().identity(), identity);
+            assert_eq!(
+                program.module().identities.text(declaration),
+                Some("envelope_owned_declaration")
+            );
+        }
+    }
+
+    #[cfg(test)]
     mod private_entry_target_tests {
         use super::*;
 
@@ -3246,10 +3250,8 @@ pub(crate) mod program {
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")
                 .clone();
-            let machines = terminal_installation::admit_target_machine_selections(
-                artifact.view(),
-                "linux_x86_64",
-            );
+            let machines =
+                terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
             let layouts = terminal_installation::admit_target_layouts(
                 artifact.view(),
                 &machines,
@@ -3282,7 +3284,7 @@ pub(crate) mod program {
             {
                 let name = "macos_arm64";
                 let other_machines =
-                    terminal_installation::admit_target_machine_selections(artifact.view(), name);
+                    terminal_installation::terminal_target_context(artifact.view(), name);
                 let other_layouts = terminal_installation::admit_target_layouts(
                     artifact.view(),
                     &other_machines,

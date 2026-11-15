@@ -2291,13 +2291,24 @@ mod facts {
     #[derive(Clone)]
     enum ConstSubjectBinding<'a> {
         Scalar(ConstScalarValue),
-        Record(&'a [(String, ConstScalarValue)]),
+        /*
+            A record carrier's scalar-decodable field ledger, beside the selected
+            declaration's authored properties that carrier bounds are checked
+            against.
+        */
+        Record {
+            fields: &'a [(String, ConstScalarValue)],
+            properties: syntax_trees::item::DataProperties,
+        },
         Elements(&'a [Option<ConstScalarValue>]),
         /*
             The scalar-decodable payload field ledger of a variant carrier's
-            statically selected case.
+            statically selected case, with the selected declaration's properties.
         */
-        Variant(&'a [(String, ConstScalarValue)]),
+        Variant {
+            fields: &'a [(String, ConstScalarValue)],
+            properties: syntax_trees::item::DataProperties,
+        },
     }
 
     /*
@@ -2349,7 +2360,8 @@ mod facts {
         fn fields(self) -> Option<&'a [(String, ConstScalarValue)]> {
             match self.binding() {
                 Some(
-                    ConstSubjectBinding::Record(fields) | ConstSubjectBinding::Variant(fields),
+                    ConstSubjectBinding::Record { fields, .. }
+                    | ConstSubjectBinding::Variant { fields, .. },
                 ) => Some(fields),
                 _ => None,
             }
@@ -2807,39 +2819,27 @@ mod facts {
         Whether the concrete const carrier satisfies every requirement a domain
         declares on its abstract carrier parameter — the checked application
         evidence the bound calls for. Builtin scalar carriers are `copy` and ride
-        the permissive carry policy; a named `data` carrier answers from its
-        authored `properties`. Any other carrier declines rather than guessing.
+        the permissive carry policy; a nominal `data` carrier answers from the
+        authored `properties` its selected declaration attached to the bound
+        value, so same-named data in another package cannot answer for it. Any
+        other carrier declines rather than guessing.
     */
     fn carrier_satisfies_declared_bounds(
-        syntax: &SyntaxTrees,
-        carrier: &str,
         bounds: &syntax_trees::item::DataProperties,
         binding: &ConstSubjectBinding<'_>,
     ) -> bool {
-        if matches!(
-            binding,
+        let properties = match binding {
             ConstSubjectBinding::Scalar(ConstScalarValue::Integer(_))
-        ) {
-            return false;
-        }
-        let properties = matches!(
-            binding,
+            | ConstSubjectBinding::Elements(_) => None,
             ConstSubjectBinding::Scalar(
-                ConstScalarValue::DeclaredInteger { .. } | ConstScalarValue::Boolean(_)
-            )
-        )
-        .then_some(syntax_trees::item::DataProperties {
-            multiplicity: Multiplicity::Unrestricted,
-            carry: Some(CarryPolicy::PERMISSIVE),
-        })
-        .or_else(|| {
-            syntax.root_items().find_map(|item| match item {
-                Item::Data(definition) if definition.name.as_str(syntax) == carrier => {
-                    Some(definition.properties)
-                }
-                _ => None,
-            })
-        });
+                ConstScalarValue::DeclaredInteger { .. } | ConstScalarValue::Boolean(_),
+            ) => Some(syntax_trees::item::DataProperties {
+                multiplicity: Multiplicity::Unrestricted,
+                carry: Some(CarryPolicy::PERMISSIVE),
+            }),
+            ConstSubjectBinding::Record { properties, .. }
+            | ConstSubjectBinding::Variant { properties, .. } => Some(*properties),
+        };
         let Some(properties) = properties else {
             return false;
         };
@@ -2903,12 +2903,7 @@ mod facts {
             });
         let binding = if let Some(parameter) = carrier_parameter {
             if parameter.bounds != syntax_trees::item::DataProperties::default()
-                && !carrier_satisfies_declared_bounds(
-                    syntax,
-                    carrier,
-                    &parameter.bounds,
-                    &subject_binding,
-                )
+                && !carrier_satisfies_declared_bounds(&parameter.bounds, &subject_binding)
             {
                 return Ok(None);
             }
@@ -3408,7 +3403,11 @@ mod facts {
                 "bool".to_owned(),
                 ConstSubjectBinding::Scalar(ConstScalarValue::Boolean(*value)),
             ),
-            CanonicalConstNode::Record { type_name, fields } => {
+            CanonicalConstNode::Record {
+                type_name,
+                properties,
+                fields,
+            } => {
                 record_fields = fields
                     .iter()
                     .filter_map(|(name, field)| {
@@ -3417,7 +3416,10 @@ mod facts {
                     .collect();
                 (
                     type_name.clone(),
-                    ConstSubjectBinding::Record(&record_fields),
+                    ConstSubjectBinding::Record {
+                        fields: &record_fields,
+                        properties: *properties,
+                    },
                 )
             }
             CanonicalConstNode::Array { type_name, values } => {
@@ -3428,7 +3430,10 @@ mod facts {
                 )
             }
             CanonicalConstNode::Variant {
-                type_name, fields, ..
+                type_name,
+                properties,
+                fields,
+                ..
             } => {
                 variant_fields = fields
                     .iter()
@@ -3438,7 +3443,10 @@ mod facts {
                     .collect();
                 (
                     type_name.clone(),
-                    ConstSubjectBinding::Variant(&variant_fields),
+                    ConstSubjectBinding::Variant {
+                        fields: &variant_fields,
+                        properties: *properties,
+                    },
                 )
             }
             _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
@@ -4639,12 +4647,19 @@ mod values {
             type_name: String,
             values: Vec<CanonicalConstNode>,
         },
+        /*
+            `properties` are the selected nominal declaration's authored data
+            properties, carried with the value so carrier-bound checks rejoin the
+            declaration that owns it instead of reselecting by `type_name`.
+        */
         Record {
             type_name: String,
+            properties: syntax_trees::item::DataProperties,
             fields: Vec<(String, CanonicalConstNode)>,
         },
         Variant {
             type_name: String,
+            properties: syntax_trees::item::DataProperties,
             case_name: String,
             fields: Vec<(String, CanonicalConstNode)>,
         },
@@ -4667,7 +4682,9 @@ mod values {
                     std::iter::once(type_name.as_str().to_owned())
                         .chain(values.iter().map(Self::encoding)),
                 ),
-                Self::Record { type_name, fields } => framed(
+                Self::Record {
+                    type_name, fields, ..
+                } => framed(
                     "record",
                     std::iter::once(type_name.clone()).chain(
                         fields
@@ -4679,6 +4696,7 @@ mod values {
                     type_name,
                     case_name,
                     fields,
+                    ..
                 } => framed(
                     "variant",
                     [type_name.clone(), case_name.clone()].into_iter().chain(
@@ -4710,7 +4728,9 @@ mod values {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
-                Self::Record { type_name, fields } => format!(
+                Self::Record {
+                    type_name, fields, ..
+                } => format!(
                     "{type_name} {{ {} }}",
                     fields
                         .iter()
@@ -4722,11 +4742,13 @@ mod values {
                     type_name,
                     case_name,
                     fields,
+                    ..
                 } if fields.is_empty() => format!("{type_name}::{case_name}"),
                 Self::Variant {
                     type_name,
                     case_name,
                     fields,
+                    ..
                 } => format!(
                     "{type_name}::{case_name} {{ {} }}",
                     fields
@@ -6291,6 +6313,7 @@ mod values {
                     )?;
                     Ok(CanonicalConstNode::Variant {
                         type_name: type_name.to_owned(),
+                        properties: definition.properties,
                         case_name: case_name.as_str(syntax).to_owned(),
                         fields,
                     })
@@ -6322,6 +6345,7 @@ mod values {
                     )?;
                     Ok(CanonicalConstNode::Record {
                         type_name: type_name.to_owned(),
+                        properties: definition.properties,
                         fields,
                     })
                 }
@@ -6383,6 +6407,7 @@ mod values {
                 }
                 Ok(CanonicalConstNode::Variant {
                     type_name: type_name.to_owned(),
+                    properties: definition.properties,
                     case_name: case_name.as_str(syntax).to_owned(),
                     fields: Vec::new(),
                 })
@@ -6519,11 +6544,13 @@ mod values {
                 type_name,
                 case_name,
                 fields,
+                ..
             } if type_name == "Nat" && case_name == "Zero" && fields.is_empty() => Ok(0),
             CanonicalConstNode::Variant {
                 type_name,
                 case_name,
                 fields,
+                ..
             } if type_name == "Nat" && case_name == "Succ" => {
                 let previous = fields
                     .iter()

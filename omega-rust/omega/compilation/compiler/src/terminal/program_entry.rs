@@ -82,24 +82,7 @@ pub fn prepare_program_entry(
         )]
     })?;
 
-    let typed = accepted.source();
-    let mut symbol = selected.machine_symbol;
-    if let Some(family) = typed.target_machine_families.iter().find(|family| {
-        family.canonical == symbol || family.members.iter().any(|member| member.machine == symbol)
-    }) {
-        symbol = family
-            .members
-            .iter()
-            .find(|member| member.target.as_str() == profile.target_name())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "entry family `{}` has no body for target `{}`",
-                    family.name,
-                    profile.target_name()
-                ))]
-            })?
-            .machine;
-    }
+    let symbol = selected.machine_symbol;
     let mut machines = accepted
         .closure()
         .elaboration

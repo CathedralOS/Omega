@@ -17,7 +17,7 @@ use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v15\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v16\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) physical_entry_requirements: Option<&'a image_emission::PhysicalEntryRequirements>,
@@ -175,25 +175,12 @@ pub(super) fn derive_native_artifact_identity(
         digest.raw(&canonical_usize(
             plan.external_requirement_applications.len(),
         ));
-        let identities = &plan.family_realization_identities;
+        let identities = &plan.identities;
         for row in &plan.external_requirement_applications {
             digest.raw(&row.provider_plan_report_identity.to_le_bytes());
             digest.raw(row.provider_plan_digest.as_bytes());
             hash_identity_text(&mut digest, identities, row.selected_requirement_identity);
             hash_identity_text(&mut digest, identities, row.requirement_identity);
-        }
-        digest.raw(&canonical_usize(plan.family_realization_rows.len()));
-        for row in &plan.family_realization_rows {
-            digest.raw(&row.terminal.vocabulary_marker.get().to_le_bytes());
-            digest.raw(row.terminal.program_fingerprint.as_bytes());
-            hash_bytes(&mut digest, row.target.as_bytes());
-            digest.raw(&row.head.get().to_le_bytes());
-            digest.raw(&row.member.get().to_le_bytes());
-            hash_identity_text(&mut digest, identities, row.head_identity);
-            hash_identity_text(&mut digest, identities, row.member_identity);
-            hash_identity_text(&mut digest, identities, row.selected_requirement_identity);
-            digest.raw(&row.provider_plan_report_identity.to_le_bytes());
-            digest.raw(row.provider_plan_digest.as_bytes());
         }
     }
     digest.raw(&canonical_usize(fields.provider_executions.len()));

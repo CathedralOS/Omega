@@ -766,9 +766,16 @@ mod tests {
                 "truncated application prefix {end}"
             );
         }
-        for version in *b"4568" {
+        let version_offset = PROVIDER_PLAN_DOMAIN.len() - 2;
+        let current_version = bytes[version_offset];
+        // Derive corruptions from the current schema so a format update cannot
+        // accidentally turn one of the rejected versions into the valid input.
+        for version in [
+            current_version.wrapping_sub(1),
+            current_version.wrapping_add(1),
+        ] {
             let mut other_schema = bytes.clone();
-            other_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = version;
+            other_schema[version_offset] = version;
             assert_eq!(
                 read(&other_schema).unwrap_err(),
                 "unknown provider plan input schema"

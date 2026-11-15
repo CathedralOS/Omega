@@ -448,6 +448,9 @@ impl Qualifications {
                     let arithmetic = match policy {
                         Policy::Wrapping => numerics::arithmetic::ArithmeticDomain::Wrapping,
                         Policy::Saturating => numerics::arithmetic::ArithmeticDomain::Saturating,
+                        Policy::Trapping => {
+                            return Err(unavailable("trapping arithmetic policy qualification"));
+                        }
                     };
                     let identity =
                         terminal_semantics::scalar_qualifications::arithmetic_policy_identity(

@@ -307,6 +307,7 @@ impl Lowering<'_> {
             }
             ExpressionKind::Strict {
                 operation,
+                policy,
                 left: left_expression,
                 right,
             } => {
@@ -318,12 +319,9 @@ impl Lowering<'_> {
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));
                 let operand_type = self.result_type(left_expression)?;
-                // An arithmetic or shift result that carries a policy is
-                // that policy's operation; a comparison's result is `bool`
-                // and carries none.
-                if let Some(policy) = expression.result.and_then(ValueType::policy) {
+                if let Some(policy) = policy {
                     return self
-                        .policy_operation(*operation, policy, left, right, result, source)
+                        .policy_operation(*operation, *policy, left, right, result, source)
                         .map(Reached::Value);
                 }
                 self.strict(*operation, operand_type, left, right, result, source)
@@ -352,8 +350,7 @@ impl Lowering<'_> {
         }
     }
 
-    /// One arithmetic or shift operation under the policy its result type
-    /// carries.
+    /// One arithmetic or shift operation under its selected policy.
     ///
     /// numeric_values.md, "Overflow policies": "Wrapping reduces
     /// representable-range overflow modulo the selected carrier; Saturating
@@ -393,6 +390,9 @@ impl Lowering<'_> {
         if let Some(kind) = crate::policy::total(strict, policy, left, right) {
             return self.emit(operation, result, kind);
         }
+        if policy == Policy::Trapping {
+            return self.trapping(operation, strict, left, right, result, source);
+        }
         let kind = match (strict, policy) {
             (Strict::Divide, Policy::Wrapping) => OperationKind::WrappingIntegerDivide {
                 left,
@@ -422,8 +422,10 @@ impl Lowering<'_> {
                 ));
             }
             // The reader gives no other operation a policy-qualified result,
-            // and `policy::total` named every total one above.
-            (
+            // `policy::total` named every total one above, and a Trapping
+            // operation is `trapping`'s.
+            (_, Policy::Trapping)
+            | (
                 Strict::Add
                 | Strict::Subtract
                 | Strict::Multiply
@@ -442,6 +444,71 @@ impl Lowering<'_> {
             ) => return Err(self.internal("a policy on an operation that has none")),
         };
         self.emit(operation, result, kind)
+    }
+
+    /// One Trapping operation: its own `Trap` site.
+    ///
+    /// numeric_values.md, "Overflow policies": "Terminal carries it as one
+    /// `TrappingInteger` operation per primitive ... that is its own `Trap`
+    /// site", whose predicate is the exact primitive's ("result outside the
+    /// carrier, a zero divisor or signed `MIN / -1` ..., and a shift count
+    /// outside `0..width`"). The site owes coverage by the machine's
+    /// published `Trap` route like a `crash Trap;` (effects.md, "Guarded
+    /// crashes"); path facts that disprove the predicate discharge it with
+    /// no route. What the predicate is and what the result equals on normal
+    /// return are Terminal semantics' to say.
+    fn trapping(
+        &mut self,
+        operation: OperationId,
+        strict: Strict,
+        left: ValueId,
+        right: ValueId,
+        result: Option<ScalarType>,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        use terminal_psi::TrappingIntegerOperation as Trapping;
+        let primitive = match strict {
+            Strict::Add => Trapping::Add { left, right },
+            Strict::Subtract => Trapping::Subtract { left, right },
+            Strict::Multiply => Trapping::Multiply { left, right },
+            Strict::Divide => Trapping::Divide { left, right },
+            Strict::Remainder => Trapping::Remainder { left, right },
+            Strict::ShiftLeft => Trapping::ShiftLeft {
+                value: left,
+                count: right,
+            },
+            Strict::ShiftRight => Trapping::ShiftRight {
+                value: left,
+                count: right,
+            },
+            Strict::BitwiseAnd
+            | Strict::BitwiseOr
+            | Strict::BitwiseXor
+            | Strict::Equal
+            | Strict::NotEqual
+            | Strict::Less
+            | Strict::LessOrEqual
+            | Strict::Greater
+            | Strict::GreaterOrEqual => {
+                return Err(self.internal("a Trapping policy on an operation that has none"));
+            }
+        };
+        let before = self.here()?;
+        self.obligation(
+            ObligationKind::CrashCoverage {
+                site: terminal_check_tables::obligations::CrashSite::Operation(operation),
+                cause: semantic_vocabulary::CrashCause::Trap,
+            },
+            before,
+            source,
+        );
+        self.emit(
+            operation,
+            result,
+            OperationKind::TrappingInteger {
+                operation: primitive,
+            },
+        )
     }
 
     pub(super) fn strict(

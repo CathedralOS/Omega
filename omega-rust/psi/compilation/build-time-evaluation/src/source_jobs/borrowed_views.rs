@@ -591,3 +591,92 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
         "bodyless call source or bindings changed after contract preparation"
     );
 }
+
+// A byte view returned by a call points into the caller's array, so the
+// array stays lent for as long as the view is used (lifetimes.md, "Returned
+// views"). The write and the move between the call and the view's last use
+// must be refused just as they are for a returned reference.
+const RETURNED_VIEW_SOURCE: &str = r#"
+machine inner(output: &[u8; 4]) -> &[u8] crashes none { &output[..] }
+machine see(view: &[u8]) crashes none { }
+machine run() -> i64 crashes none {
+    let mut name: [u8; 4] = [1, 2, 3, 4];
+    let view: &[u8] = inner(&name);
+    see(view);
+    name[0] = 9;
+    7
+}
+"#;
+
+#[test]
+fn a_view_returned_by_a_call_keeps_the_loan_of_its_input() {
+    assert_eq!(
+        run(RETURNED_VIEW_SOURCE).expect("the view ends before the array is written"),
+        BuildTimeValue::Int(7)
+    );
+    let conflicting = RETURNED_VIEW_SOURCE.replace(
+        "    see(view);\n    name[0] = 9;",
+        "    name[0] = 9;\n    see(view);",
+    );
+    assert_ne!(conflicting, RETURNED_VIEW_SOURCE);
+    let refusal = run(&conflicting).expect_err("the returned view keeps its input loan");
+    assert!(
+        refusal.contains("storage is changed while a conflicting reference remains live"),
+        "{refusal}"
+    );
+    // A helper that forwards its own borrowed input hands the caller the same
+    // relation: the caller's array stays lent through both calls.
+    let forwarded = RETURNED_VIEW_SOURCE
+        .replace(
+            "machine see(",
+            "machine outer(output: &[u8; 4]) -> &[u8] crashes none { inner(output) }\nmachine see(",
+        )
+        .replace("inner(&name);", "outer(&name);");
+    assert_ne!(forwarded, RETURNED_VIEW_SOURCE);
+    assert_eq!(
+        run(&forwarded).expect("a forwarded view ends before the array is written"),
+        BuildTimeValue::Int(7)
+    );
+    let forwarded_conflict = forwarded.replace(
+        "    see(view);\n    name[0] = 9;",
+        "    name[0] = 9;\n    see(view);",
+    );
+    assert_ne!(forwarded_conflict, forwarded);
+    let refusal = run(&forwarded_conflict).expect_err("the forwarded view keeps its input loan");
+    assert!(
+        refusal.contains("storage is changed while a conflicting reference remains live"),
+        "{refusal}"
+    );
+}
+
+// The same relation for a mutable view: writing through the view is its own
+// use, but reading the array while the view is still live is refused.
+const RETURNED_MUTABLE_VIEW_SOURCE: &str = r#"
+machine inner(output: &mut [u8; 4]) -> &mut [u8] crashes none { &mut output[..] }
+machine fill(view: &mut [u8]) crashes none { }
+machine run() -> i64 crashes none {
+    let mut name: [u8; 4] = [1, 2, 3, 4];
+    let view: &mut [u8] = inner(&mut name);
+    fill(view);
+    let first: u8 = name[0];
+    7
+}
+"#;
+
+#[test]
+fn a_mutable_view_returned_by_a_call_keeps_the_exclusive_loan_of_its_input() {
+    assert_eq!(
+        run(RETURNED_MUTABLE_VIEW_SOURCE).expect("the view ends before the array is read"),
+        BuildTimeValue::Int(7)
+    );
+    let conflicting = RETURNED_MUTABLE_VIEW_SOURCE.replace(
+        "    fill(view);\n    let first: u8 = name[0];",
+        "    let first: u8 = name[0];\n    fill(view);",
+    );
+    assert_ne!(conflicting, RETURNED_MUTABLE_VIEW_SOURCE);
+    let refusal = run(&conflicting).expect_err("the returned view keeps its exclusive loan");
+    assert!(
+        refusal.contains("storage is observed outside its live exclusive reference"),
+        "{refusal}"
+    );
+}

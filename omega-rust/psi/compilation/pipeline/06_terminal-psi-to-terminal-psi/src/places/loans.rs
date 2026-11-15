@@ -498,10 +498,6 @@ impl Storage<'_> {
         let result = operation.result.as_structural();
         let (source, declared, reference_referent) = match &operation.kind {
             OperationKind::EstablishReference { source, storage } => {
-                if storage.is_some() {
-                    return Err(self.unsupported(concerns,
-                        "a reference representation view without its checked storage correspondence"));
-                }
                 let result = result.ok_or_else(|| {
                     self.foreign(concerns, "reference formation has no descriptor result")
                 })?;
@@ -512,7 +508,7 @@ impl Storage<'_> {
                         self.foreign(concerns, "reference formation produces another constructor")
                     );
                 };
-                (source, access, Some(referent))
+                (source, access, Some((referent, storage.as_ref())))
             }
             OperationKind::EstablishElementView { source, .. }
             | OperationKind::EstablishMutableElementView { source, .. } => {
@@ -532,14 +528,78 @@ impl Storage<'_> {
             return Err(self.unsupported(concerns, "a write-only persistent loan"));
         }
         let raw = self.argument(source, concerns)?;
-        if let Some(referent) = reference_referent {
+        if let Some((referent, storage)) = reference_referent {
             let expected = self.declaration(referent, concerns)?;
-            let compatible = match self.shape(&raw, concerns)? {
-                super::Shape::Scalar(scalar) => {
-                    expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+            let compatible = if let Some(storage) = storage {
+                if access != ReferenceAccess::Shared {
+                    return Err(self.unsupported(
+                        concerns,
+                        "exclusive representation view without establishment and handback evidence",
+                    ));
                 }
-                super::Shape::Typed(actual) => actual == referent,
-                super::Shape::View | super::Shape::Payload(_) => false,
+                terminal_semantics::validate_reference_view_source(
+                    self.module,
+                    self.lowered,
+                    source.place,
+                )
+                .map_err(|reason| self.unsupported(concerns, reason))?;
+                let offset = tables.values.get(storage.byte_offset).ok_or_else(|| {
+                    self.foreign(concerns, "reference view lost its offset value")
+                })?;
+                let terminal_check_tables::values::ValueOrigin::Operation(producer) = offset.origin
+                else {
+                    return Err(self.unsupported(
+                        concerns,
+                        "reference view offset without captured geometry evidence",
+                    ));
+                };
+                let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
+                let producer = after
+                    .checked_sub(1)
+                    .and_then(|position| {
+                        self.lowered
+                            .blocks
+                            .get(index(block.get()))?
+                            .operations
+                            .get(position)
+                    })
+                    .ok_or_else(|| {
+                        self.foreign(concerns, "reference view offset has no producer")
+                    })?;
+                if offset.scalar_type
+                    != producer
+                        .result
+                        .as_scalar()
+                        .map(|row| row.scalar_type)
+                        .ok_or_else(|| {
+                            self.foreign(concerns, "reference view offset has no scalar producer")
+                        })?
+                    || !terminal_semantics::reference_view_offset_is_zero(
+                        producer,
+                        storage.byte_offset,
+                    )
+                {
+                    return Err(self.unsupported(
+                        concerns,
+                        "reference view offset without captured geometry evidence",
+                    ));
+                }
+                terminal_semantics::reference_view_compatible(
+                    self.module,
+                    self.root_type(source.place, concerns)?,
+                    &source.path,
+                    result.structural_type,
+                    storage.stored_scalar,
+                )
+                .map_err(|reason| self.unsupported(concerns, reason))?
+            } else {
+                match self.shape(&raw, concerns)? {
+                    super::Shape::Scalar(scalar) => {
+                        expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+                    }
+                    super::Shape::Typed(actual) => actual == referent,
+                    super::Shape::View | super::Shape::Payload(_) => false,
+                }
             };
             if !compatible {
                 return Err(self.foreign(

@@ -123,23 +123,8 @@ impl Lineage {
     fn descriptor_location(
         &self,
     ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
-        use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
-        Some(DescriptorLocation {
-            root: self.root,
-            path: self
-                .segments
-                .iter()
-                .map(|step| {
-                    Some(match step {
-                        Segment::Field(field) => DescriptorPathSegment::Field(*field),
-                        Segment::Case(case) => DescriptorPathSegment::Case(*case),
-                        Segment::FixedIndex(index) => DescriptorPathSegment::FixedIndex(*index),
-                        Segment::Referent => DescriptorPathSegment::Referent,
-                        Segment::RuntimeIndex { .. } | Segment::Extent => return None,
-                    })
-                })
-                .collect::<Option<Vec<_>>>()?,
-        })
+        use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
+        DescriptorLocation::captured(self.root, &self.segments)
     }
 }
 
@@ -190,27 +175,7 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
     if left.root != right.root {
         return false;
     }
-    let parting = left
-        .segments
-        .iter()
-        .zip(&right.segments)
-        .find(|(left, right)| left != right);
-    match parting {
-        // One path is a prefix of the other: the same place, or ancestor and
-        // descendant.
-        None => true,
-        Some((Segment::Field(_), Segment::Field(_)))
-        | Some((Segment::FixedIndex(_), Segment::FixedIndex(_))) => false,
-        Some((
-            Segment::Field(_)
-            | Segment::Case(_)
-            | Segment::FixedIndex(_)
-            | Segment::RuntimeIndex { .. }
-            | Segment::Extent
-            | Segment::Referent,
-            _,
-        )) => true,
-    }
+    terminal_semantics::storage::place_paths::may_overlap(&left.segments, &right.segments)
 }
 
 /// Whether a field stores a shared byte view, the one view a record holds:
@@ -656,7 +621,6 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Lineage> {
-        use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment;
         if !place.segments.contains(&Segment::Referent) {
             return Ok(place.clone());
         }
@@ -692,16 +656,7 @@ impl<'a> Storage<'a> {
             })?;
         let resolved = Lineage {
             root: captured.root,
-            segments: captured
-                .path
-                .into_iter()
-                .map(|step| match step {
-                    DescriptorPathSegment::Field(field) => Segment::Field(field),
-                    DescriptorPathSegment::Case(case) => Segment::Case(case),
-                    DescriptorPathSegment::FixedIndex(index) => Segment::FixedIndex(index),
-                    DescriptorPathSegment::Referent => Segment::Referent,
-                })
-                .collect(),
+            segments: captured.path,
         };
         self.shape(&resolved, concerns)?;
         Ok(resolved)
@@ -1351,6 +1306,34 @@ impl<'a> Storage<'a> {
         };
         for segment in &place.segments {
             at = match (at, segment) {
+                (
+                    Shape::Typed(_) | Shape::Scalar(_),
+                    Segment::RepresentationView {
+                        structural_type,
+                        stored_scalar,
+                    },
+                ) => {
+                    let view = terminal_semantics::representation_view_declaration(
+                        self.module.structural_types.iter(),
+                        *structural_type,
+                        *stored_scalar,
+                    )
+                    .ok_or_else(|| {
+                        self.foreign(
+                            concerns,
+                            "a storage view has no matching presentation and codec",
+                        )
+                    })?;
+                    match view.shape {
+                        StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
+                        _ => Shape::Typed(view.id),
+                    }
+                }
+                (Shape::Payload(_), Segment::RepresentationView { .. }) => {
+                    return Err(
+                        self.foreign(concerns, "a storage view is applied to a case namespace")
+                    );
+                }
                 (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
                 }

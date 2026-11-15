@@ -9,9 +9,49 @@ use typed_trees::data::DataDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{SourceFieldCorrespondence, SourceRecordCorrespondence, SourceTypeApplication};
 
+mod layouts;
+
 use super::{Program, places::RecordSource};
 use crate::body::RecordType;
 use crate::{Unserved, refuse};
+
+/// A selected layout changes storage, while the record's fields and ownership
+/// still come from its semantic argument. Keep the original storage occurrence
+/// separately so different policies cannot reuse one record identity.
+pub(super) fn semantic_reference(
+    typed: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+    machine: MachineId,
+) -> Checked<TypeReferenceHandle> {
+    if !typed
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return Err(malformed(machine, "record source reference is unavailable"));
+    }
+    let storage = typed.layout_storage_arguments(reference);
+    let plan = typed.plan_laid_layout_for_type(reference);
+    match (storage, plan) {
+        (None, None) => Ok(reference),
+        (Some(storage), Some(plan))
+            if typed.normalized_type_identity(storage.semantic_type)
+                == typed.normalized_type_identity(plan.semantic_type)
+                && typed.normalized_type_identity(storage.application)
+                    == typed.normalized_type_identity(plan.application) =>
+        {
+            Ok(plan.semantic_type)
+        }
+        (Some(_), None) => Err(refuse(
+            machine,
+            Construct::Machine,
+            Unserved::Type("layout storage without its evaluated plan"),
+        )),
+        _ => Err(malformed(
+            machine,
+            "layout plan does not describe this storage application",
+        )),
+    }
+}
 
 pub(super) fn source_application(
     typed: &typed_trees::TypedTrees,
@@ -45,8 +85,9 @@ pub(super) fn source_application(
             "record application with unresolved type binders",
         ));
     }
+    let semantic = semantic_reference(typed, reference, machine)?;
     let selected = typed
-        .closed_data_definition(reference)
+        .closed_data_definition(semantic)
         .ok_or_else(|| unavailable("record application without its closed retained declaration"))?;
     if selected != data {
         return Err(malformed(
@@ -54,13 +95,13 @@ pub(super) fn source_application(
             "record application selects another retained declaration",
         ));
     }
-    if data.properties.carry.is_some() || typed.plan_laid_layout_for_type(reference).is_some() {
-        return Err(unavailable("planned source record"));
+    if data.properties.carry.is_some() {
+        return Err(unavailable("record with unlowered carry"));
     }
     let mut substitutions = Vec::new();
     if let Some(origin) = data.generic_instance {
         if !typed.type_reference_table.contains_type_reference(origin)
-            || typed.normalized_type_identity(origin) != typed.normalized_type_identity(reference)
+            || typed.normalized_type_identity(origin) != typed.normalized_type_identity(semantic)
         {
             return Err(malformed(
                 machine,
@@ -217,9 +258,9 @@ pub(super) fn source_application(
                 "record application repeats a template binder",
             ));
         }
-        validate_applied_members(typed, template, data, reference, &substitutions, machine)?;
+        validate_applied_members(typed, template, data, semantic, &substitutions, machine)?;
     } else {
-        match typed.type_reference_table.type_reference(reference) {
+        match typed.type_reference_table.type_reference(semantic) {
             TypeReferenceNode::Named { symbol, .. } if *symbol == data.symbol => {}
             // `Inner<'a>`: lifetime arguments only, one per declared binder.
             TypeReferenceNode::Generic {
@@ -337,15 +378,13 @@ impl Program<'_> {
     ) -> Checked<()> {
         let source =
             terminal_check_tables::row(&self.record_sources, record, machine, Construct::Machine)?;
-        let data = self
-            .typed
-            .closed_data_definition(reference)
-            .ok_or_else(|| {
-                malformed(
-                    machine,
-                    "record source application has no closed declaration",
-                )
-            })?;
+        let semantic = semantic_reference(self.typed, reference, machine)?;
+        let data = self.typed.closed_data_definition(semantic).ok_or_else(|| {
+            malformed(
+                machine,
+                "record source application has no closed declaration",
+            )
+        })?;
         if data.symbol != source.declaration {
             return Err(malformed(
                 machine,
@@ -543,7 +582,53 @@ impl Program<'_> {
                 }
                 continue;
             }
-            found.push(correspondence(record, declaration, source, machine)?);
+            let mut retained = correspondence(record, declaration, source, machine)?;
+            if let Some(plan) = source
+                .application
+                .as_ref()
+                .and_then(|application| self.typed.plan_laid_layout_for_type(application.reference))
+            {
+                let ordinal = self
+                    .typed
+                    .plan_laid_layouts
+                    .iter()
+                    .position(|candidate| std::ptr::eq(candidate, plan))
+                    .and_then(|index| u32::try_from(index).ok())
+                    .ok_or_else(|| malformed(machine, "source layout coordinate overflows"))?;
+                let typed_trees::PlanLaidRealizations::TargetInputs(span) = plan.realizations
+                else {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("source layout without its target input roster"),
+                    ));
+                };
+                let members = self
+                    .typed
+                    .plan_laid_target_layouts
+                    .span(span)
+                    .ok_or_else(|| malformed(machine, "source layout members are unavailable"))?;
+                retained.schema = plan.schema_symbol;
+                retained.policy = plan.policy_symbol;
+                retained.layout = Some(typed_trees::SourceLayoutPlanCoordinate {
+                    ordinal,
+                    application: plan.application,
+                });
+                retained.realizations = span
+                    .handles()
+                    .zip(members)
+                    .map(
+                        |(handle, member)| typed_trees::SourceLayoutRealizationCoordinate {
+                            target: member.target.as_str().to_owned(),
+                            member: handle,
+                        },
+                    )
+                    .collect();
+                retained
+                    .realizations
+                    .sort_unstable_by(|left, right| left.target.cmp(&right.target));
+            }
+            found.push(retained);
         }
         Ok(found)
     }
@@ -607,8 +692,8 @@ fn correspondence(
         application,
         storage_identity: declaration.identity.clone(),
         schema: source.declaration,
-        // The absence of carry and selected layout was checked while retaining
-        // the application. Natural data has no selected policy or realization.
+        // These are the declaration's fields. The source owner attaches any
+        // evaluated layout and its exact coordinates before returning the row.
         policy: SymbolHandle::invalid(),
         layout: None,
         fields,

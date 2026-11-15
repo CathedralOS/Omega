@@ -1,4 +1,5 @@
-//! Source jobs do not execute through retired tree/checked-program engines.
+//! Evaluate source computations through the same checker used by programs.
+//! Each invocation retains its actual caller, inputs and execution admission.
 use crate::BuildTimeSelectionAuthority;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -8,6 +9,7 @@ use typed_trees::TypedTrees;
 mod build_activation;
 mod const_argument_jobs;
 mod constant_jobs;
+mod fixed_layouts;
 mod invocation;
 mod source_selection;
 
@@ -25,17 +27,17 @@ pub struct FixedLayoutTargetScope {
     pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
     pub provider_declarations: Vec<crate::product::provider_declarations::ProviderSelection>,
 }
-/// Nothing evaluates a layout policy yet, so a type applied through one
-/// has no layout. Such a type is a request of the declaration that uses it:
-/// it is recorded there (`typed_trees::deferred_refusals`) and that
-/// declaration is refused where a program demands it. A program that never
-/// reaches one is not stopped for a library type it does not use.
+/// Evaluate the layout policies needed by the requested entry declarations.
+/// Unused open library applications remain deferred at their declarations.
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
-    _scopes: &[FixedLayoutTargetScope],
-    _authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    scopes: &[FixedLayoutTargetScope],
+    authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
+    purpose: source::DependencyScope,
+    accounting: &mut crate::SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
-    crate::source_frontier::defer_declared_jobs(typed)
+    fixed_layouts::evaluate(typed, scopes, authority, consent, purpose, accounting)
 }
 pub fn is_exact_toolchain_build_prelude_data(
     typed: &TypedTrees,
@@ -1009,6 +1011,381 @@ pub(crate) mod tests {
             refusal.contains("exact unqualified core declaration"),
             "{refusal}"
         );
+    }
+
+    #[test]
+    fn fixed_layout_policy_installs_the_retained_pairs_authored_geometry() {
+        // The kept program deliberately puts lo after hi. Evaluate that same
+        // policy and retain its geometry, rather than assigning default offsets.
+        let mut source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
+        )));
+        let entry = query_machine(&source, "main");
+        let pair = source
+            .data_definitions()
+            .iter()
+            .filter(|data| data.name.as_str() == "Pair")
+            .map(|data| data.symbol)
+            .collect::<Vec<_>>();
+        let [pair] = pair.as_slice() else {
+            panic!("the retained program declares exactly one Pair")
+        };
+        let pair = *pair;
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        // Two applications may share a target profile, including a nested
+        // field's policy and its containing policy. Conflicting facts must
+        // refuse before either can run and contaminate the other's schema.
+        let scope = FixedLayoutTargetScope {
+            target: facts.profile.clone(),
+            facts: Some(facts.clone()),
+            entry_declarations: Some(vec![entry]),
+            provider_declarations: Vec::new(),
+        };
+        let mut conflicting = scope.clone();
+        conflicting.facts.as_mut().unwrap().pointer_size = 4;
+        conflicting.facts.as_mut().unwrap().pointer_alignment = 4;
+        let mut refused = source.clone();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let errors = evaluate_fixed_layout_applications(
+            &mut refused,
+            &[scope.clone(), conflicting],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut accounting,
+        )
+        .unwrap_err();
+        assert!(
+            diagnostics::join_messages(&errors)
+                .contains("disagree on one target's immutable facts")
+        );
+        assert!(accounting.receipts().is_empty());
+        assert!(refused.plan_laid_layouts.is_empty());
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &[scope],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut crate::SourceCompletionAccounting::default(),
+        )
+        .unwrap();
+        let plan = source
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| plan.data_symbol == pair)
+            .expect("the demanded Pair policy must produce its actual layout");
+        let geometry = plan
+            .geometry_for_target(&source, Some("linux_x86_64"))
+            .expect("the plan must retain the requested target's geometry");
+        assert_eq!(geometry.validated_layout.size, Some(16));
+        assert_eq!(geometry.validated_layout.align, 8);
+        assert_eq!(geometry.validated_layout.offsets, Some(vec![8, 0]));
+
+        // The same program must keep those placements in its checked module.
+        // Evaluating the policy alone would miss a later return to defaults.
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(prepared),
+            terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let module = accepted.module();
+        let [application] = module.target_layout_applications.as_slice() else {
+            panic!("the program retains its one actual layout application");
+        };
+        assert_ne!(application.record, application.schema);
+        let [realization] = application.realizations.as_slice() else {
+            panic!("the program retains its one requested target");
+        };
+        assert_eq!(realization.target, "linux_x86_64");
+        assert_eq!(realization.storage.byte_size, 16);
+        assert_eq!(realization.storage.byte_alignment, 8);
+        assert_eq!(
+            realization
+                .fields
+                .iter()
+                .map(|field| field.storage.byte_offset())
+                .collect::<Vec<_>>(),
+            [Some(8), Some(0)]
+        );
+        let native = module.native_layouts.record(application.record).unwrap();
+        let [native] = module.native_layouts.realizations(native).unwrap() else {
+            panic!("native emission retains that same target realization");
+        };
+        assert_eq!(native.report.layout.offsets, Some(vec![8, 0]));
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+
+        // A byte view covers its captured region. Shifting that whole view
+        // cannot borrow another byte beyond the region's established extent.
+        let mut shifted = module.clone();
+        let (machine, offset) = shifted
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine.operations().find_map(|operation| {
+                    let terminal_psi::OperationKind::EstablishReference {
+                        storage: Some(storage),
+                        ..
+                    } = operation.kind
+                    else {
+                        return None;
+                    };
+                    Some((machine.id, storage.byte_offset))
+                })
+            })
+            .expect("the retained byte oracle forms an actual storage view");
+        let producer = shifted
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == machine)
+            .unwrap()
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                operation
+                    .result
+                    .as_scalar()
+                    .is_some_and(|result| result.id == offset)
+            })
+            .unwrap();
+        producer.kind = terminal_psi::OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(1),
+        };
+        let refusal =
+            terminal_codec::decode_module(&terminal_codec::encode_module(&shifted).unwrap())
+                .unwrap_err();
+        assert!(
+            refusal.to_string().contains("captured zero offset"),
+            "{refusal}"
+        );
+
+        // Changing the issuer's target input cannot relabel the retained
+        // realization as a result for different representation facts.
+        let mut forged = module.clone();
+        forged.target_layout_applications[0].target_inputs[0].pointer_size = 4;
+        let refusal =
+            terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                .unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("independent issuer target input"),
+            "{refusal}"
+        );
+    }
+
+    #[test]
+    fn the_library_c_layout_policy_keeps_its_existing_scalar_record() {
+        // The bundled generic policy must compute the kept C-layout example's
+        // real field placements. Its alias, operations and byte oracle stay
+        // unchanged while the compiler supplies the actual type application.
+        let mut source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/c_layout_scalar_record/local/main.omg"
+        )));
+        let entry = query_machine(&source, "main");
+        let records = source
+            .data_definitions()
+            .iter()
+            .filter(|data| data.name.as_str() == "Record")
+            .map(|data| data.symbol)
+            .collect::<Vec<_>>();
+        let [record] = records.as_slice() else {
+            panic!("the kept example declares one Record")
+        };
+        let record = *record;
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &[FixedLayoutTargetScope {
+                target: facts.profile.clone(),
+                facts: Some(facts),
+                entry_declarations: Some(vec![entry]),
+                provider_declarations: Vec::new(),
+            }],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut crate::SourceCompletionAccounting::default(),
+        )
+        .unwrap();
+        let plans = source
+            .plan_laid_layouts
+            .iter()
+            .filter(|plan| plan.data_symbol == record)
+            .collect::<Vec<_>>();
+        let [plan] = plans.as_slice() else {
+            panic!("the one C policy retains one actual record layout")
+        };
+        let geometry = plan
+            .geometry_for_target(&source, Some("linux_x86_64"))
+            .unwrap();
+        assert_eq!(geometry.validated_layout.size, Some(24));
+        assert_eq!(geometry.validated_layout.align, 8);
+        assert_eq!(geometry.validated_layout.offsets, Some(vec![0, 8, 16]));
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(prepared),
+            terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+        assert_eq!(
+            terminal_codec::decode_module(&bytes).unwrap(),
+            *accepted.module()
+        );
+    }
+
+    #[test]
+    fn actual_float_bit_views_keep_their_declared_scalar_homes() {
+        // Exposing a float's integer bits must borrow its original float storage.
+        // Check the actual core helpers with their declared inputs; the
+        // application's overloaded from_bits calls are a separate unresolved path.
+        let source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/core_float_representation/local/main.omg"
+        )));
+        let requester = query_machine(&source, "main");
+        let span = source.symbols.symbol_source_span(requester).unwrap();
+        let candidates = source.symbols.top_level_candidates_from_source(
+            "float::to_bits",
+            &[symbols::SymbolKind::Machine],
+            span,
+        );
+        assert_eq!(candidates.len(), 2, "both actual public float declarations");
+        let declarations = candidates
+            .into_iter()
+            .map(|symbol| {
+                let machine = source.machine_by_symbol(symbol).unwrap();
+                let declaration_span = source.symbols.symbol_source_span(symbol).unwrap();
+                assert!(
+                    source
+                        .symbols
+                        .source_file(declaration_span)
+                        .unwrap()
+                        .path
+                        .ends_with("core/float.omg")
+                );
+                let [state] = source.machine_states(machine) else {
+                    panic!("one original helper entry")
+                };
+                let [formal] = source.state_parameters(state) else {
+                    panic!("one declared float input")
+                };
+                let typed_trees::types::TypeReferenceNode::Named { symbol: scalar, .. } = source
+                    .type_reference_table
+                    .type_reference(formal.type_reference)
+                else {
+                    panic!("the declared builtin float")
+                };
+                let format = match source.symbols.builtin_type_atom(*scalar) {
+                    Some(symbols::BuiltinTypeAtom::F32) => {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32
+                    }
+                    Some(symbols::BuiltinTypeAtom::F64) => {
+                        semantic_vocabulary::IeeeFloatFormat::Binary64
+                    }
+                    other => panic!("unexpected public input {other:?}"),
+                };
+                (
+                    symbols::RetainedDeclaration::capture(&source.symbols, symbol).unwrap(),
+                    format,
+                )
+            })
+            .collect::<Vec<_>>();
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ] {
+            assert!(declarations.iter().any(|(_, actual)| *actual == format));
+        }
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let prepared = Arc::new(prepared);
+        for (declaration, format) in declarations {
+            let symbol = declaration
+                .rejoin(
+                    &prepared.symbols,
+                    prepared.machines().iter().map(|machine| machine.symbol),
+                )
+                .unwrap();
+            let accepted = terminal_production::AcceptedTerminalSource::judge(
+                Arc::clone(&prepared),
+                terminal_production::TerminalSourceCompilation {
+                    declaration_metadata: &[],
+                    entries: &[symbol],
+                    subjects: &[],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .unwrap();
+            let module = accepted.module();
+            let scalar = semantic_vocabulary::ScalarType::IeeeFloat(format);
+            assert!(
+                module.structural_types.iter().any(|declaration| {
+                    declaration.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
+                }),
+                "the helper retains its original IEEE storage identity"
+            );
+            assert!(module.machines.iter().flat_map(|machine| machine.operations()).any(|operation| {
+                matches!(operation.kind, terminal_psi::OperationKind::EstablishReference {
+                    storage: Some(terminal_psi::ReferenceStorageView { stored_scalar: Some(stored), .. }), ..
+                } if stored == scalar)
+            }), "the actual helper presents its IEEE storage as integer bits");
+            let bytes = terminal_codec::encode_module(module).unwrap();
+            assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        }
     }
 
     /// The machine `name` that a `with_reflection` query declares. The real

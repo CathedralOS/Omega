@@ -24,7 +24,7 @@ without re-running type inference or inspecting surface syntax.
 - Produced by: `Psi 03` (`03_symbol-resolved-trees-to-typed-trees`) and frozen by `Psi 04` (`04_typed-trees-to-typed-trees`).
 - Consumed by: later Psi stages, `proof`, and Omega realization crates.
 - Flat module layout:
-  - `lib.rs`: `TypedTrees`, `FrozenTypedTrees`, `TypedTreeRoots`, `TypedTreeTables`, `boundary_values`, `direct_calls`, and `source_review`.
+  - `lib.rs`: `TypedTrees`, `FrozenTypedTrees`, `TypedTreeRoots`, `TypedTreeTables`, `boundary_values`, and `source_review`.
   - `references.rs`: typed declaration and expression reference occurrences (`references`).
   - `declaration_projection.rs`: narrowing a program to selected declarations and their closure (`declaration_projection`).
   - `service_declarations.rs`: boundary service and provider declaration projections (`service_declarations`, `provider_declarations`).
@@ -43,335 +43,13 @@ without re-running type inference or inspecting surface syntax.
 */
 
 pub mod boundary_values {
-    use crate::TypedTrees;
-    use crate::type_identity::TypeIdentityId;
-    use crate::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
-    use arena::Handle;
-    use language_semantics::boundary_values::{
-        BoundaryFieldRecipe, BoundaryTargetRecipe, BoundaryValueRecipe, BoundaryValueRecipes,
-    };
+    use crate::types::TypeReferenceHandle;
 
     #[derive(Clone, Default)]
     pub struct BoundaryTypeBinding {
         pub parameter_symbol: symbols::SymbolHandle,
         pub parameter_name: String,
         pub actual: TypeReferenceHandle,
-    }
-
-    pub struct BoundaryRepresentationType {
-        pub opaque: symbols::SymbolHandle,
-        pub carrier: TypeReferenceHandle,
-    }
-
-    pub struct BoundaryValuePreparation<'input> {
-        typed: &'input TypedTrees,
-        bindings: &'input [BoundaryTypeBinding],
-        representations: &'input [BoundaryRepresentationType],
-        visiting: Vec<DataApplicationKey>,
-        closed_values: Vec<(TypeIdentityId, Handle<BoundaryValueRecipe>)>,
-        recipes: BoundaryValueRecipes,
-    }
-
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    enum DataApplicationKey {
-        Nominal(symbols::SymbolHandle),
-        Applied(TypeIdentityId),
-    }
-
-    impl<'input> BoundaryValuePreparation<'input> {
-        pub fn new(
-            typed: &'input TypedTrees,
-            bindings: &'input [BoundaryTypeBinding],
-            representations: &'input [BoundaryRepresentationType],
-        ) -> Self {
-            Self {
-                typed,
-                bindings,
-                representations,
-                visiting: Vec::new(),
-                closed_values: Vec::new(),
-                recipes: BoundaryValueRecipes::default(),
-            }
-        }
-
-        pub fn finish(self) -> BoundaryValueRecipes {
-            self.recipes
-        }
-
-        pub fn recipes(&self) -> &BoundaryValueRecipes {
-            &self.recipes
-        }
-
-        pub fn value_type(
-            &mut self,
-            type_reference: TypeReferenceHandle,
-        ) -> Handle<BoundaryValueRecipe> {
-            let type_reference =
-                substitute_boundary_type_reference(self.typed, type_reference, self.bindings);
-            let identity = self.typed.normalized_type_identity(type_reference);
-            if identity.is_valid()
-                && let Some((_, recipe)) = self
-                    .closed_values
-                    .iter()
-                    .find(|(candidate, _)| *candidate == identity)
-            {
-                return *recipe;
-            }
-            let recipe = self.type_recipe(type_reference);
-            let recipe = self.recipes.values.insert(recipe);
-            if identity.is_valid() {
-                self.closed_values.push((identity, recipe));
-            }
-            recipe
-        }
-
-        pub fn data(
-            &mut self,
-            symbol: symbols::SymbolHandle,
-            name: &str,
-        ) -> Handle<BoundaryValueRecipe> {
-            let recipe = self.data_recipe(symbol, name);
-            self.recipes.values.insert(recipe)
-        }
-
-        fn type_recipe(&mut self, type_reference: TypeReferenceHandle) -> BoundaryValueRecipe {
-            let typed = self.typed;
-            if let Some(primitive) = typed.primitive_type_reference(type_reference) {
-                return match primitive
-                    .scalar_byte_size()
-                    .and_then(|size| u16::try_from(size).ok())
-                {
-                    Some(byte_size)
-                        if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) =>
-                    {
-                        BoundaryValueRecipe::Float { byte_size }
-                    }
-                    Some(byte_size) => BoundaryValueRecipe::Integer { byte_size },
-                    None => BoundaryValueRecipe::Rejected(format!(
-                        "primitive `{}` has no concrete boundary size",
-                        primitive.name()
-                    )),
-                };
-            }
-            match typed.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Constrained { base_type, .. } => self.type_recipe(
-                    substitute_boundary_type_reference(typed, *base_type, self.bindings),
-                ),
-                TypeReferenceNode::Reference { referee, .. } => {
-                    let mut referee =
-                        substitute_boundary_type_reference(typed, *referee, self.bindings);
-                    while let TypeReferenceNode::Constrained { base_type, .. } =
-                        typed.type_reference_table.type_reference(referee)
-                    {
-                        referee =
-                            substitute_boundary_type_reference(typed, *base_type, self.bindings);
-                    }
-                    let descriptor = foreign_reference_uses_descriptor(typed, referee);
-                    BoundaryValueRecipe::Reference { descriptor }
-                }
-                TypeReferenceNode::Slice { .. } => {
-                    BoundaryValueRecipe::Reference { descriptor: true }
-                }
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: crate::types::FixedArrayLength::Literal(length),
-                } => {
-                    let element = self.value_type(*element_type);
-                    BoundaryValueRecipe::FixedArray {
-                        element,
-                        length: *length as u64,
-                    }
-                }
-                TypeReferenceNode::Named { symbol, name } => {
-                    self.data_recipe(*symbol, name.as_str())
-                }
-                TypeReferenceNode::Generic { .. } => match typed
-                    .closed_data_definition(type_reference)
-                {
-                    Some(definition) => self.record(
-                        definition,
-                        DataApplicationKey::Applied(typed.normalized_type_identity(type_reference)),
-                    ),
-                    None => BoundaryValueRecipe::Rejected(format!(
-                        "generic value type `{}` is not concrete at the Calling<C> relationship",
-                        typed.display_type_reference(type_reference)
-                    )),
-                },
-                TypeReferenceNode::FixedArray { .. } => BoundaryValueRecipe::Rejected(format!(
-                    "array type `{}` still has a non-literal length",
-                    typed.display_type_reference(type_reference)
-                )),
-                TypeReferenceNode::ConstExpression(_) => BoundaryValueRecipe::Rejected(
-                    "a proof-static index expression is not a boundary value shape".into(),
-                ),
-                TypeReferenceNode::Unit => {
-                    BoundaryValueRecipe::Rejected("unit is not a boundary value shape".into())
-                }
-            }
-        }
-
-        fn data_recipe(
-            &mut self,
-            symbol: symbols::SymbolHandle,
-            name: &str,
-        ) -> BoundaryValueRecipe {
-            let Some(definition) = self.typed.data_definition_by_symbol(symbol) else {
-                return BoundaryValueRecipe::Rejected(format!(
-                    "named boundary type `{name}` has no data definition"
-                ));
-            };
-            if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque {
-                return self.record(definition, DataApplicationKey::Nominal(symbol));
-            }
-            if self.visiting.contains(&DataApplicationKey::Nominal(symbol)) {
-                return BoundaryValueRecipe::Rejected(format!(
-                    "opaque representation for `{name}` recursively contains its own semantic declaration"
-                ));
-            }
-            let Some((selection_ordinal, representation)) = self
-                .representations
-                .iter()
-                .enumerate()
-                .find(|(_, representation)| representation.opaque == symbol)
-            else {
-                return BoundaryValueRecipe::Rejected(format!(
-                    "boundary-opaque data `{name}` crosses this boundary by value, but the authoritative build selects no exact `OpaqueRepresentation<{name}, Representation>` implementation"
-                ));
-            };
-            let Some(carrier) = self.typed.closed_data_definition(representation.carrier) else {
-                return BoundaryValueRecipe::Rejected(format!(
-                    "selected opaque representation carrier for `{name}` disappeared before shape closure"
-                ));
-            };
-            let carrier_name = carrier.name.as_str().to_owned();
-            self.visiting.push(DataApplicationKey::Nominal(symbol));
-            let carrier = self.value_type(representation.carrier);
-            self.visiting.pop();
-            BoundaryValueRecipe::Opaque {
-                name: name.to_owned(),
-                carrier_name,
-                selection_ordinal,
-                carrier,
-            }
-        }
-
-        fn record(
-            &mut self,
-            definition: &'input crate::data::DataDefinition,
-            key: DataApplicationKey,
-        ) -> BoundaryValueRecipe {
-            let typed = self.typed;
-            let name = definition.name.as_str();
-            if self.visiting.contains(&key) {
-                return BoundaryValueRecipe::Rejected(format!(
-                    "recursive by-value data `{name}` has no finite boundary shape"
-                ));
-            }
-            let application = typed.plan_laid_layout_for_data(definition);
-            if application.is_none()
-                && definition
-                    .generic_instance
-                    .is_some_and(|reference| typed.layout_storage_arguments(reference).is_some())
-            {
-                return BoundaryValueRecipe::Rejected(format!(
-                    "boundary data `{name}` requires its exact admitted fixed representation"
-                ));
-            }
-            self.visiting.push(key);
-            let recipe = match application {
-                Some(application)
-                    if matches!(
-                        application.realizations,
-                        crate::PlanLaidRealizations::TargetInputs(_)
-                    ) =>
-                {
-                    let mut alternatives = Vec::new();
-                    for row in application.target_layouts(typed) {
-                        let recipe = self.record_geometry(definition);
-                        let value = self.recipes.values.insert(recipe);
-                        alternatives.push(BoundaryTargetRecipe {
-                            target: row.target.as_str().to_owned(),
-                            value,
-                        });
-                    }
-                    BoundaryValueRecipe::TargetLayouts {
-                        name: name.to_owned(),
-                        alternatives: self.recipes.targets.insert_many(alternatives),
-                    }
-                }
-                _ => self.record_geometry(definition),
-            };
-            self.visiting.pop();
-            recipe
-        }
-
-        fn record_geometry(
-            &mut self,
-            definition: &'input crate::data::DataDefinition,
-        ) -> BoundaryValueRecipe {
-            let typed = self.typed;
-            let name = definition.name.as_str();
-            let mut fields = Vec::new();
-            for member in typed.data_members(definition) {
-                let Some(field) = member.as_field() else {
-                    let value = self.recipes.values.insert(BoundaryValueRecipe::Rejected(format!(
-                    "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"
-                )));
-                    fields.push(BoundaryFieldRecipe {
-                        value,
-                        byte_offset: None,
-                    });
-                    break;
-                };
-                if field.relevance.is_erased() {
-                    continue;
-                }
-                let value = self.value_type(field.type_reference);
-                fields.push(BoundaryFieldRecipe {
-                    value,
-                    byte_offset: None,
-                });
-            }
-            BoundaryValueRecipe::Record {
-                name: name.to_owned(),
-                fields: self.recipes.fields.insert_many(fields),
-                storage: None,
-            }
-        }
-    }
-
-    pub fn foreign_reference_uses_descriptor(
-        typed: &TypedTrees,
-        mut referent: TypeReferenceHandle,
-    ) -> bool {
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            typed.type_reference_table.type_reference(referent)
-        {
-            referent = *base_type;
-        }
-        matches!(
-            typed.type_reference_table.type_reference(referent),
-            TypeReferenceNode::Slice { .. }
-        )
-    }
-
-    pub fn substitute_boundary_type_reference(
-        typed: &TypedTrees,
-        type_reference: TypeReferenceHandle,
-        bindings: &[BoundaryTypeBinding],
-    ) -> TypeReferenceHandle {
-        let TypeReferenceNode::Named { symbol, name } =
-            typed.type_reference_table.type_reference(type_reference)
-        else {
-            return type_reference;
-        };
-        bindings
-            .iter()
-            .find(|binding| {
-                (binding.parameter_symbol.is_valid() && binding.parameter_symbol == *symbol)
-                    || binding.parameter_name == name.as_str()
-            })
-            .map_or(type_reference, |binding| binding.actual)
     }
 }
 pub(crate) mod source_review {
@@ -426,99 +104,6 @@ pub use source_review::{
     SourceFieldCorrespondence, SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate,
     SourceRecordCorrespondence, SourceTypeApplication,
 };
-pub mod direct_calls {
-    use crate::TypedTrees;
-    use crate::inspection::callees::ExplicitStateCallees;
-    use language_semantics::direct_calls::{
-        DirectCall, DirectCallDeclarations, DirectCallFamily, DirectCallFamilyMember,
-        DirectCallMachine, DirectCallState,
-    };
-    use symbols::SymbolHandle;
-
-    pub fn collect(
-        typed: &TypedTrees,
-        scope: source::DependencyScope,
-    ) -> DirectCallDeclarations<SymbolHandle> {
-        let mut machine_positions = Vec::new();
-        for (position, machine) in typed.machines().iter().enumerate() {
-            if machine.symbol.is_valid() {
-                machine_positions.push((machine.symbol, position));
-            }
-        }
-        for machine in typed.machines() {
-            for state in typed.machine_states(machine) {
-                if let Some(owner) = called_machine_position(typed, state.symbol) {
-                    machine_positions.push((state.symbol, owner));
-                }
-            }
-        }
-        let mut callees = ExplicitStateCallees::default();
-        let machines = typed
-            .machines()
-            .iter()
-            .map(|machine| {
-                let states = typed
-                    .machine_states(machine)
-                    .iter()
-                    .map(|state| {
-                        let calls = callees
-                            .collect(typed, state)
-                            .iter()
-                            .map(|called| DirectCall {
-                                declaration: *called,
-                                machine: called_machine_position(typed, *called),
-                            })
-                            .collect();
-                        DirectCallState {
-                            declaration: state.symbol,
-                            name: state.name.as_str().to_owned(),
-                            calls,
-                        }
-                    })
-                    .collect();
-                DirectCallMachine {
-                    declaration: machine.symbol,
-                    name: machine.name.as_str().to_owned(),
-                    in_scope: typed
-                        .symbols
-                        .symbol_is_in_dependency_scope(machine.symbol, scope),
-                    family_interface: machine.target_family_interface,
-                    authored_target: typed.machine_authored_target(machine).map(str::to_owned),
-                    source_target_context: typed.source_target_context(machine).map(str::to_owned),
-                    target: machine
-                        .target
-                        .as_ref()
-                        .map(|target| target.as_str().to_owned()),
-                    states,
-                }
-            })
-            .collect();
-        let families = typed
-            .target_machine_families
-            .iter()
-            .map(|family| DirectCallFamily {
-                canonical: typed.machine_position_by_symbol(family.canonical),
-                members: family
-                    .members
-                    .iter()
-                    .map(|member| DirectCallFamilyMember {
-                        target: member.target.as_str().to_owned(),
-                        machine: typed.machine_position_by_symbol(member.machine),
-                    })
-                    .collect(),
-            })
-            .collect();
-        DirectCallDeclarations::new(scope, machines, families, machine_positions)
-    }
-
-    fn called_machine_position(typed: &TypedTrees, called: SymbolHandle) -> Option<usize> {
-        typed
-            .machine_by_symbol(called)
-            .or_else(|| typed.machine_holding_state(called))
-            .and_then(|machine| typed.machine_position_by_symbol(machine.symbol))
-    }
-}
-
 macro_rules! typed_tree_table {
     ($( $field:ident => $get:ident ($ty:ty) $( [ $push:ident ] )? $(, $inline:ident)? ;)*) => {
         $(
@@ -626,10 +211,7 @@ pub(crate) mod authored_targets {
                     }
                     return Ok(Some(member.target.as_str()));
                 }
-                let mut origins = self
-                    .machine_specializations
-                    .iter()
-                    .filter(|specialization| specialization.instance == symbol);
+                let mut origins = self.machine_specializations.for_instance(symbol);
                 if let Some(origin) = origins.next() {
                     if origins.next().is_some() {
                         return Err("machine has repeated specialization origins");
@@ -713,6 +295,8 @@ pub mod compiler_intrinsics;
 pub mod declaration_projection;
 mod declared_bindings;
 pub mod deferred_refusals;
+mod machine_specializations;
+pub use machine_specializations::MachineSpecializations;
 pub mod references;
 pub mod service_declarations;
 pub use service_declarations::provider_declarations;
@@ -1501,7 +1085,7 @@ pub struct TypedTrees {
     pub wire_placements: Arena<wire::WirePlacement>,
     pub wire_encode_obligations: Arena<wire::WireEncodeObligation>,
     pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
-    pub machine_specializations: Vec<MachineSpecialization>,
+    pub machine_specializations: MachineSpecializations,
     pub captured_machine_applications: Arena<CapturedMachineApplication>,
     pub captured_machine_states: Arena<CapturedMachineState>,
     pub trait_implementation_applications: Arena<TraitImplementationApplication>,
@@ -1778,7 +1362,7 @@ impl TypedTrees {
             wire_placements: Arena::new(),
             wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),
-            machine_specializations: Vec::new(),
+            machine_specializations: MachineSpecializations::default(),
             captured_machine_applications: Arena::new(),
             captured_machine_states: Arena::new(),
             trait_implementation_applications: Arena::new(),

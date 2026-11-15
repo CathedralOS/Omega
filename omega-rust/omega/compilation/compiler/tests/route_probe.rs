@@ -160,7 +160,7 @@ fn generic_array_extents_keep_their_lexical_value_binding() {
 /// policy "does not license a zero divisor": `/%` with nothing known about
 /// the divisor is rejected. A suffix excuses no other operation: the bare
 /// `+` beside a `+%` is still Exact and still owes its range. `+!` is its own
-/// crash site, which no type on this route carries yet: refused by name.
+/// crash site, covered by the private body's inferred route.
 #[test]
 fn an_operator_suffix_chooses_the_policy_of_one_operation() {
     let spare = |body: &str| {
@@ -176,9 +176,106 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
             "let wrapped: u32 = left +% right; left + right",
             "rejected",
         ),
-        ("trapping_add", "left +! right", "not-supported"),
+        ("trapping_add", "left +! right", "accepted"),
     ] {
         assert_eq!(verdicts(name, &spare(body)), [expected], "{name}");
+    }
+}
+
+/// Each primitive owns its trap predicate. Publishing Trap covers that site;
+/// promising no crash requires proving the operation defined instead.
+#[test]
+fn trapping_primitives_retain_their_crash_predicate() {
+    for (name, expression, safe) in [
+        ("add", "left +! right", "left <= 10 && right <= 10"),
+        ("subtract", "left -! right", "left >= right"),
+        ("multiply", "left *! right", "left <= 10 && right <= 10"),
+        ("divide", "left /! right", "right > 0"),
+        ("remainder", "left %! right", "right > 0"),
+        ("shift_left", "left <<! right", "left <= 10 && right <= 2"),
+        ("shift_right", "left >>! right", "right < 32"),
+    ] {
+        for (case, contract, expected) in [
+            ("published", "crashes Trap".to_owned(), "accepted"),
+            ("uncovered", "crashes none".to_owned(), "rejected"),
+            (
+                "disproved",
+                format!("requires {safe} crashes none"),
+                "accepted",
+            ),
+        ] {
+            let source = format!(
+                "machine spare(left: u32, right: u32) -> u32 {contract} {{ {expression} }}\n\
+                 machine main() {{ }}"
+            );
+            assert_eq!(
+                verdicts(&format!("trapping_{name}_{case}"), &source),
+                [expected],
+                "{name}/{case}"
+            );
+        }
+    }
+}
+
+#[test]
+fn trapping_normal_results_are_retained_in_guarantees() {
+    // Observe the denotation using clause forms the current prover handles.
+    // The Exact twin must prove the same result; changing only the guarantee
+    // to a wrong result must reject under either operation.
+    for operator in ["+", "+!"] {
+        for (name, result, expected) in [
+            ("exact_result", 7, "accepted"),
+            ("wrong_result", 8, "rejected"),
+        ] {
+            let source = format!(
+                "machine spare(left: u32, right: u32) -> u32 requires left == 3 && right == 4 \
+                 ensures result == {result} crashes none {{ left {operator} right }}\n machine main() {{ }}"
+            );
+            assert_eq!(verdicts(name, &source), [expected], "{operator}/{name}");
+        }
+    }
+}
+
+/// Publication preserves the same operation and its crash site. The overflow
+/// twin changes only the first argument, leaving the observed operations intact.
+#[test]
+fn trapping_primitives_run_and_overflow_at_their_own_site() {
+    let kept = std::fs::read_to_string(unbuilt_frontier::repository(
+        "tests/fixtures/run/arithmetic/trapping_primitives/main.omg",
+    ))
+    .expect("the focused runtime witness is kept beside its test");
+    let overflowing = kept.replace("added(3, 4)", "added(4294967295, 4)");
+    assert_ne!(kept, overflowing);
+    for (name, source, completes) in [
+        ("trapping_runs", kept, true),
+        ("trapping_overflows", overflowing, false),
+    ] {
+        let found = judged(name, &source);
+        let [Ok(RouteVerdict::Accepted(closure))] = found.as_slice() else {
+            panic!("{name}: {found:?}");
+        };
+        let publication = closure.publish().expect("the accepted module publishes");
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap();
+        if completes {
+            assert!(
+                matches!(
+                    status,
+                    terminal_interpreter::TerminalExecutionStatus::Complete(_)
+                ),
+                "{name}: {status:?}"
+            );
+        } else {
+            assert!(
+                matches!(status, terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)
+                if crash.cause == semantic_vocabulary::CrashCause::Trap
+                    && matches!(crash.site, terminal_interpreter::TerminalCrashSite::Operation { .. })),
+                "{name}: {status:?}"
+            );
+        }
     }
 }
 
@@ -261,7 +358,8 @@ machine main() { }",
                 "requires right > 0 ensures result == left /% right",
                 "left /% right",
             ),
-            "contract policy operator in a clause term that owes a condition before it is total",
+            "contract policy operator in a clause term that owes a condition before it is total \
+             while reading the signature of `spare`",
         ),
         (
             "requires_policy_qualified_operand",

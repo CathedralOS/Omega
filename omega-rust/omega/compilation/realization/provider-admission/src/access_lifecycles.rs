@@ -92,8 +92,7 @@ pub(super) fn settle_native_lifecycles<'execution>(
                     continue;
                 };
                 if !function
-                    .operations
-                    .iter()
+                    .operations()
                     .any(|lowered| lowered.psi_operation() == Some(operation.id))
                 {
                     continue;
@@ -183,7 +182,7 @@ pub(super) fn settle_empty_releases<'execution>(
         .plan()
         .functions
         .iter()
-        .flat_map(|function| &function.operations)
+        .flat_map(|function| function.operations())
         .filter_map(|operation| match operation {
             abstract_operations::AbstractOperation::BoundaryCall { boundary, .. } => {
                 Some(*boundary)

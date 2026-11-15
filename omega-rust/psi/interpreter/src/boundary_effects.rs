@@ -52,9 +52,7 @@ pub(crate) mod boundary_predicates {
             return Ok(());
         }
         let arguments = scalar_literals(arguments);
-        let parameters = boundary
-            .scalar_contract_parameters()
-            .ok_or_else(malformed)?;
+        let parameters = boundary.scalar_contract_parameters().ok_or(malformed())?;
         if arguments.len() != parameters.len()
             || arguments
                 .iter()
@@ -199,7 +197,7 @@ pub(crate) mod boundary_predicates {
                                 CanonicalStructuralPathSegment::Referent
                             }
                             ScalarReadProjection::Index(index) => {
-                                let (_, value) = index.integer_value().ok_or_else(malformed)?;
+                                let (_, value) = index.integer_value().ok_or(malformed())?;
                                 let index = match value {
                                     IntegerValue::Unsigned(value) => u64::try_from(value),
                                     IntegerValue::Signed(value) => u64::try_from(value),
@@ -262,16 +260,16 @@ pub(crate) mod boundary_predicates {
                 .structural_parameters
                 .iter()
                 .position(|parameter| parameter.place == root)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let parameter = &self.boundary.structural_parameters[position];
-            let actual = self.arguments.get(position).ok_or_else(malformed)?;
-            self.values.get(position).ok_or_else(malformed)?;
+            let actual = self.arguments.get(position).ok_or(malformed())?;
+            self.values.get(position).ok_or(malformed())?;
             let relative = terminal_semantics::canonical_structural_storage_path(
                 self.execution.program.structural_types().values(),
                 parameter.structural_type,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let mut source = actual.clone();
             source.path.extend(relative);
             let access =
@@ -351,7 +349,7 @@ pub(crate) mod boundary_predicates {
                 .structural_parameters
                 .iter()
                 .position(|parameter| parameter.place == root)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let parameter = &self.boundary.structural_parameters[position];
             if !matches!(
                 parameter.access,
@@ -363,14 +361,14 @@ pub(crate) mod boundary_predicates {
                     "boundary input predicate cannot observe a write-only argument",
                 ));
             }
-            let argument = self.arguments.get(position).ok_or_else(malformed)?;
-            let value = self.values.get(position).ok_or_else(malformed)?;
+            let argument = self.arguments.get(position).ok_or(malformed())?;
+            let value = self.values.get(position).ok_or(malformed())?;
             let path = terminal_semantics::canonical_structural_storage_path(
                 self.execution.program.structural_types().values(),
                 parameter.structural_type,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             self.execution
                 .read_primitive_argument(argument, value, &path, scalar_type)
         }
@@ -611,9 +609,8 @@ pub(crate) mod byte_buffers {
                         }
                         source.validate_presented_referent(execution)?;
                         let start = usize::try_from(*offset).map_err(|_| malformed())?;
-                        let end =
-                            usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
-                                .map_err(|_| malformed())?;
+                        let end = usize::try_from(offset.checked_add(*length).ok_or(malformed())?)
+                            .map_err(|_| malformed())?;
                         let source = execution.stored_byte_array_read_view(array, start, end)?;
                         let mut bytes =
                             ByteSequenceStorage::zeroed(source.len(), execution.account.as_ref())?;
@@ -680,9 +677,8 @@ pub(crate) mod byte_buffers {
                         }
                         self.source.validate_presented_referent(execution)?;
                         let start = usize::try_from(*offset).map_err(|_| malformed())?;
-                        let end =
-                            usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
-                                .map_err(|_| malformed())?;
+                        let end = usize::try_from(offset.checked_add(*length).ok_or(malformed())?)
+                            .map_err(|_| malformed())?;
                         if end > execution.stored_byte_array_length(array)? {
                             return Err(malformed());
                         }
@@ -723,7 +719,7 @@ pub(crate) mod byte_buffers {
                         for (byte_offset, byte) in buffer.bytes().iter().copied().enumerate() {
                             execution.stored_byte_array_write(
                                 &array,
-                                start.checked_add(byte_offset).ok_or_else(malformed)?,
+                                start.checked_add(byte_offset).ok_or(malformed())?,
                                 byte,
                             )?;
                         }
@@ -897,7 +893,7 @@ pub(crate) mod byte_buffers {
                 let admitted = if parameter.access == StructuralAccess::Owned {
                     view.owned_multiplicity() == Some(parameter.multiplicity)
                         && view.matches_descriptor_home(
-                            values.get(&parameter.place).ok_or_else(malformed)?,
+                            values.get(&parameter.place).ok_or(malformed())?,
                         )
                 } else {
                     terminal_semantics::borrowed_storage_reference_ceiling(
@@ -912,7 +908,7 @@ pub(crate) mod byte_buffers {
                             Some(StructuralTypeShape::FixedArray { .. })
                         ) {
                             crate::storage::scalar_array::borrowed_array_memberships_match(
-                                values.get(&parameter.place).ok_or_else(malformed)?,
+                                values.get(&parameter.place).ok_or(malformed())?,
                                 parameter,
                             )
                         } else {
@@ -924,7 +920,7 @@ pub(crate) mod byte_buffers {
                                 )
                         }
                         && view.matches_descriptor_home(
-                            values.get(&parameter.place).ok_or_else(malformed)?,
+                            values.get(&parameter.place).ok_or(malformed())?,
                         )
                 };
                 if !admitted || element_views.insert(parameter.place, view)?.is_some() {
@@ -939,7 +935,7 @@ pub(crate) mod byte_buffers {
                     ByteSequenceBinding::Immutable(view)
                         if parameter.access == StructuralAccess::Owned
                             && view.matches_descriptor_home(
-                                values.get(&parameter.place).ok_or_else(malformed)?,
+                                values.get(&parameter.place).ok_or(malformed())?,
                             ) =>
                     {
                         StructuralAccess::Owned
@@ -947,7 +943,7 @@ pub(crate) mod byte_buffers {
                     ByteSequenceBinding::Representation(view)
                         if parameter.access == StructuralAccess::Owned
                             && view.matches_descriptor_home(
-                                values.get(&parameter.place).ok_or_else(malformed)?,
+                                values.get(&parameter.place).ok_or(malformed())?,
                             ) =>
                     {
                         StructuralAccess::Owned
@@ -1134,8 +1130,8 @@ pub(crate) mod byte_buffers {
                 if !requested.insert(argument_index) {
                     return Err(malformed());
                 }
-                let parameter = parameters.get(argument_index).ok_or_else(malformed)?;
-                let argument = arguments.get(argument_index).ok_or_else(malformed)?;
+                let parameter = parameters.get(argument_index).ok_or(malformed())?;
+                let argument = arguments.get(argument_index).ok_or(malformed())?;
                 if original
                     && matches!(
                         self.structural_declaration(parameter.structural_type)?
@@ -1149,7 +1145,7 @@ pub(crate) mod byte_buffers {
                         &resolved.values[argument_index],
                         resolved.byte_sequences[argument_index]
                             .as_ref()
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                         argument_index,
                     )?;
                     continue;
@@ -1399,7 +1395,7 @@ pub(crate) mod byte_buffers {
                     return Err(malformed());
                 }
                 let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
-                let referent = binding.owner_loan_referent().ok_or_else(malformed)?.clone();
+                let referent = binding.owner_loan_referent().ok_or(malformed())?.clone();
                 return Ok(Some((referent, binding)));
             }
             if parameter.access == StructuralAccess::SharedBorrow
@@ -1556,7 +1552,7 @@ pub(crate) mod byte_buffers {
             };
             binding.validate_mutable_referent(
                 self,
-                binding.owner_loan_referent().ok_or_else(malformed)?,
+                binding.owner_loan_referent().ok_or(malformed())?,
             )?;
             Ok(binding)
         }
@@ -1652,7 +1648,7 @@ pub(crate) mod byte_buffers {
                         break;
                     }
                 }
-                selected_home.ok_or_else(malformed)?
+                selected_home.ok_or(malformed())?
             };
             let binding = ByteSequenceBinding::MutableOwner {
                 home,
@@ -1732,7 +1728,7 @@ pub(crate) mod byte_buffers {
                         namespace,
                         field: field.id,
                     })
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .immutable()?
                     .clone();
                 parent.path.push(StructuralPathSegment::Field(identity));
@@ -1755,7 +1751,7 @@ pub(crate) mod byte_buffers {
             let carrier = field
                 .field_type
                 .byte_sequence_carrier()
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if !carrier.is_owned_or_shared_byte_carrier() {
                 return Err(malformed());
             }
@@ -1812,7 +1808,7 @@ pub(crate) mod byte_buffers {
                 case,
             )?;
             let field =
-                terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
+                terminal_psi::live_field_by_identity(fields, *identity).ok_or(malformed())?;
             Ok((parent, *identity, field, namespace))
         }
     }
@@ -2033,14 +2029,14 @@ pub(crate) mod normal_qualifications {
                     owner.structural_type,
                     &row.path,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let domain = self
                     .program
                     .catalogs
                     .structural_domains
                     .iter()
                     .find(|domain| domain.id == row.domain && domain.carrier == carrier)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if self.normal_qualification_is_intrinsic(owner, &row.path, row.domain) {
                     continue;
                 }
@@ -2079,7 +2075,7 @@ pub(crate) mod normal_qualifications {
                 value.structural_type,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let subject = subject.captured();
             Ok(captured.iter().any(|row| {
                 row.domain == domain && row.carrier == carrier && row.subject == subject
@@ -2106,7 +2102,7 @@ pub(crate) mod normal_qualifications {
                             &row.path[..position],
                             StructuralAccess::SharedBorrow,
                         )?
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .value;
                     let home = StructuralRuntimePlace::from(&carrier);
                     let actual = self.structural_cases.require(&home)?;
@@ -2167,12 +2163,12 @@ pub(crate) mod normal_qualifications {
                                 &path[..position],
                                 StructuralAccess::SharedBorrow,
                             )?
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .value;
                         let actual = self
                             .structural_cases
                             .get(&StructuralRuntimePlace::from(&carrier))
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         if actual.structural_type != carrier.structural_type {
                             return Err(malformed());
                         }
@@ -2194,7 +2190,7 @@ pub(crate) mod normal_qualifications {
             }
             self.resolve_reference_storage_projection(value, path, StructuralAccess::SharedBorrow)?
                 .map(|projection| NormalQualificationSubject::Active(projection.value))
-                .ok_or_else(malformed)
+                .ok_or(malformed())
         }
     }
 }
@@ -3123,7 +3119,7 @@ pub(crate) mod scalar_loans {
         let source = match encoding {
             Some(encoding) => field
                 .scalar_type()
-                .ok_or_else(malformed)
+                .ok_or(malformed())
                 .and_then(|scalar| encoding.source_value(value, scalar)),
             None => Ok(value),
         };
@@ -3208,7 +3204,7 @@ pub(crate) mod scalar_loans {
             )?;
             let restriction = execution.captured_scalar_restriction(&storage, access, None)?;
             if let (Some(field), Some(encoding)) = (&restriction, storage.encoding) {
-                let source_type = field.scalar_type().ok_or_else(malformed)?;
+                let source_type = field.scalar_type().ok_or(malformed())?;
                 let source_value = encoding.source_value(original, source_type)?;
                 if source_value != execution.endpoint_scalar(source, &storage.endpoint)? {
                     return Err(malformed());
@@ -3499,7 +3495,7 @@ pub(crate) mod scalar_loans {
                     return Err(malformed());
                 };
                 &terminal_psi::find_structural_case(cases, case.case)
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .fields
             } else {
                 match &declaration.shape {
@@ -3714,9 +3710,9 @@ pub struct TerminalEffectRejection {
 }
 
 pub use terminal_installation::{
-    AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    AssumedBindingSelection, ProviderInstallationSelection, admit_target_layouts,
-    admit_target_machine_selections,
+    AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
+    ProviderInstallationSelection, TerminalTargetContext, admit_target_layouts,
+    terminal_target_context,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3731,7 +3727,7 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
-    pub(crate) target_machines: Option<AdmittedTargetMachineSelections>,
+    pub(crate) target_machines: Option<TerminalTargetContext>,
     pub(crate) target_layouts: Option<std::sync::Arc<AdmittedTargetLayouts>>,
 }
 
@@ -3755,7 +3751,7 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
     pub entry: Option<terminal_psi::TargetMachineCallable>,
     pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
-    pub target_machines: Option<&'installation AdmittedTargetMachineSelections>,
+    pub target_machines: Option<&'installation TerminalTargetContext>,
     pub target_layouts: Option<&'installation AdmittedTargetLayouts>,
 }
 

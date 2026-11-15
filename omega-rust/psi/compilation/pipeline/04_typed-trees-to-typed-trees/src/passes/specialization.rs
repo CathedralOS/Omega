@@ -80,34 +80,39 @@ mod named_conformances;
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut generated = GeneratedMachines::default();
     let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
-    let mut instances = symbols::SymbolMap::default();
-    let mut indexed = 0;
     // A generated machine is appended to the machines and read in its turn.
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
         for site in call_sites(program, position) {
-            // Rows are append-only during preparation. Index each actual
-            // association once; duplicate instance rows remain unserved.
-            for (index, row) in program
-                .machine_specializations
-                .iter()
-                .enumerate()
-                .skip(indexed)
-            {
-                instances
-                    .entry(row.instance)
-                    .and_modify(|known| *known = None)
-                    .or_insert(Some(index));
-            }
-            indexed = program.machine_specializations.len();
-            let served =
-                named_conformances::serve(program, site, &mut captures).and_then(|handled| {
+            let served = named_conformances::serve(program, site, &mut captures)
+                .and_then(|handled| {
                     if handled {
                         Ok(())
                     } else {
-                        serve(program, site, &mut generated, &instances)
+                        serve(program, site, &mut generated)
                     }
+                })
+                .and_then(|()| {
+                    let Some(call) = site.call(program) else {
+                        return Ok(());
+                    };
+                    let dispatch = match call {
+                        StaticArgumentCall::Expression(_, call) => {
+                            call.static_requirement_dispatch.clone()
+                        }
+                        StaticArgumentCall::Statement(call) => {
+                            call.static_requirement_dispatch.clone()
+                        }
+                    };
+                    let Some(dispatch) = dispatch else {
+                        return Ok(());
+                    };
+                    let application = call.application();
+                    let original = call.registration_operation(program);
+                    program
+                        .prepare_selected_requirement_application(application, &dispatch, original)
+                        .map_err(|reason| Stop::Unserved(Some(reason)))
                 });
             match served {
                 Ok(()) => {}
@@ -333,12 +338,7 @@ fn entered_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(Symbol
     }
 }
 
-fn serve(
-    program: &mut TypedTrees,
-    site: Site,
-    generated: &mut GeneratedMachines,
-    instances: &symbols::SymbolMap<Option<usize>>,
-) -> Served<()> {
+fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines) -> Served<()> {
     let Some(applied) = site.applied(program) else {
         return Ok(());
     };
@@ -377,7 +377,7 @@ fn serve(
         .map_err(Stop::Defect)?
         .is_some()
     {
-        return enter_generated(program, site, &applied, callee, &arguments, instances);
+        return enter_generated(program, site, &applied, callee, &arguments);
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
         if program
@@ -460,12 +460,15 @@ fn enter_generated(
     applied: &Applied,
     callee: SymbolHandle,
     arguments: &[StaticMachineArgument],
-    instances: &symbols::SymbolMap<Option<usize>>,
 ) -> Served<()> {
-    let Some(Some(index)) = instances.get(&callee) else {
-        return Err(Stop::Unserved(None));
+    // The receipt table indexes instances; a duplicate receipt stays unserved.
+    let row = {
+        let mut receipts = program.machine_specializations.for_instance(callee);
+        match (receipts.next(), receipts.next()) {
+            (Some(row), None) => row,
+            _ => return Err(Stop::Unserved(None)),
+        }
     };
-    let row = &program.machine_specializations[*index];
     let Some(template) = program.machine_by_symbol(row.template) else {
         return Err(Stop::Unserved(None));
     };
@@ -569,6 +572,7 @@ fn bind_requirement(
     let Ok(Some(requirement)) = program.evidence_requirement_declaration(applied.target) else {
         return Ok(());
     };
+    let declaration = requirement.symbol;
     let parameters = program
         .data_type_parameters
         .span_or_empty(requirement.type_parameters)
@@ -588,6 +592,10 @@ fn bind_requirement(
     for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
         operands.push(Operand::read(program, *parameter, kind, argument)?);
     }
+    program
+        .expression_table
+        .static_machine_application_mut(applied.application)
+        .binding_declaration = declaration;
     bind(program, applied.application, &operands);
     Ok(())
 }
@@ -1128,7 +1136,7 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
         {
             return Err(Stop::Unserved(None));
         }
-        if holds_expression(program, &types) {
+        if has_unserved_type_expression(program, &types) {
             return Err(Stop::Unserved(None));
         }
         for owner in [machine.symbol, state.symbol] {
@@ -1346,9 +1354,9 @@ fn copy_contract(
     copied
 }
 
-/// Whether any type among `references` holds an expression, which
-/// specialization does not evaluate.
-fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
+/// Canonical value operands are carried by the shared type copier, not
+/// evaluated again here. Other embedded expressions still need an evaluator.
+fn has_unserved_type_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
     let mut staging = TypedTreeTables::default();
     let mut embedded = Vec::new();
     for reference in references.iter().filter(|reference| reference.is_valid()) {
@@ -1360,7 +1368,11 @@ fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) ->
             &mut embedded,
         );
     }
-    !embedded.is_empty()
+    embedded.iter().any(|copied| {
+        program
+            .static_operand_from_type_reference(copied.source)
+            .is_err()
+    })
 }
 
 /// Structural result of the one declaration copier. This mapping names
@@ -1432,7 +1444,11 @@ fn copy_declarations(
             &mut embedded,
         ));
     }
-    if !embedded.is_empty() {
+    if embedded.iter().any(|copied| {
+        program
+            .static_operand_from_type_reference(copied.source)
+            .is_err()
+    }) {
         return Err(Stop::Unserved(None));
     }
     let type_start = program.type_reference_table.type_reference_count() + 1;

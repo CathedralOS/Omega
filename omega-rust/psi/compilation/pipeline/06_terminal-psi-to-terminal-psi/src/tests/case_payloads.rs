@@ -80,7 +80,10 @@ machine route(source: Source) {{
         )
     };
     assert_eq!(verdict(&arms("repository")), "accepted");
-    assert_eq!(verdict(&arms("location")), "spelling name without a symbol");
+    assert_eq!(
+        verdict(&arms("location")),
+        "spelling name without a symbol while reading the body of `route`"
+    );
 }
 
 /// The same from a value-position `match`, and for a scalar payload lent
@@ -142,7 +145,7 @@ machine route(source: Source) {{
 machine replace_scalar(value: &mut u32) {{ }}
 "#
         )),
-        "call exclusive loan of an immutable binding"
+        "call exclusive loan of an immutable binding while reading the body of `route`"
     );
 }
 
@@ -301,7 +304,7 @@ fn an_owned_payload_store_requires_mutability_of_the_existing_root() {
     let source = owned_store_source().replace("let mut choice:", "let choice:");
     assert_eq!(
         verdict(&source),
-        "statement store into an immutable binding"
+        "statement store into an immutable binding while reading the body of `build_entry`"
     );
 }
 

@@ -802,11 +802,20 @@ fn policy_result(
         | Kind::IntegerBitwiseXor { left, right } => (None, *left, Some(*right)),
         _ => return Ok(false),
     };
-    if !same_type(result, values.get(first)?) {
-        return Ok(false);
-    }
-    if let Some(second) = second
-        && !same_type(result, values.get(second)?)
+    let operands = [
+        Some(values.get(first)?),
+        second.map(|id| values.get(id)).transpose()?,
+    ];
+    let carries_policy = |operand| same_type(result, operand);
+    // A policy arithmetic overload carries the qualification from one or both
+    // operands. Its plain partner stays plain and must have the same carrier.
+    if !operands.into_iter().flatten().any(carries_policy)
+        || !operands.into_iter().flatten().all(|operand| {
+            carries_policy(operand)
+                || (policy.is_some()
+                    && operand.scalar_type == result.scalar_type
+                    && operand.qualifications.is_empty())
+        })
     {
         return Ok(false);
     }

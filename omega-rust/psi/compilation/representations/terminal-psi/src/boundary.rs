@@ -966,6 +966,21 @@ pub(crate) mod declarations {
     }
 
     impl BoundaryMachineDeclaration {
+        /// The declared reach (fixed reach and published ceiling) that a
+        /// supply of this requirement's owning service needs its own
+        /// permission for. The owning service is left out because that supply
+        /// performs it. This is a host-permission projection, never a ceiling:
+        /// the owner is catalogue ownership and stays outside the explicit
+        /// ceiling unless authored there, so an empty result says nothing
+        /// about whether the declared ceiling is empty.
+        pub fn reach_beyond_owning_supply(&self) -> impl Iterator<Item = ServiceId> + '_ {
+            self.fixed_service_reach
+                .iter()
+                .chain(&self.published_service_ceiling)
+                .copied()
+                .filter(move |service| Some(*service) != self.owning_service)
+        }
+
         pub fn requires_checked_result(
             &self,
             domains: &[crate::StructuralDomainDeclaration],

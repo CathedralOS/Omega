@@ -20,9 +20,8 @@ use source_compiler::ProducedBuildProvider;
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use terminal_installation::{
-    AdmittedComponentProvider, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    ProviderInstallationSelection, admit_component_provider, admit_target_layouts,
-    admit_target_machine_selections,
+    AdmittedComponentProvider, AdmittedTargetLayouts, ProviderInstallationSelection,
+    TerminalTargetContext, admit_component_provider, admit_target_layouts, terminal_target_context,
 };
 use terminal_interpreter::{
     TerminalComponentBinding, TerminalProgram, TerminalRuntimeSupplyRequest,
@@ -71,7 +70,7 @@ pub(super) fn prepare<'host, 'code>(
     };
     let module = artifact.view().module();
     let program = TerminalProgram::retain(artifact.retain_code());
-    let targets = admit_target_machine_selections(artifact.view(), profile.target_name());
+    let targets = terminal_target_context(artifact.view(), profile.target_name());
     let target_facts = profile
         .layout_target_facts()
         .ok_or("Build helper target has no representation facts")?;
@@ -137,7 +136,7 @@ pub(super) fn prepare<'host, 'code>(
                             .layout_target_facts()
                             .ok_or("scalar evaluation target has no immutable layout catalogue")?,
                     ),
-                    targets: Some(admit_target_machine_selections(artifact.view(), scope)),
+                    targets: Some(terminal_target_context(artifact.view(), scope)),
                     providers: admitted.selection().clone(),
                     address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
                         .map(|model| terminal_installation::ScalarAddressModel {
@@ -178,7 +177,7 @@ pub(super) fn prepare<'host, 'code>(
 fn runtime_supplies(
     program: &TerminalProgram<'_>,
     admitted: &AdmittedComponentProvider,
-    targets: &AdmittedTargetMachineSelections,
+    targets: &TerminalTargetContext,
     layouts: &AdmittedTargetLayouts,
 ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
     program

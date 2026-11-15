@@ -72,7 +72,7 @@ machine build_entry(holder: &mut Holder, other: &Holder) {{
 }}
 "
         )),
-        "typing call that gives one lifetime two regions"
+        "typing call that gives one lifetime two regions while reading the body of `build_entry`"
     );
 }
 
@@ -111,8 +111,34 @@ machine named<'storage, 'other>(holder: &mut Holder<'storage>, name: &'other [u8
 machine build_entry() {{ }}
 "
         )),
-        "typing assigned value type"
+        "typing assigned value type while reading the body of `named`"
     );
+}
+
+/// A record value's type carries the regions it is applied at, so a view
+/// stored in one record moves only into a record of the same region. Two
+/// holders at `'long` and `'short`, or at two elided input lifetimes, are
+/// two types; at one lifetime the exchange is accepted. Judged at the
+/// declaration, with no call.
+#[test]
+fn a_view_moves_between_records_only_at_one_region() {
+    for signature in [
+        "<'long, 'short>(long: &mut Holder<'long>, short: &Holder<'short>)",
+        "(long: &mut Holder, short: &Holder)",
+    ] {
+        assert_eq!(
+            refusal(&format!(
+                "{HOLDER}machine build_entry() {{ }}\n\
+                 machine exchange{signature} {{ long.name = short.name; }}\n"
+            )),
+            "typing assigned value type while reading the body of `exchange`",
+            "{signature}"
+        );
+    }
+    accepted(&format!(
+        "{HOLDER}machine build_entry() {{ }}\n\
+         machine exchange<'one>(long: &mut Holder<'one>, short: &Holder<'one>) {{ long.name = short.name; }}\n"
+    ));
 }
 
 /// A literal passed where a lifetime-generic call stands for an argument of

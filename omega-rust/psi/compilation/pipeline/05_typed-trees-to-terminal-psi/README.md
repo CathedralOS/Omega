@@ -368,9 +368,18 @@ destination declares").
   "`as` never calls user code, rounds, saturates, traps"). A literal operand
   lands in the carrier the cast names, so `5 as u32 in Wrapping` is the
   Wrapping constant.
-- **Suffixed operators.** Stage 04 rewrites `a +% b` to
-  `((a as T in Wrapping) + (b as T in Wrapping)) as T` and `a +| b`
-  likewise, so both are read as the casts and the operation above.
+- **Suffixed operators.** The reader selects `%`, `|` or `!` at that node,
+  using only unqualified integer operands and returning the bare carrier.
+  The operation carries the selected policy separately from value
+  qualifications. Its operands and result stay plain; it does not convert
+  an operand or change the policy of an inner expression.
+  A `!` form lowers to one `TrappingInteger` operation, its own `Trap`
+  site. Its `CrashCoverage` obligation requires the Exact primitive's
+  definedness or the machine's published same-cause route. The checker
+  establishes the Exact result equation only on its normal successor.
+  `Trapping`-qualified types remain unsupported on this route; enabling
+  these compiler-owned suffixed primitives does not supply the ordinary
+  core policy-domain declarations tracked in `OPERATION-ARITHMETIC-POLICY`.
 - **Contracts.** A clause names a policy-qualified formal, field or result
   as its stored value.
 
