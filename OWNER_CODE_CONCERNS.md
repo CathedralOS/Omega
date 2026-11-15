@@ -82,10 +82,10 @@ framework or a list of unimplemented features.
 
 ### A fixed-layout record constant loses its target selection
 - Category: knowledge crossing a boundary
-- Where: [constant initializer](samples/cli/facts/fixed_layout_storage/const_name/main.omg#L28), [constant evaluation request](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L662), [interpreter layout admission](omega-rust/psi/interpreter/src/embedding.rs#L2398)
-- Saw: On clean `15145194c7d` on macOS arm64, the kept `fixed_layout_storage/const_name` sample fails package review at `SAVED` with `source invocation demands: TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The `call_result` placement of the same selected record layout exits 0 in native and Psi. The invalid constant independently reaches the exact `Delivered` cast refusal.
-- Cost: The constant never reaches checking or execution of its original value and layout assertions. Carry the selected layout through the existing constant invocation when that evaluation requires it. Preserve exact target custody and the invalid cast.
-- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
+- Where: [kept initializer](samples/cli/facts/fixed_layout_storage/const_name/main.omg#L28), [constant evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L720), [shared Product preparation](omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L162)
+- Saw: On clean `8bb3a79076b` on macOS arm64, `const_name` refuses at `SAVED` with `TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The unchanged `call_result` exits 0 in both engines and `invalid_const_name` reaches its exact cast refusal. An isolated replay with the existing Linux x86-64 and macOS arm64 layout admissions returns `lo=42, hi=9` at offsets `[8, 0]` on both, then the ordinary constant snapshot decoder refuses the applied `LayoutStorage` carrier.
+- Cost: Shared Product preparation substitutes one value before selecting any of the five authored deployments. Keep the recipe until exact target closure, then join the authenticated layout and copy-eligible semantic snapshot through the existing target-scoped fold. Preserve the policy, field qualifications, and wrong-target and cast refusals.
+- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles and tracing the kept named constant.
 
 ### Fixed-layout record fields stop affine checking before the cast verdict
 - Category: knowledge crossing a boundary
