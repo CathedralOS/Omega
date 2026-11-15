@@ -94,6 +94,13 @@ framework or a list of unimplemented features.
 - Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
+### Build readiness refuses its authored operands before suspension
+- Category: knowledge crossing a boundary
+- Where: [kept readiness call](tests/fixtures/pass/build/explicit_provider_readiness_exit/build.omg#L10), [static operand reader](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L6817), [fixture staging test](omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs#L179)
+- Saw: Clean `a343c6b50a9` refuses the first Build in `executed_bindings_select_targets_and_retained_legs_keep_separate_staging` at `build.omg:10:13` (bytes 556..577). `Build::await_provider<ProgramImage, backing::TestImage>` reports “applied callable has an unrepresented static type operand” before readiness can suspend. The same refusal in the full test poisons the mutex shared by six other cases.
+- Cost: The test cannot check that the completed Build resumes with its exact backing, excludes the untaken UEFI target, or reuses settlement across the two Product legs. Carry the existing authored supplier selection into checked readiness and preserve those assertions.
+- Reported: 2026-11-15, Codex, macOS arm64, while checking the fixture review harness.
+
 ### A narrow installation bound rejects a valid selected child
 - Category: knowledge crossing a boundary
 - Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
@@ -108,12 +115,12 @@ framework or a list of unimplemented features.
 - Cost: The library and selected UEFI twin never distinguish target capability, and the closed addition never reaches the toolchain owner in recovered policy. Retain each authored operation while completing its canonical call contract.
 - Reported: 2026-11-15, Codex, while replaying kept package-review numeric fixtures.
 
-### The native callback test spends minutes deriving a fixture entry binding
+### Exact storage queries revisit reconverging copies
 - Category: verifying costs more than writing
-- Where: [standard-library entry check](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L144), [source-check storage uses](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3929)
-- Saw: With the kept callback fixture bytes on macOS arm64 at `8329cdc221e`, the run was still checking the standard library after 10m21s and was stopped. A process sample shows `derive_entry_from_inputs` inside fixed-layout evaluation, with Psi 06 repeatedly walking `Storage::uses`, `reaching`, and `supplied`. The test already prepared the C provider.
-- Cost: Exact-value and case queries still retrace reconverging copies: the twelve-branch storage control scans 475,120 rows for the exact value. Initialization queries now expand each copy equation once, but that does not establish the callback's end-to-end cost. Replay the actual supplier capture on macOS arm64, retain the route-owned entry schema, and reach the original exact callback binding and native saved-input substitution checks; a loose standard-library source check is not that path.
-- Reported: 2026-11-15, Codex, while replaying the native callback fixture after repairing its path.
+- Where: [reaching storage](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2551), [reconverging copy control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L5472)
+- Saw: On `a343c6b50a9`, the twelve-branch control scans 475,120 rows for an exact value and 196 for initialization. Exact-value and case queries retrace copies across incoming edges. Restricting each scan to the requested root cut the exact-value count to 237,560 and left the repeated traversal intact.
+- Cost: The cost grows with the number of paths through a graph with few distinct writes. Reuse reaching-write equations for the exact query, and preserve projected writes, disagreement across arrivals, case retirement and cycle refusal.
+- Reported: 2026-11-15, Codex, while profiling the checked native callback fixture.
 
 
 ### Static callable specialization needs a portable receipt for open structural reach
