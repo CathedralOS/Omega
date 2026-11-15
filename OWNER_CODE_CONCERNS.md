@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A suffixed trapping operation is refused as a qualified value
+- Category: knowledge crossing a boundary
+- Where: [Stage 05 suffixed expression](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L1219), [qualification lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/qualifications.rs#L448), [route controls](omega-rust/omega/compilation/compiler/tests/route_probe.rs#L187)
+- Saw: `mbx test -p compiler --locked --test route_probe trapping_primitives` at `f208d178cfd` plus the exact #3270 production patch fails both #3204 controls. The published add is `not-supported`, and the runtime witness stops at `type trapping arithmetic policy qualification` before execution. The reader requalifies plain operands to route the suffix through ordinary policy operations, and qualification lowering tries to publish those temporary types as value domains.
+- Cost: Plain suffixed programs are blocked by a value-qualification support limit even though the operation and crash predicate have implementations. Carry the operation policy through lowering independently of an authored value qualification and restore both route controls, including the original overflow trap. Full Trapping-domain support is tracked under OPERATION-ARITHMETIC-POLICY.
+- Reported: 2026-11-14, Codex, while validating the Stage 05 build repair on macOS arm64
+
 ### Build and Product operator-domain resolution controls fail on main
 - Category: tests that pin the bug
 - Where: [Stage 02 primitive-family tests](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs#L2890)
@@ -86,13 +93,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `DirectTargetBodyAbsences` and `reject_reached_inert_calls` appear only at their definitions and reexports in the workspace. The inventory's direct-call accessors have only crate tests as customers. Current [target supply](omega-rust/omega/compilation/realization/provider-planning/src/target_supply.rs#L639) refuses a demanded target-machine family by name.
 - Cost: The exported graph and inventory tests can look like evidence that current target preparation resolves these requests. Trace the remaining direct-call projections before retiring the unused path while preserving the active refusal.
 - Reported: 2026-11-14, Codex, while tracing the surviving path from provider choice to publication
-
-### Malformed reference identity reports a different byte from its diagnostic test
-- Category: tests that pin the bug
-- Where: [language-semantics offset test](omega-rust/psi/foundation/language-semantics/src/tests.rs#L544), [package review visitor](omega-rust/omega/packages/review-evidence/src/encoding/encode/membership/visitor.rs#L73)
-- Saw: `mbx test -p language-semantics --lib malformed_identity_offset_names_the_byte_the_grammar_stopped_on` fails with the Psi sources restored to `3611237cf0188c0242fef95e612f0db584ce48c9` on macOS arm64. For `ref(compiler-type(atom(u8)),elided-region)`, the test expects byte offset 27 (the comma) and the parser reports 28 (the extra operand's first byte).
-- Cost: Package review uses this offset to locate malformed identities, and the red test obscures other failures in the language-semantics suite. Resolve where the diagnostic should point and pin that contract for the malformed operand.
-- Reported: 2026-11-14, Codex, while validating removal of the retired provider chooser
 
 ### A view returned by a call keeps no loan of the input it borrows from
 - Category: a verdict with nothing behind it
