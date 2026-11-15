@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Build-time record arguments refuse folded and named const indices
+- Category: a verdict with nothing behind it
+- Where: [type-expression inventory](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L187), [record argument construction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs#L270)
+- Saw: At clean `f54abf8157c`, a Build-time invocation with a `Storage` record holding `Buffer<4>` and four bytes succeeds, as does the equivalent `Buffer<outer()>` with two evaluation receipts. With `Buffer<(2 + 2)>`, the application closes to the same four-element array but the generated argument binding refuses `using a type written as an expression`. With `Buffer<CAPACITY>` and `const CAPACITY: u64 = 4u64`, the application stays open and the same call refuses `invocation value has no exact closed data application`.
+- Cost: The caller cannot pass the same checked record at equivalent const indices. Carry the available canonical value through existing const-argument completion and the generated argument type before rejecting unresolved work.
+- Reported: 2026-11-14, Codex, while checking closed const-argument replay
+
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: knowledge crossing a boundary
 - Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L216), [generated caller](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L198)
@@ -117,7 +124,7 @@ framework or a list of features that remain unimplemented.
 
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers: the declaration-lowering queries in `typing_queries.rs`, and "closed const argument replay" in `type_reference.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
+- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers: the declaration-lowering queries in `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
 - Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) and the construction-destination pass's call gates (a mathematical call taking a built argument, a callee whose parameters typing does not select), a membership fact whose domain selection stays late-bound (found through the owners of the value it constrains), and a const argument typing does not admit now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program. A refusal inside one declaration's lowering (`type_resolved_cohort`) returns midway through it, so those gates need a clean per-declaration rollback before they can move
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
