@@ -80,12 +80,33 @@ framework or a list of features that remain unimplemented.
 - Cost: An author sees an unavailable byte-view type when the written signature breaks a binder rule. Preserve an explicit undeclared tag as a source violation while keeping genuinely incomplete region identities fail-closed.
 - Reported: 2026-11-14, Codex, while restoring the Stage 06 machine lifetime control
 
-### The post-merge sample stops in byte-window formation before either engine runs
+### An alias's undeclared lifetime takes its meaning from the caller
+- Category: a fact with no owner
+- Where: [alias lifetime substitution](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L4664), [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L107)
+- Saw: At `7a8a75d5256`, `data View = &'capture [u8]; machine build_entry(view: View) { }` refuses because the expanded byte view has no owned region identity. Adding only `<'capture>` to `build_entry` changes the verdict to the later `declaration type alias` refusal, the same verdict as an alias that declares and substitutes its own lifetime explicitly. Alias expansion skips its undeclared spelling, which the signature reader then looks up in the receiving machine.
+- Cost: A caller can satisfy a lifetime use written in an unrelated declaration. The current subject gate still refuses the alias overall. Establish the alias's lifetime bindings before substitution so the use site supplies only the alias's declared arguments.
+- Reported: 2026-11-14, Codex, while tracing undeclared lifetime diagnostics
+
+### A direct partial view of a fixed byte array never reaches endpoint checking
 - Category: tests that pin the bug
-- Where: [post-merge runtime step](.github/workflows/post-merge-check.yml#L97), [length sample](samples/cli/facts/length/local/main.omg#L6), [array view reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L180)
-- Saw: The [sample job](https://github.com/CathedralOS/Omega/actions/runs/43664409560/job/132661175144) at `d75251ea39f` exits 1 in `mbx xtask sample-gate --filter samples/cli/facts/length/local`. Package checking refuses `&items[0..count]` with `partial array views need their endpoint and window correspondence` while reading `window` in `last_byte`.
-- Cost: The configured post-merge runtime witness never checks the length of a borrowed byte window or reaches native/Psi comparison. Preserve the window and its result oracle when tracing receiver selection and endpoint proof ownership.
-- Reported: 2026-11-14, Codex, while verifying the main compiler and native jobs
+- Where: [const-length sample](samples/cli/facts/length/const_name/main.omg#L12), [target-body sample](samples/cli/facts/length/target_body/main.omg#L49), [array range reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs)
+- Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives and their authored source twins with bound entries still refuse `&items[0..3]` with `partial array views need their endpoint and window correspondence` on macOS arm64. Here `items` is a fixed `[u8; 4]`. Each sample's dynamic range over an existing view proceeds through ordinary range checking.
+- Cost: A checked direct array window cannot reach its last-byte check. Use the fixed storage's exact extent and projected window when checking a direct range and establishing its loan.
+- Reported: 2026-11-14, Codex, while restoring the post-merge runtime sample
+
+### A match loses a byte window's length when its arms name equivalent values
+- Category: tests that pin the bug
+- Where: [match length sample](samples/cli/facts/length/match_join/main.omg#L7)
+- Saw: On `ef7d7a17936` with the shared-view range repair, the macOS arm64 check for `let length: u64 = match flag { true -> window.len, false -> count };` refuses the last-byte read at `8:11` because it cannot prove operation safety. `window` was formed from `items[0..count]` with positive `count`. The control whose false arm uses the backing length also fails to establish the operation.
+- Cost: A match arm that uses the endpoint by which the window was formed cannot carry the same bound as an arm that reads its length. Retain the shared equality at the join and keep the backing-length twin unsafe.
+- Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
+
+### A shared byte window loses its completion observation across a length call
+- Category: a verdict with nothing behind it
+- Where: [length result sample](samples/cli/facts/length/call_result/main.omg#L11), [forwarded length sample](samples/cli/facts/length/other_machine/main.omg#L14), [completion observation reader](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3851)
+- Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives stop on macOS arm64 at `borrowed completion storage has no post-call observation`. Their shared view already passed formation, and each length call's result guarantee names the view given as input. The nested state control keeps the matching length and executes.
+- Cost: Code cannot use the result guarantee to index the same existing shared window after an ordinary call. Keep the unchanged actual observation attached to the shared parameter in the ordinary completion mechanism.
+- Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
 
 ### Compiler subject fixtures still expect earlier refusal reasons and outcomes
 - Category: tests that pin the bug

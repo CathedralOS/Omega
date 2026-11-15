@@ -2073,6 +2073,15 @@ mod tests {
                 symbol: input_symbol,
                 ..Default::default()
             }));
+        let inferred = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let computed = typed.expression_table.insert(ExpressionNode::Binary(
+            typed_trees::expression::TableBinaryExpression {
+                left: borrowed_name,
+                operator: typed_trees::expression::BinaryOperator::Subtract,
+                right: initial,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ));
         let borrowed = [Slot {
             symbol: input_symbol,
             value_type: ValueType::plain(ScalarType::Integer(
@@ -2102,6 +2111,32 @@ mod tests {
         );
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
         assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
+        let (computed_slot, statement) = program
+            .local(
+                machine(),
+                &[Slot {
+                    borrowed: None,
+                    ..borrowed[0]
+                }],
+                &TableLocalData {
+                    type_reference: inferred,
+                    type_is_inferred: true,
+                    initial_value: computed,
+                    ..local.clone()
+                },
+            )
+            .unwrap();
+        assert_eq!(computed_slot.value_type, slot.value_type);
+        assert!(matches!(
+            statement,
+            crate::Statement::Bind {
+                slot: 1,
+                value: crate::Expression {
+                    kind: crate::ExpressionKind::Strict { .. },
+                    ..
+                }
+            }
+        ));
         let (captured, statement) = program
             .local(
                 machine(),
