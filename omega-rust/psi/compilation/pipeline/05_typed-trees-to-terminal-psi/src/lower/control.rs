@@ -351,8 +351,13 @@ impl Lowering<'_> {
                 source,
             } => {
                 let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
-                let (blocks, rest) =
-                    continuing!(self.select(subject, &cases, default.is_some(), *source, None));
+                let (blocks, rest) = continuing!(self.select(
+                    subject,
+                    &cases,
+                    default.as_ref().map(|(_, arm)| *arm),
+                    *source,
+                    None
+                ));
                 // Each arm completes the machine, so what one binds (the home
                 // a loan gives a local) is no other arm's.
                 let bound = self.slots.clone();
@@ -667,8 +672,13 @@ impl Lowering<'_> {
             })
             .collect::<Checked<Vec<usize>>>()?;
         let decided_in = self.current()?;
-        let (blocks, rest) =
-            continuing!(self.select(subject, &cases, default.is_some(), source, capture));
+        let (blocks, rest) = continuing!(self.select(
+            subject,
+            &cases,
+            default.map(|value| value.source),
+            source,
+            capture
+        ));
         let bodies = arms
             .iter()
             .map(|(_, value)| value)
