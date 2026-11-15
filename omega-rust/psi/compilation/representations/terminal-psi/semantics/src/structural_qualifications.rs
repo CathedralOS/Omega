@@ -1569,7 +1569,7 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
             !plan.readers.is_empty()
                 || !plan.writers.is_empty()
                 || !plan.observations.is_empty()
-                || !plan.reach.services().is_empty()
+                || plan.reach.services().len() != 0
         }) {
             return malformed(
                 None,
