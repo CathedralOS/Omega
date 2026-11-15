@@ -123,9 +123,8 @@ mod installed_provider_calls {
                     || installed.provider.boundary != key.2
                     || !plan.provider_candidates.contains(&installed.provider)
                     || !plan.boundary_machine(key.2).is_some_and(|declaration| {
-                        declaration.result.is_unit()
-                            && declaration.completion
-                                == semantic_vocabulary::BoundaryCompletion::External(*kind)
+                        declaration.completion
+                            == semantic_vocabulary::BoundaryCompletion::External(*kind)
                     })
                 {
                     return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
