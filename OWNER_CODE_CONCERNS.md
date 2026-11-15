@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A caught specialization receipt edit can leave stale index positions
+- Category: a verdict with nothing behind it
+- Where: [MachineSpecializations mutations](omega-rust/psi/compilation/representations/typed-trees/src/machine_specializations.rs#L128)
+- Saw: On `02588834b33` with the receipt index from #3298, catch a panic after `edit` or `retain` removes the first of two receipts. The row count falls to one, then `for_instance` panics at line 85 while looking up the surviving receipt through the older index position 1.
+- Cost: A caller that catches the callback panic can no longer use a table whose mutation API promises to keep row queries exact. Restore the existing index invariant on completion and unwind and check both mutation routes.
+- Reported: 2026-11-14, Codex, while restoring the Terminal codec tests and checking the landed receipt index
+
 ### A deferred type-expression refusal omits its declaration location
 - Category: a verdict with nothing behind it
 - Where: [Build-time source requests](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L76), [Stage 05 deferred refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L838)
