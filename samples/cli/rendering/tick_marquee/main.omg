@@ -24,7 +24,7 @@ data Main {
     t_start: Instant;
     pause: [u8; 256];
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     main.t_start = instant_now();
     main.frame = 0;
@@ -57,13 +57,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     machine ok(main: &mut Main)  {
         Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: elapsed time came in under 100ms (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -71,5 +71,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

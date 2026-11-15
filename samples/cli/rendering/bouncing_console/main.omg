@@ -34,7 +34,7 @@ requires
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
     main.line = "                                        ";
     main.cr = "X";
@@ -103,13 +103,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     machine finish(main: &mut Main) {
         Console::write_line("done: 50 frames of line-bounce animation complete (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: ball position left the [0,40) range guard (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -117,5 +117,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

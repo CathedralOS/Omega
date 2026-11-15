@@ -55,7 +55,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
     main.ps[0].x = 2;  main.ps[0].y = 2;  main.ps[0].vx = 1;  main.ps[0].vy = 1;
     main.ps[1].x = 17; main.ps[1].y = 3;  main.ps[1].vx = 0 - 1; main.ps[1].vy = 1;
@@ -217,13 +217,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     machine finish(main: &mut Main) {
         Console::write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -231,5 +231,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

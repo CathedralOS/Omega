@@ -22,7 +22,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     // The sample owns these paths. Remove its prior interrupted run first.
     main.result = block FilesystemService::remove("/tmp/omega_journal_dir/note.txt");
     main.result = block FilesystemService::remove("/tmp/omega_journal_dir/renamed.txt");
@@ -106,5 +106,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemCo
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

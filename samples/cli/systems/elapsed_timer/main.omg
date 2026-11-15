@@ -36,7 +36,7 @@ requires
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = instant_now();
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
@@ -81,5 +81,5 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

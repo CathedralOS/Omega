@@ -29,7 +29,7 @@ data Main {
     result: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("histogram: counting value frequencies into a fixed-bucket array");
     main.histogram[0] = 0;
     main.histogram[1] = 0;
@@ -92,7 +92,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         main.result = main.histogram[2];
         Console::write_line("result: the count for category 2, 4 for this dataset (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.result as i32);
     }
 }
@@ -100,5 +100,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

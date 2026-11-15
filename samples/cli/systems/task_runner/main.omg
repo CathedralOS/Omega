@@ -45,7 +45,7 @@ data Main {
 }
 
 // Top-level dispatcher: receive a task and handle it.
-machine Main::run_task(main: &mut Main, task: Task) {
+machine run_task(main: &mut Main, task: Task) {
     transition task {
         Task::Compute { value } -> do_compute(main, value)
         Task::Double -> do_double(main)
@@ -80,14 +80,14 @@ machine Main::run_task(main: &mut Main, task: Task) {
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
-    Main::run_task(main, Task::Compute { value: 10 });
-    Main::run_task(main, Task::Compute { value: 15 });
-    Main::run_task(main, Task::Double);
-    Main::run_task(main, Task::Compute { value: 5 });
-    Main::run_task(main, Task::Clamp { max: 45 });
-    Main::run_task(main, Task::Compute { value: 25 });
+    run_task(main, Task::Compute { value: 10 });
+    run_task(main, Task::Compute { value: 15 });
+    run_task(main, Task::Double);
+    run_task(main, Task::Compute { value: 5 });
+    run_task(main, Task::Clamp { max: 45 });
+    run_task(main, Task::Compute { value: 25 });
 
     transition main.runner.score == 70 {
         true -> block good(main)
@@ -97,14 +97,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: the task script left the score at 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: the final score was not 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -112,5 +112,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

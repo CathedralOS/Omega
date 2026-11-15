@@ -41,7 +41,7 @@ data Main {
 }
 
 // Record one log entry; dispatch on the level case.
-machine Main::log(main: &mut Main, level: LogLevel) {
+machine log(main: &mut Main, level: LogLevel) {
     transition level {
         LogLevel::Debug -> on_debug(main)
         LogLevel::Info -> on_info(main)
@@ -70,23 +70,23 @@ machine Main::log(main: &mut Main, level: LogLevel) {
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("logger: counting log entries by severity into a weighted score");
     // Log five Info entries.
-    Main::log(main, LogLevel::Info);
-    Main::log(main, LogLevel::Info);
-    Main::log(main, LogLevel::Info);
-    Main::log(main, LogLevel::Info);
-    Main::log(main, LogLevel::Info);
+    log(main, LogLevel::Info);
+    log(main, LogLevel::Info);
+    log(main, LogLevel::Info);
+    log(main, LogLevel::Info);
+    log(main, LogLevel::Info);
 
     // Log four Warn entries.
-    Main::log(main, LogLevel::Warn);
-    Main::log(main, LogLevel::Warn);
-    Main::log(main, LogLevel::Warn);
-    Main::log(main, LogLevel::Warn);
+    log(main, LogLevel::Warn);
+    log(main, LogLevel::Warn);
+    log(main, LogLevel::Warn);
+    log(main, LogLevel::Warn);
 
     // Log one Error with code 4.
-    Main::log(main, LogLevel::Error { code: 4 });
+    log(main, LogLevel::Error { code: 4 });
 
     // Compute weighted score: info*2 + warn*5 + error_code_sum*10.
     // = 5*2 + 4*5 + 4*10 = 10+20+40 = 70.
@@ -126,35 +126,35 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: 5 info + 4 warn + 1 error scored 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad_score(main: &mut Main) {
         Console::write_line("FAIL: wrong weighted score (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
     machine bad_info(main: &mut Main) {
         Console::write_line("FAIL: wrong info count (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
     machine bad_warn(main: &mut Main) {
         Console::write_line("FAIL: wrong warn count (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(73);
     }
 
     machine bad_error(main: &mut Main) {
         Console::write_line("FAIL: wrong error count (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(74);
     }
 }
@@ -162,5 +162,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
