@@ -10113,10 +10113,7 @@ pub(crate) mod value_foundations {
         let Some(result) = operation.result.structural() else {
             return malformed("scalar case establishment has no structural result");
         };
-        if result.multiplicity == StructuralMultiplicity::Linear
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-        {
+        if result.multiplicity == StructuralMultiplicity::Linear || !result.claims.is_empty() {
             return malformed("scalar case establishment has an invalid result surface");
         }
         if !matches!(

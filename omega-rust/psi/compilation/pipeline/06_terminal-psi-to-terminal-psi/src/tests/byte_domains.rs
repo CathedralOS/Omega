@@ -240,6 +240,12 @@ fn a_case_literal_owes_only_its_active_fields_without_losing_conditional_domains
             panic!("{source}\n{:?}", judge_build(source));
         };
         checked.publish_invocation().unwrap();
+        let closed =
+            terminal_codec::ClosedTerminalModule::new(checked.elaboration.module.clone()).unwrap();
+        let received =
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+                .unwrap();
+        assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
         let mut forged = checked.elaboration.module.clone();
         let operation = forged
             .machines

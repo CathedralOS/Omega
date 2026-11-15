@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Mixed case constructors use different field namespaces in their two validators
+- Category: one idea, several implementations
+- Where: [membership field lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs#L162), [constructor roster validation](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L10155)
+- Saw: The codec checks the ordered common-field plus selected-payload roster for a Mixed case. The membership checker searches only the selected payload when a case is present, so it cannot associate a common initializer with its declared field. Common and payload field IDs belong to separate namespaces; a first-match fallback would not resolve that disagreement.
+- Cost: A constructor admitted by one validator can fail the other. Both should consume the same declaration roster and preserve each field's namespace and exact memberships. This predates the byte-case repair and is not on its current Calling-policy sum path.
+- Reported: 2026-11-15, Codex, while carrying shared-byte contracts through the original Cathedral package and native consumer.
+
 ### Fixed-array windows reach slice formation only for bytes
 - Category: branch per shape
 - Where: [fixed-array view elaboration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L309), [element subslice contract](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views)
