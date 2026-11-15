@@ -18,16 +18,18 @@ call and exits the process directly; it never returns here.
 
 /*
 
-Why we spawn a worker thread at the top of the CLI (`run_with_large_stack`):
+Why the whole command runs on the invocation's execution budget
+(`run_with_large_stack`):
 
 Deep recursive AST, type, and proof traversals in the compiler can blow the
 operating system's default main-thread stack (1 MB on Windows, 8 MB on Linux
-and macOS). Rather than scattering ad-hoc thread spawns across individual
-compiler passes, we enter `compiler::checked::spawn_compile_worker` once here.
-That call allocates a 256 MB stack and sets the thread-local `ON_COMPILER_WORKER`
-flag, so every downstream `run_on_compile_thread` check inside package
-readiness and compilation sees that we are already on the large-stack worker
-and runs inline instead of spawning another 256 MB thread.
+and macOS), and parsing and native completion both want parallel workers.
+We create one `execution_admission::ExecutionBudget` here: a fixed set of
+256 MB-stack workers shared by every parallel stage of this invocation. The
+command runs on one of those workers, so `run_on_compile_thread` checks inside
+package readiness and compilation run inline, and source parsing and native
+completion fan out onto the same workers instead of starting pools of their
+own.
 
 */
 
@@ -55,37 +57,31 @@ fn main() -> ExitCode {
 }
 
 fn run_with_large_stack(invocation: Invocation) -> ExitCode {
-    std::thread::scope(|scope| {
-        let worker = compiler::checked::spawn_compile_worker(scope, move || match invocation {
-            Invocation::Compile(request) => commands::compile::run(request),
-            Invocation::Run(request) => commands::run::run(request),
-            Invocation::InspectTerminal(request) => commands::inspect::run(request),
-            Invocation::Package {
-                command,
-                options,
-                accept_all,
-            } => commands::packages::run(command, options, accept_all),
-            Invocation::AuditSource(request) => commands::packages::run_source_audit(request),
-            Invocation::AuditPackages(request) => commands::packages::run_audit(request),
-            Invocation::Help(usage) => println!("{usage}"),
-            Invocation::Version => println!(
-                "omega {} ({}; {})",
-                env!("OMEGA_VERSION"),
-                env!("OMEGA_COMMIT"),
-                env!("OMEGA_HOST")
-            ),
-        });
-        match worker {
-            Ok(worker) => {
-                if let Err(panic) = worker.join() {
-                    std::panic::resume_unwind(panic);
-                }
-                ExitCode::SUCCESS
-            }
-            Err(error) => {
-                eprintln!("failed to start compiler thread: {error}");
-                ExitCode::FAILURE
-            }
+    let budget = match execution_admission::ExecutionBudget::for_host() {
+        Ok(budget) => budget,
+        Err(error) => {
+            eprintln!("failed to start compiler workers: {error}");
+            return ExitCode::FAILURE;
         }
-    })
+    };
+    budget.run(move || match invocation {
+        Invocation::Compile(request) => commands::compile::run(request),
+        Invocation::Run(request) => commands::run::run(request),
+        Invocation::InspectTerminal(request) => commands::inspect::run(request),
+        Invocation::Package {
+            command,
+            options,
+            accept_all,
+        } => commands::packages::run(command, options, accept_all),
+        Invocation::AuditSource(request) => commands::packages::run_source_audit(request),
+        Invocation::AuditPackages(request) => commands::packages::run_audit(request),
+        Invocation::Help(usage) => println!("{usage}"),
+        Invocation::Version => println!(
+            "omega {} ({}; {})",
+            env!("OMEGA_VERSION"),
+            env!("OMEGA_COMMIT"),
+            env!("OMEGA_HOST")
+        ),
+    });
+    ExitCode::SUCCESS
 }

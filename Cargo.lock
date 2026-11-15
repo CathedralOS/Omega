@@ -374,6 +374,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-accounting",
+ "execution-admission",
  "extents",
  "image",
  "image-emission",
@@ -578,6 +579,13 @@ version = "0.1.0"
 dependencies = [
  "compiler-storage",
  "semantic-vocabulary",
+]
+
+[[package]]
+name = "execution-admission"
+version = "0.1.0"
+dependencies = [
+ "rayon",
 ]
 
 [[package]]
@@ -1288,6 +1296,7 @@ dependencies = [
  "bounded-process",
  "compiler",
  "diagnostics",
+ "execution-admission",
  "mimalloc",
  "orchestration",
  "package-compilation",
@@ -1375,6 +1384,7 @@ dependencies = [
  "build-settings",
  "compiler",
  "diagnostics",
+ "execution-admission",
  "image-emission",
  "native-artifact",
  "native-compiler",
@@ -1382,6 +1392,7 @@ dependencies = [
  "package-manager",
  "platform-custody",
  "products",
+ "rayon",
  "semantic-vocabulary",
  "sha2",
  "target",
@@ -2132,6 +2143,7 @@ dependencies = [
  "build-time-evaluation",
  "compiler-storage",
  "diagnostics",
+ "execution-admission",
  "flow-effects",
  "language-core",
  "language-semantics",
@@ -2160,6 +2172,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
+ "execution-admission",
  "rayon",
  "source",
  "tokens",
@@ -2593,6 +2606,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
+ "execution-admission",
  "language-core",
  "numerics",
  "rayon",
