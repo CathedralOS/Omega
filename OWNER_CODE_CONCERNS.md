@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Fixed-array windows reach slice formation only for bytes
+- Category: branch per shape
+- Where: [fixed-array view elaboration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L309), [element subslice contract](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views)
+- Saw: On clean `67fda671ffc` on macOS arm64, `extent(&numbers[1..2])` refuses with “partial typed array views need their element-view subslice formation” for `numbers: [u32; 2]` and `extent(view: &[u32]) -> u64 { view.len }`. The whole typed-array twin reads length 2, and the same partial range and length check over `u8` reads length 1. Both twins exit 0 in native and Psi and reopen independently. The elaborator rejects the typed range before forming its array loan or window.
+- Cost: The existing two-endpoint subslice rule cannot receive this typed array's backing and element extent. Carry the shared array loan into the existing element-window operation, keeping the actual range and distinct ordered bounds.
+- Reported: 2026-11-15, Codex, while checking typed slice fields through a runtime-selected array element.
+
 ### An affine-view refusal hides the source sequence bounds test
 - Category: tests that pin the bug
 - Where: [literal index witness](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L36), [exact diagnostic assertion](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L207)
@@ -108,13 +115,6 @@ framework or a list of unimplemented features.
 - Saw: On `f8687f1fcd3`, `apply<picked>(7u64)` refuses at static binding for `machine apply<const Callback: machine(value: u64) -> u64>(value: u64) -> u64 { Callback(value) }`. Wiring the existing binder judgment and specialization receipt in a local prototype let native and Psi exit 0. It rejected a callback requiring `value <= 8u64` and a generic body claiming a result absent from its binder. The saved runtime artifact could not reopen: `checked specialization has no retained application`. The producer only materializes type and scalar telescopes. The retained reader rejects a structural binder in the reach dependency even though omission on that binder means open reach. Changing the body to `transition { true -> Callback(value) }` also exposed a named call that bypasses static-call preparation. The kept [package review witness](tests/fixtures/pass/facts/static_callback_reach_boundary_schema/main.omg#L62) on `8329cdc221e` stops at line 62, column 37 because no pass specializes the call's static arguments. Its policy oracle requires `StepContract::step` to recover the original static `Count` binder.
 - Cost: Route ordinary callable arguments and named transition calls through the existing binder check and exact source application. Generalize the retained reach dependency to preserve the originating open or finite bound across production and readback. An empty finite bound cannot stand for omitted reach.
 - Reported: 2026-11-15, Codex, macOS arm64, while carrying the static callback witness into a saved Psi artifact.
-
-### A typed slice stored in a field cannot use its own bounds to index
-- Category: branch per shape
-- Where: [scalar element read lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs) (`read_projected_scalar`), [element view operations](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views)
-- Saw: The [typed slice fixture](tests/fixtures/run/views/typed_slice_index/main.omg) checks a scalar element and a copyable record field using their own descriptor lengths. In a separate macOS arm64 probe, `windows: &Windows` observes `windows.observed.len`, where `observed: &'buffer [u32]`. With `windows.observed.len >= 1`, `windows.observed[0]` still refuses with “slice read without a whole descriptor.” Returning a scalar literal in the guarded arm runs with native and Psi exit 0 using the same record construction, loan and length read.
-- Cost: A guarded read loses the descriptor's projected path at the scalar operation. Preserve the same storage and length through its existing exact descriptor access. Keep a sibling descriptor's bound and a non-copy element read refused.
-- Reported: 2026-11-15, Codex, while checking native backing for owned record sequences. Narrowed after replaying whole descriptors and projected length.
 
 ### A layout-query constant lacks target authority at evaluation
 - Category: knowledge crossing a boundary

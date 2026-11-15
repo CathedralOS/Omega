@@ -2697,7 +2697,7 @@ pub(crate) struct LiveDefinitions {
     block_views: BTreeSet<PlaceId>,
     address_joins: BTreeSet<PlaceId>,
     owned_arrivals: BTreeSet<PlaceId>,
-    lengths: BTreeMap<ValueId, PlaceId>,
+    lengths: BTreeMap<ValueId, terminal_psi::StructuralArgument>,
     trivial_affine_locals: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceStorage>,
     retired_reference_roots: BTreeSet<PlaceId>,

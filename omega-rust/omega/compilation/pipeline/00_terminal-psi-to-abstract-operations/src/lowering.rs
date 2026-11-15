@@ -1062,7 +1062,7 @@ mod machine {
                         Ok(AbstractOperation::ElementViewRead {
                             psi_operation: operation.id,
                             result: result.into(),
-                            source: *source,
+                            source: source.clone(),
                             index: *index,
                             length: *length,
                             obligation: *obligation,

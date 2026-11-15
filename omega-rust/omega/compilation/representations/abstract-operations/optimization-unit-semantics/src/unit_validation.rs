@@ -7143,6 +7143,7 @@ pub(crate) mod function_structure {
                     | O::ByteSequenceLength { source, .. }
                     | O::EstablishElementView { source, .. }
                     | O::ElementViewLength { source, .. }
+                    | O::ElementViewRead { source, .. }
                     | O::ElementViewSubslice { source, .. } => {
                         vec![source.place]
                     }
@@ -7158,7 +7159,6 @@ pub(crate) mod function_structure {
                         destination: source,
                         ..
                     }
-                    | O::ElementViewRead { source, .. }
                     | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
                     | O::StructuralScalarFieldRead { source, .. }
                     | O::ReturnStructural { source, .. } => {

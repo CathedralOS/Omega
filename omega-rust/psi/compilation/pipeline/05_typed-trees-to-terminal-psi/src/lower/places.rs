@@ -3303,21 +3303,19 @@ impl<'a> Lowering<'a> {
                     StorageShape::ElementView { .. }
                 )
             {
-                if position != 0 {
-                    return Err(refuse(
-                        self.id,
-                        Construct::Machine,
-                        Unserved::Expression("slice read without a whole descriptor"),
-                    ));
+                let (descriptor, element) = steps.split_at(position);
+                let mut place = self.exact_root(root)?;
+                for step in descriptor {
+                    place = self.step(place, *step)?;
                 }
                 let view = Located {
                     root,
-                    place: self.exact_root(root)?,
-                    path: Vec::new(),
+                    place,
+                    path: descriptor.to_vec(),
                     record: owner,
                     fresh: false,
                 };
-                return self.read_element_view(&view, selector, &steps[1..], scalar_type, source);
+                return self.read_element_view(&view, selector, &element[1..], scalar_type, source);
             }
         }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
@@ -3397,7 +3395,9 @@ impl<'a> Lowering<'a> {
         }
         let (_, _, length) = self.measured_view(at, source)?;
         let operation = self.operation_identity(source);
-        let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
+        let site = ExecutionSite::Operation(operation);
+        let descriptor = self.storage_path(&at.path, site, source)?;
+        let path = self.storage_path(steps, site, source)?;
         let obligation = self.obligation(
             ObligationKind::OperationSafety {
                 site: ExecutionSite::Operation(operation),
@@ -3409,7 +3409,11 @@ impl<'a> Lowering<'a> {
             operation,
             Some(scalar_type),
             OperationKind::ElementViewRead {
-                source: at.root,
+                source: StructuralArgument {
+                    place: at.root,
+                    path: descriptor,
+                    access: StructuralAccess::SharedBorrow,
+                },
                 index,
                 length,
                 obligation,

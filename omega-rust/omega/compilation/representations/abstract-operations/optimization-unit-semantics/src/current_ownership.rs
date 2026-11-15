@@ -1383,12 +1383,13 @@ pub(crate) mod address_joins {
                     path,
                     ..
                 } => {
-                    let mut selected = vec![StructuralPathSegment::RuntimeIndex {
+                    let mut selected = source.path.clone();
+                    selected.push(StructuralPathSegment::RuntimeIndex {
                         index: *index,
                         obligation: *obligation,
-                    }];
+                    });
                     selected.extend_from_slice(path);
-                    retain(*source, projected(*source, &selected, None));
+                    retain(source.place, projected(source.place, &selected, None));
                 }
                 O::ByteSequenceRead {
                     source,
@@ -10103,9 +10104,10 @@ mod value_custody {
                     );
                     self.observing(current, *source, region.direct_path())
                 }
-                O::ElementViewRead { source, .. } | O::ByteSequenceRead { source, .. } => {
-                    self.observing(current, *source, &[])
+                O::ElementViewRead { source, .. } => {
+                    self.observing(current, source.place, &source.path)
                 }
+                O::ByteSequenceRead { source, .. } => self.observing(current, *source, &[]),
                 O::EstablishByteSequenceConcatenation { left, right, .. }
                 | O::ByteSequenceEqual { left, right, .. } => {
                     self.byte_operand(current, left)?;

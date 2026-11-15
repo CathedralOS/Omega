@@ -832,7 +832,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 79 | EstablishElementView | destination place id + source structural argument + element type id + element-view region |
 | 98 | EstablishMutableElementView | destination place id + source structural argument + element type id + element-view region |
 | 80 | retired | rejected; old whole-place element-length payload |
-| 81 | ElementViewRead | source place id + index value id + length value id + obligation id |
+| 81 | ElementViewRead | element descriptor source + index value id + length value id + obligation id |
 | 82 | retired | whole-place ElementViewSubslice payload is rejected |
 | 83 | EstablishStructuralCase | structural case id + counted fields (field id + `u8` operand tag: 1 + value id + optional obligation id; 2 + structural argument) |
 | 84 | StructuralLeafCopy | source place id + structural path |
@@ -841,7 +841,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 89 | PrimitiveScalarRead | source place id + structural path; projected form requires a nonempty path, whose elements may be `RuntimeIndex` |
 | 90 | WriteOnlyPrimitiveStore | destination place id + structural path + value id; projected form requires a nonempty path, whose elements may be `RuntimeIndex` |
 | 91 | TrappingInteger | `u8` primitive (1 add, 2 subtract, 3 multiply, 4 divide, 5 remainder, 6 shift left, 7 shift right, 8 convert; others reject) + its operand value ids: left + right, value + count, or the one conversion operand. No cause, guard, or frontier follows: the operation is its own `Trap` site |
-| 92 | ElementViewRead | source place id + index value id + length value id + obligation id + structural element path; the projected form requires a nonempty static path to a scalar leaf of the element (a record field or literal index; tag 81 spells the pathless read of a scalar element) |
+| 92 | ElementViewRead | element descriptor source + index value id + length value id + obligation id + nonempty static path to a scalar leaf inside the element (record fields and literal indexes) |
 | 93 | AtomicAccess | place id + structural carrier path + field id + `u8` event (1 load + ordering; 2 store + value id + ordering; 3 read-modify-write + `u8` operation (1 add, 2 subtract, 3 and, 4 or, 5 xor) + operand value id + ordering; 4 swap + value id + ordering; 5 compare-exchange + expected value id + replacement value id + success ordering + failure ordering, whose scalar result is the observed resident; 6 single-attempt compare-exchange + the same four fields, whose result is the canonical structural outcome, including Uncommitted, with no scalar observed prior; others reject). Each ordering is a `u8` (1 NoOrdering, 2 Receive, 3 Publish, 4 ReceivePublish, 5 GlobalOrder; others reject). Ordering legality, the static carrier path, field type, and root authority are verification's judgments |
 | 94 | EstablishZeroedStructural | none; the result declaration names the whole type whose every runtime leaf begins zero (recursively all-scalar-leaf records and their fixed arrays) |
 | 95 | EstablishByteSequenceConcatenation | left byte-sequence operand + right byte-sequence operand + capacity obligation id (the sum of the two observed lengths fits the result declaration) |
@@ -879,6 +879,12 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 130 | MergeActivationClaim | lower structural argument + upper structural argument + lower claim id + upper claim id + covered case id + rejected case id |
 | 131 | AtomicAccess | resident obligation id, then tag 93's fields; restricted-resident form |
 | 132 | ReadScalarApplication | scalar application id |
+
+An element descriptor source in tags 81 and 92 is encoded as the existing
+nonzero place ID when selecting a whole descriptor. A zero `u64` introduces
+one structural argument with shared access and a nonempty descriptor
+projection. This source projection is independent of the static path inside
+the element in tag 92.
 
 Catalog ordering events use the existing authority-free `RegisterObservation`
 carrier, with no scalar operands or result. Their `u16` identities are 0x500

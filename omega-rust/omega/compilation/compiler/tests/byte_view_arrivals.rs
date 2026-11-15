@@ -1,10 +1,14 @@
 //! Indexed reads and length observations share the exact stored or reborrowed
-//! byte descriptor after the published program is reopened.
+//! slice descriptor after the published program is reopened.
 
 use std::path::{Path, PathBuf};
-use terminal_codec::CanonicalTerminalArtifact;
+use terminal_codec::{CanonicalTerminalArtifact, ClosedTerminalModule, CodecError};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
+};
+use terminal_psi::{
+    OperationKind, StructuralPathSegment, StructuralTypeShape, TerminalIdentityIndex,
+    TerminalModule,
 };
 use terminal_work::WorkMeter;
 
@@ -63,5 +67,141 @@ fn arrival_index_equal_to_exact_view_length_refuses() {
                 .message
                 .contains("the bounds do not decide the comparison")),
         "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn saved_field_element_read_requires_the_projected_descriptor_and_its_count() {
+    let source = fixtures().join("run/views/typed_slice_field_index/main.omg");
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&source, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            let publication = accepted.closure().publish().unwrap();
+            let bytes = publication.artifact.semantic_bytes();
+            let reopened = ClosedTerminalModule::from_semantic_bytes(bytes).unwrap();
+            assert_eq!(bytes, reopened.semantic_bytes());
+
+            let peer = sibling_descriptor(reopened.module());
+            let mut substituted_descriptor = reopened.module().clone();
+            let OperationKind::ElementViewRead { source, .. } =
+                element_read(&mut substituted_descriptor)
+            else {
+                unreachable!("selected element read");
+            };
+            assert!(matches!(
+                source.path.as_slice(),
+                [StructuralPathSegment::Field(_)]
+            ));
+            source.path[0] = StructuralPathSegment::Field(peer);
+            refuses_wrong_measurement(substituted_descriptor);
+
+            let mut substituted_count = reopened.module().clone();
+            let guard_count = substituted_count
+                .operations()
+                .find(|operation| matches!(operation.kind, OperationKind::ElementViewLength { .. }))
+                .and_then(|operation| operation.result.scalar_ref())
+                .expect("the guard observes the same field before the read")
+                .id;
+            let OperationKind::ElementViewRead { length, .. } =
+                element_read(&mut substituted_count)
+            else {
+                unreachable!("selected element read");
+            };
+            assert_ne!(*length, guard_count);
+            *length = guard_count;
+            refuses_wrong_measurement(substituted_count);
+
+            for fixture in [
+                "typed_slice_field_index_out_of_bounds",
+                "typed_slice_field_index_wrong_descriptor",
+            ] {
+                let source = fixtures().join("fail/views").join(fixture).join("main.omg");
+                let diagnostics = orchestration::check_source(
+                    &mut compiler::CompilationSession::default(),
+                    compiler::CheckedCompileRequest::new(&source, Some("macos_arm64")),
+                )
+                .result
+                .expect_err("the authored guard cannot prove this read's bound")
+                .into_diagnostics();
+                assert!(
+                    diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("cannot prove operation safety in machine `pick`")
+                        && diagnostic
+                            .message
+                            .contains("the bounds do not decide the comparison")),
+                    "{fixture}: {diagnostics:?}",
+                );
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
+fn sibling_descriptor(module: &TerminalModule) -> TerminalIdentityIndex {
+    let (root, observed) = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            let source = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| match &operation.kind {
+                    OperationKind::ElementViewRead { source, .. } => Some(source),
+                    _ => None,
+                })?;
+            let [StructuralPathSegment::Field(observed)] = source.path.as_slice() else {
+                panic!("the element read must use the stored field");
+            };
+            Some((
+                machine.structural_place_type(source.place).unwrap(),
+                *observed,
+            ))
+        })
+        .expect("the guarded access must publish an element read");
+    let StructuralTypeShape::Record { fields, .. } = &module.structural_type(root).unwrap().shape
+    else {
+        panic!("the element view must be stored in a record");
+    };
+    assert_eq!(fields.len(), 2, "the fixture must retain both slice fields");
+    fields
+        .iter()
+        .find(|field| field.identity != observed)
+        .expect("the fixture must retain a different descriptor with the same element type")
+        .identity
+}
+
+fn element_read(module: &mut TerminalModule) -> &mut OperationKind {
+    module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .map(|operation| &mut operation.kind)
+        .find(|operation| matches!(operation, OperationKind::ElementViewRead { .. }))
+        .expect("the guarded access must publish an element read")
+}
+
+fn refuses_wrong_measurement(module: TerminalModule) {
+    let modified = ClosedTerminalModule::new(module).unwrap();
+    let refusal = ClosedTerminalModule::from_semantic_bytes(modified.semantic_bytes()).unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            CodecError::MalformedOperationFoundation {
+                reason: "element-view read length does not measure its exact descriptor",
+                ..
+            }
+        ),
+        "{refusal:?}",
     );
 }

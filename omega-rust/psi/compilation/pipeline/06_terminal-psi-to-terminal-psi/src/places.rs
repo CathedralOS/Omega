@@ -2002,9 +2002,6 @@ impl<'a> Storage<'a> {
                 }
                 | OperationKind::StructuralByteSequenceFieldRead {
                     obligation: owned, ..
-                }
-                | OperationKind::ElementViewRead {
-                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
@@ -2012,6 +2009,12 @@ impl<'a> Storage<'a> {
                             self.foreign(concerns, "a byte operation owns another obligation")
                         );
                     }
+                    return self.collection_index_goal(operation, types);
+                }
+                if matches!(operation.kind, OperationKind::ElementViewRead {
+                    obligation: owned, ..
+                } if owned == obligation)
+                {
                     return self.collection_index_goal(operation, types);
                 }
                 operation.kind.structural_projections()
@@ -2154,34 +2157,36 @@ impl<'a> Storage<'a> {
                 path,
                 ..
             } => {
-                let root = self.root_type(*source, concerns)?;
-                let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
-                    self.declaration(root, concerns)?.shape
+                let root = self.root_type(source.place, concerns)?;
+                let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
+                    terminal_semantics::runtime_structural_path_tip(
+                        self.types.iter(),
+                        root,
+                        &source.path,
+                    )
+                    .map(|declaration| &declaration.shape)
                 else {
                     return Err(self.foreign(concerns, "an element read needs a declared view"));
                 };
                 if operation.result.scalar_ref().is_none_or(|result| {
-                    terminal_semantics::element_view_read_scalar(self.types, element, path)
+                    terminal_semantics::element_view_read_scalar(self.types, *element, path)
                         != Some(result.scalar_type)
                 }) {
                     return Err(
                         self.foreign(concerns, "an element read needs a copyable scalar leaf")
                     );
                 }
-                let source = StructuralArgument::whole(
-                    *source,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                );
-                if terminal_semantics::structural_projection_authority(
-                    self.lowered,
-                    self.types,
-                    &source,
-                )
-                .is_none_or(|access| !access.admits_referent(source.access))
+                if source.access != terminal_psi::StructuralAccess::SharedBorrow
+                    || terminal_semantics::structural_projection_authority(
+                        self.lowered,
+                        self.types,
+                        source,
+                    )
+                    .is_none_or(|access| !access.admits_referent(source.access))
                 {
                     return Err(self.foreign(concerns, "an element read needs a readable view"));
                 }
-                (source, *index, *length)
+                (source.clone(), *index, *length)
             }
             _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
         };
