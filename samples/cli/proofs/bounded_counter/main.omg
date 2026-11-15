@@ -18,13 +18,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
-    main.counter.bound = 100;
+    main.counter.bound = 100 as +Saturating;
 
-    Main::add(main, 40);
-    Main::add(main, 40);
-    Main::add(main, 40);   // 120, saturates to 100
+    add(main, 40 as +Saturating);
+    add(main, 40 as +Saturating);
+    add(main, 40 as +Saturating);   // 120, saturates to 100
 
     transition main.counter.value == 100 {
         true -> block good_msg(main)
@@ -50,14 +50,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine report(main: &mut Main, code: i32) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(code);
     }
 }
 
 // add saturates at the bound; the self-write happens in a dispatched substate
 // reached via a scalar-argument call (probe-confirmed sound).
-machine Main::add(main: &mut Main, amount: i32 in Saturating) {
+machine add(main: &mut Main, amount: i32 in Saturating) {
     let next: i32 in Saturating = main.counter.value + amount;
     transition next > main.counter.bound {
         true -> saturate(main)
@@ -74,5 +74,5 @@ machine Main::add(main: &mut Main, amount: i32 in Saturating) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
