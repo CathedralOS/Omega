@@ -35,6 +35,7 @@ use std::sync::Arc;
 use diagnostics::Diagnostic;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use language_semantics::DomainEstablishmentRoute;
+use language_semantics::reflection::{CallableDescription, SemanticSchemaGraph};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::{
@@ -132,16 +133,17 @@ fn evaluate_domain(
         .ok_or("the selected policy is not a named implementation")?;
     // The `access` clause names an implementation of the toolchain's
     // `AccessPolicy`, whose one requirement is `plan`.
-    if conformance.trait_name.as_str() != "AccessPolicy"
-        || typed.symbols.symbol_source_origin(conformance.trait_symbol)
-            != Some(source::SourceOrigin::Toolchain)
-    {
+    if typed.core_vocabulary(conformance.trait_symbol) != Some(CoreVocabulary::AccessPolicy) {
         return Err("the selected policy does not implement the core `AccessPolicy`".into());
     }
     let [row] = conformance.rows.as_slice() else {
         return Err("the selected policy has no single `plan` requirement".into());
     };
-    let schema = subject_schema(typed, definition, schema_type)?;
+    if typed.core_vocabulary(row.requirement) != Some(CoreVocabulary::AccessPolicyPlan) {
+        return Err("the selected policy does not implement the core `AccessPolicy::plan`".into());
+    }
+    let (schema_graph, schema, revision) = subject_schema(typed, definition, schema_type)?;
+    let expected_selection = policy_identity(typed, domain, &policy.selection)?;
     let entry = prepared.entry_selected(
         domain,
         domain,
@@ -158,7 +160,14 @@ fn evaluate_domain(
     {
         return Err("the plan call lost its policy's source declaration".into());
     }
-    let result = entry.invoke_recorded(
+    let receiver = accepted
+        .declaration_operand_from_expression(entry.call().receiver)
+        .map_err(str::to_owned)?;
+    if policy_identity(accepted, domain, &receiver)? != expected_selection {
+        return Err("the plan call changed its domain's complete selected application".into());
+    }
+    let first_receipt = accounting.receipts().len();
+    entry.invoke_recorded(
         InvocationTarget {
             name: None,
             layout_target: None,
@@ -167,37 +176,44 @@ fn evaluate_domain(
         },
         accounting,
     )?;
-    let plan = result.value();
-    // The schema is its graph bytes; the record's label is not part of it.
-    if field(field(plan, "schema")?, "storage")? != field(&schema, "storage")? {
-        return Err("the plan describes another schema than its domain's subject".into());
+    let [crate::PureEvaluationRecord::Invocation(receipt)] =
+        &accounting.receipts()[first_receipt..]
+    else {
+        return Err("the plan evaluation lost its own invocation receipt".into());
+    };
+    if !std::ptr::eq(receipt.source(), entry.accepted_source())
+        || !std::ptr::eq(receipt.request_source(), entry.source())
+        || receipt.machine() != entry.symbol()
+        || receipt.requester() != domain
+        || receipt.call()? != entry.call()
+        || receipt.arguments() != entry.arguments()
+        || receipt.invocation()?.is_none()
+    {
+        return Err("the plan result belongs to another selected invocation".into());
     }
-    for name in ["field_count", "reader_count", "writer_count"] {
-        if field(plan, name)? != &BuildTimeValue::Int(0) {
+    let normalized =
+        super::access_plan_values::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
+    // Complete data is retained by the common normalizer. Until operation
+    // consumers enforce an axis, recording it as checked would drop a rule.
+    for (name, rows) in [
+        ("field_count", normalized.observations.len()),
+        ("reader_count", normalized.readers.len()),
+        ("writer_count", normalized.writers.len()),
+    ] {
+        if rows != 0 {
             return Err(format!(
                 "no product route yet: an access plan with a nonzero `{name}`"
             ));
         }
     }
-    if field(field(plan, "reach")?, "service_count")? != &BuildTimeValue::Int(0) {
+    if normalized.reach.services().len() != 0 {
         return Err("no product route yet: an access plan that requires boundary reach".into());
     }
-    let issuance = match field(plan, "issuance")? {
-        BuildTimeValue::Case { variant, payload } if variant == "Unrestricted" => {
-            if !payload.is_empty() {
-                return Err("the plan's `Unrestricted` issuance carries a payload".into());
-            }
-            CheckedIssuance::Unrestricted
-        }
-        BuildTimeValue::Case { variant, payload } if variant == "Only" => {
-            let [(name, BuildTimeValue::Array(routes))] = payload.as_slice() else {
-                return Err("the plan's `Only` issuance lost its route list".into());
-            };
-            if name != "routes" {
-                return Err("the plan's `Only` issuance lost its route list".into());
-            }
+    let issuance = match normalized.issuance {
+        None => CheckedIssuance::Unrestricted,
+        Some(routes) => {
             let mut checked = Vec::with_capacity(routes.len());
-            for route in routes {
+            for route in &routes {
                 let route = authenticated_route(descriptions, route)?;
                 if !checked.contains(&route) {
                     checked.push(route);
@@ -205,12 +221,29 @@ fn evaluate_domain(
             }
             CheckedIssuance::Only(checked)
         }
-        _ => return Err("the plan's issuance is neither `Only` nor `Unrestricted`".into()),
     };
     Ok(CheckedDomainAccessPlan {
         plan_machine,
         issuance,
     })
+}
+
+fn policy_identity(
+    typed: &TypedTrees,
+    author: SymbolHandle,
+    selected: &typed_trees::expression::StaticMachineArgument,
+) -> Result<String, String> {
+    let supplier = typed
+        .static_operand_region_supplier(selected, author)
+        .map_err(str::to_owned)?;
+    typed_trees::type_identity::portable_applied_index_identity(
+        typed,
+        typed_trees::type_identity::IndexIdentityArgument::StaticArgument(selected),
+        supplier,
+        &[],
+    )
+    .and_then(|identity| typed.type_identity_text(identity))
+    .ok_or_else(|| "the access policy lost its complete selected application identity".into())
 }
 
 /// The data the core reflection vocabulary names `which`.
@@ -228,7 +261,7 @@ fn subject_schema(
     typed: &TypedTrees,
     definition: &typed_trees::domain::DomainDefinition,
     schema_type: SymbolHandle,
-) -> Result<BuildTimeValue, String> {
+) -> Result<(SemanticSchemaGraph, BuildTimeValue, Vec<u8>), String> {
     use typed_trees::reflection::SchemaQueryAuthority;
     let subject = typed
         .closed_data_definition(definition.target_type)
@@ -247,13 +280,24 @@ fn subject_schema(
         definition.target_type,
         authority,
     )?;
-    Ok(BuildTimeValue::Struct {
-        type_name: typed.symbols.name(schema_type).to_owned(),
+    let revision =
+        typed_trees::reflection::construction::declaration_source_revision(typed, subject.symbol)?;
+    // Ordinary result snapshots use the canonical record identity, not its
+    // short source name. Construct the input with that same identity so the
+    // complete returned value can be compared without discarding its type.
+    let schema_identity = typed
+        .normalized_nominal_type_identity(schema_type)
+        .and_then(|identity| typed.type_identity_text(identity))
+        .filter(|identity| !identity.is_empty())
+        .ok_or("the core TypeSchema has no canonical record identity")?;
+    let schema = BuildTimeValue::Struct {
+        type_name: schema_identity,
         fields: vec![(
             "storage".to_owned(),
             BuildTimeValue::Text(graph.runtime_image()),
         )],
-    })
+    };
+    Ok((graph, schema, revision))
 }
 
 /// One description a `reflect::callable(..)` query of this program returns,
@@ -353,26 +397,10 @@ fn callable_descriptions(typed: &TypedTrees) -> Result<Vec<Description>, String>
 /// it carries.
 fn authenticated_route(
     descriptions: &[Description],
-    route: &BuildTimeValue,
+    route: &CallableDescription,
 ) -> Result<DomainEstablishmentRoute, String> {
-    let BuildTimeValue::Case { variant, payload } = route else {
-        return Err("a plan route is not a `CallableInfo`".into());
-    };
-    let bytes = |name: &str| -> Result<&[u8], String> {
-        let mut matches = payload.iter().filter(|(key, _)| key == name);
-        match (matches.next(), matches.next()) {
-            (Some((_, BuildTimeValue::Text(bytes))), None) => Ok(bytes),
-            _ => Err(format!("a plan route lost its `{name}`")),
-        }
-    };
-    if payload.len() != 3 {
-        return Err("a plan route has another field list".into());
-    }
-    let identities = [
-        bytes("declaration_identity")?,
-        bytes("callable_identity")?,
-        bytes("source_revision")?,
-    ];
+    let variant = if route.0 { "Requirement" } else { "Machine" };
+    let identities = route.1.each_ref().map(Vec::as_slice);
     let mut routes = descriptions
         .iter()
         .filter(|description| {
@@ -391,19 +419,4 @@ fn authenticated_route(
         return Err("a plan route names more than one declaration".into());
     }
     Ok(route)
-}
-
-/// The one field `name` of a returned record.
-fn field<'value>(
-    value: &'value BuildTimeValue,
-    name: &str,
-) -> Result<&'value BuildTimeValue, String> {
-    let BuildTimeValue::Struct { fields, .. } = value else {
-        return Err(format!("the plan has no record holding `{name}`"));
-    };
-    let mut matches = fields.iter().filter(|(key, _)| key == name);
-    match (matches.next(), matches.next()) {
-        (Some((_, value)), None) => Ok(value),
-        _ => Err(format!("the plan has no single `{name}`")),
-    }
 }
