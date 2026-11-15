@@ -1355,6 +1355,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "language-core",
+ "numerics",
  "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",

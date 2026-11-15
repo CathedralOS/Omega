@@ -202,6 +202,13 @@ pub(crate) fn declared_callable_value_type(
                     landing.domain,
                 )
             }),
+            ExpressionNode::Float(literal) => literal.landing().map(|format| {
+                let atom = match format {
+                    numerics::literals::FloatFormat::F32 => symbols::BuiltinTypeAtom::F32,
+                    numerics::literals::FloatFormat::F64 => symbols::BuiltinTypeAtom::F64,
+                };
+                (atom, numerics::arithmetic::ArithmeticDomain::Exact)
+            }),
             ExpressionNode::Boolean(_) => Some((
                 symbols::BuiltinTypeAtom::Bool,
                 numerics::arithmetic::ArithmeticDomain::Exact,
@@ -1070,6 +1077,7 @@ impl DeclaredExpressionTypes {
         }
         match table.expression(expression) {
             ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::Member(_)
