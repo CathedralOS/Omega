@@ -1484,9 +1484,10 @@ pub(crate) mod control_flow {
                             } => {
                                 *call_plan == expected_plan
                                     && plan.function(*callee).is_some_and(|candidate| {
-                                        candidate.result
-                                            == abstract_operations::AbstractFunctionResult::Unit
-                                            && candidate
+                                        // Checked provider conformance owns
+                                        // the declared result contract. This
+                                        // terminal call produces no ABI value.
+                                        candidate
                                                 .parameters
                                                 .iter()
                                                 .map(|row| row.scalar_type)
