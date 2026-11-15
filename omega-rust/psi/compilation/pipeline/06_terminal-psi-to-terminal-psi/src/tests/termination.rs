@@ -430,3 +430,57 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
         "contract termination promise over an unranked cycle"
     );
 }
+
+#[test]
+fn a_ranked_formal_keeps_its_selected_field_type_bounds() {
+    // Each iteration reads a different field occurrence. The declaration
+    // bounds its alignment, without equating the contents of either element.
+    const SOURCE: &str = r#"
+data Field requires align >= 1, align <= 16 {
+    align: u64;
+    other: u64;
+}
+data Schema { fields: [Field; 2]; }
+data Plan { align: u64; }
+
+machine bounded(align: u64) -> u64
+requires align >= 1 && align <= 16 { align }
+
+machine first(schema: Schema, plan: Plan, index: u64, remaining: u64) -> Plan
+requires index < 2 && remaining >= 1 && remaining <= 3
+terminates by remaining {
+    transition remaining > 1 {
+        true -> later(schema, plan, index, remaining - 1)
+        false -> plan
+    }
+    machine later(schema: Schema, mut plan: Plan, index: u64, remaining: u64) -> Plan
+    requires index < 2 && remaining >= 1 && remaining <= 2
+    terminates by remaining {
+        plan.align = bounded(schema.fields[index].align);
+        transition index < 1 {
+            true -> first(schema, plan, index + 1, remaining)
+            false -> plan
+        }
+    }
+}
+"#;
+
+    accepted(SOURCE);
+    accepted(&SOURCE.replace("schema.fields[index]", "schema.fields[0]"));
+
+    // The same read of an unconstrained sibling must not gain the bound.
+    let sibling = SOURCE.replace(
+        "bounded(schema.fields[index].align)",
+        "bounded(schema.fields[index].other)",
+    );
+    let obligations = unproved(&sibling);
+    assert!(
+        obligations.iter().any(
+            |row| matches!(row.kind, ObligationKind::CallRequirement { .. })
+                && row
+                    .statement
+                    .contains("cannot prove requires contract for call bounded")
+        ),
+        "{obligations:?}"
+    );
+}
