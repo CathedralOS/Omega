@@ -1,6 +1,7 @@
 {
   "role": "intended-invalid",
   "rejection_contains": [
-    "cannot prove requires contract for call lookup_symbol from Main::main: 90 in u8::HuffmanSymbol"
+    "cannot prove the value of this cast is in the domain it adds in machine `main`",
+    "domain `u8::HuffmanSymbol` requires `self == 65 || self == 66 || self == 67 || self == 68 || self == 82`"
   ]
 }
