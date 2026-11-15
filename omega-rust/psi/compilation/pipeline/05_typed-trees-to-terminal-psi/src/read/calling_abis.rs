@@ -569,10 +569,24 @@ mod descriptor_storage_tests {
                 access: language_core::ReferenceAccess::Shared,
                 lifetime: None,
             });
-        let nested = typed
+        let constrained_nested = typed
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
                 referee: borrowed,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let stored_reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: record,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let nested = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: stored_reference,
                 access: language_core::ReferenceAccess::Shared,
                 lifetime: None,
             });
@@ -590,6 +604,14 @@ mod descriptor_storage_tests {
         }
         let scalar = program.calling_abi_parameter(entry, address).unwrap();
         assert_eq!(scalar.callback_backing, Some(scalar.structural_type));
+        // Only the ordinary outer loan shell is removed. A stored inner
+        // reference still owes its own referent's domain declaration.
+        assert_eq!(
+            program
+                .calling_abi_parameter(entry, constrained_nested)
+                .unwrap_err(),
+            "type constrained by a domain with no declaration",
+        );
         let descriptor = program.calling_abi_parameter(entry, nested).unwrap();
         assert_eq!(
             descriptor.callback_backing,
