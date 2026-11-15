@@ -2169,8 +2169,11 @@ pub(crate) mod reference_origins {
                     // A result known only within a declared input region,
                     // such as a selected or rigid requirement call's, keeps
                     // that whole region (lifetimes.md, "Returned views").
-                    // Unresolved indirection or a runtime window has no
-                    // static region to publish.
+                    // A result whose runtime element selector was stripped
+                    // keeps the exact storage after that element, with the
+                    // selector as `Element`, so the published origin names
+                    // only what the result can reach. Unresolved indirection or a
+                    // live runtime window has no static region to publish.
                     let extent = match origin {
                         DescriptorStoredOrigin::Parameter { projection, .. }
                         | DescriptorStoredOrigin::IncomingContents { projection, .. }
@@ -2182,7 +2185,7 @@ pub(crate) mod reference_origins {
                         }
                         DescriptorStoredOrigin::Parameter { projection, .. }
                         | DescriptorStoredOrigin::IncomingContents { projection, .. }
-                            if !projection.exact =>
+                            if !projection.exact && projection.stripped_origin_path().is_none() =>
                         {
                             ReferenceOriginExtent::WithinRegion
                         }
@@ -2202,12 +2205,13 @@ pub(crate) mod reference_origins {
                     if path.iter().any(|step| {
                         !matches!(
                             step,
-                            ReferenceOriginProjection::Exact(
-                                StructuralPathSegment::Field(_)
-                                    | StructuralPathSegment::Case(_)
-                                    | StructuralPathSegment::FixedIndex(_)
-                                    | StructuralPathSegment::Referent
-                            )
+                            ReferenceOriginProjection::Element
+                                | ReferenceOriginProjection::Exact(
+                                    StructuralPathSegment::Field(_)
+                                        | StructuralPathSegment::Case(_)
+                                        | StructuralPathSegment::FixedIndex(_)
+                                        | StructuralPathSegment::Referent
+                                )
                         )
                     }) {
                         return Err("reference result needs a static captured input path");
@@ -2254,13 +2258,16 @@ pub(crate) mod reference_origins {
                         );
                     }
                     // Check the whole path's access, not only its endpoint.
-                    // A mutable result cannot cross a shared ancestor.
+                    // A mutable result cannot cross a shared ancestor. Every
+                    // element of one array has the same access, so the first
+                    // element stands for an unknown one; an empty array has
+                    // no element and fails closed.
                     let exact = path
                         .iter()
                         .map(|step| match step {
                             ReferenceOriginProjection::Exact(segment) => segment.clone(),
                             ReferenceOriginProjection::Element => {
-                                unreachable!("checked static above")
+                                StructuralPathSegment::FixedIndex(0)
                             }
                         })
                         .collect::<Vec<_>>();
@@ -2356,6 +2363,10 @@ pub(crate) mod reference_origins {
         ) -> Result<(), &'static str> {
             if projection.indirect {
                 return Err("dynamic returned view has unresolved indirect backing");
+            }
+            if let Some(stripped) = projection.stripped_origin_path() {
+                path.extend(stripped);
+                return Ok(());
             }
             for segment in &projection.path {
                 match segment {
