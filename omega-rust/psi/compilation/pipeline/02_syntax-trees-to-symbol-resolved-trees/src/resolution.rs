@@ -2613,7 +2613,6 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     body_completion::complete_initializer_receipt_dependencies(lowerer, syntax)?;
-    crate::symbols::reject_unqualified_case_values(&lowerer.symbol_resolved_trees)?;
     resolve_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
     constant::finalize(lowerer)?;
     selection::finalize_authored_selections(lowerer)?;

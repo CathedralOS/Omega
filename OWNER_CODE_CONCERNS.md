@@ -122,13 +122,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Code cannot use the result guarantee to index the same existing shared window after an ordinary call. Keep the unchanged actual observation attached to the shared parameter in the ordinary completion mechanism.
 - Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
 
-### An unimported case can turn a deferred name error into a resolver failure
-- Category: knowledge crossing a boundary
-- Where: [global bare case scan](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_expressions.rs#L47)
-- Saw: At `d75251ea39f` the source forest for `machine main() {} machine unused() -> u64 { Missing }` reaches typing and records `UndeclaredValueName` on `unused`. Add an unimported dependency containing `public data Choice { case Missing; }` and resolution of the same client instead fails immediately with `case value Missing requires its carrier-qualified Type::Missing path` (the diagnostic quotes both names).
-- Cost: Whether an unused declaration stops resolution depends on an inaccessible case spelling. Classify the exact authored occurrence through ordinary scoped lookup and preserve the deferred violation on its holder.
-- Reported: 2026-11-14, Codex, while tracing scoped unbound-name verdicts on macOS arm64
-
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
