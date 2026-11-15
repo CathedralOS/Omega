@@ -466,6 +466,10 @@ machine served() { }
             && error[0].message.contains("computed extent"),
         "{error:?}"
     );
+    assert_eq!(
+        crate::PreCheckEvaluation::require_recorded_requests(&typed).unwrap_err(),
+        error
+    );
     // Once the request is recorded on its declaration the program goes on,
     // and only that declaration is refused.
     crate::PreCheckEvaluation::defer_declared_requests(&mut typed).unwrap();
@@ -477,6 +481,7 @@ machine served() { }
             .collect::<Vec<_>>(),
         [(holder, DeferredRequest::ArrayExtentEvaluation)]
     );
+    crate::PreCheckEvaluation::require_recorded_requests(&typed).unwrap();
     assert!(pending.activate_sources(&typed).is_ok());
 
     // Layout evaluation must leave a different unserved request in place.
