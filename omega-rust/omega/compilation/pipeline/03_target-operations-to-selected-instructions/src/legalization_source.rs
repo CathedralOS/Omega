@@ -1388,55 +1388,76 @@ pub(crate) mod scalar_graph {
                 )
             }
 
-            pub(crate) fn project_byte_sequence_write(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+            /// Checked byte reads and writes carry their scalar operands and
+            /// bounds keys in target lowering. Source and backing
+            /// correspondence is checked by the independent audit.
+            pub(crate) fn project_byte_access(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ByteSequenceWrite {
-                    psi_operation,
-                    destination,
-                    index,
-                    value,
-                    length,
-                    obligation,
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_byte_sequence_write")
+                use target_operations::{
+                    TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
                 };
-                Ok(LegalizedScalarInstructionKind::ByteSequenceWrite {
-                    destination: *destination,
-                    index: *index,
-                    value: *value,
-                    length: *length,
-                    obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
-                })
-            }
 
-            pub(crate) fn project_byte_sequence_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ByteSequenceRead {
-                    psi_operation,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                    ..
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_byte_sequence_read")
+                let accepted = |obligation| {
+                    crate::legalization::obligations::retained_fact(
+                        facts, machine, operation, obligation,
+                    )
                 };
-                Ok(LegalizedScalarInstructionKind::ByteSequenceRead {
-                    source: *source,
-                    index: *index,
-                    length: *length,
-                    obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
-                })
+                match targeted {
+                    TargetUnitOperation::ScalarDefinition {
+                        result_home,
+                        expression:
+                            TargetScalarExpression::Integer {
+                                scalar_type,
+                                expression:
+                                    TargetIntegerExpression::ByteSequenceRead {
+                                        psi_operation,
+                                        source_value,
+                                        source,
+                                        index,
+                                        length,
+                                        obligation,
+                                        ..
+                                    },
+                            },
+                    } if *psi_operation == operation
+                        && result_home.defining_operation == operation
+                        && result_home.source_value == *source_value
+                        && result_home.scalar_type == ScalarType::Integer(*scalar_type)
+                        && scalar_type.sign() == IntegerSign::Unsigned
+                        && scalar_type.bits() == Some(8) =>
+                    {
+                        Ok(LegalizedScalarInstructionKind::ByteSequenceRead {
+                            source: *source,
+                            index: index.operand_value().ok_or(Error::custody())?,
+                            length: *length,
+                            obligation: *obligation,
+                            accepted_fact: accepted(*obligation)?,
+                        })
+                    }
+                    TargetUnitOperation::ByteSequenceWrite {
+                        psi_operation,
+                        destination,
+                        index,
+                        value,
+                        length,
+                        obligation,
+                        ..
+                    } if *psi_operation == operation => {
+                        Ok(LegalizedScalarInstructionKind::ByteSequenceWrite {
+                            destination: *destination,
+                            index: index.source_value(),
+                            value: value.source_value(),
+                            length: *length,
+                            obligation: *obligation,
+                            accepted_fact: accepted(*obligation)?,
+                        })
+                    }
+                    _ => Err(Error::custody()),
+                }
             }
 
             pub(crate) fn project_element_view_write(
@@ -1956,6 +1977,20 @@ pub(crate) mod scalar_graph {
                     optimized.machine,
                     &unit.accepted_obligation_facts,
                     targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::ByteSequenceWrite { .. }
+                    | target_operations::TargetUnitOperation::ScalarDefinition {
+                        expression: target_operations::TargetScalarExpression::Integer {
+                            expression: target_operations::TargetIntegerExpression::ByteSequenceRead { .. },
+                            ..
+                        },
+                        ..
+                    }
+            ) {
+                storage_instructions::project_byte_access(
+                    optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
                 )?
             } else if matches!(
                 targeted,
@@ -2662,12 +2697,6 @@ pub(crate) mod scalar_graph {
                         storage_instructions::project_structural_byte_sequence_field_store(
                             node, optimized, unit, targeted,
                         )?
-                    }
-                    AbstractOperation::ByteSequenceWrite { .. } => {
-                        storage_instructions::project_byte_sequence_write(node, optimized, unit)?
-                    }
-                    AbstractOperation::ByteSequenceRead { .. } => {
-                        storage_instructions::project_byte_sequence_read(node, optimized, unit)?
                     }
                     AbstractOperation::ByteSequencePredicate {
                         operand, predicate, ..

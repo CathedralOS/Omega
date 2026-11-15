@@ -1396,6 +1396,218 @@ fn retained_sequence_lengths_project_with_only_their_rows_and_facts() {
 }
 
 #[test]
+fn retained_direct_byte_access_projects_and_audits_exact_operands() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_byte_access;
+    use legalized_operations::LegalizedScalarInstructionKind as Kind;
+    use semantic_vocabulary::ObligationId;
+    use target_operations::{TargetByteView, TargetIntegerExpression as Expression};
+    use target_operations::{TargetScalarExpression, TargetUnitScalarHomeRequirement};
+
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut bytes = reference_type(1, names.intern("Bytes"), ty(1));
+    bytes.shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::MutableBorrow),
+        });
+    let mut receiver = parameter(ty(1));
+    receiver.access = StructuralAccess::MutableBorrow;
+    let place = receiver.place;
+    let bound = ObligationId::new(1).unwrap();
+    let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let result = AbstractResult {
+        value: val(3),
+        scalar_type: ScalarType::Integer(byte),
+    };
+    let read = AbstractOperation::ByteSequenceRead {
+        psi_operation: op(3),
+        result,
+        source: place,
+        index: val(1),
+        length: val(2),
+        obligation: bound,
+    };
+    let write = AbstractOperation::ByteSequenceWrite {
+        psi_operation: op(4),
+        destination: place,
+        index: val(1),
+        value: result.value,
+        length: val(2),
+        obligation: bound,
+    };
+    let function = function_with_body(
+        vec![receiver],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: op(1),
+                    result: val(1),
+                    scalar_type: ScalarType::Integer(u64_type()),
+                    value: IntegerValue::Unsigned(1),
+                },
+                AbstractOperation::ByteSequenceLength {
+                    psi_operation: op(2),
+                    result: AbstractResult {
+                        value: val(2),
+                        scalar_type: ScalarType::Integer(u64_type()),
+                    },
+                    source: terminal_psi::StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                },
+                read.clone(),
+                write.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![bytes], function);
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let parameter = &target.functions[0].graph.parameters[0];
+    let view = TargetByteView::Parameter {
+        place,
+        placement: parameter.placement.clone(),
+    };
+    let home = TargetUnitScalarHomeRequirement {
+        defining_operation: op(3),
+        source_value: result.value,
+        scalar_type: result.scalar_type,
+        shape: calling_conventions::ValueShape::integer(1, 1),
+    };
+    let read_row = |index, length| TargetUnitOperation::ScalarDefinition {
+        result_home: home,
+        expression: TargetScalarExpression::Integer {
+            scalar_type: byte,
+            expression: Expression::ByteSequenceRead {
+                psi_operation: op(3),
+                source_value: result.value,
+                source: place,
+                view: Box::new(view.clone()),
+                index: Box::new(index),
+                length,
+                obligation: bound,
+            },
+        },
+    };
+    let store_index = TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(1),
+        source_value: val(1),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(1),
+    };
+    let write_row = |view, value| TargetUnitOperation::ByteSequenceWrite {
+        psi_operation: op(4),
+        destination: place,
+        view,
+        index: store_index,
+        value,
+        length: val(2),
+        obligation: bound,
+    };
+    let read_index = Expression::Immediate {
+        source_value: val(1),
+        value: IntegerValue::Unsigned(1),
+    };
+    let retained_read = read_row(read_index.clone(), val(2));
+    let retained_write = write_row(view.clone(), TargetUnitScalarArgumentSource::Home(home));
+
+    let facts = [op(3), op(4)].map(|operation| {
+        optimization_unit::AcceptedObligationFact::new(
+            plan.psi,
+            [7; 32],
+            machine(),
+            optimization_unit::PsiProvenance::Operation(operation),
+            bound,
+            vec![2],
+        )
+    });
+    assert_eq!(
+        project_byte_access(machine(), &facts, op(3), &retained_read).unwrap(),
+        Kind::ByteSequenceRead {
+            source: place,
+            index: val(1),
+            length: val(2),
+            obligation: bound,
+            accepted_fact: facts[0].identity,
+        }
+    );
+    assert_eq!(
+        project_byte_access(machine(), &facts, op(4), &retained_write).unwrap(),
+        Kind::ByteSequenceWrite {
+            destination: place,
+            index: val(1),
+            value: result.value,
+            length: val(2),
+            obligation: bound,
+            accepted_fact: facts[1].identity,
+        }
+    );
+    assert!(project_byte_access(machine(), &facts[1..], op(3), &retained_read).is_err());
+    assert!(project_byte_access(machine(), &facts[..1], op(4), &retained_write).is_err());
+    assert!(project_byte_access(machine(), &facts, op(3), &retained_write).is_err());
+
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let sources = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation, operation: &AbstractOperation| {
+        let mut available = sources.available(block_id(1));
+        available.push((val(1), store_index));
+        if matches!(operation, AbstractOperation::ByteSequenceWrite { .. }) {
+            available.push((result.value, TargetUnitScalarArgumentSource::Home(home)));
+        }
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&retained_read, &read).expect("exact read");
+    audit(&retained_write, &write).expect("exact write");
+    assert!(audit(&read_row(read_index.clone(), val(1)), &read).is_err());
+    let forged_index = Expression::Immediate {
+        source_value: val(1),
+        value: IntegerValue::Unsigned(0),
+    };
+    assert!(audit(&read_row(forged_index, val(2)), &read).is_err());
+    let forged_value = TargetUnitScalarArgumentSource::Home(TargetUnitScalarHomeRequirement {
+        defining_operation: op(2),
+        ..home
+    });
+    assert!(audit(&write_row(view, forged_value), &write).is_err());
+    let forged_backing = TargetByteView::Parameter {
+        place: self::place(2),
+        placement: parameter.placement.clone(),
+    };
+    assert!(
+        audit(
+            &write_row(forged_backing, TargetUnitScalarArgumentSource::Home(home)),
+            &write
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
     use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_structural_byte_sequence_field_read;
     use legalized_operations::LegalizedScalarInstructionKind;
