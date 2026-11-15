@@ -921,13 +921,19 @@ impl<'a> Prover<'a> {
             Proposition::LessThan(right.clone(), left.clone())
         };
         let opposite = self.prove_direct(&opposite).ok()?;
-        let false_relation = if left.integer_value().is_some() {
-            chain(local, opposite).ok()?
+        let (false_relation, endpoint) = if left.integer_value().is_some() {
+            (chain(local, opposite).ok()?, left)
         } else if right.integer_value().is_some() {
-            chain(opposite, local).ok()?
+            (chain(opposite, local).ok()?, right)
         } else {
             return None;
         };
+        // Denotation decides literal relations, so retain checked steps from
+        // a closed expression to its literal value at both endpoints.
+        let (_, false_relation) =
+            self.literal_endpoint(false_relation, &endpoint, Direction::Upper)?;
+        let (_, false_relation) =
+            self.literal_endpoint(false_relation, &endpoint, Direction::Lower)?;
         Some(ex_falso(false_relation, goal))
     }
 
