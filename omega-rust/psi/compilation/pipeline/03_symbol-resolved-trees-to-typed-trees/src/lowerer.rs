@@ -1754,6 +1754,7 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
+        cohort.typed_type_references,
         &cast_destinations,
     )?;
     // A projected assignment can acquire its receiving type only after a

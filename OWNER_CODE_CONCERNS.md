@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### An affine-view refusal hides the source sequence bounds test
+- Category: tests that pin the bug
+- Where: [literal index witness](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L36), [exact diagnostic assertion](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L207)
+- Saw: The isolated test fails on clean `1b4247dd558` and the computed-extent candidate with “affine element views” on `forbidden_index(value: [Item])`. The expected refusal is the missing live length and bounds fact for `value[0].number`. The test reaches the earlier wrong-element-identity check.
+- Cost: The final negative never reaches the operation-safety judgment. Determine how an exact checked view can observe the same scalar field through the original owned sequence before restoring the bound oracle.
+- Reported: 2026-11-15, Codex, while validating checked type computations.
+
 ### Package review refuses a local provider for an imported service
 - Category: knowledge crossing a boundary
 - Where: [selected service ownership check](omega-rust/omega/packages/review-evidence/src/capture/providers.rs), [restored consumer Build](tests/fixtures/pass/effects/inferred_imported_reach/consumer/build.omg#L4)
@@ -101,12 +108,12 @@ framework or a list of unimplemented features.
 - Cost: The direct check cannot prove exact delegated `MotorControl` custody, idempotence, or the absence of untaken and dependency registrations. Migrate the import and use disjoint source roots for the same two packages. Reconnect the ordinary-trait denial while retaining those exact assertions.
 - Reported: 2026-11-15, Codex, while replaying the kept audit controls.
 
-### A computed array extent blocks a layout constant before target evaluation
+### A target-computed array extent lacks its selected provider during evaluation
 - Category: knowledge crossing a boundary
-- Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [deferred type references](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L158), [checked const arguments](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs#L216)
-- Saw: On `87ab66c1c09` with only the authored `build.omg` and `main.omg`, macOS arm64 and Linux x86-64 refuse `OBSERVED_SIZE` at `Main` on line 8, column 6 with “type written as an expression, which no pass evaluates yet”. The unchanged local and invalid-local pair reaches the same refusal. A scratch-only pure `limit() { 8 }` still refuses; substituting a literal extent reaches the next size-query proof instead.
-- Cost: The checked argument preparer does not settle a demanded array's computed extent, even before the historical target closure needs to carry the selected provider. Serve that extent through the existing checked computation and keep the original bound and invalid twin. The [target fold and snapshot concern](#a-fixed-layout-record-constant-loses-its-target-selection) tracks the later publication needs.
-- Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory.
+- Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [closed computation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs), [invocation admission](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs)
+- Saw: A direct array field whose length calls a target-independent helper runs in native and Psi and reopens. On `f8e3039998f`, the unchanged target-layout sample advances to `limit()` at line 8, column 26 and refuses with “source invocation requires selected target, scalar or external authority that is not supplied”. Its Build selects different `Answer` implementations for Linux and macOS.
+- Cost: The early checked computation has no selected provider. Carry the symbolic extent into the existing checked scalar application and target-closure path so the request retains its exact selected realization, result and proof. Keep the original layout query, bound and invalid twin.
+- Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory. Narrowed after the target-independent field extent ran and reopened.
 
 ### A runtime-indexed byte-view replacement loses descriptor flow at its call
 - Category: branch per shape

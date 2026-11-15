@@ -8,6 +8,7 @@ pub(crate) fn prepare(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
     program: &mut TypedTrees,
     frontier: usize,
+    type_frontier: usize,
     cast_destinations: &[typed_trees::types::TypeReferenceHandle],
 ) -> Result<(), diagnostics::Diagnostic> {
     enum Meaning {
@@ -24,8 +25,23 @@ pub(crate) fn prepare(
             .into_iter()
             .map(|(handle, binary)| (handle, Meaning::Operator(binary))),
     );
+    let mut type_values = program
+        .type_reference_table
+        .type_reference_rows_from(type_frontier)
+        .filter_map(|(_, node)| match node {
+            typed_trees::types::TypeReferenceNode::ConstExpression(expression)
+                if program.expression_table.expression_is_valid(*expression)
+                    && expression.arena_index() as usize > frontier =>
+            {
+                Some(*expression)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    type_values.sort_unstable_by_key(|expression| expression.arena_index());
+    type_values.dedup();
     let has_memberships = crate::contracts::proof_facts::has_pending_memberships(program);
-    if sites.is_empty() && !has_memberships {
+    if sites.is_empty() && type_values.is_empty() && !has_memberships {
         return Ok(());
     }
     // Typing allocates operands before their consumers. A simultaneous cast
@@ -41,6 +57,20 @@ pub(crate) fn prepare(
             Meaning::Operator(binary) => {
                 crate::operator_calls::prepare_site(program, &owners, &mut types, handle, binary)?
             }
+        }
+    }
+    // Evaluation runs these expressions later. Give it the type selection
+    // already known at this source occurrence.
+    for expression in type_values {
+        let mut carriers = owners
+            .expression_owners(expression)
+            .map(|owner| types.get(program, owner, expression));
+        if let Some(Some(carrier)) = carriers.next()
+            && carriers.all(|other| other == Some(carrier))
+        {
+            program
+                .expression_table
+                .set_constructed_value_type_reference(expression, carrier);
         }
     }
     crate::contracts::proof_facts::normalize_membership_selections(program, &owners)?;
