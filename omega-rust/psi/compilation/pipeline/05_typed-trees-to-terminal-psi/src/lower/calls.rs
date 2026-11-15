@@ -965,8 +965,9 @@ impl Lowering<'_> {
         let value = match result {
             Some(ValueType::Scalar(scalar, _)) => self.emit(operation, Some(scalar), kind)?,
             None => self.emit(operation, None, kind)?,
-            Some(value_type @ ValueType::Record(record, _, _)) => {
-                let (root, exact) = self.produce(operation, record, kind)?;
+            Some(value_type @ ValueType::Record(record, qualification, _)) => {
+                let (root, exact) =
+                    self.produce_qualified(operation, record, qualification, kind)?;
                 self.unknown_contents(exact, operation)?;
                 self.name_contents(exact, value_type)?;
                 Value::Record(root)

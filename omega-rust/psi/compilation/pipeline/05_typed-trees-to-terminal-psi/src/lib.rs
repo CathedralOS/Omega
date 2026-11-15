@@ -985,6 +985,11 @@ fn lower_generic_for<'source>(
     }
     module.identities = qualifications.identities.build();
     module.scalar_qualifications = qualifications.catalog;
+    module.structural_domains = qualifications.structural;
+    qualifications
+        .structural_changes
+        .sort_unstable_by_key(|change| (change.machine, change.edge, change.argument_ordinal));
+    module.structural_qualification_changes = qualifications.structural_changes;
     let mut domains = IdTable::default();
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());

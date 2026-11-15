@@ -373,6 +373,24 @@ pub mod types {
             pub route: u32,
         }
 
+        /// `value as +D` or `value as -D` on a structural value: the one
+        /// successor argument, at `argument_ordinal` of `edge`, whose fresh
+        /// destination parameter carries a different whole-value domain set
+        /// than its source place. The change strictly adds or strictly erases
+        /// whole-value memberships; projected memberships pass unchanged.
+        /// Each added domain with issuer routes names the route the enclosing
+        /// callable establishes it by; erasure and route-free additions carry
+        /// none. An ordinary transfer never implies a change.
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct StructuralQualificationChange {
+            pub machine: semantic_vocabulary::MachineId,
+            pub edge: semantic_vocabulary::EdgeId,
+            pub argument_ordinal: u32,
+            pub source: semantic_vocabulary::PlaceId,
+            pub destination: semantic_vocabulary::PlaceId,
+            pub establishments: Vec<ResultQualificationEstablishment>,
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralContentProjection {
             pub identity: ContentProjectionIdentity,
@@ -1579,6 +1597,7 @@ pub mod types {
     pub use qualifications::{
         ResultQualificationEstablishment, StructuralContentProjection, StructuralDomainDeclaration,
         StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralPathQualification,
+        StructuralQualificationChange,
     };
     pub use scalar_qualifications::{
         ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,

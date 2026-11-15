@@ -1429,13 +1429,16 @@ pub(crate) fn callee(
             // A boundary that may suspend is judged with every other
             // possibly suspending call, by its crossing
             // (`operational::judge`, which every discharge runs first).
+            // A formal's own domains are its type: the structural
+            // qualification judgment holds each argument to exactly them, as
+            // for any call. What a provider must additionally prove, or may
+            // mint, is not yet judged.
             if !declaration.requires.is_empty()
                 || !declaration.normal_qualifications.is_empty()
-                || declaration.structural_parameters.iter().any(|formal| {
-                    !formal.qualifications.is_empty()
-                        || !formal.projected_qualifications.is_empty()
-                        || !formal.additional_input_qualifications.is_empty()
-                })
+                || declaration
+                    .structural_parameters
+                    .iter()
+                    .any(|formal| !formal.additional_input_qualifications.is_empty())
             {
                 return Err(unavailable(
                     "boundary call needs its structural qualification proof",

@@ -74,6 +74,7 @@ mod scalar_joins;
 mod sequence_regions;
 mod stored_references;
 mod stored_views;
+mod structural_domains;
 mod successor_loans;
 mod termination;
 mod type_parameters;

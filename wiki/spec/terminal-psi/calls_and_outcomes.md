@@ -91,6 +91,36 @@ the ordinary edge transports the payload. Host scalar arguments alone do not
 establish a qualified entry contract.
 An interpreter must reject qualified host inputs without the required evidence.
 
+### Structural qualifications
+
+A structural root declares its type's whole-value domains and, as projected
+qualifications, the domains every field beneath it declares (a field's domains
+are part of its owner's default domain). A place beneath a root has the
+memberships its root declares at that path. Call arguments and formals, call
+results and callee results, successor arguments and block parameters, normal
+returns, copies and moves, field initializers and stores each deliver exactly
+the destination's memberships; a matching structural type alone does not.
+
+`value as +D` and `value as -D` on a structural value are the only changes. Each
+is a successor edge into a fresh block parameter, named by one structural
+qualification change row ([encoding](encoding.md)). A change strictly adds or
+strictly erases whole-value domains and keeps every projected membership. An
+added domain with issuer routes names the route the enclosing callable issues it
+by, matched against that callable's checked declaration exactly as a scalar
+issuer is; a domain with predicates has no structural cast form and is refused.
+A domain governed by an access policy is carried with an empty issuer set: its
+values pass whole and nothing in the program establishes it. Zero
+provisioning may hold only domains without predicates, routes or prerequisites.
+A reference holds its referent's field memberships beneath `Referent`; its type
+cannot name domains of the whole referent, so a reference to a value in a domain
+has no form and is refused. A boundary formal's memberships are judged like any
+formal's; a host presenting a value it alone issues (the Build an evaluator
+lends) presents the memberships the receiving formal declares. A qualified
+boundary result is refused. No other operation produces a
+qualified structural value. The lowered checker
+and artifact ingress share this one judgment; membership adds no runtime tag,
+storage or operation.
+
 ### Primitive array construction
 
 `EstablishScalarArray { elements }` establishes one complete owned structural
