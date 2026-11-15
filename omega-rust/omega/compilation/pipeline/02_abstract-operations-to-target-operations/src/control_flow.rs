@@ -1176,20 +1176,24 @@ mod terminator {
         place: PlaceId,
     ) -> Option<StructuralMultiplicity> {
         let (structural_type, multiplicity) = if live.views.contains_key(&place) {
-            let result = live.view_result(function, place)?;
+            let (structural_type, multiplicity, result) = live
+                .element_view_backings()
+                .view_declaration(function, place)
+                .ok()?;
             if !matches!(
-                result.multiplicity,
+                multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || !result.claims.is_empty()
-                || !terminal_semantics::view_descriptor_projected_qualifications(
-                    types.values().copied(),
-                    result.structural_type,
-                    &result.projected_qualifications,
-                )
-            {
+            ) || result.is_some_and(|result| {
+                !result.claims.is_empty()
+                    || !terminal_semantics::view_descriptor_projected_qualifications(
+                        types.values().copied(),
+                        structural_type,
+                        &result.projected_qualifications,
+                    )
+            }) {
                 return None;
             }
-            (result.structural_type, result.multiplicity)
+            (structural_type, multiplicity)
         } else {
             if !live.block_views.contains(&place) {
                 return None;
