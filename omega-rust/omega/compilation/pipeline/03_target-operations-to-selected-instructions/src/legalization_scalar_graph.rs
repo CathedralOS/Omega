@@ -3672,6 +3672,7 @@ pub(crate) mod interrupt_installation {
             arguments,
             calls,
             result_home,
+            ..
         } = target
         else {
             return Err(LegalizationError::custody());
