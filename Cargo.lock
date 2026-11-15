@@ -1638,7 +1638,6 @@ dependencies = [
  "build-time-evaluation",
  "build-time-values",
  "calling-conventions",
- "component-description",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -2433,6 +2432,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-terminal-psi",
+ "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-terminal-psi",
@@ -2559,12 +2559,14 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "extents",
+ "language-core",
  "language-semantics",
  "layout-plans",
  "numerics",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
+ "source",
  "terminal-psi",
 ]
 

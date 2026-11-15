@@ -64,6 +64,8 @@ pub enum SealedIntrinsic {
     HostedByteRead,
     /// A hosted console or process-exit requirement in bundled source.
     HostedRequirement(HostedOperation),
+    /// An exact compiler-owned primitive, separate from ordinary provider bodies.
+    HostedPrimitive(HostedOperation),
     /// A target's bundled realization of a hosted requirement.
     HostedRealization {
         operation: HostedOperation,
@@ -195,6 +197,7 @@ const CORE_FLOAT_OPERATIONS: &[u8] = bundled!("core/float_operations.omg");
 const CORE_EXTENT: &[u8] = bundled!("core/extent.omg");
 const CORE_PROGRAM_IMAGE: &[u8] = bundled!("core/program_image.omg");
 const CORE_PROCESS_EXIT: &[u8] = bundled!("core/process_exit.omg");
+const CORE_PROCESS_EXIT_NATIVE: &[u8] = bundled!("core/process_exit_native.omg");
 const STD_CONSOLE: &[u8] = bundled!("std/console.omg");
 
 const fn row(
@@ -212,9 +215,9 @@ const fn row(
 }
 
 /*
-    Each hosted target bundles one console and one process-exit realization
-    file in std. The rows name the target so a provider plan for one target
-    can never take custody through another target's realization.
+    These retained console rows name their target, so one target cannot
+    take custody through another target's realization. ProcessExit uses its
+    separate Core primitive; ordinary Std wrappers have no sealed rows.
 */
 macro_rules! hosted_target_rows {
     ($target:literal) => {
@@ -246,23 +249,14 @@ macro_rules! hosted_target_rows {
                     target: $target,
                 },
             ),
-            row(
-                concat!("targets/", $target, "/process_exit_impl.omg"),
-                "ProcessExitNativeProvider::exit_process",
-                bundled!(concat!("std/targets/", $target, "/process_exit_impl.omg")),
-                SealedIntrinsic::HostedRealization {
-                    operation: HostedOperation::ProcessExit,
-                    target: $target,
-                },
-            ),
         ]
     };
 }
 
-const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_arm64");
-const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_x86_64");
-const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_arm64");
-const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_x86_64");
+const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 3] = hosted_target_rows!("linux_arm64");
+const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 3] = hosted_target_rows!("linux_x86_64");
+const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 3] = hosted_target_rows!("macos_arm64");
+const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 3] = hosted_target_rows!("macos_x86_64");
 const HOSTED_REALIZATIONS: [&[SealedIntrinsicRow]; 4] = [
     &HOSTED_LINUX_ARM64,
     &HOSTED_LINUX_X86_64,
@@ -548,6 +542,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
     ),
     row(
+        "process_exit_native.omg",
+        "ProcessExitPrimitive",
+        CORE_PROCESS_EXIT_NATIVE,
+        SealedIntrinsic::HostedPrimitive(HostedOperation::ProcessExit),
+    ),
+    row(
         "process_exit.omg",
         "ProcessExit::exit_process",
         CORE_PROCESS_EXIT,
@@ -651,6 +651,20 @@ impl SealedIntrinsicCatalog {
             })
             .map(|row| row.intrinsic)
     }
+}
+
+/// Exact source coordinates for the hosted primitive and its public contract.
+/// Consumers still authenticate source custody and the complete signature.
+pub fn hosted_process_exit_sources() -> [(&'static str, &'static str, &'static [u8]); 3] {
+    [
+        (
+            "process_exit_native.omg",
+            "ProcessExitPrimitive",
+            CORE_PROCESS_EXIT_NATIVE,
+        ),
+        ("process_exit.omg", "ProcessExit", CORE_PROCESS_EXIT),
+        ("never.omg", "Never", bundled!("core/never.omg")),
+    ]
 }
 
 #[cfg(test)]

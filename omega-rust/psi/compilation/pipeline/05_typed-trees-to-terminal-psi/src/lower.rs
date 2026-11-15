@@ -270,6 +270,29 @@ pub(crate) fn boundary(
             )
         }
     };
+    let completion = signatures.completion(id, caller)?;
+    // The terminal identity does not make an ordinary result empty. Retain the
+    // declared Never carrier and prove its default domain before publishing;
+    // the legacy Unit adapter remains a separate, already admitted surface.
+    if matches!(
+        completion,
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    ) && !match &result {
+        terminal_psi::BoundaryMachineResult::Unit => true,
+        terminal_psi::BoundaryMachineResult::Structural(result) => {
+            records.inhabitation.status(result.structural_type)
+                == terminal_semantics::inhabitation::Status::ProvedEmpty
+        }
+        terminal_psi::BoundaryMachineResult::Scalar(_) => false,
+    } {
+        return Err(unavailable(
+            "external completion has no empty declared result",
+        ));
+    }
+    let primitive = matches!(
+        metadata.1.execution,
+        terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
+    );
     Ok(terminal_psi::BoundaryMachineDeclaration {
         id,
         identity: metadata.1.source.callable,
@@ -277,8 +300,12 @@ pub(crate) fn boundary(
         declaration: Some(metadata.1),
         numeric_intrinsic: None,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
-        kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
-        completion: signatures.completion(id, caller)?,
+        kind: if primitive {
+            semantic_vocabulary::BoundaryRequirementKind::Machine
+        } else {
+            semantic_vocabulary::BoundaryRequirementKind::Trait
+        },
+        completion,
         unconditional_termination: signature.termination != crate::Termination::Silent,
         attachment: None,
         parameter_order: formals.order,
@@ -303,7 +330,7 @@ pub(crate) fn boundary(
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         fixed_service_reach: reach.clone(),
-        owning_service: Some(service),
+        owning_service: (!primitive).then_some(service),
         published_service_ceiling: reach.clone(),
         published_synchronous_entries: entries.clone(),
     })
@@ -960,7 +987,10 @@ impl<'a> Lowering<'a> {
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } => None,
-                Statement::Bind { value, .. } | Statement::Evaluate(value) => Some(value.source),
+                Statement::Bind { value, .. }
+                | Statement::Evaluate {
+                    expression: value, ..
+                } => Some(value.source),
                 Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }
@@ -982,7 +1012,11 @@ impl<'a> Lowering<'a> {
                     self.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
                 }
                 Some(_) => {
-                    return Err(self.internal("a value machine fell off its last statement"));
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Completion("value machine can fall off its end"),
+                    ));
                 }
             }
         }

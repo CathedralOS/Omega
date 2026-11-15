@@ -366,8 +366,25 @@ impl Lowering<'_> {
                 }
                 Ok(Reached::Value(()))
             }
-            Statement::Evaluate(expression) => {
-                self.expression(expression).map(|reached| reached.map(drop))
+            Statement::Evaluate {
+                expression,
+                discards_result,
+            } => {
+                // effects.md: a proved non-returning call has no result to
+                // discard. Use the actual once-only evaluation, including its
+                // published contract, rather than predicting that from syntax
+                // or treating an inhabited result as disposable.
+                match self.expression(expression)? {
+                    Reached::Ended(origin) => Ok(Reached::Ended(origin)),
+                    Reached::Value(_) if expression.result.is_none() || *discards_result => {
+                        Ok(Reached::Value(()))
+                    }
+                    Reached::Value(_) => Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Statement("expression statement that discards its value"),
+                    )),
+                }
             }
             Statement::Arm {
                 guard: Some(guard),

@@ -179,9 +179,10 @@ pub(crate) fn components(
 fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'body>>) {
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. } | Statement::Evaluate(value) => {
-                expression(value, false, sites)
-            }
+            Statement::Bind { value, .. }
+            | Statement::Evaluate {
+                expression: value, ..
+            } => expression(value, false, sites),
             Statement::Store {
                 destination, value, ..
             } => {

@@ -303,6 +303,19 @@ impl AcceptedTerminalSource {
             if elaboration.module.boundary_machine(boundary).is_none() {
                 return Err(lost("omit a requirement the module was lowered from"));
             }
+            let declaration = elaboration
+                .module
+                .boundary_machine(boundary)
+                .ok_or_else(|| lost("omit a retained boundary"))?;
+            if terminal_semantics::closed_conformances::hosted_primitive_requirement(
+                &elaboration.module,
+                declaration,
+            )
+            .map_err(lost)?
+            .is_some()
+            {
+                continue;
+            }
             let (owner, requirement) = self
                 .source
                 .trait_machine_signature(*symbol)

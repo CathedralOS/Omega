@@ -143,7 +143,15 @@ impl PreparedTargetSupply {
             .into_iter()
             .map(|demand| refuse(scope, demand))
             .collect::<Vec<_>>();
-        if module.boundary_machines.len() != declared.len() {
+        // Sealed direct primitives retain their own boundary declarations,
+        // but never become provider-selection slots. Their consumer joins the
+        // explicit canonical requirement link when it realizes the operation.
+        let provider_declarations = module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| !is_direct_hosted_primitive(boundary))
+            .count();
+        if provider_declarations != declared.len() {
             refusals.push(refuse(
                 scope,
                 "boundary declarations that differ from the requirements it was lowered from",
@@ -171,6 +179,12 @@ impl PreparedTargetSupply {
                     continue;
                 }
                 met.push(boundary);
+                if module
+                    .boundary_machine(boundary)
+                    .is_some_and(is_direct_hosted_primitive)
+                {
+                    continue;
+                }
                 let Some(requirement) = declared.iter().find(|row| row.boundary == boundary) else {
                     refusals.push(refuse(
                         scope,
@@ -673,9 +687,10 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
     .collect()
 }
 
-/// A reached requirement is plannable as a provider slot only when the
-/// module declares it as an ordinary provider-executed requirement that
-/// returns normally.
+/// A provider-executed requirement needs supply regardless of whether its
+/// checked declaration returns normally or completes externally. The slot
+/// schema retains that completion; choosing a provider grants no outcome
+/// authority and creates no normal result.
 fn unplanned_boundary(
     module: &TerminalModule,
     requirement: &ReachedBoundaryRequirement,
@@ -689,13 +704,21 @@ fn unplanned_boundary(
     if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
         return Err("the contract-evidence boundary");
     }
-    if declaration.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
-        return Err("the externally completed boundary");
-    }
     if declaration.declaration.as_ref().is_some_and(|callable| {
         callable.execution != terminal_psi::CheckedBoundaryExecution::Provider
     }) {
         return Err("the compiler-executed boundary");
     }
     Ok(())
+}
+
+/// This classification consumes an already checked declaration; it grants no
+/// native execution. Target realization independently rejoins its core link.
+fn is_direct_hosted_primitive(boundary: &terminal_psi::BoundaryMachineDeclaration) -> bool {
+    boundary.declaration.as_ref().is_some_and(|declaration| {
+        matches!(
+            declaration.execution,
+            terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
+        )
+    })
 }

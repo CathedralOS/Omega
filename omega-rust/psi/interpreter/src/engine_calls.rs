@@ -615,9 +615,9 @@ pub(crate) mod frames {
         ) -> Result<(), TerminalInterpretError> {
             let program = std::sync::Arc::clone(&self.program);
             let callee = program.verified_machine(callee_id)?;
-            if callee.result != TerminalMachineResult::Unit {
-                return Err(malformed());
-            }
+            // The checked provider keeps its declared result, including an
+            // empty carrier. This transfer has no receiving value; the saved
+            // external-completion continuation rejects any normal return.
             let prepared =
                 self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
             self.enter_call(

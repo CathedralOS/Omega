@@ -6,6 +6,12 @@ use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
 fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = super::build_purpose::frontier_of(text, "machine build_entry() {}");
+    program_from_typed(typed)
+}
+
+fn program_from_typed(
+    typed: typed_trees::TypedTrees,
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let entry = super::build_purpose::symbol(&typed, "main");
     crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
@@ -22,7 +28,12 @@ fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
 }
 
 fn accepted(text: &str) -> Box<crate::verdict::AcceptedClosure> {
-    let mut verdicts = program(text);
+    accepted_verdicts(program(text))
+}
+
+fn accepted_verdicts(
+    mut verdicts: Vec<Result<RouteVerdict, crate::CompilationRefusal>>,
+) -> Box<crate::verdict::AcceptedClosure> {
     let accepted = match verdicts.remove(0) {
         Ok(RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("the source program must be judged: {other:?}"),
@@ -120,6 +131,119 @@ machine main() crashes Trap {{
 fn a_false_default_domain_preserves_the_actual_call_and_sibling_value() {
     let accepted = accepted(&river("public data Empty requires false {}", "Empty"));
     check_no_normal(&accepted);
+}
+
+#[test]
+fn canonical_process_exit_publishes_never_without_a_receiving_value() {
+    let typed = super::build_purpose::frontier_with_core(
+        "use omega::language::core::Never; \
+         use omega::language::core::ProcessExit; \
+         public machine finish(status: i32) -> Never \
+         reaches ProcessExit crashes none terminates { \
+             ProcessExit::exit_process(status); \
+         } \
+         machine main() reaches ProcessExit crashes none terminates { \
+             let unreachable_value: u32 = finish(0); \
+         }",
+        "machine build_entry() {}",
+        &[
+            (
+                "never.omg",
+                "Never",
+                include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../source/library/core/never.omg"
+                )),
+            ),
+            (
+                "process_exit.omg",
+                "ProcessExit",
+                include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../source/library/core/process_exit.omg"
+                )),
+            ),
+        ],
+    );
+    let accepted = accepted_verdicts(program_from_typed(typed));
+    check_no_normal(&accepted);
+    let module = &accepted.elaboration.module;
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    let [boundary] = module.boundary_machines.as_slice() else {
+        panic!("the exact canonical boundary is retained");
+    };
+    let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+        panic!("the declared result is ordinary core Never, not Unit");
+    };
+    assert_eq!(query.status(result.structural_type), Status::ProvedEmpty);
+    assert!(boundary.unconditional_termination);
+    assert_eq!(
+        boundary.completion,
+        semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        ),
+    );
+    assert!(module.operations().all(|operation| !matches!(
+        operation.kind,
+        terminal_psi::OperationKind::BoundaryCall { .. },
+    )));
+
+    // Keeping terminal identity cannot authenticate a substituted inhabited
+    // result. Receiving reconstructs the type proof rather than trusting it.
+    let mut inhabited = module.clone();
+    inhabited
+        .structural_types
+        .iter_mut()
+        .find(|ty| ty.id == result.structural_type)
+        .unwrap()
+        .requires
+        .clear();
+    let encoded = terminal_codec::ClosedTerminalModule::new(inhabited)
+        .expect("trusted encoding does not repeat receiving verification");
+    let error =
+        match terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()) {
+            Err(error) => error,
+            Ok(_) => panic!("an inhabited result cannot justify external completion"),
+        };
+    assert!(
+        format!("{error:?}").contains("canonical process-exit signature"),
+        "{error:?}",
+    );
+}
+
+#[test]
+fn an_effect_statement_discards_only_an_actual_normal_result() {
+    // The inhabited declared type stays u32. Its published false postcondition
+    // excludes a result just as an empty declared carrier does, without a
+    // separate statement-only prediction of the call's outcome.
+    let stopped = accepted(
+        "public machine stop() -> u32 ensures false crashes Trap { crash Trap; } \
+         public machine relay() -> u32 ensures false crashes Trap { stop(); } \
+         machine main() crashes Trap { relay(); }",
+    );
+    assert!(
+        stopped
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .any(|block| matches!(
+                block.terminator,
+                terminal_psi::Terminator::InvokeNoNormal { .. }
+            )),
+    );
+    stopped.publish_invocation().unwrap();
+
+    let normal = "public machine value() -> u32 crashes none { 1u32 } \
+                  machine main() crashes none { value(); }";
+    let verdicts = program(normal);
+    assert!(
+        format!("{verdicts:?}").contains("expression statement that discards its value"),
+        "an inhabited normal result still requires the authored marker: {verdicts:?}",
+    );
+    accepted(&normal.replace("{ value(); }", "{ _ = value(); }"));
 }
 
 #[test]

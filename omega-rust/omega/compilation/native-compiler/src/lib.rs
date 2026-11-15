@@ -45,7 +45,7 @@ pub use request::NativeCompileRequest;
 pub use scalar_completion::NativeScalarCompletion;
 pub use terminal_psi_to_abstract_operations::provider_admission::{
     CompilerIntrinsicPlanProvenance, SourceEvaluatedImportSettlement,
-    TerminalAuthorityPermissionPolicy,
+    TerminalAuthorityPermissionPolicy, current_terminal_authority_policy,
 };
 pub use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,

@@ -876,8 +876,12 @@ pub enum Statement {
         value: Expression,
         source: SourceOrigin,
     },
-    /// Evaluate for effect and discard the result.
-    Evaluate(Expression),
+    /// Evaluate once for effect. The source marker permits discarding a normal
+    /// result; a checked non-returning evaluation produces no result to discard.
+    Evaluate {
+        expression: Expression,
+        discards_result: bool,
+    },
     /// `transition subject { S::A { .. } -> x  S::B -> y  _ -> z }` over a
     /// sum: the subject is observed once and exactly the selected arm runs
     /// (`wiki/spec/language/patterns.md`: "A dispatch evaluates its subject
@@ -902,6 +906,17 @@ pub enum Statement {
         target: Target,
         source: SourceOrigin,
     },
+}
+
+impl Statement {
+    /// An intentional discard in a synthesized body, with the same custody
+    /// obligations as the source `_ =` marker.
+    pub fn discard(expression: Expression) -> Self {
+        Self::Evaluate {
+            expression,
+            discards_result: true,
+        }
+    }
 }
 
 /// What an arm completes the machine with.

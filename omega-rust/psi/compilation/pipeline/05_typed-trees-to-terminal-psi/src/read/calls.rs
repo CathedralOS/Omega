@@ -42,6 +42,79 @@ impl<'t> Program<'t> {
             return Ok(boundary);
         }
         let unserved = |detail| refuse(diagnostic, Construct::Machine, Unserved::Call(detail));
+        if self.typed.symbols.sealed_intrinsic(target)
+            == Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(
+                    language_core::sealed_intrinsics::HostedOperation::ProcessExit,
+                ),
+            )
+        {
+            // Custody nominates this declaration only. Its actual closed contract
+            // must equal the independently read canonical requirement contract.
+            let (primitive, declared) = self
+                .typed
+                .bodyless_declaration(target)
+                .map_err(unserved)?
+                .ok_or_else(|| unserved("hosted primitive has no bodyless declaration"))?;
+            let machine = self
+                .typed
+                .machine_by_symbol(primitive)
+                .ok_or_else(|| unserved("hosted primitive lost its machine"))?;
+            if machine.target.is_some()
+                || machine.authored_target.is_some()
+                || machine.target_family_interface
+                || !machine.type_parameters.is_empty()
+                || !machine.lifetime_parameters.is_empty()
+                || !machine.conformance_bounds.is_empty()
+            {
+                return Err(unserved(
+                    "hosted primitive needs its exact target-neutral declaration",
+                ));
+            }
+            let mut requirements = self
+                .typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .filter_map(|edge| {
+                    typed_trees::machine::resolve_satisfied_declaration(self.typed, machine, edge)
+                });
+            let requirement = requirements
+                .next()
+                .ok_or_else(|| unserved("hosted primitive has no canonical requirement"))?
+                .symbol();
+            if requirements.next().is_some()
+                || typed_trees::boundary_completions::boundary_requirement_completion(self.typed, requirement)
+                    != semantic_vocabulary::BoundaryCompletion::External(semantic_vocabulary::ExternalCompletionKind::ProcessExit)
+                || self.typed.trait_machine_signature(requirement).is_none_or(|(owner, _)|
+                    self.typed.symbols.sealed_member_intrinsic(owner.symbol, "exit_process")
+                    != Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedRequirement(language_core::sealed_intrinsics::HostedOperation::ProcessExit)))
+            {
+                return Err(unserved("hosted primitive does not satisfy the exact Core ProcessExit requirement"));
+            }
+            let canonical = self.boundary_declaration(diagnostic, requirement)?;
+            let (signature, _) = self.declared_requirement_signature(diagnostic, &declared, &[])?;
+            if self.boundary_signatures.get(canonical) != Some(&signature) {
+                return Err(unserved(
+                    "hosted primitive contract differs from its canonical requirement",
+                ));
+            }
+            let service = *self
+                .boundary_services
+                .get(canonical)
+                .ok_or_else(|| unserved("hosted primitive requirement lost its service"))?;
+            let completion = *self
+                .boundary_completions
+                .get(canonical)
+                .ok_or_else(|| unserved("hosted primitive requirement lost its completion"))?;
+            let boundary = self.boundary_symbols.push(target);
+            if self.boundary_signatures.push(signature) != boundary
+                || self.boundary_services.push(service) != boundary
+                || self.boundary_completions.push(completion) != boundary
+            {
+                return Err(unserved("hosted primitive lost its boundary coordinate"));
+            }
+            return Ok(boundary);
+        }
         let (owner, requirement) = self
             .typed
             .trait_machine_signature(target)
@@ -1745,8 +1818,21 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("callee without a symbol"),
             ));
         }
-        if self.typed.trait_machine_signature(target).is_some() {
-            self.visible_to(id, target)?;
+        // A free-machine call can name its implicit entry state. Resolve that
+        // existing entry relation before checking custody on the authored
+        // declaration; the generated state itself has no sealed source span.
+        let (target, boundary_call) = if self.typed.trait_machine_signature(target).is_some() {
+            (target, true)
+        } else {
+            let machine = self.call_target_symbol(id, target)?;
+            let boundary = matches!(
+                self.typed.symbols.sealed_intrinsic(machine),
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(_))
+            );
+            (machine, boundary)
+        };
+        self.visible_to(id, target)?;
+        if boundary_call {
             let boundary = self.boundary_declaration(id, target)?;
             return self.call_of(
                 id,
@@ -1760,11 +1846,9 @@ impl<'t> Program<'t> {
                 expected,
             );
         }
-        let machine = self.call_target_symbol(id, target)?;
-        self.visible_to(id, machine)?;
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let callee = self.machine(machine)?;
+        let callee = self.machine(target)?;
         self.call_of(
             id,
             slots,

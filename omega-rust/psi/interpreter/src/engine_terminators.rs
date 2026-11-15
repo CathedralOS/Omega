@@ -2521,13 +2521,14 @@ impl TerminalExecution<'_> {
             )?;
             return Ok(TerminatorFlow::Continue);
         }
+        let requirement = declaration.external_completion_requirement();
         let demand = crate::engine::capabilities::TerminalExternalCompletionDemand {
-            boundary: *boundary,
+            boundary: requirement,
             kind: *kind,
         };
         if !self
             .external_bindings
-            .get(boundary)
+            .get(&requirement)
             .is_some_and(|admission| {
                 admission.answers(
                     self.program.identity.semantic(),
@@ -2564,7 +2565,7 @@ impl TerminalExecution<'_> {
             machine: self.current_machine,
             block: self.current,
             edge: *edge,
-            boundary: *boundary,
+            boundary: requirement,
             kind: *kind,
             return_code,
             frontier_lower_bound: frontier_lower_bound.clone(),

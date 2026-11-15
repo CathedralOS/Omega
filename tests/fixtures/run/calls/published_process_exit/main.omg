@@ -1,0 +1,15 @@
+use omega::language::core::Never;
+use omega::language::core::ProcessExit;
+
+// The public result carries non-return through an ordinary wrapper. Receiving
+// it at u32 must create no value, while the terminal keeps the exact status.
+public machine finish(status: i32) -> Never
+reaches ProcessExit
+crashes none
+terminates {
+    ProcessExit::exit_process(status);
+}
+
+machine entry_start() reaches ProcessExit crashes none terminates {
+    let unreachable_value: u32 = finish(0);
+}

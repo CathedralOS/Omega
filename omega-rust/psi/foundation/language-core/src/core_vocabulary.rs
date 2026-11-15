@@ -19,6 +19,9 @@ use std::path::Path;
 /// A core declaration that typed rules recognize by identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CoreVocabulary {
+    /// The ordinary `Never` data declaration in core `never.omg`.
+    /// This identifies a nominal ABI result; it proves no inhabitedness.
+    Never,
     /// The `MachineControl` service in core `assembly.omg`.
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
@@ -202,6 +205,7 @@ const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
 const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
 const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 const INTEGER: &[u8] = core_source!("integer.omg");
+const NEVER: &[u8] = core_source!("never.omg");
 
 const fn row(
     file: &'static str,
@@ -232,6 +236,7 @@ const fn selector(
 }
 
 const ROWS: &[CoreVocabularyRow] = &[
+    row("never.omg", "Never", NEVER, CoreVocabulary::Never),
     row(
         "assembly.omg",
         "MachineControl",
@@ -595,6 +600,21 @@ mod tests {
             file: Path::new(file),
             declaration,
             source,
+        }
+    }
+
+    #[test]
+    fn never_identifies_only_the_exact_bundled_ordinary_declaration() {
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", NEVER)),
+            Some(CoreVocabulary::Never)
+        );
+        for candidate in [
+            site("other.omg", "Never", NEVER),
+            site("never.omg", "Other", NEVER),
+            site("never.omg", "Never", b"public data Never {}"),
+        ] {
+            assert_eq!(CoreVocabularyCatalog::classify(candidate), None);
         }
     }
 

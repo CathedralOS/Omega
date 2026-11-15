@@ -770,6 +770,277 @@ pub mod closed_conformances {
         ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
     };
 
+    struct HostedProcessExitIdentities {
+        primitive: String,
+        primitive_entry: String,
+        primitive_semantic: String,
+        primitive_callable: String,
+        requirement_owner: String,
+        requirement_member: String,
+        requirement_semantic: String,
+        requirement_callable: String,
+        parameter: String,
+        result: String,
+    }
+
+    fn hosted_process_exit_identities() -> &'static HostedProcessExitIdentities {
+        use language_core::sealed_intrinsics::{
+            HostedOperation, SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
+        };
+        use language_semantics::type_identity::encoding::{
+            CoordinateTag, atom, bare, byte_atom, compound,
+        };
+        use language_semantics::type_identity::vocabulary::{Label, NameForm, OwnerForm, TypeForm};
+        static IDENTITIES: std::sync::OnceLock<HostedProcessExitIdentities> =
+            std::sync::OnceLock::new();
+        IDENTITIES.get_or_init(|| {
+            let [primitive, requirement, result] =
+                language_core::sealed_intrinsics::hosted_process_exit_sources();
+            // The complete member path below must be the exact retained catalog
+            // row under these bundled bytes. A suffix or lookalike declaration
+            // cannot nominate this operation.
+            let requirement_member = "ProcessExit::exit_process";
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(SealedDeclarationSite {
+                    file: std::path::Path::new(requirement.0),
+                    declaration: requirement_member,
+                    source: requirement.2,
+                }),
+                Some(SealedIntrinsic::HostedRequirement(
+                    HostedOperation::ProcessExit
+                ))
+            );
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(SealedDeclarationSite {
+                    file: std::path::Path::new(primitive.0),
+                    declaration: primitive.1,
+                    source: primitive.2,
+                }),
+                Some(SealedIntrinsic::HostedPrimitive(
+                    HostedOperation::ProcessExit
+                ))
+            );
+            let exact_nominal = |(file, _, bytes): (&str, &str, &[u8]), declaration: &str| {
+                let file = source::SourceFile {
+                    source_id: source::SourceId(0),
+                    path: std::path::Path::new("/compiler/core").join(file),
+                    package_root: "/compiler/core".into(),
+                    package_identity: None,
+                    dependency_scope: source::DependencyScope::Product,
+                    origin: source::SourceOrigin::Toolchain,
+                    resolution_stratum: source::SourceResolutionStratum::Base,
+                    source: std::str::from_utf8(bytes)
+                        .expect("bundled core source is UTF-8")
+                        .into(),
+                };
+                let digest = source::source_identity::toolchain_source_identity_digest(&file)
+                    .expect("bundled core source has canonical custody");
+                compound(
+                    NameForm::Nominal,
+                    [
+                        byte_atom(OwnerForm::ToolchainSource, &digest),
+                        atom(Label::Path, declaration),
+                    ],
+                )
+            };
+            let signature_nominal = |declaration| {
+                compound(
+                    NameForm::Nominal,
+                    [bare(OwnerForm::Toolchain), atom(Label::Path, declaration)],
+                )
+            };
+            // These are the known catalog's ordinary declared signature types.
+            // Physical i32 correspondence and actual emptiness are still checked
+            // independently below; an identity string proves neither fact.
+            let integer = numerics::integer_carrier::FixedInteger::signed(32).to_string();
+            let argument = compound(TypeForm::Named, [atom(Label::Name, &integer)]);
+            let parameter = compound(
+                TypeForm::Named,
+                [atom(
+                    Label::Name,
+                    &compound(NameForm::CompilerType, [atom(Label::Atom, &integer)]),
+                )],
+            );
+            let result_type = compound(
+                TypeForm::Named,
+                [atom(Label::Name, &signature_nominal(result.1))],
+            );
+            let parameters = compound(
+                CoordinateTag::Parameter,
+                [
+                    atom(CoordinateTag::Mutable, "no"),
+                    atom(CoordinateTag::Const, "no"),
+                    argument,
+                ],
+            );
+            let callable = |declaration| {
+                compound(
+                    CoordinateTag::NamedCallable,
+                    [
+                        atom(CoordinateTag::Path, &signature_nominal(declaration)),
+                        atom(CoordinateTag::Parameters, &parameters),
+                        atom(CoordinateTag::ResultDispatch, ""),
+                    ],
+                )
+            };
+            HostedProcessExitIdentities {
+                primitive: exact_nominal(primitive, primitive.1),
+                primitive_entry: exact_nominal(primitive, &format!("{}::entry", primitive.1)),
+                primitive_semantic: format!("toolchain::{}", primitive.1),
+                primitive_callable: callable(primitive.1),
+                requirement_owner: exact_nominal(requirement, requirement.1),
+                requirement_member: exact_nominal(requirement, requirement_member),
+                requirement_semantic: format!("toolchain::{requirement_member}"),
+                requirement_callable: callable(requirement_member),
+                parameter,
+                result: result_type,
+            }
+        })
+    }
+
+    /// Resolve the public contract of an authenticated primitive. This is
+    /// declaration admission only; execution still requires target and authority
+    /// settlement. The primitive never borrows the requirement's callable identity.
+    pub fn hosted_primitive_requirement(
+        module: &TerminalModule,
+        boundary: &terminal_psi::BoundaryMachineDeclaration,
+    ) -> Result<Option<semantic_vocabulary::BoundaryMachineId>, &'static str> {
+        use terminal_psi::{
+            BoundaryCompletion, BoundaryMachineResult, BoundaryRequirementKind,
+            CheckedBoundaryExecution,
+        };
+        let Some(checked) = &boundary.declaration else {
+            return Ok(None);
+        };
+        let CheckedBoundaryExecution::HostedPrimitive {
+            operation,
+            requirement,
+        } = checked.execution
+        else {
+            return Ok(None);
+        };
+        if operation != language_core::sealed_intrinsics::HostedOperation::ProcessExit {
+            return Err("hosted primitive operation has no admitted declaration");
+        }
+        let expected = hosted_process_exit_identities();
+        let canonical = module
+            .boundary_machine(requirement)
+            .ok_or("hosted primitive references an absent requirement")?;
+        let canonical_source = canonical
+            .declaration
+            .as_ref()
+            .ok_or("hosted primitive requirement has no checked declaration")?;
+        let actual_owner = module.identities.text(boundary.owner.identity());
+        if boundary.id == requirement
+            || boundary.kind != BoundaryRequirementKind::Machine
+            || actual_owner != Some(expected.primitive.as_str())
+            || module.identities.text(canonical.owner.identity())
+                != Some(expected.requirement_owner.as_str())
+            || module.identities.text(checked.source.state.identity())
+                != Some(expected.primitive_entry.as_str())
+            || module.identities.text(checked.source.semantic_declaration)
+                != Some(expected.primitive_semantic.as_str())
+            || module.identities.text(checked.source.callable)
+                != Some(expected.primitive_callable.as_str())
+            || boundary.identity != checked.source.callable
+            || module
+                .identities
+                .text(canonical_source.source.state.identity())
+                != Some(expected.requirement_member.as_str())
+            || module
+                .identities
+                .text(canonical_source.source.semantic_declaration)
+                != Some(expected.requirement_semantic.as_str())
+            || module.identities.text(canonical_source.source.callable)
+                != Some(expected.requirement_callable.as_str())
+            || canonical.identity != canonical_source.source.callable
+            || checked.source.parameter_types.len() != 1
+            || checked
+                .source
+                .parameter_types
+                .first()
+                .and_then(|identity| module.identities.text(*identity))
+                != Some(expected.parameter.as_str())
+            || module.identities.text(checked.source.result_type) != Some(expected.result.as_str())
+            || canonical.kind != BoundaryRequirementKind::Trait
+            || canonical_source.execution != CheckedBoundaryExecution::Provider
+            || checked.source.callable == canonical_source.source.callable
+            || checked.source.semantic_declaration == canonical_source.source.semantic_declaration
+            || canonical_source.source.published_may_suspend
+            || canonical_source.source.published_may_block
+            || checked.source.specialization.is_some()
+            || !checked.method_arguments.is_empty()
+            || boundary.attachment.is_some()
+            || boundary.owning_service.is_some()
+            || boundary.completion
+                != BoundaryCompletion::External(
+                    semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+                )
+            || boundary.completion != canonical.completion
+            || !boundary.unconditional_termination
+            || !canonical.unconditional_termination
+            || checked.source.published_may_suspend
+            || checked.source.published_may_block
+            || checked.source.published_may_suspend != canonical_source.source.published_may_suspend
+            || checked.source.published_may_block != canonical_source.source.published_may_block
+            || boundary.scalar_parameters != canonical.scalar_parameters
+            || boundary.scalar_parameters
+                != [semantic_vocabulary::ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Signed,
+                        32,
+                    )
+                    .map_err(|_| "invalid i32 type")?,
+                )]
+            || !boundary.structural_parameters.is_empty()
+            || boundary.parameter_order != canonical.parameter_order
+            || boundary.result != canonical.result
+            || boundary.result_reference_regions != canonical.result_reference_regions
+            || boundary.result_lifetimes != canonical.result_lifetimes
+            || checked.source.parameter_types != canonical_source.source.parameter_types
+            || checked.source.result_type != canonical_source.source.result_type
+            || boundary.crash_routes != canonical.crash_routes
+            || boundary.scalar_requires != canonical.scalar_requires
+            || boundary.scalar_ensures != canonical.scalar_ensures
+            || boundary.requires != canonical.requires
+            || boundary.normal_qualifications != canonical.normal_qualifications
+            || boundary.scalar_domain_requirements != canonical.scalar_domain_requirements
+            || boundary.reference_outputs != canonical.reference_outputs
+            || boundary.content_guarantees != canonical.content_guarantees
+            || boundary.program_local_root_introductions
+                != canonical.program_local_root_introductions
+            || canonical.owning_service.is_none_or(|service| {
+                canonical.fixed_service_reach != [service]
+                    || canonical.published_service_ceiling != [service]
+            })
+            || !boundary.published_synchronous_entries.is_empty()
+            || !boundary.crash_routes.is_empty()
+            || !boundary.scalar_requires.is_empty()
+            || !boundary.scalar_ensures.is_empty()
+            || !boundary.requires.is_empty()
+            || !boundary.normal_qualifications.is_empty()
+            || !boundary.scalar_domain_requirements.is_empty()
+            || !boundary.reference_outputs.is_empty()
+            || !boundary.content_guarantees.is_empty()
+            || !boundary.program_local_root_introductions.is_empty()
+            || boundary.fixed_service_reach != canonical.fixed_service_reach
+            || boundary.published_service_ceiling != canonical.published_service_ceiling
+            || boundary.published_synchronous_entries != canonical.published_synchronous_entries
+        {
+            return Err("hosted primitive differs from its exact Core declaration and requirement");
+        }
+        let BoundaryMachineResult::Structural(result) = &boundary.result else {
+            return Err("hosted primitive has no declared empty result");
+        };
+        let contracts = crate::inhabitation::TerminalContracts::new(module.structural_types.iter());
+        let inhabitation = crate::inhabitation::Inhabitation::prepare(&contracts)
+            .map_err(|_| "hosted primitive has malformed type contracts")?;
+        if inhabitation.status(result.structural_type) != crate::inhabitation::Status::ProvedEmpty {
+            return Err("hosted primitive result is not proved empty");
+        }
+        Ok(Some(requirement))
+    }
+
     pub fn validate_boundary_callable(
         module: &TerminalModule,
         boundary: &terminal_psi::BoundaryMachineDeclaration,
@@ -780,6 +1051,7 @@ pub mod closed_conformances {
         if boundary.role != terminal_psi::BoundaryDeclarationRole::Callable {
             return Err("contract evidence cannot carry an executable boundary declaration");
         }
+        hosted_primitive_requirement(module, boundary)?;
         let declaration = &checked.source;
         for coordinate in [
             declaration.machine.identity(),

@@ -1622,9 +1622,10 @@ pub(crate) mod control_flow {
                             } => {
                                 *call_plan == expected_plan
                                     && plan.function(*callee).is_some_and(|candidate| {
-                                        candidate.result
-                                            == abstract_operations::AbstractFunctionResult::Unit
-                                            && candidate
+                                        // Checked provider conformance owns
+                                        // the declared result contract. This
+                                        // terminal call produces no ABI value.
+                                        candidate
                                                 .parameters
                                                 .iter()
                                                 .map(|row| row.scalar_type)
@@ -1651,7 +1652,8 @@ pub(crate) mod control_flow {
                         }
                         && declaration.completion
                             == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        && declaration.result.is_unit()
+                        // External completion has no physical result, including
+                        // when its checked declaration names an empty result.
                         && arguments.len() == expected_arguments.len()
                         && arguments.len() == expected_plan.parameters.len()
                         && structural_arguments.len() == declaration.structural_parameters.len()

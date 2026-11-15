@@ -829,6 +829,11 @@ pub(crate) mod declarations {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum CheckedBoundaryExecution {
         Provider,
+        /// The actual primitive remains distinct from the public requirement.
+        HostedPrimitive {
+            operation: language_core::sealed_intrinsics::HostedOperation,
+            requirement: semantic_vocabulary::BoundaryMachineId,
+        },
         AccessInitialize,
         AccessMoveOut,
         AccessRelocate,
@@ -855,6 +860,7 @@ pub(crate) mod declarations {
                     Some(StaticInterruptOperation::FinishCompletion)
                 }
                 Self::Provider
+                | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::AccessInitialize
                 | Self::AccessMoveOut
@@ -870,6 +876,7 @@ pub(crate) mod declarations {
         pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
             match self {
                 Self::Provider
+                | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::StaticInterruptInstall
                 | Self::StaticInterruptContext
@@ -886,19 +893,74 @@ pub(crate) mod declarations {
     impl CheckedBoundaryCallable {
         pub fn same_identity_as(
             &self,
-            identities: &crate::TerminalIdentityTable,
+            module: &crate::TerminalModule,
             other: &Self,
-            other_identities: &crate::TerminalIdentityTable,
+            other_module: &crate::TerminalModule,
         ) -> bool {
+            let identities = &module.identities;
+            let other_identities = &other_module.identities;
+            let same_execution = match (self.execution, other.execution) {
+                (
+                    CheckedBoundaryExecution::HostedPrimitive {
+                        operation,
+                        requirement,
+                    },
+                    CheckedBoundaryExecution::HostedPrimitive {
+                        operation: other_operation,
+                        requirement: other_requirement,
+                    },
+                ) => {
+                    operation == other_operation
+                        && module
+                            .boundary_machine(requirement)
+                            .zip(other_module.boundary_machine(other_requirement))
+                            .is_some_and(|(left, right)| {
+                                left.kind == crate::BoundaryRequirementKind::Trait
+                                    && right.kind == crate::BoundaryRequirementKind::Trait
+                                    && left
+                                        .declaration
+                                        .as_ref()
+                                        .zip(right.declaration.as_ref())
+                                        .is_some_and(|(left, right)| {
+                                            left.execution == CheckedBoundaryExecution::Provider
+                                                && right.execution
+                                                    == CheckedBoundaryExecution::Provider
+                                                && left.source.same_identity_as(
+                                                    identities,
+                                                    &right.source,
+                                                    other_identities,
+                                                )
+                                        })
+                            })
+                }
+                (CheckedBoundaryExecution::HostedPrimitive { .. }, _)
+                | (_, CheckedBoundaryExecution::HostedPrimitive { .. }) => false,
+                (left, right) => left == right,
+            };
             self.source
                 .same_identity_as(identities, &other.source, other_identities)
-                && self.execution == other.execution
+                && same_execution
                 && self.method_arguments.len() == other.method_arguments.len()
                 && self
                     .method_arguments
                     .iter()
                     .zip(&other.method_arguments)
                     .all(|(left, right)| left.same_identity_as(identities, right, other_identities))
+        }
+    }
+
+    impl BoundaryMachineDeclaration {
+        /// The public contract observed for this actual external operation.
+        /// Admission validates any primitive link before execution consumes it.
+        pub fn external_completion_requirement(&self) -> semantic_vocabulary::BoundaryMachineId {
+            match self
+                .declaration
+                .as_ref()
+                .map(|declaration| declaration.execution)
+            {
+                Some(CheckedBoundaryExecution::HostedPrimitive { requirement, .. }) => requirement,
+                _ => self.id,
+            }
         }
     }
 

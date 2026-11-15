@@ -141,15 +141,6 @@ impl HostedIntrinsicBundle {
         }
     }
 
-    pub const fn process_exit_source(self) -> &'static str {
-        match self {
-            Self::LinuxArm64 => "targets/linux_arm64/process_exit_impl.omg",
-            Self::LinuxX64 => "targets/linux_x86_64/process_exit_impl.omg",
-            Self::MacosArm64 => "targets/macos_arm64/process_exit_impl.omg",
-            Self::MacosX64 => "targets/macos_x86_64/process_exit_impl.omg",
-        }
-    }
-
     pub fn from_target_name(target_name: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
@@ -756,7 +747,6 @@ mod tests {
             );
             let prefix = format!("targets/{name}/");
             assert_eq!(bundle.console_source(), format!("{prefix}console_impl.omg"));
-            eq!(bundle.process_exit_source() => format!("{prefix}process_exit_impl.omg"));
         }
     }
 

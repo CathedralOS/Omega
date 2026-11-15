@@ -15,6 +15,7 @@ use calling_conventions::{
 };
 use language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition;
 use layout::BoundaryValueLayout;
+use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalCallingSignature {
@@ -160,8 +161,21 @@ impl CanonicalCallingSignature {
                 },
             });
         }
-        let result = storage
-            .result
+        // Calling geometry carries no result slot for a result domain that
+        // admits no value. Keep the declared logical storage unchanged; an
+        // unknown domain and an inhabited zero-sized record still take their
+        // ordinary layout path. This runs once per declaration application,
+        // independently of how many executable calls use that application.
+        let physical_result = match storage.result {
+            Some(result) => {
+                let contracts = TerminalContracts::new(&module.structural_types);
+                let inhabitation = Inhabitation::prepare(&contracts)
+                    .map_err(|error| format!("calling result domain is malformed: {error:?}"))?;
+                (inhabitation.status(result) != Status::ProvedEmpty).then_some(result)
+            }
+            None => None,
+        };
+        let result = physical_result
             .map(|result| recipes.value(result))
             .transpose()?
             .map(|recipe| {

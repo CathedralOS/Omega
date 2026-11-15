@@ -1523,9 +1523,12 @@ mod terminator {
                     .get(boundary)
                     .copied()
                     .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
+                // The checked external-completion contract has no physical
+                // receiving result, including when its declared result is an
+                // ordinary empty type. Source and receiving admission own that
+                // result contract; native lowering preserves the terminal ABI.
                 if declaration.completion
                     != semantic_vocabulary::BoundaryCompletion::External(*kind)
-                    || !declaration.result.is_unit()
                     || declaration.scalar_parameters.len() != arguments.len()
                     || declaration.structural_parameters.len() != structural_arguments.len()
                 {

@@ -6,6 +6,9 @@
 //! settled supply on into the selected execution a product reads and check
 //! the produced program's target-local conditions against it.
 
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
+
 use build_time_evaluation::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
@@ -436,6 +439,132 @@ fn prepare_for_target(
         target,
     })
     .map_err(first)
+}
+
+/// ProcessExit's checked external completion still needs a selected provider.
+/// Preparing its real declaration must retain that demand, while settlement
+/// without any supply must refuse rather than invent a returning realization.
+#[test]
+fn process_exit_retains_its_external_demand_and_requires_supply() {
+    let frontier = unbuilt_frontier::bound_fixture_frontier(
+        "tests/fixtures/run/calls/published_process_exit",
+        Some("entry_start"),
+        &[],
+    );
+    let roster = products::ProductRoster {
+        entries: frontier.entries,
+        subject: frontier.subject,
+        selected: frontier.selected,
+        bindings: frontier.bindings,
+        ..Default::default()
+    };
+    let typed = Arc::new(frontier.typed);
+    let accepted = roster
+        .judge(Arc::clone(&typed))
+        .expect("the actual ProcessExit program is accepted");
+    let supply =
+        prepare(&accepted, &[], &[]).expect("external completion is an ordinary provider demand");
+    let [requirement] = supply.requirements() else {
+        panic!("exactly the reached ProcessExit requirement: {supply:?}");
+    };
+    let boundary = accepted
+        .module()
+        .boundary_machine(requirement.reached.boundary)
+        .expect("the demand keeps its exact checked declaration");
+    assert_eq!(
+        boundary.completion,
+        semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        )
+    );
+    let projected = provider_planning::hosted_requirement_schema(
+        accepted.module(),
+        language_core::sealed_intrinsics::HostedOperation::ProcessExit,
+        boundary.id,
+    )
+    .expect("the admitted canonical declaration retains its complete schema");
+    let source_schema = accepted
+        .slot_schema(requirement.reached.slot)
+        .expect("the actual source owns the complete Core schema");
+    // Source review uses display paths and ordinary type identities. Native
+    // planning uses canonical service applications and package-qualified types.
+    // Build the full expected contract from the independent source owner in
+    // that coordinate system; copying the projected header would hide a lost
+    // nominal Never result or a changed public row.
+    let source_owner = typed
+        .trait_definition_by_symbol(requirement.reached.slot)
+        .unwrap();
+    let source_requirement = typed
+        .trait_machine_signature_by_symbol(source_owner, requirement.reached.requirement)
+        .unwrap();
+    let service_application = |symbol| {
+        let declaration = typed.trait_definition_by_symbol(symbol).unwrap();
+        let scope = typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration);
+        typed
+            .type_identity_text(scope.portable_application_identity(&typed).unwrap())
+            .unwrap()
+    };
+    let mut expected = source_schema.as_ref().clone();
+    expected.trait_name = expected
+        .identities
+        .intern(&service_application(source_owner.symbol));
+    assert_eq!(expected.receiver_applications.len(), 1);
+    expected.receiver_applications[0].trait_name = expected.trait_name;
+    let [method] = expected.methods.as_mut_slice() else {
+        panic!("the genuine Core ProcessExit contract has exactly one member");
+    };
+    method.requirement_owner = service_application(source_owner.symbol);
+    method.parameter_type_identities = typed
+        .state_signature_parameters(source_requirement)
+        .iter()
+        .map(|parameter| {
+            expected
+                .identities
+                .intern(&typed.package_qualified_type_identity_text(parameter.type_reference))
+        })
+        .collect();
+    method.result_type_identity = expected
+        .identities
+        .intern(&typed.package_qualified_type_identity_text(source_requirement.return_type));
+    // Distinct source instances can display the same service name. Follow this
+    // declaration's exact authored row, never a whole-program name lookup.
+    let mut reached = Vec::new();
+    for service in typed
+        .service_reach_rows
+        .services(source_requirement.service_reach_row)
+    {
+        typed.service_reaches.extend_closure(*service, &mut reached);
+    }
+    reached.sort_unstable_by_key(|service| service.0);
+    reached.dedup();
+    let definitions = reached
+        .iter()
+        .map(|service| typed.service_reaches.definition(*service).unwrap())
+        .collect::<Vec<_>>();
+    let mut displayed = definitions
+        .iter()
+        .map(|declaration| declaration.name.clone())
+        .collect::<Vec<_>>();
+    displayed.sort_unstable();
+    displayed.dedup();
+    assert_eq!(method.service_reach, displayed);
+    method.service_reach = definitions
+        .iter()
+        .map(|declaration| service_application(declaration.symbol))
+        .collect();
+    method.service_reach.sort_unstable();
+    method.service_reach.dedup();
+    assert!(method.synchronous_invocations.is_empty());
+    assert_eq!(
+        projected.declaration.as_ref(),
+        &expected,
+        "native projection must retain nominal result, progress and all public rows",
+    );
+    assert!(requirement.supplies.is_empty());
+    let missing = supply.settle().expect_err("no provider was selected");
+    assert_eq!(missing.len(), 1);
+    assert!(missing[0].message.contains("ProcessExit::exit_process"));
+    assert!(missing[0].message.contains("has no provider on target"));
 }
 
 fn settle(supplied: &str, program: &str) -> Result<SettledTargetSupply, String> {

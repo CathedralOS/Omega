@@ -426,7 +426,7 @@ impl<'b> Walk<'b> {
                         return Ok(normal);
                     }
                 }
-                Statement::Evaluate(expression) => {
+                Statement::Evaluate { expression, .. } => {
                     if !self.expression(machine, expression)? {
                         return Ok(normal);
                     }

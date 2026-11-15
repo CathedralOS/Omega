@@ -1400,8 +1400,19 @@ AccessInitialize, AccessMoveOut and AccessView. Tag 4 names EmptyRunRelease,
 which consumes an empty run and returns its existing vacant backing. Tag 5 names
 AccessRelocate. Tags 6–9 name StaticInterruptInstall, StaticInterruptContext,
 StaticInterruptBeginCompletion and StaticInterruptFinishCompletion, respectively.
+Semantic format marker 274 adds tag 10, HostedPrimitive, followed by a `u8`
+operation (`0` ProcessExit; other operations reject), then the canonical public requirement's `u64` boundary
+id. The primitive is a Machine boundary with its own checked source declaration
+and callable identity; the linked requirement remains a distinct Trait boundary.
+Receiving authenticates the exact compiler-owned core declarations and their
+complete signature, reach, crash and progress correspondence, and independently
+proves that the actual result type is empty. The link preserves the canonical
+terminal observation without supplying target realization or execution authority.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Vocabulary marker 133 and the artifact transport envelope remain unchanged.
+decoded. Marker 274 retains the structural qualification rows and marker 273's
+machine-contract account of public result lifetimes. Formats 271, 272 and 273
+are refused before payload interpretation. Vocabulary marker 134 and the
+artifact transport envelope remain unchanged.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -1429,8 +1440,7 @@ types have the same layout. These signature descriptions establish no runtime
 region, backing or loan authority.
 
 A boundary's optional checked callable adds its counted closed method arguments
-and a `u8` execution owner: `0` provider, `1` compiler access initialization,
-`2` compiler access extraction. Other tags reject. Each compiler access
+and the checked boundary execution encoding above. Each compiler access
 declaration requires exactly one matching lifecycle obligation row; deleting
 that row cannot change the declaration into a provider-supplied boundary.
 
@@ -2718,7 +2728,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 271 | yes |
+| semantic module | `PSITERM\0` | 274 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

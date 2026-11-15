@@ -1831,7 +1831,7 @@ impl<'t> Program<'t> {
     pub(super) fn requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
@@ -1845,7 +1845,7 @@ impl<'t> Program<'t> {
     pub(super) fn declared_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         self.applied_requirement_signature(id, requirement, RequirementValues::Bound(arguments))
@@ -1854,7 +1854,7 @@ impl<'t> Program<'t> {
     fn applied_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         // These are the declaration's parameters, not a new family whenever
@@ -1892,7 +1892,7 @@ impl<'t> Program<'t> {
     fn read_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
@@ -2844,10 +2844,10 @@ impl<'t> Program<'t> {
                                 )
                             })?),
                     )?;
-                    if !call.discards_result {
-                        undiscarded(id, &called)?;
+                    Statement::Evaluate {
+                        expression: called,
+                        discards_result: call.discards_result,
                     }
-                    Statement::Evaluate(called)
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
@@ -2879,10 +2879,10 @@ impl<'t> Program<'t> {
                                 target: Target::Value(expression),
                             }
                         }
-                        (false, _) | (true, None) => {
-                            undiscarded(id, &expression)?;
-                            Statement::Evaluate(expression)
-                        }
+                        (false, _) | (true, None) => Statement::Evaluate {
+                            expression,
+                            discards_result: false,
+                        },
                     }
                 }
                 StatementNode::LocalData(local)
@@ -2956,13 +2956,6 @@ impl<'t> Program<'t> {
             };
             body.push(read);
             position += 1;
-        }
-        if !completed && signature.result.is_some() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Completion("value machine can fall off its end"),
-            ));
         }
         if let Some(names) = self.names.get_mut(id) {
             for statement in &body {
@@ -3165,7 +3158,7 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
-        | Statement::Evaluate(_) => {}
+        | Statement::Evaluate { .. } => {}
     }
 }
 
@@ -3185,7 +3178,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Witness { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
-        | Statement::Evaluate(_) => Vec::new(),
+        | Statement::Evaluate { .. } => Vec::new(),
     };
     for (target, arm) in arms {
         let (Target::Value(value), SourceOrigin::Authored(arm)) = (target, arm) else {
@@ -3377,7 +3370,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
             expression_slot_uses(destination, uses);
             expression_slot_uses(value, uses);
         }
-        Statement::Evaluate(value) => expression_slot_uses(value, uses),
+        Statement::Evaluate {
+            expression: value, ..
+        } => expression_slot_uses(value, uses),
         // Counted although nothing evaluates it: a type parameter's value is
         // never an erased term, so counting it can only refuse more.
         Statement::Witness { term, .. } => expression_slot_uses(term, uses),
@@ -3484,20 +3479,4 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             }
         }
     }
-}
-
-/// A statement evaluated for effect leaves no value behind. One that has a
-/// value and is not the machine's final value is a defect the route hands
-/// back, never a statement it reads past. `wiki/spec/language/effects.md`:
-/// "A non-Unit call result cannot be silently discarded. Intentional discard
-/// is `_ = call();`".
-fn undiscarded(id: MachineId, statement: &Expression) -> Checked<()> {
-    if statement.result.is_some() {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Statement("expression statement that discards its value"),
-        ));
-    }
-    Ok(())
 }

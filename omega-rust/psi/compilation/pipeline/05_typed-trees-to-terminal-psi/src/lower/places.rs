@@ -539,9 +539,10 @@ fn append_scalar_type(
 /// identity of each home's type (`ExpressionKind::Borrow::home`).
 fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Option<&'b String>)>) {
     match statement {
-        Statement::Bind { value, .. } | Statement::Evaluate(value) => {
-            expression_homes(value, homes)
-        }
+        Statement::Bind { value, .. }
+        | Statement::Evaluate {
+            expression: value, ..
+        } => expression_homes(value, homes),
         Statement::Store {
             destination, value, ..
         } => {
@@ -3810,7 +3811,7 @@ mod tests {
                         source,
                     },
                 },
-                Statement::Evaluate(Expression {
+                Statement::discard(Expression {
                     call_context: None,
                     kind: ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(

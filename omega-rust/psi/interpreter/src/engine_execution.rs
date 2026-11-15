@@ -531,7 +531,9 @@ pub(crate) mod capabilities {
                             pending.push(callee);
                         } else {
                             external_demands.insert(TerminalExternalCompletionDemand {
-                                boundary: *boundary,
+                                boundary: program
+                                    .verified_boundary_machine(boundary)?
+                                    .external_completion_requirement(),
                                 kind: *kind,
                             });
                         }

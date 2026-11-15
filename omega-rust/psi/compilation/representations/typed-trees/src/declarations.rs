@@ -163,11 +163,19 @@ pub mod boundary_completions {
                 && signature.native_callback_parameters.is_empty()
                 && !signature.suspends
                 && !signature.blocks
-                && exact_direct_intrinsic_signature(
-                    program,
-                    program.state_signature_parameters(signature),
-                    signature.return_type,
-                )
+                && if console_adapter {
+                    exact_direct_intrinsic_signature(
+                        program,
+                        program.state_signature_parameters(signature),
+                        signature.return_type,
+                    )
+                } else {
+                    exact_process_exit_signature(
+                        program,
+                        program.state_signature_parameters(signature),
+                        signature.return_type,
+                    )
+                }
         })
     }
 
@@ -246,6 +254,49 @@ pub mod boundary_completions {
         parameters: &[crate::signature::StateParameter],
         return_type: crate::types::TypeReferenceHandle,
     ) -> bool {
+        exact_process_exit_inputs(program, parameters)
+            && program
+                .type_reference_table
+                .contains_type_reference(return_type)
+            && matches!(
+                program.type_reference_table.type_reference(
+                    program
+                        .type_reference_table
+                        .unconstrained_type_reference(return_type)
+                ),
+                TypeReferenceNode::Unit
+            )
+    }
+
+    /// The canonical requirement names the exact bundled ordinary result
+    /// declaration. This recognizes its signature, not an emptiness proof or
+    /// a grant of process-exit authority. The lowered checker owns those
+    /// independent judgments.
+    fn exact_process_exit_signature(
+        program: &TypedTrees,
+        parameters: &[crate::signature::StateParameter],
+        return_type: crate::types::TypeReferenceHandle,
+    ) -> bool {
+        exact_process_exit_inputs(program, parameters)
+            && program
+                .type_reference_table
+                .contains_type_reference(return_type)
+            && program
+                .type_reference_table
+                .unconstrained_named_symbol(return_type)
+                .is_some_and(|symbol| {
+                    // `type_symbol` also peels references and arrays. A pointer to
+                    // Never, or an empty array of it, is not this nominal result.
+                    program.data_definition_by_symbol(symbol).is_some()
+                        && program.core_vocabulary(symbol)
+                            == Some(language_core::core_vocabulary::CoreVocabulary::Never)
+                })
+    }
+
+    fn exact_process_exit_inputs(
+        program: &TypedTrees,
+        parameters: &[crate::signature::StateParameter],
+    ) -> bool {
         let [parameter] = parameters else {
             return false;
         };
@@ -255,16 +306,149 @@ pub mod boundary_completions {
                 == Some(PrimitiveType::Integer(
                     numerics::integer_carrier::FixedInteger::signed(32),
                 ))
-            && {
-                let mut current = return_type;
-                loop {
-                    match program.type_reference_table.type_reference(current) {
-                        TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
-                        TypeReferenceNode::Unit => break true,
-                        _ => break false,
-                    }
-                }
+    }
+
+    #[cfg(test)]
+    mod process_exit_signature_tests {
+        use super::*;
+        use crate::data::DataDefinition;
+        use crate::signature::StateParameter;
+        use crate::types::{FixedArrayLength, TypeReferenceHandle};
+        use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+        use std::{path::PathBuf, sync::Arc};
+        use symbols::{
+            BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+        };
+
+        const NEVER_SOURCE: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/never.omg"
+        ));
+
+        fn fixture(
+            origin: SourceOrigin,
+            text: &str,
+        ) -> (TypedTrees, StateParameter, TypeReferenceHandle) {
+            let mut sources = SourceMap::default();
+            let source = sources
+                .add_with_metadata(
+                    PathBuf::from("core/never.omg"),
+                    text.into(),
+                    PathBuf::from("core"),
+                    None,
+                    origin,
+                )
+                .source_id;
+            let start = text.find("Never").unwrap();
+            let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let children = builder.insert_children(
+                root,
+                builtin_type_symbols().into_iter().chain([(
+                    SymbolKind::Data,
+                    SymbolNameRef::Source(SourceSpan::new(
+                        source,
+                        Span::new(start, start + "Never".len()),
+                    )),
+                )]),
+            );
+            let never = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+            let integer = children
+                .handles()
+                .nth(
+                    BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::signed(32))
+                        .ordinal(),
+                )
+                .unwrap();
+            let mut typed = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            typed.push_data_definition(DataDefinition {
+                symbol: never,
+                name: "Never".into(),
+                ..Default::default()
+            });
+            let argument = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: integer,
+                name: "i32".into(),
+            });
+            let result = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: never,
+                name: "Never".into(),
+            });
+            (
+                typed,
+                StateParameter {
+                    type_reference: argument,
+                    ..Default::default()
+                },
+                result,
+            )
+        }
+
+        #[test]
+        fn canonical_result_recognizes_bundled_identity_without_granting_legacy_shapes() {
+            let (mut typed, parameter, never) = fixture(SourceOrigin::Toolchain, NEVER_SOURCE);
+            assert!(exact_process_exit_signature(
+                &typed,
+                std::slice::from_ref(&parameter),
+                never
+            ));
+            let reference = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: never,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: None,
+                });
+            let array = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type: never,
+                    length: FixedArrayLength::Literal(0),
+                });
+            let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+            for wrong in [
+                reference,
+                array,
+                unit,
+                parameter.type_reference,
+                TypeReferenceHandle::invalid(),
+            ] {
+                assert!(!exact_process_exit_signature(
+                    &typed,
+                    std::slice::from_ref(&parameter),
+                    wrong
+                ));
             }
+            // The explicitly admitted legacy and Console adapter grammar keeps
+            // Unit; it does not silently acquire the canonical result type.
+            assert!(exact_direct_intrinsic_signature(
+                &typed,
+                std::slice::from_ref(&parameter),
+                unit
+            ));
+            assert!(!exact_direct_intrinsic_signature(
+                &typed,
+                std::slice::from_ref(&parameter),
+                never
+            ));
+            let mut wrong_input = parameter;
+            wrong_input.is_mutable = true;
+            assert!(!exact_process_exit_signature(&typed, &[wrong_input], never));
+        }
+
+        #[test]
+        fn a_same_named_user_or_edited_toolchain_type_is_not_the_canonical_result() {
+            for (origin, text) in [
+                (SourceOrigin::User, NEVER_SOURCE),
+                (SourceOrigin::Toolchain, "public data Never {}"),
+            ] {
+                let (typed, parameter, result) = fixture(origin, text);
+                assert!(!exact_process_exit_signature(&typed, &[parameter], result));
+            }
+        }
     }
 
     use diagnostics::Diagnostic;
