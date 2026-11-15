@@ -81,6 +81,7 @@ impl Program<'_> {
                     reason: terminal_check_tables::RefusalReason::ForeignIdentity,
                     machine: diagnostic,
                     concerns: Construct::Machine,
+                    source_span: None,
                     detail: format!("domain declaration source identity: {reason}"),
                 })?;
         let mut identities = std::mem::take(&mut module.identities).into_builder();
