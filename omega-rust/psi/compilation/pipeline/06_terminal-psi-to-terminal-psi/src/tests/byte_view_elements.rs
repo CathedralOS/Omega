@@ -985,3 +985,34 @@ fn a_match_arm_naming_the_backing_length_leaves_the_last_byte_unproved() {
         );
     }
 }
+
+#[test]
+fn a_call_guarantee_keeps_the_length_of_the_same_byte_window() {
+    // The call's result and a later measurement denote the same descriptor
+    // extent. A lower bound on the result alone cannot establish the index.
+    for (start, minimum, requirement) in [
+        (0, 0, ""),
+        (0, 0, "requires window.len > 0"),
+        (1, 1, "requires window.len > 0"),
+    ] {
+        for (comparison, expected) in [("==", "accepted"), (">=", "rejected")] {
+            let source = format!(
+                r#"
+machine measure(window: &[u8]) -> u64
+ensures result {comparison} window.len
+{requirement}
+{{ window.len }}
+
+machine build_entry(items: &[u8], count: u64) -> u8
+requires count > {minimum} && count <= items.len
+{{
+    let window: &[u8] = &items[{start}..count];
+    let length: u64 = measure(window);
+    window[length - 1]
+}}
+"#
+            );
+            assert_eq!(verdict(&source), expected, "{source}");
+        }
+    }
+}
