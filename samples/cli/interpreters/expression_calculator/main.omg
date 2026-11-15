@@ -33,7 +33,7 @@ data Token [copy] {
 }
 
 data ValueStack {
-    items: [i32; 16] in Wrapping;
+    items: [i32 in Wrapping; 16];
     count: u64;
 }
 

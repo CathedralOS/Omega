@@ -24,9 +24,9 @@ requires self.sp >= 0 && self.sp <= 16,
 {
     // Wrapping DECLARED (program/stack/tok/a/b/acc): the operand values flow
     // through array elements, which carry no range facts yet.
-    program: [i32; 16] in Wrapping;
+    program: [i32 in Wrapping; 16];
     nprog: i32;
-    stack: [i32; 16] in Wrapping;
+    stack: [i32 in Wrapping; 16];
     sp: i32;
     pc: i32;
     tok: i32 in Wrapping;

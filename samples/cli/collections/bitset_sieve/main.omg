@@ -21,8 +21,8 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bitset_sieve: Sieve of Eratosthenes over a u32 bitset -- counting primes in 2..30");
-    main.bits = 0;
-    main.i = 2;
+    main.bits = 0u32 as +Wrapping;
+    main.i = 2u32 as +Wrapping;
     transition { _ -> block outer(main) }
 
     machine outer(main: &mut Main) {
@@ -41,7 +41,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         transition main.j <= 30 { true -> block set_bit(main) _ -> block outer_next(main) }
     }
     machine set_bit(main: &mut Main) {
-        main.m = 1;
+        main.m = 1u32 as +Wrapping;
         main.m = main.m << main.j;
         main.bits = main.bits | main.m;
         main.j = main.j + main.i;
@@ -53,8 +53,8 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     machine count_init(main: &mut Main) {
-        main.count = 0;
-        main.k = 2;
+        main.count = 0i32 as +Wrapping;
+        main.k = 2u32 as +Wrapping;
         transition { _ -> block count_loop(main) }
     }
     machine count_loop(main: &mut Main) {
