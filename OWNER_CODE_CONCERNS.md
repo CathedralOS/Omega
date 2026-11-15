@@ -143,13 +143,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an accepted program fails when run. ownership.md, "Borrows and aliases", closes a local's loan "after the last use of that local", so the checker is right and the lowering must release each reference carrier (a local, or the reference field of a record) where its loan closes, on every edge leaving its live range, with 06 checking that release against the same descriptor lifetime
 - Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference; widened 2026-11-15 to plain locals
 
-### Composite arena freshness keys still sum independent stamps
-- Category: a verdict with nothing behind it
-- Where: `StatementTable::revision` in [typed statements](omega-rust/psi/compilation/representations/typed-trees/src/calls_and_control_flow.rs), `OrderedRootArena::revision` in [arena storage](omega-rust/psi/foundation/arena/src/arena.rs), and `PagedArena::revision` in [paged storage](omega-rust/psi/foundation/arena/src/paged.rs)
-- Saw: these composite owners add their components' process-unique stamps. Distinct tuples can have the same sum, and `OrderedRootArena` omits its root span. Declaration indexes use the resulting scalar as an exact freshness input, despite those collisions.
-- Cost: a retained index can reuse rows from different storage. Give consumers exact component scopes or give each composite owner its own mutation stamp, covering replacement and every mutation route without allocating a page-sized key on each lookup. Acceptance compares warm and cold queries after storage replacement, roster changes and edits to independent components that preserve the old sum.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; narrowed 2026-11-15 by Claude Code after the arena stamp and exact call-target/data-member keys landed
-
 ### An explicit exclusive borrow becomes shared before the checker sees its formation
 - Category: a verdict with nothing behind it
 - Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs`, `lent` and its `attenuated` argument path

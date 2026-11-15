@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use arc_swap::ArcSwapOption;
 
+use crate::arena::RevisionStamp;
 use crate::{Arena, ArenaSpanInserter, Handle, HandleSpan};
 
 enum ArenaPage<T> {
@@ -194,6 +195,10 @@ impl<T> Default for PagedArenaFrontier<T> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct PagedArenaSet<T: Default> {
+    // One epoch covers page membership, selected generation, and mutable row access.
+    // Adding child epochs cannot distinguish these independent inputs, and scanning
+    // every page for each query would make a retained index depend on page count.
+    revision: RevisionStamp,
     first_generation: u32,
     first_page: ArenaPage<T>,
     additional_pages: Vec<(u32, ArenaPage<T>)>,
@@ -207,6 +212,7 @@ pub struct PagedArenaSet<T: Default> {
 impl<T: Default + Clone> Clone for PagedArenaSet<T> {
     fn clone(&self) -> Self {
         Self {
+            revision: self.revision.copy(),
             first_generation: self.first_generation,
             first_page: self.first_page.clone(),
             additional_pages: self.additional_pages.clone(),
@@ -219,6 +225,7 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
     }
 
     fn clone_from(&mut self, source: &Self) {
+        self.revision.invalidate();
         self.first_generation = source.first_generation;
         self.first_page.clone_from(&source.first_page);
         self.additional_pages.clone_from(&source.additional_pages);
@@ -227,6 +234,7 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
         self.current_generation = source.current_generation;
         self.active_count = source.active_count;
         self.dummy.clone_from(&source.dummy);
+        self.revision = source.revision.copy();
     }
 }
 
@@ -242,6 +250,7 @@ impl<T: Default> PagedArenaSet<T> {
         if !self.additional_pages.is_empty() {
             return Err("only a single-page arena set can move generation");
         }
+        self.revision.invalidate();
         self.first_page
             .relocate_fresh_generation(generation, visit)?;
         self.first_generation = generation;
@@ -291,6 +300,7 @@ impl<T: Default> PagedArenaSet<T> {
             "paged arena set generation must be nonzero"
         );
         Self {
+            revision: RevisionStamp::unstamped(),
             first_generation: generation,
             first_page: Arena::with_generation(generation).into(),
             additional_pages: Vec::new(),
@@ -303,6 +313,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn adopt(&mut self, other: Self) {
+        self.revision.invalidate();
         let other_current_generation = other.current_generation;
         let other_active_count = other.active_count;
         self.insert_page(other.first_generation, other.first_page);
@@ -317,6 +328,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn take_additional_pages(&mut self) -> Self {
+        self.revision.invalidate();
         let mut taken = Self::with_generation(self.first_generation);
         taken.additional_pages = std::mem::take(&mut self.additional_pages);
         taken.page_positions = std::mem::take(&mut self.page_positions);
@@ -333,6 +345,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn adopt_additional_pages(&mut self, other: Self) {
+        self.revision.invalidate();
         self.current_generation = self.current_generation.max(other.current_generation);
         if other.additional_pages.is_empty() {
             return;
@@ -356,6 +369,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn take_pages_from(&mut self, generation: u32, restored_current: u32) -> Self {
+        self.revision.invalidate();
         assert!(
             generation > self.first_generation,
             "split generation must exceed first generation"
@@ -389,6 +403,7 @@ impl<T: Default> PagedArenaSet<T> {
             self.page_for_generation(generation).is_none(),
             "paged arena generation {generation} already exists"
         );
+        self.revision.invalidate();
         self.current_generation = generation;
     }
 
@@ -484,6 +499,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        self.revision.invalidate();
         if handle.generation() == self.first_generation {
             return self.first_page.get_mut(handle);
         }
@@ -544,6 +560,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
+        self.revision.invalidate();
         self.first_page.for_each_mut(&mut visit);
         for (_, page) in &mut self.additional_pages {
             page.for_each_mut(&mut visit);
@@ -584,6 +601,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn reset_retain_capacity(&mut self) {
+        self.revision.invalidate();
         self.first_page.reset_retain_capacity();
         self.additional_pages.clear();
         self.page_positions.clear();
@@ -594,51 +612,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     pub fn revision(&self) -> u64 {
-        self.pages()
-            .map(Arena::revision)
-            .fold(u64::from(self.current_generation), u64::wrapping_add)
-    }
-
-    pub fn append_epoch(&self) -> Option<(u64, usize)> {
-        if self.additional_pages.is_empty() && self.current_generation == self.first_generation {
-            return self.first_page.append_epoch();
-        }
-        let current = self.current();
-        let current_rewrite = match current {
-            Some(page) => page.append_epoch()?.0,
-            None => 0,
-        };
-        let mut epoch = current_rewrite
-            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            .wrapping_add(u64::from(self.current_generation))
-            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            .wrapping_add(self.page_count() as u64);
-        for page in self.pages() {
-            if !current.is_some_and(|cur| std::ptr::eq(page, cur)) {
-                page.append_epoch()?;
-                epoch = epoch
-                    .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                    .wrapping_add(page.revision());
-            }
-        }
-        Some((epoch, self.active_count))
-    }
-
-    pub fn for_each_from(&self, start: usize, mut visit: impl FnMut(Handle<T>, &T)) {
-        if self.additional_pages.is_empty() && self.current_generation == self.first_generation {
-            for (handle, item) in self.first_page.iter_from(start) {
-                visit(handle, item);
-            }
-            return;
-        }
-        let Some(current) = self.current() else {
-            return;
-        };
-        let prefix_len = self.active_count.saturating_sub(current.len());
-        let local_start = start.saturating_sub(prefix_len);
-        for (handle, item) in current.iter_from(local_start) {
-            visit(handle, item);
-        }
+        self.revision.get()
     }
 
     pub fn handle_of(&self, item: &T) -> Option<Handle<T>> {
@@ -674,6 +648,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     fn current_mut(&mut self) -> &mut Arena<T> {
+        self.revision.invalidate();
         let generation = self.current_generation;
         if generation == self.first_generation {
             return &mut self.first_page;
@@ -703,6 +678,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     fn page_for_generation_mut(&mut self, generation: u32) -> Option<&mut Arena<T>> {
+        self.revision.invalidate();
         if generation == self.first_generation {
             return Some(&mut self.first_page);
         }
@@ -736,6 +712,7 @@ impl<T: Default> PagedArenaSet<T> {
     }
 
     fn insert_page(&mut self, generation: u32, page: ArenaPage<T>) -> usize {
+        self.revision.invalidate();
         assert!(
             generation > self.first_generation,
             "additional page generation must exceed first generation"
@@ -819,6 +796,7 @@ impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::
     ) -> Result<Self, compiler_storage::RecordError> {
         input.record(|input| {
             let mut result = Self {
+                revision: RevisionStamp::unstamped(),
                 first_generation: u32::read(input)?,
                 first_page: ArenaPage::read(input)?,
                 additional_pages: Vec::read(input)?,
@@ -2248,6 +2226,92 @@ mod tests {
         set.begin_page(2);
         let paged = set.revision();
         assert!(empty < appended && appended < rewritten && rewritten < paged);
+    }
+
+    #[test]
+    fn revision_distinguishes_page_contents_from_selected_generation() {
+        let mut original = PagedArenaSet::<u64>::new();
+        original.append(10);
+        let original_revision = original.revision();
+        let mut replacement = PagedArenaSet::<u64>::new();
+        replacement.append(20);
+        let replacement_revision = replacement.revision();
+
+        // Selecting a later, still empty page must not disguise different contents
+        // as the epoch of replacement storage retained by the same parent index.
+        let generation = u32::try_from(replacement_revision - original_revision + 1)
+            .expect("this test's two queries fit one generation gap");
+        original.begin_page(generation);
+        let index = crate::OwnedIndex::<Vec<u64>>::default();
+        let query = |rows: &PagedArenaSet<u64>| {
+            index.with(
+                rows.revision(),
+                || rows.iter().map(|(_, value)| *value).collect(),
+                Clone::clone,
+            )
+        };
+        assert_eq!(query(&replacement), [20]);
+        assert_eq!(query(&original), [10]);
+    }
+
+    #[test]
+    fn revision_tracks_paged_mutation_and_transfer_routes() {
+        let mut rows = PagedArenaSet::<u64>::new();
+        let first = rows.insert_many([10, 20]);
+        let mut previous = rows.revision();
+        rows.share_pages();
+        let mut copy = rows.clone();
+        assert_eq!(rows.revision(), previous);
+        assert_eq!(copy.revision(), previous);
+        let mut changed = |rows: &PagedArenaSet<u64>| {
+            let current = rows.revision();
+            assert_ne!(current, previous);
+            assert_eq!(rows.revision(), current);
+            previous = current;
+        };
+        *rows.get_mut(first.start()) += 1;
+        changed(&rows);
+        rows.span_mut(first).expect("first span")[1] += 1;
+        changed(&rows);
+        rows.for_each_mut(|_, value| *value += 1);
+        changed(&rows);
+        let frontier = rows.frontier();
+        rows.append(30);
+        changed(&rows);
+        rows.rewind_appended(frontier);
+        changed(&rows);
+        rows.begin_page(2);
+        changed(&rows);
+        let second = rows.append(40);
+        changed(&rows);
+        rows.span_mut_or_empty(crate::HandleSpan::from_parts(second, 1))[0] += 1;
+        changed(&rows);
+        assert!(rows.free(second));
+        changed(&rows);
+        let taken = rows.take_additional_pages();
+        changed(&rows);
+        rows.adopt_additional_pages(taken);
+        changed(&rows);
+        let taken = rows.take_pages_from(2, 1);
+        changed(&rows);
+        rows.adopt_additional_pages(taken);
+        changed(&rows);
+        copy.clone_from(&rows);
+        assert_eq!(copy.revision(), rows.revision());
+        assert_eq!(copy, rows);
+        rows.reset_retain_capacity();
+        changed(&rows);
+        let mut supplied = PagedArenaSet::with_generation(3);
+        supplied.append(50);
+        rows.adopt(supplied);
+        changed(&rows);
+        let mut moved = PagedArenaSet::new();
+        moved.append(60);
+        let before_relocation = moved.revision();
+        moved
+            .relocate_single_page(4, |_| {})
+            .expect("fresh single page");
+        assert_ne!(moved.revision(), before_relocation);
     }
 
     #[test]
