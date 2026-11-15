@@ -59,7 +59,7 @@ families are not introduced. Parameterized NaN constructors are convenience
 code whose need may change with future unsigned narrow payload types.
 
 `CORE-INTEGER-FLOAT-APIS` in [TASKS.md](../../TASKS.md) retains library/compiler
-acceptance, nine-place facts and reject controls, including old-spelling
+acceptance, facts and reject controls, including old-spelling
 removal. Existing numeric examples using primitive-member limits are migration
 inputs, not an implemented alternate API.
 

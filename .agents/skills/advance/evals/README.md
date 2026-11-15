@@ -24,7 +24,7 @@ Scenarios 18–23 exercise capability-directed selection: priority versus sample
 size, continuity after a witness lands, missing witnesses, already-satisfied
 acceptance, explicit sample scope, and drawing a new fact from the board rather
 than from another count or width of an existing row. Compiler advancement selects fact folders
-under `samples/cli/facts`, one fact across the nine places, and leaves the rest
+under `samples/cli/facts`, one fact at a time, and leaves the rest
 of `samples/` unselected. Review the next completed assignments
 for requirements actually removed from their selected tasks, preserved regression
 behavior and continuation to remaining acceptance. A task ID attached to unrelated

@@ -189,16 +189,14 @@ are the one looking at it, it is yours: finish it or close it.
 
 ## The sample loop
 
-A language feature should work wherever a value can appear. There are nine
-such places ("transport places"): a local variable (`local`), a record field
-(`field`), a function parameter (`parameter`), a function's return value
-(`call_result`), the result of a `match` (`match_join`), a named constant
-(`const_name`), another state of the same machine (`other_state/`), a
-different machine (`other_machine/`), and a target-specific implementation
-chosen in `build.omg` (`target_body/`). Each should work on all four hosted
-targets and have a negative twin. This list says what "finished" means for a
-feature. It is a design checklist: it is not a number of test files to write,
-and one pull request does not have to test all of it. A `TASKS.md` item names an
+A language feature should work wherever a value can appear (a local, a field,
+an argument, a return value, and so on) and on all four hosted targets, with a
+negative twin. The lowered-form checker gives every one of those places the
+same treatment: a fact belongs to a value, and a place only says which value it
+holds ([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md)).
+So there is no list of places to test one by one. A fix that works for one
+place but needs new code for another is the too-narrow mechanism rule 6 above
+describes. A `TASKS.md` item names an
 acceptance only when it ends in a deletion (the old surface or path is gone);
 otherwise its spec page and the running program decide when it is done.
 
@@ -380,6 +378,11 @@ refuses a second build or test run while one is active.
 - Keep `TASKS.md` strictly as a remaining-work board: delete finished bullets
   in the same commit as the repair. A ratified decision may add its
   implementation item.
+- When a ruling or design decision changes how the compiler is built or how
+  work is judged, the same PR updates or deletes every instruction that
+  described the old way: this file, `.agents/skills/`, `TASKS.md` and the
+  READMEs agents read. Search for the old terms before landing. Two
+  instructions that disagree make agents pick one at random.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
