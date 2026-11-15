@@ -87,13 +87,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Standalone Psi consumers cannot reload either capture in the same checked module. Carry the exact retained map telescope and any method application through the existing capture/application records. Keep different captured arguments distinct and preserve the codec's missing and mismatched capture refusals.
 - Reported: 2026-11-15, Codex, while restoring publication of ordinary generic specializations.
 
-### Psi refuses an owned sequence at a by-value argument
-- Category: knowledge crossing a boundary
-- Where: [immutable sequence backing](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3391), [argument admission](omega-rust/psi/interpreter/src/engine_calls.rs#L390)
-- Saw: On macOS arm64 at `c75dc2fc5e6` with Psi runtime admission decoupled from native body lowering, both `consume(make(11u32))` and `consume(tickets)` for a local `[Ticket]` literal reach Psi execution and fail at `bind element descriptor` before entering `consume`. Inspection shows an affine sequence result and affine formal of the same element type. The unconsumed local literal and the inline `[Ticket; 1]` return-and-consume control execute successfully.
-- Cost: The immutable backing grants shared element observation while the checked descriptor itself transfers by value. Argument admission derives the descriptor's multiplicity from element access, yielding unrestricted for an affine sequence. Retain the existing checked descriptor ownership through argument binding and disposal, including returned values, while preserving the same read authority.
-- Reported: 2026-11-15, Codex, while checking Psi execution independently of native lowering.
-
 ### A stored-length element sequence cannot report its length
 - Category: knowledge crossing a boundary
 - Where: [source measurement](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L533), [measurement emission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L3020), [Psi element length operation](omega-rust/psi/compilation/representations/terminal-psi/src/control_flow.rs#L1445)

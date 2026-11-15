@@ -892,7 +892,8 @@ pub(crate) mod byte_buffers {
                     continue;
                 };
                 let admitted = if parameter.access == StructuralAccess::Owned {
-                    view.owned_multiplicity() == Some(parameter.multiplicity)
+                    let declaration = types.get(&parameter.structural_type).ok_or(malformed())?;
+                    view.owned_multiplicity(declaration) == Some(parameter.multiplicity)
                         && view.matches_descriptor_home(
                             values.get(&parameter.place).ok_or(malformed())?,
                         )

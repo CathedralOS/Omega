@@ -390,7 +390,7 @@ pub(crate) mod frames {
                 let access = if parameter.access == StructuralAccess::Owned {
                     if argument.access != StructuralAccess::Owned
                         || parameter.structural_type != resolved.structural_type
-                        || view.owned_multiplicity() != Some(parameter.multiplicity)
+                        || view.owned_multiplicity(declaration) != Some(parameter.multiplicity)
                     {
                         return Err(malformed());
                     }
