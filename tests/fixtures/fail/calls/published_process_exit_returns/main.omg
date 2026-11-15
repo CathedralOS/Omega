@@ -7,7 +7,6 @@ public machine finish(status: i32) -> Never
 reaches ProcessExit
 crashes none
 terminates {
-    {}
 }
 
 machine entry_start() reaches ProcessExit crashes none terminates {
