@@ -4188,6 +4188,7 @@ pub(crate) mod package_policy_reading_tests {
                     .program
                     .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
                         type_reference: reference,
+                        lifetime_binders: None,
                         binders,
                         substitutions,
                         exact_toolchain_sources: &self.toolchain,
@@ -7687,6 +7688,9 @@ impl TypeIdentityRequest<'_> {
 #[derive(Clone, Copy)]
 pub struct ExactOwnerTypeIdentityRequest<'a> {
     pub type_reference: TypeReferenceHandle,
+    /// A supplied roster retains declared lifetime relationships. Absence
+    /// keeps the existing carrier-only identity request.
+    pub lifetime_binders: Option<&'a [(LifetimeParameterIdentity, usize)]>,
     pub binders: &'a [(SymbolHandle, String)],
     pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
@@ -8531,11 +8535,22 @@ impl TypedTrees {
         request: ExactOwnerTypeIdentityRequest<'_>,
     ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
+        let invalid = Cell::new(false);
+        if request.lifetime_binders.is_some_and(|binders| {
+            binders
+                .iter()
+                .any(|(region, _)| lifetime_parameter_name(self, *region).is_none())
+        }) {
+            return None;
+        }
         let identity = normalize_type_identity(
             self,
             request.type_reference,
             &TypeIdentityContext {
                 binders: request.binders,
+                lifetime_binders: request.lifetime_binders.unwrap_or(&[]),
+                invalid_application: request.lifetime_binders.map(|_| &invalid),
+                encountered_elided_regions: request.lifetime_binders.map(|_| &invalid),
                 substitutions: request.substitutions,
                 substitution_semantics: SubstitutionSemantics::Transitive,
                 active_const_substitutions: &[],
@@ -8545,7 +8560,7 @@ impl TypedTrees {
                 ..TypeIdentityContext::default()
             },
         );
-        (!missing_exact_nominal_owner.get()).then_some(identity)
+        (!missing_exact_nominal_owner.get() && !invalid.get()).then_some(identity)
     }
 
     pub fn exact_owner_nominal_identity(

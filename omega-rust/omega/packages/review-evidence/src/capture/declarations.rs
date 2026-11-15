@@ -96,6 +96,14 @@ impl<'a> PackageReviewInput<'a> {
         &self,
         reference: TypeReferenceHandle,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+        self.type_identity_with_lifetimes(reference, None)
+    }
+
+    fn type_identity_with_lifetimes(
+        &self,
+        reference: TypeReferenceHandle,
+        lifetime_binders: Option<&[(typed_trees::type_identity::LifetimeParameterIdentity, usize)]>,
+    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         if !reference.is_valid() {
             return Err(unavailable("an absent declared type"));
         }
@@ -104,6 +112,7 @@ impl<'a> PackageReviewInput<'a> {
             .typed()
             .exact_owner_type_identity(typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
                 type_reference: reference,
+                lifetime_binders,
                 binders: &[],
                 substitutions: &[],
                 exact_toolchain_sources: self.compilation().sources().exact_toolchain_sources(),
@@ -162,12 +171,17 @@ impl<'a> PackageReviewInput<'a> {
         Ok(())
     }
 
-    fn field(&self, field: &DataField) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
+    fn field(
+        &self,
+        field: &DataField,
+        lifetimes: &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+    ) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
         Ok(PackageReviewDataField {
             identity: field.identity,
             name: field.name.as_str().to_owned(),
             relevance: field.relevance,
-            type_identity: self.type_identity(field.type_reference)?,
+            type_identity: self
+                .type_identity_with_lifetimes(field.type_reference, Some(lifetimes))?,
         })
     }
 
@@ -185,8 +199,11 @@ impl<'a> PackageReviewInput<'a> {
             if !self.owns(definition.symbol, package)? {
                 continue;
             }
+            // Lifetime binders are retained by this declaration's exact
+            // owner and count; field type identities name the ordinals in
+            // that scope. Other generic and cleanup contracts
+            // still need a complete projection before they can be reviewed.
             if !definition.type_parameters.is_empty()
-                || !definition.lifetime_parameters.is_empty()
                 || !definition.conformance_bounds.is_empty()
                 || definition.quotient.is_some()
                 || definition.cleanup_selection.is_some()
@@ -196,10 +213,23 @@ impl<'a> PackageReviewInput<'a> {
                     "this data declaration's complete generic or cleanup signature",
                 ));
             }
+            let lifetimes = (0..definition.lifetime_parameters.len())
+                .map(|ordinal| {
+                    (
+                        typed_trees::type_identity::LifetimeParameterIdentity {
+                            declaration: definition.symbol,
+                            ordinal,
+                        },
+                        ordinal,
+                    )
+                })
+                .collect::<Vec<_>>();
             let mut members = Vec::new();
             for member in self.typed().data_members(definition) {
                 members.push(match member {
-                    DataMember::Field(field) => PackageReviewDataMember::Field(self.field(field)?),
+                    DataMember::Field(field) => {
+                        PackageReviewDataMember::Field(self.field(field, &lifetimes)?)
+                    }
                     DataMember::Variant(variant) => {
                         let mut retired = variant.retired_payload_identities.clone();
                         retired.sort_unstable();
@@ -211,7 +241,7 @@ impl<'a> PackageReviewInput<'a> {
                                 .typed()
                                 .data_payload_fields(variant)
                                 .iter()
-                                .map(|field| self.field(field))
+                                .map(|field| self.field(field, &lifetimes))
                                 .collect::<Result<_, _>>()?,
                             retired_payload_identities: retired,
                         }
