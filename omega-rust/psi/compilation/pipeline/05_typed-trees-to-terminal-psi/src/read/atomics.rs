@@ -220,16 +220,19 @@ impl Program<'_> {
         }
         let (place, scalar) = self.atomic_place(machine, slots, target, false, true)?;
         let operand = self.atomic_operand(machine, slots, atomic.value, scalar)?;
-        Ok(Statement::Evaluate(Expression {
-            call_context: None,
-            kind: ExpressionKind::Atomic {
-                place: Box::new(place),
-                event: AtomicAccessEvent::Store { value: 0, ordering },
-                operands: vec![operand],
+        Ok(Statement::Evaluate {
+            expression: Expression {
+                call_context: None,
+                kind: ExpressionKind::Atomic {
+                    place: Box::new(place),
+                    event: AtomicAccessEvent::Store { value: 0, ordering },
+                    operands: vec![operand],
+                },
+                result: None,
+                source,
             },
-            result: None,
-            source,
-        }))
+            discards_result: false,
+        })
     }
 
     fn atomic_operand(

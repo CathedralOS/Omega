@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A textual merge can pass Admission with a Rust type error
+- Category: verifying costs more than writing
+- Where: [pre-merge Admission](.github/workflows/admission.yml#L68), [post-merge checks](.github/workflows/post-merge-check.yml#L64), [atomic store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L223)
+- Saw: [PR #3326](https://github.com/CathedralOS/Omega/pull/3326) had green Admission, then squash commit `d5d5c987120` failed a clean macOS arm64 Rust build with E0533. The new evaluation statement shape and the existing atomic-store constructor were in different files. Git merged the text without a conflict. Admission runs rules and formatting on the merge, and the compiler checks start after publication.
+- Cost: Unrelated compiler builds and two in-flight repairs stopped before tests could run. Compare the latency and detection coverage of checking the affected crates on a warmed merge tree with the current post-merge validation.
+- Reported: 2026-11-15, Codex, while validating copyable record constants and the owned-element call path.
+
 ### A named-map specialization loses its captured application at Psi publication
 - Category: knowledge crossing a boundary
 - Where: [named-map fixture](tests/fixtures/run/generics/named_map_own_telescope/main.omg#L4), [captured source application](omega-rust/psi/compilation/representations/typed-trees/src/access_views_and_commitments.rs#L1556), [artifact validation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L1858)
