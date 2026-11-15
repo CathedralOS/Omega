@@ -1313,14 +1313,12 @@ fn constant_evaluation_keeps_the_callee_cast_location() {
 
 #[test]
 fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
-    let (_, _, base, pending) = constant_base(&[(
-        "main.omg",
-        r#"
+    let source = r#"
         const VALUE: u64 = answer();
         machine answer() -> u64 { selected() }
         linux_x86_64 machine selected() -> u64 { 7u64 }
-    "#,
-    )]);
+    "#;
+    let (_, ids, base, pending) = constant_base(&[("main.omg", source)]);
     let mut program = base.typed().clone();
     let errors = pending
         .evaluate_requested_constants(&mut program)
@@ -1329,11 +1327,18 @@ fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
     let error = diagnostics::join_messages(&errors);
     assert!(error.contains("target"), "{error}");
     let declaration = &program.const_declarations()[0];
-    let declaration_span = program
-        .symbols
-        .symbol_source_span(declaration.symbol)
-        .unwrap();
-    assert_eq!(errors[0].source_span, Some(declaration_span));
+    let site = errors[0]
+        .source_span
+        .expect("the target selection refusal identifies the selected declaration");
+    let callee = "selected";
+    let callee_start = source
+        .rfind(callee)
+        .expect("fixture declares the target body");
+    assert_eq!(site.source_id, ids[0]);
+    assert_eq!(
+        site.span.start..site.span.end,
+        callee_start..callee_start + callee.len()
+    );
     assert!(declaration.evaluated_value.is_none());
 }
 
