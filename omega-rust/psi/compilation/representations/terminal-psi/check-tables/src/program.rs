@@ -270,6 +270,15 @@ pub struct Elaboration {
     pub static_conformances: Vec<crate::contracts::StaticConformanceQuestion>,
 }
 
+/// The complete declared identity of the source implementation operand and
+/// the exact declaration that supplied it. This is source-preparation metadata,
+/// not a runtime conformance record or permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedSourceOperand {
+    pub identity: String,
+    pub supplier: SymbolHandle,
+}
+
 /// One call through an implementation parameter in a machine stage 04
 /// generated for a static application: which machine holds the call, the
 /// parameter and the requirement it was written against, and the member the
@@ -280,6 +289,9 @@ pub struct Selected {
     /// The exact public header used by this invocation. Synthetic checking
     /// models without a source call leave this absent.
     pub required_contract: Option<semantic_vocabulary::ContractId>,
+    /// The complete operand and its actual supplying declaration before source
+    /// closes. Synthetic checking models have no source operand.
+    pub source_operand: Option<SelectedSourceOperand>,
     pub parameter: SymbolHandle,
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,

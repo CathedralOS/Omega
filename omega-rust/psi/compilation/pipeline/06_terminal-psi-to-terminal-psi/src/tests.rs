@@ -6424,6 +6424,7 @@ mod generic_bodies {
             Selected {
                 caller: id(1),
                 required_contract: None,
+                source_operand: None,
                 parameter: symbols::SymbolHandle::from_parts(3, 1),
                 declaring_trait: symbols::SymbolHandle::from_parts(4, 1),
                 requirement,

@@ -41,7 +41,7 @@ pub fn prepare_replay<'source>(
     })?;
     // A record formal, result or field in a domain is a contract of the
     // lowered form, judged here before anything is inferred from it.
-    terminal_semantics::structural_qualifications::validate(&elaboration.module).map_err(
+    terminal_semantics::structural_qualifications::validate_shape(&elaboration.module).map_err(
         |error| {
             crate::refusal(
                 RefusalReason::ForeignIdentity,

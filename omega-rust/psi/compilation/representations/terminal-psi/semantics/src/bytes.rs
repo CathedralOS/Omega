@@ -329,6 +329,31 @@ pub(crate) mod byte_sequence_predicates {
         )
     }
 
+    /// The octet predicate may represent only its own complete logical
+    /// theory, never an additional generic clause on the same domain.
+    pub(crate) fn primitive_byte_domain_theory_matches(
+        domain: &terminal_psi::StructuralDomainDeclaration,
+    ) -> bool {
+        let Some(primitive) = domain.byte_predicate else {
+            return false;
+        };
+        let Some(theory) = &domain.predicate else {
+            return true;
+        };
+        if theory.proposition == semantic_vocabulary::Proposition::Truth {
+            return true;
+        }
+        let mut required = ByteSequencePredicateSet::EMPTY;
+        required.insert(primitive);
+        theory.proposition
+            == byte_predicate_requirement(
+                required,
+                ByteSequencePredicateSet::EMPTY,
+                theory.subject,
+                &[],
+            )
+    }
+
     pub fn byte_qualification_predicates_in<'domain>(
         domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
         carrier: StructuralTypeId,
@@ -344,6 +369,7 @@ pub(crate) mod byte_sequence_predicates {
                 || domain.content_projection.is_some()
                 || domain.establishment_routes.is_some()
                 || !domain.has_no_required_memberships()
+                || !primitive_byte_domain_theory_matches(domain)
             {
                 return None;
             }
@@ -1071,6 +1097,7 @@ pub(crate) mod byte_sequence_predicates {
                             && domain.content_projection.is_none()
                             && domain.establishment_routes.is_none()
                             && domain.has_no_required_memberships()
+                            && primitive_byte_domain_theory_matches(domain)
                             && domain
                                 .byte_predicate
                                 .is_some_and(|predicate| predicate.holds_for(bytes))

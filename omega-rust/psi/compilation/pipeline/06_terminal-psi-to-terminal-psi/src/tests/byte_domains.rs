@@ -140,6 +140,41 @@ machine build_entry() {
         .expect("the actual package declarations have portable custody");
     terminal_codec::decode_module(&encoded)
         .expect("the actual established descriptor crosses receiving validation");
+    let mut forged_theory = module.clone();
+    let domain = forged_theory
+        .structural_domains
+        .iter_mut()
+        .find(|domain| domain.byte_predicate == Some(terminal_psi::ByteSequencePredicate::NoNul))
+        .expect("the source retains its primitive NoNul domain");
+    let theory = domain
+        .predicate
+        .as_mut()
+        .expect("the primitive domain retains its complete theory");
+    theory.proposition =
+        Proposition::Conjunction(vec![theory.proposition.clone(), Proposition::Falsehood]);
+    let refused = terminal_semantics::structural_qualifications::validate_shape(&forged_theory)
+        .expect_err("an octet predicate cannot establish an unrelated generic clause");
+    assert_eq!(
+        refused.detail, "a structural cast cannot prove a domain predicate",
+        "{refused:?}"
+    );
+    let refused = terminal_codec::decode_module(
+        &terminal_codec::encode_module(&forged_theory)
+            .expect("the theory mutation retains portable source custody"),
+    )
+    .expect_err("artifact ingress must retain every domain clause");
+    assert!(
+        matches!(
+            refused,
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "a structural cast cannot prove a domain predicate"
+            ) | terminal_codec::CodecError::MalformedOperationFoundation {
+                reason: "byte transfer qualification is not a complete primitive byte domain",
+                ..
+            }
+        ),
+        "the unsupported extra theory must explain refusal: {refused:?}"
+    );
     let mut forged = module.clone();
     let mut corrupted = 0;
     for machine in &mut forged.machines {

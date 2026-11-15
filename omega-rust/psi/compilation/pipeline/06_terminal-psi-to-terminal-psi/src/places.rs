@@ -3351,8 +3351,8 @@ impl<'a> Storage<'a> {
     }
 
     /// Judge primitive byte-domain establishment from the exact source.
-    /// Copies and moves owe their new qualifications at their producer, even
-    /// when nothing later consumes the result. A field store owes the field's
+    /// Cast edges, copies and moves owe their new qualifications at their
+    /// producer, even when nothing later consumes the result. A field store owes the field's
     /// predicates, independently of its storage and loan obligations.
     /// Exact literal bytes, declared qualified inputs and supported descriptor
     /// producers supply predicates through the shared source-free owner.
@@ -3361,6 +3361,27 @@ impl<'a> Storage<'a> {
         module: &terminal_psi::TerminalModule,
     ) -> Checked<Vec<StorageUse>> {
         let mut verdicts = Vec::new();
+        let changes =
+            terminal_semantics::structural_qualifications::byte_qualification_change_judgments(
+                module,
+                self.lowered,
+            )
+            .map_err(|error| self.unsupported(Construct::Machine, error.detail))?;
+        for (edge, established) in changes {
+            if !established {
+                let concerns = Construct::Edge(edge);
+                verdicts.push(StorageUse {
+                    at: concerns,
+                    verdict: Err(refusal(
+                        RefusalReason::Unestablished,
+                        self.machine,
+                        concerns,
+                        "a byte transfer's source does not establish its primitive byte-domain \
+                             qualifications",
+                    )),
+                });
+            }
+        }
         for block in &self.lowered.blocks {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);

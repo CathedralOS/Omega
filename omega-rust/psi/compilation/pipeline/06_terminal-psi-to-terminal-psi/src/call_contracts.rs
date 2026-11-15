@@ -153,6 +153,142 @@ pub(crate) struct Invocation<'a> {
     pub contract: PublicContract<'a>,
 }
 
+/// A frame-reusing jump keeps both actual lanes and its complete callable
+/// interface. Arrival and loan checking still judge the transfer itself.
+pub(crate) struct TailCall<'a> {
+    pub callee: &'a TerminalMachine,
+    pub block: &'a terminal_psi::Block,
+    pub arguments: &'a [ValueId],
+    pub structural_arguments: &'a [StructuralArgument],
+}
+
+/// Borrow only actual blocks and jump edges, prepared once for this caller.
+/// Header matching then visits neither the whole body nor an ID-sized table.
+pub(crate) struct TailCallSites<'a> {
+    caller: &'a TerminalMachine,
+    blocks: Vec<&'a terminal_psi::Block>,
+    jumps: Vec<(semantic_vocabulary::EdgeId, &'a terminal_psi::Block)>,
+}
+
+impl<'a> TailCallSites<'a> {
+    pub(crate) fn new(caller: &'a TerminalMachine) -> Self {
+        let mut blocks = Vec::with_capacity(caller.blocks.len());
+        let mut jumps = Vec::new();
+        for block in &caller.blocks {
+            blocks.push(block);
+            if let Terminator::Jump { edge, .. } = &block.terminator {
+                jumps.push((*edge, block));
+            }
+        }
+        blocks.sort_unstable_by_key(|block| block.id);
+        jumps.sort_unstable_by_key(|(edge, _)| *edge);
+        Self {
+            caller,
+            blocks,
+            jumps,
+        }
+    }
+}
+
+pub(crate) fn tail_call<'a>(
+    module: &'a TerminalModule,
+    sites: &TailCallSites<'a>,
+    callee: semantic_vocabulary::MachineId,
+    edge: semantic_vocabulary::EdgeId,
+) -> Checked<TailCall<'a>> {
+    let caller = sites.caller;
+    let malformed = |detail| {
+        crate::refusal(
+            RefusalReason::ForeignIdentity,
+            caller.id,
+            Construct::Edge(edge),
+            detail,
+        )
+    };
+    let callee = module
+        .machine(callee)
+        .ok_or_else(|| malformed("tail call names an unavailable machine"))?;
+    let position = sites.jumps.partition_point(|(actual, _)| *actual < edge);
+    let Some((actual, block)) = sites.jumps.get(position) else {
+        return Err(malformed("tail interface names no unique actual jump"));
+    };
+    if *actual != edge
+        || sites
+            .jumps
+            .get(position + 1)
+            .is_some_and(|(next, _)| *next == edge)
+    {
+        return Err(malformed("tail interface names no unique actual jump"));
+    }
+    let block = *block;
+    let Terminator::Jump {
+        target,
+        arguments,
+        structural_arguments: structural,
+        erased_arguments: erased,
+        erased_proof_arguments: proofs,
+        ..
+    } = &block.terminator
+    else {
+        return Err(malformed("tail interface names no unique actual jump"));
+    };
+    let position = sites.blocks.partition_point(|block| block.id < *target);
+    let Some(head) = sites.blocks.get(position).copied() else {
+        return Err(malformed("tail call names no unique loop head"));
+    };
+    if head.id != *target
+        || sites
+            .blocks
+            .get(position + 1)
+            .is_some_and(|next| next.id == *target)
+    {
+        return Err(malformed("tail call names no unique loop head"));
+    }
+    // A head may use different value/place IDs, while retaining the exact
+    // scalar types and structural access, multiplicity and qualifications.
+    if !erased.is_empty()
+        || !proofs.is_empty()
+        || !callee.erased_scalar_formals.is_empty()
+        || head.parameters.len() != arguments.len()
+        || head.parameters.len() != callee.parameters.len()
+        || head
+            .parameters
+            .iter()
+            .zip(&callee.parameters)
+            .any(|(actual, formal)| actual.value_type() != formal.value_type())
+        || head.structural_parameters.len() != structural.len()
+        || head.structural_parameters.len() != callee.structural_parameters.len()
+        || head
+            .structural_parameters
+            .iter()
+            .zip(&callee.structural_parameters)
+            .any(|(actual, formal)| {
+                actual.position != formal.position
+                    || actual.structural_type != formal.structural_type
+                    || actual.multiplicity != formal.multiplicity
+                    || actual.access != formal.access
+                    || actual.qualifications != formal.qualifications
+                    || actual.projected_qualifications != formal.projected_qualifications
+                    || actual.additional_input_qualifications
+                        != formal.additional_input_qualifications
+            })
+    {
+        return Err(malformed(
+            "tail call's loop head does not carry its callable's formals",
+        ));
+    }
+    callee
+        .contract
+        .validate_parameter_order()
+        .map_err(malformed)?;
+    Ok(TailCall {
+        callee,
+        block,
+        arguments,
+        structural_arguments: structural,
+    })
+}
+
 /// The actual evaluated operands of either a declared or selected call.
 pub(crate) fn operation_inputs(operation: &terminal_psi::Operation) -> Option<Inputs<'_>> {
     if let Some(inputs) = operation.declared_invocation() {

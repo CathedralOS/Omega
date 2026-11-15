@@ -79,8 +79,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
         };
         crate::call_contracts::invocation(&elaboration.module, machine, tables, id, row)
     };
-    let mut blocks: Vec<_> = machine.blocks.iter().collect();
-    blocks.sort_unstable_by_key(|block| block.id);
+    let tails = crate::call_contracts::TailCallSites::new(machine);
     let mut calls = Vec::new();
     for block in &machine.blocks {
         for operation in &block.operations {
@@ -107,64 +106,15 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                 acknowledgement: CallAcknowledgement::default(),
                 tail: false,
             });
-        } else if let Terminator::Jump {
-            edge,
-            target,
-            arguments,
-            structural_arguments,
-            erased_arguments,
-            erased_proof_arguments,
-            ..
-        } = &block.terminator
+        } else if let Terminator::Jump { edge, .. } = &block.terminator
             && let Some(row) = formation(CallSite::Edge(*edge))
             && let Some(callee) = row.tail_callee
         {
-            let callee = elaboration
-                .module
-                .machine(callee)
-                .ok_or_else(|| malformed("tail call names an unavailable machine"))?;
-            let head = blocks
-                .binary_search_by_key(target, |block| block.id)
-                .ok()
-                .map(|position| blocks[position])
-                .ok_or_else(|| malformed("tail call names an unavailable loop head"))?;
-            // Reusing the frame still calls the same interface. Both argument
-            // lanes must match its formals, including access and qualifications;
-            // ordinary arrival and borrow checking judge the actual transfer.
-            if !erased_arguments.is_empty()
-                || !erased_proof_arguments.is_empty()
-                || !callee.erased_scalar_formals.is_empty()
-                || head.parameters.len() != arguments.len()
-                || head.parameters.len() != callee.parameters.len()
-                || head
-                    .parameters
-                    .iter()
-                    .zip(&callee.parameters)
-                    .any(|(actual, formal)| actual.value_type() != formal.value_type())
-                || head.structural_parameters.len() != structural_arguments.len()
-                || head.structural_parameters.len() != callee.structural_parameters.len()
-                || head
-                    .structural_parameters
-                    .iter()
-                    .zip(&callee.structural_parameters)
-                    .any(|(actual, formal)| {
-                        actual.position != formal.position
-                            || actual.structural_type != formal.structural_type
-                            || actual.multiplicity != formal.multiplicity
-                            || actual.access != formal.access
-                            || actual.qualifications != formal.qualifications
-                            || actual.projected_qualifications != formal.projected_qualifications
-                            || actual.additional_input_qualifications
-                                != formal.additional_input_qualifications
-                    })
-            {
-                return Err(malformed(
-                    "tail call's loop head does not carry its callable's formals",
-                ));
-            }
+            let tail =
+                crate::call_contracts::tail_call(&elaboration.module, &tails, callee, *edge)?;
             calls.push(Call {
                 site: row.site,
-                callee: Callee::Declared(callee.id.into()),
+                callee: Callee::Declared(tail.callee.id.into()),
                 contract: None,
                 required_contract: None,
                 acknowledgement: CallAcknowledgement::default(),

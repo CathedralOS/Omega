@@ -534,6 +534,126 @@ impl Calls<'_> {
                 )
             }
         };
+        self.invoke_value(contract, query, reached)
+    }
+
+    fn tail_parameter(
+        &self,
+        position: u32,
+        call: &crate::call_contracts::TailCall<'_>,
+        reached: &mut Contributions,
+    ) -> Checked<()> {
+        let position = usize::try_from(position)
+            .map_err(|_| self.foreign("tail invokes coordinate is too large"))?;
+        let order = &call.callee.parameter_order;
+        let kind = *order
+            .get(position)
+            .ok_or_else(|| self.foreign("tail invokes escapes its callable signature"))?;
+        let lane = order[..position]
+            .iter()
+            .filter(|candidate| **candidate == kind)
+            .count();
+        let (contract, query) = match kind {
+            BoundaryParameterKind::Scalar => {
+                let Some(semantic_vocabulary::ScalarType::Callable(contract)) = call
+                    .callee
+                    .parameters
+                    .get(lane)
+                    .map(|formal| formal.scalar_type)
+                else {
+                    return Err(self.foreign("tail invokes names a non-callable formal"));
+                };
+                let value = *call
+                    .arguments
+                    .get(lane)
+                    .ok_or_else(|| self.foreign("tail invokes lost its actual value"))?;
+                (
+                    contract,
+                    CallableValueQuery::Scalar {
+                        machine: self.caller.id,
+                        value,
+                        contract,
+                    },
+                )
+            }
+            BoundaryParameterKind::Structural => {
+                let formal = call
+                    .callee
+                    .structural_parameters
+                    .get(lane)
+                    .ok_or_else(|| self.foreign("tail invokes lost its structural formal"))?;
+                let declaration = self
+                    .module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == formal.structural_type)
+                    .ok_or_else(|| {
+                        self.foreign("tail structural formal has no declared carrier")
+                    })?;
+                let terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                    semantic_vocabulary::ScalarType::Callable(contract),
+                ) = declaration.shape
+                else {
+                    return Err(self.unsupported(
+                        "invoked structural actual needs an exact nested callable parameter path",
+                    ));
+                };
+                let actual = call
+                    .structural_arguments
+                    .get(lane)
+                    .ok_or_else(|| self.foreign("tail invokes lost its structural actual"))?;
+                let root = self
+                    .caller
+                    .structural_place_type(actual.place)
+                    .ok_or_else(|| {
+                        self.foreign("tail callable actual has no source declaration")
+                    })?;
+                let projected = terminal_semantics::runtime_structural_path_tip(
+                    self.module.structural_types.iter(),
+                    root,
+                    &actual.path,
+                )
+                .ok_or_else(|| self.foreign("tail callable actual has no exact structural type"))?;
+                if projected.id != formal.structural_type
+                    || !terminal_psi::structural_access_covers(actual.access, formal.access)
+                {
+                    return Err(self.foreign("tail callable actual differs from its formal"));
+                }
+                let location = terminal_semantics::descriptor_lifetimes::descriptor_location(
+                    &self.module.structural_types,
+                    actual.place,
+                    root,
+                    &actual.path,
+                    None,
+                )
+                .ok_or_else(|| {
+                    self.foreign("tail callable actual has no exact descriptor coordinate")
+                })?;
+                let position = (
+                    call.block.id,
+                    u32::try_from(call.block.operations.len())
+                        .map_err(|_| self.foreign("tail callable storage cut is too large"))?,
+                );
+                (
+                    contract,
+                    CallableValueQuery::Storage {
+                        machine: self.caller.id,
+                        position,
+                        location,
+                        contract,
+                    },
+                )
+            }
+        };
+        self.invoke_value(contract, query, reached)
+    }
+
+    fn invoke_value(
+        &self,
+        contract: CallableContractId,
+        query: CallableValueQuery,
+        reached: &mut Contributions,
+    ) -> Checked<()> {
         let values = self.resolve(query)?;
         self.holder(contract, &values, reached)?;
         let envelope = &self.contract(contract)?.envelope;
@@ -873,6 +993,7 @@ pub(crate) fn judge(
                 &mut found,
             );
         }
+        let tails = crate::call_contracts::TailCallSites::new(caller);
         for formation in &caller.call_formations {
             if let (terminal_psi::CallSite::Edge(edge), Some(callee)) =
                 (formation.site, formation.tail_callee)
@@ -880,6 +1001,7 @@ pub(crate) fn judge(
                 tail_contribution(
                     elaboration,
                     caller,
+                    &tails,
                     callee,
                     edge,
                     values.as_ref(),
@@ -928,6 +1050,7 @@ fn contain(
 fn tail_contribution(
     elaboration: &terminal_check_tables::program::Elaboration,
     caller: &TerminalMachine,
+    tails: &crate::call_contracts::TailCallSites<'_>,
     callee: MachineId,
     edge: semantic_vocabulary::EdgeId,
     values: Option<&CallableValueProgram<'_>>,
@@ -941,44 +1064,7 @@ fn tail_contribution(
         caller,
         at,
     };
-    let target = module
-        .machine(callee)
-        .ok_or_else(|| context.foreign("tail call names an unavailable machine"))?;
-    let mut jumps = caller
-        .blocks
-        .iter()
-        .filter_map(|block| match &block.terminator {
-            terminal_psi::Terminator::Jump {
-                edge: actual,
-                arguments,
-                structural_arguments,
-                erased_arguments,
-                erased_proof_arguments,
-                ..
-            } if *actual == edge => Some((
-                arguments,
-                structural_arguments,
-                erased_arguments,
-                erased_proof_arguments,
-            )),
-            _ => None,
-        });
-    let (Some((arguments, structural, erased, proofs)), None) = (jumps.next(), jumps.next()) else {
-        return Err(context.foreign("tail interface names no unique actual jump"));
-    };
-    if arguments.len() != target.parameters.len()
-        || !structural.is_empty()
-        || !erased.is_empty()
-        || !proofs.is_empty()
-        || !target.structural_parameters.is_empty()
-        || !target.erased_scalar_formals.is_empty()
-    {
-        return Err(context.foreign("tail jump does not carry its exact callable formals"));
-    }
-    target
-        .contract
-        .validate_parameter_order()
-        .map_err(|reason| context.foreign(reason))?;
+    let tail = crate::call_contracts::tail_call(module, tails, callee, edge)?;
     let ceiling = machine_envelope(elaboration, caller.id)?;
     let envelope = machine_envelope(elaboration, callee)?;
     let mut reached = Contributions::default();
@@ -993,40 +1079,7 @@ fn tail_contribution(
             match entry {
                 Entry::Service(service) => union(&mut reached.entries, [Entry::Service(service)]),
                 Entry::Parameter(position) => {
-                    let position = usize::try_from(position)
-                        .map_err(|_| context.foreign("tail invokes coordinate is too large"))?;
-                    if target.parameter_order.get(position) != Some(&BoundaryParameterKind::Scalar)
-                    {
-                        return Err(context.foreign("tail invokes names no scalar formal"));
-                    }
-                    let lane = target.parameter_order[..position]
-                        .iter()
-                        .filter(|kind| **kind == BoundaryParameterKind::Scalar)
-                        .count();
-                    let Some(semantic_vocabulary::ScalarType::Callable(contract)) =
-                        target.parameters.get(lane).map(|formal| formal.scalar_type)
-                    else {
-                        return Err(context.foreign("tail invokes names a non-callable formal"));
-                    };
-                    let actual = *arguments
-                        .get(lane)
-                        .ok_or_else(|| context.foreign("tail invokes lost its actual value"))?;
-                    let origins = context.resolve(CallableValueQuery::Scalar {
-                        machine: caller.id,
-                        value: actual,
-                        contract,
-                    })?;
-                    context.holder(contract, &origins, &mut reached)?;
-                    let public = &context.contract(contract)?.envelope;
-                    reached.operational(public);
-                    union(&mut reached.reach, public.service_reach.iter().copied());
-                    for entry in &public.invocations {
-                        match entry {
-                            Entry::Service(service) => union(&mut reached.entries, [Entry::Service(*service)]),
-                            Entry::Parameter(_) => return Err(context.unsupported(
-                                "nested callable invocation needs its exact invocation actual mapping")),
-                        }
-                    }
+                    context.tail_parameter(position, &tail, &mut reached)?;
                 }
             }
         }

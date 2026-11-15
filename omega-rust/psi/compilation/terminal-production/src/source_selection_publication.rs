@@ -13,8 +13,8 @@ use semantic_vocabulary::source_selections::{
     SelectionQuestion, SelectionQuestions, SelectionReference, SelectionRole,
 };
 use semantic_vocabulary::{
-    CallableInvocationSite, InvocationSite, MachineId, SelectionDeclarationId, SelectionQuestionId,
-    TargetMachineCallable,
+    CallableInvocationSite, ContractId, InvocationSite, MachineId, SelectionDeclarationId,
+    SelectionQuestionId, TargetMachineCallable,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
@@ -98,13 +98,7 @@ pub(crate) fn prepare(
     module: &TerminalModule,
     consent: Option<&dyn source::InvocationSourceConsent>,
 ) -> Result<PreparedSelections, Diagnostic> {
-    let mut prepared = Questions {
-        source,
-        module,
-        declarations: Declarations::new(source, module)?,
-        output: SelectionQuestions::default(),
-        build_sites: HashMap::default(),
-    };
+    let mut prepared = Questions::new(source, module)?;
     prepared.retain_build_sites()?;
     for (ordinal, form) in source.selection_forms().enumerate() {
         let raw = form.as_ref().ok_or_else(|| {
@@ -147,9 +141,42 @@ struct Questions<'source> {
         BuildCallSite,
         symbols::BuildSymbolHasher,
     >,
+    requirements: HashMap<
+        (MachineId, ContractId, MachineId),
+        &'source typed_trees_to_terminal_psi::Selected,
+        symbols::BuildSymbolHasher,
+    >,
 }
 
-impl Questions<'_> {
+impl<'source> Questions<'source> {
+    fn new(
+        source: &'source AcceptedTerminalSource,
+        module: &'source TerminalModule,
+    ) -> Result<Self, Diagnostic> {
+        let mut requirements = HashMap::default();
+        for selection in &source.closure().elaboration.selections {
+            let Some(required) = selection.required_contract else {
+                continue;
+            };
+            let key = (selection.caller, required, selection.implementation);
+            if let Some(previous) = requirements.insert(key, selection)
+                && previous != selection
+            {
+                return Err(refused(
+                    "requirement call has competing retained selections",
+                ));
+            }
+        }
+        Ok(Self {
+            source,
+            module,
+            declarations: Declarations::new(source, module)?,
+            output: SelectionQuestions::default(),
+            build_sites: HashMap::default(),
+            requirements,
+        })
+    }
+
     fn invocation_consent(
         &self,
         consent: Option<&dyn source::InvocationSourceConsent>,
@@ -232,7 +259,7 @@ impl Questions<'_> {
         &self,
         machine: MachineId,
         site: InvocationSite,
-    ) -> Result<(SymbolHandle, typed_trees::SourceNode), Diagnostic> {
+    ) -> Result<typed_trees::SourceCallCorrespondence, Diagnostic> {
         let mut calls = self
             .source
             .correspondence()
@@ -256,7 +283,7 @@ impl Questions<'_> {
                 "source invocation has competing authored correspondences",
             ));
         }
-        Ok((call.owner, call.source))
+        Ok(*call)
     }
 
     fn source_target(&self, target: TargetMachineCallable) -> Result<SymbolHandle, Diagnostic> {
@@ -419,9 +446,12 @@ impl Questions<'_> {
                         TargetMachineCallable::Boundary(_) => None,
                     };
                     if entered_machine != Some(selected) {
-                        return Err(refused(
-                            "declared invocation differs from its exact source selection",
-                        ));
+                        return Err(refused(format_args!(
+                            "declared invocation differs from its exact source selection: source {} ({source_target:?}), emitted {} ({selected:?}), owner {} ({owner:?}), occurrence {node:?}",
+                            typed.symbols.display_path(source_target, "::"),
+                            typed.symbols.display_path(selected, "::"),
+                            typed.symbols.display_path(owner, "::"),
+                        )));
                     }
                 }
                 self.declarations
@@ -430,14 +460,169 @@ impl Questions<'_> {
         }
     }
 
+    // A named call selects a public requirement and a separate body. Read the
+    // retained association rather than treating the requirement as that body.
+    fn requirement_reference(
+        &mut self,
+        source: typed_trees::SourceCallCorrespondence,
+        required: ContractId,
+        target: semantic_vocabulary::source_selections::SelectionCallTarget,
+    ) -> Result<SelectionReference, Diagnostic> {
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
+        use typed_trees::references::StaticArgumentCall;
+
+        let SelectionCallTarget::Declared(TargetMachineCallable::Machine(body)) = target else {
+            return Err(refused(
+                "public requirement has no declared implementation body",
+            ));
+        };
+        let typed = self.source.source();
+        let elaboration = &self.source.closure().elaboration;
+        if elaboration.machines.get(source.source_member) != Some(&source.owner)
+            || !typed.symbols.symbols().nodes().is_valid(source.owner)
+        {
+            return Err(refused("requirement call lost its original source owner"));
+        }
+        let selection = self
+            .requirements
+            .get(&(source.source_member, required, body))
+            .copied()
+            .ok_or_else(|| {
+                refused(
+                    "requirement call lost its exact caller, public header and body association",
+                )
+            })?;
+        let call = match source.source {
+            typed_trees::SourceNode::Expression(expression)
+                if typed.expression_table.expression_is_valid(expression) =>
+            {
+                let typed_trees::expression::ExpressionNode::Call(call) =
+                    typed.expression_table.expression(expression)
+                else {
+                    return Err(refused("requirement source is no call expression"));
+                };
+                if call.runtime_call.is_some() {
+                    return Err(refused("runtime source callee became a requirement call"));
+                }
+                StaticArgumentCall::Expression(expression, call)
+            }
+            typed_trees::SourceNode::Statement(statement)
+                if typed.statement_table.statement_is_valid(statement) =>
+            {
+                let typed_trees::statement::StatementNode::Call(call) =
+                    typed.statement_table.statement(statement)
+                else {
+                    return Err(refused("requirement source is no call statement"));
+                };
+                if call.runtime_call.is_some() {
+                    return Err(refused("runtime source callee became a requirement call"));
+                }
+                StaticArgumentCall::Statement(call)
+            }
+            _ => return Err(refused("requirement call has a stale source occurrence")),
+        };
+        let lexical_owner = call.lexical_owner(typed);
+        let owner = if lexical_owner == SymbolHandle::invalid() {
+            source.owner
+        } else {
+            lexical_owner
+        };
+        if !typed.symbols.symbols().nodes().is_valid(owner) {
+            return Err(refused("requirement call lost its supplying declaration"));
+        }
+        let signature = typed
+            .source_call_requirement_signature(owner, call)
+            .map_err(refused)?;
+        let (declaring, _) = typed
+            .trait_machine_signature(signature.symbol)
+            .ok_or_else(|| refused("requirement call lost its exact declaring trait"))?;
+        let identity = typed.trait_requirement_callable_identity_text(declaring, signature);
+        let declaration = self
+            .module
+            .declaration_contract(required)
+            .and_then(|contract| contract.declaration.as_ref())
+            .ok_or_else(|| refused("requirement call lost its retained public declaration"))?;
+        if self.module.identities.text(declaration.callable) != Some(identity.as_str()) {
+            return Err(refused(
+                "requirement call changes its source public signature",
+            ));
+        }
+        let (operand, supplier) = typed
+            .source_call_selected_operand(owner, call)
+            .map_err(refused)?;
+        let retained = selection
+            .source_operand
+            .as_ref()
+            .ok_or_else(|| refused("requirement call lost its retained implementation operand"))?;
+        let identity = typed
+            .declared_static_operand_identity(
+                typed_trees::type_identity::DeclaredStaticOperandIdentityRequest {
+                    operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                        &operand,
+                    ),
+                    lexical_owner: supplier,
+                    binders: &[],
+                    lifetime_binders: &[],
+                },
+            )
+            .and_then(|identity| typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| {
+                refused("requirement call lost its complete implementation operand identity")
+            })?;
+        if identity != retained.identity || supplier != retained.supplier {
+            return Err(refused(
+                "requirement call changes its retained implementation operand or supplier",
+            ));
+        }
+        let selected = if selection.parameter.is_valid() {
+            let dispatch = match call {
+                StaticArgumentCall::Expression(_, call) => {
+                    call.static_requirement_dispatch.as_ref()
+                }
+                StaticArgumentCall::Statement(call) => call.static_requirement_dispatch.as_ref(),
+            }
+            .ok_or_else(|| refused("requirement call lost its actual parameter dispatch"))?;
+            if dispatch.evidence_parameter != selection.parameter
+                || dispatch.declaring_trait != selection.declaring_trait
+                || dispatch.requirement != selection.requirement
+                || dispatch.realization_machine
+                    != self.source_target(TargetMachineCallable::Machine(body))?
+            {
+                return Err(refused(
+                    "requirement call changes its retained parameter selection",
+                ));
+            }
+            let (bound, supplying) = typed
+                .selected_implementation_operand(owner, selection.parameter)
+                .map_err(refused)?;
+            if operand.as_ref() != bound || supplier != supplying {
+                return Err(refused(
+                    "requirement call changes its implementation operand or supplier",
+                ));
+            }
+            selection.parameter
+        } else {
+            self.source_target(TargetMachineCallable::Machine(body))?
+        };
+        self.declarations
+            .symbol_reference(&mut self.output, source.owner, selected)
+    }
+
     fn retain_invocation(
         &mut self,
         machine: MachineId,
         site: InvocationSite,
         target: semantic_vocabulary::source_selections::SelectionCallTarget,
+        required: Option<ContractId>,
     ) -> Result<(), Diagnostic> {
-        let (owner, node) = self.typed_origin(machine, site)?;
-        let selected = self.invocation_reference(owner, node, target)?;
+        let source = self.typed_origin(machine, site)?;
+        let (owner, node) = (source.owner, source.source);
+        let selected = if let Some(required) = required {
+            self.requirement_reference(source, required, target)?
+        } else {
+            self.invocation_reference(owner, node, target)?
+        };
         let question = self.execution_question(owner, node, selected, SelectionRole::Executable)?;
         let original_caller = self.declarations.declaration(&mut self.output, owner)?;
         self.output.joins.push(SelectionJoin::Invocation {
@@ -491,11 +676,12 @@ impl Questions<'_> {
             for block in &machine.blocks {
                 for operation in &block.operations {
                     let site = InvocationSite::Operation(operation.id);
-                    if let Some(call) = operation.kind.declared_invocation() {
+                    if let Some(call) = operation.declared_invocation() {
                         self.retain_invocation(
                             machine.id,
                             site,
                             SelectionCallTarget::Declared(call.callee),
+                            call.required_contract,
                         )?;
                     } else if let Some(call) = operation.kind.callable_invocation() {
                         self.retain_invocation(
@@ -505,6 +691,7 @@ impl Questions<'_> {
                                 contract: call.contract,
                                 selector: call.callee,
                             },
+                            None,
                         )?;
                     }
                     if let OperationKind::SelectMachine { descriptor } = operation.kind {
@@ -559,6 +746,7 @@ impl Questions<'_> {
                         machine.id,
                         site,
                         SelectionCallTarget::Declared(call.callee),
+                        call.required_contract,
                     )?;
                 }
             }
@@ -1319,5 +1507,236 @@ mod symbol_rows_tests {
                 .is_err()
         );
         assert_eq!(rows.rows.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod invocation_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn named_calls() -> AcceptedTerminalSource {
+        const TEXT: &str = r#"
+trait FirstRequirement {
+    machine pick(value: u64) -> u64 reaches none crashes none;
+}
+First satisfies FirstRequirement {
+    machine pick(value: u64) -> u64 { value }
+}
+trait SecondRequirement {
+    machine pick(value: u64) -> u64 reaches none crashes none;
+}
+Second satisfies SecondRequirement {
+    machine pick(value: u64) -> u64 { value }
+}
+machine entry() -> u64 crashes none {
+    let first: u64 = First::pick(7);
+    let repeated: u64 = First::pick(first);
+    Second::pick(repeated)
+}
+"#;
+        let mut sources = source::SourceMap::default();
+        let id = sources
+            .add_checked_instance(
+                "selection/main.omg".into(),
+                TEXT,
+                "selection".into(),
+                Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Product,
+            )
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            },
+        )
+        .unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        AcceptedTerminalSource::judge(
+            Arc::new(frozen),
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn named_calls_keep_their_public_header_and_exact_body() {
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
+
+        let source = named_calls();
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let calls = module
+            .machines
+            .iter()
+            .flat_map(|machine| {
+                machine.operations().filter_map(move |operation| {
+                    let call = operation.declared_invocation()?;
+                    Some((
+                        machine.id,
+                        operation.id,
+                        call.required_contract?,
+                        call.callee,
+                    ))
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 3);
+        let mut bodies = Vec::new();
+        for &(machine, operation, _, target) in &calls {
+            let question = prepared
+                .questions
+                .joins
+                .iter()
+                .find_map(|join| match join {
+                    SelectionJoin::Invocation {
+                        question,
+                        machine: caller,
+                        site: CallableInvocationSite::Invocation(InvocationSite::Operation(site)),
+                        target: SelectionCallTarget::Declared(body),
+                        ..
+                    } if *caller == machine && *site == operation && *body == target => {
+                        Some(*question)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            let SelectionReference::Declaration(selected) =
+                prepared.questions.questions.get(question).unwrap().selected
+            else {
+                panic!("a named call must retain its exact source body");
+            };
+            bodies.push(
+                prepared
+                    .questions
+                    .declarations
+                    .get(selected)
+                    .unwrap()
+                    .name
+                    .as_str(),
+            );
+        }
+        bodies.sort_unstable();
+        assert_eq!(bodies, ["First::pick", "First::pick", "Second::pick"]);
+
+        let (caller, operation, header, target) = calls[0];
+        let TargetMachineCallable::Machine(body) = target else {
+            panic!("the named call must have a machine body");
+        };
+        let origin = Questions::new(&source, module)
+            .unwrap()
+            .typed_origin(caller, InvocationSite::Operation(operation))
+            .unwrap();
+        let key = (origin.source_member, header, body);
+        let retained = source
+            .closure()
+            .elaboration
+            .selections
+            .iter()
+            .find(|selection| {
+                (
+                    selection.caller,
+                    selection.required_contract,
+                    selection.implementation,
+                ) == (key.0, Some(key.1), key.2)
+            })
+            .unwrap();
+        for change_supplier in [false, true] {
+            let mut changed = retained.clone();
+            let operand = changed.source_operand.as_mut().unwrap();
+            if change_supplier {
+                operand.supplier = *source.closure().elaboration.machines.get(body).unwrap();
+            } else {
+                operand.identity.push_str("different operand");
+            }
+            let mut questions = Questions::new(&source, module).unwrap();
+            questions.requirements.insert(key, &changed);
+            let error = questions
+                .retain_invocation(
+                    caller,
+                    InvocationSite::Operation(operation),
+                    SelectionCallTarget::Declared(target),
+                    Some(header),
+                )
+                .unwrap_err();
+            assert!(
+                error
+                    .message
+                    .contains("changes its retained implementation operand or supplier"),
+                "{error:?}"
+            );
+        }
+
+        let (_, _, other_header, other_target) = calls
+            .iter()
+            .copied()
+            .find(|call| call.3 != calls[0].3)
+            .unwrap();
+        for change_body in [false, true] {
+            let mut changed = module.clone();
+            let operation = changed
+                .machines
+                .iter_mut()
+                .find(|machine| machine.id == caller)
+                .unwrap()
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|candidate| candidate.id == operation)
+                .unwrap();
+            if change_body {
+                let OperationKind::Call { callee, .. } = &mut operation.kind else {
+                    panic!("the scalar fixture must retain a declared scalar call");
+                };
+                let TargetMachineCallable::Machine(other) = other_target else {
+                    panic!("the other named call must have a machine body");
+                };
+                *callee = other;
+            } else {
+                operation.required_contract = Some(other_header);
+            }
+            let error = prepare(&source, &changed, None).err().unwrap();
+            assert!(
+                error
+                    .message
+                    .contains("exact caller, public header and body association"),
+                "{error:?}"
+            );
+        }
     }
 }

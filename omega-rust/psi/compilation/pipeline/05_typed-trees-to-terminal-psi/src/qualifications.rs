@@ -491,21 +491,22 @@ impl Qualifications {
         let definition = typed
             .domain_definition(symbol)
             .ok_or_else(|| unavailable("a used record domain lost its declaration"))?;
-        let predicate = if crate::read::has_predicates(definition) {
-            let clauses = source.domain_predicates.iter()
+        let clauses = if crate::read::has_predicates(definition) {
+            source.domain_predicates.iter()
                 .find(|(owner, value_type, _)| {
                     *owner == symbol
                         && matches!(*value_type, ValueType::Record(found, Qualification::NONE, _) if found == carrier)
                 })
                 .map(|(_, _, clauses)| clauses.clone())
-                .ok_or_else(|| unavailable("record domain lost its prepared source predicates"))?;
-            Some(terminal_psi::StructuralDomainPredicate {
-                subject: semantic_vocabulary::PlaceId::new(1).expect("one is a place"),
-                proposition: crate::canonical::conjunction(clauses, diagnostic)?,
-            })
+                .ok_or_else(|| unavailable("record domain lost its prepared source predicates"))?
         } else {
-            None
+            Vec::new()
         };
+        // A complete empty theory is still known, unlike an absent theory.
+        let predicate = Some(terminal_psi::StructuralDomainPredicate {
+            subject: semantic_vocabulary::PlaceId::new(1).expect("one is a place"),
+            proposition: crate::canonical::conjunction(clauses, diagnostic)?,
+        });
         let semantic_domain = self.next_semantic_domain(unavailable)?;
         let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
             .ok_or_else(|| unavailable("record domain identity overflow"))?;

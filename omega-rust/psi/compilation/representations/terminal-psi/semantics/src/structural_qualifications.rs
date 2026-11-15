@@ -17,7 +17,9 @@
 //! route of every added routed domain. No other operation produces a
 //! qualified value, except provisioning that adds only free domains.
 
-use semantic_vocabulary::{MachineId, PlaceId, StructuralDomainId, StructuralFieldId};
+use semantic_vocabulary::{
+    EdgeId, MachineId, PlaceId, Proposition, StructuralDomainId, StructuralFieldId,
+};
 use terminal_psi::{
     OperationKind, StructuralArgument, StructuralDomainDeclaration, StructuralEstablishmentRoute,
     StructuralPathQualification, StructuralPathSegment, StructuralQualificationChange,
@@ -276,7 +278,7 @@ fn validate_change(
     change: &StructuralQualificationChange,
     source: &StructuralArgument,
     destination: &Memberships,
-) -> Judged<()> {
+) -> Judged<Option<bool>> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
         return malformed(
@@ -311,7 +313,7 @@ fn validate_change(
         if !change.establishments.is_empty() {
             return malformed(machine, "a structural erasure cannot establish a domain");
         }
-        return Ok(());
+        return Ok(None);
     }
     let declaration = places.machine.declaration.as_ref();
     for id in &added {
@@ -321,10 +323,14 @@ fn validate_change(
                 "a structural qualification change adds an absent domain",
             );
         };
-        if declared.predicate.is_some()
-            || declared.byte_predicate.is_some()
-            || declared.content_projection.is_some()
-        {
+        let unrepresented_predicate = declared
+            .predicate
+            .as_ref()
+            .is_some_and(|predicate| predicate.proposition != Proposition::Truth)
+            && !crate::bytes::byte_sequence_predicates::primitive_byte_domain_theory_matches(
+                declared,
+            );
+        if unrepresented_predicate || declared.content_projection.is_some() {
             return malformed(machine, "a structural cast cannot prove a domain predicate");
         }
         let missing = declared
@@ -398,10 +404,59 @@ fn validate_change(
             "a structural cast establishes a domain it does not add",
         );
     }
-    Ok(())
+    let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    let mut byte_domain = false;
+    for id in &added {
+        let declared = domain(module, *id).ok_or(StructuralQualificationError {
+            machine,
+            detail: "a structural qualification change adds an absent domain",
+        })?;
+        if declared.byte_predicate.is_none() {
+            continue;
+        }
+        let carrier = places
+            .machine
+            .structural_place_type(change.destination)
+            .ok_or(StructuralQualificationError {
+                machine,
+                detail: "a byte qualification change has no declared destination carrier",
+            })?;
+        if !crate::byte_predicate_carrier(module.structural_types.iter(), carrier) {
+            return malformed(
+                machine,
+                "a byte qualification change has a non-byte carrier",
+            );
+        }
+        let predicates = crate::byte_qualification_predicates_in(
+            module.structural_domains.iter(),
+            carrier,
+            std::slice::from_ref(id),
+        )
+        .ok_or(StructuralQualificationError {
+            machine,
+            detail: "a byte qualification change is not a complete primitive byte domain",
+        })?;
+        byte_domain = true;
+        for predicate in predicates.predicates() {
+            required.insert(predicate);
+        }
+    }
+    if !byte_domain {
+        return Ok(None);
+    }
+    let supplied = crate::byte_sequence_argument_predicates(module, places.machine, source).ok_or(
+        StructuralQualificationError {
+            machine,
+            detail: "a byte qualification change has no reconstructed source predicates",
+        },
+    )?;
+    Ok(Some(supplied.implies(required)))
 }
 
-fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judged<()> {
+fn validate_machine(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
     validate_declared(module, &places)?;
@@ -411,6 +466,7 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
         .filter(|change| change.machine == machine.id)
         .collect();
     let mut used = vec![false; changes.len()];
+    let mut byte_establishments = Vec::new();
     let find_block = |target| machine.blocks.iter().find(|block| block.id == target);
     for block in &machine.blocks {
         let edges = block.terminator.successor_edges();
@@ -449,7 +505,11 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                                 "a structural qualification change names another destination",
                             );
                         }
-                        validate_change(module, &places, changes[index], argument, &expected)?;
+                        if let Some(established) =
+                            validate_change(module, &places, changes[index], argument, &expected)?
+                        {
+                            byte_establishments.push((edge, established));
+                        }
                     }
                     None => require_exact(
                         &places,
@@ -648,7 +708,7 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
             "a structural qualification change names no successor argument",
         );
     }
-    Ok(())
+    Ok(byte_establishments)
 }
 
 /// The path to `field` of the value at `path` beneath `root`.
@@ -734,11 +794,16 @@ fn validate_arguments(
     Ok(())
 }
 
-/// The whole judgment of a module's structural memberships.
-pub fn validate(module: &TerminalModule) -> Judged<()> {
+/// Check the exact membership transfers, domain theories and issuer routes.
+/// Byte predicate truth is a separate establishment judgment at each cast edge.
+pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
     for machine in &module.machines {
         validate_machine(module, machine)?;
     }
+    validate_change_owners(module)
+}
+
+fn validate_change_owners(module: &TerminalModule) -> Judged<()> {
     if module
         .structural_qualification_changes
         .iter()
@@ -750,4 +815,30 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
         );
     }
     Ok(())
+}
+
+/// Primitive byte casts use the actual incoming arguments, just as byte copies
+/// and moves do. The lowered checker reports a false result as an unestablished
+/// value; artifact ingress requires every result to be true.
+pub fn byte_qualification_change_judgments(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Judged<Vec<(EdgeId, bool)>> {
+    validate_machine(module, machine)
+}
+
+/// The complete structural membership judgment required at artifact ingress.
+pub fn validate(module: &TerminalModule) -> Judged<()> {
+    for machine in &module.machines {
+        if byte_qualification_change_judgments(module, machine)?
+            .iter()
+            .any(|(_, established)| !established)
+        {
+            return malformed(
+                Some(machine.id),
+                "a byte transfer's source does not establish its primitive byte-domain qualifications",
+            );
+        }
+    }
+    validate_change_owners(module)
 }

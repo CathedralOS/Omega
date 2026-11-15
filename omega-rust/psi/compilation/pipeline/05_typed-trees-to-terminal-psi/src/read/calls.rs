@@ -1198,6 +1198,26 @@ impl<'t> Program<'t> {
         if !self.same_signature(id, &required, &supplied, machine)? {
             return unserved("selected body has another runtime signature");
         }
+        if !self.typed.symbols.symbols().nodes().is_valid(operand_owner) {
+            return unserved("selected call lost its actual operand supplier");
+        }
+        let Some(operand_identity) = self
+            .typed
+            .declared_static_operand_identity(
+                typed_trees::type_identity::DeclaredStaticOperandIdentityRequest {
+                    operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                        &operand,
+                    ),
+                    lexical_owner: operand_owner,
+                    binders: &[],
+                    lifetime_binders: &[],
+                },
+            )
+            .and_then(|identity| self.typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+        else {
+            return unserved("selected call lost its complete implementation operand identity");
+        };
         let envelope = self.signature_envelope(id, required_source)?;
         let required_contract = self.declaration_signatures.push(required);
         if self.declaration_envelopes.push(envelope) != required_contract {
@@ -1225,6 +1245,10 @@ impl<'t> Program<'t> {
         self.selections.push(crate::Selected {
             caller: id,
             required_contract: Some(required_contract),
+            source_operand: Some(terminal_check_tables::program::SelectedSourceOperand {
+                identity: operand_identity,
+                supplier: operand_owner,
+            }),
             parameter: dispatch.evidence_parameter,
             declaring_trait: dispatch.declaring_trait,
             requirement: dispatch.requirement,
