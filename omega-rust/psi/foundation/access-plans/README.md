@@ -1,8 +1,8 @@
 # Access and backing validation
 
 This crate checks field-operation demands against layout geometry and supplied
-backing capabilities. Compiler stages and the interpreter consume its normalized
-plans, operation authorization, resource profiles and compatibility results.
+backing capabilities. Compiler stages and the interpreter use its normalized plans,
+operation authorization, resource profiles and compatibility results.
 
 - [plan.rs](src/plan.rs) owns the normalized layout/access/reach bundle and its
   validated snapshot. This internal bundle is not the source `AccessPlan` policy.
@@ -12,7 +12,7 @@ plans, operation authorization, resource profiles and compatibility results.
   initialization and relocation supply.
 
 These validators do not create runtime views, issue backing authority or prove
-that a schema describes a physical device. Execution and custody transitions
-belong to their Terminal Psi and interpreter consumers.
+that a schema describes a physical device. Their Terminal Psi and interpreter
+consumers own execution and custody transitions.
 
 Contract: [access policies](../../../../wiki/spec/resources/access.md).

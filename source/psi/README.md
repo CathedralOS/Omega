@@ -1,25 +1,26 @@
 # Psi product source
 
-This sibling package owns the Omega-written, target-neutral Psi half of the
-production compiler. `source/omega/` consumes it through the `psi` package
-identity; Omega does not own this source tree. The parser/typing inventory below
-describes current implementation, including data-owned machine declarations, retired target prefixes and `via`
-binding clauses. Those are migration debt, not accepted alternative syntax.
-Package-local `Build::bind<Requirement>(builder, target, locator)` replaces the
-per-symbol native forwarding declaration, with locator lengths inferred;
-`BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
-[the task board](../../TASKS.md#pipeline-route) own the implementation changes.
-The compiler source closure still uses retired whole-type domain casts and
-implicit domain qualification accepted by the Rust development comparator.
-The source frontend now requires explicit domain accounting for its bounded
-policy slice; its compiler source has not yet been migrated to that same input
-language. The scalar execution gate admits only unqualified `u8` machines and
-refuses other root kinds and erased bindings; it does not establish full
-frontend conformance or self-compilation.
+This package is the target-neutral Psi half of the Omega-written product
+compiler. `source/omega/` uses it as the `psi` package and does not own it.
 
-The current live slice contains
-source/span and token representations, a UTF-8-framed lexer that stores only
-semantic tokens, and a fail-closed whole-file parser for ordinary
+The description below covers today's implementation, including data-owned
+machine declarations, retired target prefixes and `via` binding clauses: syntax
+still to be removed, not accepted alternatives. Package-local `Build::bind<Requirement>(builder, target, locator)`
+replaces the per-symbol native forwarding declaration, and infers locator
+lengths. `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
+[the task board](../../TASKS.md#pipeline-route) track those changes.
+
+The compiler's own source still uses retired whole-type domain casts and
+implicit domain qualification, which the Rust comparator accepts. The frontend
+requires explicit domain accounting for its bounded policy features, but this
+source has not migrated to that rule. The scalar
+execution gate accepts only unqualified `u8` machines, refusing other root
+kinds and erased bindings; it shows neither full frontend conformance nor
+self-compilation.
+
+Implemented so far: source/span and token representations, a UTF-8-framed
+lexer that stores only semantic tokens, and a fail-closed whole-file parser
+for ordinary
 `use path::member;` roots,
 `[public] data Name [<generic parameters>] [properties] [requires facts] { ... }`
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
@@ -53,9 +54,9 @@ their own punctuation. For example, after a trait member's terminator,
 Every declaration has its own complete signature, result (Unit when omitted),
 contracts and exact body ranges. A stable parent handle scopes names and static
 binders at arbitrary nesting depth; children need not occupy contiguous rows.
-Once trailing declarations begin, executable statements cannot resume. The
-product resolver still refuses unsupported higher-order contracts explicitly;
-retaining their syntax does not claim that their checking is implemented.
+After trailing declarations begin, no executable statement may follow. The
+resolver still refuses unsupported higher-order contracts; parsing them does
+not mean they are checked.
 Statements are `let [mut] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, the intentional discard
 `_ = value;`, `value;`, `transition [subject] { arms }` and a final
@@ -151,39 +152,39 @@ retired bracketed scalar range suffix (`u32 [0..=9]`; ranges are
 and the `if`, `loop`, `while` and `return` statements reject instead of
 becoming a private bridge tree.
 
-Canonical nested machine declarations share ordinary MachineItem rows with their
-own generic signature, complete clauses, static contracts and executable ranges.
-The single parent field is the exact lexical machine handle plus one, or zero
-at package/container scope. Parsing freezes each own range before children and
-resumes its parent through retained declaration indices. Source nesting never
-captures runtime values. The version17 observation uses that one parent field;
-the retired authored state spelling and its separate syntax table are removed.
+A nested machine declaration is an ordinary MachineItem row with its own
+generic signature, clauses, static contracts and body ranges. Its one parent
+field holds the enclosing machine's handle plus one, or zero at package or
+container scope. The parser fixes a declaration's own ranges before parsing its
+children, then returns to the parent through saved declaration indices. Nesting
+never captures runtime values. The version17 parser observation reads that one
+parent field; the retired state spelling and its separate syntax table are gone.
 
-Name resolution follows parsing over the compilation's source set
+Name resolution runs after parsing, over the compilation's source set
 ([`foundation/source.omg`](foundation/source.omg)): up to 64 packages, 256
-requester-local dependency edges and 512 units, each unit belonging to a
-package and to the module its path names there (`a::b`), parsed into the
-shared syntax tables, with its position as its source id. Those tables are
-whole-program, sized above what the psi package fills: 4,096 roots, 1,024
+dependency edges per requester and 512 units. Each unit belongs to a package
+and to the module its path names there (`a::b`); it is parsed into the shared
+syntax tables, and its position is its source id. The tables cover the whole
+program and are sized above what the psi package fills: 4,096 roots, 1,024
 uses, 10,240 machines, 1,024 fields, 1,536 cases and 2,048 data members,
 2,048 clauses, 4,096 construction fields, 32,768 parameters, 16,384
 statements and 8,192 transition arms, 65,536 type references and
-call arguments, and 131,072 expressions; resolution's and
-typing's rows indexed by machine, type-reference and expression handles share
-those bounds. A `use` path's first member selects a package
-([`pipeline/02_syntax-trees-to-symbol-resolved-trees/imports.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/imports.omg)): the toolchain mount
-`omega::language::core` the toolchain's core package, one of the
-requester's product dependency aliases that dependency, and the
-requester's own name its own package; any other path is a module path of
-the requester's own package. The rest must name a supplied module of the
-selected package, and a first member spelling another package's name or a
-build-scope alias, where the requester holds no such module, rejects as an
-undeclared dependency. A reference sees its own module, whichever of the
-module's units declares, and each module its unit imports, across packages
-only `pub` declarations (a trait's or conformance's member by its
-container's `pub`); an import is not transitive, one path in two packages
-names two modules, and two visible declarations of one spelling reject as
-ambiguous. Every root kind the parser accepts binds but
+call arguments, and 131,072 expressions. Resolution and typing tables indexed
+by machine, type-reference and expression handles use the same bounds.
+
+A `use` path's first member selects a package
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/imports.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/imports.omg)):
+`omega::language::core` selects the toolchain's core package, a product
+dependency alias selects that dependency, and the requester's own name selects
+its own package. Any other path is a module path in the requester's own
+package. The rest of the path must name a supplied module of the selected
+package. A first member that spells another package's name or a build-scope
+alias, where the requester has no such module, rejects as an undeclared
+dependency. A reference sees its own module (whichever of its units declares
+the name) and each module its unit imports; across packages it sees only `pub`
+declarations (a trait or conformance member is public when its container is).
+Imports are not transitive, the same path in two packages names two modules,
+and two visible declarations with one spelling reject as ambiguous. Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
@@ -495,7 +496,7 @@ at a later dispatch or guard until a place that existed when it was bound
 is written. A condition that writes while being evaluated, or reads the
 destination overwritten by its assignment, cannot be replayed as an alias
 ([`pipeline/04_typed-trees-to-checked-trees/aliases.omg`](pipeline/04_typed-trees-to-checked-trees/aliases.omg)). A record bound
-from another place takes the integer fields known directly below it, and a
+from another place takes its known direct integer fields, and a
 constant whose initializer is an anonymous
 integer tree is that value
 ([`pipeline/04_typed-trees-to-checked-trees/facts.omg`](pipeline/04_typed-trees-to-checked-trees/facts.omg),
@@ -530,22 +531,21 @@ declared types.
 
 Local references capture their initializer's canonical storage origin
 ([`pipeline/04_typed-trees-to-checked-trees/references.omg`](pipeline/04_typed-trees-to-checked-trees/references.omg)). A reborrow uses the
-same origin, and replacing a mutable shared-reference binding does not
-redirect an earlier alias. Shared-reference copies retain their captured
-loans; assignment captures the replacement's loans before retiring the old
-binding's loans, preserving independent aliases and referent restrictions. Derived loans retain the lender's
-complete backing roster before their own access route, including exact places,
-exclusivity and body-owned storage; chained local reborrows cannot hide those
+same origin, and reassigning a mutable shared-reference binding does not
+redirect an earlier alias. Copies of a shared reference keep its loans; an
+assignment records the new loans before releasing the old ones, so independent
+aliases and referent restrictions survive. A derived loan keeps
+every backing place of its lender, with exclusivity and body-owned storage,
+ahead of its own access path, so chained local reborrows cannot hide those
 backings from overlap or escape checks.
-Reference-bearing local values and their owned projections transport the
-root carrier's captured loans, and escape checks reject captured backing
-owned by the body. Projection currently retains all root loans, including
-sibling loans, because held-loan rows do not distinguish payload paths.
-Origins reset for each invocation body. Returned
-references, reference fields and selected reference values have no modeled
-origin yet; a nonempty write through one rejects `UnsupportedCheck`. A
-complete empty call frame remains allowed. Scalar reference parameters have
-subjects for their referents, distinct from their binding storage.
+Local values holding references, and their owned projections, carry the root's
+loans, and escape checks reject a captured backing the body owns. A projection
+keeps all root loans, sibling loans included, because held-loan rows do not
+record payload paths yet. Origins reset for each invocation body. Returned
+references, reference fields and selected reference values have no origin
+yet; a nonempty write through one rejects `UnsupportedCheck`, while an empty
+call frame is still allowed. A scalar reference parameter has a subject for
+its referent, separate from its binding's storage.
 
 A construction's value
 is a place of its own whose scalar fields stay pending until read: a field
@@ -603,28 +603,28 @@ passing unrefined; each static machine argument must publish only crash
 causes its binder's contract declares, and one with `requires` facts of its
 own rejects as unsupported ([`pipeline/04_typed-trees-to-checked-trees/supply.omg`](pipeline/04_typed-trees-to-checked-trees/supply.omg)).
 Invocation topology ([`pipeline/04_typed-trees-to-checked-trees/invocations.omg`](pipeline/04_typed-trees-to-checked-trees/invocations.omg))
-records every selected call by exact declaration owner, expression and concrete
-machine or opaque binder. Sparse forward/reverse edges form one sealed global
-SCC graph; missing observations fail closed. Completion inference
-([`pipeline/04_typed-trees-to-checked-trees/completions.omg`](pipeline/04_typed-trees-to-checked-trees/completions.omg)) walks independent own
-entries in callee-before-caller order and joins all feasible normal returns.
-Intra-component calls use declared cuts, never an uncompleted recursive summary.
-Completed scalar intervals carry no callee storage identity; authored
+records every selected call by declaring owner, expression, and concrete
+machine or opaque binder. Its forward and reverse edges form one fixed global
+graph of SCCs; a missing call record rejects. Completion inference
+([`pipeline/04_typed-trees-to-checked-trees/completions.omg`](pipeline/04_typed-trees-to-checked-trees/completions.omg)) visits each
+declaration's entry with callees before callers and joins every feasible normal
+return. Calls within one SCC use declared cuts, never an unfinished recursive
+summary. A finished scalar interval names no callee storage; written
 postconditions are checked separately.
 
 Termination ([`pipeline/04_typed-trees-to-checked-trees/ranking.omg`](pipeline/04_typed-trees-to-checked-trees/ranking.omg), with the shared
 witness operations in [`pipeline/04_typed-trees-to-checked-trees/termination.omg`](pipeline/04_typed-trees-to-checked-trees/termination.omg))
-compares a source invocation's immutable entry rank with the selected callee's
-rank under the already evaluated exact actuals. Natural, slice-length,
+compares the caller's rank at entry, which never changes, with the selected
+callee's rank under the evaluated actual arguments. Natural, slice-length,
 increasing and distance views, declared scalar measures and full lexicographic
-component rosters share that query. Pending admitted data-domain facts settle
-before proving naturalness and ranges; entry endpoints stay pinned to their
-captured identities. Every feasible visit to an internal SCC edge must be
-non-increasing, and removing strict edges must leave an acyclic residual graph.
-A repeated preserving visit cannot inherit another visit's strictness. Own
-initial and backedge input/range obligations remain independent, and declaration
-order grants no proof permission. Bare termination promises still require their
-actual bodies and downstream calls to terminate.
+component lists all use that one comparison. Pending data-domain facts settle
+before naturalness and ranges are proved; entry endpoints keep their captured
+identities. Every feasible visit to an edge inside a strongly connected
+component (SCC) must not increase the rank, and removing strictly decreasing
+edges must leave no cycle. A repeated visit that keeps the rank cannot
+borrow another visit's strict decrease. A declaration's own initial and backedge input and range
+obligations stay separate, and declaration order proves nothing. A bare termination promise still requires its body and the
+calls below it to terminate.
 
 A whole membership fact `value in Domain` decides as the domain's
 predicates of the value, proved unless the value carries the
@@ -655,22 +655,22 @@ unsupported fact.
 
 Ownership ([`pipeline/04_typed-trees-to-checked-trees/ownership.omg`](pipeline/04_typed-trees-to-checked-trees/ownership.omg), over the
 owned places of [`pipeline/04_typed-trees-to-checked-trees/owned_places.omg`](pipeline/04_typed-trees-to-checked-trees/owned_places.omg))
-walks every body once more, apart from the facts. A body owns its by-value
-parameters, its locals and its pattern binders with their field paths; a
-`[copy]` type copies, an affine one moves at most once and a linear one
-exactly once. A use of a moved place, of a part of it or of a whole
-containing it rejects; a by-value use of an affine or linear place moves
-it, and one reached through a reference or bound from a borrowed subject
-rejects as a move out of a loan. Assigning a moved place re-establishes
-it, and overwriting a live linear place rejects. Every exit must have moved
-each owed linear place whole (terminal arguments move into the selected invocation), and
-a linear value discarded, or moved on only some paths of an `&&`/`||` or a
-match, rejects. A transition's and a match's arms are separate paths, and a
-match's join holds what any arm moved. A call holds each place an argument
-lends until it returns, exclusively only when the argument and its
-parameter both are, and a later argument's access overlapping a held place
-rejects when either side is exclusive; a place lent to a nested call
-whose result holds references stays held by the argument
+walks every body again, separately from facts. A body owns its by-value
+parameters, locals and pattern binders, with field paths. A `[copy]`
+value copies, an affine one moves at most once and a linear one exactly once.
+Using a moved place, a part of it or a whole containing it rejects. A by-value
+use of an affine or linear place moves it; if the place is reached through a
+reference or bound from a borrowed subject, it rejects as a move out of a loan.
+Assigning a moved place restores it; overwriting a live linear place rejects.
+Every exit must have moved each owed linear place whole (terminal arguments
+move into the selected invocation). A linear value that is discarded, or moved
+on only some paths of an `&&`/`||` or a match, rejects. Each arm of a
+transition or match is its own path, and after a match every place any arm
+moved counts as moved. A call holds each place an argument lends until it
+returns, exclusively only when both argument and parameter are exclusive. A
+later argument whose access overlaps a held place rejects when either side is
+exclusive. A place lent to a nested call whose result holds references stays
+held by the argument
 ([`pipeline/04_typed-trees-to-checked-trees/holds.omg`](pipeline/04_typed-trees-to-checked-trees/holds.omg)). A local whose type holds
 references holds a loan of each place its initializer lends until its last
 use; an access overlapping a live loan, other than through its holder,
@@ -678,38 +678,34 @@ rejects when the loan or the access is exclusive, and an exit may not
 return a loan of the body's own storage
 ([`pipeline/04_typed-trees-to-checked-trees/loans.omg`](pipeline/04_typed-trees-to-checked-trees/loans.omg)).
 
-The source closure is authored against the ordinary-Omega surface that the
-Delta-produced compiler must eventually accept; that compiler is not yet
-published.
+This source is written in the ordinary Omega that the Delta-produced compiler
+must eventually accept; that compiler is not yet published. The limit applies
+to the features this source uses, not to the programs the resulting compiler
+accepts. Standalone Terminal Psi interpreters, proof explorers and other tools
+are outside it unless the compiler executable imports them.
 
-This authoring constraint governs features used by the compiler source, not the
-Omega programs the resulting compiler accepts. Standalone terminal-Psi
-interpreters, proof explorers, and other tools remain outside this closure
-unless the compiler executable imports them.
-
-The maintained Rust implementation lives at `omega-rust/psi/`. It
-remains a differential comparator and may continue in parallel; no Rust
-implementation belongs in this product subtree.
+The Rust implementation at `omega-rust/psi/` is a differential comparator
+and may keep developing in parallel; no Rust code belongs here.
 
 Each phase has a gate package under `tests/psi/`, driven by
 [`tests/product/gate.sh`](../../tests/product/gate.sh), the driver the
 product compiler gates share.
 [`tests/psi/parser/test-parser.sh`](../../tests/psi/parser/test-parser.sh)
-compiles the gate-owned Omega harness once and runs the parser's
-acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
-against that one native artifact. Its Python helper only decodes and compares
-versioned parser observations; it implements no compiler semantics. No lexical
-wire format or Rust observer is required. Rust's lexer has its own unit tests;
-neither implementation must reproduce the other's internal representation.
-Set `OMEGA_CLI` to the exact freshly built compiler and `OMEGA_TARGET` to the
-selected target profile. Acceptance evidence prints the CLI and Omega artifact
-SHA-256 identities beside that target. The gate has no cached-artifact or ambient
-`target/debug` lookup; focused iteration may invoke the Python decoder directly
-with the explicit Omega executable path. The gate is its own package beside this
-root: under it, the gate's build output would be `psi` source. Delete
-the gate only when an equal or stronger product-source gate subsumes every
-retained failure class, and the harness only when an equal or stronger
-semantic-free gate preserves all of its cases.
+compiles the gate's own Omega harness once and runs the parser's
+acceptance, rejection, capacity-edge, lexical-handoff and determinism cases
+against that one native program. Its Python helper only decodes and compares
+versioned parser observations: no compiler semantics, no lexical wire format,
+no Rust observer. Rust's lexer has its own unit tests;
+neither implementation has to reproduce the other's internal representation.
+Set `OMEGA_CLI` to the freshly built compiler and `OMEGA_TARGET` to the target
+profile. A passing run prints the CLI's and the Omega program's SHA-256 beside
+that target. The gate never looks up a cached artifact or
+`target/debug`; for quick iteration, run the Python decoder directly with the
+Omega executable's path. The gate is a package beside this root, because inside
+it the gate's build output would count as `psi` source. Delete the gate only
+when an equal or stronger product-source gate covers every failure class it
+catches, and the harness only when an equal or stronger semantics-free gate
+keeps all its cases.
 
 [`tests/psi/typing/test-typing.sh`](../../tests/psi/typing/test-typing.sh)
 does the same for typing over the resolver gate's framed source sets; its
@@ -719,42 +715,42 @@ without an observation when resolution rejects. It types the whole psi
 package as one source set, and a source set filling the expression table.
 
 [`tests/psi/checking/test-checking.sh`](../../tests/psi/checking/test-checking.sh)
-does the same for checking: its harness observes each rejection's diagnostic
-and span and each machine's declared and derived crash causes, exits 247 with
-an observation when checking rejects, and exits without one when an earlier
+does the same for checking. Its harness observes each rejection's diagnostic
+and span and each machine's declared and derived crash causes. It exits 247
+with an observation when checking rejects, and without one when an earlier
 phase rejects. Each case pins one judgment with an accepted program and its
-invalid twin. It requires the whole psi package to reach a checking verdict
-and prints every rejection there. Reaching checking is distinct from the
-whole product proving every existing body; this gate allows a checking refusal.
+invalid twin. The whole psi package must reach a checking verdict, and the gate
+prints every rejection; it does not require every body to be proved.
 
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
-does the same for name resolution. Its input is a source set framed like
+does the same for name resolution. Its input is a source set laid out like
 the request's subject tables: the packages (a toolchain flag and a name),
 the dependency edges (requester, scope, alias and target), then each unit's
-package, module path and source, `u32`-framed; the decoder frames a single
-source as the root module of one package. Its harness lexes and parses each
+package, module path and source, `u32`-framed; the decoder treats a single
+source as the root module of one package. The harness lexes and parses each
 unit, resolves the set, and observes the diagnostic and every type, domain
-and value binding. Lexical or parse rejection exits without an observation. Capacity
-edges one unit's 65,536 tokens cannot reach (expressions, parameters, type
-references and call arguments) run here as multi-unit source sets.
+and value binding. A lexical or parse rejection exits without an observation.
+Capacity limits that one unit's 65,536 tokens cannot reach (expressions,
+parameters, type references and call arguments) are tested with multi-unit
+source sets.
 
-The gates execute native Omega-written artifacts and retain their source and
-producer identities, target, optimized comparator profile and exact oracles.
-Focused iteration may reuse a verified immutable artifact when its exercised
-implementation closure is unchanged; runtime input and harness changes retain
-separate captures. Record actual case counts and engine observations in the
-qualification evidence. Other-host execution is a separate observation.
+The gates run native Omega-written programs and record their source and
+producer identities, target, optimized comparator profile and exact expected
+results. Quick iteration may reuse a verified program whose exercised code is
+unchanged; runtime input and harness changes are recorded separately. Record the actual case counts and engine
+observations in the qualification evidence. A run on another host is a
+separate observation.
 
-The lexer keeps its one canonical `Token` stream of semantic tokens
-(whitespace and comments separate tokens but are not stored); the parser
-observes it through a shared borrow forwarded through explicit terminal calls. There is
+The lexer keeps one `Token` stream of semantic tokens (whitespace and comments
+separate tokens but are not stored). The parser reads it through a shared
+borrow passed along by explicit terminal calls. There is
 no `TokenObservation`, numeric token array, per-token handoff, raw parser
-ordinal, or scalar tag/span cache. Structural parser serialization lives only
-in the gate-owned Omega harness; the exact product entrypoint retains phase
-driving and exit diagnostics. The same parser cases and structural
-observations remain mandatory, and the Python decoder stays semantic-free. The
-former 32-case lexical parity matrix and its numeric token protocol are
-removed; these parser cases do not replace that lexical coverage. Chapter 1
+ordinal, or scalar tag/span cache. Only the gate's Omega harness serializes
+parser structure; the product entry point keeps phase driving and exit
+diagnostics. The parser cases and observations stay mandatory, and the
+decoder stays free of semantics. The former 32-case lexical
+parity matrix and its numeric token protocol are removed, and these parser
+cases do not replace that lexical coverage. Chapter 1
 now fixes **LEXICAL-PROFILE-V1**: ASCII identifiers, space/tab/CR/LF
 whitespace, byte-preserving literal bodies, and no codepoint escapes or raw
 strings. Both maintained lexers reject all retired XID, `\u{...}`, raw-string,
@@ -784,15 +780,14 @@ owns bounded token selection and trivia traversal;
 | `representations/checks.omg` | Owns checking's result: each rejected machine's first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
 | `pipeline/04_typed-trees-to-checked-trees/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine, and publishes public slot returned-borrow origins and qualification preconditions (`slots.omg`). | Absorb only into the canonical checker that proves the same obligations. |
 
-Generated data belongs under the semantic phase that consumes it. No retained
-lexical contract consumes the current Unicode identifier table, so it must be
-deleted rather than moved into a generic `generated/` owner.
+Generated data belongs under the phase that uses it. No lexical rule needs a
+Unicode identifier table, so none belongs here or under `generated/`.
 
-The initial source-owned [`pipeline/05_checked-trees-to-scalar-operations/scalar.omg`](pipeline/05_checked-trees-to-scalar-operations/scalar.omg) lowers a
-bounded checked scalar subset into stable value and callable operations for
-Omega's Alpha realization. It follows the existing portable operation meanings;
-it is not a second serialized product. Unsupported forms and recursive call
+[`pipeline/05_checked-trees-to-scalar-operations/scalar.omg`](pipeline/05_checked-trees-to-scalar-operations/scalar.omg) lowers a
+bounded subset of checked scalar code into value and callable operations for
+Omega's Alpha realization. It keeps the existing portable operation meanings and
+is not a second serialized product. Unsupported forms and recursive call
 cycles refuse before publication. The [Alpha execution gate](../../tests/product/alpha/README.md)
-exercises the full frontend before lowering and executes the resulting tape.
+runs the whole frontend, lowers the program and executes the resulting tape.
 Full portable publication still needs canonical declaration, contract and
-obligation identities beyond the checker's current verdict/count records.
+obligation identities; the checker currently records only verdicts and counts.

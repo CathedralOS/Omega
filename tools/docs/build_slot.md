@@ -1,9 +1,8 @@
 # Host build budget
 
-Agent count and build load are separate resources. Several agents can read,
-edit and reason at once, but every build, test run and compiled program they
-start shares one machine. On a workstation its owner is using, that machine is
-not the agents' to fill: on 2026-11-09 four local workers each ran
+Several agents can read, edit and reason at once, but every build, test run
+and compiled program they start shares one machine. On a workstation its owner
+is using, agents must not fill that machine: on 2026-11-09 four local workers each ran
 `mbx build -p omega` with default settings on a 24-CPU Windows workstation and
 made it unusable for its owner twice.
 
@@ -17,21 +16,20 @@ made it unusable for its owner twice.
 | CPU affinity or a cgroup CPU quota | One process tree, inherited by its children | `taskset`, a cgroup, or on Windows `ProcessorAffinity` |
 
 Job counts are per invocation, so they multiply across agents: four agents at
-six jobs each are twenty-four compilers. The mbx scheduler is the only setting
-here that spans agents, and an affinity mask or cgroup quota is the only hard
-ceiling. Its
+six jobs each are twenty-four compilers. Only the mbx scheduler spans agents, and only an affinity mask or cgroup
+quota sets a hard ceiling. The mbx
 [documentation](https://github.com/jdx/mr-boxington/blob/main/docs/scheduling.md)
 says independent Cargo commands share CPU and memory permits through one pool
 under the cache directory, that `scheduler.cpus` is that pool's CPU budget, and
 that `scheduler.reserve_cpus` withholds cores from it "to leave CPUs for other
-work". The budget defaults to every logical CPU, so the default pool queues
-agents behind each other but leaves nothing for anyone else. Cache hits take no
+work". The budget defaults to every logical CPU, so by default agents queue
+behind each other but leave nothing for anyone else. Cache hits take no
 permit. `scheduler.priority = "low"` only changes admission order among mbx
 builds; it does not lower operating-system priority.
 
-Programs that do not run through mbx are outside that pool: `omega` itself, a
-compiled sample. Cap those with their own
-setting, or charge them to the pool with
+Programs that do not run through mbx, such as `omega` itself or a compiled
+sample, are outside that pool. Cap those with their own setting, or count them
+against the pool with
 `mbx reserve --cpus N -- <command>`.
 
 ## On a workstation someone is using
@@ -47,13 +45,13 @@ the owner states replaces these defaults.
 2. Leave headroom and never drive the machine to 100%. Without a stated limit,
    budget at most three quarters of the logical CPUs for all agent work
    combined and keep whole cores free for the owner. Do not overcorrect either:
-   a build crawling on a sliver of an idle machine wastes it.
+   a build crawling on a few cores of an idle machine wastes it.
 3. Run builds and test runs at the lowest operating-system priority, so
    interactive work preempts them.
 4. Put the budget in every worker prompt. A subagent does not inherit the
    coordinator's shell environment.
 5. After an unexplained restart or killed processes, suspect the agents' own
-   load before starting the same work again.
+   load before restarting the same work.
 
 The examples are for a 24-CPU host. POSIX shells:
 
@@ -91,8 +89,8 @@ different budgets, and the POSIX form.
 
 ## On the test VMs
 
-One heavy job per machine. A build, a test run or a batch of compiler runs
-is heavy; reading logs, `git` and editing are not. The VMs have 16 cores and 11
+Run one heavy job per machine. A build, a test run or a batch of compiler
+runs is heavy; reading logs, `git` and editing are not. The VMs have 16 cores and 11
 to 12 GB each, and memory is what runs out: on 2026-11-09 a long run of
 compiler jobs lost one to the kernel's out-of-memory killer when a second batch
 of compiler runs was started beside it, and lost others to settings changed
@@ -114,13 +112,13 @@ while it ran.
 
 ## One hold for a whole chain
 
-Run a local chain (check, crate tests, a sample gate) as sequential steps
-in one shell under one budget, and finish it before pushing: integration builds
+Run a local chain of steps (check, crate tests, a sample gate) one after
+another in one shell under one budget, and finish it before pushing: integration builds
 run on GitHub, not on the host ([landing](landing.md)). Docs-only changes need
 no compiler build.
 
 ## Diagnostics don't queue with chains
 
 A compile-error or red-test repair is a minutes-scale check-edit-check loop.
-Keep those checks single-crate (`mbx check -p <crate>`) and inside the same
+Keep those checks to one crate (`mbx check -p <crate>`) and inside the same
 budget; under memory or CPU pressure, drop diagnostic work before the chain.

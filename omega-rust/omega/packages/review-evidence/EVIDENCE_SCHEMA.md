@@ -1,44 +1,42 @@
 # Omega Package Evidence Schema
 
-This file records the closed policy vocabulary whose details would otherwise
-obscure the crate's architectural entrance. The whole-package review
-projection, its canonical review rows, canonical-row recovery envelope, and
-obligation ledger were removed; package review now consumes only the policy
-baseline and its components. Mentions below of "review" versions describe the
-retired encoding and do not bind current bytes. Proof-interface sections follow
-the [contract/bundle direction](../../../../wiki/spec/proofs/contracts.md); the
-source/codec changes and exact-version rejection controls belong to
+This file lists the fixed record kinds, tags and versions of the package
+policy encoding, keeping the crate README short. The whole-package review
+encoding, its canonical rows, their recovery envelope and the obligation ledger
+were removed; package review reads only the policy baseline and its components.
+Each "review" version below is from that retired encoding and fixes no current
+bytes. Proof-interface sections follow the
+[contract/bundle direction](../../../../wiki/spec/proofs/contracts.md); source
+and encoding changes and refusing old exact versions belong to
 `PROOF-CONTRACT-MIGRATION`.
 
-This describes the current encoding and support limits, not a
-requirement to certify installation. The ratified lock records pins, the graph,
-compact compiler-derived risk acceptance, and decisions, trusting whoever
-lands it. Compiler proof/reach checks and native artifact validation remain
-independent of installation.
+This is the current encoding and its limits, not a requirement to certify
+installation. The ratified lock records pins, the graph, compact
+compiler-derived risk acceptances and decisions, trusting whoever lands it.
+Compiler proof/reach checks and native artifact validation are independent of
+installation.
 
 The separate external-supply policy component uses
-`OMEGA-EXTERNAL-SUPPLY-POLICY` version 7, bounded to 4 MiB. It preserves the
+`OMEGA-EXTERNAL-SUPPLY-POLICY` version 7, at most 4 MiB. It keeps the
 complete callable and requirement coordinates, all eight binding alternatives,
-the exact four foreign-locator forms, target, and producer identities. It omits
-evaluation accounting, evaluator/materializer schema markers, closure/evaluation/
-materialization digests, and reconstruction receipts. Its signature and
-requirement encoders use normalized policy signatures rather than the lossy
-legacy review signature. Results are optional, static machine contracts retain
-typed crash guards and full progress routes, and trait requirements keep actual
-lifetime arguments as well as their equality partition. Changes to nested
-encodings must also version the policy component. Typed recovery restores the
-complete nested signature, machine-contract, logical-fact, and expression
-vocabulary, checking exact re-encoding without reconstructing compiler evidence.
-Normalized bindings retain exact versioned target-profile identities from
-checked evaluation, not deployment names or CLI aliases. The writer and reader
-limit aggregate list elements plus recursive entries to 65,536 and nesting to
-128. Recovery additionally limits individual fields to 4 MiB and requested
+the exact four foreign-locator forms, the target and the producer identities. It
+leaves out evaluation accounting, evaluator/materializer schema markers,
+closure/evaluation/materialization digests and reconstruction receipts. Its
+signature and requirement encoders use normalized policy signatures, not the
+lossy legacy review signature. Results are optional, static machine contracts
+keep typed crash guards and full progress routes, and trait requirements keep
+actual lifetime arguments as well as their equality partition. Changing a
+nested encoding also bumps the policy component version. Typed recovery
+restores the complete nested signature, machine-contract, logical-fact and
+expression vocabulary and checks that it re-encodes exactly, without rebuilding
+compiler evidence. Normalized bindings keep the exact versioned target-profile
+identities from checked evaluation, not deployment names or CLI aliases. Writer
+and reader allow 65,536 total list elements plus recursive entries, and depth 128. Recovery also limits each field to 4 MiB and requested
 vector/string/box storage, including canonical comparison scratch, to 64 MiB;
-callers may lower but cannot raise these
-ceilings. Allocator overhead is outside that storage accounting. The complete
-policy baseline below includes this component; the manager retains only exact
-risk-bearing rows beside source pins and accepted decisions. This component does not change the
-full-review schema or any compiler validator.
+callers may lower these limits but not raise them. Allocator overhead is excluded. The complete policy baseline below includes this component; the
+manager keeps only exact risk-bearing rows beside source pins and accepted
+decisions. This component changes neither the full-review schema nor any
+compiler validator.
 
 `OMEGA-PACKAGE-POLICY` version 13 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API
@@ -85,8 +83,8 @@ versions the complete review, review rows, baseline, and every signature-bearing
 policy component. Text grammar, normalized comparison-row framing, canonical-row
 recovery, and ledger versions remain unchanged; their enclosing schema bindings
 already reject unsupported policy/review meaning.
-Unknown policy versions reject; recovery does not invent missing meaning from
-old signatures. Source pins, graph edges and project decisions belong to the
+Unknown policy versions are refused; recovery does not guess missing meaning
+from old signatures. Source pins, graph edges and project decisions belong to the
 manager's lock envelope, not this policy record. Compiler proof/discharge and
 row-source custody are not policy identity or substitutes for fresh admission
 validation.
@@ -135,7 +133,7 @@ The text ceiling is 32 MiB, markup depth is 1,024, and the existing 4 MiB binary
 65,536 aggregate element, 128 semantic depth and 64 MiB owned-storage ceilings
 remain. Reconstructed binary capacity is charged before typed recovery and its
 canonical scratch; verification does not allocate another expanded text buffer.
-This adds no proof, acceptance, or replay fields and changes no binary schema.
+It adds no proof, acceptance or replay fields and changes no binary schema.
 
 Complete normalized audit rows have their own version 2, independent of
 legacy review row version 96. Binary rows start with
@@ -144,8 +142,8 @@ legacy review row version 96. Binary rows start with
 schemas, package, exact target, kind, initial/update decision classification,
 audit classifications, and full policy value. The separate semantic key selects
 the declaration or application being compared; it is not a report index.
-Only explicit risk obligations require acceptance, both initially and on update;
-ordinary public API rows do not become approval obligations merely by changing.
+Only explicit risk obligations need acceptance, initially and on update; an
+ordinary public API row does not need approval just because it changed.
 
 The closed kinds are header; the seven public declaration families; callable;
 selected-provider association; terminal service and permission; representation
@@ -156,20 +154,19 @@ and closed D29 realizations together, preserving their internal canonical plan
 links. Duplicate kind/key coordinates reject. No legacy row or whole-baseline
 encoding is changed, and row text is not a whole-baseline recovery envelope.
 
-One projection permits at most 65,536 rows, 128 MiB of requested row-table and
+One projection allows at most 65,536 rows, 128 MiB of requested row-table and
 retained buffer storage, 1,048,576 sequence elements and recursive entries across
-sizing and emission, and semantic depth 128. Per-row ceilings are 1 MiB of key,
-4 MiB of canonical binary, and 32 MiB of text. Caller ceilings may only lower
-these bounds. The row table and key/binary/text output are measured and charged
-before allocation; usage permits one aggregate budget across both compared
-graphs. Allocator overhead and the already borrowed typed policy are excluded.
+sizing and emission, and semantic depth 128. Each row allows 1 MiB of key,
+4 MiB of canonical binary and 32 MiB of text. Callers may only lower them. The row table and key/binary/text output are measured and charged
+before allocation; one budget can cover both compared graphs. Allocator
+overhead and the already borrowed typed policy are not counted.
 
 ## Current capture support
 
-Source/declaration custody and structural nominal joins are described in
-[capture.md](capture.md). The table below describes the current support boundary,
-not a list of past schema increments. A supported declaration is not automatically
-a supported selected application, executable call, or native realization.
+[capture.md](capture.md) describes how capture tracks source and declaration
+ownership and joins nominal structure. The table below says what is supported
+now; it is not a history of schema versions. Supporting a declaration does not
+mean its selected application, executable call or native realization is supported.
 
 ### Contract expressions and applications
 
@@ -198,9 +195,9 @@ a supported selected application, executable call, or native realization.
 | Named structured const | Acyclic monomorphic checked record/pure sum recursively built from integers, Booleans, literal fixed arrays, and the same data cohort. Rerun syntax-free canonical validation against the declared carrier. Top-level arrays, generic/recursive carriers, private selection, and embedded-name spoofing reject. |
 | Closed conformance argument | Exact owner, fact, call occurrence, static ordinal, and complete application. Reclose authored selection and compare declaration, ordered arguments, subject, and target-trait application. Type arguments, integer const literals, caller const binders, and selected supported public scalar/structured consts are retained. The target-trait telescope remains type-only in this lane; lifetime, machine, and general mathematical arguments remain unsupported. |
 
-Missing, duplicate, redirected, or stale selection custody rejects. These forms
-retain already-checked public facts; they do not widen the checker's denotational
-call grammar. Executable evidence projections and nested executable machine
+Missing, duplicate, redirected or stale selection custody is refused. These
+forms keep already-checked public facts; they do not widen what calls the
+checker accepts. Executable evidence projections and nested executable machine
 applications are not admitted by adding a review row. Contract/bundle migration
 must preserve exact occurrence, substitution, law/member, and witness joins;
 replacement encodings remain `PROOF-CONTRACT-MIGRATION` work.
@@ -225,10 +222,10 @@ their implementation fences are not requests to expand the retired surface.
 Declared indexing requires its exact
 application result, not an assumed collection element type.
 
-Crash predicates are ceiling guards, not established requires/ensures facts.
+Crash predicates are upper-bound guards, not proved requires/ensures facts.
 Their projection checks the freshly rederived crash capsule, exact declaration
-selections and recursive operands without requesting proof-place dependency rows
-that the checked producer intentionally does not emit for guards.
+selections and recursive operands, without asking for proof-place dependency
+rows, which the checked producer deliberately omits for guards.
 
 Structural runtime-requirement scalars retain wrapping, saturating and trapping
 conversions under distinct tags 11, 12 and 13, each carrying the target primitive
@@ -252,13 +249,13 @@ reconstruction is still required. This vocabulary versions review 138, rows 96,
 callable policy 8 and complete baseline 9. Other policy components, text grammar,
 normalized-row framing and ledger versions are unchanged.
 
-This is the evidence vocabulary, not a claim that every authored requirement
-already reaches it. Psi 05's `EntryOperands::scalar` currently declines
-indexed reads, nonempty-path lengths, policy casts and representation views
-when normalizing ordinary expression requirements. Whole-view entry lengths
-cross that boundary; membership-derived requirements have a separate checked
-subject producer. `CRASH-CONTRACT` retains the general entry-normalization
-work. Package capture does not synthesize an omitted requirement tree.
+The evidence can encode these forms; not every written requirement reaches
+them yet. Psi 05's entry normalization of ordinary expression requirements
+currently declines indexed reads, nonempty-path lengths, policy casts and
+representation views. Whole-view entry lengths get through; membership-derived
+requirements have a separate checked subject producer. `CRASH-CONTRACT` holds
+the general entry-normalization work. Package capture does not invent an
+omitted requirement tree.
 
 Outcome-specific guarantees retain exact result-data/case identity and canonical
 fact joined to their checked guarded owner. Ordering is not meaning, but moving
@@ -326,8 +323,7 @@ Actual applications have distinct role payloads:
   type-only uses are the bounded producer. Private, nested symbolic, const,
   lifetime, machine, fixed-token, and statement forms are absent or unsupported.
 
-Equal applications deduplicate only after complete equality while retaining all
-authored locations. Missing/open/substituted applications, stale specialization,
+Applications deduplicate only when fully equal, keeping every authored location. Missing/open/substituted applications, stale specialization,
 and category/carrier drift reject. Foreign symbolic substitution, unsupported
 Terminal continuations, and native physical coverage remain downstream work.
 No role claims package acceptance, an audit, or the complete reachable set from
@@ -434,4 +430,4 @@ state count, result-state position, and forwarding edges. Source custody is the
 authored public operation, not synthesized typed calls. Congruence-only lift,
 closed literal arguments, generic/private/unselected/wrong-package or drifted
 batches remain unsupported, as do ordinary executable quotient requests. This
-bounded row is not a claim that the mathematical-proof migration is complete.
+limited row does not mean the mathematical-proof migration is done.

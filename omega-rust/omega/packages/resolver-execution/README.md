@@ -1,77 +1,74 @@
 # Omega Resolver Execution
 
-This crate owns resolver-specific executable, phase, and root preparation for
-package-source resolution. Shared structured command construction, concrete
-resource limits, bounded capture, and process-container cleanup live in
-`bounded-process`. Callers choose one compiler-defined phase and open a
-backend around the absolute Git path frozen before package input.
+This crate prepares the Git commands that package-source resolution runs:
+the executable, phases and working roots. Structured command building, resource limits, bounded
+output capture and process-container cleanup live in `bounded-process`.
+Callers open a backend with the absolute Git path fixed before package
+input is read, then pick one compiler-defined phase.
 
 ## Start here
 
-[resolver_execution.rs](src/resolver_execution.rs) owns the frozen executable,
-closed phase vocabulary, root validation, command preparation, and resource
-limits. `prepare(phase, working_root)` requires one working root for every phase;
-there is no optional-root combination or second phase dispatch to reconstruct it.
+[resolver_execution.rs](src/resolver_execution.rs) holds the fixed executable,
+the closed phase list, root validation, command preparation and resource
+limits. `prepare(phase, working_root)` takes one working root for every phase;
+no phase has an optional root.
 
-Its [path custody checks](src/path_custody.rs) enforce absolute,
-lexically canonical, bounded paths and keep the executable outside controlled
-roots, including their canonical targets. Tests live below the same owner.
-`lib.rs` exports these operations and the shared bounded-process carriers.
+The [path custody checks](src/path_custody.rs) require absolute, lexically
+canonical, bounded paths and keep the executable outside package-controlled
+roots and their canonical targets. Tests live beside them. `lib.rs` exports
+these operations and the shared bounded-process types.
 
-The dependency direction remains deliberate. Request construction feeds an
-opaque prepared command, and process execution consumes it. Package
-declarations never reach this crate. A prepared command or completion value is
-ordinary control-flow state, not canonical evidence and not source identity.
+Dependencies run one way on purpose. Building a request yields an opaque
+prepared command, and running the process consumes it. Package declarations
+never reach this crate. A prepared command or completion value is ordinary
+control-flow state, not canonical evidence and not source identity.
 
 ## Phase authority
 
 `RepositoryInitialization` and `RepositoryInspection` are local-only phases:
-compiler-owned arguments request no transport and only initialization requests
-repository mutation. They receive no universal Seatbelt/Landlock executable or
-filesystem policy.
+their compiler-chosen arguments ask for no network transport, and only
+initialization changes the repository. Neither gets a Seatbelt or Landlock
+executable or filesystem policy.
 
-`TransportDiscovery` and `Fetch` are host-routed phases. The selected system
-Git and its descendants use the invoking user's ordinary Git/SSH configuration,
-credentials, proxies, executable lookup, network, and writable state. Omega
-does not preselect transport helpers, force a proxy or SSH command, claim the
-actual endpoint route, or measure aggregate transport bytes. Those are host
-inputs, not package authority and not package identity.
+`TransportDiscovery` and `Fetch` run through the host. The system Git and the
+processes it starts use the user's normal Git/SSH configuration, credentials,
+proxies, executable lookup, network and writable state. Omega does not pick
+transport helpers, force a proxy or SSH command, claim the real network route,
+or count total bytes transferred. Those are host inputs, not package authority
+or identity.
 
-The acquisition owner freezes the primary Git path before package-controlled
-input is processed and supplies that absolute path here. This crate never
-performs a bare-name lookup from a package or repository working directory.
-The frozen primary coordinate does not close or attest the descendant helper
-graph selected by ordinary host Git configuration.
+The acquisition code fixes the primary Git path before reading
+package-controlled input and passes that absolute path here. This crate never
+looks up a bare command name from a package or repository directory. That path does not
+vouch for helpers host Git configuration starts.
 
-This distinction prevents package input from selecting the executable without
-pretending that Omega can reproduce or safely broker the host's complete
-transport ecosystem.
+So package input cannot choose the executable, and Omega does not pretend
+to reproduce or safely control the host's transport setup.
 
 ## Enforced boundary
 
-`ResolverExecutionBackend::open` accepts one exact absolute executable path and
-rejects it if it is beneath any supplied package-controlled root. Every later
-preparation reuses that stored path; there is no executable lookup or per-call
-replacement. Phase preparation fixes the working directory to its validated
-root. Commands expose only structured arguments, environment changes, and
-compiler-owned null or piped standard streams. Implicit stream inheritance is
-rejected, and spawning consumes the prepared value.
+`ResolverExecutionBackend::open` takes one exact absolute executable path and
+refuses it if it lies under any supplied package-controlled root. Every later
+preparation reuses that stored path; no call looks up or replaces it.
+Preparing a phase sets the working directory to its validated root. Commands
+carry only structured arguments, environment changes, and null or piped
+standard streams chosen by the compiler. Implicitly inherited streams are
+refused, and spawning consumes the prepared command.
 
-Completion is returned only after the primary process has been reaped and the
-shared bounded-process backend has terminated or observed the absence of the
-owned process container.
-Callers may inspect completion for ordinary control flow and diagnostics; the
-crate does not hash or canonically encode those facts.
+Completion returns only after the primary process is reaped and
+bounded-process has terminated its process container or seen it gone.
+Callers may read completion for control flow and diagnostics; it is never
+hashed or canonically encoded.
 
-Native lifecycle and capture mechanics live in
-`tooling/bounded-process`; this crate supplies the resolver's exact
-limits and phase/root authority. Windows uses a kill-on-close Job Object with
-process, memory, and CPU ceilings. Unix applies concrete resource limits,
-starts a new process group, and kills that group during cleanup; it does not
-claim custody of a descendant that deliberately detaches from the group. Seatbelt,
-Landlock filesystem mediation, executable/write allowlists, native-guarantee
-matrices, and canonical command/policy/completion observations are absent.
-Stronger host or CI isolation is an operator concern, not package evidence.
+Process lifecycle and capture live in
+`foundation/bounded-process`; this crate supplies the resolver's exact
+limits and which root each phase may use. Windows uses a kill-on-close Job Object with
+process, memory and CPU limits. Unix sets concrete resource limits, starts a
+new process group and kills that group during cleanup; it does not claim to
+control a child that deliberately leaves the group. Seatbelt, Landlock
+filesystem control, executable/write allowlists, native-guarantee tables and
+canonical records of commands, policies or completions do not exist.
+Stronger host or CI isolation is the operator's job, not package evidence.
 
 The [resolver security contract](../../../../wiki/spec/packages/resolver_security.md)
-owns the source-resolution rules implemented by this boundary.
+defines the source-resolution rules this crate enforces.

@@ -1,16 +1,16 @@
 # Code Repair Queue
 
-Agents repair obvious code-quality and architecture defects without waiting for
-owner sign-off. This queue records concrete structural problems outside the
-current repair so another agent can take them through validation and landing.
-An entry is neither a new language rule nor a reason to stop the current work.
+Agents fix obvious code-quality and architecture defects without waiting for
+the owner. This queue lists concrete structural problems found outside an
+agent's current repair, so another agent can fix, validate and land them. An
+entry is neither a new language rule nor a reason to stop the current work.
 
-Use [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) only for genuinely unsettled language
-or high-level architecture choices. Apply the existing
-[architecture rules](AGENTS.md#conventions-and-workflow) directly; cross-cutting
-scope, conflicting edits and engineering difficulty do not require a decision.
-Plain missing functionality belongs in the existing outcome in [TASKS.md](TASKS.md),
-not here. A fail-closed "not implemented yet" is not an unsound acceptance.
+Use [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) only for truly unsettled language or
+high-level architecture choices. Apply the existing
+[architecture rules](AGENTS.md#conventions-and-workflow) directly; wide scope,
+conflicting edits and difficulty need no decision. Plain missing functionality belongs in its existing outcome in
+[TASKS.md](TASKS.md), not here. Refusing with "not implemented yet" fails
+closed; it is not an unsound acceptance.
 
 ## How to add one
 
@@ -19,18 +19,18 @@ properly reaches beyond the crate you are in. An ordinary bug, a style
 preference, or anything you can repair inside your own task does not belong
 here: just fix it.
 
-The best moment is your first hour in an area, before you have a change of your
-own to defend. Name the defective mechanism and its cost, not a speculative
-framework or a list of features that remain unimplemented.
+The best time is your first hour in an area, before you have your own change to
+defend. Name the broken mechanism and what it costs, not a speculative
+framework or a list of unimplemented features.
 
 - Add the entry at the top of the list under "Entries"; the list is flat, newest first.
 - Name one category from the list below on its `Category` line.
 - Keep it to the lines of the template. Link the file and line.
 - Add it in the pull request you are already landing; never open one for it.
-- Reconcile overlapping reports by the remaining defect; do not preserve duplicates.
-- Any repairing agent removes the entry when the fix lands. Remove stale reports
-  after verifying that the offending code or premise is gone; do not keep a
-  completion log or mistake deleting a report for implementing its feature.
+- Merge overlapping reports into one entry for the defect that remains; do not keep duplicates.
+- Whoever fixes it removes the entry when the fix lands. Remove a stale report
+  after checking that its code or premise is gone; keep no log of finished
+  work, and do not mistake deleting a report for implementing its feature.
 
 ```markdown
 ### <one line naming the concern>
@@ -47,7 +47,7 @@ framework or a list of features that remain unimplemented.
 
 1. **One idea, several implementations.** Your fix had to be applied in more
    than one place to work.
-2. **Knowledge crossing a boundary.** A stage imports something that is not its
+2. **Knowledge crossing a boundary.** A stage imports something other than its
    input representation, its output representation or a foundation crate.
 3. **Branch per shape.** Logic keyed on where a value sits (local, field,
    parameter, match arm) instead of what it is.
@@ -59,16 +59,16 @@ framework or a list of features that remain unimplemented.
 **Honesty**
 
 6. **A verdict with nothing behind it.** Something is accepted by default, by
-   fallback, or because a lookup came back empty.
+   a fallback, or because a lookup returned nothing.
 7. **Tests that pin the bug.** A fixture that would still pass if the feature
    were broken, or a check that quietly stopped running.
-8. **Zombie machinery.** Code only tests call, a retired path still being fed,
-   a fallback nobody can remove.
+8. **Zombie machinery.** Code that only tests call, a retired path that still
+   receives input, a fallback nobody can remove.
 
 **Direction**
 
 9. **The documents disagree.** You can cite a rule for either answer, or a
-   document blesses the thing that is rotting.
+   document approves code that is decaying.
 10. **Verifying costs more than writing.** You waited longer than you worked.
 
 ## Entries
@@ -181,15 +181,15 @@ framework or a list of features that remain unimplemented.
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing
 - Where: [pool assignments](tools/xtask/src/worktree.rs#L166), [pool cache retention](tools/docs/testing.md#L589), [mbx 1.29.2 collection order](https://github.com/jdx/mr-boxington/blob/v1.29.2/docs/managed-targets.md#keep-or-evict-specific-checkouts)
-- Saw: On macOS arm64 at `c55c52f59b1`, mbx 1.29.2 collected assigned `worker-8` between commands below the workstation's 45.0 GiB free-space floor. The recovered test build compiled from cold in 3m 12s. In two isolated checkouts, `MBX_TARGET_EVICT_FIRST` changed one collector's choice under a one-target budget. An independent collector reverted to oldest-first. Under a zero budget and simulated low disk, a real `mbx run` lease and an explicit `MBX_TARGET_KEEP` each kept the view. After the command ended, that same scratch view was collectible without an explicit keep.
-- Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Expose advisory managed-view priority in mbx and feed it from the pool’s existing assignment state. Honor explicit operator rules and running-command locks, and keep assigned views eligible for reclamation under pressure.
+- Saw: On macOS arm64 at `c55c52f59b1`, below the workstation's 45.0 GiB free-space floor, mbx 1.29.2 deleted assigned `worker-8`'s target between commands. The next test build compiled from cold in 3m 12s. In two isolated checkouts, `MBX_TARGET_EVICT_FIRST` changed one collector's choice under a one-target budget. An independent collector reverted to oldest-first. With a zero budget and simulated low disk, both a running `mbx run` lease and an explicit `MBX_TARGET_KEEP` kept the view. Once the command ended, the same scratch view could be collected unless explicitly kept.
+- Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Add an advisory priority for managed views to mbx and set it from the pool’s existing assignment state. Respect explicit operator rules and running-command locks, and still let assigned views be reclaimed under disk pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
-- Saw: At `1897804e0dbd`, ordinary Omega 03 construction receives target operations together with abstract operations and the optimized executable unit. It zips optimized blocks and operation nodes with target rows (`legalization_source.rs:3101`) and reconstructs structural-call indices from optimized definitions, path geometry and accepted obligation facts. Target arguments already retain index operands and strides, but omit the extent and proof facts this reconstruction supplies: the target handoff is incomplete. Descriptor-bearing call results can reconstruct an optimized catalog graph and selected boundary operations to derive origins. These are production construction paths, not only explicit independent validators or shared immutable type-catalog queries; no miscompile or runtime cost was measured in this audit.
-- Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
+- Saw: At `1897804e0dbd`, ordinary Omega 03 construction receives target operations with abstract operations and the optimized executable unit. It pairs optimized blocks and operation nodes with target rows (`legalization_source.rs:3101`) and rebuilds structural-call indices from optimized definitions, path geometry and accepted obligation facts. Target arguments already keep index operands and strides but omit the extent and proof facts this rebuild supplies, so the target handoff is incomplete. Call results that carry descriptors can rebuild an optimized catalog graph and selected boundary operations to find origins. These are production paths, not only explicit independent validators or shared immutable type-catalog queries; this audit measured no miscompile or runtime cost.
+- Cost: Target operands still depend on earlier executable bodies and their matching operation list, so adding a value form or changing target operations can require matching recognizers in several stages. Make the producer write the needed runtime-index evidence and descriptor-origin records into the target representation, sharing immutable catalogs rather than copying them; have ordinary selection read that product and keep earlier bodies for independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
 ### A returned reference keeps its whole call argument borrowed
@@ -202,9 +202,9 @@ framework or a list of features that remain unimplemented.
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L566), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L940), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L727)
-- Saw: `SourceContinuation::complete_selected` starts from `input.typing.clone()` while its `Arc<SourceCompletionInput>` stays retained for later selections, so `activate_body_completion`'s `Arc::make_mut` deep-copies every `TypedTrees` table once per selected-source continuation, even when one small body set changes. The second copy, in source projection, is gone: `project_source_declarations` now narrows the owned program in place. Naive per-table copy-on-write still copies the expression and statement arenas every completion appends to, and `Arena` exposes contiguous spans (`span`, `storage_slice`, `storage_view`), so paged sharing changes its contract.
-- Cost: A small continuation still copies unrelated typed storage once. First inspect whether empty selected activation and the read-only retained-predecessor consumer need full owned payloads, preserving source authority, context and refusal behavior. If measured nonempty-continuation costs warrant independent body output, separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. Defer wide Psi 02–04 representation splits while `LOWERED-FORM-CHECKER` coverage is actively churning those stages unless a measured continuation bottleneck requires it earlier. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
-- Measured: [two unchanged Build routes at historical `62c864e`](wiki/drafts/measurements/selected_body_copies.md) each copied typed storage seven times (about 392.5 MB requested allocations across measured windows), including an empty selected activation. Both selected batches were empty; authored batches had 1,748/1,746 machines. These measurements predate the removal of the projection copy; current copy counts were not remeasured. They do not establish repeated nonempty-continuation scaling or justify a wide representation split. The ownership repair remains open.
+- Saw: `SourceContinuation::complete_selected` starts from `input.typing.clone()` while its `Arc<SourceCompletionInput>` is kept for later selections, so `activate_body_completion`'s `Arc::make_mut` deep-copies every `TypedTrees` table once per selected-source continuation, even when one small body set changes. The second copy, in source projection, is gone: `project_source_declarations` now narrows the owned program in place. Naive per-table copy-on-write still copies the expression and statement arenas every completion appends to, and `Arena` exposes contiguous spans (`span`, `storage_slice`, `storage_view`), so paged sharing changes its contract.
+- Cost: A small continuation still copies unrelated typed storage once. First check whether an empty selected activation and the read-only consumer of the kept predecessor need full owned payloads, keeping source authority, context and refusal behavior. If measured nonempty-continuation costs justify separate body output, split immutable declaration/type storage from owned body tables, and publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. Postpone wide Psi 02–04 representation splits while `LOWERED-FORM-CHECKER` work keeps changing those stages, unless a measured continuation bottleneck forces it sooner. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
+- Measured: [two unchanged Build routes at historical `62c864e`](wiki/drafts/measurements/selected_body_copies.md) each copied typed storage seven times (about 392.5 MB requested allocations across measured windows), including an empty selected activation. Both selected batches were empty; authored batches had 1,748/1,746 machines. These measurements predate the removal of the projection copy; current copy counts were not remeasured. They show nothing about repeated nonempty continuations and do not justify a wide representation split. The ownership repair is still open.
 - Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals; narrowed 2026-11-15, Claude Code, after removing the projection copy
 
 ### Some record-domain placements still have no checked representation
@@ -217,15 +217,15 @@ framework or a list of features that remain unimplemented.
 ### Evaluation requests without a declaration owner can refuse the whole program
 - Category: a verdict with nothing behind it
 - Where: [source evaluation frontier](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs), [declaration refusals](omega-rust/psi/compilation/representations/typed-trees/src/deferred_refusals.rs)
-- Saw: Known typing and construction gates can retain refusals with the declaration that owns them. The evaluation frontier still rejects program-level rows for explicit wire plans, access plans, and retained constant recipes before it has an entry demand. Ordinary numbered data derives schema metadata with no selected encoding, so checking it does not request wire evaluation. A wire plan row still requires the evaluation route.
-- Cost: An evaluation request recorded outside its declaration has no demand owner. For a source producer that emits such rows, use the existing declaration-owned request inventory so a selected reader can demand the work and an orphan still refuses.
+- Saw: Known typing and construction gates can attach refusals to the declaration that owns them. The evaluation frontier still rejects program-level rows for explicit wire plans, access plans, and kept constant recipes before any entry asks for them. Ordinary numbered data derives schema metadata without a selected encoding, so checking it requests no wire evaluation. A wire plan row still needs the evaluation route.
+- Cost: An evaluation request recorded outside its declaration has no demand owner. For a source producer that emits such rows, use the existing per-declaration request list so a selected reader can ask for the work and an orphan is still refused.
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing. Narrowed by Codex after checking numbered data and tracing the remaining program-level guards.
 
 ### The wire policy constant cannot call its selected reflection path
 - Category: knowledge crossing a boundary
 - Where: [wire protocol policy constant](samples/cli/systems/wire_protocol/main.omg#L389), [policy field inspection](samples/cli/systems/wire_protocol/main.omg#L405), [static argument binding](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L737)
-- Saw: With ordinary numbered records admitted, `omega --check samples/cli/systems/wire_protocol/main.omg` reaches `POLICY_ACCEPTED`, where it refuses the call held by `selected_policy_is_valid` as “holding a call whose static arguments no pass specializes yet.” A one-field record has the same refusal with either inferred or explicitly named context type. Its exact `reflect::field` query and explicit `visit<u64>` call separately execute together in native and Psi. A direct, non-reflective `apply<picked>(7u64)` with a callable parameter also refuses at the static application. Specialization has no reading of a machine operand, and the field visitor's producer was removed when the earlier checker was retired in #2823.
-- Cost: The wire sample cannot check its codec policy against the numbered fields. Use the existing applied callable contract to check the selected visitor and its exact arguments before emitting ordinary per-member calls. The callback must satisfy the published binder, including when the application's concrete inputs would happen to satisfy a narrower callback.
+- Saw: With ordinary numbered records admitted, `omega --check samples/cli/systems/wire_protocol/main.omg` reaches `POLICY_ACCEPTED`, where it refuses the call held by `selected_policy_is_valid` as “holding a call whose static arguments no pass specializes yet.” A one-field record has the same refusal with either inferred or explicitly named context type. Its exact `reflect::field` query and explicit `visit<u64>` call, written separately, run together in native and Psi. A direct, non-reflective `apply<picked>(7u64)` with a callable parameter is also refused at the static application. Specialization cannot read a machine operand, and the field visitor's producer was removed when the earlier checker was retired in #2823.
+- Cost: The wire sample cannot check its codec policy against the numbered fields. Use the existing applied callable contract to check the selected visitor and its exact arguments before emitting ordinary per-member calls. The callback must satisfy the published binder, even when the application's concrete inputs would also satisfy a narrower callback.
 - Reported: 2026-11-15, Codex, macOS arm64, with the precheck repair based on `8f2ba3e8ea6`.
 
 ### The scalar C layout program loses field identity at checked publication

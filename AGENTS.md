@@ -90,6 +90,10 @@ Three faults make agent writing hard to read. Check every sentence for them:
   result, so I'll report when it returns" but "I'll report when the test
   finishes."
 
+To rewrite existing text in plain language, follow
+[plain-writing](.agents/skills/plain-writing/SKILL.md); its script checks that
+the rewrite kept every identifier and grew no longer.
+
 Check claims against the actual submitted or landed diff and observed behavior;
 inspect unclear code or examples instead of inventing a plausible benefit.
 Rewrite the explanation when scope changes. Keep material limits beside the

@@ -1,38 +1,37 @@
 # Bounded process execution
 
-Start at [bounded_process.rs](src/bounded_process.rs).
-`run_bounded_process` validates the capture limits, launches a prepared child,
-starts duplex I/O workers, collects their results under one deadline, and closes
-the process container before returning output. Failure paths close and reap the
-child within the remaining cleanup budget.
+Start at [bounded_process.rs](src/bounded_process.rs). `run_bounded_process`
+checks the capture limits, launches a prepared child, starts threads that write
+its input and read its output, collects them under one deadline, and closes
+the process container before returning output. On failure it closes and reaps
+the child within the remaining cleanup time.
 
-Follow its two lifecycle inputs:
+Two files handle the child:
 
-- [preparation.rs](src/preparation.rs) owns the structured command, resource
-  limits, and explicit null/piped stream setup.
-- [process_child.rs](src/process_child.rs) owns launch, termination, reaping,
-  and completion. Its children contain native limits, descriptor handling,
-  completion records, and Windows Job Object support.
+- [preparation.rs](src/preparation.rs) builds the command, resource limits,
+  and null or piped streams.
+- [process_child.rs](src/process_child.rs) launches, terminates, reaps and
+  completes the child. Its submodules hold native limits, descriptor handling,
+  completion records and Windows Job Object support.
 
-The run loop's subordinate [capture contract](src/capture_contract.rs)
-defines input, output, limits, and errors; [budget.rs](src/budget.rs)
-accounts for aggregate retained output. `lib.rs` only wires and exports these
-owners. Callers can also use the prepared-child lifecycle directly without
-requesting duplex capture.
+[capture_contract.rs](src/capture_contract.rs) defines the run loop's input,
+output, limits and errors; [budget.rs](src/budget.rs) counts total retained
+output. `lib.rs` only wires and exports these. Callers can use the prepared
+child without capture.
 
-`BoundedProcessPrepared::observe_resources()` opts into native CPU, peak resident
-memory, fault and cycle observations retained in `BoundedProcessCompletion` and
-`BoundedProcessOutput`. Defaults keep the existing lifecycle. On Unix the opted-in
-owner reaps the exact child with `wait4` and retains its status; process-group
-cleanup still runs. Windows queries the owned primary handle before closing it.
-Each `ProcessResourceUsage` names its provider and accounting scope; unavailable
-metrics are `None`, including cycles on Unix. Windows peak working set is resident
-memory, and its total faults do not distinguish minor/major faults. See the
+`BoundedProcessPrepared::observe_resources()` turns on CPU, peak resident
+memory, fault and cycle measurement, kept in `BoundedProcessCompletion` and
+`BoundedProcessOutput`; without it nothing changes. On Unix it reaps the exact
+child with `wait4` and keeps its status; process-group cleanup still runs.
+Windows queries the primary process handle before closing it. Each
+`ProcessResourceUsage` names its source and scope; an unavailable metric is
+`None`, including cycles on Unix. Windows peak working set is resident memory,
+and its fault total does not separate minor from major faults. See the
 [benchmark guide](../../../../tools/benchmark/README.md#cpu-resident-memory-and-faults) for units and uses.
 
-Windows uses a kill-on-close Job Object with process, memory, and CPU ceilings.
-Unix applies inherited resource-limit intersections, launches a process group,
-and kills that group during cleanup. A Unix descendant can deliberately detach
-from its process group. Neither platform path claims filesystem, executable,
-credential, or network isolation. Callers requiring a security sandbox must
-provide and verify that separate boundary.
+Windows uses a kill-on-close Job Object that caps processes, memory and CPU.
+Unix applies the tighter of each inherited and requested limit, launches a
+process group, and kills it during cleanup. A Unix descendant can leave its
+group on purpose. Neither platform isolates the filesystem, executables,
+credentials or network; a caller that needs a sandbox must provide and verify
+it separately.
