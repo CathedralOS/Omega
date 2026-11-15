@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### The Build host site test omits its checked receiver helper
+- Category: tests that pin the bug
+- Where: [test prelude and two call sites](omega-rust/omega/build-system/build-settings/src/host/bindings/tests.rs#L8), [helper selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs#L293), [bundled helper](omega-rust/omega/packages/build-declarations/src/prelude.rs#L144)
+- Saw: On clean `637ee209d8a` on macOS arm64, `source_helper_calls_authenticate_their_site_artifact_receiver_and_ticket` fails while typing its Build with ``Build selection has no checked value helper `build_selection_receiver```. The fixture prelude declares the host requirements and omits the ordinary receiver helper.
+- Cost: The test never exercises the host's site, artifact, receiver or ticket checks. Supply the checked receiver used by the Build protocol, and preserve the two sites and existing refusal controls.
+- Reported: 2026-11-15, Codex, while checking package-backed Build admission.
+
 ### A fence loses the ordering known from a local initializer
 - Category: branch per shape
 - Where: [fence argument reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L196), [ordering rules](wiki/spec/language/concurrency.md#orderings)
@@ -128,13 +135,6 @@ framework or a list of unimplemented features.
 - Saw: [PR #3326](https://github.com/CathedralOS/Omega/pull/3326) had green Admission, then squash commit `d5d5c987120` failed a clean macOS arm64 Rust build with E0533. The new evaluation statement shape and the existing atomic-store constructor were in different files. Git merged the text without a conflict. Admission runs rules and formatting on the merge, and the compiler checks start after publication.
 - Cost: Unrelated compiler builds and two in-flight repairs stopped before tests could run. Compare the latency and detection coverage of checking the affected crates on a warmed merge tree with the current post-merge validation.
 - Reported: 2026-11-15, Codex, while validating copyable record constants and the owned-element call path.
-
-### A copied-owner test refuses before checking either package's types
-- Category: tests that pin the bug
-- Where: [copied-owner control](omega-rust/omega/compilation/compiler/tests/anonymous_module_owner.rs#L422), [fixture entry preparation](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L190), [bundled Console realization](source/library/std/console.omg#L105)
-- Saw: On clean `ce501a3161d4` on macOS arm64, `equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute` fails at its fixture's separate Linux ProgramEntry preparation. Checking the whole std supplier rejects `ConsoleNativeProvider::read_line` with `a data declaration cannot own a machine`. Even if that check succeeds, the helper always returns an error about an unpublished service schema. The separate ordinary and named artifact reload test passes.
-- Cost: The imported-package acceptance and copied-owner rejection are never exercised. Use the existing Build and package admission route for the actual entry, with both captured sources and the original nominal-type controls intact.
-- Reported: 2026-11-15, Codex, while verifying named-map artifact reload.
 
 ### An owned record-sequence literal stops at native target lowering
 - Category: knowledge crossing a boundary

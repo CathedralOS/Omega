@@ -3324,7 +3324,7 @@ pub(crate) mod proof_scope_wire {
                     writer.boolean(facts.local_terminates);
                     writer.boolean(facts.entry_requires);
                     target(writer, &facts.linear_carrier)?;
-                    target(writer, &facts.static_application)?;
+                    target(writer, &facts.invocation_refusal)?;
                     writer.boolean(facts.selections.is_ok());
                     match &facts.selections {
                         Ok(requests) => {
@@ -3577,7 +3577,7 @@ pub(crate) mod proof_scope_wire {
                         local_terminates: reader.boolean()?,
                         entry_requires: reader.boolean()?,
                         linear_carrier: read_target(reader)?,
-                        static_application: read_target(reader)?,
+                        invocation_refusal: read_target(reader)?,
                         selections: if reader.boolean()? {
                             Ok(decode_counted(reader, |reader| {
                                 Ok(semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
