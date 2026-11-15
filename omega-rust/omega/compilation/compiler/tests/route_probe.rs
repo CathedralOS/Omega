@@ -106,6 +106,30 @@ fn a_standalone_program_is_judged_without_its_build() {
     assert_eq!(verdicts("accepted", ACCEPTED), ["accepted"]);
 }
 
+/// A closed transparent alias is its expansion (generics.md, "Transparent
+/// type aliases"), so the checker judges it by reading that expansion and
+/// accepts the program. A generic alias has no type until an application
+/// fixes its binder, and the checker still refuses it as written.
+#[test]
+fn a_closed_type_alias_is_judged_by_its_expansion() {
+    assert_eq!(
+        verdicts(
+            "closed_alias",
+            "data Count = u32;\nmachine main() { let count: Count = 3; }\n"
+        ),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts(
+            "generic_alias",
+            "data Pair<T> { left: T; right: T; }\n\
+             data Same<T> = Pair<T>;\n\
+             machine main() { }\n"
+        ),
+        ["not-supported"]
+    );
+}
+
 /// An array extent reads the lexical value even inside a generic type argument.
 /// A runtime parameter cannot borrow a same-named constant's static value.
 #[test]

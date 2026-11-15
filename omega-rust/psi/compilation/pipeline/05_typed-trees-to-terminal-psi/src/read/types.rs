@@ -751,7 +751,7 @@ impl Program<'_> {
         let qualification = self.type_qualification(id, carrier, constraints)?;
         for domain in qualification.domains.members() {
             if !carrier.qualification().domains.contains(domain) {
-                self.declared_domain(id, domain, carrier)?;
+                self.declared_domain(id, domain, carrier, base_type)?;
             }
         }
         carrier.qualified(qualification).ok_or_else(|| {
@@ -935,6 +935,7 @@ impl Program<'_> {
         id: MachineId,
         domain: crate::body::DomainInstance,
         carrier: ValueType,
+        carrier_type: TypeReferenceHandle,
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let typed = self.typed;
@@ -974,8 +975,25 @@ impl Program<'_> {
         let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
             return unserved("domain on a type parameter");
         };
-        if self.value_type(id, definition.target_type)? != plain {
-            return unserved("constrained by a domain declared on another carrier");
+        let subject = self.value_type(id, definition.target_type)?;
+        if subject != plain {
+            // `LayoutStorage<T, L> in T::D`: the laid value is T's value in
+            // L's geometry (plans.md, "Representation applications"), so T's
+            // domain qualifies it. Only a domain whose meaning is its access
+            // policy or routes is read here: a predicate over `self` would
+            // read T's fields through L's geometry, which nothing judges yet.
+            let laid = typed.layout_storage_arguments(carrier_type);
+            let Some(laid) = laid else {
+                return unserved("constrained by a domain declared on another carrier");
+            };
+            if self.value_type(id, laid.semantic_type)? != subject {
+                return unserved("constrained by a domain declared on another carrier");
+            }
+            if definition.predicate_presence != language_semantics::DomainPredicatePresence::Absent
+                || !definition.facts.is_empty()
+            {
+                return unserved("a predicate domain on laid layout storage");
+            }
         }
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
