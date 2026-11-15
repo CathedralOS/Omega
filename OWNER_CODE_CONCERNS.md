@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Nothing checks that a host-supplied shared typed view keeps its backing through a returned view, or that immutable host values cannot supply an exclusive one. Identify the probe caller's actual view argument as the borrow `echo` returns.
 - Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls
 
-### A foreign template generation panics before application admission can refuse it
-- Category: knowledge crossing a boundary
-- Where: [foreign template control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/boundary_calls.rs#L1199), [conformer discovery](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L1465), [owned realization lookup](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L2081)
-- Saw: On clean `4d3852b953f` on macOS arm64, the anonymous machine argument fixture changes only its specialization template's generation and confirms the arena does not resolve it. Stage 05 panics with `arena get received an unresolved handle` while discovering the conformer, before the existing application refusal `executable application lost its template machine` can run. The focused backtrace goes through `owned_conformance_realization` from `conformer_requirement`.
-- Cost: Malformed application evidence aborts compilation. Validate template identity before using it to ask who owns a realization, and preserve the valid specialization and the exact foreign-generation refusal.
-- Reported: 2026-11-14, Codex, while comparing the local-loan escape fix with a clean Stage 06 run
-
 ### A shared reference copy traps when its loan is released
 - Category: knowledge crossing a boundary
 - Where: [shared reference copy control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L995), [release operation](omega-rust/psi/interpreter/src/storage_references.rs#L3201)
