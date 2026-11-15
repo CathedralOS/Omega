@@ -143,24 +143,26 @@ fn declared_reference_result<'module>(
     Ok(declared)
 }
 
+/// A declared lifetime names static leaves or a whole family of elements.
+pub fn declared_lifetime_path_is_static(path: &[StructuralPathSegment]) -> bool {
+    path.iter().all(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::Referent
+                | StructuralPathSegment::AllElements
+        )
+    })
+}
+
 pub(crate) fn validate_result_lifetime_groups(
     groups: &[DeclaredResultLifetime],
 ) -> Result<usize, &'static str> {
     if groups.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err("selected result lifetime groups are repeated or not canonical");
     }
-    let path = |path: &[StructuralPathSegment]| {
-        path.iter().all(|segment| {
-            matches!(
-                segment,
-                StructuralPathSegment::Field(_)
-                    | StructuralPathSegment::Case(_)
-                    | StructuralPathSegment::FixedIndex(_)
-                    | StructuralPathSegment::Referent
-                    | StructuralPathSegment::AllElements
-            )
-        })
-    };
     groups.iter().try_fold(0_usize, |count, group| {
         if group.results.is_empty()
             || group.inputs.windows(2).any(|pair| pair[0] >= pair[1])
@@ -168,7 +170,10 @@ pub(crate) fn validate_result_lifetime_groups(
         {
             return Err("selected result lifetime membership is repeated or not canonical");
         }
-        if group.results.iter().any(|result| !path(result))
+        if group
+            .results
+            .iter()
+            .any(|result| !declared_lifetime_path_is_static(result))
             || group.inputs.iter().any(|input| match input {
                 BoundaryLifetimeDependency::Referent { access, .. } => {
                     *access == StructuralAccess::Owned
@@ -177,7 +182,9 @@ pub(crate) fn validate_result_lifetime_groups(
                     access,
                     path: stored,
                     ..
-                } => *access == StructuralAccess::Owned || !path(stored),
+                } => {
+                    *access == StructuralAccess::Owned || !declared_lifetime_path_is_static(stored)
+                }
             })
         {
             return Err("selected result lifetime membership is not a static borrowed frontier");

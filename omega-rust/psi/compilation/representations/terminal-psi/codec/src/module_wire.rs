@@ -2436,8 +2436,9 @@ pub(crate) mod access_view_wire {
 pub(crate) mod closed_conformance_wire {
 
     use super::super::wire_fields::{
-        Bytes, Commitment, Digest, Id, Index, LifetimeDependency, List, Nominal, Optional, Path,
-        ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum, wire_record,
+        Bytes, Commitment, DECLARED_LIFETIME_FAMILY, DeclaredLifetimeDependency, Digest, Id, Index,
+        List, Nominal, Optional, Path, ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum,
+        wire_record,
     };
     use super::callable_wire::Callable;
     use terminal_psi::{
@@ -2489,8 +2490,8 @@ pub(crate) mod closed_conformance_wire {
             method_arguments: List<ReachArgument>,
         }
         ResultLifetime: DeclaredResultLifetime {
-            inputs: List<LifetimeDependency>,
-            results: List<Path>,
+            inputs: List<DeclaredLifetimeDependency>,
+            results: List<Path<DECLARED_LIFETIME_FAMILY>>,
         }
         Row: ClosedConformanceRow {
             requirement_declaration: Nominal,
