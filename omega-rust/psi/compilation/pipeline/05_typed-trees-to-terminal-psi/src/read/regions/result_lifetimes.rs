@@ -134,16 +134,20 @@ impl Program<'_> {
     }
 }
 
-fn region_key(region: Region) -> (u8, u32, u32, usize) {
+fn region_key(region: Region) -> (u8, u64, u32, u32, usize) {
     match region {
         Region::Parameter(parameter) => (
+            0,
             0,
             parameter.declaration.arena_index(),
             parameter.declaration.generation(),
             parameter.ordinal,
         ),
-        Region::Fixed(index) => (1, index, 0, 0),
-        Region::Variable(index) => (2, index, 0, 0),
+        Region::Fixed(index) => (1, 0, index, 0, 0),
+        Region::Variable(index) => (2, 0, index, 0, 0),
+        Region::Storage { machine, root } => {
+            (3, machine.get(), root.arena_index(), root.generation(), 0)
+        }
     }
 }
 

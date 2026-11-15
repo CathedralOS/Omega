@@ -37,7 +37,7 @@ use omega::language::core::AccessPolicy;
 use omega::language::core::AccessPlan;
 use omega::language::core::reflect::TypeSchema;
 use omega::language::core::Issuance;
-use omega::language::core::AccessPlan::new;
+use omega::language::core::access;
 public data Subsystem {
     case Console;
     case Gui;
@@ -253,7 +253,7 @@ public data BuildSeal {
 }
 BuildSealAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        AccessPlan::new(&schema, Issuance::Only { routes: [] })
+        access::new_plan(&schema, Issuance::Only { routes: [] })
     }
 }
 public domain BuildSeal::Issued

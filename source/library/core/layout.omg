@@ -174,6 +174,7 @@ public machine LayoutPlan::place_private(plan: LayoutPlan, representation: Field
 use omega::language::core::reflect::TypeSchema;
 use omega::language::core::reflect::CallableInfo;
 use omega::language::core::reflect::FieldInfo;
+use omega::language::core::access;
 
 // Access-policy vocabulary (wiki/spec/resources/access.md). LayoutPlan owns
 // geometry; AccessPlan retains a semantic schema, explicit issuance choice,
@@ -319,104 +320,15 @@ requires field_count <= 32, reader_count <= 32, writer_count <= 32
     reach: BoundaryReach;
 }
 
-// A new plan adds no reader/writer restriction, observation demand or reach.
-// Its explicit issuance choice is independent of those empty axes.
-public machine AccessPlan::new(schema: &TypeSchema, issuance: Issuance) -> AccessPlan
-reaches none
-crashes none
-terminates
-ensures result.field_count == 0, result.reader_count == 0,
-    result.writer_count == 0, result.reach.service_count == 0
-{
-    let fields: [AccessFieldEntry; 32];
-    let readers: [AccessCallerRule; 32];
-    let writers: [AccessCallerRule; 32];
-    let reach: BoundaryReach;
-    AccessPlan {
-        schema: TypeSchema { storage: schema.storage },
-        issuance: issuance,
-        fields: fields, field_count: 0,
-        readers: readers, reader_count: 0,
-        writers: writers, writer_count: 0,
-        reach: reach
-    }
-}
-
-// Each call appends an independent restriction. Empty callers deny that
-// region, while no row adds no restriction. Parent and repeated rules remain
-// separate so normalization must intersect them rather than replace a row.
-public machine AccessPlan::allow_readers(plan: &mut AccessPlan, region: AccessRegion, callers: [CallableInfo])
-reaches none
-crashes none
-terminates
-requires plan.reader_count < 32
-{
-    let index: u64 = plan.reader_count;
-    plan.readers[index] = AccessCallerRule { region: region, callers: callers };
-    plan.reader_count = index + 1;
-}
-
-public machine AccessPlan::allow_readers(plan: &mut AccessPlan, field: FieldInfo, callers: [CallableInfo])
-reaches none
-crashes none
-terminates
-requires plan.reader_count < 32
-{
-    AccessPlan::allow_readers(plan, AccessRegion::Field { field: field }, callers);
-}
-
-public machine AccessPlan::allow_writers(plan: &mut AccessPlan, region: AccessRegion, callers: [CallableInfo])
-reaches none
-crashes none
-terminates
-requires plan.writer_count < 32
-{
-    let index: u64 = plan.writer_count;
-    plan.writers[index] = AccessCallerRule { region: region, callers: callers };
-    plan.writer_count = index + 1;
-}
-
-public machine AccessPlan::allow_writers(plan: &mut AccessPlan, field: FieldInfo, callers: [CallableInfo])
-reaches none
-crashes none
-terminates
-requires plan.writer_count < 32
-{
-    AccessPlan::allow_writers(plan, AccessRegion::Field { field: field }, callers);
-}
-
-// Appending preserves repeated demands for the same field. Normalization must
-// satisfy every row; construction does not replace an inherited restriction.
-public machine AccessPlan::observe(plan: &mut AccessPlan, field: FieldInfo, access: FieldAccess)
-reaches none
-crashes none
-terminates
-requires plan.field_count < 32
-{
-    let index: u64 = plan.field_count;
-    plan.fields[index] = AccessFieldEntry { field: field, access: access };
-    plan.field_count = index + 1;
-}
-
-public machine AccessPlan::with_reach(plan: AccessPlan, reach: BoundaryReach) -> AccessPlan
-reaches none
-crashes none
-terminates
-{
-    let mut updated: AccessPlan = plan;
-    updated.reach = reach;
-    updated
-}
-
 public IssuedBy<const R: CallableInfo> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        AccessPlan::new(&schema, Issuance::Only { routes: [R] })
+        access::new_plan(&schema, Issuance::Only { routes: [R] })
     }
 }
 
 public IssuedByAny<const N: u64, const Routes: [CallableInfo; N]> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        AccessPlan::new(&schema, Issuance::Only { routes: Routes })
+        access::new_plan(&schema, Issuance::Only { routes: Routes })
     }
 }
 
@@ -502,26 +414,6 @@ public boundary trait ResourceProfileSupply<Role> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none crashes none;
 }
 
-// View operations name the complete qualified result type as an ordinary
-// type argument. Access is only their namespace; it is not a source wrapper
-// around that type. Realization must join its exact domain policy, independent
-// selected layout, live content, backing and source loan before returning it.
-public boundary data Access;
-
-// Ordinary RAM retains its actual source type and loan. A different View
-// argument is a request to check that correspondence, never a coercion or an
-// authority grant from these declarations alone.
-public boundary machine Access::view<Source, View>(source: &Source) -> &View
-reaches none crashes none;
-public boundary machine Access::view_mut<Source, View>(source: &mut Source) -> &mut View
-reaches none crashes none;
-
-// Resident interpretation retains the exact content claim as well as the
-// complete qualified View. Retiring the result loan cannot retire that claim.
-public boundary machine Access::view_resident_mut<P, Source, View>(
-    storage: &mut Extent in Granted & Resident<P, Source>
-) -> &mut View reaches none crashes none;
-
 public data AccessOutcome<View, Returned, Reason> {
     case Ready(view: View);
     case Rejected(returned: Returned, reason: Reason);
@@ -535,51 +427,6 @@ public data AccessReturn<Source, Custody> {
 // A borrowed view moves no storage into the operation. Rejection releases its
 // loan; this ordinary empty record carries no grant or content qualification.
 public data AccessBorrowReturn {}
-
-// View already-established external content without manufacturing Resident or
-// Vacant. The selected call supplies compatibility for this exact qualified
-// range, while the result retains the original storage loan. A numeric address
-// or a constructed ResourceProfile is not a substitute for either input.
-public machine Access::view_extent<'storage, View, Role>(
-    storage: &'storage Extent in Granted
-) -> AccessOutcome<
-    &'storage View, AccessBorrowReturn, AccessInitializationFailure
->
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
-{
-    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    Access::view_from_profile<View, Role>(storage, &profile)
-}
-
-boundary machine Access::view_from_profile<'storage, View, Role>(
-    storage: &'storage Extent in Granted,
-    profile: &ResourceProfile
-) -> AccessOutcome<
-    &'storage View, AccessBorrowReturn, AccessInitializationFailure
->;
-
-// The exclusive counterpart carries the same interpretation and original
-// profile occurrence. Its reference ceiling, not a second lifecycle or a
-// geometry-based permission, allows the placement's admitted writes.
-public machine Access::view_extent_mut<'storage, View, Role>(
-    storage: &'storage mut Extent in Granted
-) -> AccessOutcome<
-    &'storage mut View, AccessBorrowReturn, AccessInitializationFailure
->
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
-{
-    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    Access::view_mut_from_profile<View, Role>(storage, &profile)
-}
-
-boundary machine Access::view_mut_from_profile<'storage, View, Role>(
-    storage: &'storage mut Extent in Granted,
-    profile: &ResourceProfile
-) -> AccessOutcome<
-    &'storage mut View, AccessBorrowReturn, AccessInitializationFailure
->;
 
 // Dynamic incompatibility is ordinary data. Malformed admitted assertions,
 // physical faults and missing static custody are not recoverable cases here.
@@ -644,7 +491,7 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Access::initialize_from_profile<P, T, Storage, Role>(storage, value, &profile)
+        access::initialize_from_profile<P, T, Storage, Role>(storage, value, &profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
@@ -656,61 +503,7 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Access::extract_resident<P, T, Storage, Role>(storage, &profile)
-    }
-}
-
-// These exact private machines are explicit content-establishment routes.
-// Privacy supplies no profile or backing authority: compiler realization still
-// requires the exact admitted call, live claim and actual allocation. They
-// cannot interpret a constructed profile or an Extent's descriptor as bytes.
-boundary machine Access::initialize_from_profile<P, T, Storage, Role>(
-    storage: Extent in Granted & Vacant,
-    value: T,
-    profile: &ResourceProfile
-) -> AccessOutcome<
-    Extent in Granted & Resident<P, T>,
-    AccessReturn<Extent in Granted & Vacant, T>,
-    AccessInitializationFailure
->;
-
-boundary machine Access::extract_resident<P, T, Storage, Role>(
-    storage: Extent in Granted & Resident<P, T>,
-    profile: &ResourceProfile
-) -> AccessExtraction<Extent in Granted & Vacant, T>;
-
-// The owned operation captures both inputs before its ordinary selected supply
-// call. Ready retains the original range and the complete value's custody;
-// rejection returns both unchanged. Only an executed complete encoding write
-// can establish resident content. The compiler's lifecycle operation, not a
-// caller-provided profile or the return annotation, discharges that obligation.
-public machine Access::initialize_owned<P, T>(
-    storage: Extent in Granted & Vacant,
-    value: T
-) -> AccessOutcome<
-    Extent in Granted & Resident<P, T>,
-    AccessReturn<Extent in Granted & Vacant, T>,
-    AccessInitializationFailure
->
-reaches AccessLifecycle + ResourceProfileSupply
-invokes AccessLifecycle
-{
-    AccessLifecycle<P, T>::initialize(storage, value)
-}
-
-// Whole-value extraction ends this exact resident occurrence. Active loans or
-// unresolved partial moves forbid it; success returns the owned value and the
-// original storage with vacancy restored, rather than a new numeric root.
-public machine Access::move_out_owned<P, T>(
-    storage: Extent in Granted & Resident<P, T>
-)
-    -> AccessReturn<Extent in Granted & Vacant, T>
-reaches AccessLifecycle + ResourceProfileSupply
-invokes AccessLifecycle
-{
-    transition AccessLifecycle<P, T>::move_out(storage) {
-        AccessExtraction::Moved { storage, value } ->
-            AccessReturn { source: storage, custody: value }
+        access::extract_resident<P, T, Storage, Role>(storage, &profile)
     }
 }
 

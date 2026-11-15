@@ -171,6 +171,48 @@ fn qualified_unknown_names_keep_dependency_and_visibility_scope() {
     }
 }
 
+/// modules.md, "Resolution": case members are not a bare-name resolution
+/// step, so a bare case spelling is an ordinary unknown name of its own
+/// holder. Whether some carrier anywhere in the forest, visible or not,
+/// declares that case does not turn the deferred row into a resolver failure.
+#[test]
+fn a_bare_case_spelling_stays_an_unknown_name_of_its_holder() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    let client = "machine main() {} machine unused() -> u64 { Missing }";
+    let carrier = "public data Choice { case Missing; }";
+    let same_source = format!("{client} {carrier}");
+    for units in [
+        vec![(31, "client.omg", client)],
+        vec![
+            (31, "client.omg", client),
+            (
+                41,
+                "choice.omg",
+                "module choice; public data Choice { case Missing; }",
+            ),
+        ],
+        vec![(31, "client.omg", same_source.as_str())],
+    ] {
+        let program = packages(&units, &[], &[]).unwrap();
+        let refusal = |name: &str| {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap();
+            program
+                .deferred_refusal(machine.symbol)
+                .map(|row| row.request)
+        };
+        assert_eq!(refusal("main"), None, "{units:?}");
+        assert_eq!(
+            refusal("unused"),
+            Some(DeferredRequest::UndeclaredValueName),
+            "{units:?}"
+        );
+    }
+}
+
 #[test]
 fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {
     use language_semantics::declaration_selection::{

@@ -6003,7 +6003,6 @@ pub(crate) fn assign_constant_expression_symbols(
     }
 }
 
-pub(crate) use expressions::reject_unqualified_case_values;
 pub(crate) use lookup::{
     DomainMembership, MembershipSelection, builtin_type_atom_by_symbol_name,
     constructor_prefix_is_value, constructor_type, domain_name_reaches, membership_domain_lookup,

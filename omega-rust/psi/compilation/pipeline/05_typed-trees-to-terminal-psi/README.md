@@ -638,7 +638,10 @@ reject."). The owner of the lifetimes an application names is the typed
 trees' answer: the declaration they retained for that occurrence of the type,
 as stage 03 does for the type of a literal nested in another literal, and
 otherwise the declaration being read: the data declaration whose member it
-is, or the machine whose signature or body it is.
+is, or the machine whose signature or body it is. A tag that owner has no
+binder for, in a data application or on a reference such as `&'a [u8]`, is
+the program's error and is rejected, not refused as an unserved type
+(`read/places.rs`, `reference_lifetime_declared`).
 
 A machine that declares lifetime parameters is one machine, read once
 ("Lifetime arguments are erased regions, separate from runtime generic arity,
@@ -791,7 +794,7 @@ the slice that serves it:
 | a field type constrained by a declared domain or by `Trapping` | `type constrained by a domain that is not one arithmetic policy`, `type constrained by Trapping` |
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
-| a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders or with a tag its owner does not declare, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing lifetime argument its owner does not declare`, `typing data field that elides a lifetime argument` |
+| a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing data field that elides a lifetime argument` |
 | data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field or retired field identities | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities` |
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |

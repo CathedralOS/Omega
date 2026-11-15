@@ -84,6 +84,7 @@ pub(super) fn source_sequence_view(
         } else {
             lexical_owner
         };
+        super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
         typed_trees::type_identity::applied_type_identity_in_region_scope(
             typed,
             reference,
@@ -202,9 +203,16 @@ impl Program<'_> {
                 .byte_subslice(machine, slots, base, range, borrow.target, source)
                 .map(Some);
         }
-        if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
+        // A partial range of fixed storage is the window of the whole-array
+        // loan: the loan keeps the backing's exact extent `N`, and the
+        // window's `start <= end <= N` legs are checked against that loan's
+        // own length like any other byte subslice (byte_views.md, "Source
+        // correspondence"). A writable window would need a live mutable
+        // subslice descriptor, which that vocabulary does not admit.
+        let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
+        if partial && requested != StructuralAccess::SharedBorrow {
             return Err(unavailable(
-                "partial array views need their endpoint and window correspondence",
+                "mutable partial array views need a live mutable subslice descriptor",
             ));
         }
         let element = self
@@ -238,7 +246,7 @@ impl Program<'_> {
         let regions = self.storage_loan_regions(machine, slots, &base)?;
         // The source array and its own type stay on the operand. The result
         // is a descriptor with the actual backing's lifetime, not the context's.
-        Ok(Some(Expression {
+        let whole = Expression {
             call_context: None,
             kind: ExpressionKind::ArrayView {
                 base: Box::new(base),
@@ -247,7 +255,13 @@ impl Program<'_> {
             },
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
-        }))
+        };
+        if partial {
+            return self
+                .byte_window(machine, slots, whole, range, source)
+                .map(Some);
+        }
+        Ok(Some(whole))
     }
 
     pub(super) fn array_literal(

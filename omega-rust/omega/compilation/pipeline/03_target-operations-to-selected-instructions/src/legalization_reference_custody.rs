@@ -3000,7 +3000,8 @@ pub(crate) mod stored_calls {
                                 | DescriptorStoredOrigin::IncomingSlot { .. }
                                 | DescriptorStoredOrigin::IncomingContents { .. }
                                 | DescriptorStoredOrigin::Literal { .. }
-                                | DescriptorStoredOrigin::AccessFormation { .. } => return None,
+                                | DescriptorStoredOrigin::AccessFormation { .. }
+                                | DescriptorStoredOrigin::Carried => return None,
                             }
                         }
                         sources.sort();

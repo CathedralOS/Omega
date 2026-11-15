@@ -224,14 +224,14 @@ public domain Cell::Controlled
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(
+        let mut plan: AccessPlan = access::new_plan(
             &schema,
             Issuance::Only { routes: [reflect::callable(create_cell)] }
         );
-        AccessPlan::allow_readers(
+        access::allow_readers(
             &mut plan, TypeSchema::root(&schema), [reflect::callable(read_cell)]
         );
-        AccessPlan::allow_writers(
+        access::allow_writers(
             &mut plan, TypeSchema::root(&schema), [reflect::callable(set_cell)]
         );
         plan

@@ -314,7 +314,13 @@ pub(crate) mod operations {
             None
         };
         let resolved = selected
-            .map(|selected| super::selected_boundary_calls::resolve(operation, selected, functions))
+            .map(|selected| {
+                super::selected_boundary_calls::resolve(
+                    operation,
+                    selected,
+                    functions.get(&selected.callee).copied(),
+                )
+            })
             .transpose()?;
         let operation = resolved
             .as_ref()

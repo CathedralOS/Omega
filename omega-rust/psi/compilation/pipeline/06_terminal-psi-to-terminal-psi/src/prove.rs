@@ -285,6 +285,10 @@ pub(crate) struct Prover<'a> {
     /// their selected arithmetic meaning, each citing its prepared fact.
     equations: Vec<usize>,
     definitions: IdTable<ValueId, Option<usize>>,
+    /// `equations` extended by arrivals' compound equalities, which only
+    /// `by_transport` cites after `equations` alone fails (`Known`).
+    arrival_equations: Vec<usize>,
+    arrival_definitions: IdTable<ValueId, Option<usize>>,
     transport: crate::known::TransportInputs,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
     bounds: Vec<[Slot; 2]>,
@@ -421,6 +425,8 @@ impl<'a> Prover<'a> {
             facts,
             equations,
             definitions,
+            arrival_equations,
+            arrival_definitions,
         } = crate::known::Known::new(context, assumptions, axioms, values);
         let transport = crate::known::TransportInputs::new(equations.len());
         Self {
@@ -431,6 +437,8 @@ impl<'a> Prover<'a> {
             facts,
             equations,
             definitions,
+            arrival_equations,
+            arrival_definitions,
             transport,
             bounds: (0..values.count())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
@@ -444,13 +452,51 @@ impl<'a> Prover<'a> {
 
     /// `goal` by `ValueEqualityTransport`: under the definitions the prover
     /// holds, its denotation is `Truth`, or is the denotation of a fact. The
-    /// kernel recomputes both denotations from the same definitions.
+    /// kernel recomputes both denotations from the same definitions. Only
+    /// when those definitions do not decide it, an arrival's compound
+    /// equality may define its otherwise undefined value too: a match arm
+    /// that read `window.len` crosses as `length == count - 0`, which the
+    /// window's later measurement `count - start` with `start == 0` meets
+    /// only by transport.
     fn by_transport(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        if self.equations.is_empty() {
+        self.transport_through(goal, false)
+            .or_else(|| self.transport_through(goal, true))
+    }
+
+    fn transport_through(&mut self, goal: &Proposition, arrivals: bool) -> Option<ProofNode> {
+        if arrivals && self.arrival_equations.is_empty() {
             return None;
         }
-        let target = self.transported_goal(goal)?;
-        let inputs = &self.transport.selected;
+        let (equations, definitions) = if arrivals {
+            (&self.arrival_equations, &self.arrival_definitions)
+        } else {
+            (&self.equations, &self.definitions)
+        };
+        if equations.is_empty() {
+            return None;
+        }
+        crate::known::Known::transport_inputs(
+            &self.facts,
+            equations,
+            goal,
+            definitions,
+            &mut self.transport,
+        );
+        let target = check_value_equality_denotation(
+            self.context,
+            goal,
+            self.transport
+                .selected
+                .iter()
+                .map(|&index| &self.facts[equations[index]].proposition),
+        )
+        .ok()?;
+        let equalities: Vec<ProofNode> = self
+            .transport
+            .selected
+            .iter()
+            .map(|&index| self.facts[equations[index]].proof(&self.facts))
+            .collect();
         let premise = if target == Proposition::Truth {
             primitive(Proposition::Truth, PrimitiveJudgment::Truth)
         } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
@@ -473,10 +519,7 @@ impl<'a> Prover<'a> {
             goal.clone(),
             ProofRule::ValueEqualityTransport {
                 premise: Box::new(premise),
-                equalities: inputs
-                    .iter()
-                    .map(|&index| self.facts[self.equations[index]].proof(&self.facts))
-                    .collect(),
+                equalities,
             },
         ))
     }
@@ -1301,52 +1344,21 @@ impl<'a> Prover<'a> {
                 Ok((bound.literal, Some(bound.proof)))
             }
             _ => {
-                // A formed expression still denotes its exact result when it has
-                // no SSA output. Carry the same checked mathematical bound back
-                // to that expression instead of requiring a synthetic value.
-                let Proposition::IntegerMathLessOrEqual(value, _) =
+                let Some(Proposition::IntegerMathLessOrEqual(expression, _)) =
                     lift_exact_integer_order(&Proposition::LessOrEqual(term.clone(), term.clone()))
-                        .ok_or("comparison term outside exact integer arithmetic")?
                 else {
-                    return Err("comparison has no mathematical order");
+                    return Err("comparison term outside the scalar subset");
                 };
-                let image = self.arithmetic_image(&value, direction)?;
-                let limit = match (&image.conclusion, direction) {
-                    (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper)
-                    | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit,
-                    _ => return Err("expression bound has the wrong direction"),
-                };
-                let IntegerMathTerm::IntegerLiteral(limit) = limit else {
-                    return Err("expression has no literal bound");
-                };
-                let integer = term
-                    .scalar_type()
-                    .as_integer()
-                    .ok_or("non-integer expression")?;
-                let literal = limit
-                    .as_integer_value(integer)
-                    .ok_or("expression bound outside carrier")?;
-                let bound =
-                    ScalarTerm::integer(integer, literal).map_err(|_| "expression bound")?;
-                let conclusion = Self::oriented(term, bound, direction);
-                let equality = primitive(
-                    Proposition::IntegerMathEqual(value.clone(), value),
-                    PrimitiveJudgment::ReflexiveEquality,
-                );
-                Ok((
-                    literal,
-                    Some(node(
-                        conclusion,
-                        ProofRule::IntegerOrderSubstitution {
-                            relation: Box::new(image),
-                            equality: Box::new(equality),
-                            endpoint: match direction {
-                                Direction::Upper => 0,
-                                Direction::Lower => 1,
-                            },
-                        },
-                    )),
-                ))
+                let relation = self.arithmetic_image(&expression, direction)?;
+                let equality = self
+                    .reflexive(Proposition::IntegerMathEqual(
+                        expression.clone(),
+                        expression,
+                    ))
+                    .ok_or("the kernel refuses the expression identity")?;
+                let bound = Self::carrier_bound_from_image(term, relation, equality, direction)
+                    .ok_or("the image bound is outside the comparison carrier")?;
+                Ok((bound.literal, Some(bound.proof)))
             }
         }
     }
@@ -1502,30 +1514,12 @@ impl<'a> Prover<'a> {
                     return None;
                 };
                 let image = self.arithmetic_image(expression, direction).ok()?;
-                let (limit, endpoint) = match (&image.conclusion, direction) {
-                    (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper) => (limit, 0),
-                    (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => (limit, 1),
-                    _ => return None,
-                };
-                let IntegerMathTerm::IntegerLiteral(limit) = limit else {
-                    return None;
-                };
-                let literal = limit.as_integer_value(integer)?;
-                Some(Bound {
-                    literal,
-                    proof: node(
-                        Self::oriented(
-                            subject,
-                            ScalarTerm::integer(integer, literal).ok()?,
-                            direction,
-                        ),
-                        ProofRule::IntegerOrderSubstitution {
-                            relation: Box::new(image),
-                            equality: Box::new(self.facts[index].proof(&self.facts)),
-                            endpoint,
-                        },
-                    ),
-                })
+                Self::carrier_bound_from_image(
+                    subject,
+                    image,
+                    self.facts[index].proof(&self.facts),
+                    direction,
+                )
             }
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
@@ -1832,6 +1826,41 @@ impl<'a> Prover<'a> {
         self.transported(axiom, *id, integer, image, direction)
     }
 
+    /// Restate a checked mathematical image at its exact carrier endpoint.
+    fn carrier_bound_from_image(
+        subject: &ScalarTerm,
+        image: ProofNode,
+        equality: ProofNode,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let (limit, endpoint) = match (&image.conclusion, direction) {
+            (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper) => (limit, 0),
+            (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => (limit, 1),
+            _ => return None,
+        };
+        let IntegerMathTerm::IntegerLiteral(limit) = limit else {
+            return None;
+        };
+        let integer = subject.scalar_type().as_integer()?;
+        let literal = limit.as_integer_value(integer)?;
+        let goal = Self::oriented(
+            subject,
+            ScalarTerm::integer(integer, literal).ok()?,
+            direction,
+        );
+        Some(Bound {
+            literal,
+            proof: node(
+                goal,
+                ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(image),
+                    equality: Box::new(equality),
+                    endpoint,
+                },
+            ),
+        })
+    }
+
     /// The output `output` of the result equation `axiom` bounded by
     /// `image`, the kernel's bound on the equation's mathematical term:
     /// the bound carried through the equation (`ValueEqualityTransport`)
@@ -1851,23 +1880,13 @@ impl<'a> Prover<'a> {
             | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit.clone(),
             _ => return None,
         };
-        let IntegerMathTerm::IntegerLiteral(literal) = &limit else {
-            return None;
-        };
-        let literal = literal.as_integer_value(integer)?;
         let output = IntegerMathTerm::MathValue {
             source_type: integer,
             value: output,
         };
-        let (on_output, endpoint) = match direction {
-            Direction::Upper => (
-                Proposition::IntegerMathLessOrEqual(output.clone(), limit),
-                0,
-            ),
-            Direction::Lower => (
-                Proposition::IntegerMathLessOrEqual(limit, output.clone()),
-                1,
-            ),
+        let on_output = match direction {
+            Direction::Upper => Proposition::IntegerMathLessOrEqual(output.clone(), limit),
+            Direction::Lower => Proposition::IntegerMathLessOrEqual(limit, output.clone()),
         };
         let equation = node(
             self.axioms.get(axiom)?.clone(),
@@ -1887,22 +1906,7 @@ impl<'a> Prover<'a> {
             Proposition::IntegerMathEqual(output.clone(), output),
             PrimitiveJudgment::ReflexiveEquality,
         );
-        let conclusion = Self::oriented(
-            subject,
-            ScalarTerm::integer(integer, literal).ok()?,
-            direction,
-        );
-        Some(Bound {
-            literal,
-            proof: node(
-                conclusion,
-                ProofRule::IntegerOrderSubstitution {
-                    relation: Box::new(transported),
-                    equality: Box::new(unchanged),
-                    endpoint,
-                },
-            ),
-        })
+        Self::carrier_bound_from_image(subject, transported, unchanged, direction)
     }
 
     /// The kernel's image of the operands' bounds through `target`, an exact

@@ -137,7 +137,7 @@ public domain Reservation::Issued
 
 ReservationAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        AccessPlan::new(
+        access::new_plan(
             &schema,
             Issuance::Only { routes: [reflect::callable(Issues::issue)] }
         )
@@ -251,14 +251,14 @@ public domain Cell::Controlled
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(
+        let mut plan: AccessPlan = access::new_plan(
             &schema,
             Issuance::Only { routes: [reflect::callable(Cell::create)] }
         );
-        AccessPlan::allow_readers(
+        access::allow_readers(
             &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::read)]
         );
-        AccessPlan::allow_writers(
+        access::allow_writers(
             &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::set)]
         );
         plan
@@ -276,7 +276,7 @@ field-private modifier. Fields may use qualified types; a whole-value domain's
 policy may also name individual fields with `reflect::field(Type::field)`.
 
 Every plan [states its issuance](../resources/access.md#plans-and-admitted-supply):
-`AccessPlan::new(&schema, issuance)` takes `Issuance::Only` with the exact
+`access::new_plan(&schema, issuance)` takes `Issuance::Only` with the exact
 routes, where an empty list permits nobody, or `Issuance::Unrestricted`.
 Reader and writer lists are independent ceilings: omission leaves that axis
 unrestricted by this policy, an empty list permits nobody, and a nonempty list

@@ -6,7 +6,7 @@ use omega::language::core::AccessPolicy;
 use omega::language::core::AccessPlan;
 use omega::language::core::reflect::TypeSchema;
 use omega::language::core::Issuance;
-use omega::language::core::AccessPlan::new;
+use omega::language::core::access;
 
 data Cell {
     value: u64;
@@ -18,7 +18,7 @@ data Other {
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        AccessPlan::new(&schema, Issuance::Only { routes: [] })
+        access::new_plan(&schema, Issuance::Only { routes: [] })
     }
 }
 

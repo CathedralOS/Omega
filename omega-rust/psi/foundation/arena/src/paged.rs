@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use arc_swap::ArcSwapOption;
 
-use crate::arena::RevisionStamp;
+use crate::arena::{RevisionStamp, refuse_unresolved, refuse_unresolved_span};
 use crate::{Arena, ArenaSpanInserter, Handle, HandleSpan};
 
 enum ArenaPage<T> {
@@ -491,21 +491,26 @@ impl<T: Default> PagedArenaSet<T> {
         self.insert_many(values)
     }
 
+    /// Handle zero answers with the shared default; any other handle must
+    /// resolve on its page (see `refuse_unresolved` in `arena.rs`).
     #[inline]
+    #[track_caller]
     pub fn get(&self, handle: Handle<T>) -> &T {
-        self.page(handle)
-            .map(|page| page.get(handle))
-            .unwrap_or(&self.dummy)
+        if !handle.is_valid() {
+            return &self.dummy;
+        }
+        match self.page(handle) {
+            Some(page) => page.get(handle),
+            None => refuse_unresolved("get", handle.arena_index(), handle.generation()),
+        }
     }
 
+    #[track_caller]
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
         self.revision.invalidate();
-        if handle.generation() == self.first_generation {
-            return self.first_page.get_mut(handle);
-        }
-        match self.page_position(handle.generation()) {
-            Some(position) => self.additional_pages[position].1.get_mut(handle),
-            None => &mut self.dummy,
+        match self.page_mut(handle) {
+            Some(page) => page.get_mut(handle),
+            None => refuse_unresolved("get_mut", handle.arena_index(), handle.generation()),
         }
     }
 
@@ -520,8 +525,12 @@ impl<T: Default> PagedArenaSet<T> {
         self.page(span.start())?.span(span)
     }
 
+    #[track_caller]
     pub fn span_or_empty(&self, span: HandleSpan<T>) -> &[T] {
-        self.span(span).unwrap_or(&[])
+        match self.span(span) {
+            Some(items) => items,
+            None => refuse_unresolved_span("span_or_empty", span),
+        }
     }
 
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
@@ -531,13 +540,12 @@ impl<T: Default> PagedArenaSet<T> {
         self.page_mut(span.start())?.span_mut(span)
     }
 
+    #[track_caller]
     pub fn span_mut_or_empty(&mut self, span: HandleSpan<T>) -> &mut [T] {
-        if span.is_empty() {
-            return &mut [];
+        match self.span_mut(span) {
+            Some(items) => items,
+            None => refuse_unresolved_span("span_mut_or_empty", span),
         }
-        self.page_mut(span.start())
-            .and_then(|page| page.span_mut(span))
-            .unwrap_or(&mut [])
     }
 
     pub fn shares_first_page(&self, other: &Self) -> bool {
@@ -1085,9 +1093,16 @@ impl<T: Default> SealedPagedArena<T> {
         }
     }
 
+    /// Handle zero answers with the shared default; any other handle must
+    /// resolve (see `refuse_unresolved` in `arena.rs`).
     #[inline]
+    #[track_caller]
     pub fn get(&self, handle: Handle<T>) -> &T {
-        self.resolve(handle).unwrap_or(&self.dummy)
+        match self.resolve(handle) {
+            Some(item) => item,
+            None if !handle.is_valid() => &self.dummy,
+            None => refuse_unresolved("get", handle.arena_index(), handle.generation()),
+        }
     }
 
     #[inline]
@@ -1109,8 +1124,12 @@ impl<T: Default> SealedPagedArena<T> {
             .get(start_slot..end_slot)
     }
 
+    #[track_caller]
     pub fn span_or_empty(&self, span: HandleSpan<T>) -> &[T] {
-        self.span(span).unwrap_or(&[])
+        match self.span(span) {
+            Some(items) => items,
+            None => refuse_unresolved_span("span_or_empty", span),
+        }
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T> {
@@ -2593,7 +2612,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_and_foreign_page_handles_resolve_to_dummy() {
+    fn zero_resolves_to_dummy_and_foreign_page_handles_do_not_resolve() {
         let arena = ConcurrentPagedArena::<u32>::new(1, 1);
         let mut page = arena.reserve_page().expect("page identity");
         let value = page.push(42);
@@ -2601,7 +2620,40 @@ mod tests {
         let sealed = arena.seal().expect("page published");
 
         assert_eq!(*sealed.get(Handle::invalid()), 0);
-        assert_eq!(*sealed.get(Handle::from_parts(value.arena_index(), 2)), 0);
+        assert_eq!(
+            sealed.try_get(Handle::from_parts(value.arena_index(), 2)),
+            None
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "arena get received an unresolved handle")]
+    fn sealed_get_refuses_a_foreign_page_handle() {
+        let arena = ConcurrentPagedArena::<u32>::new(1, 1);
+        let mut page = arena.reserve_page().expect("page identity");
+        let value = page.push(42);
+        page.publish();
+        let sealed = arena.seal().expect("page published");
+        let _ = sealed.get(Handle::from_parts(value.arena_index(), 2));
+    }
+
+    #[test]
+    #[should_panic(expected = "arena get received an unresolved handle")]
+    fn paged_set_get_refuses_a_handle_from_an_unknown_page() {
+        let mut set = PagedArenaSet::<u32>::new();
+        let value = set.insert(1);
+        let _ = set.get(Handle::from_parts(
+            value.arena_index(),
+            value.generation() + 7,
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "arena get_mut received an unresolved handle")]
+    fn paged_set_get_mut_refuses_handle_zero() {
+        let mut set = PagedArenaSet::<u32>::new();
+        set.insert(1);
+        *set.get_mut(Handle::invalid()) = 5;
     }
 
     #[test]

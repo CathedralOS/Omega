@@ -35,7 +35,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -427,7 +427,43 @@ fn reset_slot_to(worktree_path: &Path, commit: &str) -> bool {
         .stdin(Stdio::null())
         .status()
         .is_ok_and(|s| s.success());
-    checkout_ok && clean_ok
+    if !checkout_ok || !clean_ok {
+        return false;
+    }
+    if let Err(error) = remove_dangling_target(&worktree_path.join("target")) {
+        eprintln!(
+            "worktree: cannot recover the cached target for `{}`: {error}",
+            worktree_path.display()
+        );
+        return false;
+    }
+    true
+}
+
+fn remove_dangling_target(target: &Path) -> io::Result<()> {
+    // mbx may collect a managed target after its checkout goes idle. Cargo
+    // cannot recreate the target directory while the dangling link occupies it.
+    let link = match fs::symlink_metadata(target) {
+        Ok(entry) if entry.is_symlink() => entry.file_type(),
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    match fs::metadata(target) {
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::FileTypeExt;
+        if link.is_symlink_dir() {
+            return fs::remove_dir(target);
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = link;
+    fs::remove_file(target)
 }
 
 /// The commit a restored build was published for, read from the manifest
@@ -674,37 +710,40 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
         "status" | "list" => {
             let items = list_worktrees(&main_root).map_err(report_error)?;
-            println!(
-                "{:<16} {:<24} {:<12} {:<10} {:<6} PATH",
-                "SLOT", "TOPIC", "HEAD", "STATE", "CACHE"
-            );
-            for item in &items {
-                let state = if item.name == current_name {
-                    "current"
-                } else if item.open_pr {
-                    "open-pr"
-                } else if item.slot_index.is_some() && item.at_main {
-                    "idle"
-                } else if item.slot_index.is_some() {
-                    "assigned"
-                } else {
-                    "legacy"
-                };
-                let topic = item.topic.as_deref().unwrap_or("-");
-                let cache = if item.has_warm_target { "warm" } else { "-" };
-                let short_head = &item.head[..item.head.len().min(11)];
-                println!(
-                    "{:<16} {:<24} {:<12} {:<10} {:<6} {}",
-                    item.name,
-                    topic,
-                    short_head,
-                    state,
-                    cache,
-                    item.path.display()
-                );
-            }
-            println!("worktree: {} registered worktree(s)", items.len());
-            Ok(())
+            crate::write_status(|output| {
+                writeln!(
+                    output,
+                    "{:<16} {:<24} {:<12} {:<10} {:<6} PATH",
+                    "SLOT", "TOPIC", "HEAD", "STATE", "CACHE"
+                )?;
+                for item in &items {
+                    let state = if item.name == current_name {
+                        "current"
+                    } else if item.open_pr {
+                        "open-pr"
+                    } else if item.slot_index.is_some() && item.at_main {
+                        "idle"
+                    } else if item.slot_index.is_some() {
+                        "assigned"
+                    } else {
+                        "legacy"
+                    };
+                    let topic = item.topic.as_deref().unwrap_or("-");
+                    let cache = if item.has_warm_target { "warm" } else { "-" };
+                    let short_head = &item.head[..item.head.len().min(11)];
+                    writeln!(
+                        output,
+                        "{:<16} {:<24} {:<12} {:<10} {:<6} {}",
+                        item.name,
+                        topic,
+                        short_head,
+                        state,
+                        cache,
+                        item.path.display()
+                    )?;
+                }
+                writeln!(output, "worktree: {} registered worktree(s)", items.len())
+            })
         }
         "acquire" => {
             let topic = args.get(1).map(String::as_str);
@@ -1090,6 +1129,37 @@ mod tests {
     use std::path::Path;
     use std::process::{Command, Stdio};
     use std::time::Duration;
+
+    #[cfg(unix)]
+    #[test]
+    fn recycled_target_keeps_live_storage_and_discards_only_a_dangling_link() {
+        use std::os::unix::fs::symlink;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = std::env::temp_dir().join(format!("omega-worktree-target-{unique}"));
+        let cached = scratch.join("cache");
+        let target = scratch.join("target");
+        fs::create_dir_all(&cached).unwrap();
+        fs::write(cached.join("keep"), "warm").unwrap();
+        symlink(&cached, &target).unwrap();
+        super::remove_dangling_target(&target).unwrap();
+        assert_eq!(fs::read_to_string(target.join("keep")).unwrap(), "warm");
+
+        fs::remove_dir_all(&cached).unwrap();
+        super::remove_dangling_target(&target).unwrap();
+        assert_eq!(
+            fs::symlink_metadata(&target).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        fs::create_dir(&target).unwrap();
+        super::remove_dangling_target(&target).unwrap();
+        assert!(target.is_dir());
+        fs::remove_dir_all(scratch).unwrap();
+    }
 
     #[test]
     fn managed_cloud_markers_enable_warm_builds() {

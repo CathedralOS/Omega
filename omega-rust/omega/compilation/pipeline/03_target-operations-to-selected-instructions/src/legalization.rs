@@ -11,7 +11,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v56",
+            b"omega.terminal-target-legalization-independent-replay.v57",
         )
     }
 
@@ -224,7 +224,7 @@ pub(crate) mod obligations {
         owner: impl Into<optimization_unit::PsiProvenance>,
         obligation: ObligationId,
     ) -> impl Iterator<Item = &'unit optimization_unit::AcceptedObligationFact> {
-        let owner = owner.into();
+        let owner = optimization_unit::AcceptedObligationOwner::from(owner.into());
         let machine = optimized.machine;
         unit.accepted_obligation_facts.iter().filter(move |fact| {
             fact.machine == machine && fact.owner == owner && fact.obligation == obligation
@@ -561,6 +561,7 @@ pub(crate) fn audit_target_operation_plan(
     );
     let unit = &crate::native_geometry::NativeInput::with_types(unit, &unit_geometry, closed_types);
     source::validate_source_custody(target, abstract_plan, unit)?;
+    validate_call_descriptor_origins(target, abstract_plan, unit)?;
     scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
     let descriptor_inputs =
         crate::legalization_descriptor_inputs::DescriptorInputs::new(target, abstract_plan, unit);
@@ -588,6 +589,50 @@ pub(crate) fn audit_target_operation_plan(
             &descriptor_inputs,
         )
         .map_err(|error| error.attributed(function.machine, None))?;
+    }
+    Ok(())
+}
+
+/// Independent source correspondence, never called by ordinary construction.
+pub(crate) fn validate_call_descriptor_origins(
+    target: &TargetOperationPlan,
+    abstract_plan: &crate::native_geometry::NativePlan<'_>,
+    unit: &crate::native_geometry::NativeUnit<'_>,
+) -> Result<(), LegalizationError> {
+    let call_descriptor_graph = std::cell::OnceCell::new();
+    let mut call_descriptor_origins = scalar_graph_input::byte_views::CallDescriptorOrigins::new(
+        unit,
+        target,
+        abstract_plan,
+        &call_descriptor_graph,
+    );
+    for function in &target.functions {
+        for operation in function
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+        {
+            if let target_operations::TargetUnitOperation::Call {
+                result:
+                    target_operations::TargetCallResult::Structural {
+                        result,
+                        descriptor_origins,
+                        ..
+                    },
+                ..
+            } = operation
+            {
+                let expected = call_descriptor_origins.resolve(function.machine, result)?;
+                if descriptor_origins != &expected {
+                    return Err(LegalizationError::DescriptorCallOrigins {
+                        machine: function.machine,
+                        result: result.place,
+                        reason: "retained descriptor backing differs from source correspondence",
+                    });
+                }
+            }
+        }
     }
     Ok(())
 }

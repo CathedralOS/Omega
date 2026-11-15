@@ -2,8 +2,8 @@
 
 The claim registry shows which sessions are currently working on an outcome so
 new sessions can choose work with useful ownership context. `cargo xtask claims`
-records that work in `refs/coordination/omega-claims/main`; status hides expired
-claims while retaining the stored history for reconciliation.
+records that work in `refs/coordination/omega-claims/main`. A claim lasts two
+hours from when it was taken or last renewed; ended claims drop off the board.
 
 Claims are informational. Several sessions may claim the same item or overlapping
 paths, and they reconcile changes at rebase. Read the task and current work
@@ -20,12 +20,13 @@ mbx xtask claims claim --board TASKS.md --item OUTCOME-ID --owner "Name / outcom
 ```
 
 `status` prints JSON with `state`, `claims`, `notes_pending`, and the registry
-`version`. It omits a claim only when its readable `expires_utc` is at or before
-the current clock. `state` is `available` when no claims remain in that view,
-and `claimed` otherwise. This is registry-wide status, not an item-by-item task
-selector. Missing or malformed expiry stays visible because it cannot establish
-that ownership expired. Notes are counted as stored; status does not consume or
-prune them.
+`version`. It omits a claim once it has ended: two hours after its `claimed_utc`
+or latest `renewed_utc`, or earlier if its recorded `expires_utc` says so. A
+recorded expiry can shorten a claim but never lengthen it. `state` is
+`available` when no claims remain in that view, and `claimed` otherwise. This
+is registry-wide status, not an item-by-item task selector. A claim with no
+readable time stays visible because nothing establishes that it ended.
+`notes_pending` counts the stored notes.
 
 `claim` requires one `--item`. It accepts optional `--board`, `--owner`,
 `--path`, and `--note`; the owner defaults to `agent`. Repeat `--path`, or use
@@ -40,36 +41,31 @@ shared by claiming their items rather than board-file paths.
 
 ## Lifetime and notes
 
-New claims record the actual UTC creation time and expire eight hours later.
-The current Rust command has no lease override or renewal command. If work
-continues after expiry, register a new claim and link the previous ticket in its
-note so the continuation remains discoverable.
+A claim lasts two hours. Renew it after each push; a lapsed claim cannot be
+renewed, because someone else may have taken the work, so claim again.
 
 ```text
+mbx xtask claims renew
 mbx xtask claims note --ticket TICKET --text "Outcome; acceptance; failure; next action; dependencies"
 mbx xtask claims release --ticket TICKET
 ```
 
-`note` requires one ticket and nonempty text. It appends a UTC-stamped note to
-the registry; it does not change the claim's expiry. `release` requires one
-ticket and removes that ticket's claim from the latest snapshot. Notes remain
-stored after release. Release your claim when the work completes or the session
-stops, preserving any remaining frontier in a note. Expiry is not evidence that
-the work finished or its owner stopped; reconcile actual in-flight work before
-taking it over, and do not release another session's claim merely for overlap.
-
-The supported commands are `status`, `claim`, `note`, and `release`. The removed
-Python client's `available`, `renew`, `reserve`, `recover`, `notes`, `sweep`,
-and `audit` commands and its batch, filtering, and timeout flags are not
-implemented by this Rust command. Do not rely on them for dispatch or recovery.
+`claim` records its ticket in the worktree's git directory
+(`omega-claim-tickets`, never committed). `renew` with no `--ticket` renews
+every claim that worktree took; repeat `--ticket` to name claims instead.
+`note` requires one ticket and nonempty text, appends a UTC-stamped note and
+renews that claim. `release` removes the claim and forgets its ticket. Release
+your claim when the work completes or the session stops. Expiry is not evidence
+that the work finished or its owner stopped; reconcile actual in-flight work
+before taking it over, and do not release another session's claim merely for
+overlap.
 
 ## Stored history and concurrent writes
 
-The wire format remains `omega-claims-v1`. Status filtering changes only its
-output: expired records and notes are not rewritten, released, or reassigned.
-Existing claim and note fields remain intact. Historical future expiries,
-including `2099-01-01`, retain their recorded meaning; the command does not infer
-a replacement expiry from `claimed_utc` or `lease_minutes`.
+The wire format remains `omega-claims-v1`. Every write republishes the whole
+record, so a write also drops ended claims and the notes of any ticket without a
+visible claim; nothing reads either. The stored record therefore holds what
+status shows. Fields a write does not understand stay intact.
 
 Help and malformed requests are handled before workspace discovery or Git access.
 A help flag after the subcommand is supported too. A consumed value, such as
@@ -96,8 +92,8 @@ Direct Git commands and older xtask binaries do not participate in this protocol
 
 Mutations read the registry snapshot, create a new Git commit containing the
 updated record, and push with a compare-and-swap lease on its reference. A
-concurrent writer or network error can reject the push; inspect status before
-retrying an uncertain write. Exit 0 reports success, exit 2 reports an invalid
+push that loses to a concurrent writer is reapplied to the newer snapshot, up to
+five attempts. Exit 0 reports success, exit 2 reports an invalid
 subcommand or a missing required claim/note/release argument, and reported clock
 or Git failures exit 1. Claims remain cooperative coordination rather
 than access control.
@@ -105,8 +101,8 @@ than access control.
 ## Validation
 
 `mbx test -p xtask claims::` runs frozen-clock unit tests without accessing the
-remote registry. They check creation and eight-hour expiry, calendar and offset
-boundaries, exact expiry filtering, malformed expiry retention, and preservation
-of historical records. Local temporary Git remotes also exercise absent,
-unreadable and malformed registries and concurrent reference updates without
-contacting the shared registry.
+remote registry. They check the two-hour lease and its renewal, the cap on
+recorded expiries, calendar and offset boundaries, exact expiry filtering,
+unreadable expiry retention, and pruning on write. Local temporary Git remotes
+also exercise absent, unreadable and malformed registries and concurrent
+reference updates without contacting the shared registry.

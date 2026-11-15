@@ -919,6 +919,59 @@ Rebound satisfies Other { Other::apply = previous; }
 }
 
 #[test]
+fn a_reference_row_cannot_rebind_an_instantiated_requirement() {
+    for (selected_type, accepts) in [("u32", true), ("u64", false)] {
+        let text = format!(
+            r#"
+trait G<T> {{
+    machine go(value: u32) -> u32 reaches none crashes none;
+}}
+Owner satisfies G<u32> {{
+    machine go(value: u32) -> u32 reaches none crashes none {{ value }}
+}}
+Selected satisfies G<{selected_type}> {{ G::go = Owner::go; }}
+machine entry() -> u32 reaches none crashes none {{ 7 }}
+"#
+        );
+        let typed = typed(&text);
+        let verdicts = crate::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    declaration_metadata: &[],
+                    entries: &[entry(&typed)],
+                    subjects: &[None],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program,
+        );
+        if accepts {
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "{verdicts:?}"
+            );
+        } else {
+            let [Ok(RouteVerdict::FallBack(refusal))] = verdicts.as_slice() else {
+                panic!("equal signatures cannot rebind another trait application");
+            };
+            assert!(
+                refusal
+                    .detail
+                    .contains("selection row cannot rebind a declared conformer"),
+                "{refusal:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn an_own_progress_promise_does_not_change_a_silent_requirement_contract() {
     let mut published = Vec::new();
     for contract in ["", "terminates"] {

@@ -130,6 +130,14 @@ pub(crate) struct Known {
     /// The first checked definition of each value, retained from normalization
     /// so proof transport selects the same reachable equation family.
     pub(crate) definitions: IdTable<ValueId, Option<usize>>,
+    /// `equations` followed by each compound integer equality an arrival
+    /// supplied for a value nothing above defines, with `definitions`
+    /// extended to cite them. Normalization never substitutes these: they
+    /// stay premises for bound search. A goal the definitions alone cannot
+    /// transport may still cite one, as `length == count - 0` from a match
+    /// arm that read its window's length. Empty when there is none.
+    pub(crate) arrival_equations: Vec<usize>,
+    pub(crate) arrival_definitions: IdTable<ValueId, Option<usize>>,
 }
 
 /// One context's reusable equation traversal. Queries clear only the preceding
@@ -276,6 +284,8 @@ impl Known {
             facts,
             equations,
             definitions: IdTable::default(),
+            arrival_equations: Vec::new(),
+            arrival_definitions: IdTable::default(),
         };
         let mut defined = IdTable::default();
         for _ in 0..values.count() {
@@ -294,8 +304,59 @@ impl Known {
         }
         result.integer_equalities(0, &defined);
         result.normalize(context, &mut defined, &mut conjuncts);
+        result.arrival_definitions(&defined);
         result.definitions = defined;
         result
+    }
+
+    /// Prepare `arrival_equations`: a checked premise `v == t`, `t` compound
+    /// and not naming `v`, for an integer `v` with no definition. Each value
+    /// keeps at most one definition, so transport through them terminates
+    /// as it does through `equations`.
+    fn arrival_definitions(&mut self, defined: &IdTable<ValueId, Option<usize>>) {
+        let mut extended: Option<IdTable<ValueId, Option<usize>>> = None;
+        for (index, fact) in self.facts.iter().enumerate() {
+            let Proposition::Equal(
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Integer(_),
+                },
+                definition,
+            ) = &fact.proposition
+            else {
+                continue;
+            };
+            if fact.axiom.is_some()
+                || matches!(
+                    definition,
+                    ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+                )
+                || defined.get(*id) != Some(&None)
+            {
+                continue;
+            }
+            let mut names_subject = false;
+            definition.visit_value_ids(|value| {
+                names_subject |= value == *id;
+                true
+            });
+            if names_subject {
+                continue;
+            }
+            let table = extended.get_or_insert_with(|| {
+                self.arrival_equations.clone_from(&self.equations);
+                defined.clone()
+            });
+            if let Some(slot) = table.get_mut(*id)
+                && slot.is_none()
+            {
+                *slot = Some(self.arrival_equations.len());
+                self.arrival_equations.push(index);
+            }
+        }
+        if let Some(table) = extended {
+            self.arrival_definitions = table;
+        }
     }
 
     /// Selected definitions already supply their equality through transport.

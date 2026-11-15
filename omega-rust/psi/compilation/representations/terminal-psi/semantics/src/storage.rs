@@ -1715,7 +1715,10 @@ pub(crate) mod arrival_storage {
     /// Read the existing root's type, access and qualifications for argument
     /// presentation. This grants no loan: resource claims and result
     /// qualification establishments still require the consumer's own checks.
-    /// A result has no parameter position, so its caller supplies that label.
+    /// A non-parameter source has no parameter position, so its caller supplies
+    /// that label. Literal roots own an unrestricted descriptor value, never the
+    /// immutable image backing it denotes. Availability and live custody remain
+    /// separate obligations for every consumer of this metadata.
     pub fn structural_argument_source(
         machine: &TerminalMachine,
         place: PlaceId,
@@ -1725,27 +1728,87 @@ pub(crate) mod arrival_storage {
             return Some(std::borrow::Cow::Borrowed(parameter));
         }
         let root = exactly_one(machine.structural_places.iter(), |root| root.id == place)?;
-        let StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } = root.kind
-        else {
-            return None;
+        let (structural_type, multiplicity, qualifications, projected, additional) = match root.kind
+        {
+            StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } => {
+                let operation =
+                    exactly_one(machine.operations(), |operation| operation.id == producer)?;
+                let result = operation.result.as_structural().filter(|result| {
+                    result.place == place && result.structural_type == structural_type
+                })?;
+                (
+                    structural_type,
+                    result.multiplicity,
+                    result.qualifications.clone(),
+                    result.projected_qualifications.clone(),
+                    result.additional_input_qualifications.clone(),
+                )
+            }
+            StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            } => {
+                let operation = exactly_one(
+                    machine.operations(),
+                    |operation| matches!(operation.kind, terminal_psi::OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == place),
+                )?;
+                let terminal_psi::OperationKind::EstablishByteSequenceLiteral {
+                    qualifications,
+                    ..
+                } = &operation.kind
+                else {
+                    return None;
+                };
+                if operation.result != terminal_psi::OperationResult::Unit {
+                    return None;
+                }
+                (
+                    structural_type,
+                    terminal_psi::StructuralMultiplicity::Unrestricted,
+                    qualifications.clone(),
+                    Vec::new(),
+                    Vec::new(),
+                )
+            }
+            StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } => {
+                // Unlike a literal's single producer, a local may be
+                // established again after disposal. Its live-state judgment
+                // decides whether the current contents can be transferred.
+                let mut established = false;
+                for operation in machine.operations().filter(|operation| {
+                    matches!(operation.kind, terminal_psi::OperationKind::EstablishTrivialAffineLocal { destination } if destination == place)
+                }) {
+                    if operation.result != terminal_psi::OperationResult::Unit {
+                        return None;
+                    }
+                    established = true;
+                }
+                if !established {
+                    return None;
+                }
+                (
+                    structural_type,
+                    terminal_psi::StructuralMultiplicity::Affine,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                )
+            }
+            _ => return None,
         };
-        let operation = exactly_one(machine.operations(), |operation| operation.id == producer)?;
-        let result = operation
-            .result
-            .as_structural()
-            .filter(|result| result.place == place && result.structural_type == structural_type)?;
         Some(std::borrow::Cow::Owned(StructuralParameterDeclaration {
             place,
             position: result_position,
             structural_type,
-            multiplicity: result.multiplicity,
+            multiplicity,
             access: terminal_psi::StructuralAccess::Owned,
-            qualifications: result.qualifications.clone(),
-            projected_qualifications: result.projected_qualifications.clone(),
-            additional_input_qualifications: result.additional_input_qualifications.clone(),
+            qualifications,
+            projected_qualifications: projected,
+            additional_input_qualifications: additional,
         }))
     }
 

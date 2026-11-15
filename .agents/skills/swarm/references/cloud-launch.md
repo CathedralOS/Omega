@@ -1,7 +1,7 @@
 # Launch an Omega cloud session
 
 Use this preflight for a single dot cloud assignment as well as a native-agent
-wave. It complements [recovery](recovery.md) and does not authorize a swarm,
+wave. It does not authorize a swarm,
 new credentials, package authority decisions, or infrastructure provisioning.
 
 ## Select the requested model and environment
@@ -95,8 +95,7 @@ different cloud executor.
    an actual read/command and process state before resuming. Keep builds and
    focused validation on the authorized executor, release build resources, and
    follow [landing](../../../../tools/docs/landing.md) through publication and remote
-   main verification. Remove only this task's verified completed resources under
-   the [recovery cleanup rules](recovery.md#completion-inventory-and-cleanup).
+   main verification. Remove only this task's verified completed resources.
 
 ## Report the launch state
 

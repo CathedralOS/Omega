@@ -189,6 +189,7 @@ macro_rules! bundled {
 }
 
 const CORE_LAYOUT: &[u8] = bundled!("core/layout.omg");
+const CORE_ACCESS: &[u8] = bundled!("core/access.omg");
 const CORE_RUN: &[u8] = bundled!("core/run.omg");
 const CORE_FLOAT_OPERATIONS: &[u8] = bundled!("core/float_operations.omg");
 const CORE_EXTENT: &[u8] = bundled!("core/extent.omg");
@@ -457,45 +458,45 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::PlacedPrimitive(PlacedPrimitiveOperation::Write),
     ),
     row(
-        "layout.omg",
-        "Access::view",
-        CORE_LAYOUT,
+        "access.omg",
+        "access::view",
+        CORE_ACCESS,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "layout.omg",
-        "Access::view_mut",
-        CORE_LAYOUT,
+        "access.omg",
+        "access::view_mut",
+        CORE_ACCESS,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "layout.omg",
-        "Access::view_resident_mut",
-        CORE_LAYOUT,
+        "access.omg",
+        "access::view_resident_mut",
+        CORE_ACCESS,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "layout.omg",
-        "Access::initialize_from_profile",
-        CORE_LAYOUT,
+        "access.omg",
+        "access::initialize_from_profile",
+        CORE_ACCESS,
         lifecycle(PlacementOperation::Initialize, PlacementContent::Resident),
     ),
     row(
-        "layout.omg",
-        "Access::extract_resident",
-        CORE_LAYOUT,
+        "access.omg",
+        "access::extract_resident",
+        CORE_ACCESS,
         lifecycle(PlacementOperation::MoveOut, PlacementContent::Resident),
     ),
     row(
-        "layout.omg",
-        "Access::view_from_profile",
-        CORE_LAYOUT,
+        "access.omg",
+        "access::view_from_profile",
+        CORE_ACCESS,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "layout.omg",
-        "Access::view_mut_from_profile",
-        CORE_LAYOUT,
+        "access.omg",
+        "access::view_mut_from_profile",
+        CORE_ACCESS,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(

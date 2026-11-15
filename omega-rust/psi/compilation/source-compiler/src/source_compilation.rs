@@ -832,13 +832,18 @@ impl SourceCompilationRequest {
             },
         )?;
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-        let (mut typing, mut pending_bodies) = if let (Some(typing), Some(base)) =
-            (retained, resolved_base)
+        let (mut typing, mut pending_bodies) = if let (
+            Some(typing),
+            Some(base),
+            Some(base_declarations),
+        ) =
+            (retained, resolved_base, retained_declaration_syntax)
         {
             let extension = observer.record_result(PsiCompilationStage::Resolution, || {
                 syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
                     syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
                         base,
+                        base_declarations,
                         syntax,
                         sources: self.sources,
                         top_level_bindings: self.top_level_bindings,
@@ -1213,6 +1218,7 @@ impl CompletedSource {
             syntax_trees_to_symbol_resolved_trees::resolve_extension(
                 syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
                     base: resolved_base,
+                    base_declarations: Arc::clone(&self.declaration_syntax),
                     syntax,
                     sources: extension.sources,
                     top_level_bindings: Vec::new(),

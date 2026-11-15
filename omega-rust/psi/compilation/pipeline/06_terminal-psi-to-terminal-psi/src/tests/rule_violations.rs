@@ -306,6 +306,23 @@ fn a_case_path_its_sum_does_not_declare_is_rejected() {
     rejected(&program("Dim"), "data `Light` has no member `Dim`");
 }
 
+/// modules.md, "Resolution": "Value position requires the carrier-qualified
+/// `Type::Case` path even when an expected type or visible carrier would make
+/// one case appear likely." The bare spelling is an ordinary unknown name.
+#[test]
+fn a_bare_case_spelling_is_rejected_as_an_unknown_name() {
+    let program = |value: &str| {
+        format!(
+            "data Light {{ case On; case Off; }}\nmachine pick() -> Light {{\n    {value}\n}}\n"
+        )
+    };
+    accepted(&program("Light::On"));
+    rejected(
+        &program("On"),
+        "this expression has no visible value declaration in its source scope",
+    );
+}
+
 /// data_and_literals.md: "A sum value is written as a case literal", and
 /// "data does not own machine declarations. Collisions reject". The twin
 /// writes the same case as its literal.
