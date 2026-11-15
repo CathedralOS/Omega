@@ -1463,6 +1463,11 @@ impl<'t> Program<'t> {
             Some(context) => context,
             None => {
                 let authored = typed.lifetime_declaration_owner(machine.symbol);
+                if authored.is_valid() && authored != machine.symbol {
+                    typed
+                        .validate_executable_template_symbol(authored)
+                        .map_err(unserved)?;
+                }
                 let Some((_, row)) = typed.owned_conformance_realization(authored) else {
                     return Ok(None);
                 };
