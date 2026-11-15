@@ -289,6 +289,17 @@ pub(crate) mod reference_completion {
     ) -> Result<BorrowedLoanSource, &'static str> {
         let mut parent = None;
         for (identity, lifetime) in candidates {
+            // An input a provider-returned view keeps borrowed is retained for
+            // the result's use, but the provider lends the bytes: that
+            // lifetime authorizes no carrier anywhere and is never a view's
+            // immediate loan occurrence.
+            if lifetime
+                .authorized
+                .values()
+                .all(std::collections::BTreeSet::is_empty)
+            {
+                continue;
+            }
             let authorized = lifetime
                 .authorized
                 .get(&at)
