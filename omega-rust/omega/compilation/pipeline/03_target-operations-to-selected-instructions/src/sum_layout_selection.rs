@@ -961,6 +961,7 @@ fn dispatch(
                 entry(
                     1,
                     vec![AbstractOperation::StructuralCase {
+                        psi_block: block_id(1),
                         source: place(1),
                         path: path.clone(),
                         cases: arms.clone(),
@@ -995,6 +996,8 @@ fn dispatch(
         layout: root_layout,
     };
     let terminator = TargetControlTerminator::StructuralCase {
+        psi_block: block_id(1),
+        indices: Vec::new(),
         source,
         path: path.clone(),
         byte_offset: geometry.byte_offset,

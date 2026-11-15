@@ -286,8 +286,8 @@ pub struct Discharge {
 }
 
 impl Discharge {
-    /// One seal per discharged `OperationSafety` obligation, the only kind
-    /// Omega 00 turns into an accepted fact. The seals travel beside the
+    /// One seal per discharged `OperationSafety` obligation, at an instruction
+    /// or a pre-edge terminator read. The seals travel beside the
     /// module in memory and are lost on a byte round trip
     /// (`ObligationEvidenceSeal`).
     pub fn operation_seals(

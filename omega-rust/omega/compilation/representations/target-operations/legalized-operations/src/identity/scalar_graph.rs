@@ -1618,6 +1618,8 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_ownership_roster(bytes, ownership);
         }
         LegalizedScalarTerminator::StructuralCase {
+            psi_block,
+            indices,
             source,
             path,
             root_shape,
@@ -1630,6 +1632,8 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             ownership,
         } => {
             bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, psi_block.get().to_le_bytes());
+            encode_runtime_indices(bytes, indices);
             encode_structural_source(bytes, source);
             super::structural_types::encode_structural_path(bytes, path);
             super::calling::encode_shape(bytes, *root_shape);

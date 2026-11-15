@@ -1533,6 +1533,7 @@ mod machine {
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     operations.push(AbstractOperation::StructuralCase {
+                        psi_block: block.id,
                         source: *source,
                         path: path.clone(),
                         cases,

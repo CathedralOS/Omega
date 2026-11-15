@@ -11,7 +11,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v61",
+            b"omega.terminal-target-legalization-independent-replay.v62",
         )
     }
 
@@ -221,7 +221,7 @@ pub(crate) mod obligations {
     pub(crate) fn facts<'unit>(
         unit: &'unit PsiOptimizationUnit,
         optimized: &PsiOptimizationFunction,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: ObligationId,
     ) -> impl Iterator<Item = &'unit optimization_unit::AcceptedObligationFact> {
         matching_fact(
@@ -236,7 +236,7 @@ pub(crate) mod obligations {
     pub(crate) fn accepted_fact(
         unit: &PsiOptimizationUnit,
         optimized: &PsiOptimizationFunction,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: ObligationId,
     ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
         retained_fact(
@@ -250,7 +250,7 @@ pub(crate) mod obligations {
     pub(crate) fn retained_fact(
         facts: &[optimization_unit::AcceptedObligationFact],
         machine: semantic_vocabulary::MachineId,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: ObligationId,
     ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
         matching_fact(facts, machine, owner.into(), obligation)
@@ -261,10 +261,9 @@ pub(crate) mod obligations {
     fn matching_fact(
         facts: &[optimization_unit::AcceptedObligationFact],
         machine: semantic_vocabulary::MachineId,
-        owner: optimization_unit::PsiProvenance,
+        owner: optimization_unit::AcceptedObligationOwner,
         obligation: ObligationId,
     ) -> Option<&optimization_unit::AcceptedObligationFact> {
-        let owner = optimization_unit::AcceptedObligationOwner::from(owner);
         // Attachment sorts these exact keys and admission rejects duplicates or
         // disorder. Borrow that index; don't scan or build another per-query one.
         facts
@@ -304,7 +303,7 @@ pub(crate) mod runtime_indices {
     pub(crate) fn retained_operands(
         facts: &[optimization_unit::AcceptedObligationFact],
         machine: semantic_vocabulary::MachineId,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         indices: &[target_operations::TargetStructuralRuntimeIndex],
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
         let owner = owner.into();
@@ -330,7 +329,7 @@ pub(crate) mod runtime_indices {
     pub(crate) fn operands(
         optimized: &PsiOptimizationFunction,
         unit: &crate::native_geometry::NativeUnit<'_>,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         elements: &[RuntimeElement],
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
         let owner = owner.into();
@@ -377,7 +376,7 @@ pub(crate) mod runtime_indices {
     pub(crate) fn projection(
         optimized: &PsiOptimizationFunction,
         unit: &crate::native_geometry::NativeUnit<'_>,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         root: StructuralTypeId,
         path: &[terminal_psi::StructuralPathSegment],
         declarations: &crate::native_geometry::NativeGeometry<'_>,

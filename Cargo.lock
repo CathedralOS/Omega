@@ -722,6 +722,7 @@ dependencies = [
  "machine-emission",
  "object-file",
  "optimization-core",
+ "optimization-unit",
  "optimization-unit-semantics",
  "program-entry-plan",
  "provider-admission",
