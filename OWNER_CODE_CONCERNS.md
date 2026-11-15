@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A runtime-indexed byte-view replacement loses descriptor flow at its call
+- Category: branch per shape
+- Where: [descriptor graph closure](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13411)
+- Saw: On macOS arm64 at `99191b767cf`, a callee replaces `settings[index].identifier` in `&mut [Settings<'storage>; 2]`, with `identifier: &'storage [u8]` and `requires index < 2`. Calling it on an array of two initialized records with index 1 refuses in the caller with “descriptor storage flow cannot be reconstructed”. With literal index 1 in the same callee, the caller's unchanged-sibling and replacement checks run with native and Psi exit 0. Constructing the array and reading both stored view lengths also runs without the call.
+- Cost: A checked runtime selector cannot carry the replacement back to the exact record at the call boundary. Trace the existing descriptor-flow owner for the selected element and preserve the unchanged sibling and the bounds refusal.
+- Reported: 2026-11-15, Codex, while validating retained byte-view store operands
+
 ### The inferred-reach review probe lost its support package
 - Category: tests that pin the bug
 - Where: [inferred reach round trip](omega-rust/omega/compilation/compiler/tests/package_review.rs#L198)
@@ -210,7 +217,7 @@ framework or a list of unimplemented features.
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [paired instruction projection](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs) (`instruction::project`), [body-derived runtime indices](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs) (`runtime_indices::operands`, `runtime_indices::projection`)
-- Saw: Ordinary Omega 03 still pairs target instructions with optimized operation nodes. Write-only primitive stores, byte-sequence and element-view reads and writes, projected byte-field reads and stores, storage addresses, accessor and access-lifecycle operations, static interrupts and descriptor-table setup still read operand or selector geometry from the earlier body. Boundary and normalized foreign calls still read the abstract operation. A folded byte length still uses its earlier opcode to identify the immediate row. The body-reading `successor` is reachable only in the independent audit.
+- Saw: Ordinary Omega 03 still pairs target instructions with optimized operation nodes. Write-only primitive stores, byte-sequence and element-view reads and writes, projected byte-field reads and bounded-owned byte-field writes, storage addresses, accessor and access-lifecycle operations, static interrupts and descriptor-table setup still read operand or selector geometry from the earlier body. Boundary and normalized foreign calls still read the abstract operation. A folded byte length still uses its earlier opcode to identify the immediate row. The body-reading `successor` is reachable only in the independent audit.
 - Cost: Changing one of these operations can require matching recognizers across stages. Move the remaining operands to the retained target row and keep source reconstruction in the audit. Acceptance: ordinary `instruction::project` takes no optimized node or function, and `TargetSelectionInput` drops `source` and `unit` except for the independent validator. The native publication tests exercise the independent target audit on compiled programs. Explicit compiler validator requests still lack a route to that audit.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only. Narrowed 2026-11-15, Claude Code, after moving leaf copies, field stores and case membership to retained target rows.
 

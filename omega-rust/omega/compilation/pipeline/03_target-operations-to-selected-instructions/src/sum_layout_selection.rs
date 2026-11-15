@@ -969,6 +969,176 @@ fn retained_leaf_copy_selectors_are_checked_against_their_source() {
 }
 
 #[test]
+fn retained_byte_view_store_projects_and_audits_exact_operands() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_byte_view_store;
+    use legalized_operations::LegalizedScalarInstructionKind;
+    use terminal_psi::ByteSequenceCarrier;
+
+    let carrier = ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut field = scalar_field(1, names.intern("bytes"), u64_type());
+    field.field_type = StructuralFieldType::ByteSequence(carrier);
+    let selected_field = field.id;
+    let mut holder = reference_type(2, names.intern("Holder"), ty(2));
+    holder.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![field],
+    };
+    let mut array = reference_type(1, names.intern("Holders"), ty(1));
+    array.shape = StructuralTypeShape::FixedArray {
+        element: ty(2),
+        length: terminal_psi::ArrayExtent::Literal(4),
+    };
+    let mut bytes = reference_type(3, names.intern("Bytes"), ty(3));
+    bytes.shape = StructuralTypeShape::ByteSequence(carrier);
+
+    let mut stored = parameter(ty(1));
+    stored.access = StructuralAccess::MutableBorrow;
+    let mut replacement = parameter_at(2, ty(3));
+    replacement.position = 1;
+    let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
+    let destination = terminal_psi::StructuralArgument {
+        place: stored.place,
+        access: stored.access,
+        path: vec![StructuralPathSegment::RuntimeIndex {
+            index: val(4),
+            obligation,
+        }],
+    };
+    let operation = AbstractOperation::StructuralByteViewFieldStore {
+        psi_operation: op(2),
+        destination: stored.place,
+        path: destination.path.clone(),
+        field: Some(selected_field),
+        source: replacement.place,
+        predicate_obligation: None,
+    };
+    let function = function_with_body(
+        vec![stored, replacement],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: op(1),
+                    result: val(4),
+                    scalar_type: ScalarType::Integer(u64_type()),
+                    value: IntegerValue::Unsigned(1),
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![array, holder, bytes], function);
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let index_source = TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(1),
+        source_value: val(4),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(1),
+    };
+    let row = TargetUnitOperation::StructuralByteViewFieldStore {
+        psi_operation: op(2),
+        destination: destination.clone(),
+        field: Some(selected_field),
+        source: place(2),
+        indices: vec![target_operations::TargetStructuralRuntimeIndex {
+            operand: index_source,
+            stride: 16,
+            extent: Some(4),
+            obligation,
+        }],
+    };
+    let fact = optimization_unit::AcceptedObligationFact::new(
+        psi(),
+        [7; 32],
+        machine(),
+        optimization_unit::PsiProvenance::Operation(op(2)),
+        obligation,
+        vec![2],
+    );
+    let facts = std::slice::from_ref(&fact);
+    let LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+        destination: projected,
+        field,
+        source,
+        indices,
+    } = project_byte_view_store(machine(), facts, &row).unwrap()
+    else {
+        panic!("byte descriptor store");
+    };
+    assert_eq!(projected, destination);
+    assert_eq!((source, field), (place(2), Some(selected_field)));
+    assert_eq!(indices.len(), 1);
+    assert_eq!(
+        (
+            indices[0].stride,
+            indices[0].extent,
+            indices[0].accepted_fact
+        ),
+        (16, Some(4), fact.identity)
+    );
+    assert!(project_byte_view_store(machine(), &[], &row).is_err());
+
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        available.push((val(4), index_source));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("retained descriptor store agrees with its source");
+    for mutation in 0..4 {
+        let mut changed = row.clone();
+        let TargetUnitOperation::StructuralByteViewFieldStore {
+            destination,
+            source,
+            indices,
+            ..
+        } = &mut changed
+        else {
+            panic!("byte descriptor store");
+        };
+        match mutation {
+            0 => indices[0].extent = Some(5),
+            1 => indices[0].obligation = semantic_vocabulary::ObligationId::new(9).unwrap(),
+            2 => destination.access = StructuralAccess::SharedBorrow,
+            _ => *source = place(1),
+        }
+        assert!(
+            audit(&changed).is_err(),
+            "corrupted descriptor store {mutation}"
+        );
+    }
+}
+
+#[test]
 fn retained_storage_copies_stores_and_tag_tests_project_without_bodies() {
     use crate::legalization_source::scalar_graph::instruction::storage_instructions::{
         project_structural_case_membership, project_structural_field_store,
