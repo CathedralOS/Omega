@@ -2236,6 +2236,7 @@ impl<'a> Storage<'a> {
                                 | OperationKind::EstablishByteSequenceLiteral { .. }
                                 | OperationKind::EstablishElementView { .. }
                                 | OperationKind::EstablishMutableElementView { .. }
+                                | OperationKind::EstablishStructuralArray { .. }
                         ) =>
                 {
                     Reached::Extent(row.operation)

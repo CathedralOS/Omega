@@ -522,3 +522,30 @@ fn a_signed_remainder_by_a_divisor_its_bounds_fix_is_below_that_divisor() {
     let verdicts = verdicts(&elaboration, &result, 1, safety);
     assert_unproved(verdicts.last().unwrap().1);
 }
+
+/// `a < b` gives `a + 1 <= b` with no literal bound on either value, as a
+/// loop advancing a position below a length needs. The discreteness step is
+/// the kernel's; `p <= n` leaves `n - (p + 1)` unproved when `p == n`.
+#[test]
+fn one_more_than_a_value_below_another_is_at_most_that_value() {
+    let judged = |requires: &str| {
+        let program = super::boundary_calls::typed(&format!(
+            "machine entry(n: u64, p: u64) -> u64 requires {requires} {{ n - (p + 1) }}"
+        ));
+        let entry = super::boundary_calls::entry(&program);
+        super::judge(typed_trees_to_terminal_psi::elaborate_closure(
+            &program, entry,
+        ))
+        .unwrap()
+    };
+    let accepted = judged("p < n");
+    assert!(
+        matches!(accepted, super::RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let refused = judged("p <= n");
+    assert!(
+        matches!(refused, super::RouteVerdict::Rejected { .. }),
+        "{refused:?}"
+    );
+}
