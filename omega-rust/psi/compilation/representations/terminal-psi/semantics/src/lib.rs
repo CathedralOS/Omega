@@ -234,8 +234,6 @@ pub(crate) mod semantic_rows {
             declared: IntegerType,
             actual: ScalarType,
         },
-        ExactShiftLeftRequiresValueOrLiteralOperand,
-        ExactShiftLeftRequiresValueOrLiteralCount,
         ExactArithmeticRequiresFixedInteger(IntegerType),
         ExactArithmeticExpressionTypeMismatch {
             declared: IntegerType,
@@ -247,7 +245,6 @@ pub(crate) mod semantic_rows {
             left: ScalarType,
             right: ScalarType,
         },
-        ExactArithmeticRequiresValueOrLiteralOperand,
         ExactCastUnsupportedCarriers {
             source: IntegerType,
             target: IntegerType,
@@ -650,7 +647,7 @@ pub use structural::static_path::{
     canonical_structural_storage_path, constant_runtime_index, interior_member_borrow,
     qualification_path_carrier, runtime_index_bound, runtime_index_selects,
     structural_memberships_disjoint_from_write, structural_paths_may_overlap,
-    structural_paths_select_same_location,
+    structural_paths_select_same_location, visit_canonical_inline_carriers,
 };
 pub use structural::structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,

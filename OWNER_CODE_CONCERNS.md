@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Checked ranked control loops are refused at Build-time installation
+- Category: a verdict with nothing behind it
+- Where: [local termination summary](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/proof_scope.rs#L227), [invocation admission](omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs#L979), [ranked parity witness](tests/fixtures/run/views/ranked_slice_iteration/main.omg#L10)
+- Saw: On macOS arm64 at `028760775d4`, the kept `parity` machine is accepted with its original checked rank. Preparing `parity(3, false)` succeeds, then invocation refuses `has no ordinary checked Terminates guarantee`. The acyclic control with the same inputs returns true. Replacing `remaining - 1` with `remaining` still refuses during source checking because removing strict edges leaves a cycle. The scalar C plan reaches the same installation refusal on `c_abi_fields` once diagnosis gets past its source and invocation-provenance blockers.
+- Cost: A checked local cycle loses its ordinary termination guarantee when a Build-time consumer runs it. Carry the accepted local ranking evidence to the existing admission check and preserve checks for exact recursive-call edges and nondecreasing ranks.
+- Reported: 2026-11-15, Codex, while replaying the generic C layout plan
+
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing
 - Where: [pool assignments](tools/xtask/src/worktree.rs#L166), [pool cache retention](tools/docs/testing.md#L589), [mbx 1.29.2 collection order](https://github.com/jdx/mr-boxington/blob/v1.29.2/docs/managed-targets.md#keep-or-evict-specific-checkouts)
@@ -86,20 +93,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On macOS arm64 at `01ee33b7779`, the existing scalar `Record` on `linux_x86_64` fails with `contract termination promise over a call cycle`. `c_abi_fields` decreases `remaining_steps` before calling `place`. The cycle passes through `represented`, `checked`, `extent`, and `append` before returning to `c_abi_fields`. Those five helpers omit that measure. Adding it exposes the value match in `represented`, where the compiler rejects the recursive call as nonterminal. With the ranks and an equivalent terminal test of the two accepted tags, the guard repair leaves the padding value-match guarantee as the only reported proof failure.
 - Cost: The compiler refuses the unchanged layout before checking size 24, alignment 8, and offsets `[0, 8, 16]`. The scalar and nested-representation samples use this field walk at all nine placements. Preserve the same rank, field order, bounds, and invalid-layout controls through the existing terminal proof mechanisms.
 - Reported: 2026-11-15, Codex, after the Build-time reflection and field lifetime repairs
-
-### A checked generic layout plan loses its selected declaration before execution
-- Category: knowledge crossing a boundary
-- Where: [selected invocation preparation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L549), [fixed-layout publication](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/fixed_layouts.rs#L192), [scalar C-layout control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1202)
-- Saw: On macOS arm64 at `63d9f24b247` with the ranked guard repair, the unchanged scalar `Record` for `linux_x86_64` reaches `layout policy result lost its original source declaration` after adding the C helper ranks and using equivalent terminal tag and padding branches in a diagnostic probe. The selected call passes its public requirement and body checks. The returned entry names the physical body from the prepared invocation's symbol table. Fixed-layout evaluation then tests that handle in the original table and refuses before invoking the policy.
-- Cost: The accepted selected plan cannot execute or publish the expected size 24, alignment 8, and offsets `[0, 8, 16]`. Keep the exact applied policy and connect the accepted invocation to its authored declaration through the existing specialization provenance.
-- Reported: 2026-11-15, Codex, after replaying the C layout padding control
-
-### The padding value match loses its strict result bound
-- Category: knowledge crossing a boundary
-- Where: [padding contract](source/library/core/c_layout.omg#L25), [inferred join predicates](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L226)
-- Saw: At `01ee33b7779`, the scalar padding body by itself computes `r = offset % alignment` and returns zero if `r == 0`, or `alignment - r` otherwise. With `1 <= alignment <= 16`, Stage 06 refuses its published `result < alignment` after the value match. Returning the remainder directly proves `result < alignment`, and returning the subtraction directly with `0 < r < alignment` proves the same bound. A terminal branch that selects subtraction for `r > 0` and zero otherwise also proves the original guarantee.
-- Cost: A checked arithmetic bound is lost when the padding branches produce a joined value. Keep the result relation through the existing join and arithmetic proofs.
-- Reported: 2026-11-15, Codex, while restoring the C ABI field walk
 
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: knowledge crossing a boundary
@@ -128,13 +121,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `SeededTypingBase` holds `Arc<TypedTrees>`, but body completion calls `Arc::unwrap_or_clone(retained.typed)` and feeds the candidate to one mutable `Lowerer`. `SourceContinuation::complete_selected` starts from `input.typing.clone()` while its `Arc<SourceCompletionInput>` stays retained for later selections, so `activate_body_completion`'s `Arc::make_mut` deep-copies every `TypedTrees` table once per selected-source continuation, even when one small body set changes; later completions in that loop own the Arc uniquely. Sharing the outer Arc does not make the stored tables independently owned. No local repair fits: per-table copy-on-write still copies the expression and statement arenas every completion appends to, and `Arena` exposes contiguous spans (`span`, `storage_slice`, `storage_view`), so paged sharing changes its contract (verified 2026-11-15 at `171113b06`).
 - Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. Defer wide Psi 02–04 representation splits while `LOWERED-FORM-CHECKER` coverage is actively churning those stages unless a measured continuation bottleneck requires it earlier. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals
-
-### Forming a field's domain predicate loses the field carrier's default requirements
-- Category: a proof loses its subject's premises
-- Where: `05_typed-trees-to-terminal-psi/src/read/places.rs` (field-domain clause instantiation) and `06_terminal-psi-to-terminal-psi/src/formation.rs` (structural type default formation)
-- Saw: `data Reading requires number >= 1 { number: u32; }`, `domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;`, and `data Carry { item: Reading in Nonzero; }` produce `data domain: contract arithmetic is not proved total before its condition: the operands' bounds exceed the carrier`. The clause under `Carry.item.number` is checked without the lower bound guaranteed by `Reading` at that same field. The separate declaration check can use `Reading`'s bound. A control with the lower bound in the named domain passes.
-- Cost: a field's valid domain predicate needs to repeat a bound its declared carrier already guarantees.
-- Reported: 2026-11-14, Codex, macOS arm64. Reproduced with the issuer-guard-only candidate `8c04fa2` over `294241784f4` and with the record-domain catalog repair.
 
 ### Some record-domain placements still have no checked representation
 - Category: a verdict with nothing behind it

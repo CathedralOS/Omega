@@ -58,6 +58,14 @@ comparing complete exits including work, ownership, cleanup and successor
 bindings. Return, branch, sum dispatch, crash and no-normal exits share this
 handoff without recovering executable bodies during ordinary construction.
 
+Common instruction annotations likewise come from the target row, not its old
+optimization node. Missing annotations refuse even when that old node is still
+available for operation-kind construction. The independent audit compares the
+exact result definition, logical work, effect order and custody events and
+reports which annotation differs. A block's parameter definitions use its
+retained parameter values and ordinals. Remaining operation-kind construction
+still uses earlier bodies; those annotations do not conceal such a body.
+
 Every target function contains its `TargetControlGraph` directly. This stage
 does not convert flat bodies or whole-function expression trees. Unit, scalar,
 and aggregate results share construction and independent replay; projected

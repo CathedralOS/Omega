@@ -488,6 +488,110 @@ fn legacy_interval_survives_peer_main_checkpoints_and_rebase_without_prior_outco
 }
 
 #[test]
+fn legacy_interval_keeps_the_real_checkout_boundary_through_helper_cherry_picks() {
+    let fixture = WorktreeInterval::new();
+    fixture.transcript(Some("2026-01-03T00:00:00Z"));
+    fixture.append_usage("2026-01-06T00:00:00Z", 20);
+    for label in ["first", "second"] {
+        fs::write(fixture.repository.join(label), label).unwrap();
+        WorktreeInterval::git(&fixture.repository, &["add", label], "2026-01-04T00:00:00Z");
+        WorktreeInterval::git(
+            &fixture.repository,
+            &["commit", "-m", label],
+            "2026-01-04T00:00:00Z",
+        );
+        let helper = WorktreeInterval::git(
+            &fixture.repository,
+            &["rev-parse", "HEAD"],
+            "2026-01-04T00:00:00Z",
+        );
+        WorktreeInterval::git(
+            &fixture.worker,
+            &["cherry-pick", &helper],
+            "2026-01-05T00:00:00Z",
+        );
+    }
+    assert!(!fixture.git_dir.join("omega-work-interval.json").exists());
+    let audit = fixture.audit();
+    assert!(audit.contains("Tokens: 30 in (4 cached), 2 out"), "{audit}");
+    let interval: serde_json::Value = serde_json::from_slice(
+        &fs::read(fixture.git_dir.join("omega-work-interval.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(interval["source"], fixture.base);
+    assert_eq!(interval["started_epoch"], 1_767_312_000_i64);
+    assert_eq!(
+        fixture.audit(),
+        audit,
+        "adoption persists the original checkout boundary"
+    );
+}
+
+#[test]
+fn a_cherry_pick_label_cannot_hide_a_skipped_parent_or_merge() {
+    for merge in [false, true] {
+        let fixture = WorktreeInterval::new();
+        fixture.transcript(Some("2026-01-03T00:00:00Z"));
+        for label in ["first helper", "second helper"] {
+            WorktreeInterval::git(
+                &fixture.repository,
+                &["commit", "--allow-empty", "-m", label],
+                "2026-01-04T00:00:00Z",
+            );
+        }
+        let helper = WorktreeInterval::git(
+            &fixture.repository,
+            &["rev-parse", "HEAD"],
+            "2026-01-04T00:00:00Z",
+        );
+        let source = if merge {
+            let tree = WorktreeInterval::git(
+                &fixture.repository,
+                &["rev-parse", "HEAD^{tree}"],
+                "2026-01-04T00:00:00Z",
+            );
+            WorktreeInterval::git(
+                &fixture.repository,
+                &[
+                    "commit-tree",
+                    &tree,
+                    "-p",
+                    &fixture.base,
+                    "-p",
+                    &helper,
+                    "-m",
+                    "not a single-parent checkpoint",
+                ],
+                "2026-01-04T00:00:00Z",
+            )
+        } else {
+            helper
+        };
+        WorktreeInterval::git(
+            &fixture.worker,
+            &[
+                "update-ref",
+                "-m",
+                "cherry-pick: relabelled transition",
+                "HEAD",
+                &source,
+                &fixture.base,
+            ],
+            "2026-01-05T00:00:00Z",
+        );
+        let output = fixture.command(&fixture.worker, &["provenance", "--allow-unavailable"]);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("unverifiable cherry-pick checkpoint")
+        );
+        assert!(!fixture.git_dir.join("omega-work-interval.json").exists());
+    }
+}
+
+#[test]
 fn warm_next_outcome_and_fresh_acquisition_record_without_resetting_source_cache_or_lease() {
     let fixture = WorktreeInterval::new();
     fixture.transcript(Some("2026-01-03T00:00:00Z"));

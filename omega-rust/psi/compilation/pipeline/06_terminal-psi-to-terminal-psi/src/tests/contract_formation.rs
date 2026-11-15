@@ -278,6 +278,61 @@ machine build_entry() {}
 }
 
 #[test]
+fn a_projected_domain_uses_its_field_carriers_default() {
+    const SOURCE: &str = r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;
+data Carry { item: Reading in Nonzero; }
+machine build_entry() {}
+"#;
+    executed_source(SOURCE);
+}
+
+#[test]
+fn deeply_projected_defaults_form_before_their_enclosing_defaults() {
+    let source = r#"
+data Reading requires number >= 1 { number: u32; }
+data Envelope requires reading.number - 1 <= 4294967295u32 { reading: Reading; }
+domain Envelope::Checked requires self.reading.number - 1 <= 4294967294u32;
+data Carry { item: Envelope in Checked; }
+machine build_entry() {}
+"#;
+    executed_source(source);
+}
+
+#[test]
+fn a_field_carriers_default_cannot_form_arithmetic_on_its_sibling_or_root() {
+    const SOURCE: &str = r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;
+data Bare { number: u32; }
+data Carry requires item.number - 1 <= 4294967294u32 {
+    item: Reading in Nonzero;
+    backup: Bare;
+    number: u32;
+}
+machine build_entry() {}
+"#;
+    executed_source(SOURCE);
+
+    for path in ["backup.number", "number"] {
+        let verdict = source_result(&SOURCE.replace("item.number - 1", &format!("{path} - 1")));
+        let RouteVerdict::Rejected { violations, .. } = verdict else {
+            panic!("the bound on item.number escaped its projection: {verdict:?}");
+        };
+        let [violation] = violations.as_slice() else {
+            panic!("expected a single formation violation: {violations:?}");
+        };
+        assert!(
+            violation.statement.contains(
+                "data domain: contract arithmetic is not proved total before its condition"
+            ),
+            "{violation:?}"
+        );
+    }
+}
+
+#[test]
 fn a_bound_on_one_field_does_not_form_its_neighbors_subtraction() {
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
@@ -366,4 +421,26 @@ machine build_entry() {{ let value: u32 = divide(31, 3); }}
         executed_source(&source);
         rejected_source(&source.replace("requires right > 0", "requires true"));
     }
+}
+
+/// Nested computations retain their policy and every inner formation question,
+/// including when an outer multiplication cannot change the final value.
+#[test]
+fn nested_summary_arithmetic_keeps_each_inner_formation_obligation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    executed_source(&source);
+
+    let guarded = r#"
+machine nested(value: u8) -> u8
+requires value <= 254
+ensures result == (value + 1u8) * 0u8
+{ 0u8 }
+machine build_entry() { let value: u8 = nested(0u8); }
+"#;
+    executed_source(guarded);
+    rejected_source(&guarded.replace("requires value <= 254", "requires true"));
 }

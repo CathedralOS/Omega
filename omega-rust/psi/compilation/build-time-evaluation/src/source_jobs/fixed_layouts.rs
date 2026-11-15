@@ -197,7 +197,19 @@ fn evaluate_application(
         requirement_symbol,
         &[argument, BuildTimeValue::LayoutTarget(facts.clone())],
     )?;
-    if !typed.symbols.symbols().nodes().is_valid(entry.symbol()) {
+    // The receipt owns the body in the accepted invocation, which can be
+    // a capture. The plan belongs to the source that declared the policy.
+    let accepted = entry.accepted_source();
+    let (selected, member, _) = accepted
+        .named_conformance_call_member(entry.call())?
+        .ok_or("layout invocation lost its selected policy member")?;
+    let declared_machine = member.realization_machine;
+    if selected.symbol != policy.symbol
+        || typed.machine_by_symbol(declared_machine).is_none()
+        || accepted
+            .machine_instantiation_path(entry.symbol(), declared_machine)
+            .is_none()
+    {
         return Err("layout policy result lost its original source declaration".into());
     }
     let result = entry.invoke_recorded(
@@ -234,7 +246,7 @@ fn evaluate_application(
         schema_argument: Some(schema_argument),
         target_facts: facts.clone(),
         target: typed_trees::name::Identifier::generated(&scope.target),
-        machine: entry.symbol(),
+        machine: declared_machine,
         geometry,
     };
     // A later target extends this same application, retaining each target's
@@ -276,7 +288,7 @@ fn evaluate_application(
             schema_field_symbols: field_symbols.clone(),
             field_symbols,
             policy_symbol: policy.symbol,
-            policy_plan_machine_symbol: entry.symbol(),
+            policy_plan_machine_symbol: declared_machine,
             schema_argument: None,
             realizations: PlanLaidRealizations::TargetInputs(span),
         });
