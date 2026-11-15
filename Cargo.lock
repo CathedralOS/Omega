@@ -1659,14 +1659,11 @@ version = "0.1.0"
 dependencies = [
  "backend-plan",
  "boundary-applications",
- "component-description",
  "diagnostics",
  "effects",
  "language-semantics",
- "optimization-core",
  "semantic-vocabulary",
  "target",
- "terminal-codec",
  "terminal-psi",
 ]
 
