@@ -98,9 +98,15 @@ block, scalar predicate, and one obligation for every actual incoming edge.
 There is one row per block; multiple assertions form a conjunction. Predicate
 scope contains immutable scalar machine formals, destination scalar parameters,
 and scalar storage observations rooted at machine structural parameters or that
-destination's own structural parameters. An operation-created place, another
-block's local, a branch-local value, a result pseudo-value, or an opaque or
-structural predicate cannot gain scope through an assertion. Storage observations
+destination's own structural parameters. A predicate the checker infers also
+has in scope each block parameter whose binding dominates the destination and
+each integer operation result whose definition does. Every arrival passes that
+definition, so the value is one value on every arrival and at the join, as a
+formal is. A guard over a call result therefore crosses the join that `&&`
+lowers to. An operation-created place, another
+block's local that does not dominate the destination, a branch-local value, a
+result pseudo-value, or an opaque or structural predicate cannot gain scope
+through an assertion. Storage observations
 denote current contents and remain subject to exact write invalidation; they
 are not immutable invocation-entry snapshots.
 The machine entry cannot carry a row: invocation supplies the machine's declared

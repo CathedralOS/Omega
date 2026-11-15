@@ -82,6 +82,49 @@ fn assert_ensures_unproved(verdict: RouteVerdict) {
     );
 }
 
+/// A guard over a call result, written with `&&`, which lowers to a join.
+/// `subtrahend` is what the taken edge subtracts from the guarded value.
+fn guarded_call_result(subtrahend: u64) -> String {
+    format!(
+        "public machine helper(val: u64) -> u64 {{ val }}
+machine main() {{
+    let s: u64 = helper(25u64);
+    transition s >= 100u64 && s <= 200u64 {{
+        true -> done(s - {subtrahend}u64)
+        _ -> other()
+    }}
+    machine done(d: u64) {{}}
+    machine other() {{}}
+}}
+machine build_entry() crashes Trap {{ main(); }}
+"
+    )
+}
+
+#[test]
+fn a_guard_over_a_dominating_call_result_crosses_the_join() {
+    // `s` is defined before the branch, so every arrival at the `&&` join
+    // sees the same `s`. Before the join's scope admitted dominating values
+    // its predicate fell to `Truth`, and `s - 100` was refused.
+    let verdict = judge_build(&guarded_call_result(100)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_guard_over_a_call_result_still_proves_only_what_it_says() {
+    let verdict = judge_build(&guarded_call_result(101)).unwrap();
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("`s >= 100` cannot pay for `s - 101`: {verdict:?}");
+    };
+    assert!(
+        unproved.iter().any(|row| {
+            matches!(row.kind, ObligationKind::OperationSafety { .. })
+                && row.statement.contains("machine `main`")
+        }),
+        "{unproved:?}"
+    );
+}
+
 #[test]
 fn a_match_arms_masked_narrowing_keeps_its_bound_across_the_join() {
     // Each arm's bound comes from its own result equations (the mask, then
@@ -178,4 +221,21 @@ ensures result < limit
 }
 "#;
     assert_ensures_unproved(super::entryless::judged(SOURCE, false));
+}
+
+#[test]
+fn a_value_defined_in_one_arm_does_not_enter_the_join_scope() {
+    // `s` is the join's own parameter here, chosen per arm; neither arm's
+    // call result dominates the join, so neither arm's bound survives it.
+    let source = "public machine helper(val: u64) -> u64 { val }
+public machine pick(flag: bool) -> u64 {
+    let s: u64 = match flag {
+        true -> helper(150u64)
+        false -> helper(5u64)
+    };
+    s - 100u64
+}
+machine main() { let r: u64 = pick(true); }
+";
+    assert_join_subtraction_refused(source);
 }
