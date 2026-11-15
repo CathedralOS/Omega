@@ -1379,7 +1379,7 @@ pub(crate) mod byte_sequence_predicates {
                 .map(|(_, operation)| *operation)
         }
 
-        pub fn constant_origin(
+        fn constant_origin(
             &self,
             value: semantic_vocabulary::ValueId,
         ) -> Option<ScalarConstantOrigin> {
@@ -1413,7 +1413,7 @@ pub(crate) mod byte_sequence_predicates {
 
         /// A definition must have exactly one actual producer. The receiving
         /// owner supplies this same machine's complete, checked value types.
-        pub fn computed_origin(
+        fn computed_origin(
             &self,
             value: semantic_vocabulary::ValueId,
             types: &dyn crate::ValueTypes,

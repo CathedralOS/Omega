@@ -181,7 +181,7 @@ pub(crate) mod call_foundations {
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Option<(ScalarType, IntegerValue)> {
         let expected = sources.scalar_type(value)?;
-        let known = constants.value(value, |value| scalar_index.computed_origin(value, sources))?;
+        let known = scalar_index.constant_value(value)?;
         (known.0 == expected).then_some(known)
     }
 
