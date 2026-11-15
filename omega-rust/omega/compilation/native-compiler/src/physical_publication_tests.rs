@@ -160,6 +160,7 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 result_reference_regions: Vec::new(),
+                result_lifetimes: None,
                 reference_outputs: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 owning_service: None,

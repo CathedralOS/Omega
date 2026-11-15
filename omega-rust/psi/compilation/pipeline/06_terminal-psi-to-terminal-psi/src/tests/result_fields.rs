@@ -94,7 +94,7 @@ fn borrowed_completion_observations_cannot_reuse_input_snapshots() {
     // The authored promise is true of the actual result. A receiving producer
     // must not replace it with an entry fact about a borrowed input: the Pair
     // is changed before return. Its current field cannot reuse the entry
-    // fact. The borrowed view's extent still has no completion observation.
+    // fact. The separate shared view still holds its original extent.
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
 machine build_entry(INPUT, bytes: &[u8]) -> Pair
@@ -114,7 +114,7 @@ ensures result.first == 0
         }
     }
 
-    for (input, extent, accepted) in [
+    for (input, extent, owned_pair) in [
         ("mut p: Pair", false, true),
         ("p: &mut Pair", false, false),
         ("p: &mut Pair", true, false),
@@ -147,7 +147,7 @@ ensures result.first == 0
         };
         assert_eq!(
             pair.access,
-            if accepted {
+            if owned_pair {
                 terminal_psi::StructuralAccess::Owned
             } else {
                 terminal_psi::StructuralAccess::MutableBorrow
@@ -185,12 +185,12 @@ ensures result.first == 0
         // identities. Only the received claim is different.
         machine.contract.ensures[0].proposition = premise;
         let verdict = judge(Ok(received));
-        if accepted {
-            assert!(
-                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
-                "an owned input still names its original value: {verdict:?}"
-            );
-        } else if !extent {
+        if owned_pair || extent {
+            let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+                panic!("the unchanged observation must be proved at completion: {verdict:?}");
+            };
+            accepted.publish_invocation().unwrap();
+        } else {
             let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
                 panic!("the changed borrowed field must reject its old entry fact: {verdict:?}")
             };
@@ -202,15 +202,6 @@ ensures result.first == 0
                 ObligationKind::NormalGuarantee { clause: 0, .. }
             ));
             assert_eq!(failure.cause, UnprovedCause::NoDerivation);
-        } else {
-            let Ok(RouteVerdict::FallBack(refusal)) = verdict else {
-                panic!("unsupported borrowed completion must remain refused: {verdict:?}")
-            };
-            assert_eq!(refusal.reason, RefusalReason::Unsupported, "{refusal:?}");
-            assert_eq!(
-                refusal.detail,
-                "borrowed completion storage has no post-call observation"
-            );
         }
     }
 }

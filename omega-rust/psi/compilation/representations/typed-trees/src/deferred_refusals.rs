@@ -97,14 +97,21 @@ pub enum DeferredRequest {
     /// signature means matching the two telescopes binder for binder, and
     /// typing has no such comparison yet.
     TargetFamilyGenericSignature,
-    /// A call whose bare written name nothing in the program has: no
-    /// declaration, parameter, local or compiler operation of any kind. A
+    /// A membership fact, `value in Domain`, whose domain was written as a
+    /// selection resolution left late-bound and typing does not bind yet.
+    ContractMembershipSelection,
+    /// A const argument of a type application that typing does not admit
+    /// yet: the applied declaration's parameters are not ones typing finds
+    /// for that many arguments, or the argument is a record or case value
+    /// that is not typed against its declared data type.
+    ConstArgumentAdmission,
+    /// A call whose scoped source lookup found no visible declaration. A
     /// violation: "an unknown machine name ... is an error wherever it
     /// appears" (`state_contracts.md`).
     UndeclaredCallName,
     /// A value name, in a constant's initializer or a body, that resolution
-    /// left unbound and that nothing in the program has: no declaration,
-    /// parameter, local or field of any kind. A violation, as for a call:
+    /// left unbound because its scoped lookup found no visible declaration.
+    /// A violation, as for a call:
     /// resolution looks through locals, parameters, imports and qualified
     /// paths (`modules.md`, "Resolution"), and "name resolution ... [is]
     /// checked as usual" even where a statement never executes
@@ -181,12 +188,18 @@ impl DeferredRequest {
             Self::TargetFamilyGenericSignature => {
                 "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
             }
+            Self::ContractMembershipSelection => {
+                "holding a membership fact whose domain typing does not select yet"
+            }
+            Self::ConstArgumentAdmission => {
+                "using a type application whose const argument typing does not admit yet"
+            }
             Self::UndeclaredCallName => {
-                "this call names nothing the program declares: an unknown machine name is an \
+                "this call has no visible declaration in its source scope: an unknown machine name is an \
                  error wherever it appears, in a statement that never executes as in any other"
             }
             Self::UndeclaredValueName => {
-                "this expression names a value nothing the program declares: an unknown name is \
+                "this expression has no visible value declaration in its source scope: an unknown name is \
                  an error wherever it appears"
             }
             Self::CaseCalledAsMachine => {
@@ -277,42 +290,6 @@ impl TypedTrees {
         self.deferred_refusals[start..]
             .iter()
             .take_while(move |row| row.declaration == declaration)
-    }
-
-    /// Of the written names `names`, those nothing in the program has, in
-    /// sorted order: no symbol of any kind, a declaration, parameter, local,
-    /// state or builtin, in this source or any library, carries one as the
-    /// last segment of its name. A name nothing has is an error wherever it
-    /// is written; a name something has may name that thing validly where a
-    /// reader does not follow it yet.
-    ///
-    /// Only typing's batch over unbound value and call names asks this, once
-    /// per typing pass. `invokes` rows and domain names carry typing's
-    /// scoped-lookup outcome instead (`AuthoredInvocationTarget::Undeclared`,
-    /// `DomainConstraint::names_no_visible_domain`), so no later stage
-    /// classifies a name by spelling.
-    pub fn names_nothing_has<'a>(&self, mut names: Vec<&'a str>) -> Vec<&'a str> {
-        names.retain(|name| !name.is_empty());
-        names.sort_unstable();
-        names.dedup();
-        if names.is_empty() {
-            return names;
-        }
-        let mut named = vec![false; names.len()];
-        for (symbol, _) in self.symbols.symbols().nodes().iter() {
-            // A declaration may keep its qualified spelling as its name
-            // (`machine kit::work`); a use writes the last segment.
-            let name = self.symbols.name(symbol);
-            let leaf = name.rsplit("::").next().unwrap_or(name);
-            if let Ok(position) = names.binary_search(&leaf) {
-                named[position] = true;
-            }
-        }
-        names
-            .into_iter()
-            .zip(named)
-            .filter_map(|(name, named)| (!named).then_some(name))
-            .collect()
     }
 
     /// The declaration a reader demands as one unit for anything owned by
@@ -415,18 +392,6 @@ mod tests {
             program.deferred_refusal(holder).map(|row| row.request),
             Some(DeferredRequest::ReceiverCallSelection)
         );
-    }
-
-    #[test]
-    fn only_a_name_no_symbol_of_any_kind_has_names_nothing() {
-        let (program, _) = program();
-        // A machine, a state and a trait each have their name; an empty
-        // name was written by no one.
-        assert_eq!(
-            program.names_nothing_has(vec!["run", "nowhere", "holder", "", "Api", "nowhere"]),
-            ["nowhere"]
-        );
-        assert!(program.names_nothing_has(vec!["served", "call"]).is_empty());
     }
 
     #[test]

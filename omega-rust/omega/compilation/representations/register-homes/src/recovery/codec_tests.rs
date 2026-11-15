@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v100), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v101), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use abstract_operations::StructuralTypeCatalog;
@@ -436,9 +436,90 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &100_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &101_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
+}
+
+#[test]
+fn empty_elimination_recovery_binds_its_edge_and_distinguishes_authored_crashes() {
+    fn set_terminal(plan: &mut FixedViewCopyPlan, terminal: SelectedTerminator) {
+        let transformed = std::sync::Arc::make_mut(&mut plan.transformed);
+        transformed
+            .functions
+            .get_mut(0)
+            .unwrap()
+            .blocks
+            .get_mut(2)
+            .unwrap()
+            .terminator = terminal;
+    }
+
+    let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let edge = EdgeId::new(7).unwrap();
+    let mut trap = instruction(3, SelectedInstructionKind::Crash, Vec::new());
+    trap.provenance.edges.push(edge);
+    set_terminal(
+        &mut original,
+        SelectedTerminator::EliminateEmpty {
+            instruction: trap.clone(),
+            psi_edge: edge,
+        },
+    );
+    let encoded = original.encode().unwrap();
+    let received = FixedViewCopyPlan::decode(&encoded).unwrap();
+    let terminal = &received.transformed.functions[0].blocks[2].terminator;
+    assert!(matches!(terminal,
+        SelectedTerminator::EliminateEmpty { psi_edge, .. } if *psi_edge == edge));
+    assert!(selected_instructions::terminator_successors(terminal).is_empty());
+    assert_eq!(received, original);
+
+    let selected_identity =
+        selected_instructions::selected_instruction_plan_identity(&original.transformed);
+    let recovery_identity = crate::fixed_view_copy_identity(&original);
+    let mut other_edge = trap.clone();
+    let changed_edge = EdgeId::new(9).unwrap();
+    other_edge.provenance.edges = vec![changed_edge];
+    for terminal in [
+        SelectedTerminator::EliminateEmpty {
+            instruction: other_edge,
+            psi_edge: changed_edge,
+        },
+        // The exact same physical trap cannot acquire authored crash meaning
+        // while retaining the elimination's selected or recovery identity.
+        SelectedTerminator::Crash {
+            instruction: trap,
+            psi_edge: edge,
+            cause: CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        },
+    ] {
+        let mut changed = original.clone();
+        set_terminal(&mut changed, terminal);
+        assert_ne!(
+            selected_instructions::selected_instruction_plan_identity(&changed.transformed),
+            selected_identity,
+        );
+        assert_ne!(crate::fixed_view_copy_identity(&changed), recovery_identity);
+        let changed_bytes = changed.encode().unwrap();
+        assert_eq!(FixedViewCopyPlan::decode(&changed_bytes).unwrap(), changed);
+
+        // Fresh payload bytes still owe both of their original identity roots.
+        let mut forged_selected = changed_bytes.clone();
+        let selected_at = transformed_identity_offset(&forged_selected);
+        forged_selected[selected_at..selected_at + 32].copy_from_slice(&selected_identity.bytes());
+        assert_eq!(
+            FixedViewCopyPlan::decode(&forged_selected),
+            Err(FixedViewCopyDecodeError::TransformedIdentityMismatch),
+        );
+        let mut forged_recovery = changed_bytes;
+        forged_recovery[12..44].copy_from_slice(&encoded[12..44]);
+        assert_eq!(
+            FixedViewCopyPlan::decode(&forged_recovery),
+            Err(FixedViewCopyDecodeError::IdentityMismatch),
+        );
+    }
 }
 
 #[test]

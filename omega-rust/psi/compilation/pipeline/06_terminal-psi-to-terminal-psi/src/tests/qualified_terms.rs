@@ -277,7 +277,7 @@ machine entry() -> i64 in Classified {{ rebuild(issue(7)) }}
 "#
     ))
     .unwrap_err();
-    assert!(matches!(refused.reason, RefusalReason::Violation(_)));
+    assert!(matches!(refused.reason, RefusalReason::Violation));
     assert!(
         refused
             .detail

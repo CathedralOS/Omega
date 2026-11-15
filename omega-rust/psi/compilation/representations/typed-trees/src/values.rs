@@ -371,6 +371,28 @@ pub mod expression {
         language_semantics::declaration_selection::BuildSelectionRequest<
             crate::types::TypeReferenceHandle,
         >;
+    /// What one generated call of the Build selection protocol carries:
+    /// the request the author wrote and the protocol operation typing chose
+    /// for this call. A selection is two calls (the lending `prepare` and the
+    /// committing operation), each with its own row, so a reader identifies
+    /// the operation from this row rather than from the requirement's name.
+    ///
+    /// The arena's zero row is the default request, a root binding, with the
+    /// operation that commits one.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct BuildSelectionCall {
+        pub request: BuildSelectionRequest,
+        pub operation: language_semantics::build_requests::SelectionProtocolOperation,
+    }
+
+    impl Default for BuildSelectionCall {
+        fn default() -> Self {
+            Self {
+                request: BuildSelectionRequest::default(),
+                operation: language_semantics::build_requests::SelectionProtocolOperation::Bind,
+            }
+        }
+    }
     use numerics::literals::IntegerLiteral;
     use source::SourceSpan;
     use std::ops::Deref;
@@ -1842,6 +1864,7 @@ pub mod expression {
                 }
                 let origin = source.table(self);
                 let source_span = origin.source_span(expression);
+                let unresolved_name = origin.unresolved_name(expression);
                 let component = origin
                     .direct_pattern_component(expression)
                     .expect("copied expression retains its component row");
@@ -1996,9 +2019,9 @@ pub mod expression {
                         });
                         let build_selection = source
                             .table(self)
-                            .build_selection_request(call.build_selection)
+                            .build_selection_call(call.build_selection)
                             .cloned()
-                            .map(|request| self.insert_build_selection_request(request))
+                            .map(|selection| self.insert_build_selection_call(selection))
                             .unwrap_or_default();
                         let authored_machine_application = self.copy_static_machine_application(
                             source,
@@ -2145,6 +2168,7 @@ pub mod expression {
                     }
                 };
                 self.set_source_span(copied, source_span);
+                self.set_unresolved_name(copied, unresolved_name);
                 if carrier.is_valid() {
                     self.set_constructed_value_type_reference(copied, carrier);
                 }
@@ -3134,9 +3158,10 @@ pub mod expression {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct ExpressionTable {
         expressions: Arena<ExpressionNode>,
-        build_selection_requests: Arena<BuildSelectionRequest>,
+        build_selection_requests: Arena<BuildSelectionCall>,
         expression_roots: Arena<ExpressionHandle>,
         source_spans: Vec<SourceSpan>,
+        unresolved_names: Vec<symbols::UnresolvedName>,
         pattern_components: Vec<language_core::PatternComponent>,
         /// Original checked computation of a materialized static value. This
         /// provenance edge preserves invocation custody without executing it again.
@@ -3403,32 +3428,6 @@ pub mod expression {
             Self::with_expression_capacity(0)
         }
 
-        pub fn revision(&self) -> u64 {
-            self.expressions
-                .revision()
-                .wrapping_add(self.build_selection_requests.revision())
-                .wrapping_add(self.expression_roots.revision())
-                .wrapping_add(self.authored_selection_occurrence_ids.revision())
-                .wrapping_add(self.executable_domain_test_rows.revision())
-                .wrapping_add(self.expression_handles.revision())
-                .wrapping_add(self.name_path_members.revision())
-                .wrapping_add(self.name_path_member_symbols.revision())
-                .wrapping_add(self.struct_fields.revision())
-                .wrapping_add(self.match_arms.revision())
-                .wrapping_add(self.match_fields.revision())
-                .wrapping_add(self.completed_values.revision())
-                .wrapping_add(self.match_proof_selectors.revision())
-                .wrapping_add(self.static_machine_applications.revision())
-                .wrapping_add(self.static_machine_arguments.revision())
-                .wrapping_add(self.constructed_value_types.revision())
-                .wrapping_add(self.construction_required_types.revision())
-                .wrapping_add(self.static_machine_bindings.revision())
-                .wrapping_add(self.static_machine_lifetime_bindings.revision())
-                .wrapping_add(self.source_spans.len() as u64)
-                .wrapping_add(self.authored_selection_occurrences.len() as u64)
-                .wrapping_add(self.executable_domain_tests.len() as u64)
-        }
-
         pub fn with_expression_capacity(expression_capacity: usize) -> Self {
             Self::with_expression_and_handle_capacity(expression_capacity, 0)
         }
@@ -3450,6 +3449,7 @@ pub mod expression {
                 build_selection_requests: Arena::default(),
                 expression_roots: Arena::with_capacity(capacity.expressions),
                 source_spans: Vec::with_capacity(capacity.expressions),
+                unresolved_names: Vec::with_capacity(capacity.expressions),
                 pattern_components: Vec::with_capacity(capacity.expressions),
                 materialization_sources: Vec::new(),
                 constructed_value_types: Arena::default(),
@@ -3482,6 +3482,7 @@ pub mod expression {
             self.build_selection_requests.reset_retain_capacity();
             self.expression_roots.reset_retain_capacity();
             self.source_spans.clear();
+            self.unresolved_names.clear();
             self.materialization_sources.clear();
             self.constructed_value_types.reset_retain_capacity();
             self.constructed_value_type_handles.clear();
@@ -3794,6 +3795,7 @@ pub mod expression {
             }
             self.expression_roots.insert(handle);
             self.source_spans.push(SourceSpan::default());
+            self.unresolved_names.push(Default::default());
             self.pattern_components.push(component);
             self.materialization_sources
                 .push(ExpressionHandle::invalid());
@@ -3836,20 +3838,43 @@ pub mod expression {
             self.source_spans.get(source_span_index(handle)).copied()
         }
 
-        pub fn insert_build_selection_request(
+        /// The source owner's scoped result, retained through copying and typing.
+        pub fn unresolved_name(&self, handle: ExpressionHandle) -> symbols::UnresolvedName {
+            if !self.expressions.is_valid(handle) {
+                return Default::default();
+            }
+            self.unresolved_names[source_span_index(handle)]
+        }
+
+        pub fn set_unresolved_name(
             &mut self,
-            request: BuildSelectionRequest,
-        ) -> Handle<BuildSelectionRequest> {
-            self.build_selection_requests.insert(request)
+            handle: ExpressionHandle,
+            outcome: symbols::UnresolvedName,
+        ) {
+            self.unresolved_names[source_span_index(handle)] = outcome;
+        }
+
+        pub fn insert_build_selection_call(
+            &mut self,
+            call: BuildSelectionCall,
+        ) -> Handle<BuildSelectionCall> {
+            self.build_selection_requests.insert(call)
+        }
+
+        pub fn build_selection_call(
+            &self,
+            call: Handle<BuildSelectionCall>,
+        ) -> Option<&BuildSelectionCall> {
+            self.build_selection_requests
+                .is_valid(call)
+                .then(|| self.build_selection_requests.get(call))
         }
 
         pub fn build_selection_request(
             &self,
-            request: Handle<BuildSelectionRequest>,
+            call: Handle<BuildSelectionCall>,
         ) -> Option<&BuildSelectionRequest> {
-            self.build_selection_requests
-                .is_valid(request)
-                .then(|| self.build_selection_requests.get(request))
+            self.build_selection_call(call).map(|call| &call.request)
         }
 
         pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
@@ -4240,6 +4265,13 @@ pub mod expression {
             self.name_path_members.span_or_empty(span)
         }
 
+        pub(crate) fn checked_name_path_members(
+            &self,
+            span: HandleSpan<Identifier>,
+        ) -> Option<&[Identifier]> {
+            self.name_path_members.span(span)
+        }
+
         pub fn respell_single_member_names(&mut self, symbol: SymbolHandle, member: &Identifier) {
             let spans: Vec<HandleSpan<Identifier>> = self
                 .expressions
@@ -4413,7 +4445,7 @@ pub mod expression {
                     static_machine_bindings, static_machine_lifetime_bindings,
                 ],
                 vectors [
-                    source_spans, pattern_components, materialization_sources,
+                    source_spans, unresolved_names, pattern_components, materialization_sources,
                     constructed_value_type_handles, construction_required_type_handles,
                     authored_selection_occurrences,
                     executable_domain_tests,
@@ -4849,7 +4881,7 @@ pub mod expression {
         >,
         pub authored_call_binding:
             Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
-        pub build_selection: Handle<BuildSelectionRequest>,
+        pub build_selection: Handle<BuildSelectionCall>,
         pub authored_machine_application: StaticMachineApplicationHandle,
         pub exact_coercion_target: crate::types::TypeReferenceHandle,
         pub requirement_application: crate::types::TypeReferenceHandle,

@@ -2,8 +2,8 @@
 // Place: field. The read-only byte-pool slice literal is stored in a struct field and projected.
 // Expected exit: 0
 
-data Held {
-    bytes: &[u8];
+data Held<'view> {
+    bytes: &'view [u8];
 }
 
 machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap

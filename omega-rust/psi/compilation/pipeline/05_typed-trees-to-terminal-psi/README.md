@@ -418,7 +418,12 @@ and `*` cannot overflow
 such a clause computes nothing in a carrier and owes no formation condition,
 which is what sets it apart from carrier arithmetic in a clause
 (`requires a + b <= 99`, which "discharge[s] representability before
-formation" and is refused until a slice states that obligation).
+formation"). The reader retains the selected operation as a canonical scalar
+term. Stage 06 proves its formation using independent, already-formed clauses
+before the containing condition can contribute facts. The same rule applies
+to fields, nested terms, result contracts and domains. Wrapping and saturating
+division still require a nonzero divisor; trapping arithmetic is refused in
+clauses because its operation may crash.
 
 A comparison is mathematical when an `embed` stands on either side beneath
 binary operators only (`mathematical`). `embed` is the builtin by the symbol
@@ -444,8 +449,7 @@ arguments.
 
 | Construct | Refusal detail |
 | --- | --- |
-| carrier arithmetic in a clause term, `requires a + b <= 99` | `contract carrier arithmetic in a clause term` |
-| a suffixed operator in a clause term, `a +% b` | `contract policy operator in a clause term` |
+| trapping arithmetic in a clause term, `a +! b` | `a trapping operator ... in a contract clause: an operation that can crash forms no proof term` |
 | a cast, or a call other than `embed`, in a clause term | `contract cast in a clause term`, `contract call in a clause term` |
 | `embed` that is not a side of a comparison or beneath its arithmetic, `embed(embed(a))` | `contract embed outside a mathematical comparison` |
 | `embed` of a Boolean, or with other than one argument | `contract embed of a value that is not an integer`, `contract embed of other than one value` |
@@ -513,19 +517,16 @@ same through two or more machines.
 forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
 
-A loop that promises to end says which value shows it: `machine
-count_down(remaining: u64) -> u64 terminates by remaining`. The subset
-serves that witness on a machine that calls itself, when the subject is one
-formal of an unsigned fixed-width integer type under `Nat::Descending`, the
-view stage 03 settles for the short form
-([termination](../../../../../wiki/spec/language/termination.md#ranking):
-"Short form without `-> View` requires a carrier-declared stable canonical
-default, immediately elaborated to an explicit view"). The reader takes the
-subject from the typed expression stage 03 keeps
-(`RankingExpressionCustody`), never from the plan's rendered text.
-[Rankings](#rankings) gives what lowering writes for it. A bare `terminates`
-on a machine that calls such a loop is then served too: the loop it depends
-on is ranked.
+A loop can name its decreasing measure with `terminates by remaining` or
+`terminates by bytes -> Slice::Length`. The reader uses resolved typed
+expressions and the selected view declaration, checking explicit
+`Nat::Descending` against its sealed catalog header. Short forms use the
+carrier's canonical default; an authored lookalike grants no ranking theory.
+Supported measures use scalar formals, integer constants, exact subtraction,
+and the length of a borrowed byte-view formal. Ranked mutual call components
+retain a private measure for every member.
+[Rankings](#rankings) describes their lowering. A bare `terminates` can rely
+on such loops only when every reachable cycle is ranked.
 
 The rest of the loops lane
 (`wiki/drafts/designs/loops_recursion_termination_lane.md`) is refused by
@@ -534,18 +535,18 @@ name until the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
-| a `terminates by` witness on a machine of a cycle of several machines | `contract ranking witness on a call cycle of several machines` |
-| a witness under a view other than `Nat::Descending` (`Slice::Length`, `Nat::IncreasingTo`, `Nat::BoundedDistance`, a declared `measure`), or a short form whose subject has no default view | `contract ranking view other than Nat::Descending` |
-| a witness with a rank range, `in lower..=upper` | `contract rank range on a ranking witness` |
-| a witness over several subjects | `contract ranking over several subjects` |
-| a subject that is not a formal (`items.len`, a field) | `contract ranking subject that is not a formal` |
-| a subject that is a signed, address or width-generic formal | `contract ranking subject that is not an unsigned fixed-width integer formal` |
-| a witness the typed trees hold only as text (no `RankingExpressionCustody`) | `spelling ranking subject kept only as text` |
-| a `terminates`, bare or witnessed, on a machine that lies on or calls into a cycle no member ranks | `contract termination promise over a call cycle` |
+| a view with no admitted resolved selection, including an authored lookalike | `contract ranking view has no admitted resolved selection`, `contract selected ranking view is not an admitted compiler ranking declaration` |
+| view arguments or a rank range, `in lower..=upper` | `contract ranking view arguments and bounded ranges` |
+| several subjects under the served catalog views | `contract selected ranking view requires exactly one subject` |
+| a signed subject under `Nat::Descending` | `contract natural ranking needs an unsigned integer subject` |
+| an address or width-generic rank carrier | `contract ranking needs a closed finite integer carrier` |
+| a length measure whose base is not a formal | `contract length ranking subject is not a resolved formal` |
+| another computed form outside constants, exact subtraction and descriptor length | `contract ranking expression has no pure integer normalization` |
+| a witness without resolved typed subjects | `contract ranking subjects have no resolved expressions` |
+| a termination promise that reaches a cycle with a member lacking a measure | `contract termination promise over a call cycle` |
 | `terminates` under a progress premise | `contract termination under a progress premise` |
 | `ensures` on a member | `contract ensures on a call cycle` |
 | a `crashes Cause` clause with a route guard on a member | `contract guarded crash route on a call cycle` |
-| a record or sum formal, result, local or expression in a member, or a local declared without an initializer | `machine storage on a call cycle` |
 | an `[erased]` formal or local in a member | `machine erased binding on a call cycle` |
 | a formal, result or local of a type parameter in a member | `machine value of a type parameter on a call cycle` |
 
@@ -637,7 +638,10 @@ reject."). The owner of the lifetimes an application names is the typed
 trees' answer: the declaration they retained for that occurrence of the type,
 as stage 03 does for the type of a literal nested in another literal, and
 otherwise the declaration being read: the data declaration whose member it
-is, or the machine whose signature or body it is.
+is, or the machine whose signature or body it is. A tag that owner has no
+binder for, in a data application or on a reference such as `&'a [u8]`, is
+the program's error and is rejected, not refused as an unserved type
+(`read/places.rs`, `reference_lifetime_declared`).
 
 A machine that declares lifetime parameters is one machine, read once
 ("Lifetime arguments are erased regions, separate from runtime generic arity,
@@ -676,6 +680,10 @@ formal without `mut`.
 - `&mut x` and `&mut p.a` lend the formal as owned storage
   (`Lender::Owner`), as they lend a `mut` local.
 
+An assignment to an immutable owned formal or local rejects at the written
+target, including a field or element of that binding. Writes through an
+existing reference follow that reference's access.
+
 Refused by name:
 
 | Construct | Refusal detail |
@@ -683,7 +691,6 @@ Refused by name:
 | an `ensures` clause or a crash route guard that names a `mut` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
 | a `mut` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
 | a `mut` formal marked `[erased]` | `parameter mutable erased parameter` |
-| an assignment to, or a store into, a formal that is not `mut` | `statement assignment to an immutable binding`, `statement store into an immutable binding` |
 
 A `mut` formal of plain data without `[copy]` is refused as that data is
 anywhere (`type data with custody`). A formal passed by reference is
@@ -755,7 +762,6 @@ refuses, by name, what the slice does not serve:
 | `let r = reference;` without a declared type | `statement local bound to a reference without a declared type` |
 | whole assignment to a slice formal | `statement whole assignment through a reference` |
 | an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
-| a borrowed formal on a call cycle | `machine storage on a call cycle` |
 
 ### Sums
 
@@ -787,13 +793,12 @@ the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a `requires` on a case | `type data requires` |
-| a data `requires` clause that calls a machine, compares Booleans with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
+| a data `requires` clause that calls a machine, compares Booleans with `!=`, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract term other than a field of the value or a literal` |
 | a field type constrained by a declared domain or by `Trapping` | `type constrained by a domain that is not one arithmetic policy`, `type constrained by Trapping` |
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
-| a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders or with a tag its owner does not declare, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing lifetime argument its owner does not declare`, `typing data field that elides a lifetime argument` |
+| a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing data field that elides a lifetime argument` |
 | data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field or retired field identities | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities` |
-| a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
@@ -978,12 +983,14 @@ its whole component in its own graph
 
 - **The entry** holds the machine's formals as machine parameters and jumps
   to the machine's own head with them.
-- **One head block per member**, whose block parameters are that member's
-  scalar formals. The member's body is lowered once beneath it with its
+- **One head block per member**, whose scalar and structural block parameters
+  carry that member's formals with their declared access. Its body is lowered once with its
   slots bound to those parameters, so nothing in a loop names a machine
   formal.
-- **A terminal call of a member** evaluates its arguments left to right and
-  jumps to that member's head with them. It is no call operation and gets no
+- **A terminal call of a member** captures its scalar and structural arguments
+  through ordinary call evaluation, then jumps to that member's head. Staged
+  homes retire after capture, and borrowed descriptors retain their backing.
+  It is no call operation and gets no
   invocation row: the lowered form has no call there.
 
 A component of `k` machines is therefore lowered `k` times, once per
@@ -1049,37 +1056,25 @@ position, and any statement after one, is refused, not dropped.
 
 ## Rankings
 
-A cycle with no witness promises nothing and gets no `ranked_scc`. A machine
-that calls itself and supplies a witness gets one
-([lower/ranking.rs](src/lower/ranking.rs)), in the row Terminal Psi already
-has for it
-([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
-"A ranking declaration binds a well-founded relation, block ranks, and every
-derived in-component edge."):
+The reader keeps the body's private measure in `Signature.ranking`, separate
+from its published termination promise. [read/rankings.rs](src/read/rankings.rs)
+checks the selected view and its subject using ordinary expression and
+collection formation. A measure is evaluated even in an acyclic body: an
+expression such as `n - 1` still owes its arithmetic safety proof.
 
-- **One rank per block of the loop's cycle:** the head parameter that stands
-  for the witness's subject. The body is lowered beneath its head, so that
-  value is in scope in every block of the cycle.
-- **One row per edge inside the cycle.** An edge that stays beneath the head
-  keeps the rank and claims `Preserving`. A jump back to the head is the
-  recursive call: its successor rank is the argument the call passes for the
-  subject, and it claims `Strict`, because "Removing strict edges must leave
-  an acyclic graph" and every cycle of this graph closes through such a
-  jump.
-- **One `WellFoundedness` obligation** at the entry of the cycle's first
-  block, the head, and **one `RankComparison`** on each edge row, at that
-  edge.
+[lower/ranking.rs](src/lower/ranking.rs) observes each member's measure in
+its own head bindings and again on the exact scalar and structural arguments
+of a terminal transfer. Length measurements retain the actual descriptor path.
+Each reconstructed cyclic component receives one rank tuple per block, a
+successor tuple for every internal edge, one `WellFoundedness` obligation,
+and one `RankComparison` per edge. Body edges preserve their member's rank;
+transfers record the target measure and claim strict descent when it changes.
 
-Lowering proves none of it. The checker recomputes the cycle, compares every
-row with the graph and decides each comparison
-([terminal-psi-to-terminal-psi](../06_terminal-psi-to-terminal-psi/README.md#rankings)).
-
-A promise is accepted only where nothing it depends on is unranked
-(`components`, `reaches_unranked_cycle`): termination.md, "A cyclic
-terminating body must supply its witness; inference never chooses its
-subjects or silently publishes a guarantee. Unknown progress dependencies
-prevent a checked guarantee." A witness on a machine that lies on no cycle
-has nothing to rank and stands as the promise it discharges.
+Lowering proves none of these claims. The
+[checker](../06_terminal-psi-to-terminal-psi/README.md#rankings) verifies the
+actual graph, substitutions and comparisons. A promise that reaches an unranked
+cycle is refused. An acyclic witness emits its formation obligations without
+empty cycle metadata; its private measure does not become a caller guarantee.
 
 ## Places, roots and the write log
 
@@ -1576,14 +1571,11 @@ worked around by adding to `terminal-check-tables`.
     reader accepts a selection when both symbols enter the same machine
     (`entered_machine`: a machine, or the one state of one), comparing
     symbols only.
-37. **A ranking witness is read from its typed expressions only.** The
-    typed trees hold its subjects twice, as rendered text
-    (`RankingWitness::subjects`) and as typed expressions
-    (`RankingExpressionCustody`). The reader takes the subject from the
-    custody and refuses a witness that has none as a spelling. The
-    specification does not say that a witness with nothing to rank is an
-    error, so one on a machine that lies on no cycle is accepted as the
-    promise it discharges: its machine ends because it has no cycle.
+37. **A ranking witness retains its selected meaning.** The reader uses the
+    typed subjects and selected view in `RankingExpressionCustody`, never the
+    rendered subject text or a familiar view name. Its private expressions
+    remain in `Signature.ranking`. Even without a cycle, forming and evaluating
+    those expressions must satisfy their ordinary safety obligations.
 38. **A final value counts as terminal position.** Stage 01 leaves a body's
     final expression as an expression, and the reader makes it the
     unguarded arm that completes the machine, so `machine f(n: u32) -> u32

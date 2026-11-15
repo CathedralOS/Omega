@@ -1,6 +1,10 @@
 /*
 Compute session model-audit provenance from local agent transcripts (`cargo xtask provenance`).
 
+The default window belongs to this worktree's persisted work interval, not the
+latest remote-main commit. Checkpoints, rebases and peer fetches cannot move it.
+Only explicit `--full-session` requests include unrelated earlier outcomes.
+
 We emit the single-line commit and pull-request trailer required by `check-rules`:
 `Agent: <name> | Model: <model> | Effort: <effort> | Tokens: <in> in (<cached> cached), <out> out | Steps: <N> | Time: <duration> | Steers: <N>`
 
@@ -38,7 +42,6 @@ and `~/.codex/sessions` when invoked from a standalone shell:
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use serde_json::Value;
@@ -120,19 +123,6 @@ fn parse_iso_epoch(ts: &str) -> Option<i64> {
         epoch -= sign * (oh * 3600 + om * 60);
     }
     Some(epoch)
-}
-
-fn latest_origin_main_epoch(root: &Path) -> Option<i64> {
-    let out = Command::new("git")
-        .args(["log", "-1", "--format=%ct", "origin/main"])
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    String::from_utf8_lossy(&out.stdout).trim().parse().ok()
 }
 
 fn find_latest_antigravity_transcript(home: &Path) -> Option<(PathBuf, SystemTime)> {
@@ -295,6 +285,15 @@ fn parse_antigravity_transcript(path: &Path, since_epoch: Option<i64>) -> Option
         }
 
         let step_ts = val["created_at"].as_str().and_then(parse_iso_epoch);
+        if since_epoch.is_some()
+            && step_ts.is_none()
+            && matches!(
+                val["type"].as_str(),
+                Some("PLANNER_RESPONSE" | "USER_INPUT")
+            )
+        {
+            return None;
+        }
         if let (Some(cutoff), Some(ts)) = (since_epoch, step_ts)
             && ts < cutoff
         {
@@ -327,7 +326,7 @@ fn parse_antigravity_transcript(path: &Path, since_epoch: Option<i64>) -> Option
     }
 
     if metrics.steps == 0 && since_epoch.is_some() {
-        return parse_antigravity_transcript(path, None);
+        return None;
     }
 
     metrics.steers = window_user_inputs.saturating_sub(1);
@@ -381,6 +380,12 @@ fn parse_claude_transcript(
         }
 
         let step_ts = val["timestamp"].as_str().and_then(parse_iso_epoch);
+        if since_epoch.is_some()
+            && step_ts.is_none()
+            && matches!(val["type"].as_str(), Some("assistant" | "user"))
+        {
+            return None;
+        }
         if let (Some(cutoff), Some(ts)) = (since_epoch, step_ts)
             && ts < cutoff
         {
@@ -419,7 +424,7 @@ fn parse_claude_transcript(
     }
 
     if metrics.steps == 0 && since_epoch.is_some() {
-        return parse_claude_transcript(path, home, None);
+        return None;
     }
 
     metrics.steers = window_user_inputs.saturating_sub(1);
@@ -461,6 +466,16 @@ fn parse_codex_transcript(path: &Path, since_epoch: Option<i64>) -> Option<Sessi
         }
 
         let step_ts = val["timestamp"].as_str().and_then(parse_iso_epoch);
+        if since_epoch.is_some()
+            && step_ts.is_none()
+            && val["type"].as_str() == Some("event_msg")
+            && matches!(
+                val["payload"]["type"].as_str(),
+                Some("token_count" | "task_started" | "user_message")
+            )
+        {
+            return None;
+        }
         if let (Some(cutoff), Some(ts)) = (since_epoch, step_ts)
             && ts < cutoff
         {
@@ -498,7 +513,7 @@ fn parse_codex_transcript(path: &Path, since_epoch: Option<i64>) -> Option<Sessi
     }
 
     if metrics.steps == 0 && since_epoch.is_some() {
-        return parse_codex_transcript(path, None);
+        return None;
     }
 
     metrics.steers = window_user_inputs.saturating_sub(1);
@@ -556,7 +571,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let since_epoch = if full_session {
         None
     } else {
-        latest_origin_main_epoch(&root)
+        Some(crate::work_interval::since_epoch(&root).map_err(|error| {
+            eprintln!("provenance: {error}");
+            2
+        })?)
     };
     let home = home_dir();
 
@@ -658,6 +676,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         SessionMetrics::default()
     };
 
+    if since_epoch.is_some() && metrics.steps == 0 {
+        eprintln!(
+            "provenance: no measured activity in the current work interval; full-session attribution requires explicit --full-session"
+        );
+        return Err(2);
+    }
     if let Some(a) = agent_override {
         metrics.agent = a;
     }

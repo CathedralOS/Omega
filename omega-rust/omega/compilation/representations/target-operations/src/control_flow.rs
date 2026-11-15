@@ -20,8 +20,20 @@ pub struct TargetFunction {
     pub nominal_cleanup_subject: Option<StructuralTypeId>, // Owner-designated cleanup subject, independent of attachment or call sites.
     pub scalar_abi: Option<ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<MixedStructuralScalarFunctionAbi>,
+    pub structural_contract: Option<TargetStructuralContract>,
     pub provenance: TerminalPsiProvenance,
     pub graph: TargetControlGraph,
+}
+
+/// Storage and custody declarations needed to select this function.
+/// ABI placements remain in the graph; these declarations carry their semantic obligations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetStructuralContract {
+    pub parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+    pub places: Vec<terminal_psi::StructuralPlaceDeclaration>,
+    pub entry_claims: Vec<terminal_psi::EntryClaim>,
+    pub published_service_ceiling: Vec<semantic_vocabulary::ServiceId>,
+    pub result: Option<terminal_psi::StructuralResultDeclaration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +80,11 @@ pub struct TargetScalarBlockParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetControlTerminator {
+    EliminateEmpty {
+        psi_edge: EdgeId,
+        source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+    },
     InvokeNoNormal {
         psi_edge: EdgeId,
         callee: MachineId,

@@ -1,21 +1,18 @@
 /*
-What an arithmetic or shift operator means under a policy, decided once for
-executable code and for contract terms.
+A contract must mean the same arithmetic as executable code. Operand selection
+is shared by both readers; this owner maps the selected operation to canonical
+scalar computations and executable operations. A contract computation keeps
+its own formation goal, so even Wrapping or Saturating division still requires
+a nonzero divisor before the containing clause can become a fact.
 
-numeric_values.md, "Policy operators": "`a +% b` on two `u32` values is
-exactly what `+` means for two `u32 in Wrapping` operands, and likewise for
-every form." domains.md, "Operands": "The rule is the same in executable
-code, `requires` and `ensures`." So a body and a clause ask the same table
-which Terminal operation an operator is under a policy (`total`), and a
-clause's term is the value Terminal semantics says that operation computes
-(`term`). Neither reader has a meaning of its own for a policy operator.
+numeric_values.md, "Policy operators", makes suffixed operations the same
+operation as the corresponding policy-qualified operands. domains.md,
+"Operands", applies that selection in code, requires and ensures alike.
 */
 
-use std::collections::BTreeMap;
-
 use numerics::arithmetic::ArithmeticDomain;
-use semantic_vocabulary::{IntegerType, OperationId, Proposition, ScalarTerm, ScalarType, ValueId};
-use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+use semantic_vocabulary::{IntegerType, ScalarTerm, ValueId};
+use terminal_psi::OperationKind;
 use typed_trees::expression::BinaryOperator;
 
 use crate::body::{Policy, Strict};
@@ -137,56 +134,57 @@ pub(crate) fn total(
     })
 }
 
-/// The value of `left <operation> right` under `policy` as a term, when the
-/// operation is total: the right side of the result equation Terminal
-/// semantics states for the operation `total` names, with each operand's
-/// term in place of the operand.
-///
-/// contracts.md, "Total arithmetic": "Every term in a contract, domain
-/// predicate, or crash guard is total." An operation with an obligation or a
-/// crash has no such equation here, so it forms no term (`None`).
+/// Contract arithmetic retains its selected canonical computation. Whether
+/// that computation is total is decided later by declaration formation,
+/// using CanonicalScalarGoal; an overflow policy does not erase divisor goals.
 pub(crate) fn term(
     operation: Strict,
-    policy: Policy,
+    policy: Option<Policy>,
     carrier: IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
 ) -> Option<ScalarTerm> {
-    // The operation is stated over two operand values and its result, then
-    // the operands are replaced; the three identities name nothing else.
-    let [left_value, right_value, result] = [1, 2, 3].map(ValueId::new);
-    let (left_value, right_value, result) = (left_value?, right_value?, result?);
-    let kind = total(operation, policy, left_value, right_value)?;
-    let types = BTreeMap::from([
-        (left_value, left.scalar_type()),
-        (right_value, right.scalar_type()),
-    ]);
-    let stated = Operation::unsuspended(
-        OperationId::new(1)?,
-        OperationResult::Scalar(ValueDeclaration {
-            id: result,
-            scalar_type: ScalarType::Integer(carrier),
-            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
-        }),
-        kind,
-    );
-    let semantics = terminal_semantics::goal_free_scalar_leaf_semantics(&stated, &types)
-        .ok()
-        .flatten()?;
-    let operands = BTreeMap::from([(left_value, left), (right_value, right)]);
-    match terminal_semantics::substitution::substitute_proposition_values(
-        semantics.result_equation(),
-        &operands,
-    ) {
-        Proposition::Equal(_, value) => Some(value),
-        _ => None,
+    if shifts(operation) {
+        let count = right.scalar_type().as_integer()?;
+        let constructor = match (operation, policy) {
+            (Strict::ShiftLeft, None) => ScalarTerm::exact_integer_shift_left,
+            (Strict::ShiftRight, None) => ScalarTerm::exact_integer_shift_right,
+            (Strict::ShiftLeft, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_shift_left,
+            (Strict::ShiftRight, Some(Policy::Wrapping)) => {
+                ScalarTerm::wrapping_integer_shift_right
+            }
+            _ => return None,
+        };
+        return constructor(carrier, count, left, right).ok();
     }
+    let constructor = match (operation, policy) {
+        (Strict::Add, None) => ScalarTerm::exact_integer_add,
+        (Strict::Subtract, None) => ScalarTerm::exact_integer_subtract,
+        (Strict::Multiply, None) => ScalarTerm::exact_integer_multiply,
+        (Strict::Divide, None) => ScalarTerm::exact_integer_divide,
+        (Strict::Remainder, None) => ScalarTerm::exact_integer_remainder,
+        (Strict::Add, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_add,
+        (Strict::Subtract, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_subtract,
+        (Strict::Multiply, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_multiply,
+        (Strict::Divide, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_divide,
+        (Strict::Remainder, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_remainder,
+        (Strict::Add, Some(Policy::Saturating)) => ScalarTerm::saturating_integer_add,
+        (Strict::Subtract, Some(Policy::Saturating)) => ScalarTerm::saturating_integer_subtract,
+        (Strict::Multiply, Some(Policy::Saturating)) => ScalarTerm::saturating_integer_multiply,
+        (Strict::Divide, Some(Policy::Saturating)) => ScalarTerm::saturating_integer_divide,
+        (Strict::Remainder, Some(Policy::Saturating)) => ScalarTerm::saturating_integer_remainder,
+        (Strict::BitwiseAnd, None) => ScalarTerm::integer_bitwise_and,
+        (Strict::BitwiseOr, None) => ScalarTerm::integer_bitwise_or,
+        (Strict::BitwiseXor, None) => ScalarTerm::integer_bitwise_xor,
+        _ => return None,
+    };
+    constructor(carrier, left, right).ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IntegerSign, IntegerValue};
+    use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
     fn u32_type() -> IntegerType {
         IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
@@ -207,13 +205,19 @@ mod tests {
         let carrier = u32_type();
         let seven = ScalarTerm::integer(carrier, IntegerValue::Unsigned(7)).unwrap();
         assert_eq!(
-            term(Strict::Add, Policy::Wrapping, carrier, formal(2), formal(1)),
+            term(
+                Strict::Add,
+                Some(Policy::Wrapping),
+                carrier,
+                formal(2),
+                formal(1)
+            ),
             ScalarTerm::wrapping_integer_add(carrier, formal(2), formal(1)).ok(),
         );
         assert_eq!(
             term(
                 Strict::Subtract,
-                Policy::Saturating,
+                Some(Policy::Saturating),
                 carrier,
                 formal(1),
                 seven.clone()
@@ -222,31 +226,27 @@ mod tests {
         );
     }
 
-    /// Only an operation that owes nothing forms a term: a divide or a
-    /// remainder owes its divisor under either policy, a Saturating shift is
-    /// no operation, and a comparison has no policy form.
+    /// A policy supplies its exact computation, but supplies no operation
+    /// for a Saturating shift or a policy-qualified comparison.
     #[test]
-    fn an_operation_that_owes_a_condition_or_has_no_policy_form_is_no_term() {
+    fn an_operation_without_a_policy_meaning_is_no_term() {
         let carrier = u32_type();
         for policy in [Policy::Wrapping, Policy::Saturating] {
             for operation in [Strict::Add, Strict::Subtract, Strict::Multiply] {
                 assert!(
-                    term(operation, policy, carrier, formal(1), formal(2)).is_some(),
+                    term(operation, Some(policy), carrier, formal(1), formal(2)).is_some(),
                     "{operation:?} under {policy:?}"
                 );
             }
-            for operation in [Strict::Divide, Strict::Remainder, Strict::Less] {
-                assert_eq!(
-                    term(operation, policy, carrier, formal(1), formal(2)),
-                    None,
-                    "{operation:?} under {policy:?}"
-                );
-            }
+            assert_eq!(
+                term(Strict::Less, Some(policy), carrier, formal(1), formal(2)),
+                None
+            );
         }
         assert!(
             term(
                 Strict::ShiftLeft,
-                Policy::Wrapping,
+                Some(Policy::Wrapping),
                 carrier,
                 formal(1),
                 formal(2)
@@ -256,12 +256,25 @@ mod tests {
         assert_eq!(
             term(
                 Strict::ShiftLeft,
-                Policy::Saturating,
+                Some(Policy::Saturating),
                 carrier,
                 formal(1),
                 formal(2)
             ),
             None
         );
+    }
+
+    #[test]
+    fn contract_division_keeps_its_definedness_goal_under_each_policy() {
+        for policy in [None, Some(Policy::Wrapping), Some(Policy::Saturating)] {
+            for operation in [Strict::Divide, Strict::Remainder] {
+                let term = term(operation, policy, u32_type(), formal(1), formal(2)).unwrap();
+                let goal = terminal_semantics::CanonicalScalarGoal::for_term(&term)
+                    .unwrap()
+                    .unwrap();
+                assert!(goal.kernel_proposition().is_ok());
+            }
+        }
     }
 }

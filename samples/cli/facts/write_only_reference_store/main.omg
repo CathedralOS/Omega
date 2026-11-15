@@ -3,7 +3,7 @@
 // displaced referent's 11 and the sibling stamp's 17 stay untouched.
 // Expected exit: 0
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };

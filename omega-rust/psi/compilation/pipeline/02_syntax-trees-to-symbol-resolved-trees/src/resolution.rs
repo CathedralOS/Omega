@@ -1025,6 +1025,61 @@ mod continuations {
             assert!(selected.retained_constant(fresh.symbol).is_err());
         }
 
+        /*
+            A later stratum applies a transparent alias its retained base
+            declares, as std's macOS filesystem ABI applies core's
+            `CLayout<T>`. The alias expands from the base's authored
+            declaration; without that forest the application is still refused
+            rather than left unexpanded.
+        */
+        #[test]
+        fn extension_expands_an_alias_declared_by_its_retained_base() {
+            let mut sources = source::SourceMap::default();
+            let base_text = "public data Pair<T> = [T; 2];";
+            let base_source = sources
+                .add("aliases/base.omg".into(), base_text.into())
+                .source_id;
+            let base = Arc::new(
+                resolve(ResolutionRequest {
+                    syntax: parse(base_text, base_source),
+                    sources: Some(Arc::new(sources.clone())),
+                    top_level_bindings: Vec::new(),
+                    retained_base: None,
+                })
+                .unwrap(),
+            );
+            // The extension declares an alias of its own, as std does, so it
+            // enters alias expansion at all.
+            let text = "public data Byte = u8; public data Holder { value: Pair<Byte>; }";
+            let source = sources
+                .add("aliases/current.omg".into(), text.into())
+                .source_id;
+            let sources = Arc::new(sources);
+            let extend = |base_declarations: SyntaxTrees| {
+                crate::resolve_extension(crate::ExtensionRequest {
+                    base: Arc::clone(&base),
+                    base_declarations: Arc::new(base_declarations),
+                    syntax: parse(text, source),
+                    sources: Arc::clone(&sources),
+                    top_level_bindings: Vec::new(),
+                })
+            };
+            let extended = extend(parse(base_text, base_source)).unwrap();
+            assert!(
+                extended
+                    .trees()
+                    .data_definitions
+                    .iter()
+                    .any(|data| data.name.as_str() == "Holder")
+            );
+            let refused = extend(SyntaxTrees::new(base_source)).err().unwrap();
+            assert!(refused.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("selected type alias has no retained source declaration")
+            }));
+        }
+
         #[test]
         fn implicit_call_identity_uses_the_selected_entry_regardless_of_child_order() {
             use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
@@ -1233,9 +1288,6 @@ pub(crate) mod lowerer {
         pub(crate) structural_type_equations_pending: bool,
         pub(crate) constant_selection: Option<ConstantSelection<'static>>,
         pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
-        pub(crate) pending_static_module_calls: Vec<(ExpressionHandle, Vec<DiagnosticName>)>,
-        pub(crate) pending_static_module_statement_calls:
-            Vec<(source::SourceSpan, Vec<DiagnosticName>)>,
         pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
         /*
             Origin rows before this frontier already own exact declaration symbols.
@@ -1424,8 +1476,6 @@ pub(crate) mod lowerer {
                 structural_type_equations_pending: true,
                 constant_selection: None,
                 namespace_declarations: crate::symbols::NamespaceDeclarations::default(),
-                pending_static_module_calls: Vec::new(),
-                pending_static_module_statement_calls: Vec::new(),
                 symbol_resolved_trees: SymbolResolvedTrees::default(),
                 bound_generic_application_origins: 0,
                 pending_machine_service_reaches: Vec::new(),
@@ -2048,6 +2098,14 @@ pub struct ExtensionRequest {
         never needs a private copy of the whole predecessor.
     */
     pub base: Arc<SymbolResolvedTrees>,
+    /*
+        The authored forest the base was resolved from. A transparent alias
+        expands from its authored right-hand side before any symbol exists, so
+        an extension applying an alias the base declares (std applying core's
+        `CLayout<T>`) needs that declaration's syntax; the resolved base keeps
+        only the alias's resolved expansion. Shared, never copied.
+    */
+    pub base_declarations: Arc<SyntaxTrees>,
     pub syntax: SyntaxTrees,
     /* Must retain the base's exact source frontier. */
     pub sources: Arc<SourceMap>,
@@ -2056,7 +2114,7 @@ pub struct ExtensionRequest {
 
 /* Resolve every name in the forest to its exact declaration. */
 pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin_complete(request)?;
+    let (syntax, lowerer) = begin_complete(request, None)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
@@ -2069,17 +2127,21 @@ pub fn resolve_deferred_extension(
 ) -> Result<DeferredResolvedExtension, Vec<Diagnostic>> {
     let ExtensionRequest {
         base,
+        base_declarations,
         syntax,
         sources,
         top_level_bindings,
     } = request;
     let predecessor = base;
-    let successor = resolve_deferred(ResolutionRequest {
-        syntax,
-        sources: Some(sources),
-        top_level_bindings,
-        retained_base: Some(Arc::clone(&predecessor)),
-    })?;
+    let successor = resolve_deferred_with_declarations(
+        ResolutionRequest {
+            syntax,
+            sources: Some(sources),
+            top_level_bindings,
+            retained_base: Some(Arc::clone(&predecessor)),
+        },
+        Some(&base_declarations),
+    )?;
     Ok(DeferredResolvedExtension {
         successor,
         predecessor,
@@ -2093,10 +2155,18 @@ pub fn resolve_deferred_extension(
 pub fn resolve_deferred(
     request: ResolutionRequest,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    resolve_deferred_with_declarations(request, None)
+}
+
+fn resolve_deferred_with_declarations(
+    request: ResolutionRequest,
+    base_declarations: Option<&SyntaxTrees>,
+) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (mut syntax, mut lowerer) =
+        begin_with_declarations(request, ConstResolutionMode::Complete, base_declarations)?;
     if required(&syntax, base.as_deref()) {
         loop {
             let mut provisional = Lowerer::new(sources.clone(), bindings.clone());
@@ -2436,6 +2506,7 @@ pub fn resolve_extension(
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
     let ExtensionRequest {
         base,
+        base_declarations,
         syntax,
         sources,
         top_level_bindings,
@@ -2448,7 +2519,7 @@ pub fn resolve_extension(
         top_level_bindings,
         retained_base: Some(base),
     };
-    let (syntax, lowerer) = begin_complete(request)?;
+    let (syntax, lowerer) = begin_complete(request, Some(&base_declarations))?;
     let (trees, _) = drive(lowerer, &syntax)?;
     Ok(SeededSymbolResolvedTrees {
         trees,
@@ -2461,11 +2532,15 @@ pub fn resolve_extension(
     Equation completion uses ordinary selection with identical source and base
     custody. Its private links are discarded before the final lowering pass.
 */
-fn begin_complete(request: ResolutionRequest) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+fn begin_complete(
+    request: ResolutionRequest,
+    base_declarations: Option<&SyntaxTrees>,
+) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (mut syntax, mut lowerer) =
+        begin_with_declarations(request, ConstResolutionMode::Complete, base_declarations)?;
     if required(&syntax, base.as_deref()) {
         let mut provisional = Lowerer::new(sources, bindings);
         provisional.constant_selection = lowerer.constant_selection.take();
@@ -2490,6 +2565,19 @@ fn begin(
     request: ResolutionRequest,
     constants: ConstResolutionMode,
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+    begin_with_declarations(request, constants, None)
+}
+
+/*
+    `begin` for an extension whose retained base was resolved from
+    `base_declarations`: alias expansion reads the base's authored alias
+    declarations there.
+*/
+fn begin_with_declarations(
+    request: ResolutionRequest,
+    constants: ConstResolutionMode,
+    base_declarations: Option<&SyntaxTrees>,
+) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let ResolutionRequest {
         syntax,
         sources,
@@ -2502,6 +2590,7 @@ fn begin(
         top_level_bindings.clone(),
         constants,
         retained_base.clone(),
+        base_declarations,
     )?;
     validate_declarations(&prepared.syntax, Some(&prepared.constant_selection))?;
     let mut lowerer = Lowerer::new(sources, top_level_bindings);
@@ -2613,7 +2702,6 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     body_completion::complete_initializer_receipt_dependencies(lowerer, syntax)?;
-    crate::symbols::reject_unqualified_case_values(&lowerer.symbol_resolved_trees)?;
     resolve_token_bound_domain_homes(&mut lowerer.symbol_resolved_trees);
     constant::finalize(lowerer)?;
     selection::finalize_authored_selections(lowerer)?;

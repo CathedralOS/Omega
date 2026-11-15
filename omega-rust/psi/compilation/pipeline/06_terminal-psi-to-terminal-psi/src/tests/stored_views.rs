@@ -59,21 +59,19 @@ fn operations(accepted: &crate::AcceptedClosure) -> Vec<&OperationKind> {
         .collect()
 }
 
-/// The field is declared as the record's own byte field, and an assignment
-/// to it replaces the descriptor with the view store, never with the
-/// replacement of a nested structural value. The two formals state that
-/// their views are of one region, which is what lets one hold the other's.
-#[test]
-fn an_assigned_view_replaces_the_descriptor_of_its_byte_field() {
-    let accepted = accepted(
-        r#"
+const VIEW_ASSIGNMENT: &str = r#"
 data Session<'storage> { ready: bool; name: &'storage [u8]; }
 machine build_entry<'shared>(session: &mut Session<'shared>, other: &Session<'shared>) {
     session.name = other.name;
     session.ready = true;
 }
-"#,
-    );
+"#;
+
+/// Assigning the record's byte field replaces its view descriptor. The
+/// two formals name one region, so one can hold the other's view.
+#[test]
+fn an_assigned_view_replaces_the_descriptor_of_its_byte_field() {
+    let accepted = accepted(VIEW_ASSIGNMENT);
     assert_eq!(stored_fields(&accepted), [true]);
     let operations = operations(&accepted);
     assert_eq!(
@@ -123,17 +121,36 @@ machine build_entry(session: &mut Session, other: &Session) {
 /// view store needs the exclusive custody a scalar field store needs.
 #[test]
 fn a_view_is_not_stored_through_a_shared_formal() {
-    assert_eq!(
-        refusal(
-            r#"
+    let source = r#"
 data Session<'storage> { ready: bool; name: &'storage [u8]; }
 machine build_entry(session: &Session, other: &Session) {
     session.name = other.name;
 }
-"#
-        ),
-        "statement store into an immutable binding while reading the body of `build_entry`"
-    );
+"#;
+    let shared = VIEW_ASSIGNMENT.replace("session: &mut", "session: &");
+    for build in [source, shared.as_str()] {
+        let verdict = judge_build(build);
+        let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+            panic!("a shared formal cannot replace this field: {verdict:?}");
+        };
+        let [violation] = violations.as_slice() else {
+            panic!("expected one access violation: {violations:?}");
+        };
+        assert_eq!(
+            violation.statement,
+            "this place requires mutable source access, and the reference it is reached through grants \
+             shared access only: a reference admits no child with access it does not itself hold \
+             while reading the body of `build_entry`"
+        );
+        let start = build.find("session.name = other.name;").unwrap() + "session.".len();
+        assert_eq!(
+            violation.site,
+            Some(source::SourceSpan::new(
+                source::SourceId(1),
+                source::Span::new(start, start + "name".len())
+            ))
+        );
+    }
 }
 
 /// A record literal takes the view as its field's operand, a local declared

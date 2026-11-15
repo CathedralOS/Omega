@@ -171,6 +171,12 @@ pub enum SelectedSuccessorRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedTerminator {
+    /// Defensive trap encoding for an impossible checked storage observation.
+    /// This has no authored crash cause or normal-return semantics.
+    EliminateEmpty {
+        instruction: SelectedInstruction,
+        psi_edge: EdgeId,
+    },
     InvokeNoNormal {
         instruction: SelectedInstruction,
         psi_edge: EdgeId,
@@ -307,7 +313,8 @@ pub enum SelectedValueTransport {
 macro_rules! terminator_instruction_match {
     ($terminator:expr) => {
         match $terminator {
-            SelectedTerminator::InvokeNoNormal { instruction, .. }
+            SelectedTerminator::EliminateEmpty { instruction, .. }
+            | SelectedTerminator::InvokeNoNormal { instruction, .. }
             | SelectedTerminator::OperationInvokeNoNormal { instruction, .. }
             | SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
@@ -357,7 +364,8 @@ macro_rules! terminator_successors_match {
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::InvokeNoNormal { .. }
+            SelectedTerminator::EliminateEmpty { .. }
+            | SelectedTerminator::InvokeNoNormal { .. }
             | SelectedTerminator::OperationInvokeNoNormal { .. }
             | SelectedTerminator::Return { .. }
             | SelectedTerminator::Crash { .. }
@@ -380,7 +388,8 @@ pub fn terminator_successors_mut(
 #[macro_export]
 macro_rules! terminator_no_successor_pattern {
     ($($fields:tt)*) => {
-        $crate::SelectedTerminator::InvokeNoNormal { $($fields)* }
+        $crate::SelectedTerminator::EliminateEmpty { $($fields)* }
+            | $crate::SelectedTerminator::InvokeNoNormal { $($fields)* }
             | $crate::SelectedTerminator::OperationInvokeNoNormal { $($fields)* }
             | $crate::SelectedTerminator::Crash { $($fields)* }
             | $crate::SelectedTerminator::OperationTrap { $($fields)* }

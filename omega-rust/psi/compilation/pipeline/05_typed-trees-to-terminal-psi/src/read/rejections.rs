@@ -32,7 +32,10 @@ program of that form, and each rule here names its sentence:
   returns a view of one of its own lifetimes where its result names another
   of its own lifetimes is always an error. Any other difference of regions
   (an elided lifetime, a lifetime a data declaration binds, a region not
-  yet decided) stays a refusal.
+  yet decided) stays a refusal. A loan of the machine's own storage is also
+  known: "A view of local storage does not [qualify], even when empty" under
+  caller-chosen result lifetimes. It cannot establish an independently declared
+  machine lifetime at any receiving position.
 
 Every other rejection is made where its rule is checked (`casts`,
 `contracts`, a domain name nothing declares in `types`, an `invokes` row
@@ -123,6 +126,20 @@ impl Program<'_> {
                 ),
             );
         }
+        if expected.erased() == found.erased()
+            && self.names_own_storage_as_declared_lifetime(id, expected, found)
+        {
+            return reject(
+                id,
+                at,
+                format!(
+                    "this view borrows storage owned by the current invocation, but {} requires \
+                     one of the machine's declared lifetimes: local storage cannot establish \
+                     that promise, even for an empty view",
+                    destination.named(),
+                ),
+            );
+        }
         if destination == Destination::Result
             && expected.erased() == found.erased()
             && self.names_two_own_lifetimes(expected, found)
@@ -136,6 +153,29 @@ impl Program<'_> {
             );
         }
         refused
+    }
+
+    /// Only an exact local-storage ceiling supplies this error. Unknown fixed
+    /// regions and unresolved loan classes retain their ordinary refusal.
+    fn names_own_storage_as_declared_lifetime(
+        &self,
+        id: MachineId,
+        expected: ValueType,
+        found: ValueType,
+    ) -> bool {
+        let Some(symbol) = self.symbols.get(id) else {
+            return false;
+        };
+        let declared = self.region_tuple(expected.regions());
+        let supplied = self.region_tuple(found.regions());
+        declared.len() == supplied.len()
+            && declared.iter().zip(supplied).any(|(declared, supplied)| {
+                matches!(
+                    (self.resolved(*declared), self.named_ceiling(*supplied)),
+                    (Region::Parameter(parameter), Region::Storage { machine, .. })
+                        if parameter.declaration == *symbol && machine == id
+                )
+            })
     }
 
     /// Whether the two types, equal but for their regions, have at some
@@ -272,7 +312,8 @@ mod tests {
                         Some(ValueType::plain(found)),
                         "test mismatch",
                     );
-                    assert_eq!(refusal.reason, RefusalReason::Violation(None));
+                    assert_eq!(refusal.reason, RefusalReason::Violation);
+                    assert_eq!(refusal.source_span, None);
                     assert!(
                         refusal
                             .detail
@@ -304,7 +345,8 @@ mod tests {
             Some(ValueType::plain(open_integer)),
             "test mismatch",
         );
-        assert_eq!(refusal.reason, RefusalReason::Violation(None));
+        assert_eq!(refusal.reason, RefusalReason::Violation);
+        assert_eq!(refusal.source_span, None);
         assert!(refusal.detail.contains("`u<width parameter>`"));
         assert!(refusal.detail.contains("`bool`"));
     }

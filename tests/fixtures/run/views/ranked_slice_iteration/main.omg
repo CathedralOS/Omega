@@ -1,0 +1,30 @@
+// Expected exit: 0
+// Measured loops pass both scalar values and the remaining borrowed bytes.
+machine checksum(bytes: &[u8], accumulated: u8) -> u8
+terminates by bytes -> Slice::Length {
+    transition bytes.len > 0 {
+        true -> checksum(bytes[1..], accumulated ^ bytes[0])
+        false -> accumulated
+    }
+}
+machine parity(remaining: u32, odd: bool) -> bool
+terminates by remaining -> Nat::Descending {
+    transition remaining > 0 {
+        true -> parity(remaining - 1, !odd)
+        false -> odd
+    }
+}
+data Packet { before: u8; bytes: [u8; 3]; after: u8; }
+machine main() crashes Trap {
+    let packet: Packet = Packet { before: 11, bytes: [17, 42, 99], after: 97 };
+    let bytes: &[u8] = &packet.bytes[..];
+    transition checksum(bytes, 0) == 88 && checksum(bytes[0..0], 73) == 73
+        && parity(3, false) && !parity(2, false) && parity(0, true)
+        && packet.before == 11 && packet.after == 97
+        && packet.bytes[0] == 17 && packet.bytes[1] == 42 && packet.bytes[2] == 99 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -631,9 +631,9 @@ pub(crate) mod aggregate_results {
             (arrivals.next().is_none()
                 && block != caller.entry
                 && structural_case::block_parameter_declared(caller, block, declaration)
-                && terminal_semantics::view_descriptor_parameter(
+                && abstract_operations::control_flow::address_joins::is_descriptor_join_in(
                     declaration,
-                    structural_types.iter(),
+                    structural_types,
                 )
                 && (declaration.qualifications.is_empty()
                     || declaration.access == terminal_psi::StructuralAccess::SharedBorrow
@@ -1743,9 +1743,8 @@ pub(crate) mod borrowed_windows {
                                 || (matches!(
                                     root.access,
                                     terminal_psi::exclusive_borrow_pair_pattern!()
-                                ) && terminal_semantics::view_descriptor_parameter(
-                                    root,
-                                    plan.structural_types.iter(),
+                                ) && abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                                    root, &plan.structural_types,
                                 )))))
                     || (root.access == StructuralAccess::MutableBorrow
                         && function
@@ -2919,7 +2918,8 @@ pub(crate) mod control {
     ) -> Result<(), LegalizationError> {
         let function = function_inputs.function();
         match (&node.operation, &function.result) {
-            (AbstractOperation::InvokeNoNormal { psi_edge, .. }, _)
+            (AbstractOperation::EliminateEmpty { psi_edge, .. }, _)
+            | (AbstractOperation::InvokeNoNormal { psi_edge, .. }, _)
             | (AbstractOperation::ExternalCompletion { psi_edge, .. }, _)
             | (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
             (AbstractOperation::StructuralCase { .. }, _) => {
@@ -7225,6 +7225,51 @@ pub(crate) fn structural_parameters(
     }
 }
 pub(crate) fn structural_contract(
+    target: &TargetFunction,
+) -> Result<Option<legalized_operations::LegalizedStructuralContract>, crate::LegalizationError> {
+    let Some(contract) = &target.structural_contract else {
+        return Ok(None);
+    };
+    let parameters = structural_parameters(target).unwrap_or(&[]);
+    if parameters.len() != contract.parameters.len() {
+        return Err(crate::LegalizationError::custody());
+    }
+    Ok(Some(legalized_operations::LegalizedStructuralContract {
+        structural_types: target.graph.structural_types.clone(),
+        parameters: contract
+            .parameters
+            .iter()
+            .zip(parameters)
+            .map(
+                |(semantic, target)| legalized_operations::LegalizedCallUnitParameter {
+                    semantic: semantic.clone(),
+                    target: target.clone(),
+                },
+            )
+            .collect(),
+        structural_places: contract.places.clone(),
+        entry_claims: contract.entry_claims.clone(),
+        published_service_ceiling: contract.published_service_ceiling.clone(),
+        result: contract.result.clone(),
+    }))
+}
+
+// Only the independent audit reconstructs this contract from earlier bodies.
+pub(crate) fn validate_structural_contract(
+    target: &TargetFunction,
+    abstracted: &AbstractFunction,
+    optimized: &PsiOptimizationFunction,
+    plan: &crate::native_geometry::NativePlan<'_>,
+) -> Result<(), crate::LegalizationError> {
+    if structural_contract(target)?
+        != source_structural_contract(target, abstracted, optimized, plan)
+    {
+        return Err(crate::LegalizationError::custody());
+    }
+    Ok(())
+}
+
+pub(crate) fn source_structural_contract(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,

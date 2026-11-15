@@ -52,16 +52,16 @@ pub mod calls;
 pub use calls::{
     MixedStructuralScalarFunctionAbi, NativeCallTarget, ScalarAbiValue, ScalarFunctionAbi,
     TargetAccessCallAssociation, TargetAccessCallBinding, TargetAccessInterpretation,
-    TargetAccessViewInput, TargetBoundaryResult, TargetCallResult, TargetNativeCallbackArgument,
-    TargetStructuralResultContract, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
-    selector_carrier_type,
+    TargetAccessViewInput, TargetBoundaryResult, TargetCallResult, TargetDescriptorOrigin,
+    TargetNativeCallbackArgument, TargetStructuralResultContract, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, selector_carrier_type,
 };
 pub mod control_flow;
 pub use control_flow::{
     TargetCasePointerSlot, TargetControlBlock, TargetControlCasePayload,
     TargetControlCaseSuccessor, TargetControlGraph, TargetControlSuccessor,
     TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
-    TargetStructuralCaseSource, TargetStructuralReturnSource,
+    TargetStructuralCaseSource, TargetStructuralContract, TargetStructuralReturnSource,
 };
 pub mod provenance;
 pub use provenance::{

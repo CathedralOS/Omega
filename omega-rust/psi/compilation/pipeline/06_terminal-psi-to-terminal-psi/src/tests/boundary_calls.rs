@@ -299,9 +299,10 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
         assert_eq!(published.published_may_suspend, effect == "suspends");
         assert_eq!(published.published_may_block, effect == "blocks");
         let refusal = discharge(&mut elaboration).unwrap_err();
-        let RefusalReason::Violation(Some(site)) = refusal.reason else {
-            panic!("expected the authored call's operational violation: {refusal:?}");
-        };
+        assert_eq!(refusal.reason, RefusalReason::Violation);
+        let site = refusal
+            .source_span
+            .expect("the authored call's operational violation");
         let call = text.rfind("read(").expect("the authored boundary call");
         assert_eq!(site.span, source::Span::new(call, call + "read".len()));
         assert_eq!(
@@ -577,6 +578,15 @@ fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
 }
 
 fn compilation_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
+    compilation_results_of(typed)
+        .into_iter()
+        .map(Result::unwrap)
+        .collect()
+}
+
+pub(super) fn compilation_results_of(
+    typed: &typed_trees::TypedTrees,
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let entry = entry(typed);
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         typed,
@@ -603,7 +613,7 @@ fn compilation_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict>
     };
     let verdicts = crate::judge_compilation(prepared);
     assert_eq!(verdicts.len(), expected_verdicts);
-    verdicts.into_iter().map(Result::unwrap).collect()
+    verdicts
 }
 
 #[test]
@@ -906,6 +916,59 @@ Rebound satisfies Other { Other::apply = previous; }
             .detail
             .contains("conformance witness cannot rebind a declared requirement")
     );
+}
+
+#[test]
+fn a_reference_row_cannot_rebind_an_instantiated_requirement() {
+    for (selected_type, accepts) in [("u32", true), ("u64", false)] {
+        let text = format!(
+            r#"
+trait G<T> {{
+    machine go(value: u32) -> u32 reaches none crashes none;
+}}
+Owner satisfies G<u32> {{
+    machine go(value: u32) -> u32 reaches none crashes none {{ value }}
+}}
+Selected satisfies G<{selected_type}> {{ G::go = Owner::go; }}
+machine entry() -> u32 reaches none crashes none {{ 7 }}
+"#
+        );
+        let typed = typed(&text);
+        let verdicts = crate::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    declaration_metadata: &[],
+                    entries: &[entry(&typed)],
+                    subjects: &[None],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program,
+        );
+        if accepts {
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "{verdicts:?}"
+            );
+        } else {
+            let [Ok(RouteVerdict::FallBack(refusal))] = verdicts.as_slice() else {
+                panic!("equal signatures cannot rebind another trait application");
+            };
+            assert!(
+                refusal
+                    .detail
+                    .contains("selection row cannot rebind a declared conformer"),
+                "{refusal:?}"
+            );
+        }
+    }
 }
 
 #[test]

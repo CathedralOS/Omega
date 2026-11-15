@@ -179,9 +179,36 @@ pub enum Lender {
     /// direct reborrow names its immediate parent resource, exact formation
     /// event, and projection."
     Incoming,
+    /// A provider-established view permission at the captured descriptor.
+    /// This owns neither its payload nor an input's storage. The checker
+    /// reconstructs its exact provider invocation and retained dependencies.
+    Provider,
 }
 
 impl ObligationKind {
+    /// These rows describe a question/resource immediately before execution,
+    /// not an establishment snapshot or an entry/edge contract. Inserting a
+    /// disposition before that execution must carry its precondition forward.
+    pub const fn precedes_execution(self) -> bool {
+        match self {
+            Self::Loan { .. }
+            | Self::OperationSafety { .. }
+            | Self::CallRequirement { .. }
+            | Self::DataDomain { .. }
+            | Self::CrashCoverage { .. } => true,
+            Self::Claim { .. }
+            | Self::RestorationWindow { .. }
+            | Self::DomainDebt { .. }
+            | Self::EstablishmentDebt { .. }
+            | Self::IntegerWidthPositive { .. }
+            | Self::ArrivalInvariant { .. }
+            | Self::NormalGuarantee { .. }
+            | Self::PublishedGuarantee { .. }
+            | Self::WellFoundedness { .. }
+            | Self::RankComparison { .. } => false,
+        }
+    }
+
     /// True for the family every edge must account for exactly once.
     pub const fn is_conserved(&self) -> bool {
         matches!(

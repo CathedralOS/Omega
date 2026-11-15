@@ -5,7 +5,7 @@
 // of a machine nested inside the installing machine.
 // Expected exit: 0
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine transport(held: &mut Held, incoming: &Cell) {
     transition { _ -> later(&write held, incoming) }

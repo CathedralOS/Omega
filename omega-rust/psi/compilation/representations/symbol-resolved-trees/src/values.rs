@@ -1423,6 +1423,7 @@ pub mod expression {
                 };
                 let source = program.expression_table_mut().insert(ExpressionNode::Call(
                     TableCallExpression {
+                        target_is_static: false,
                         authored_call_binding: None,
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: original,
@@ -1573,6 +1574,7 @@ pub mod expression {
                 }
                 let origin = source.table(self);
                 let source_span = origin.source_span(expression);
+                let unresolved_name = origin.unresolved_name(expression);
                 let materialization_source = origin.materialization_source(expression);
                 let occurrences = origin
                     .authored_selection_occurrences(expression)
@@ -1683,6 +1685,7 @@ pub mod expression {
                             })
                             .collect();
                         self.insert(ExpressionNode::Call(TableCallExpression {
+                            target_is_static: call.target_is_static,
                             authored_call_binding: call.authored_call_binding,
                             receiver,
                             target_symbol: call.target_symbol,
@@ -1800,6 +1803,7 @@ pub mod expression {
                     }
                 };
                 self.set_source_span(copied, source_span);
+                self.set_unresolved_name(copied, unresolved_name);
                 if let Some(exposure) = authored_exposure {
                     self.set_authored_expression_exposure(copied, exposure);
                 }
@@ -2605,6 +2609,7 @@ pub mod expression {
             );
             let arguments = table.insert_expression_handles([array, cast]);
             let call = table.insert(ExpressionNode::Call(TableCallExpression {
+                target_is_static: true,
                 authored_call_binding: None,
                 receiver,
                 target_symbol: SymbolHandle::from_arena_index(7),
@@ -2759,7 +2764,7 @@ expression #31 = ArrayLiteral(#7+2) at 0:0..0 exposure None partition None occur
 expression #32 = Boolean(true) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #33 = Unary(TableUnaryExpression { operator: LogicalNot, operand: #32 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #34 = Cast(TableCastExpression { value: #33, target_type: #5, target_label: #11+1, domain: Exact, semantic_domain: #12+1, semantic_domain_arguments: #0@0+0, semantic_domain_symbol: #6, form: Value }) at 7:40..45 exposure None partition Some(CompilerDerivedSelectionPartition(9)) occurrences #0@0+0
-expression #35 = Call(TableCallExpression { authored_call_binding: None, receiver: #28, target_symbol: #7, target: "measure", requirement_application: #0@0, machine_arguments: [], arguments: #5+2, evidence_arguments: ["witness"], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }) at 7:30..35 exposure Some(PublicInterface) partition None occurrences #6+2
+expression #35 = Call(TableCallExpression { target_is_static: true, authored_call_binding: None, receiver: #28, target_symbol: #7, target: "measure", requirement_application: #0@0, machine_arguments: [], arguments: #5+2, evidence_arguments: ["witness"], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }) at 7:30..35 exposure Some(PublicInterface) partition None occurrences #6+2
 expression #36 = Integer(IntegerLiteral { text: "0", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #37 = Range(TableRangeExpression { start: #36, end: #0@0, end_inclusive: false }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #38 = String([72, 97, 108, 108]) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -2867,6 +2872,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     struct ExpressionNodeStorage {
         expressions: Arena<ExpressionNode>,
         source_spans: Vec<SourceSpan>,
+        unresolved_names: Vec<symbols::UnresolvedName>,
         materialization_sources: Vec<ExpressionHandle>,
 
         authored_expression_exposures: Vec<Option<AuthoredDeclarationSelectionExposure>>,
@@ -3022,6 +3028,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 nodes: ExpressionNodeStorage {
                     expressions: Arena::new(),
                     source_spans: Vec::new(),
+                    unresolved_names: Vec::new(),
                     materialization_sources: Vec::new(),
                     authored_expression_exposures: Vec::new(),
                     compiler_selection_partitions: Vec::new(),
@@ -3045,6 +3052,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub fn clear(&mut self) {
             self.nodes.expressions.reset_retain_capacity();
             self.nodes.source_spans.clear();
+            self.nodes.unresolved_names.clear();
             self.nodes.materialization_sources.clear();
             self.nodes.authored_expression_exposures.clear();
             self.nodes.compiler_selection_partitions.clear();
@@ -3066,6 +3074,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
             let handle = self.nodes.expressions.insert(expression);
             self.nodes.source_spans.push(SourceSpan::default());
+            self.nodes.unresolved_names.push(Default::default());
             self.nodes
                 .materialization_sources
                 .push(ExpressionHandle::invalid());
@@ -3110,6 +3119,22 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
         pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
             self.nodes.source_spans[source_span_index(handle)]
+        }
+
+        /// Resolution's outcome for this exact occurrence, not another source's name.
+        pub fn unresolved_name(&self, handle: ExpressionHandle) -> symbols::UnresolvedName {
+            if !self.nodes.expressions.is_valid(handle) {
+                return Default::default();
+            }
+            self.nodes.unresolved_names[source_span_index(handle)]
+        }
+
+        pub fn set_unresolved_name(
+            &mut self,
+            handle: ExpressionHandle,
+            outcome: symbols::UnresolvedName,
+        ) {
+            self.nodes.unresolved_names[source_span_index(handle)] = outcome;
         }
 
         pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
@@ -3570,6 +3595,9 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableCallExpression {
+        /// Keep static qualification until lexical binding can distinguish a
+        /// namespace from a parameter or local with the same name.
+        pub target_is_static: bool,
         pub authored_call_binding:
             Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
         pub receiver: ExpressionHandle,

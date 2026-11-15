@@ -44,6 +44,14 @@ fn a_call_of_a_name_nothing_declares_is_rejected() {
         &program("undeclared"),
         "an unknown machine name is an error",
     );
+    // Another machine's parameter cannot answer this occurrence's lookup.
+    rejected(
+        &format!(
+            "{}machine unrelated(undeclared: u32) {{ }}",
+            program("undeclared")
+        ),
+        "an unknown machine name is an error",
+    );
 }
 
 /// state_contracts.md: "an unknown machine name or malformed type is an
@@ -200,6 +208,10 @@ fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
             "policy operator operand types differ",
         ),
         (
+            "machine sum(left: u32, right: u64) -> u32 { left +% right }",
+            "policy operator operand types differ",
+        ),
+        (
             "machine sum() -> u32 { 7 +% 1 }",
             "policy operator on a wholly anonymous tree",
         ),
@@ -220,17 +232,11 @@ fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
         );
     }
 
-    let valid_but_unsupported = "machine quotient(left: u32, right: u32) -> u32 \
-        requires right > 0 ensures result == left /% right { left /% right }";
-    let RouteVerdict::FallBack(refusal) = super::entryless::judged(valid_but_unsupported, false)
-    else {
-        panic!("valid quotient contract must retain its formation-support refusal");
-    };
-    assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refusal.detail,
-        "contract policy operator in a clause term that owes a condition before it is total while \
-         reading the signature of `quotient`"
+    // The same divisor condition now forms the quotient in its guarantee.
+    // Omitting it must still fail formation rather than invent a divisor.
+    accepted(
+        "machine quotient(left: u32, right: u32) -> u32 \
+        requires right > 0 ensures result == left /% right { left /% right }",
     );
 }
 
@@ -298,6 +304,23 @@ fn a_case_path_its_sum_does_not_declare_is_rejected() {
     };
     accepted(&program("On"));
     rejected(&program("Dim"), "data `Light` has no member `Dim`");
+}
+
+/// modules.md, "Resolution": "Value position requires the carrier-qualified
+/// `Type::Case` path even when an expected type or visible carrier would make
+/// one case appear likely." The bare spelling is an ordinary unknown name.
+#[test]
+fn a_bare_case_spelling_is_rejected_as_an_unknown_name() {
+    let program = |value: &str| {
+        format!(
+            "data Light {{ case On; case Off; }}\nmachine pick() -> Light {{\n    {value}\n}}\n"
+        )
+    };
+    accepted(&program("Light::On"));
+    rejected(
+        &program("On"),
+        "this expression has no visible value declaration in its source scope",
+    );
 }
 
 /// data_and_literals.md: "A sum value is written as a case literal", and

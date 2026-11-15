@@ -717,13 +717,8 @@ impl<'t> Program<'t> {
         entry: MachineId,
         declared: &'t typed_trees::trait_definition::Conformance,
     ) -> Checked<()> {
-        let unserved = |what| {
-            Err(refuse(
-                entry,
-                Construct::Machine,
-                Unserved::Declaration(what),
-            ))
-        };
+        let unserved = |what| refuse(entry, Construct::Machine, Unserved::Declaration(what));
+        use typed_trees::trait_definition::AppliedTraitScope;
         let typed = self.typed;
         let parameters = typed.conformance_type_parameters(declared);
         let plain = declared.lifetime_parameters.is_empty()
@@ -732,18 +727,22 @@ impl<'t> Program<'t> {
             && parameters.iter().all(|parameter| {
                 parameter.kind == typed_trees::data::TypeParameterKind::Type
                     && parameter.bounds == typed_trees::data::DataProperties::default()
-            })
-            && typed_trees::trait_definition::AppliedTraitScope::from_conformance(typed, declared)
-                .is_some();
-        let Some(implemented) = typed
-            .trait_definition_by_symbol(declared.trait_symbol)
-            .filter(|implemented| plain && lists_requirements_only(typed, implemented))
+            });
+        let Some(application) = plain
+            .then(|| AppliedTraitScope::from_conformance(typed, declared))
+            .flatten()
+            .filter(|application| lists_requirements_only(typed, application.declaration))
         else {
-            return unserved("implementation with parameters or of a trait that has them");
+            return Err(unserved(
+                "implementation with parameters or of a trait that has them",
+            ));
         };
+        let implemented = application.declaration;
         let requirements = typed.trait_machine_signatures(implemented);
         if declared.rows.len() != requirements.len() {
-            return unserved("implementation that does not give each requirement one machine");
+            return Err(unserved(
+                "implementation that does not give each requirement one machine",
+            ));
         }
         for requirement in requirements {
             let mut rows = declared
@@ -751,27 +750,43 @@ impl<'t> Program<'t> {
                 .iter()
                 .filter(|row| row.requirement == requirement.symbol);
             let (Some(row), None) = (rows.next(), rows.next()) else {
-                return unserved("implementation that does not give each requirement one machine");
+                return Err(unserved(
+                    "implementation that does not give each requirement one machine",
+                ));
             };
             if row.declaring_trait != implemented.symbol {
-                return unserved("implementation row of an inherited requirement");
+                return Err(unserved("implementation row of an inherited requirement"));
             }
             if row.source == typed_trees::trait_definition::ConformanceRowSource::Reference {
                 if !parameters.is_empty() {
-                    return unserved("generic reference-row refinement");
+                    return Err(unserved("generic reference-row refinement"));
                 }
                 let Some(realization) = typed.machine_by_symbol(row.realization_machine) else {
-                    return unserved("selection row without an existing machine declaration");
+                    return Err(unserved(
+                        "selection row without an existing machine declaration",
+                    ));
                 };
-                // A reference attaches a route only to an independently
-                // valid plain machine. An owning body already has its
-                // requirement, so another row cannot rebind that entry.
-                if !realization.satisfies.is_empty()
-                    || typed
-                        .owned_conformance_realization(realization.symbol)
-                        .is_some()
-                {
-                    return unserved("selection row cannot rebind a declared conformer");
+                // A row may select an established conformer's entry for
+                // the requirement it already implements. Keep that entry's
+                // advertised contract tied to its original requirement.
+                if let Some((owner, supplied)) = self.conformer_requirement(entry, realization)? {
+                    let same_requirement =
+                        owner == row.declaring_trait && supplied.symbol == row.requirement;
+                    // Prepared generic signatures retain their template symbol.
+                    // Even identical signatures can belong to different trait applications.
+                    let same_application = same_requirement
+                        && (implemented.type_parameters.is_empty()
+                            || typed
+                                .machine_conformance_requirement_scope(
+                                    realization.symbol,
+                                    owner,
+                                    supplied.symbol,
+                                )
+                                .map_err(unserved)?
+                                .is_some_and(|own| own.same_application(typed, &application)));
+                    if !same_application {
+                        return Err(unserved("selection row cannot rebind a declared conformer"));
+                    }
                 }
             }
             let witness = crate::ConformanceWitness {

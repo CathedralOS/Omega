@@ -43,6 +43,7 @@ fn identity(machine: MachineId, detail: &str) -> Refusal {
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns: Construct::Machine,
+        source_span: None,
         detail: detail.to_owned(),
     }
 }
@@ -593,6 +594,7 @@ impl LogicalScope<'_> {
                 ensures,
                 crashes: CrashCeiling::Inferred,
                 termination: Termination::Silent,
+                ranking: None,
                 reaches: crate::Ceiling::Inferred,
                 invokes: crate::Ceiling::Inferred,
             },

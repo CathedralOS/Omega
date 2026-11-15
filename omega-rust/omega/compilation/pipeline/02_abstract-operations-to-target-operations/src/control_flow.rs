@@ -935,7 +935,7 @@ mod structural_case {
         (
             u32,
             u32,
-            Vec<(semantic_vocabulary::ValueId, u32)>,
+            Vec<crate::structural_layout::RuntimeIndex>,
             Vec<target_operations::TargetCasePointerSlot>,
         ),
         LoweringError,
@@ -1176,26 +1176,33 @@ mod terminator {
         place: PlaceId,
     ) -> Option<StructuralMultiplicity> {
         let (structural_type, multiplicity) = if live.views.contains_key(&place) {
-            let result = live.view_result(function, place)?;
+            let (structural_type, multiplicity, result) = live
+                .element_view_backings()
+                .view_declaration(function, place)
+                .ok()?;
             if !matches!(
-                result.multiplicity,
+                multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || !result.claims.is_empty()
-                || !terminal_semantics::view_descriptor_projected_qualifications(
-                    types.values().copied(),
-                    result.structural_type,
-                    &result.projected_qualifications,
-                )
-            {
+            ) || result.is_some_and(|result| {
+                !result.claims.is_empty()
+                    || !terminal_semantics::view_descriptor_projected_qualifications(
+                        types.values().copied(),
+                        structural_type,
+                        &result.projected_qualifications,
+                    )
+            }) {
                 return None;
             }
-            (result.structural_type, result.multiplicity)
+            (structural_type, multiplicity)
         } else {
             if !live.block_views.contains(&place) {
                 return None;
             }
             let parameter = function.arrival_parameter(place)?;
-            if !terminal_semantics::view_descriptor_parameter(parameter, types.values().copied()) {
+            if !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                parameter,
+                |identity| types.get(identity).copied(),
+            ) {
                 return None;
             }
             (parameter.structural_type, parameter.multiplicity)
@@ -1556,6 +1563,15 @@ mod terminator {
                     frontier_lower_bound: frontier_lower_bound.clone(),
                 })
             }
+            AbstractOperation::EliminateEmpty {
+                psi_edge,
+                source,
+                path,
+            } => Ok(TargetControlTerminator::EliminateEmpty {
+                psi_edge: *psi_edge,
+                source: *source,
+                path: path.clone(),
+            }),
             AbstractOperation::Crash {
                 psi_edge,
                 cause,
@@ -1961,24 +1977,16 @@ mod transfers {
             let copies =
                 parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
             if copies {
-                let source_contract = live
-                    .structural_homes
-                    .get(&binding.argument.place)
-                    .map(|home| (home.access(), home.multiplicity()))
-                    .or_else(|| {
-                        function
-                            .structural_parameters
-                            .iter()
-                            .chain(function.block_structural_parameters())
-                            .find(|source| source.place == binding.argument.place)
-                            .map(|source| (source.access, source.multiplicity))
-                    });
-                if source_contract
-                    != Some((
-                        terminal_psi::StructuralAccess::Owned,
-                        terminal_psi::StructuralMultiplicity::Unrestricted,
-                    ))
-                {
+                // Copying a descriptor value does not acquire its backing. The same
+                // live value-input judgment used by fields retains exact descriptor
+                // establishments and their multiplicity, including literal recipes.
+                let (_, multiplicity) = super::aggregate_results::value_input(
+                    function,
+                    types,
+                    live,
+                    &binding.argument,
+                )?;
+                if multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
             }
@@ -2212,9 +2220,9 @@ mod transfers {
                         }
                         continue;
                     }
-                    if terminal_semantics::view_descriptor_parameter(
+                    if abstract_operations::control_flow::address_joins::is_descriptor_join(
                         parameter,
-                        structural_types.values().copied(),
+                        |identity| structural_types.get(identity).copied(),
                     ) {
                         let selected = crate::scalar::descriptor_operands::descriptor_projection(
                             function,
@@ -2283,62 +2291,31 @@ mod transfers {
                             })
                             .flatten()
                         });
-                    let source_storage_contract = live
-                        .structural_homes
-                        .get(&place)
-                        .map(|home| {
-                            home.access() == parameter.access
-                                && (!binding.argument.path.is_empty()
-                                    || home.multiplicity() == parameter.multiplicity)
-                        })
-                        .or_else(|| {
-                            function
-                                .structural_parameters
-                                .iter()
-                                .chain(function.block_structural_parameters())
-                                .find(|source| source.place == place)
-                                .map(|source| {
-                                    source.access == parameter.access
-                                        && (!binding.argument.path.is_empty()
-                                            || source.multiplicity == parameter.multiplicity)
-                                })
-                        });
-                    let leaf_copy_owned_contract = || {
-                        function.operations().find_map(|operation| match operation {
-                            AbstractOperation::StructuralLeafCopy {
-                                source: backing,
-                                path: abstract_operations::StructuralCopyPath::Ordinary(path),
-                                result,
-                                ..
-                            } if result.place == place
-                                && result.structural_type == parameter.structural_type
-                                && result.multiplicity
-                                    == terminal_psi::StructuralMultiplicity::Unrestricted
-                                && result.claims.is_empty() =>
-                            {
-                                let root = function
-                                    .arrival_parameter(*backing)
-                                    .map(|root| root.structural_type)
-                                    .or_else(|| {
-                                        function
-                                            .block_structural_parameters()
-                                            .find(|source| source.place == *backing)
-                                            .map(|source| source.structural_type)
-                                    });
-                                Some(root.is_some_and(|root| {
-                                    structural_types.subtree(root, path)
-                                        == Some(parameter.structural_type)
-                                }))
-                            }
-                            _ => None,
-                        })
+                    // State arrivals transport the same owned values as field inputs.
+                    // A live view recipe owns its descriptor while retaining the
+                    // producer's original backing, access and multiplicity.
+                    let value_source = if parameter.access == terminal_psi::StructuralAccess::Owned
+                    {
+                        Some(super::aggregate_results::value_input(
+                            function,
+                            structural_types,
+                            live,
+                            &binding.argument,
+                        )?)
+                    } else {
+                        None
                     };
-                    let argument_type = source_type.and_then(|root| {
-                        if binding.argument.path.is_empty() {
-                            Some(root)
-                        } else {
-                            structural_types.subtree(root, &binding.argument.path)
-                        }
+                    let source_storage_contract = value_source.map(|(_, multiplicity)| {
+                        !binding.argument.path.is_empty() || multiplicity == parameter.multiplicity
+                    });
+                    let argument_type = value_source.map(|(selected, _)| selected).or_else(|| {
+                        source_type.and_then(|root| {
+                            if binding.argument.path.is_empty() {
+                                Some(root)
+                            } else {
+                                structural_types.subtree(root, &binding.argument.path)
+                            }
+                        })
                     });
                     let crosses_loan_leaf = live.references.keys().any(|(carrier, leaf_path)| {
                         *carrier == place
@@ -2347,8 +2324,7 @@ mod transfers {
                     });
                     if binding.parameter != parameter.place
                         || (parameter.access == terminal_psi::StructuralAccess::Owned
-                            && source_storage_contract != Some(true)
-                            && leaf_copy_owned_contract() != Some(true))
+                            && source_storage_contract != Some(true))
                         || !argument_type.is_some_and(|actual| {
                             if parameter.access == terminal_psi::StructuralAccess::Owned {
                                 actual == parameter.structural_type
@@ -2386,8 +2362,7 @@ mod transfers {
                         return Err(LoweringError::StructuralStateBindingMismatch {
                             machine: function.machine,
                             reason: format!(
-                                "binding={binding:?}; parameter={parameter:?}; source_type={source_type:?}; argument_type={argument_type:?}; source_storage_contract={source_storage_contract:?}; leaf_copy_owned_contract={:?}; crosses_loan_leaf={crosses_loan_leaf}",
-                                leaf_copy_owned_contract(),
+                                "binding={binding:?}; parameter={parameter:?}; source_type={source_type:?}; argument_type={argument_type:?}; source_storage_contract={source_storage_contract:?}; crosses_loan_leaf={crosses_loan_leaf}",
                             ),
                         });
                     }
@@ -2459,6 +2434,7 @@ mod transfers {
             AbstractOperation::Return { .. }
             | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
+            | AbstractOperation::EliminateEmpty { .. }
             | AbstractOperation::Crash { .. }
             | AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::ReturnUnit { .. }
@@ -2694,6 +2670,10 @@ pub(crate) fn lower(
                 || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
                     && !is_immutable_byte_carrier_parameter(parameter, structural_types)
                     && !is_element_view_parameter(parameter, structural_types)
+                    && !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                        parameter,
+                        |identity| structural_types.get(identity).copied(),
+                    )
                     && !transfers::is_address_join(parameter, structural_types)
                     && !is_owned_byte_parameter(parameter, structural_types)
                     && !abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
@@ -2768,6 +2748,7 @@ pub(crate) fn lower(
             AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
+            | AbstractOperation::EliminateEmpty { .. }
             | AbstractOperation::Crash { .. } => Vec::new(),
             abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..)
                 if cleanup_actions.iter().all(|action| {
@@ -3137,6 +3118,7 @@ pub(crate) fn lower(
         nominal_cleanup_subject: function.nominal_cleanup_subject,
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
+        structural_contract: None,
         provenance,
         graph: TargetControlGraph {
             structural_types: structural_types.catalog().clone(),

@@ -1038,6 +1038,48 @@ fn binary_expression(
     suffix: Option<Policy>,
     source: SourceOrigin,
 ) -> Checked<Expression> {
+    let (operation, policy, result) = binary_selection(
+        id,
+        operator,
+        left.result,
+        right.result,
+        anonymous,
+        suffix,
+        (source, right.source),
+    )?;
+    let kind = match operation {
+        Some(operation) => ExpressionKind::Strict {
+            operation,
+            policy,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+        None => ExpressionKind::ShortCircuit {
+            conjunction: operator == BinaryOperator::And,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+    };
+    Ok(Expression {
+        call_context: None,
+        kind,
+        result: Some(result),
+        source,
+    })
+}
+
+/// A contract and an executable expression select the same operator from
+/// the same operand types. The selected policy belongs to the operation;
+/// this query neither builds an operation nor proves its formation condition.
+pub(super) fn binary_selection(
+    id: MachineId,
+    operator: BinaryOperator,
+    left: Option<ValueType>,
+    right: Option<ValueType>,
+    anonymous: (bool, bool),
+    suffix: Option<Policy>,
+    (source, right_source): (SourceOrigin, SourceOrigin),
+) -> Checked<(Option<Strict>, Option<Policy>, ValueType)> {
     enum Operands {
         /// Same integer type; the result has it.
         Arithmetic,
@@ -1051,11 +1093,11 @@ fn binary_expression(
     }
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     if suffix.is_some() {
-        crate::policy::suffixed(operator).map_err(unserved)?;
+        let operation = crate::policy::suffixed(operator).map_err(unserved)?;
         if anonymous == (true, true) {
             return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
         }
-        for operand in [left.result, right.result] {
+        for operand in [left, right] {
             match operand {
                 Some(ValueType::Scalar(ScalarType::Integer(_), Qualification::NONE)) => {}
                 Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
@@ -1066,9 +1108,20 @@ fn binary_expression(
                 }
             }
         }
+        // A suffix chooses a carrier-specific operation, so mismatched
+        // carriers are invalid source. Only a shift count keeps its own type.
+        if !crate::policy::shifts(operation)
+            && left.and_then(ValueType::scalar) != right.and_then(ValueType::scalar)
+        {
+            return Err(crate::reject(
+                id,
+                right_source,
+                "policy operator operand types differ",
+            ));
+        }
     }
     let typing = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
-    let (Some(left_type), Some(right_type)) = (left.result, right.result) else {
+    let (Some(left_type), Some(right_type)) = (left, right) else {
         return Err(typing("Unit operand"));
     };
     // Builtin operators are over scalars. Equality of two records needs
@@ -1137,16 +1190,7 @@ fn binary_expression(
             if left_type != ScalarType::Boolean || right_type != ScalarType::Boolean {
                 return Err(typing("short-circuit operand is not bool"));
             }
-            return Ok(Expression {
-                call_context: None,
-                kind: ExpressionKind::ShortCircuit {
-                    conjunction: operator == BinaryOperator::And,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                source,
-            });
+            return Ok((None, None, ValueType::plain(ScalarType::Boolean)));
         }
         BinaryOperator::CaseMembership => {
             return Err(refuse(
@@ -1217,20 +1261,14 @@ fn binary_expression(
             return Err(typing("operand types"));
         }
     };
-    Ok(Expression {
-        call_context: None,
-        kind: ExpressionKind::Strict {
-            operation,
-            policy: match operands {
-                Operands::Arithmetic | Operands::Shift => policy,
-                Operands::Equality | Operands::Ordering => None,
-            },
-            left: Box::new(left),
-            right: Box::new(right),
+    Ok((
+        Some(operation),
+        match operands {
+            Operands::Arithmetic | Operands::Shift => policy,
+            Operands::Equality | Operands::Ordering => None,
         },
-        result: Some(result),
-        source,
-    })
+        result,
+    ))
 }
 
 /// Whether two read expressions compute the same thing: equal kinds over

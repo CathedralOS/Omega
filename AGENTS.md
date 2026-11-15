@@ -155,8 +155,10 @@ through nine transport places: `local`, `field`, `parameter`, `call_result`,
 `machine` (`other_machine/`), and a `Build`-selected target implementation
 (`target_body/`), on each of the four hosted targets,
 with a negative twin beside it. That matrix says what a capability means when
-it is complete. It is how a `TASKS.md` item states its acceptance, not what one
-pull request has to run.
+it is complete; it is a design checklist, not a count of fixtures to produce,
+and not what one pull request has to run. A `TASKS.md` item names an
+acceptance only when it ends in a deletion (the old surface or path is gone);
+otherwise its spec page and the running program decide when it is done.
 
 A pull request proves the thing it built. Test the changed code, then a very
 small area around it. If that is fine, land. If it is not, investigate that
@@ -201,6 +203,13 @@ beside that test.
    validation, and PR) in its own context window. After landing or
    handing off a slice, continue the next requirement of the same capability on
    the warm worktree.
+   Acquisition starts a stable model-audit interval automatically. Before a new
+   outcome on a clean warm slot, run `mbx xtask worktree begin`; it changes only
+   that slot's audit boundary, never its source, cache or pool lease. Keep one
+   interval through checkpoints and rebases. Existing active slots adopt a
+   provable checkout-local boundary once; ambiguous history refuses rather than
+   charging an unrelated outcome. `provenance --full-session` is an explicit
+   whole-session audit, not a workaround for missing interval identity.
 
 ### Requirements and evidence
 

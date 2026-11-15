@@ -32,6 +32,10 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    cargo xtask worktree acquire <lane>-<topic>
    ```
    Local named branches are banned. Record the fixed base SHA (`git rev-parse HEAD`).
+   Acquisition records the outcome's audit interval. When chaining the next
+   outcome on the clean warm slot, run `mbx xtask worktree begin` before starting
+   work. Do not restart that interval for checkpoints or rebases. This command
+   changes no source, cache or pool lease; it refuses a dirty or unassigned slot.
 2. **Check live work before selecting or coding:**
    - Run `cargo xtask claims status` and `gh pr list --state open`.
    - Select the capability and root-cause family using the priority order in
@@ -51,6 +55,10 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    shrinking to its witness. At initial dispatch, `--path`
    can name the witness/board paths or subsystem directory from the recorded
    diagnostic; workers refine paths if needed after tracing.
+   A claim lasts two hours from when it was taken or last renewed. Run
+   `cargo xtask claims renew` from the worktree after each push (it renews
+   every claim that worktree took; `claims note` also renews). A lapsed claim
+   cannot be renewed: claim again. Release it when the work lands.
 
 ## Step 2: Reproduce & Trace Before Editing (Worker-Owned Under Swarm)
 

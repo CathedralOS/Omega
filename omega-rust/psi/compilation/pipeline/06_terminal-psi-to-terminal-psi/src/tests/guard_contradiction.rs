@@ -128,6 +128,7 @@ fn calls_with(argument: u128) -> (typed_trees_to_terminal_psi::Elaboration, Disc
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(crashes),
         termination: Termination::Silent,
+        ranking: None,
     };
     bodies.push(Body {
         slots: Vec::new(),

@@ -2477,6 +2477,10 @@ pub(crate) mod cleanup_call {
                 || target.place != semantic.place
                 || target.path != semantic.path
                 || indices.len() != target.indices.len()
+                || indices
+                    .iter()
+                    .zip(&target.indices)
+                    .any(|(selected, target)| !selected.matches_target(target))
                 || !matches!(
                     target.shape.class,
                     ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
@@ -2604,6 +2608,25 @@ pub(crate) mod control {
                 let mut normal = block.clone();
                 normal.terminator = LegalizedScalarTerminator::Return(returned.clone());
                 build(function, source, &normal, order, builder, environment)
+            }
+            LegalizedScalarTerminator::EliminateEmpty { psi_edge, work, .. } => {
+                // Valid inputs cannot take this edge. Keep a physical trap as
+                // a defensive invariant check, without source crash authority.
+                let (kind, key) = builder.crash_form()?;
+                Ok(SelectedTerminator::EliminateEmpty {
+                    instruction: terminal(
+                        builder,
+                        kind,
+                        key,
+                        &[],
+                        SelectedInstructionProvenance {
+                            edges: vec![*psi_edge],
+                            work: work.clone(),
+                            ..Default::default()
+                        },
+                    )?,
+                    psi_edge: *psi_edge,
+                })
             }
             LegalizedScalarTerminator::Crash {
                 psi_edge,

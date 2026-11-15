@@ -63,7 +63,7 @@ mod policy;
 mod proof_scope;
 mod qualifications;
 mod read;
-mod reference_release_lowering;
+mod reference_ends;
 mod reference_results;
 mod suspension;
 
@@ -76,8 +76,8 @@ fn named_captures(typed: &TypedTrees) -> NamedCaptures {
 
 pub use body::{
     Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainSet, Expression,
-    ExpressionKind, Policy, Qualification, Ranking, RecordField, RecordType, Selector, Signature,
-    Statement, StorageShape, Strict, Target, Termination, ValueType, self_place,
+    ExpressionKind, Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement,
+    StorageShape, Strict, Target, Termination, ValueType, self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use compilation::{PreparedSource, prepare_compilation};
@@ -229,6 +229,7 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
         reason: RefusalReason::Unsupported,
         machine,
         concerns,
+        source_span: None,
         detail: format!("{} {}", unserved.family(), unserved.construct()),
     }
 }
@@ -240,12 +241,10 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
 /// rejection must never be said of a valid program.
 pub(crate) fn reject(machine: MachineId, at: SourceOrigin, rule: impl Into<String>) -> Refusal {
     Refusal {
-        reason: RefusalReason::Violation(match at {
-            SourceOrigin::Authored(span) => Some(span),
-            SourceOrigin::Unpositioned(_) => None,
-        }),
+        reason: RefusalReason::Violation,
         machine,
         concerns: Construct::Machine,
+        source_span: at.authored_span(),
         detail: rule.into(),
     }
 }
@@ -672,6 +671,8 @@ fn finish_reading<'source>(
                 &mut elaboration.module,
             )
         })
+        // Last, over the finished operations and published contracts.
+        .and_then(|()| suspension::publish_crossings(&mut elaboration.module))
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -693,15 +694,8 @@ fn finish_reading<'source>(
                 })?);
         }
     }
-    complete_structural(diagnostic, &mut elaboration, &program.selections)?;
-    // Inventory the finished operations after their real loan dispositions.
-    suspension::publish_crossings(&mut elaboration.module).map_err(|reason| {
-        refuse(
-            diagnostic,
-            Construct::Machine,
-            Unserved::Declaration(reason),
-        )
-    })?;
+    reference_results::publish(&mut elaboration, &program.selections)?;
+    finish_storage(diagnostic, &mut elaboration)?;
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
@@ -774,158 +768,7 @@ pub fn lower_generic(
         terminal_codec::TerminalPublication::Portable,
         None,
     )
-    .and_then(|mut prepared| {
-        complete_structural(entry, &mut prepared.program, &[])?;
-        Ok(prepared.program)
-    })
-}
-
-/// Result contracts precede the consumers that retain their actual loans.
-/// Both source preparation and the low-level body API complete the same
-/// Terminal operations here, before publishing their final parent roster.
-fn complete_structural(
-    diagnostic: MachineId,
-    elaboration: &mut Elaboration,
-    selections: &[crate::Selected],
-) -> Checked<()> {
-    reference_results::publish_results(&mut elaboration.module, selections)?;
-    {
-        let Elaboration {
-            module,
-            tables,
-            sources,
-            ..
-        } = elaboration;
-        reference_release_lowering::publish(module, tables, sources)?;
-        for ordinal in 0..module.machines.len() {
-            let machine = &module.machines[ordinal];
-            let plan =
-                terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
-                    let (concerns, operation, origin) = match error.site() {
-                        Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
-                            Construct::Operation(at),
-                            machine
-                                .operations()
-                                .find(|operation| operation.id == at)
-                                .map(|operation| {
-                                    terminal_semantics::OperationSemanticTag::for_operation(
-                                        &operation.kind,
-                                    )
-                                    .name()
-                                }),
-                            sources
-                                .get(machine.id)
-                                .and_then(|source| source.operations.get(at))
-                                .copied(),
-                        ),
-                        Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
-                            Construct::Edge(at),
-                            Some("control-flow edge"),
-                            sources
-                                .get(machine.id)
-                                .and_then(|source| source.edges.get(at))
-                                .copied(),
-                        ),
-                        None => (Construct::Machine, None, None),
-                    };
-                    let (reason, detail) = match error {
-                        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                            (terminal_check_tables::RefusalReason::Unsupported, detail)
-                        }
-                        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
-                            terminal_check_tables::RefusalReason::ForeignIdentity,
-                            detail,
-                        ),
-                    };
-                    terminal_check_tables::Refusal {
-                        reason,
-                        machine: machine.id,
-                        concerns,
-                        detail: match (operation, origin) {
-                            (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
-                                "while checking {operation} at source {} bytes {}..{}: {detail}",
-                                span.source_id.0, span.span.start, span.span.end,
-                            ),
-                            (Some(operation), _) => format!("while checking {operation}: {detail}"),
-                            (None, _) => detail.to_owned(),
-                        },
-                    }
-                })?;
-            let machine = &mut module.machines[ordinal];
-            // Receiving storage may be intact or exactly vacated by a preceding
-            // move. Install the mode reconstructed from the final ownership
-            // frontier; source syntax alone cannot distinguish them. The checker
-            // independently reconstructs these modes and the disposal schedule.
-            for block in &mut machine.blocks {
-                for operation in &mut block.operations {
-                    if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
-                        &mut operation.kind
-                        && let Ok(position) = plan
-                            .stores
-                            .binary_search_by_key(&operation.id, |(operation, _)| *operation)
-                    {
-                        *disposition = plan.stores[position].1;
-                    }
-                }
-                use terminal_psi::Terminator;
-                let append =
-                    |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
-                        actions.retain(|action| !plan.affine_roots.contains(action.place()));
-                        if let Ok(position) =
-                            plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge)
-                        {
-                            actions.extend(plan.cleanup[position].1.iter().cloned());
-                        }
-                    };
-                match &mut block.terminator {
-                    Terminator::Jump {
-                        edge,
-                        cleanup_actions,
-                        ..
-                    }
-                    | Terminator::Return {
-                        edge,
-                        cleanup_actions,
-                        ..
-                    }
-                    | Terminator::ReturnStructural {
-                        edge,
-                        cleanup_actions,
-                        ..
-                    }
-                    | Terminator::ReturnUnit {
-                        edge,
-                        cleanup_actions,
-                    } => append(*edge, cleanup_actions),
-                    Terminator::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => {
-                        append(when_true.edge, &mut when_true.cleanup_actions);
-                        append(when_false.edge, &mut when_false.cleanup_actions);
-                    }
-                    Terminator::StructuralCase { cases, .. } => {
-                        for case in cases {
-                            append(case.edge, &mut case.cleanup_actions);
-                        }
-                    }
-                    Terminator::Crash { .. }
-                    | Terminator::InvokeNoNormal { .. }
-                    | Terminator::ExternalCompletion { .. } => {}
-                }
-            }
-        }
-        lower::publish_write_frames(diagnostic, module, tables)?;
-        // This is the emitted behavior before proving or publication. Keeping its
-        // inventory here lets product consumers retain the exact judged module.
-        module.unoptimized_behavior = module
-            .machines
-            .iter()
-            .map(terminal_psi::UnoptimizedMachineBehavior::capture)
-            .collect();
-    }
-    reference_results::publish_parents(elaboration)
+    .map(|prepared| prepared.program)
 }
 
 fn lower_generic_for<'source>(
@@ -996,6 +839,7 @@ fn lower_generic_for<'source>(
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
+        source.publish_structural_domains(diagnostic, &mut module)?;
         source.publish_services(diagnostic, &mut module)?;
     } else if !signatures.boundaries.is_empty() {
         return Err(refuse(
@@ -1199,7 +1043,7 @@ fn lower_generic_for<'source>(
             }
         }
     }
-    Ok(PreparedProgram {
+    let mut prepared = PreparedProgram {
         source,
         selected_calls: Vec::new(),
         program: Elaboration {
@@ -1223,7 +1067,146 @@ fn lower_generic_for<'source>(
             supplied: Vec::new(),
             undeclared: Vec::new(),
         },
-    })
+    };
+    if declarations.is_none() {
+        reference_results::publish(&mut prepared.program, &[])?;
+        finish_storage(diagnostic, &mut prepared.program)?;
+    }
+    Ok(prepared)
+}
+
+fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Checked<()> {
+    let module = &mut elaboration.module;
+    let tables = &mut elaboration.tables;
+    let sources = &mut elaboration.sources;
+    reference_ends::install(module, tables, sources)?;
+    for ordinal in 0..module.machines.len() {
+        let machine = &module.machines[ordinal];
+        let plan =
+            terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
+                let (concerns, operation, origin) = match error.site() {
+                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
+                        Construct::Operation(at),
+                        machine
+                            .operations()
+                            .find(|operation| operation.id == at)
+                            .map(|operation| {
+                                terminal_semantics::OperationSemanticTag::for_operation(
+                                    &operation.kind,
+                                )
+                                .name()
+                            }),
+                        sources
+                            .get(machine.id)
+                            .and_then(|source| source.operations.get(at))
+                            .copied(),
+                    ),
+                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
+                        Construct::Edge(at),
+                        Some("control-flow edge"),
+                        sources
+                            .get(machine.id)
+                            .and_then(|source| source.edges.get(at))
+                            .copied(),
+                    ),
+                    None => (Construct::Machine, None, None),
+                };
+                let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                        (terminal_check_tables::RefusalReason::Unsupported, detail)
+                    }
+                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
+                        terminal_check_tables::RefusalReason::ForeignIdentity,
+                        detail,
+                    ),
+                };
+                terminal_check_tables::Refusal {
+                    reason,
+                    machine: machine.id,
+                    concerns,
+                    source_span: None,
+                    detail: match (operation, origin) {
+                        (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
+                            "while checking {operation} at source {} bytes {}..{}: {detail}",
+                            span.source_id.0, span.span.start, span.span.end,
+                        ),
+                        (Some(operation), _) => format!("while checking {operation}: {detail}"),
+                        (None, _) => detail.to_owned(),
+                    },
+                }
+            })?;
+        let machine = &mut module.machines[ordinal];
+        // Receiving storage may be intact or exactly vacated by a preceding
+        // move. Install the mode reconstructed from the final ownership
+        // frontier; source syntax alone cannot distinguish them. The checker
+        // independently reconstructs these modes and the disposal schedule.
+        for block in &mut machine.blocks {
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
+                    &mut operation.kind
+                    && let Ok(position) = plan
+                        .stores
+                        .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                {
+                    *disposition = plan.stores[position].1;
+                }
+            }
+            use terminal_psi::Terminator;
+            let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
+                actions.retain(|action| !plan.affine_roots.contains(action.place()));
+                if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
+                    actions.extend(plan.cleanup[position].1.iter().cloned());
+                }
+            };
+            match &mut block.terminator {
+                Terminator::Jump {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::Return {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::ReturnStructural {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::ReturnUnit {
+                    edge,
+                    cleanup_actions,
+                } => append(*edge, cleanup_actions),
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    append(when_true.edge, &mut when_true.cleanup_actions);
+                    append(when_false.edge, &mut when_false.cleanup_actions);
+                }
+                Terminator::StructuralCase { cases, .. } => {
+                    for case in cases {
+                        append(case.edge, &mut case.cleanup_actions);
+                    }
+                }
+                Terminator::Crash { .. }
+                | Terminator::InvokeNoNormal { .. }
+                | Terminator::EliminateEmpty { .. }
+                | Terminator::ExternalCompletion { .. } => {}
+            }
+        }
+    }
+    lower::publish_write_frames(diagnostic, module, tables)?;
+    // This is the emitted behavior before proving or publication. Keeping its
+    // inventory here lets product consumers retain the exact judged module.
+    module.unoptimized_behavior = module
+        .machines
+        .iter()
+        .map(terminal_psi::UnoptimizedMachineBehavior::capture)
+        .collect();
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1254,6 +1237,7 @@ mod publication_scope_tests {
             invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
         let lower = |publication| {
             lower_generic_for(

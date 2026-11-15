@@ -21,7 +21,9 @@ use crate::{
     TerminalBuildValueShape,
 };
 use diagnostics::Diagnostic;
-use language_semantics::build_requests::{SELECTION_PROTOCOL, is_build_protocol};
+use language_semantics::build_requests::{
+    SELECTION_PROTOCOL, SelectionProtocolOperation, is_build_protocol,
+};
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
 };
@@ -264,17 +266,6 @@ fn binding(
     correspondence: &typed_trees_to_terminal_psi::SourceCorrespondence,
     call: &ProtocolCall<'_>,
 ) -> Result<TerminalBuildBindingCall, Diagnostic> {
-    let action = match call.name {
-        "await_provider" => TerminalBuildBindingOperation::AwaitProvider,
-        "prepare" => TerminalBuildBindingOperation::Prepare,
-        "prepare_tests" => TerminalBuildBindingOperation::PrepareTests,
-        "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
-        "bind_native" => TerminalBuildBindingOperation::BindNative,
-        "select" => TerminalBuildBindingOperation::Select,
-        "select_provider" => TerminalBuildBindingOperation::SelectProvider,
-        "exclude" => TerminalBuildBindingOperation::Exclude,
-        other => return Err(unknown(SELECTION_PROTOCOL, other)),
-    };
     let designated = correspondence
         .designated
         .get(call.site.machine)
@@ -285,10 +276,15 @@ fn binding(
         })
         .map(|(_, designated)| *designated)
         .ok_or_else(|| refused("a Build selection call carries no designated operands"))?;
-    let request = source
+    // Typing chose the protocol operation when it generated this call and
+    // recorded it on the call's selection row; the row, not the spelling of
+    // the requirement, says which operation the host performs.
+    let selection = source
         .expression_table
-        .build_selection_request(designated.request)
+        .build_selection_call(designated.request)
         .ok_or_else(|| refused("a Build selection lost its designated operands"))?;
+    let request = &selection.request;
+    let action = protocol_action(selection.operation);
     let native = matches!(request, BuildSelectionRequest::Declaration(declaration)
         if declaration.operation == BuildOperation::NativeBinding);
     if (action == TerminalBuildBindingOperation::BindNative && !native)
@@ -588,6 +584,24 @@ impl LocatorShapes<'_> {
             .filter(|name| !name.is_empty())
             .map(str::to_owned)
             .ok_or_else(|| refused("a native locator member lost its checked identity"))
+    }
+}
+
+/// The host row's action for a selection protocol operation. A description
+/// binding and an authored-path binding are the same host action; they
+/// differ only in the operands the request carries.
+fn protocol_action(operation: SelectionProtocolOperation) -> TerminalBuildBindingOperation {
+    use SelectionProtocolOperation as Protocol;
+    use TerminalBuildBindingOperation as Action;
+    match operation {
+        Protocol::AwaitProvider => Action::AwaitProvider,
+        Protocol::Prepare => Action::Prepare,
+        Protocol::PrepareTests => Action::PrepareTests,
+        Protocol::Bind | Protocol::BindDescription => Action::Bind,
+        Protocol::BindNative => Action::BindNative,
+        Protocol::Select => Action::Select,
+        Protocol::SelectProvider => Action::SelectProvider,
+        Protocol::Exclude => Action::Exclude,
     }
 }
 

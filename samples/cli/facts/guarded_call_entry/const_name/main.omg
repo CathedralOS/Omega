@@ -1,7 +1,7 @@
 // After an opaque callback, fresh count <= slots.len and preserved immutable remaining_steps > 0 admit the nested call's slots.len - count and remaining_steps - 1.
 // Expected exit: 0
 public data CompactBinary {}
-public data Ctx { slots: &mut [u64]; count: u64; valid: bool; }
+public data Ctx<'view> { slots: &'view mut [u64]; count: u64; valid: bool; }
 public data Observation [copy] { remaining: u64; remaining_steps: u64; }
 const INITIAL_FUEL: u64 = 2u64;
 public machine CompactBinary::read_record<machine Plan>(slots: &mut [u64], remaining_steps: u64, choose: bool) -> Observation

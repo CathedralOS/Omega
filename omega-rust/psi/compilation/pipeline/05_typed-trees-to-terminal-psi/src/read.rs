@@ -39,6 +39,7 @@ mod machine;
 mod mathematics;
 mod places;
 mod predicates;
+mod rankings;
 mod references;
 mod reflection;
 mod regions;
@@ -673,26 +674,30 @@ mod tests {
         use typed_trees::deferred_refusals::DeferredRequest;
         let (mut typed, [served, holder]) = unit_machines();
         let state = typed.machine_states(typed.machine_by_symbol(holder).unwrap())[0].symbol;
-        typed.record_deferred_refusal(
-            state,
-            DeferredRequest::ReceiverCallSelection,
-            source::SourceSpan::default(),
-        );
-        let mut program = Program::new(&typed, false);
-        // The twin without a row is read; nothing demanded the holder yet.
-        program.machine(served).expect("a machine with no row");
-        let refusal = program.machine(holder).unwrap_err();
-        assert_eq!(
-            refusal.reason,
-            terminal_check_tables::RefusalReason::Unsupported
-        );
-        assert_eq!(
-            refusal.detail,
-            "declaration holding a call selected by its receiver's type, which no pass serves yet \
-             while reading the signature of `holder`"
-        );
+        let authored = source::SourceSpan::new(source::SourceId(1), source::Span::new(13, 19));
+        for source_span in [None, Some(authored)] {
+            typed.record_deferred_refusal(
+                state,
+                DeferredRequest::ReceiverCallSelection,
+                source_span.unwrap_or_default(),
+            );
+            let mut program = Program::new(&typed, false);
+            // The twin without a row is read; nothing demanded the holder yet.
+            program.machine(served).expect("a machine with no row");
+            let refusal = program.machine(holder).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(refusal.source_span, source_span);
+            assert_eq!(
+                refusal.detail,
+                "declaration holding a call selected by its receiver's type, which no pass serves yet \
+                 while reading the signature of `holder`"
+            );
+            typed.deferred_refusals.clear();
+        }
         // The same declaration without the row is read like its twin.
-        typed.deferred_refusals.clear();
         Program::new(&typed, false)
             .machine(holder)
             .expect("the holder once its request is served");
@@ -1284,7 +1289,7 @@ mod tests {
                 .unwrap_err();
             assert!(matches!(
                 refusal.reason,
-                terminal_check_tables::RefusalReason::Violation(_)
+                terminal_check_tables::RefusalReason::Violation
             ));
             assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
         };
@@ -1667,7 +1672,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             uncovered.reason,
-            terminal_check_tables::RefusalReason::Violation(_)
+            terminal_check_tables::RefusalReason::Violation
         ));
         assert!(uncovered.detail.contains("does not cover every value"));
         let record = authority::Opened::constructing(StructuralTypeId::new(1).unwrap());
@@ -1740,6 +1745,8 @@ mod tests {
                 }))
         };
         let whole = name(&mut typed, local, "p");
+        let whole_span = source::SourceSpan::new(source::SourceId(0), source::Span::new(14, 15));
+        typed.expression_table.set_source_span(whole, whole_span);
         let named_constant = name(&mut typed, constant, "LIMIT");
         let projected =
             typed
@@ -1784,19 +1791,24 @@ mod tests {
             borrowed: None,
             borrowed_regions: crate::body::Regions::NONE,
         }];
+        let refused = program
+            .assignment(
+                machine(),
+                &frozen,
+                &TableAssignment {
+                    target: whole,
+                    value,
+                },
+            )
+            .unwrap_err();
         assert_eq!(
-            program
-                .assignment(
-                    machine(),
-                    &frozen,
-                    &TableAssignment {
-                        target: whole,
-                        value,
-                    },
-                )
-                .unwrap_err()
-                .detail,
-            "statement assignment to an immutable binding"
+            refused.reason,
+            terminal_check_tables::RefusalReason::Violation
+        );
+        assert_eq!(refused.source_span, Some(whole_span));
+        assert_eq!(
+            refused.detail,
+            "writing to an immutable owned binding requires `mut`"
         );
         let mut declared = |role, initial_value| {
             program
@@ -2069,6 +2081,15 @@ mod tests {
                 symbol: input_symbol,
                 ..Default::default()
             }));
+        let inferred = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let computed = typed.expression_table.insert(ExpressionNode::Binary(
+            typed_trees::expression::TableBinaryExpression {
+                left: borrowed_name,
+                operator: typed_trees::expression::BinaryOperator::Subtract,
+                right: initial,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ));
         let borrowed = [Slot {
             symbol: input_symbol,
             value_type: ValueType::plain(ScalarType::Integer(
@@ -2098,6 +2119,32 @@ mod tests {
         );
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
         assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
+        let (computed_slot, statement) = program
+            .local(
+                machine(),
+                &[Slot {
+                    borrowed: None,
+                    ..borrowed[0]
+                }],
+                &TableLocalData {
+                    type_reference: inferred,
+                    type_is_inferred: true,
+                    initial_value: computed,
+                    ..local.clone()
+                },
+            )
+            .unwrap();
+        assert_eq!(computed_slot.value_type, slot.value_type);
+        assert!(matches!(
+            statement,
+            crate::Statement::Bind {
+                slot: 1,
+                value: crate::Expression {
+                    kind: crate::ExpressionKind::Strict { .. },
+                    ..
+                }
+            }
+        ));
         let (captured, statement) = program
             .local(
                 machine(),
@@ -2262,11 +2309,11 @@ mod tests {
     /// same order from the other side and `==` holds its operands in the
     /// vocabulary's order.
     ///
-    /// What the slice does not serve is refused by name: the same sum
-    /// without `embed` (carrier arithmetic, which owes representability
-    /// first), mathematical division, a formal that is not embedded, a
-    /// machine a program spells `embed`, and the comparison in a clause
-    /// kind that cannot restate it yet.
+    /// The same sum without `embed` keeps both exact `u8` operations for
+    /// Stage 06 to prove representable before the clause can supply facts.
+    /// The separate refusal controls cover mathematical division, a formal
+    /// used without embedding in a mathematical term, a machine named
+    /// `embed`, and a guard that cannot restate the mathematical comparison.
     #[test]
     fn a_comparison_of_embedded_integers_is_a_mathematical_proposition() {
         use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm, Proposition};
@@ -2365,7 +2412,6 @@ mod tests {
         let within = binary(&mut typed, packed, BinaryOperator::LessOrEqual, limit);
         let at_least = binary(&mut typed, limit, BinaryOperator::GreaterOrEqual, packed);
         let exactly = binary(&mut typed, packed, BinaryOperator::Equal, limit);
-        // Outside the slice.
         let carrier_tens = binary(&mut typed, count_name, BinaryOperator::Multiply, ten);
         let carrier_sum = binary(&mut typed, rest_name, BinaryOperator::Add, carrier_tens);
         let carrier = binary(&mut typed, carrier_sum, BinaryOperator::LessOrEqual, limit);
@@ -2375,7 +2421,8 @@ mod tests {
         let mixed = binary(&mut typed, mixed_sum, BinaryOperator::LessOrEqual, limit);
         let spelled = call(&mut typed, impostor, rest_name);
         let spelled_embed = binary(&mut typed, spelled, BinaryOperator::LessOrEqual, limit);
-        let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let carrier_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let u8_type = ScalarType::Integer(carrier_type);
         let slot = |symbol| Slot {
             symbol,
             value_type: ValueType::Scalar(u8_type, crate::body::Qualification::NONE),
@@ -2401,7 +2448,7 @@ mod tests {
         let program = Program::new(&typed, false);
         let served = scope(MathematicalTerms::Served);
         let embedded = |value: u64| IntegerMathTerm::MathValue {
-            source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            source_type: carrier_type,
             value: ValueId::new(value).unwrap(),
         };
         let integer = |value: u128| {
@@ -2434,6 +2481,28 @@ mod tests {
                 .render(&|position| ["a", "b"][position].to_owned()),
             "embed(a) + embed(b) * 10 <= 99"
         );
+        let formal = |position| ScalarTerm::Value {
+            id: ValueId::new(position).unwrap(),
+            scalar_type: u8_type,
+        };
+        let carrier_literal = |value| ScalarTerm::Integer {
+            scalar_type: carrier_type,
+            value: IntegerValue::Unsigned(value),
+        };
+        let carrier_tens = ScalarTerm::ExactIntegerMultiply {
+            scalar_type: carrier_type,
+            left: Box::new(formal(2)),
+            right: Box::new(carrier_literal(10)),
+        };
+        let carrier_sum = ScalarTerm::ExactIntegerAdd {
+            scalar_type: carrier_type,
+            left: Box::new(formal(1)),
+            right: Box::new(carrier_tens),
+        };
+        assert_eq!(
+            program.clause(machine(), &served, carrier),
+            Ok(Proposition::LessOrEqual(carrier_sum, carrier_literal(99)))
+        );
         let detail = |scope: &ClauseScope<'_>, handle| {
             let refusal = program.clause(machine(), scope, handle).unwrap_err();
             assert_eq!(
@@ -2442,10 +2511,6 @@ mod tests {
             );
             refusal.detail
         };
-        assert_eq!(
-            detail(&served, carrier),
-            "contract carrier arithmetic in a clause term"
-        );
         assert_eq!(
             detail(&served, divided),
             "contract mathematical division in a clause"

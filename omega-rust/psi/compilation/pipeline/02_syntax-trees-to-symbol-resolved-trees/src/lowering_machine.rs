@@ -1663,6 +1663,7 @@ fn lower_lexical_machine_parts(
             conformance_bounds,
             ranking_subjects,
             ranking_view,
+            selected_ranking_view: Default::default(),
             ranking_view_arguments,
             ranking_range,
             invokes,
@@ -1947,9 +1948,9 @@ fn render_ranked_subject(
 }
 
 /*
-    Retain an authored `-> View` verbatim, with a fixed identity for canonical
-    builtins. An empty view requests default selection in typing; an unknown
-    explicit path stays nonempty and must not acquire a default instead.
+    Retain the authored view for name resolution. No spelling grants a
+    ranking identity here. An empty view requests typed default selection;
+    an unresolved explicit view must never acquire that default instead.
 */
 fn authored_ranking_view(
     syntax_trees: &SyntaxTrees,
@@ -1960,8 +1961,7 @@ fn authored_ranking_view(
     let order = syntax_items(syntax_trees).identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
         let path = order.joined_path_in(syntax_trees);
-        let id = RankingViewId::canonical(&path).unwrap_or(RankingViewId::NULL);
-        return (id, path);
+        return (RankingViewId::NULL, path);
     }
 
     (RankingViewId::NULL, String::new())

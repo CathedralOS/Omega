@@ -972,6 +972,7 @@ pub(crate) mod seeded_continuation {
                 old.termination_plan.implementation_witness.clone();
             header.ranking_subjects = old.ranking_subjects;
             header.ranking_view = old.ranking_view;
+            header.selected_ranking_view = old.selected_ranking_view;
             header.ranking_view_arguments = old.ranking_view_arguments;
             header.ranking_range = old.ranking_range;
             header.states = old.states;
@@ -1734,7 +1735,11 @@ pub(crate) fn close_typed_cohort(
     )?;
     normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
-    crate::constructor_applications::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
+    crate::constructor_applications::prepare(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+    )?;
     lowerer
         .typed_trees
         .prepare_data_application_views(cohort.typed_type_references)
@@ -1751,7 +1756,6 @@ pub(crate) fn close_typed_cohort(
         cohort.typed_expressions,
         &cast_destinations,
     )?;
-    crate::operator_calls::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
     // A projected assignment can acquire its receiving type only after a
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.
@@ -2075,7 +2079,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         proof_output_calls,
         declaration_indexes: _,
         callable_identities: _,
-        callable_identity_memo: _,
         ranking_expression_custody,
         pending_const_range_endpoints: _,
         constant_recipes: _,

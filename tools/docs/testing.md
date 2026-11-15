@@ -419,6 +419,41 @@ The first is the single repository-topology gate. The second is the currently
 closed bootstrap floor. There is deliberately no wrapper that pretends to run
 the whole chain.
 
+## Checking every program
+
+`mbx xtask sweep` runs `omega --check` over every tracked program under
+`samples/` and `tests/fixtures/` and groups where each one stops; its module
+documentation lists the smaller selections. A full sweep is about 9,000
+programs and about an hour on one machine, so give it `--out`: each program is
+then journalled as it finishes (`<out>.partial`), progress is kept in
+`<out>.status`, and running the same command again after a crash or a kill
+resumes where it stopped. The output is only written once every row is on
+disk, and it is read back before the run reports success. A misspelled
+`--target` stops the run at its first program.
+
+To use several machines, split one target's sweep across them instead of
+running a whole sweep per machine: the check result depends on the target, not
+on the machine that computes it.
+
+```bash
+mbx xtask sweep fleet start --target windows_x86_64
+mbx xtask sweep fleet status --watch 300
+mbx xtask sweep fleet collect
+```
+
+`start` reads the machines from `~/omega-agent/fleet.toml` (the form is in
+`tools/xtask/src/sweep/fleet.rs`), checks out one commit that origin has
+(`origin/main` unless `--commit` says otherwise) on each, builds there and runs
+a share of the programs weighted by each machine's speed, at the lowest
+operating-system priority and under the machine's
+[one-heavy-job lock](build_slot.md#on-the-test-vms). It reports a machine
+whose job did not write a status within two minutes. `status` shows each
+machine's progress and time left and flags a job that stopped updating;
+`collect` copies the shards back and merges them, refusing any set that is not
+exactly one row per selected program. `restart` starts unfinished shards
+again, and each resumes from its journal. `sweep merge --out <file>
+<shard>...` does the same merge for shards run by hand with `--shard`.
+
 ## Full baseline
 
 Use these gates when establishing or refreshing a full checkout baseline. The

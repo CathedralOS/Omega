@@ -11,10 +11,12 @@ use crate::repo_root;
 
 const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
 const PROTOCOL: &str = "omega-claims-v1";
-const DEFAULT_LEASE_MINUTES: u64 = 480;
+const LEASE_MINUTES: u64 = 120;
+const WRITE_ATTEMPTS: u32 = 5;
+const TICKETS_FILE: &str = "omega-claim-tickets";
 const NANOSECONDS_PER_SECOND: i128 = 1_000_000_000;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct ClaimsRecord {
     protocol: String,
     #[serde(default)]
@@ -177,9 +179,88 @@ fn format_utc(time: SystemTime) -> Result<String, String> {
 
 fn lease_timestamps(now: SystemTime) -> Result<(String, String), String> {
     let expires = now
-        .checked_add(Duration::from_secs(DEFAULT_LEASE_MINUTES * 60))
+        .checked_add(Duration::from_secs(LEASE_MINUTES * 60))
         .ok_or("claim expiry exceeds the system clock range")?;
     Ok((format_utc(now)?, format_utc(expires)?))
+}
+
+// A claim lives at most one lease past its last sign of life: when it was taken
+// or last renewed, whatever expiry it records. 66 claims, all stamped
+// 2026-11-07T00:00:00Z with a 2099 expiry, stayed visible a week later, some on
+// paths that no longer existed, so a recorded expiry can shorten a claim but
+// never lengthen it. Unknown times still
+// keep a claim visible: only a parsed instant proves that it ended.
+fn claim_expiry(claim: &serde_json::Value) -> Option<i128> {
+    let instant = |field: &str| {
+        claim
+            .get(field)
+            .and_then(serde_json::Value::as_str)
+            .and_then(parse_expiry)
+    };
+    let alive = match (instant("claimed_utc"), instant("renewed_utc")) {
+        (Some(claimed), Some(renewed)) => Some(claimed.max(renewed)),
+        (claimed, renewed) => claimed.or(renewed),
+    };
+    let lease_ceiling =
+        alive.map(|alive| alive + i128::from(LEASE_MINUTES * 60) * NANOSECONDS_PER_SECOND);
+    match (instant("expires_utc"), lease_ceiling) {
+        (Some(recorded), Some(ceiling)) => Some(recorded.min(ceiling)),
+        (recorded, ceiling) => recorded.or(ceiling),
+    }
+}
+
+// Renewal starts a fresh lease from `now`. A claim that has already lapsed is
+// not revived: it may have been taken over, so its agent must claim again.
+fn renew_claim(record: &mut ClaimsRecord, ticket: &str, now: SystemTime) -> Result<bool, String> {
+    let (renewed_utc, expires_utc) = lease_timestamps(now)?;
+    let now = epoch_nanoseconds(now);
+    let Some(claim) = record.claims.iter_mut().find(|claim| {
+        claim.get("ticket").and_then(serde_json::Value::as_str) == Some(ticket)
+            && claim_expiry(claim).is_none_or(|expires| expires > now)
+    }) else {
+        return Ok(false);
+    };
+    // A retried note must not shorten a renewal another writer already made.
+    if claim
+        .get("renewed_utc")
+        .and_then(serde_json::Value::as_str)
+        .and_then(parse_expiry)
+        .is_some_and(|renewed| renewed >= now)
+    {
+        return Ok(true);
+    }
+    if let Some(fields) = claim.as_object_mut() {
+        fields.insert("renewed_utc".to_owned(), renewed_utc.into());
+        fields.insert("expires_utc".to_owned(), expires_utc.into());
+        fields.insert("lease_minutes".to_owned(), LEASE_MINUTES.into());
+    }
+    Ok(true)
+}
+
+// Every write republishes the whole record. Ended claims and their notes grew
+// it to 915 claims and 1,148 notes (1.7 MB per write); status hides the first
+// and only counts the second. A write therefore drops ended claims and the
+// notes of any ticket that no longer has a visible claim, so a note lasts only
+// as long as its claim. Earlier records stay in the reference's history, which
+// this does not rewrite. A claim whose expiry cannot be read stays, with its
+// notes, as status keeps it.
+fn prune_registry(record: &mut ClaimsRecord, now: SystemTime) {
+    let now = epoch_nanoseconds(now);
+    record
+        .claims
+        .retain(|claim| claim_expiry(claim).is_none_or(|expires| expires > now));
+    let mut live: Vec<String> = record
+        .claims
+        .iter()
+        .filter_map(|claim| claim.get("ticket").and_then(serde_json::Value::as_str))
+        .map(str::to_owned)
+        .collect();
+    live.sort_unstable();
+    record.notes.retain(|note| {
+        note.get("ticket")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|ticket| live.binary_search_by(|t| t.as_str().cmp(ticket)).is_ok())
+    });
 }
 
 fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> serde_json::Value {
@@ -187,13 +268,7 @@ fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> ser
     let claims: Vec<_> = record
         .claims
         .iter()
-        .filter(|claim| {
-            claim
-                .get("expires_utc")
-                .and_then(serde_json::Value::as_str)
-                .and_then(parse_expiry)
-                .is_none_or(|expires| expires > now)
-        })
+        .filter(|claim| claim_expiry(claim).is_none_or(|expires| expires > now))
         .collect();
     serde_json::json!({
         "state": if claims.is_empty() { "available" } else { "claimed" },
@@ -208,7 +283,77 @@ fn clock_error(error: String) -> u8 {
     1
 }
 
+fn append_claim(record: &mut ClaimsRecord, claim: &serde_json::Value) -> Result<(), u8> {
+    let ticket = &claim["ticket"];
+    if let Some(existing) = record
+        .claims
+        .iter()
+        .find(|existing| existing["ticket"] == *ticket)
+    {
+        // A later writer may already have renewed this same logical claim.
+        // Compare its identity without replacing the newer lease fields.
+        if ["claimed_utc", "item", "owner", "board", "paths", "note"]
+            .into_iter()
+            .all(|field| existing[field] == claim[field])
+        {
+            return Ok(());
+        }
+        eprintln!("claims: ticket {ticket} already names a different claim");
+        return Err(1);
+    }
+    record.claims.push(claim.clone());
+    Ok(())
+}
+
+fn append_note(
+    record: &mut ClaimsRecord,
+    ticket: &str,
+    text: &str,
+    now: SystemTime,
+) -> Result<(), u8> {
+    let created_utc = format_utc(now).map_err(clock_error)?;
+    if record.notes.iter().any(|note| {
+        note["ticket"] == ticket
+            && note["created_utc"] == created_utc
+            && note["item"] == "note"
+            && note["owner"] == "agent"
+            && note["text"] == text
+    }) {
+        return Ok(());
+    }
+    // A note is a sign of life: it renews the claim it names.
+    renew_claim(record, ticket, now).map_err(clock_error)?;
+    record.notes.push(serde_json::json!({
+        "ticket": ticket,
+        "item": "note",
+        "owner": "agent",
+        "text": text,
+        "created_utc": created_utc,
+        "swept_utc": null,
+    }));
+    Ok(())
+}
+
 fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
+    let version = remote_version(repo)?;
+    if version.is_empty() {
+        return Ok((version, ClaimsRecord::default()));
+    }
+    if snapshot_is_cached(repo, &version)? {
+        return read_record(repo, &version).map(|record| (version, record));
+    }
+    // A source fetch can hold admission for much longer than a claim update.
+    // Sample the head again after that wait, so the lease does not age in line.
+    crate::repository::with_git_fetch(repo, |fetch| Ok(fetch_snapshot_admitted(repo, fetch)))
+        .map_err(fetch_error)?
+}
+
+fn fetch_error(error: String) -> u8 {
+    eprintln!("claims: {error}");
+    1
+}
+
+fn remote_version(repo: &Path) -> Result<String, u8> {
     let ls = Command::new("git")
         .args(["ls-remote", "origin", CLAIMS_REF])
         .current_dir(repo)
@@ -223,39 +368,76 @@ fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
         return Err(1);
     }
     let stdout = String::from_utf8_lossy(&ls.stdout);
-    let version = stdout
+    Ok(stdout
         .split_whitespace()
         .next()
         .unwrap_or("")
         .trim()
-        .to_owned();
+        .to_owned())
+}
+
+fn fetch_snapshot_admitted(repo: &Path, fetch: &mut Command) -> Result<(String, ClaimsRecord), u8> {
+    let version = remote_version(repo)?;
     if version.is_empty() {
         return Ok((String::new(), ClaimsRecord::default()));
     }
-    let record = fetch_record(repo, &version)?;
+    let record = fetch_record_admitted(repo, &version, fetch)?;
     Ok((version, record))
 }
 
-fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
+fn snapshot_is_cached(repo: &Path, version: &str) -> Result<bool, u8> {
+    // Worktrees share immutable objects. Locally written snapshots need no
+    // network fetch or shared fetch lock before the compare-and-swap push.
+    let cached = Command::new("git")
+        .args(["cat-file", "-e", &format!("{version}^{{commit}}")])
+        .current_dir(repo)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|error| {
+            eprintln!("claims: cannot inspect local snapshot {version}: {error}");
+            1u8
+        })?;
+    Ok(cached.success())
+}
+
+fn fetch_record_admitted(
+    repo: &Path,
+    version: &str,
+    fetch: &mut Command,
+) -> Result<ClaimsRecord, u8> {
     // Fetch the exact advertised snapshot: another writer may move the ref
     // between ls-remote and fetch. Reading a different or empty record under
     // the advertised lease could overwrite other sessions' claims.
     // Only the newest record matters: each commit's message is the whole
     // registry, and the ref's history is tens of thousands of such commits,
     // so a full fetch can exhaust a session's memory.
-    let fetch = crate::repository::with_git_fetch(repo, |command| {
-        command
+    if !snapshot_is_cached(repo, version)? {
+        let status = fetch
             .args(["-q", "--depth=1", "origin", version])
             .status()
-    })
-    .map_err(|error| {
-        eprintln!("claims: {error}");
-        1u8
-    })?;
-    if !fetch.success() {
-        eprintln!("claims: cannot fetch registry snapshot {version}");
-        return Err(1);
+            .map_err(|error| fetch_error(format!("cannot fetch snapshot {version}: {error}")))?;
+        if !status.success() {
+            eprintln!("claims: cannot fetch registry snapshot {version}");
+            return Err(1);
+        }
     }
+    read_record(repo, version)
+}
+
+#[cfg(test)]
+fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
+    if snapshot_is_cached(repo, version)? {
+        return read_record(repo, version);
+    }
+    crate::repository::with_git_fetch(repo, |fetch| {
+        Ok(fetch_record_admitted(repo, version, fetch))
+    })
+    .map_err(fetch_error)?
+}
+
+fn read_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
     let show = Command::new("git")
         .args(["show", "-s", "--format=%B", version])
         .current_dir(repo)
@@ -281,17 +463,31 @@ fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
     Ok(record)
 }
 
-fn commit_and_push(repo: &Path, prev_version: &str, record: &ClaimsRecord) -> Result<(), u8> {
+#[derive(Debug)]
+enum PublicationError {
+    Prepare,
+    Push,
+}
+
+fn commit_and_push(
+    repo: &Path,
+    prev_version: &str,
+    record: &ClaimsRecord,
+) -> Result<(), PublicationError> {
     let empty_tree = Command::new("git")
         .args(["hash-object", "-t", "tree", "--stdin"])
         .current_dir(repo)
         .stdin(Stdio::null())
         .output()
-        .map_err(|_| 1u8)?;
+        .map_err(|_| PublicationError::Prepare)?;
+    if !empty_tree.status.success() {
+        eprintln!("claims: cannot create registry tree");
+        return Err(PublicationError::Prepare);
+    }
     let tree_sha = String::from_utf8_lossy(&empty_tree.stdout)
         .trim()
         .to_owned();
-    let body = serde_json::to_string(record).map_err(|_| 1u8)?;
+    let body = serde_json::to_string(record).map_err(|_| PublicationError::Prepare)?;
 
     let mut commit_cmd = Command::new("git");
     commit_cmd.arg("commit-tree").arg(&tree_sha);
@@ -303,14 +499,18 @@ fn commit_and_push(repo: &Path, prev_version: &str, record: &ClaimsRecord) -> Re
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .map_err(|_| 1u8)?;
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(body.as_bytes());
-    }
-    let out = child.wait_with_output().map_err(|_| 1u8)?;
+        .map_err(|_| PublicationError::Prepare)?;
+    let write = child.stdin.take().unwrap().write_all(body.as_bytes());
+    let out = child
+        .wait_with_output()
+        .map_err(|_| PublicationError::Prepare)?;
+    write.map_err(|error| {
+        eprintln!("claims: cannot write registry payload: {error}");
+        PublicationError::Prepare
+    })?;
     if !out.status.success() {
         eprintln!("claims: git commit-tree failed");
-        return Err(1);
+        return Err(PublicationError::Prepare);
     }
     let new_sha = String::from_utf8_lossy(&out.stdout).trim().to_owned();
     let lease = format!("--force-with-lease={CLAIMS_REF}:{prev_version}");
@@ -320,12 +520,94 @@ fn commit_and_push(repo: &Path, prev_version: &str, record: &ClaimsRecord) -> Re
         .current_dir(repo)
         .stdin(Stdio::null())
         .status()
-        .map_err(|_| 1u8)?;
+        .map_err(|_| PublicationError::Push)?;
     if !push.success() {
         eprintln!("claims: push to {CLAIMS_REF} failed (concurrent writer or network error)");
-        return Err(1);
+        return Err(PublicationError::Push);
     }
     Ok(())
+}
+
+// Every agent writes the same ref, so a write loses to a concurrent one often
+// (about a third of 66 back-to-back releases did). Each attempt reapplies the
+// change to the newest snapshot rather than overwriting it.
+fn update_registry<T>(
+    repo: &Path,
+    mut change: impl FnMut(&mut ClaimsRecord) -> Result<T, u8>,
+) -> Result<T, u8> {
+    let mut attempt = 1;
+    let (mut version, mut record) = fetch_snapshot(repo)?;
+    loop {
+        let previous = record.clone();
+        let outcome = change(&mut record)?;
+        if record == previous {
+            return Ok(outcome);
+        }
+        prune_registry(&mut record, SystemTime::now());
+        match commit_and_push(repo, &version, &record) {
+            Ok(()) => return Ok(outcome),
+            Err(PublicationError::Push) => {
+                let (latest_version, latest_record) = fetch_snapshot(repo)?;
+                // A lost acknowledgement can hide a successful publication.
+                if latest_record == record {
+                    return Ok(outcome);
+                }
+                if latest_version == version || attempt == WRITE_ATTEMPTS {
+                    return Err(1);
+                }
+                eprintln!(
+                    "claims: retrying against the newer registry ({attempt}/{WRITE_ATTEMPTS})"
+                );
+                version = latest_version;
+                record = latest_record;
+                attempt += 1;
+            }
+            Err(PublicationError::Prepare) => return Err(1),
+        }
+    }
+}
+
+// The tickets this worktree holds, so `claims renew` needs no arguments. The
+// file sits in the worktree's own git directory: each worktree renews only its
+// own claims, and nothing is committed.
+fn tickets_file(repo: &Path) -> Option<std::path::PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-path", TICKETS_FILE])
+        .current_dir(repo)
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| repo.join(String::from_utf8_lossy(&output.stdout).trim()))
+}
+
+fn held_tickets(repo: &Path) -> Vec<String> {
+    tickets_file(repo)
+        .and_then(|file| std::fs::read_to_string(file).ok())
+        .map(|text| {
+            text.lines()
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn write_held_tickets(repo: &Path, tickets: &[String]) {
+    let Some(file) = tickets_file(repo) else {
+        eprintln!("claims: cannot locate this worktree's ticket file; renew with --ticket");
+        return;
+    };
+    let text: String = tickets.iter().map(|ticket| format!("{ticket}\n")).collect();
+    if let Err(error) = std::fs::write(&file, text) {
+        eprintln!(
+            "claims: cannot record held tickets in {}: {error}",
+            file.display()
+        );
+    }
 }
 
 fn generate_ticket_id() -> String {
@@ -352,6 +634,9 @@ enum Request {
     },
     Release {
         ticket: String,
+    },
+    Renew {
+        tickets: Vec<String>,
     },
     Note {
         ticket: String,
@@ -434,6 +719,17 @@ fn parse(args: &[String]) -> Result<Option<Request>, String> {
             }
             Ok(Some(Request::Release { ticket }))
         }
+        "renew" => {
+            let mut tickets = Vec::new();
+            while let Some(option) = args.next() {
+                match option {
+                    "-h" | "--help" => return Ok(None),
+                    "--ticket" => tickets.push(option_value(&mut args, option)?),
+                    _ => return Err(format!("unknown option `{option}` for `renew`")),
+                }
+            }
+            Ok(Some(Request::Renew { tickets }))
+        }
         "note" => {
             let mut ticket = String::new();
             let mut text = String::new();
@@ -461,18 +757,21 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     })?;
     let Some(request) = request else {
         println!(
-            "usage: cargo xtask claims <status|claim|release|note> [--board <file>] [--item <id>] [--owner <name>] [--path <paths>] [--ticket <id>] [--text <note>]"
+            "usage: cargo xtask claims <status|claim|release|renew|note> [--board <file>] [--item <id>] [--owner <name>] [--path <paths>] [--ticket <id>] [--text <note>]\n\
+             A claim lasts {LEASE_MINUTES} minutes from when it was taken or last renewed. \
+             `renew` (no --ticket: every claim this worktree took) and `note` extend it."
         );
         return Ok(());
     };
     let repo = repo_root()?;
-    let (version, mut record) = fetch_snapshot(&repo)?;
 
     match request {
         Request::Status => {
+            let (version, record) = fetch_snapshot(&repo)?;
             let out = status_snapshot(&version, &record, SystemTime::now());
-            println!("{}", serde_json::to_string_pretty(&out).unwrap());
-            Ok(())
+            crate::write_status(|output| {
+                writeln!(output, "{}", serde_json::to_string_pretty(&out).unwrap())
+            })
         }
         Request::Claim {
             board,
@@ -484,19 +783,21 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             let ticket = generate_ticket_id();
             let (claimed_utc, expires_utc) =
                 lease_timestamps(SystemTime::now()).map_err(clock_error)?;
-            let entry = serde_json::json!({
-                "ticket": ticket,
-                "item": item,
-                "board": board,
-                "owner": owner,
-                "paths": paths,
-                "note": note,
-                "lease_minutes": DEFAULT_LEASE_MINUTES,
-                "claimed_utc": claimed_utc,
-                "expires_utc": expires_utc,
+            let claim = serde_json::json!({
+                    "ticket": ticket,
+                    "item": item,
+                    "board": board,
+                    "owner": owner,
+                    "paths": paths,
+                    "note": note,
+                    "lease_minutes": LEASE_MINUTES,
+                    "claimed_utc": claimed_utc,
+                    "expires_utc": expires_utc,
             });
-            record.claims.push(entry);
-            commit_and_push(&repo, &version, &record)?;
+            update_registry(&repo, |record| append_claim(record, &claim))?;
+            let mut held = held_tickets(&repo);
+            held.push(ticket.clone());
+            write_held_tickets(&repo, &held);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -509,10 +810,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             Ok(())
         }
         Request::Release { ticket } => {
-            record.claims.retain(|claim| {
-                claim.get("ticket").and_then(|value| value.as_str()) != Some(ticket.as_str())
-            });
-            commit_and_push(&repo, &version, &record)?;
+            update_registry(&repo, |record| {
+                record.claims.retain(|claim| {
+                    claim.get("ticket").and_then(|value| value.as_str()) != Some(ticket.as_str())
+                });
+                Ok(())
+            })?;
+            let mut held = held_tickets(&repo);
+            held.retain(|held| *held != ticket);
+            write_held_tickets(&repo, &held);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -523,17 +829,51 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             );
             Ok(())
         }
+        Request::Renew { tickets } => {
+            let tickets = if tickets.is_empty() {
+                held_tickets(&repo)
+            } else {
+                tickets
+            };
+            if tickets.is_empty() {
+                eprintln!("claims: this worktree holds no claim to renew; pass --ticket <id>");
+                return Err(1);
+            }
+            let renewed = update_registry(&repo, |record| {
+                let now = SystemTime::now();
+                let mut renewed = Vec::new();
+                for ticket in &tickets {
+                    if renew_claim(record, ticket, now).map_err(clock_error)? {
+                        renewed.push(ticket.clone());
+                    }
+                }
+                Ok(renewed)
+            })?;
+            let lapsed: Vec<_> = tickets.iter().filter(|t| !renewed.contains(t)).collect();
+            // A lapsed ticket is gone for good; stop offering it for renewal.
+            let mut held = held_tickets(&repo);
+            held.retain(|held| !lapsed.contains(&held));
+            write_held_tickets(&repo, &held);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "state": if lapsed.is_empty() { "renewed" } else { "partially renewed" },
+                    "renewed": renewed,
+                    "lapsed": lapsed,
+                    "lease_minutes": LEASE_MINUTES,
+                }))
+                .unwrap()
+            );
+            if lapsed.is_empty() {
+                Ok(())
+            } else {
+                eprintln!("claims: lapsed or released tickets cannot be renewed; claim again");
+                Err(1)
+            }
+        }
         Request::Note { ticket, text } => {
-            let created_utc = format_utc(SystemTime::now()).map_err(clock_error)?;
-            record.notes.push(serde_json::json!({
-                "ticket": ticket,
-                "item": "note",
-                "owner": "agent",
-                "text": text,
-                "created_utc": created_utc,
-                "swept_utc": null,
-            }));
-            commit_and_push(&repo, &version, &record)?;
+            let now = SystemTime::now();
+            update_registry(&repo, |record| append_note(record, &ticket, &text, now))?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -693,7 +1033,62 @@ mod tests {
     }
 
     #[test]
-    fn missing_advertised_snapshot_refuses_even_if_a_cached_record_exists() {
+    fn an_uncached_snapshot_uses_the_head_observed_after_fetch_admission() {
+        let fixture = RegistryFixture::new();
+        let observed = fixture.publish(
+            &json!({"protocol": PROTOCOL,
+            "claims": [{"ticket": "old"}], "notes": []})
+            .to_string(),
+        );
+        assert_eq!(remote_version(&fixture.reader).unwrap(), observed);
+        assert!(!snapshot_is_cached(&fixture.reader, &observed).unwrap());
+        let (latest, snapshot) = crate::repository::with_git_fetch(&fixture.reader, |fetch| {
+            // Another writer may publish while this reader waits for admission.
+            let latest = fixture.publish(
+                &json!({"protocol": PROTOCOL,
+                "claims": [{"ticket": "new", "unknown": [1, 2]}], "notes": []})
+                .to_string(),
+            );
+            Ok((latest, fetch_snapshot_admitted(&fixture.reader, fetch)))
+        })
+        .unwrap();
+        let (version, record) = snapshot.unwrap();
+        assert_eq!(version, latest);
+        assert_ne!(version, observed);
+        assert_eq!(record.claims, [json!({"ticket": "new", "unknown": [1, 2]})]);
+        // A newer malformed head is a refusal, not a reason to reuse the old body.
+        let snapshot = crate::repository::with_git_fetch(&fixture.reader, |fetch| {
+            fixture.publish("malformed newer registry");
+            Ok(fetch_snapshot_admitted(&fixture.reader, fetch))
+        })
+        .unwrap();
+        assert!(snapshot.is_err());
+    }
+
+    #[test]
+    fn a_cached_snapshot_does_not_wait_for_fetch_admission() {
+        let fixture = RegistryFixture::new();
+        let version = fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
+        fetch_record(&fixture.reader, &version).unwrap();
+        let snapshot = std::thread::scope(|threads| {
+            crate::repository::with_git_fetch(&fixture.reader, |_| {
+                let (send, receive) = std::sync::mpsc::channel();
+                let reader = &fixture.reader;
+                threads.spawn(move || {
+                    let _ = send.send(fetch_snapshot(reader));
+                });
+                Ok(receive.recv_timeout(Duration::from_secs(5)))
+            })
+            .unwrap()
+        })
+        .expect("cached reads finish while fetch admission is held")
+        .unwrap();
+        assert_eq!(snapshot.0, version);
+        assert_eq!(snapshot.1, ClaimsRecord::default());
+    }
+
+    #[test]
+    fn exact_cached_snapshot_needs_no_fetch_but_unknown_snapshot_still_refuses() {
         let fixture = RegistryFixture::new();
         let version = fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
         fetch_record(&fixture.reader, &version).unwrap();
@@ -706,20 +1101,183 @@ mod tests {
                 fixture.root.join("missing").to_str().unwrap(),
             ],
         );
-        assert!(fetch_record(&fixture.reader, &version).is_err());
+        assert!(fetch_record(&fixture.reader, &version).is_ok());
+        assert!(fetch_record(&fixture.reader, "1111111111111111111111111111111111111111").is_err());
+        assert!(fetch_snapshot(&fixture.reader).is_err());
     }
 
     #[test]
-    fn claim_lease_starts_at_the_supplied_clock_and_lasts_eight_hours() {
+    fn concurrent_updates_reapply_without_losing_foreign_records() {
+        let fixture = RegistryFixture::new();
+        fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
+        let mut attempts = 0;
+        update_registry(&fixture.reader, |record| {
+            attempts += 1;
+            if attempts == 1 {
+                fixture.publish(
+                    &json!({"protocol": PROTOCOL,
+                        "claims": [{"ticket": "other", "unknown": [1, 2]}],
+                        "notes": [{"ticket": "other", "text": "keep", "created_utc": "2026-11-14T00:00:00.123456789Z"}]
+                    })
+                    .to_string(),
+                );
+            }
+            record.claims.push(json!({"ticket": "ours"}));
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(attempts, 2);
+        let (_, record) = fetch_snapshot(&fixture.reader).unwrap();
+        assert_eq!(
+            record.claims,
+            vec![
+                json!({"ticket": "other", "unknown": [1, 2]}),
+                json!({"ticket": "ours"})
+            ]
+        );
+        assert_eq!(
+            record.notes[0]["created_utc"],
+            "2026-11-14T00:00:00.123456789Z"
+        );
+    }
+
+    #[test]
+    fn an_unchanged_registry_is_not_published() {
+        let fixture = RegistryFixture::new();
+        let version = fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
+        update_registry(&fixture.reader, |_| Ok(())).unwrap();
+        assert_eq!(
+            RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
+            version
+        );
+    }
+
+    #[test]
+    fn replaying_a_claim_or_note_preserves_a_later_writers_changes() {
+        let taken = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
+        let (claimed_utc, expires_utc) = lease_timestamps(taken).unwrap();
+        let claim = json!({"ticket": "ours", "item": "repair", "owner": "agent",
+            "claimed_utc": claimed_utc, "expires_utc": expires_utc});
+        let mut record = ClaimsRecord::default();
+        append_claim(&mut record, &claim).unwrap();
+        append_note(&mut record, "ours", "working", taken).unwrap();
+        let later = taken + Duration::from_secs(3600);
+        assert!(renew_claim(&mut record, "ours", later).unwrap());
+        record
+            .claims
+            .push(json!({"ticket": "foreign", "unknown": {"keep": true}}));
+        record.notes[0]["swept_utc"] = json!("later sweep");
+        let before = record.clone();
+        append_claim(&mut record, &claim).unwrap();
+        append_note(&mut record, "ours", "working", taken).unwrap();
+        assert_eq!(record, before);
+        let mut different = claim.clone();
+        different["item"] = json!("a different operation");
+        assert!(append_claim(&mut record, &different).is_err());
+        assert_eq!(record, before);
+        // Another intentional note is distinct, even with identical text.
+        append_note(&mut record, "ours", "working", later).unwrap();
+        assert_eq!(record.notes.len(), 2);
+    }
+
+    #[test]
+    fn local_preparation_errors_are_not_retried() {
+        let fixture = RegistryFixture::new();
+        fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
+        RegistryFixture::git(&fixture.reader, &["config", "user.name", ""]);
+        let mut attempts = 0;
+        assert!(
+            update_registry(&fixture.reader, |record| {
+                attempts += 1;
+                record.claims.push(json!({"ticket": "ours"}));
+                Ok(())
+            })
+            .is_err()
+        );
+        assert_eq!(attempts, 1);
+    }
+
+    #[test]
+    fn a_failed_push_without_a_competing_writer_is_not_retried() {
+        let fixture = RegistryFixture::new();
+        let version = fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
+        RegistryFixture::git(
+            &fixture.reader,
+            &[
+                "config",
+                "remote.origin.pushurl",
+                fixture.root.join("missing").to_str().unwrap(),
+            ],
+        );
+        let mut attempts = 0;
+        assert!(
+            update_registry(&fixture.reader, |record| {
+                attempts += 1;
+                record.claims.push(json!({"ticket": "ours"}));
+                Ok(())
+            })
+            .is_err()
+        );
+        assert_eq!(attempts, 1);
+        assert_eq!(
+            RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
+            version
+        );
+    }
+
+    #[test]
+    fn claim_lease_starts_at_the_supplied_clock_and_lasts_two_hours() {
         let now = UNIX_EPOCH + Duration::new(1_794_527_999, 123_456_700);
         let (claimed, expires) = lease_timestamps(now).unwrap();
         assert_eq!(claimed, "2026-11-12T23:59:59.123456700+00:00");
-        assert_eq!(expires, "2026-11-13T07:59:59.123456700+00:00");
+        assert_eq!(expires, "2026-11-13T01:59:59.123456700+00:00");
         assert_eq!(format_utc(now).unwrap(), claimed);
         assert_eq!(parse_expiry(&claimed), Some(epoch_nanoseconds(now)));
         assert_eq!(
             parse_expiry(&expires).unwrap() - epoch_nanoseconds(now),
-            8 * 60 * 60 * NANOSECONDS_PER_SECOND
+            2 * 60 * 60 * NANOSECONDS_PER_SECOND
+        );
+    }
+
+    #[test]
+    fn renewal_restarts_the_lease_and_cannot_revive_a_lapsed_claim() {
+        let hour = Duration::from_secs(3600);
+        let taken = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
+        let (claimed_utc, expires_utc) = lease_timestamps(taken).unwrap();
+        let mut record = ClaimsRecord {
+            claims: vec![
+                json!({"ticket": "live", "claimed_utc": claimed_utc, "expires_utc": expires_utc}),
+                json!({"ticket": "lapsed", "claimed_utc": claimed_utc, "expires_utc": expires_utc}),
+            ],
+            ..ClaimsRecord::default()
+        };
+        // An hour and a half in, renew one claim; it then outlives the first
+        // lease and ends two hours after the renewal.
+        let renewal = taken + hour + hour / 2;
+        assert!(renew_claim(&mut record, "live", renewal).unwrap());
+        let already_renewed = record.clone();
+        assert!(renew_claim(&mut record, "live", taken + hour).unwrap());
+        assert_eq!(record, already_renewed);
+        let later = taken + 3 * hour;
+        let visible = status_snapshot("v", &record, later)["claims"].clone();
+        assert_eq!(visible.as_array().unwrap().len(), 1);
+        assert_eq!(visible[0]["ticket"], "live");
+        assert_eq!(
+            claim_expiry(&record.claims[0]),
+            Some(epoch_nanoseconds(renewal + 2 * hour))
+        );
+        // The unrenewed claim ended at two hours and stays ended.
+        assert!(!renew_claim(&mut record, "lapsed", later).unwrap());
+        assert!(!renew_claim(&mut record, "unknown", later).unwrap());
+        assert_eq!(record.claims[1]["expires_utc"], expires_utc.as_str());
+        // A renewal stamped later than a hand-edited expiry cannot extend it.
+        let mut capped = json!({"ticket": "c", "claimed_utc": claimed_utc,
+            "renewed_utc": format_utc(renewal).unwrap(), "expires_utc": claimed_utc});
+        assert_eq!(claim_expiry(&capped), Some(epoch_nanoseconds(taken)));
+        capped["expires_utc"] = "2099-01-01T00:00:00Z".into();
+        assert_eq!(
+            claim_expiry(&capped),
+            Some(epoch_nanoseconds(renewal + 2 * hour))
         );
     }
 
@@ -804,29 +1362,89 @@ mod tests {
     }
 
     #[test]
-    fn status_keeps_unknown_expiry_and_honors_historical_far_future_expiry() {
-        let claims = vec![
+    fn status_keeps_unknown_expiry_and_caps_far_future_expiry_at_one_lease() {
+        let unknown = vec![
             json!({"ticket": "missing", "legacy_field": [1, 2]}),
             json!({"ticket": "null", "expires_utc": null}),
             json!({"ticket": "number", "expires_utc": 42}),
             json!({"ticket": "malformed", "expires_utc": "2026-02-30T00:00:00Z"}),
-            json!({
-                "ticket": "historical", "lease_minutes": 480,
-                "claimed_utc": "2026-11-07T00:00:00+00:00",
-                "expires_utc": "2099-01-01T00:00:00+00:00",
-                "unknown_field": true
-            }),
         ];
+        let mut claims = unknown.clone();
+        // Taken 2026-11-07 with a 2099 expiry: its lease ended that morning.
+        claims.push(json!({
+            "ticket": "historical", "lease_minutes": 480,
+            "claimed_utc": "2026-11-07T00:00:00+00:00",
+            "expires_utc": "2099-01-01T00:00:00+00:00",
+            "unknown_field": true
+        }));
         let wire = json!({"protocol": PROTOCOL, "claims": claims, "notes": []});
         let record: ClaimsRecord = serde_json::from_value(wire.clone()).unwrap();
         let now = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
         let out = status_snapshot("snapshot", &record, now);
         assert_eq!(out["state"], "claimed");
-        assert_eq!(out["claims"], json!(claims));
+        assert_eq!(out["claims"], json!(unknown));
         assert_eq!(serde_json::to_value(record).unwrap(), wire);
         assert_eq!(
             status_snapshot("empty", &ClaimsRecord::default(), now)["state"],
             "available"
+        );
+    }
+
+    #[test]
+    fn a_recorded_expiry_shortens_a_lease_but_never_extends_it() {
+        let (claimed, expires) = lease_timestamps(UNIX_EPOCH + Duration::from_secs(1_000)).unwrap();
+        let lease = i128::from(LEASE_MINUTES * 60) * NANOSECONDS_PER_SECOND;
+        let start = parse_expiry(&claimed).unwrap();
+        for (recorded, ends) in [
+            (expires.as_str(), start + lease),
+            ("2099-01-01T00:00:00Z", start + lease),
+            ("1970-01-01T00:20:00Z", 1_200 * NANOSECONDS_PER_SECOND),
+        ] {
+            let claim = json!({"claimed_utc": claimed, "expires_utc": recorded});
+            assert_eq!(claim_expiry(&claim), Some(ends), "{recorded}");
+        }
+        // Without a recorded expiry the lease still ends; without either the
+        // claim stays visible.
+        assert_eq!(
+            claim_expiry(&json!({"claimed_utc": claimed})),
+            Some(start + lease)
+        );
+        assert_eq!(claim_expiry(&json!({"claimed_utc": "soon"})), None);
+    }
+
+    #[test]
+    fn a_write_drops_ended_claims_and_notes_without_a_visible_claim() {
+        let now = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
+        let (claimed_utc, expires_utc) = lease_timestamps(now).unwrap();
+        let note = |ticket: Option<&str>| match ticket {
+            Some(ticket) => json!({"ticket": ticket, "text": "milestone"}),
+            None => json!({"text": "unowned"}),
+        };
+        let mut record = ClaimsRecord {
+            claims: vec![
+                json!({"ticket": "live", "claimed_utc": claimed_utc, "expires_utc": expires_utc}),
+                json!({"ticket": "ended", "expires_utc": "2026-11-01T00:00:00Z"}),
+                json!({"ticket": "zombie", "claimed_utc": "2026-11-07T00:00:00Z",
+                    "expires_utc": "2099-01-01T00:00:00Z"}),
+                json!({"ticket": "unreadable", "expires_utc": "soon"}),
+            ],
+            notes: vec![
+                note(Some("live")),
+                note(Some("ended")),
+                note(Some("zombie")),
+                note(Some("released")),
+                note(Some("unreadable")),
+                note(None),
+            ],
+            ..ClaimsRecord::default()
+        };
+        let visible = status_snapshot("v", &record, now)["claims"].clone();
+        prune_registry(&mut record, now);
+        // The stored record now holds exactly what status shows.
+        assert_eq!(json!(record.claims), visible);
+        assert_eq!(
+            record.notes,
+            vec![note(Some("live")), note(Some("unreadable"))]
         );
     }
 

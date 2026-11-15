@@ -1146,11 +1146,7 @@ pub(crate) mod normalized_foreign {
                     .indices
                     .iter()
                     .zip(indices)
-                    .any(|(target, selected)| {
-                        target.operand.source_value() != selected.operand.value
-                            || target.operand.scalar_type() != selected.operand.scalar_type
-                            || target.stride != selected.stride
-                    })
+                    .any(|(target, selected)| !selected.matches_target(target))
                 || argument.source != expected_source
                 || operands.get(index) != Some(&argument.destination)
                 || argument.destination.shape != abi_shape
@@ -1289,11 +1285,7 @@ pub(crate) mod owned_argument {
                     .indices
                     .iter()
                     .zip(indices)
-                    .any(|(target, selected)| {
-                        target.operand.source_value() != selected.operand.value
-                            || target.operand.scalar_type() != selected.operand.scalar_type
-                            || target.stride != selected.stride
-                    })
+                    .any(|(target, selected)| !selected.matches_target(target))
                 || target.fixed_array_length.is_some()
                 || target.element_stride.is_some()
                 || !crate::selection::aggregate_result_input::owned_argument_placement(

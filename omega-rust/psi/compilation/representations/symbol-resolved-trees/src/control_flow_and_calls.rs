@@ -202,6 +202,7 @@ pub mod control_flow {
             pub conformance_bounds: Vec<GenericConformanceBound>,
             pub ranking_subjects: HandleSpan<ExpressionHandle>,
             pub ranking_view: HandleSpan<DiagnosticName>,
+            pub selected_ranking_view: language_semantics::RankingViewSelection,
             pub ranking_view_arguments: HandleSpan<ExpressionHandle>,
             pub ranking_range: ExpressionHandle,
             pub invokes: HandleSpan<DiagnosticName>,
@@ -327,6 +328,7 @@ pub mod control_flow {
                     conformance_bounds: Vec::new(),
                     ranking_subjects: HandleSpan::empty(),
                     ranking_view: HandleSpan::empty(),
+                    selected_ranking_view: Default::default(),
                     ranking_view_arguments: HandleSpan::empty(),
                     ranking_range: Default::default(),
                     invokes: HandleSpan::empty(),
@@ -552,6 +554,8 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CallStorage {
+    pub target_is_static: bool,
+            pub unresolved_name: symbols::UnresolvedName,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
@@ -610,6 +614,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct NamedTransitionTargetStorage {
+            pub unresolved_name: symbols::UnresolvedName,
             pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
             pub path: HandleSpan<DiagnosticName>,
             pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
@@ -933,6 +938,7 @@ pub mod control_flow {
                                 .span_or_empty(call.receiver),
                         );
                         self.insert(StatementNode::Call(TableCall {
+                            unresolved_name: call.unresolved_name,
                             receiver_root_symbol: call.receiver_root_symbol,
                             receiver_symbol: call.receiver_symbol,
                             target_symbol: call.target_symbol,
@@ -1107,6 +1113,7 @@ pub mod control_flow {
                     TransitionTarget::Named(named) => TransitionTargetNode::Named {
                         operational_acknowledgement: named.operational_acknowledgement,
                         path: TableNamePath {
+                            unresolved_name: named.unresolved_name,
                             members: self.insert_name_path_members(
                                 transplant
                                     .source_statement_path_members
@@ -1212,6 +1219,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
         pub struct TableCall {
+    pub unresolved_name: symbols::UnresolvedName,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
@@ -1310,6 +1318,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableNamePath {
+            pub unresolved_name: symbols::UnresolvedName,
             pub receiver_symbol: SymbolHandle,
             pub members: HandleSpan<DiagnosticName>,
             pub head_symbol: SymbolHandle,
@@ -1444,6 +1453,7 @@ pub mod control_flow {
                             evidence_arguments: Box::default(),
                             source_span: Default::default(),
                             authored_call_selection: None,
+                            unresolved_name: Default::default(),
                         },
                     }),
                     continuation: None,

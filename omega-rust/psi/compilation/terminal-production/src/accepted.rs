@@ -558,10 +558,12 @@ fn accept_compilation(
                 }));
             }
             Ok(RouteVerdict::FallBack(refused)) => {
-                diagnostics.push(Diagnostic::error(format!(
+                let mut diagnostic = Diagnostic::error(format!(
                     "not supported yet: {}; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong",
                     refused.detail
-                )));
+                ));
+                diagnostic.source_span = refused.source_span;
+                diagnostics.push(diagnostic);
             }
             Err(defect) => diagnostics.push(route_defect(&format!("{defect:?}"))),
         }
@@ -639,6 +641,7 @@ mod tests {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
         typed_trees_to_terminal_psi::lower_bodies(
             MachineId::new(1).unwrap(),

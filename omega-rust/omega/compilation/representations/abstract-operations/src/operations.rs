@@ -655,6 +655,13 @@ pub enum AbstractOperation {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
+    /// No valid execution can reach this terminal: checking established that
+    /// the actual observed storage namespace has no admitted value.
+    EliminateEmpty {
+        psi_edge: EdgeId,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
     InvokeNoNormal {
         psi_edge: EdgeId,
         callee: MachineId,
@@ -952,6 +959,16 @@ impl AbstractOperation {
         })
     }
 
+    /// The storage a terminator reads before choosing any of its edges: the
+    /// discriminator of a dispatch or of an empty elimination. Its runtime
+    /// indices belong to the terminator, not to an edge or an operation.
+    pub fn terminator_read_path(&self) -> Option<&[StructuralPathSegment]> {
+        match self {
+            Self::StructuralCase { path, .. } | Self::EliminateEmpty { path, .. } => Some(path),
+            _ => None,
+        }
+    }
+
     pub fn runtime_indices(&self) -> Vec<(ValueId, semantic_vocabulary::ObligationId)> {
         self.structural_paths()
             .into_iter()
@@ -981,7 +998,8 @@ impl AbstractOperation {
             }
             Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => vec![],
             Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
-            Self::StorageAddress { path, .. }
+            Self::EliminateEmpty { path, .. }
+            | Self::StorageAddress { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
             | Self::ReleaseReference { path, .. }
@@ -1176,6 +1194,7 @@ impl AbstractOperation {
             | Self::ReturnStructural { .. }
             | Self::ExternalCompletion { .. }
             | Self::InvokeNoNormal { .. }
+            | Self::EliminateEmpty { .. }
             | Self::Crash { .. } => None,
         }
     }
@@ -1311,7 +1330,9 @@ macro_rules! establish_case_or_record_result_pattern {
 #[macro_export]
 macro_rules! return_structural_or_crash_pattern {
     () => {
-        $crate::AbstractOperation::ReturnStructural { .. } | $crate::AbstractOperation::Crash { .. }
+        $crate::AbstractOperation::ReturnStructural { .. }
+            | $crate::AbstractOperation::EliminateEmpty { .. }
+            | $crate::AbstractOperation::Crash { .. }
     };
 }
 

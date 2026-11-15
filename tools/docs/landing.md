@@ -33,6 +33,12 @@ start with the problem and resulting behavior in ordinary language, then explain
 the mechanism, validation and material limits. Generate the required `Agent:`
 line with `mbx xtask provenance` and end both the commit body and PR description
 with it. Compiler-lane descriptions also need the prescribed `Gate:` line.
+The default audit uses the worktree's stable work interval, recorded by
+acquisition or `mbx xtask worktree begin` for the next warm outcome. Existing
+active checkouts adopt a provable local source boundary once. Peer fetches,
+checkpoints and rebases never advance it; missing or ambiguous source identity
+refuses. A window with no measurements never silently becomes a whole-session
+audit. Use `--full-session` only when that wider attribution is actually intended.
 
 Keep the source committed and inspect `git status --short` before pushing. Use a
 UTF-8 file for multiline descriptions; do not interpolate prose into shell

@@ -60,6 +60,7 @@ mod attribution {
                     abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                     | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                     | AbstractOperation::ExternalCompletion { psi_edge, .. }
+                    | AbstractOperation::EliminateEmpty { psi_edge, .. }
                     | AbstractOperation::Crash { psi_edge, .. }
                     | AbstractOperation::ReturnStructural { psi_edge, .. }
                     | AbstractOperation::Jump { psi_edge, .. } => {
@@ -115,6 +116,7 @@ mod attribution {
                         abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                         | AbstractOperation::InvokeNoNormal { psi_edge, .. }
                         | AbstractOperation::ExternalCompletion { psi_edge, .. }
+                        | AbstractOperation::EliminateEmpty { psi_edge, .. }
                         | AbstractOperation::Crash { psi_edge, .. }
                         | AbstractOperation::ReturnStructural { psi_edge, .. }
                         | AbstractOperation::Jump { psi_edge, .. } => {
@@ -176,7 +178,7 @@ mod attribution {
                         ));
                     }
                 }
-                Control::Crash { psi_edge, .. } => {
+                Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
                     push(SemanticCodeSite::Edge(*psi_edge), offset, length)?
                 }
                 Control::HostedExitProcess { completion_edge } => {
@@ -358,7 +360,9 @@ mod attribution {
                     }
                     Vec::new()
                 }
-                Control::Crash { psi_edge, .. } => vec![*psi_edge],
+                Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
+                    vec![*psi_edge]
+                }
                 Control::HostedExitProcess { completion_edge } => vec![*completion_edge],
                 Control::Return { psi_return_edge } => vec![*psi_return_edge],
                 Control::Jump { successor } => {
@@ -508,7 +512,9 @@ mod attribution {
                     record(SemanticCodeSite::Edge(*edge));
                 }
                 match &instruction.control {
-                    Control::Crash { psi_edge, .. } => record(SemanticCodeSite::Edge(*psi_edge)),
+                    Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
+                        record(SemanticCodeSite::Edge(*psi_edge))
+                    }
                     Control::HostedExitProcess { completion_edge } => {
                         record(SemanticCodeSite::Edge(*completion_edge));
                     }
@@ -633,7 +639,9 @@ mod attribution {
             }
             SemanticCodeSite::Edge(edge) => match &instruction.control {
                 Control::OperationTrap { .. } => false,
-                Control::Crash { psi_edge, .. } => ordinary && edge == *psi_edge,
+                Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
+                    ordinary && edge == *psi_edge
+                }
                 Control::HostedExitProcess { completion_edge } => {
                     edge == *completion_edge && ordinary
                 }
@@ -9751,20 +9759,22 @@ mod source {
                         ));
                     }
                     let terminal = selected_instructions::terminator_instruction(&block.terminator);
-                    let crash = matches!(
+                    let trap = matches!(
                         block.terminator,
-                        SelectedTerminator::Crash { .. } | SelectedTerminator::OperationTrap { .. }
+                        SelectedTerminator::EliminateEmpty { .. }
+                            | SelectedTerminator::Crash { .. }
+                            | SelectedTerminator::OperationTrap { .. }
                     );
                     let expected = if execution.is_some() {
                         Kind::PrivilegedCrash
                     } else {
                         Kind::Crash
                     };
-                    if crash && terminal.kind != expected
-                        || !crash && terminal.kind == Kind::PrivilegedCrash
+                    if trap && terminal.kind != expected
+                        || !trap && terminal.kind == Kind::PrivilegedCrash
                     {
                         return Err(Error::Mismatch(
-                            "crash realization differs from its admitted execution domain",
+                            "trap realization differs from its admitted execution domain",
                         ));
                     }
                 }
@@ -10421,6 +10431,12 @@ mod source {
                             },
                         ) => psi_edge == actual,
                         (
+                            AbstractOperation::EliminateEmpty { psi_edge, .. },
+                            TargetControlTerminator::EliminateEmpty {
+                                psi_edge: actual, ..
+                            },
+                        ) => psi_edge == actual,
+                        (
                             AbstractOperation::Crash { psi_edge, .. },
                             TargetControlTerminator::Crash {
                                 psi_edge: actual, ..
@@ -10535,6 +10551,18 @@ mod source {
                         && requirement_obligations == actual_obligations
                         && frontier_lower_bound == actual_frontier
                 }
+                (
+                    AbstractOperation::EliminateEmpty {
+                        psi_edge,
+                        source,
+                        path,
+                    },
+                    TargetControlTerminator::EliminateEmpty {
+                        psi_edge: actual_edge,
+                        source: actual_source,
+                        path: actual_path,
+                    },
+                ) => psi_edge == actual_edge && source == actual_source && path == actual_path,
                 (
                     AbstractOperation::Crash {
                         psi_edge,
@@ -10936,6 +10964,7 @@ mod source {
                     nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
+                    structural_contract: None,
                     provenance: target_operations::TerminalPsiProvenance {
                         operations: vec![],
                         edges: vec![],
@@ -10961,6 +10990,56 @@ mod source {
                             terminator,
                         }],
                     },
+                }
+            }
+
+            #[test]
+            fn empty_elimination_inspection_retains_its_exact_semantic_edge_and_source() {
+                use abstract_operations::AbstractOperation;
+                use target_operations::TargetControlTerminator;
+                let edge = EdgeId::new(3).unwrap();
+                let root = PlaceId::new(1).unwrap();
+                let case = semantic_vocabulary::StructuralCaseId::new(2).unwrap();
+                let path = vec![StructuralPathSegment::Case(case)];
+                let source = AbstractOperation::EliminateEmpty {
+                    psi_edge: edge,
+                    source: root,
+                    path: path.clone(),
+                };
+                let terminator = TargetControlTerminator::EliminateEmpty {
+                    psi_edge: edge,
+                    source: root,
+                    path,
+                };
+                assert!(retained(&source, &target(terminator.clone())));
+                for mutation in 0..4 {
+                    let mut changed = terminator.clone();
+                    let TargetControlTerminator::EliminateEmpty {
+                        psi_edge,
+                        source: actual_source,
+                        path: actual_path,
+                    } = &mut changed
+                    else {
+                        unreachable!()
+                    };
+                    match mutation {
+                        0 => *psi_edge = EdgeId::new(4).unwrap(),
+                        1 => *actual_source = PlaceId::new(2).unwrap(),
+                        2 => {
+                            actual_path[0] = StructuralPathSegment::Case(
+                                semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                            )
+                        }
+                        _ => {
+                            changed = TargetControlTerminator::Crash {
+                                psi_edge: edge,
+                                cause: terminal_psi::CrashCause::Trap,
+                                site_guard: Vec::new(),
+                                frontier_lower_bound: Vec::new(),
+                            }
+                        }
+                    }
+                    assert!(!retained(&source, &target(changed)), "mutation {mutation}");
                 }
             }
 
@@ -14953,6 +15032,7 @@ mod source {
                     nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
+                    structural_contract: None,
                     provenance: TerminalPsiProvenance {
                         operations: vec![psi_operation],
                         edges: vec![edge],
@@ -15750,6 +15830,7 @@ mod source {
                         call_plan,
                         result: TargetCallResult::Structural {
                             result: result.clone(),
+                            descriptor_origins: Vec::new(),
                             callee_result:
                                 target_operations::TargetStructuralResultContract::Machine(
                                     declaration,
@@ -19275,6 +19356,7 @@ mod source {
                         || placed_scalar_retained(operation, targeted, selected)
                         || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                         || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
+                    AbstractOperation::EliminateEmpty { .. } => control_flow::retained(operation, targeted),
                     AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                     AbstractOperation::InvokeNoNormal {
                         psi_edge, callee, arguments, structural_arguments, claim_transfers,

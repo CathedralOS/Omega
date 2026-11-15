@@ -5,7 +5,7 @@ operation positions for ordering within a block. Extra table edges participate
 even when no terminator owns them: they conservatively remove availability.
 */
 
-use semantic_vocabulary::{BlockId, MachineId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
@@ -45,6 +45,7 @@ impl Graph {
             reason: RefusalReason::ForeignIdentity,
             machine,
             concerns: Construct::Machine,
+            source_span: None,
             detail: detail.to_owned(),
         };
         let count = lowered.blocks.len();
@@ -131,6 +132,7 @@ impl Graph {
             reason: RefusalReason::ForeignIdentity,
             machine: self.machine,
             concerns,
+            source_span: None,
             detail: String::from("program point is not in this machine"),
         }
     }
@@ -152,6 +154,13 @@ impl Graph {
             .map(Vec::as_slice)
             .ok_or_else(|| self.refuse(Construct::Block(block)))
     }
+    pub(crate) fn edge_destination(&self, edge: EdgeId) -> Checked<Destination> {
+        self.tables_edges
+            .get(index(edge.get()))
+            .map(|(_, destination)| *destination)
+            .ok_or_else(|| self.refuse(Construct::Edge(edge)))
+    }
+
     /// Preserve the entry-first DFS forest's reverse finish order. Consumers
     /// borrow the prepared order instead of reconstructing table-edge topology.
     pub(crate) fn reverse_postorder(&self) -> Checked<&[BlockId]> {

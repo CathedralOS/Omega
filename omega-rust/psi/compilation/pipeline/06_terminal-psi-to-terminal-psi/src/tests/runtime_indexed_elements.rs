@@ -26,6 +26,12 @@ fn verdict(build: &str) -> String {
         Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
+            terminal_codec::EvidenceSealValidator::new(
+                &accepted.elaboration.module,
+                &accepted.seals,
+            )
+            .validate_all()
+            .expect("each checked array bound belongs to an operation in the published module");
             accepted.publish_invocation().unwrap();
             "accepted".to_owned()
         }
@@ -111,4 +117,31 @@ machine build_entry(kind: Kind) {{
         verdict,
         "rejected: owned storage is used after its value was transferred or consumed"
     );
+}
+
+/// A dispatch on an element chosen at run time reads its discriminator once,
+/// at the block's terminator, before a case edge is chosen. The bound is
+/// proved there and its seal is owned by that block, so `verdict` finds one
+/// owner for it in the published module. The twin differs only in the
+/// contract: `index < 3` may name the element past the array.
+#[test]
+fn a_dispatch_on_an_element_chosen_at_run_time_owns_its_bound_at_the_terminator() {
+    let program = |bound: u64| {
+        format!(
+            r#"
+data Choice {{ case Stay; case Leave; }}
+data Table {{ choices: [Choice; 2]; }}
+machine pick(table: &Table, index: u64) -> u8 requires index < {bound}u64 {{
+    match table.choices[index] {{ Choice::Stay -> 0u8 Choice::Leave -> 1u8 }}
+}}
+machine build_entry() {{
+    let table: Table;
+    let seen: u8 = pick(&table, 1u64);
+}}
+"#
+        )
+    };
+    assert_eq!(verdict(&program(2)), "accepted");
+    let rejected = verdict(&program(3));
+    assert!(rejected.starts_with("rejected"), "{rejected}");
 }

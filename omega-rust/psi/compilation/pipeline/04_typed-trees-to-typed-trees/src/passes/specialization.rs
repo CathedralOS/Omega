@@ -62,7 +62,6 @@ use typed_trees::expression::{
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::references::{StaticArgumentCall, StaticArgumentRole};
-use typed_trees::signature::SignatureContract;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::static_applications::{
@@ -1178,12 +1177,13 @@ fn copied_parts(
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
         && machine.invokes.is_empty()
-        && machine.attached_data.is_none()
+        // The written prefix and operator spelling are diagnostic labels on
+        // this same callable. Actual data attachment still needs its copier.
         && !machine.attached_data_symbol.is_valid()
+        && !machine.attached_data_application.is_valid()
         && !machine.generic_data_template.is_valid()
         && machine.target.is_none()
         && !machine.target_family_interface
-        && machine.spelling.is_none()
         && !machine.structural_type_equations_pending
         && !machine.service_reach_is_installation_bound
         && plan.checked_summary == language_semantics::TerminationGuarantee::NoGuarantee
@@ -1213,6 +1213,7 @@ fn copied_parts(
         .chain(program.state_contracts(state))
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
     let mut roots = Vec::new();
+    let mut fact_types = Vec::new();
     match (
         &plan.implementation_witness,
         program.ranking_expression_custody_for(symbol),
@@ -1234,12 +1235,22 @@ fn copied_parts(
         }
     }
     for fact in facts {
-        let ProofFact::Expression(expression) = fact else {
-            return Err(Stop::Unserved(Some(
-                "a copied contract needs an expression fact",
-            )));
-        };
-        roots.push(*expression);
+        match fact {
+            ProofFact::Expression(expression) => roots.push(*expression),
+            ProofFact::Membership(membership) => {
+                roots.push(membership.value);
+                fact_types.extend_from_slice(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments),
+                );
+            }
+            ProofFact::Proposition(application) => roots.extend_from_slice(
+                program
+                    .expression_table
+                    .expression_handles(application.arguments),
+            ),
+        }
     }
     for handle in state.statement_nodes.handles() {
         let statement = program.statement_table.statement(handle);
@@ -1278,6 +1289,7 @@ fn copied_parts(
         .map(|parameter| parameter.type_reference)
         .chain([state.return_type])
         .collect::<Vec<_>>();
+    types.extend(fact_types);
     for root in roots.into_iter().filter(|root| root.is_valid()) {
         types.extend(
             typed_trees::references::collect_expression_references(program, root).type_references,
@@ -1327,30 +1339,6 @@ fn copy_expression(
     let staged = staging.copy_from(&program.expression_table, expression);
     let copied = program.expression_table.copy_from(&staging, staged);
     program.expression_table.remap_symbols_in(copied, symbols);
-    copied
-}
-
-fn copy_contract(
-    program: &mut TypedTrees,
-    contract: &SignatureContract,
-    symbols: SymbolRebinding<'_>,
-) -> SignatureContract {
-    let mut copied = contract.clone();
-    copied.facts = HandleSpan::empty();
-    for source in contract.facts.handles() {
-        // `template` admitted only facts that are one expression.
-        let ProofFact::Expression(expression) = *program.proof_facts.get(source) else {
-            continue;
-        };
-        let span = program.proof_fact_source_span(source);
-        let expression = copy_expression(program, expression, symbols);
-        let fact = program
-            .proof_facts
-            .append_to_span(&mut copied.facts, ProofFact::Expression(expression));
-        if let Some(span) = span {
-            program.set_proof_fact_source_span(fact, span);
-        }
-    }
     copied
 }
 
@@ -1572,6 +1560,15 @@ fn copy_declarations(
     }
     let state_symbol = copied_symbol(&renamed, parts[0].1.symbol)?;
     let symbols = renamed.rebinding();
+    let contract_substitutions = operands
+        .iter()
+        .filter_map(|operand| match operand.value {
+            StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
+                Some((operand.parameter, actual))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let mut copied = Vec::with_capacity(parts.len());
     for ((source, source_state), staged) in parts.iter().zip(staged) {
         let first_expression = program.expression_table.expression_count() + 1;
@@ -1601,7 +1598,9 @@ fn copy_declarations(
         machine.contracts = HandleSpan::empty();
         machine.states = HandleSpan::empty();
         for contract in program.machine_contracts(source).to_vec() {
-            let contract = copy_contract(program, &contract, symbols);
+            let contract = program
+                .copy_callable_contract(&contract, symbols, &contract_substitutions, source.symbol)
+                .map_err(|reason| Stop::Unserved(Some(reason)))?;
             program.push_machine_contract(&mut machine, contract);
         }
         let mut state = source_state.clone();
@@ -1621,7 +1620,9 @@ fn copy_declarations(
             program.push_state_parameter(&mut state, parameter);
         }
         for contract in program.state_contracts(source_state).to_vec() {
-            let contract = copy_contract(program, &contract, symbols);
+            let contract = program
+                .copy_callable_contract(&contract, symbols, &contract_substitutions, source.symbol)
+                .map_err(|reason| Stop::Unserved(Some(reason)))?;
             program.push_state_contract(&mut state, contract);
         }
         let expression_count = program.expression_table.expression_count() + 1 - first_expression;

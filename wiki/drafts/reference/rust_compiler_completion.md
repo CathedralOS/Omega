@@ -84,13 +84,6 @@ irrelevant to that runner. A missing runner, unavailable runtime dependency,
 unexpected ignored test, timeout, or resource exhaustion leaves the row open;
 it is not a pass.
 
-### Recorded platform runs
-
-The platform runs recorded between 2026-09-20 and the corpus deletion ran
-deleted `tests/omega` fixtures through deleted tools; they are kept in
-[this file at `3b24dc93`](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/reference/rust_compiler_completion.md#recorded-platform-runs).
-No current platform run is recorded.
-
 ## Closure rule
 
 The contract closes only when all six named gates pass from a clean checkout

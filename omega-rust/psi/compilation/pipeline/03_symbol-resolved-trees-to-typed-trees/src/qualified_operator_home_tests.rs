@@ -6,7 +6,7 @@ fn typed(units: &[(&str, &str)]) -> typed_trees::TypedTrees {
     checked(units).unwrap()
 }
 
-fn checked(units: &[(&str, &str)]) -> Result<typed_trees::TypedTrees, String> {
+pub(crate) fn checked(units: &[(&str, &str)]) -> Result<typed_trees::TypedTrees, String> {
     packages(
         &units
             .iter()
@@ -81,6 +81,310 @@ fn packages(
 
 const DOMAIN: &str = "module units; public domain u32::Distance;";
 const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { ((left as -Distance) +% (right as -Distance)) as +Distance }";
+
+const GENERIC_DOMAIN: &str = "module units; public domain<T> T::Distance;";
+const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
+
+#[test]
+fn a_generic_operator_retains_its_inferred_application_as_an_ordinary_call() {
+    use typed_trees::expression::ExpressionNode;
+    let program = typed(&[
+        ("units.omg", GENERIC_DOMAIN),
+        ("operator.omg", GENERIC_OPERATOR),
+        (
+            "client.omg",
+            "use units; machine sum(left: u32 in Distance, right: u32) -> u32 in Distance { left + right }",
+        ),
+    ]);
+    let target = program.machine_token_bindings()[0].symbol;
+    let calls = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, node)| match node {
+            ExpressionNode::Call(call) if call.target_symbol == target => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("one selected generic operator call: {calls:?}");
+    };
+    assert!(call.authored_machine_application.is_valid());
+    let arguments = program
+        .expression_table
+        .static_machine_application_arguments(call.authored_machine_application);
+    assert_eq!(arguments.len(), 1);
+    let caller = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "sum")
+        .unwrap();
+    let state = program.machine_states(caller).first().unwrap();
+    assert_eq!(
+        program.normalized_type_identity_text(arguments[0].type_reference),
+        program.normalized_type_identity_text(program.state_parameters(state)[1].type_reference)
+    );
+    let application = program
+        .expression_table
+        .static_machine_application(call.authored_machine_application);
+    assert_eq!(application.lexical_owner, caller.symbol);
+    assert_eq!(application.registration_operation, target);
+    assert_eq!(application.binding_declaration, target);
+}
+
+#[test]
+fn an_anonymous_operand_cannot_select_a_qualified_generic_operator() {
+    use typed_trees::expression::ExpressionNode;
+    for literal in ["1", "1u32"] {
+        let client = format!("use units; machine sum(right: u32) -> u32 {{ {literal} + right }}");
+        let program = typed(&[
+            ("units.omg", GENERIC_DOMAIN),
+            ("operator.omg", GENERIC_OPERATOR),
+            ("client.omg", &client),
+        ]);
+        let target = program.machine_token_bindings()[0].symbol;
+        assert!(!program.expression_table.iter_expressions().any(|(_, node)| matches!(node, ExpressionNode::Call(call) if call.target_symbol == target)),
+            "a literal has no Distance qualification");
+    }
+}
+
+#[test]
+fn an_enclosing_cast_reads_a_generic_operators_applied_return() {
+    use typed_trees::expression::ExpressionNode;
+    let program = typed(&[
+        ("units.omg", GENERIC_DOMAIN),
+        ("operator.omg", GENERIC_OPERATOR),
+        (
+            "client.omg",
+            "use units; machine sum(left: u32 in Distance, right: u32) -> u32 { (left + right) as -Distance }",
+        ),
+    ]);
+    assert!(
+        program.deferred_refusals.is_empty(),
+        "{:?}",
+        program.deferred_refusals
+    );
+    assert!(program.expression_table.iter_expressions().any(|(_, node)| matches!(node,
+        ExpressionNode::Cast(cast) if cast.result_type.is_valid() && matches!(program.expression_table.expression(cast.value), ExpressionNode::Call(_)))));
+}
+
+#[test]
+fn generic_operator_shapes_match_complete_qualifications_in_both_orders() {
+    use typed_trees::expression::ExpressionNode;
+    let declarations = "use units;
+        public machine + Distance::both<T [copy]>(left: T in Distance, right: T in Distance) -> T in Distance { left }
+        public machine + Distance::left<T [copy]>(left: T in Distance, right: T) -> T in Distance { left }
+        public machine + Distance::right<T [copy]>(left: T, right: T in Distance) -> T in Distance { right }";
+    for (left, right, selected) in [
+        ("u32 in Distance", "u32 in Distance", Some("Distance::both")),
+        ("u32 in Distance", "u32", Some("Distance::left")),
+        ("u32", "u32 in Distance", Some("Distance::right")),
+        ("u32 in Distance & Other", "u32", None),
+        ("u32 in Distance", "u64", None),
+        ("u32", "u32", None),
+    ] {
+        let client =
+            format!("use units; machine sum(left: {left}, right: {right}) {{ left + right; }}");
+        let program = typed(&[
+            (
+                "units.omg",
+                "module units; public domain<T> T::Distance; public domain<T> T::Other;",
+            ),
+            ("operator.omg", declarations),
+            ("client.omg", &client),
+        ]);
+        let calls = program
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(_, node)| match node {
+                ExpressionNode::Call(call)
+                    if program
+                        .machine_token_bindings()
+                        .iter()
+                        .any(|binding| binding.symbol == call.target_symbol) =>
+                {
+                    Some(call.target.as_str())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls,
+            selected.into_iter().collect::<Vec<_>>(),
+            "{left} + {right}"
+        );
+    }
+}
+
+#[test]
+fn a_generic_operator_retains_an_inferred_const_argument_with_its_carrier() {
+    use typed_trees::expression::ExpressionNode;
+    let program = typed(&[
+        ("units.omg", GENERIC_DOMAIN),
+        (
+            "operator.omg",
+            "use units; public machine + Distance::merge<T [copy], const N: u64>(left: T in Distance, right: [T; N]) -> T in Distance { left }",
+        ),
+        (
+            "client.omg",
+            "use units; machine sum(left: u32 in Distance, right: [u32; 3]) -> u32 in Distance { left + right }",
+        ),
+    ]);
+    let target = program.machine_token_bindings()[0].symbol;
+    let call = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, node)| match node {
+            ExpressionNode::Call(call) if call.target_symbol == target => Some(call),
+            _ => None,
+        })
+        .expect("the array shape closes both static arguments");
+    let arguments = program
+        .expression_table
+        .static_machine_application_arguments(call.authored_machine_application);
+    assert_eq!(arguments.len(), 2);
+    let typed_trees::types::TypeReferenceNode::Named { name, .. } = program
+        .type_reference_table
+        .type_reference(arguments[1].type_reference)
+    else {
+        panic!("canonical const operand")
+    };
+    let value = language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+        .expect("canonical constant, not re-parsed literal syntax");
+    assert!(
+        matches!(value.decode_encoding(), Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value.to_string() == "3")
+    );
+}
+
+#[test]
+fn unresolved_names_keep_their_occurrences_scope_instead_of_a_global_leaf() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    let refusal = |program: &typed_trees::TypedTrees| {
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .unwrap();
+        program
+            .deferred_refusal(caller.symbol)
+            .map(|row| row.request)
+    };
+    for extra in [
+        "",
+        "machine unrelated(ghost: u32) {}",
+        "data Other { ghost: u32; }",
+    ] {
+        let text = format!("machine caller() {{ ghost(); }} {extra}");
+        assert_eq!(
+            refusal(&typed(&[("client.omg", &text)])),
+            Some(DeferredRequest::UndeclaredCallName),
+            "{text}"
+        );
+        let text = format!("machine caller() -> u32 {{ ghost }} {extra}");
+        assert_eq!(
+            refusal(&typed(&[("client.omg", &text)])),
+            Some(DeferredRequest::UndeclaredValueName),
+            "{text}"
+        );
+    }
+    let program = typed(&[
+        ("client.omg", "machine caller() { ghost(); }"),
+        ("other.omg", "module elsewhere; public machine ghost() {}"),
+    ]);
+    assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
+    let program = typed(&[
+        (
+            "client.omg",
+            "use elsewhere; machine caller() { elsewhere::ghost(); }",
+        ),
+        ("other.omg", "module elsewhere; public machine ghost() {}"),
+    ]);
+    assert_eq!(refusal(&program), None);
+    let program = typed(&[(
+        "client.omg",
+        "machine caller() requires false { ghost(); } machine unrelated(ghost: u32) {}",
+    )]);
+    assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
+    let program = typed(&[(
+        "client.omg",
+        "machine caller() requires ghost() {} machine unrelated(ghost: u32) {}",
+    )]);
+    assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
+}
+
+#[test]
+fn qualified_unknown_names_keep_dependency_and_visibility_scope() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    for spelling in ["ghost", "foreign::ghost"] {
+        let text = format!("machine caller() {{ {spelling}(); }}");
+        let program = packages(
+            &[
+                (31, "client.omg", &text),
+                (
+                    41,
+                    "foreign.omg",
+                    "module foreign; public machine ghost() {}",
+                ),
+            ],
+            &[],
+            &[],
+        )
+        .unwrap();
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .unwrap();
+        assert_eq!(
+            program
+                .deferred_refusal(caller.symbol)
+                .map(|row| row.request),
+            Some(DeferredRequest::UndeclaredCallName),
+            "{spelling}"
+        );
+    }
+}
+
+/// modules.md, "Resolution": case members are not a bare-name resolution
+/// step, so a bare case spelling is an ordinary unknown name of its own
+/// holder. Whether some carrier anywhere in the forest, visible or not,
+/// declares that case does not turn the deferred row into a resolver failure.
+#[test]
+fn a_bare_case_spelling_stays_an_unknown_name_of_its_holder() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    let client = "machine main() {} machine unused() -> u64 { Missing }";
+    let carrier = "public data Choice { case Missing; }";
+    let same_source = format!("{client} {carrier}");
+    for units in [
+        vec![(31, "client.omg", client)],
+        vec![
+            (31, "client.omg", client),
+            (
+                41,
+                "choice.omg",
+                "module choice; public data Choice { case Missing; }",
+            ),
+        ],
+        vec![(31, "client.omg", same_source.as_str())],
+    ] {
+        let program = packages(&units, &[], &[]).unwrap();
+        let refusal = |name: &str| {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap();
+            program
+                .deferred_refusal(machine.symbol)
+                .map(|row| row.request)
+        };
+        assert_eq!(refusal("main"), None, "{units:?}");
+        assert_eq!(
+            refusal("unused"),
+            Some(DeferredRequest::UndeclaredValueName),
+            "{units:?}"
+        );
+    }
+}
 
 #[test]
 fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {

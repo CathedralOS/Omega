@@ -753,12 +753,11 @@ impl Program<'_> {
                 ValueType::plain(ScalarType::Boolean),
             )),
             ExpressionNode::Binary(binary) => match crate::policy::suffix(binary.policy) {
-                // Exact carrier arithmetic computes, so it owes its
-                // formation condition before the clause can use it
-                // (contracts.md, "Total arithmetic": "Exact operations
-                // discharge representability before formation"). No slice
-                // states that obligation yet.
-                crate::policy::Suffix::Unwritten => unserved("carrier arithmetic in a clause term"),
+                // The shared declaration phase forms this canonical term
+                // before any containing clause becomes proof knowledge.
+                crate::policy::Suffix::Unwritten => {
+                    self.arithmetic_term(id, scope, binary, None, expected)
+                }
                 // "An arithmetic operation whose selected meaning can
                 // transfer control cannot form a proof term. It is not
                 // silently read as Exact or mathematical arithmetic."
@@ -770,7 +769,7 @@ impl Program<'_> {
                      mathematical arithmetic",
                 )),
                 crate::policy::Suffix::Total(policy) => {
-                    self.suffixed_term(id, scope, binary, policy, expected)
+                    self.arithmetic_term(id, scope, binary, Some(policy), expected)
                 }
             },
             ExpressionNode::Cast(cast) => self.clause_cast(id, scope, cast, expected),
@@ -912,35 +911,25 @@ impl Program<'_> {
     /// type, and the result is the bare carrier. contracts.md, "Total
     /// arithmetic": "Wrapping and Saturating discharge primitive definedness
     /// not resolved by their overflow policy, such as a nonzero divisor." A
-    /// divide or remainder therefore owes a condition before it forms a term;
-    /// no slice states that obligation for a clause yet, so both are refused
-    /// by name, as Exact arithmetic is.
-    fn suffixed_term(
+    /// divide or remainder therefore owes a condition before it forms a term.
+    /// Declaration formation checks that condition before using the clause.
+    fn arithmetic_term(
         &self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         binary: &typed_trees::expression::TableBinaryExpression,
-        policy: Policy,
+        suffix: Option<Policy>,
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let reject = |operand, rule| {
-            crate::reject(
-                id,
-                crate::SourceOrigin::of(self.typed.expression_table.source_span(operand)),
-                rule,
-            )
-        };
-        let operation = crate::policy::suffixed(binary.operator).map_err(unserved)?;
         let anonymous = (
             self.wholly_anonymous(binary.left),
             self.wholly_anonymous(binary.right),
         );
-        if anonymous == (true, true) {
-            return Err(reject(binary.left, crate::policy::WHOLLY_ANONYMOUS));
+        let source = crate::SourceOrigin::of(self.typed.expression_table.source_span(binary.left));
+        if suffix.is_some() && anonymous == (true, true) {
+            return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
         }
-        // The operand that has a type is read first; the anonymous one lands
-        // in it, as the literal in `total +% 1` does.
         let ((left, left_type), (right, right_type)) = if anonymous.0 {
             let right = self.term(id, scope, binary.right, expected)?;
             (self.term(id, scope, binary.left, right.1.scalar())?, right)
@@ -949,25 +938,30 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, left.1.scalar())?;
             (left, right)
         };
-        for (operand, value_type) in [(binary.left, left_type), (binary.right, right_type)] {
-            if value_type.qualification() != Qualification::NONE {
-                return Err(reject(operand, crate::policy::QUALIFIED_OPERAND));
-            }
-        }
-        let left_type = self.clause_operand_type(id, left_type)?;
-        let right_type = self.clause_operand_type(id, right_type)?;
-        let (ScalarType::Integer(carrier), ScalarType::Integer(_)) = (left_type, right_type) else {
-            return Err(reject(binary.left, crate::policy::QUALIFIED_OPERAND));
+        let (operation, policy, selected) = super::expressions::binary_selection(
+            id,
+            binary.operator,
+            Some(left_type),
+            Some(right_type),
+            anonymous,
+            suffix,
+            (
+                source,
+                crate::SourceOrigin::of(self.typed.expression_table.source_span(binary.right)),
+            ),
+        )?;
+        let operation = operation
+            .ok_or_else(|| unserved("short-circuit expression is not a scalar arithmetic term"))?;
+        let Some(ScalarType::Integer(carrier)) = selected.scalar() else {
+            return Err(unserved(
+                "arithmetic contract term has no selected integer carrier",
+            ));
         };
-        if !crate::policy::shifts(operation) && left_type != right_type {
-            return Err(reject(binary.right, "policy operator operand types differ"));
-        }
-        match crate::policy::term(operation, policy, carrier, left, right) {
-            Some(term) => Ok((term, ValueType::plain(left_type))),
-            None => Err(unserved(
-                "policy operator in a clause term that owes a condition before it is total",
-            )),
-        }
+        let term =
+            crate::policy::term(operation, policy, carrier, left, right).ok_or_else(|| {
+                unserved("selected arithmetic operator has no canonical contract term")
+            })?;
+        Ok((term, selected))
     }
 
     /// Whether `call` is the builtin integer embedding applied to one value:

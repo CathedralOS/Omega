@@ -4,7 +4,7 @@ data Entry { value: i32; }
 machine require_four(length: u64) -> u64
 requires length == 4
 { length }
-data Holder { view: &[Entry]; }
+data Holder<'view> { view: &'view [Entry]; }
 machine extent(entries: &[Entry; 3]) -> u64 {
     let holder: Holder = Holder { view: &entries[..] };
     require_four(holder.view.len)

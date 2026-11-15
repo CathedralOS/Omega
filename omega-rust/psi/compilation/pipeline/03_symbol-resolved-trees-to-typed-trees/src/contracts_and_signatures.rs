@@ -237,28 +237,170 @@ pub(crate) mod contracts {
     pub(crate) mod proof_facts {
         pub(crate) mod domain_selections {
             use diagnostics::Diagnostic;
+            use typed_trees::deferred_refusals::DeferredRequest;
             use typed_trees::{TypedTrees, domain::ProofFact};
 
+            /// Records each membership fact whose domain resolution left
+            /// late-bound on the declarations that hold it. Typing does not
+            /// bind that selection yet, and it sees the program with every
+            /// bundled library, so a fact in a declaration nobody demands
+            /// must not stop the program: the declaration is refused where a
+            /// reader demands it. A fact's owners are those of the value it
+            /// constrains; one no declaration owns has no reader to raise it
+            /// and refuses here.
             pub(crate) fn normalize(
                 _source: &symbol_resolved_trees::SymbolResolvedTrees,
                 program: &mut TypedTrees,
             ) -> Result<(), Diagnostic> {
-                // A retained authored occurrence must acquire one exact domain
-                // identity upstream. The old expression checker cannot supply
-                // that missing selection during declaration lowering.
-                for (handle, fact) in program.proof_facts.iter() {
-                    if let ProofFact::Membership(membership) = fact
-                        && !membership.domain_symbol.is_valid()
-                        && membership.authored_domain_selection.is_some()
-                    {
-                        let error =
-                            crate::unavailable_judgment("contract membership carrier selection");
-                        return Err(program
-                            .proof_fact_source_span(handle)
-                            .map_or(error.clone(), |span| error.with_source_span(span)));
+                let unselected = program
+                    .proof_facts
+                    .iter()
+                    .filter_map(|(handle, fact)| match fact {
+                        ProofFact::Membership(membership)
+                            if !membership.domain_symbol.is_valid()
+                                && membership.authored_domain_selection.is_some() =>
+                        {
+                            Some((handle, membership.value))
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                if unselected.is_empty() {
+                    return Ok(());
+                }
+                let owners = typed_trees::references::collect_program_operand_owners(program);
+                let mut rows = Vec::new();
+                for (handle, value) in unselected {
+                    let source_span = program
+                        .proof_fact_source_span(handle)
+                        .or_else(|| program.expression_table.try_source_span(value))
+                        .unwrap_or_default();
+                    let before = rows.len();
+                    rows.extend(
+                        owners
+                            .expression_owners(value)
+                            .filter(|owner| owner.is_valid())
+                            .map(|owner| (owner, source_span)),
+                    );
+                    if rows.len() == before {
+                        return Err(crate::unavailable_judgment(
+                            "contract membership carrier selection",
+                        )
+                        .with_source_span(source_span));
                     }
                 }
+                for (owner, source_span) in rows {
+                    program.record_deferred_refusal(
+                        owner,
+                        DeferredRequest::ContractMembershipSelection,
+                        source_span,
+                    );
+                }
                 Ok(())
+            }
+
+            #[cfg(test)]
+            mod tests {
+                use super::*;
+                use language_semantics::declaration_selection::{
+                    AuthoredDeclarationSelectionExposure as Exposure,
+                    AuthoredDeclarationSelectionKind as Kind,
+                    AuthoredDeclarationSelectionLateBinding as Binding,
+                };
+                use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+                use typed_trees::data::DataDefinition;
+                use typed_trees::domain::ProofMembershipFact;
+                use typed_trees::expression::ExpressionNode;
+                use typed_trees::name::Identifier;
+
+                /// A program with data `Held` and `Bystander`, and one
+                /// membership fact whose domain selection stays late-bound.
+                /// With `held`, the fact is `Held`'s `requires` clause;
+                /// without it, no declaration holds the fact.
+                fn unselected_membership(held: bool) -> (TypedTrees, [symbols::SymbolHandle; 2]) {
+                    let mut builder = SymbolTableBuilder::new();
+                    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                    let declarations = builder.insert_children(
+                        root,
+                        [
+                            (SymbolKind::Data, SymbolNameRef::Static("Held")),
+                            (SymbolKind::Data, SymbolNameRef::Static("Bystander")),
+                        ],
+                    );
+                    let [holder, bystander] =
+                        [declarations.handle_at(0), declarations.handle_at(1)];
+                    let mut program = TypedTrees {
+                        symbols: builder.finish(),
+                        ..Default::default()
+                    };
+                    let span = source::SourceSpan::new(
+                        source::SourceId::default(),
+                        source::Span::new(4, 9),
+                    );
+                    let selection = program
+                        .record_late_bound_authored_declaration_selection(
+                            span,
+                            Exposure::PrivateImplementation,
+                            Kind::DomainMembership,
+                            Binding::CheckedDomainMembership,
+                        )
+                        .unwrap();
+                    let value = program.expression_table.insert(ExpressionNode::Integer(
+                        numerics::literals::IntegerLiteral::from_value(1),
+                    ));
+                    let mut facts = arena::HandleSpan::empty();
+                    let fact = program.proof_facts.append_to_span(
+                        &mut facts,
+                        ProofFact::Membership(ProofMembershipFact {
+                            value,
+                            authored_domain_selection: Some(selection),
+                            ..Default::default()
+                        }),
+                    );
+                    program.set_proof_fact_source_span(fact, span);
+                    program.push_data_definition(DataDefinition {
+                        symbol: holder,
+                        name: Identifier::generated("Held"),
+                        requires_facts: if held {
+                            facts
+                        } else {
+                            arena::HandleSpan::empty()
+                        },
+                        ..Default::default()
+                    });
+                    program.push_data_definition(DataDefinition {
+                        symbol: bystander,
+                        name: Identifier::generated("Bystander"),
+                        ..Default::default()
+                    });
+                    (program, [holder, bystander])
+                }
+
+                #[test]
+                fn an_unselected_membership_refuses_only_the_declaration_holding_it() {
+                    let (mut program, [holder, bystander]) = unselected_membership(true);
+                    normalize(&Default::default(), &mut program).unwrap();
+                    assert_eq!(
+                        program.deferred_refusal(holder).map(|row| row.request),
+                        Some(DeferredRequest::ContractMembershipSelection)
+                    );
+                    assert!(program.deferred_refusal(bystander).is_none());
+                }
+
+                #[test]
+                fn an_unselected_membership_no_declaration_holds_still_refuses() {
+                    let (mut program, [holder, bystander]) = unselected_membership(false);
+                    let error = normalize(&Default::default(), &mut program).unwrap_err();
+                    assert!(
+                        error
+                            .message
+                            .contains("contract membership carrier selection"),
+                        "{}",
+                        error.message
+                    );
+                    assert!(program.deferred_refusal(holder).is_none());
+                    assert!(program.deferred_refusal(bystander).is_none());
+                }
             }
         }
         use crate::type_reference::lower_type_reference_into_table;

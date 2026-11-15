@@ -24,10 +24,164 @@ fn graph_unavailable(module: &TerminalModule, error: DescriptorGraphError) -> Re
     refusal
 }
 
-pub(crate) fn publish_results(
-    module: &mut TerminalModule,
+pub(crate) fn publish(
+    elaboration: &mut crate::Elaboration,
     selections: &[crate::Selected],
 ) -> Checked<()> {
+    publish_results(&mut elaboration.module, selections)?;
+    let successor_loans = publish_successor_loans(elaboration)?;
+    publish_parents(elaboration, &successor_loans)
+}
+
+/// A real reborrow on a block edge keeps its exact formation occurrence.
+/// Passing an unchanged permission continues it; borrowing owned storage or
+/// reducing access creates a child loan whose lifetime follows the new name.
+struct SuccessorLoan {
+    machine: MachineId,
+    obligation: semantic_vocabulary::ObligationId,
+    birth: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    target: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    parameter: semantic_vocabulary::PlaceId,
+}
+
+fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<SuccessorLoan>> {
+    use terminal_check_tables::ProgramPoint;
+    use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
+    use terminal_psi::StructuralAccess;
+    let mut published = Vec::new();
+    for machine in &elaboration.module.machines {
+        let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
+        let tables = elaboration
+            .tables
+            .machines
+            .get_mut(machine.id)
+            .ok_or_else(|| unavailable("successor loan publication lost its machine tables"))?;
+        let sources = elaboration
+            .sources
+            .get_mut(machine.id)
+            .ok_or_else(|| unavailable("successor loan publication lost its source coordinates"))?;
+        for block in &machine.blocks {
+            let successors = block.terminator.successor_edges();
+            let arguments = block.terminator.successor_block_arguments();
+            if successors.len() != arguments.len() {
+                return Err(unavailable(
+                    "successor loan publication has no complete edge roster",
+                ));
+            }
+            for ((edge, target), arguments) in successors.into_iter().zip(arguments) {
+                let head = machine.block(&target).ok_or_else(|| {
+                    unavailable("successor loan publication lost its target header")
+                })?;
+                if arguments.len() != head.structural_parameters.len() {
+                    return Err(unavailable(
+                        "successor loan arguments differ from their target header",
+                    ));
+                }
+                for (argument, parameter) in arguments.iter().zip(&head.structural_parameters) {
+                    let Some(access) = reference_access(parameter.access) else {
+                        continue;
+                    };
+                    let authority = terminal_semantics::structural_projection_authority(
+                        machine,
+                        &elaboration.module.structural_types,
+                        argument,
+                    )
+                    .ok_or_else(|| unavailable("successor loan has no actual source authority"))?;
+                    if authority == parameter.access {
+                        continue;
+                    }
+                    let lender = if authority == StructuralAccess::Owned {
+                        Lender::Owner
+                    } else {
+                        Lender::Incoming
+                    };
+                    let captured = capture_argument(
+                        machine,
+                        &elaboration.module.structural_types,
+                        tables,
+                        argument,
+                    )?;
+                    let obligation = tables.obligations.push(ObligationRow {
+                        kind: ObligationKind::Loan {
+                            captured,
+                            access,
+                            lender,
+                        },
+                        created_at: ProgramPoint::Edge(edge),
+                    });
+                    let origin =
+                        sources.edges.get(edge).copied().ok_or_else(|| {
+                            unavailable("successor loan has no selected source edge")
+                        })?;
+                    let emitted = sources.obligations.push(origin);
+                    if emitted != obligation {
+                        return Err(unavailable("successor loan and source coordinates differ"));
+                    }
+                    let end = u32::try_from(block.operations.len()).map_err(|_| {
+                        unavailable("successor loan formation position exceeds u32")
+                    })?;
+                    published.push(SuccessorLoan {
+                        machine: machine.id,
+                        obligation,
+                        birth: (block.id, end),
+                        target: (target, 0),
+                        parameter: parameter.place,
+                    });
+                }
+            }
+        }
+    }
+    Ok(published)
+}
+
+/// Reuse the write log's place interner, preserving evaluated index values.
+/// Resolving a field uses the shared structural path walker, never its text.
+fn capture_argument(
+    machine: &terminal_psi::TerminalMachine,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    tables: &mut terminal_check_tables::MachineTables,
+    argument: &terminal_psi::StructuralArgument,
+) -> Checked<terminal_check_tables::ExactPlaceId> {
+    use terminal_check_tables::bindings::{Segment, intern_projection};
+    use terminal_psi::StructuralPathSegment;
+    let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
+    let mut captured = tables
+        .roots
+        .get(argument.place)
+        .copied()
+        .ok_or_else(|| unavailable("successor loan has no exact storage root"))?;
+    let root_type = machine
+        .structural_place_type(argument.place)
+        .ok_or_else(|| unavailable("successor loan has no source storage type"))?;
+    for (position, step) in argument.path.iter().enumerate() {
+        let segment = match step {
+            StructuralPathSegment::Field(_) => Segment::Field(
+                terminal_semantics::runtime_structural_field(
+                    types.iter(),
+                    root_type,
+                    &argument.path[..=position],
+                )
+                .ok_or_else(|| unavailable("successor loan field has no exact declaration"))?
+                .id,
+            ),
+            StructuralPathSegment::Case(case) => Segment::Case(*case),
+            StructuralPathSegment::FixedIndex(index) => Segment::FixedIndex(*index),
+            StructuralPathSegment::RuntimeIndex { index, .. } => {
+                Segment::RuntimeIndex { selector: *index }
+            }
+            StructuralPathSegment::Referent => Segment::Referent,
+            _ => {
+                return Err(unavailable(
+                    "successor loan does not name one captured storage place",
+                ));
+            }
+        };
+        captured = intern_projection(machine.id, &mut tables.places, captured, segment)?;
+    }
+    Ok(captured)
+}
+
+fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) -> Checked<()> {
     let selected: Vec<_> = module
         .machines
         .iter()
@@ -137,7 +291,10 @@ pub(crate) fn publish_results(
 /// Complete the existing lender column after all descriptor transports are
 /// available. These rows describe actual source occurrences; 06 reconstructs
 /// them before deciding any loan and grants no authority from this publication.
-pub(crate) fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
+fn publish_parents(
+    elaboration: &mut crate::Elaboration,
+    successor_loans: &[SuccessorLoan],
+) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind};
     use terminal_semantics::descriptor_lifetimes::{
@@ -160,33 +317,131 @@ pub(crate) fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<(
         if !demanded {
             continue;
         }
-        let mut children = Vec::new();
+        let mut children = tables.obligations.map(|_, _| None);
         for (id, row) in tables.obligations.iter() {
-            if let ObligationKind::Loan { captured, .. } = row.kind {
+            if let ObligationKind::Loan {
+                captured, lender, ..
+            } = row.kind
+            {
                 let (root, segments) = captured_path(tables, captured)
                     .map_err(|reason| unavailable(machine.id, reason))?;
                 if let Some(crossing) = segments
                     .iter()
                     .rposition(|step| *step == terminal_check_tables::bindings::Segment::Referent)
                 {
-                    let parent = DescriptorLocation::captured(root, &segments[..crossing])
+                    let parent =
+                        terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+                            root,
+                            &segments[..crossing],
+                        )
                         .ok_or_else(|| {
                             unavailable(
                                 machine.id,
                                 "reference parent has no exact static descriptor path",
                             )
                         })?;
-                    children.push((id, row.created_at, parent));
+                    *children
+                        .get_mut(id)
+                        .ok_or_else(|| unavailable(machine.id, "parent child row disappeared"))? =
+                        Some((row.created_at, parent));
+                } else if lender == Lender::Incoming {
+                    // An invocation input's parent belongs to its caller. A
+                    // block input or new edge reborrow can instead descend
+                    // from a loan formed inside this machine.
+                    let declaration = usize::try_from(root.get())
+                        .ok()
+                        .and_then(|position| position.checked_sub(1))
+                        .and_then(|position| machine.structural_places.get(position))
+                        .filter(|place| place.id == root)
+                        .ok_or_else(|| {
+                            unavailable(machine.id, "loan parent has no actual storage declaration")
+                        })?;
+                    if !matches!(
+                        declaration.kind,
+                        semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. }
+                    ) && !matches!(row.created_at, ProgramPoint::Edge(_))
+                    {
+                        continue;
+                    }
+                    let parent =
+                        terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+                            root, &segments,
+                        )
+                        .ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "borrowed header parent has no exact descriptor path",
+                            )
+                        })?;
+                    *children
+                        .get_mut(id)
+                        .ok_or_else(|| unavailable(machine.id, "parent child row disappeared"))? =
+                        Some((row.created_at, parent));
                 }
             }
         }
-        if children.is_empty() {
+        for block in &machine.blocks {
+            let mut before = ProgramPoint::BlockEntry(block.id);
+            for operation in &block.operations {
+                if let Some(call) = operation.declared_invocation() {
+                    publish_payload_children(module, machine, tables, call, before, &mut children)?;
+                }
+                before = ProgramPoint::AfterOperation(operation.id);
+            }
+            if let Some((_, call)) = block.terminator.declared_invocation() {
+                publish_payload_children(module, machine, tables, call, before, &mut children)?;
+            }
+        }
+        for successor in successor_loans
+            .iter()
+            .filter(|loan| loan.machine == machine.id)
+        {
+            let parameter = machine
+                .block(&successor.target.0)
+                .and_then(|block| {
+                    block
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == successor.parameter)
+                })
+                .ok_or_else(|| {
+                    unavailable(machine.id, "successor payload parent lost its header")
+                })?;
+            if terminal_semantics::descriptor_results::is_descriptor(
+                module.structural_types.iter(),
+                parameter.structural_type,
+            ) {
+                let row = tables
+                    .obligations
+                    .get(successor.obligation)
+                    .ok_or_else(|| unavailable(machine.id, "successor parent lost its loan"))?;
+                let ObligationKind::Loan { captured, .. } = row.kind else {
+                    unreachable!()
+                };
+                let (root, path) = captured_path(tables, captured)
+                    .map_err(|reason| unavailable(machine.id, reason))?;
+                let descriptor =
+                    terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+                        root, &path,
+                    )
+                    .ok_or_else(|| {
+                        unavailable(
+                            machine.id,
+                            "successor payload parent has no exact descriptor",
+                        )
+                    })?;
+                *children.get_mut(successor.obligation).ok_or_else(|| {
+                    unavailable(machine.id, "successor parent child row disappeared")
+                })? = Some((row.created_at, descriptor));
+            }
+        }
+        if children.iter().all(|(_, child)| child.is_none()) {
             continue;
         }
         let graph = terminal_borrowed_storage_graph_from(module, [machine.id], &[])
             .map_err(|error| graph_unavailable(module, error))?;
         let mut analysis =
-            DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
+            DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
         let flow = analysis.flow(machine.id).ok_or_else(|| {
             unavailable(
                 machine.id,
@@ -197,7 +452,9 @@ pub(crate) fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<(
         for block in &machine.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
             for (position, operation) in block.operations.iter().enumerate() {
-                if let terminal_psi::OperationKind::EstablishReference { source, .. } =
+                if let terminal_psi::OperationKind::EstablishReference { source, .. }
+                | terminal_psi::OperationKind::EstablishElementView { source, .. }
+                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
                     &operation.kind
                 {
                     let result = operation.result.as_structural().ok_or_else(|| {
@@ -345,19 +602,40 @@ pub(crate) fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<(
                 before = ProgramPoint::AfterOperation(operation.id);
             }
         }
-        for (child, point, descriptor) in children {
-            let at = formation_position(machine, point).ok_or_else(|| {
+        for successor in successor_loans
+            .iter()
+            .filter(|loan| loan.machine == machine.id)
+        {
+            let lifetime = terminal_semantics::descriptor_lifetimes::descriptor_successor_lifetime(
+                &flow,
+                successor.birth,
+                successor.target,
+                &DescriptorLocation::whole(successor.parameter),
+            )
+            .ok_or_else(|| {
+                unavailable(
+                    machine.id,
+                    "successor loan has no complete transported lifetime",
+                )
+            })?;
+            parents.push((successor.obligation, lifetime));
+        }
+        for (child, parent) in children.iter() {
+            let Some((point, descriptor)) = parent else {
+                continue;
+            };
+            let at = formation_position(machine, *point).ok_or_else(|| {
                 unavailable(
                     machine.id,
                     "reference reborrow has no exact formation point",
                 )
             })?;
-            let parent = terminal_semantics::reference_loan_parent(
+            let parent = terminal_semantics::borrowed_loan_source(
                 module,
                 machine,
                 &mut analysis,
                 at,
-                &descriptor,
+                descriptor,
                 parents
                     .iter()
                     .filter(|(id, _)| *id != child)
@@ -367,7 +645,12 @@ pub(crate) fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<(
             updates.push((
                 machine.id,
                 child,
-                parent.map_or(Lender::Incoming, Lender::Loan),
+                match parent {
+                    terminal_semantics::BorrowedLoanSource::Owner => Lender::Owner,
+                    terminal_semantics::BorrowedLoanSource::Incoming => Lender::Incoming,
+                    terminal_semantics::BorrowedLoanSource::Loan(parent) => Lender::Loan(parent),
+                    terminal_semantics::BorrowedLoanSource::Provider => Lender::Provider,
+                },
             ));
         }
     }
@@ -390,6 +673,88 @@ pub(crate) fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<(
             ));
         };
         *slot = lender;
+    }
+    Ok(())
+}
+
+/// A view formal borrows payload permission. A reference formal instead
+/// borrows the descriptor's storage and keeps its ordinary storage parent.
+fn publish_payload_children(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    tables: &terminal_check_tables::MachineTables,
+    call: terminal_psi::ModuleInvocationInputs<'_, semantic_vocabulary::TargetMachineCallable>,
+    before: terminal_check_tables::ProgramPoint,
+    children: &mut semantic_vocabulary::IdTable<
+        semantic_vocabulary::ObligationId,
+        Option<(
+            terminal_check_tables::ProgramPoint,
+            terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+        )>,
+    >,
+) -> Checked<()> {
+    use terminal_check_tables::obligations::ObligationKind;
+    use terminal_semantics::descriptor_lifetimes::descriptor_location;
+    let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
+    let formals = module
+        .invocation_structural_parameters(call.callee, call.required_contract)
+        .ok_or_else(|| unavailable("payload loan has no exact callable contract"))?;
+    if formals.len() != call.structural_arguments.len() {
+        return Err(unavailable(
+            "payload loan arguments differ from callable formals",
+        ));
+    }
+    let mut claimed = Vec::new();
+    for (argument, formal) in call.structural_arguments.iter().zip(formals) {
+        let Some(access) = reference_access(argument.access) else {
+            continue;
+        };
+        if !terminal_semantics::descriptor_results::is_descriptor(
+            module.structural_types.iter(),
+            formal.structural_type,
+        ) {
+            continue;
+        }
+        let ty = machine
+            .structural_place_type(argument.place)
+            .ok_or_else(|| unavailable("payload loan has no source type"))?;
+        let location = descriptor_location(
+            &module.structural_types,
+            argument.place,
+            ty,
+            &argument.path,
+            None,
+        )
+        .ok_or_else(|| unavailable("payload loan has no exact source descriptor"))?;
+        let mut found = None;
+        for (id, row) in tables.obligations.iter() {
+            let ObligationKind::Loan {
+                captured,
+                access: actual,
+                ..
+            } = row.kind
+            else {
+                continue;
+            };
+            if row.created_at != before || actual != access || claimed.contains(&id) {
+                continue;
+            }
+            let (root, path) = captured_path(tables, captured).map_err(unavailable)?;
+            if terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(root, &path)
+                .as_ref()
+                == Some(&location)
+            {
+                found = Some(id);
+                break;
+            }
+        }
+        let id =
+            found.ok_or_else(|| unavailable("payload call loan has no exact occurrence row"))?;
+        claimed.push(id);
+        *children
+            .get_mut(id)
+            .ok_or_else(|| unavailable("payload child row disappeared"))? =
+            Some((before, location));
     }
     Ok(())
 }
@@ -454,6 +819,20 @@ fn formation_position(
                     .map(|position| (block.id, position))
             })
         }
-        terminal_check_tables::ProgramPoint::Edge(_) => None,
+        terminal_check_tables::ProgramPoint::Edge(edge) => {
+            machine.blocks.iter().find_map(|block| {
+                block
+                    .terminator
+                    .successor_edges()
+                    .iter()
+                    .any(|(candidate, _)| *candidate == edge)
+                    .then(|| {
+                        u32::try_from(block.operations.len())
+                            .ok()
+                            .map(|position| (block.id, position))
+                    })
+                    .flatten()
+            })
+        }
     }
 }

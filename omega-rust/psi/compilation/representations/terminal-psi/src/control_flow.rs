@@ -2318,6 +2318,14 @@ pub(crate) mod termination {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum Terminator {
+        /// Observe an actual empty value domain. This is neither a return nor
+        /// a crash, and transfers no custody. Admission reconstructs emptiness
+        /// at the exact live source path, including a final case namespace.
+        EliminateEmpty {
+            edge: EdgeId,
+            source: PlaceId,
+            path: Vec<crate::StructuralPathSegment>,
+        },
         InvokeNoNormal {
             edge: EdgeId,
             static_reach_binding: Option<u32>,
@@ -2417,7 +2425,8 @@ pub(crate) mod termination {
                         projections.extend(edge.structural_arguments.iter().map(argument));
                     }
                 }
-                Self::StructuralCase { source, path, .. } => {
+                Self::StructuralCase { source, path, .. }
+                | Self::EliminateEmpty { source, path, .. } => {
                     projections.push(crate::OperationProjection {
                         root: *source,
                         path,
@@ -2479,7 +2488,9 @@ pub(crate) mod termination {
                         }
                     }
                 }
-                Self::ReturnStructural { source, .. } => *source = map(*source),
+                Self::ReturnStructural { source, .. } | Self::EliminateEmpty { source, .. } => {
+                    *source = map(*source);
+                }
                 Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
             }
         }
@@ -2518,6 +2529,7 @@ pub(crate) mod termination {
                 ),
                 Self::StructuralCase { cases, .. } => (None, None, cases),
                 Self::Crash { .. }
+                | Self::EliminateEmpty { .. }
                 | Self::ExternalCompletion { .. }
                 | Self::InvokeNoNormal { .. } => (None, None, &[]),
             };
@@ -2531,6 +2543,7 @@ pub(crate) mod termination {
         pub const fn edge(&self) -> EdgeId {
             match self {
                 Self::InvokeNoNormal { edge, .. }
+                | Self::EliminateEmpty { edge, .. }
                 | Self::Jump { edge, .. }
                 | Self::Return { edge, .. }
                 | Self::ReturnUnit { edge, .. }
@@ -2546,6 +2559,7 @@ pub(crate) mod termination {
         pub fn edges(&self) -> impl Iterator<Item = EdgeId> + '_ {
             let edges = match self {
                 Self::InvokeNoNormal { edge, .. }
+                | Self::EliminateEmpty { edge, .. }
                 | Self::Jump { edge, .. }
                 | Self::Return { edge, .. }
                 | Self::ReturnUnit { edge, .. }
@@ -2586,7 +2600,7 @@ pub(crate) mod termination {
                 Self::Return { value, .. } => {
                     *value = map(*value);
                 }
-                Self::StructuralCase { path, .. } => {
+                Self::StructuralCase { path, .. } | Self::EliminateEmpty { path, .. } => {
                     for segment in path {
                         if let crate::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
                             *index = map(*index);
@@ -2618,6 +2632,49 @@ pub(crate) mod termination {
             }
         }
 
+        /// Jump and conditional edges that bind scalar or structural values at
+        /// their destination. Dispatch edges bind from the selected payload.
+        pub fn successors_with_runtime_arguments(&self) -> impl Iterator<Item = (EdgeId, BlockId)> {
+            let with_arguments =
+                |edge, target, arguments: &[ValueId], structural: &[StructuralArgument]| {
+                    (!arguments.is_empty() || !structural.is_empty()).then_some((edge, target))
+                };
+            match self {
+                Self::Jump {
+                    edge,
+                    target,
+                    arguments,
+                    structural_arguments,
+                    ..
+                } => [
+                    with_arguments(*edge, *target, arguments, structural_arguments),
+                    None,
+                ],
+                Self::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => [when_true, when_false].map(|successor| {
+                    with_arguments(
+                        successor.edge,
+                        successor.target,
+                        &successor.arguments,
+                        &successor.structural_arguments,
+                    )
+                }),
+                Self::StructuralCase { .. }
+                | Self::EliminateEmpty { .. }
+                | Self::Return { .. }
+                | Self::ReturnUnit { .. }
+                | Self::ReturnStructural { .. }
+                | Self::Crash { .. }
+                | Self::ExternalCompletion { .. }
+                | Self::InvokeNoNormal { .. } => [None; 2],
+            }
+            .into_iter()
+            .flatten()
+        }
+
         pub fn successor_edges(&self) -> Vec<(EdgeId, BlockId)> {
             match self {
                 Self::Jump { edge, target, .. } => vec![(*edge, *target)],
@@ -2633,7 +2690,8 @@ pub(crate) mod termination {
                     .iter()
                     .map(|successor| (successor.edge, successor.target))
                     .collect(),
-                Self::Return { .. }
+                Self::EliminateEmpty { .. }
+                | Self::Return { .. }
                 | Self::ReturnUnit { .. }
                 | Self::ReturnStructural { .. }
                 | Self::Crash { .. }

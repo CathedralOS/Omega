@@ -38,10 +38,11 @@ use crate::{
 /// turns their internal calls into block arrivals; an unresolved dependency
 /// here supplies no inferred condition and still faces ordinary discharge.
 pub(crate) fn infer(
-    elaboration: &mut Elaboration,
+    scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
+    let elaboration = scope.source();
     if elaboration.private_inputs.is_empty() {
         return Ok(());
     }
@@ -67,18 +68,11 @@ pub(crate) fn infer(
             if !arrivals.is_empty() {
                 let predicate = canonical(joins::connective(arrivals, false), id)?;
                 if predicate != Proposition::Truth {
-                    require(elaboration, id, predicate, &sites)?;
+                    scope.require(id, predicate, &sites)?;
                 }
             }
         }
-        describe_calls(
-            elaboration,
-            id,
-            &sites,
-            &mut incoming,
-            unreached,
-            inhabitation,
-        )?;
+        describe_calls(scope, id, &sites, &mut incoming, unreached, inhabitation)?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
             let remaining = machine_row_mut(&mut waiting, callee, id)?;
@@ -92,13 +86,14 @@ pub(crate) fn infer(
 }
 
 fn describe_calls(
-    elaboration: &Elaboration,
+    scope: &crate::ReplayScope<'_>,
     id: MachineId,
     sites: &CallSites,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
+    let elaboration = scope.source();
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let outgoing = terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)?;
@@ -109,7 +104,7 @@ fn describe_calls(
     // untouched. No typed trees or completed proof products are copied.
     let mut tables = original.clone();
     let prepared = prepare_with_inhabitation(
-        &elaboration.module,
+        scope.formed(),
         &elaboration.domains,
         id,
         &mut tables,
@@ -148,6 +143,7 @@ fn describe_calls(
             types: &prepared.types,
             graph: &prepared.graph,
             context: &prepared.context,
+            ranking_bindings: &prepared.ranking_bindings,
             declared: &declared,
             unreached: &beyond,
         },
@@ -238,7 +234,7 @@ struct Arrival {
 /// inferred contract follows its own arrivals, not every machine again.
 /// Inference appends clauses and obligations; it never moves a block, an
 /// operation or an invocation, so these positions remain valid throughout.
-struct CallSites {
+pub(crate) struct CallSites {
     private: IdTable<MachineId, bool>,
     arrivals: Vec<Arrival>,
     incoming: IdTable<MachineId, Vec<usize>>,
@@ -676,12 +672,19 @@ fn canonical_parts(
 /// Add the inferred predicate to the contract and mint its obligation at
 /// every real call. Existing clauses retain their obligation identities when
 /// canonical ordering moves their positions.
-fn require(
+pub(super) fn require(
     elaboration: &mut Elaboration,
     callee: MachineId,
     predicate: Proposition,
     sites: &CallSites,
 ) -> Checked<()> {
+    // An inferred condition becomes a premise for later callers in this
+    // pass. Its arithmetic must form before publishing that new contract.
+    let mut proposed = terminal_machine(&elaboration.module.machines, callee, callee)?
+        .contract
+        .clone();
+    proposed.requires.push(predicate.clone());
+    crate::formation::contract(&elaboration.module, callee, &proposed)?;
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,

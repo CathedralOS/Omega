@@ -11,8 +11,8 @@ data Outer {
     header: u64;
 }
 
-data Carrier {
-    view: &Outer;
+data Carrier<'view> {
+    view: &'view Outer;
 }
 
 machine evaluate() -> u64 {

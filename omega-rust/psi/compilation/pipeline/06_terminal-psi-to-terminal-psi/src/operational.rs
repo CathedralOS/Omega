@@ -102,13 +102,11 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                 .ok()
                 .map(|position| blocks[position])
                 .ok_or_else(|| malformed("tail call names an unavailable loop head"))?;
-            // Frame reuse currently carries scalar formals only. The block's
-            // parameter list and the retained callable must describe that same
-            // arrival; ordinary arrival checking proves its predicates.
-            if !structural_arguments.is_empty()
-                || !erased_arguments.is_empty()
+            // Reusing the frame still calls the same interface. Both argument
+            // lanes must match its formals, including access and qualifications;
+            // ordinary arrival and borrow checking judge the actual transfer.
+            if !erased_arguments.is_empty()
                 || !erased_proof_arguments.is_empty()
-                || !callee.structural_parameters.is_empty()
                 || !callee.erased_scalar_formals.is_empty()
                 || head.parameters.len() != arguments.len()
                 || head.parameters.len() != callee.parameters.len()
@@ -116,7 +114,23 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
                     .parameters
                     .iter()
                     .zip(&callee.parameters)
-                    .any(|(actual, formal)| actual.scalar_type != formal.scalar_type)
+                    .any(|(actual, formal)| actual.value_type() != formal.value_type())
+                || head.structural_parameters.len() != structural_arguments.len()
+                || head.structural_parameters.len() != callee.structural_parameters.len()
+                || head
+                    .structural_parameters
+                    .iter()
+                    .zip(&callee.structural_parameters)
+                    .any(|(actual, formal)| {
+                        actual.position != formal.position
+                            || actual.structural_type != formal.structural_type
+                            || actual.multiplicity != formal.multiplicity
+                            || actual.access != formal.access
+                            || actual.qualifications != formal.qualifications
+                            || actual.projected_qualifications != formal.projected_qualifications
+                            || actual.additional_input_qualifications
+                                != formal.additional_input_qualifications
+                    })
             {
                 return Err(malformed(
                     "tail call's loop head does not carry its callable's formals",
@@ -260,11 +274,8 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                         Construct::Edge(id) => sources.edges.get(id).copied(),
                         _ => None,
                     })
-                    .and_then(|origin| match origin {
-                        terminal_check_tables::program::SourceOrigin::Authored(span) => Some(span),
-                        terminal_check_tables::program::SourceOrigin::Unpositioned(_) => None,
-                    });
-                refusal(RefusalReason::Violation(span), machine.id, site, detail)
+                    .and_then(terminal_check_tables::program::SourceOrigin::authored_span);
+                refusal(RefusalReason::Violation, machine.id, site, detail).with_source_span(span)
             };
             let flags = envelope(call, &inferred, machine.id, site)?;
             let ack = call.acknowledgement;
@@ -399,7 +410,7 @@ fn crossings_are_stated(
                 .any(|live| live.effective.suspension != language_core::CarrySuspension::Allowed)
             {
                 return Err(refusal(
-                    RefusalReason::Violation(None),
+                    RefusalReason::Violation,
                     machine.id,
                     site,
                     "a value live across this call forbids suspension",

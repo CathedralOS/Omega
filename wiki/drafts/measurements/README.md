@@ -6,7 +6,8 @@ revision, and the headline numbers.
 Raw run data does not belong in git: CSV, JSON, logs, per-fixture output, archives, patches and probe
 scripts stay out. `cargo xtask check-rules` (`tools/xtask/src/rules.rs`) rejects a pull request that
 adds a file here other than a `.md` file of at most 300 lines. Commit the summary, then link raw data by a pinned commit or
-keep it in the claim note.
+record where it is kept, with its hashes, in the summary itself. A claim note is
+no place for it: notes are dropped when their claim ends.
 
 Every raw file that earlier runs committed was removed in one commit. Its parent, `6e5131c510b9`, still
 holds all of it: browse [wiki/drafts/measurements at that commit](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements).
@@ -14,6 +15,10 @@ Links from the summaries to those files point there. A plain file name in a summ
 names a file in the run folder at that commit.
 
 ## Records without a run folder
+
+- [Exact declaration lookup during typing](declaration_lookups_2026_11_14.md):
+  bounded tiny-body scans, retained binding/field relationships, measured
+  preparation/reuse costs, source-query counts and correctness limits.
 
 - [checked_provider_linear_result_qualification_2026_10_13.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checked_provider_linear_result_qualification_2026_10_13.json):
   qualification of linear provider results on `linux_x86_64`, producer `8be2e4cc7d33` on base

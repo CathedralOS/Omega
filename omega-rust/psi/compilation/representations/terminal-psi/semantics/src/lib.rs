@@ -36,7 +36,7 @@ pub mod descriptors;
 pub mod inhabitation;
 pub mod normal_completion;
 pub mod plain_affine;
-pub mod reference_releases;
+pub mod reference_ends;
 pub mod references;
 pub mod scalar_qualifications;
 pub mod scalars;
@@ -106,8 +106,9 @@ pub use domain_preservation::{
     store_preserves_domain_content, store_preserves_qualifications,
 };
 pub use references::reference_completion::{
-    ReferenceCompletionError, ReferenceCompletionOccurrence, borrowed_entry_reference_referent,
-    cleanup_disposes_reference, reference_call_lifetimes, reference_loan_parent,
+    BorrowedLoanSource, ReferenceCompletionError, ReferenceCompletionOccurrence,
+    borrowed_entry_reference_referent, borrowed_loan_source, cleanup_disposes_reference,
+    incoming_view_occurrence, reference_call_lifetimes, reference_loan_parent,
     validate_reference_result_completion,
 };
 pub use references::reference_origins::{
@@ -131,6 +132,9 @@ pub use references::reference_storage_geometry::{
     validate_storage_destination_intervals,
 };
 pub use references::{SelectedReferenceResult, selected_reference_result};
+pub use references::{
+    boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
+};
 pub use scalars::scalar_ordering;
 pub use structural::inline_carriers::{
     InlineCarrierError, inline_carrier_declaration, inline_field_presentation,
@@ -603,8 +607,8 @@ pub use semantic_rows::{
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
     borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
-    root_before_edge, storage_names, structural_argument_source, view_descriptor_parameter,
-    view_descriptor_projected_qualifications,
+    root_before_edge, storage_names, structural_argument_source, structural_projection_authority,
+    view_descriptor_parameter, view_descriptor_projected_qualifications,
 };
 pub use storage::collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, CollectionViewDescriptor,
@@ -620,14 +624,15 @@ pub use structural::partial_affine::{
     partial_affine_residuals, partial_affine_residuals_in_regions, structural_region_is_vacant,
 };
 pub use structural::primitive_place::{
-    Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
-    byte_carrier_geometry_matches, canonical_inline_region, canonical_primitive_path,
-    canonical_primitive_read_path, canonical_static_projection, fixed_array_place_shape,
+    Position, RuntimeIndexGoalError, StructuralStorageSelection,
+    borrowed_primitive_projection_declaration, byte_carrier_geometry_matches,
+    canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
+    canonical_primitive_read_type, canonical_static_projection, fixed_array_place_shape,
     inline_backing_container, primitive_place_type, primitive_projection_declaration,
     primitive_projection_restriction, primitive_projection_type, primitive_read_field,
     primitive_read_projection_type, primitive_read_requirement, projection_stays_in_inline_storage,
     projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
-    runtime_structural_path_tip, stored_descriptor_paths,
+    runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,

@@ -49,6 +49,7 @@ pub(crate) fn publish_write_frames(
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns,
+        source_span: None,
         detail,
     };
     let frames = terminal_semantics::borrowed_storage::inferred_write_frames(module)
@@ -348,6 +349,36 @@ impl Lowering<'_> {
             self.name_clause_contents(clause, &bindings, result)?;
         }
         Ok(Reached::Value(evaluated))
+    }
+
+    /// A terminal call within this component becomes a block transfer.
+    /// Capture both argument lanes with the ordinary call evaluation order;
+    /// the edge checks their access and retires staging homes after capture.
+    pub(super) fn tail_arguments(
+        &mut self,
+        callee: MachineId,
+        arguments: &[Expression],
+        source: SourceOrigin,
+    ) -> Evaluation<(
+        Vec<ValueId>,
+        Vec<StructuralArgument>,
+        Vec<terminal_psi::TerminalAffineCleanupAction>,
+    )> {
+        let captured = continuing!(self.arguments(callee.into(), None, arguments));
+        if !captured.erased.is_empty() {
+            return Err(self.internal("a loop transfer carries erased arguments"));
+        }
+        let structural = self.structural_arguments(
+            captured.structural,
+            ExecutionSite::Block(self.current()?),
+            source,
+        )?;
+        let cleanup = captured
+            .homes
+            .iter()
+            .map(|home| terminal_psi::TerminalAffineCleanupAction::RetireHome(home.place()))
+            .collect();
+        Ok(Reached::Value((captured.scalars, structural, cleanup)))
     }
 
     fn structural_arguments(
@@ -732,6 +763,7 @@ impl Lowering<'_> {
                 reason: RefusalReason::ForeignIdentity,
                 machine: id,
                 concerns: Construct::Invocation(invocation),
+                source_span: None,
                 detail: String::from("invocation is past the end of this machine"),
             })?
             .requirements

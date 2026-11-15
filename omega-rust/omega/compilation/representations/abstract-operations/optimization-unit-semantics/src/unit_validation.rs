@@ -470,6 +470,15 @@ mod activation_storage {
                 returned_claims: returned_claims.clone(),
                 cleanup_actions: cleanup_actions.clone(),
             },
+            A::EliminateEmpty {
+                psi_edge,
+                source,
+                path,
+            } => Terminator::EliminateEmpty {
+                edge: *psi_edge,
+                source: *source,
+                path: path.clone(),
+            },
             A::Crash {
                 psi_edge,
                 cause,
@@ -1799,6 +1808,27 @@ mod catalogs {
             };
         }
 
+        for block in &function.blocks {
+            for node in &block.nodes {
+                // The discriminator a terminator reads before choosing an
+                // edge is owned by the block, never by one of its edges.
+                for (_, obligation) in node
+                    .operation
+                    .terminator_read_path()
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+                {
+                    require_accepted_goal_fact(
+                        unit,
+                        function.machine,
+                        optimization_unit::AcceptedObligationOwner::Terminator(block.id),
+                        Some(obligation),
+                        None,
+                    )?;
+                }
+            }
+        }
         for node in function.block_nodes() {
             let paths = node
                 .successors
@@ -2288,7 +2318,7 @@ mod catalogs {
                             .filter(|fact| {
                                 fact.machine == function.machine
                                     && fact.owner
-                                        == optimization_unit::PsiProvenance::Operation(
+                                        == optimization_unit::AcceptedObligationOwner::Operation(
                                             *psi_operation,
                                         )
                                     && Some(fact.obligation) == *resident_obligation
@@ -2509,7 +2539,7 @@ mod catalogs {
     fn require_accepted_goal_fact(
         unit: &PsiOptimizationUnit,
         machine: MachineId,
-        provenance: optimization_unit::PsiProvenance,
+        provenance: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: Option<ObligationId>,
         goal: Option<&semantic_vocabulary::Proposition>,
     ) -> Result<(), OptimizationUnitValidationError> {
@@ -2885,7 +2915,9 @@ pub(crate) mod derived_metadata {
                 | O::ElementViewLength { source, .. }
                 | O::ByteSequenceSubslice { source, .. }
                 | O::ElementViewSubslice { source, .. } => require(source.place, known)?,
-                O::ReturnStructural { source, .. } => require(*source, known)?,
+                O::ReturnStructural { source, .. } | O::EliminateEmpty { source, .. } => {
+                    require(*source, known)?
+                }
                 _ => {}
             }
             Ok(())
@@ -2903,6 +2935,7 @@ pub(crate) mod derived_metadata {
                 abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                 | O::InvokeNoNormal { psi_edge, .. }
                 | O::ExternalCompletion { psi_edge, .. }
+                | O::EliminateEmpty { psi_edge, .. }
                 | O::Crash { psi_edge, .. } => {
                     vec![PsiProvenance::Edge(*psi_edge)]
                 }
@@ -7169,6 +7202,7 @@ pub(crate) mod function_structure {
                     | O::TrappingInteger { .. }
                     | O::Return { .. }
                     | O::ReturnUnit { .. }
+                    | O::EliminateEmpty { .. }
                     | O::Crash { .. } => Vec::new(),
                 }
             }
@@ -10023,7 +10057,9 @@ mod no_normal_calls {
                 O::Return { .. } | O::ReturnUnit { .. } | O::ReturnStructural { .. } => {
                     NormalCompletionDisposition::Return
                 }
-                O::Crash { .. } | O::ExternalCompletion { .. } => NormalCompletionDisposition::Stop,
+                O::EliminateEmpty { .. } | O::Crash { .. } | O::ExternalCompletion { .. } => {
+                    NormalCompletionDisposition::Stop
+                }
                 O::InvokeNoNormal { callee, .. } => NormalCompletionDisposition::Invoke(*callee),
                 O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => {
                     NormalCompletionDisposition::Successors(

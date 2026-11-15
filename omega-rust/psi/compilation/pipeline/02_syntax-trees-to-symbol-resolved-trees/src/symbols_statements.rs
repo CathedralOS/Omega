@@ -142,7 +142,7 @@ mod routing {
         assign_expression_span_symbols, assign_statement_expression_symbols,
     };
     use crate::symbols::scope::MachineScope;
-    use crate::symbols::scoped_paths::resolve_state_scoped_members;
+    use crate::symbols::scoped_paths::resolve_lexical_members;
     use crate::symbols::targets::{
         assign_call_machine_argument_symbols, assign_transition_target_symbols,
         resolve_call_target_symbol,
@@ -279,35 +279,39 @@ mod routing {
                 );
                 if !call.receiver.is_empty() {
                     let members = statement_path_members.span_or_empty(call.receiver);
-                    let (root, _) = resolve_state_scoped_members(
-                        symbols,
-                        machine.symbol,
-                        state_symbol,
-                        members.get(..1).unwrap_or_default(),
-                        None,
-                    );
+                    let (root, symbol) =
+                        resolve_lexical_members(symbols, machine, parameters, members);
                     call.receiver_root_symbol = root;
-                    let (_, symbol) = resolve_state_scoped_members(
-                        symbols,
-                        machine.symbol,
-                        state_symbol,
-                        members,
-                        None,
-                    );
-                    if symbol.is_valid() {
-                        call.receiver_symbol = symbol;
-                    }
+                    call.receiver_symbol = symbol;
                 }
 
-                call.target_symbol = resolve_call_target_symbol(
-                    machine,
-                    parameters,
-                    !call.receiver.is_empty(),
-                    call.receiver_symbol,
-                    &call.target,
-                    child_type_references,
+                call.target_symbol = crate::symbols::targets::normalize_statement_module_call(
                     symbols,
-                );
+                    statement_path_members,
+                    call,
+                )
+                .unwrap_or_else(|| {
+                    resolve_call_target_symbol(
+                        machine,
+                        parameters,
+                        !call.receiver.is_empty(),
+                        call.receiver_symbol,
+                        &call.target,
+                        child_type_references,
+                        symbols,
+                    )
+                });
+                call.unresolved_name = if call.target_symbol.is_valid() {
+                    Default::default()
+                } else {
+                    crate::symbols::expressions::unresolved_call_name(
+                        symbols,
+                        machine,
+                        parameters,
+                        statement_path_members.span_or_empty(call.receiver),
+                        &call.target,
+                    )
+                };
                 crate::symbols::expressions::assign_static_arguments_type_symbols(
                     symbols,
                     machine,
@@ -573,6 +577,7 @@ fn assign_machine_references(
     let data_type_parameters = &tables.declarations.data_type_parameters;
     let machine_owned_data = &tables.declarations.machine_owned_data;
     let machine_state_handles = &tables.declarations.machine_state_handles;
+    let ranking_views = &tables.declarations.ranking_views;
     let machine_states = &mut tables.declarations.machine_states;
     let state_parameters = &mut tables.declarations.state_parameters;
     let statement_path_members = &mut tables.declarations.statement_path_members;
@@ -610,7 +615,8 @@ fn assign_machine_references(
             ranking_subjects,
             ranking_view_arguments,
             ranking_range,
-            ranking_view: _,
+            ranking_view,
+            selected_ranking_view,
             contracts: _,
             states,
             ..
@@ -638,6 +644,11 @@ fn assign_machine_references(
             data_payload_fields: &tables.declarations.data_payload_fields,
             type_constraints,
         };
+        *selected_ranking_view = resolve_ranking_view(
+            symbols,
+            machine_symbol,
+            ranking_views.span_or_empty(*ranking_view),
+        );
         if let Some(entry) = machine_state_handles.span_or_empty(*states).first() {
             let entry = machine_states.get(*entry);
             let parameters = state_parameters.span_or_empty(entry.parameters);
@@ -769,4 +780,41 @@ fn assign_machine_references(
         }
     });
     Ok(())
+}
+
+/// Ranking names use ordinary declaration precedence. The closed slice-length
+/// view is a builtin only when no authored declaration shadows that name.
+fn resolve_ranking_view(
+    symbols: &SymbolTable,
+    machine: symbols::SymbolHandle,
+    members: &[symbol_resolved_trees::name::DiagnosticName],
+) -> language_semantics::RankingViewSelection {
+    use language_semantics::{RankingViewId, RankingViewSelection};
+    use symbols::{SymbolKind, SymbolLookup};
+    if members.is_empty() {
+        return RankingViewSelection::Unresolved;
+    }
+    let path = members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let kinds = &[SymbolKind::Machine, SymbolKind::Measure];
+    let lexical = super::lookup::lexical_declaration_lookup(symbols, machine, &path, kinds);
+    let selected = match lexical {
+        SymbolLookup::NotFound => symbols.lookup_signature_free_top_level_from_source_matching(
+            &path,
+            kinds,
+            super::lookup::diagnostic_path_source_span(members),
+            |_| true,
+        ),
+        found => found,
+    };
+    match selected {
+        SymbolLookup::Unique(declaration) => RankingViewSelection::Declaration(declaration),
+        SymbolLookup::NotFound if path == "Slice::Length" => {
+            RankingViewSelection::Builtin(RankingViewId::SLICE_LENGTH)
+        }
+        SymbolLookup::NotFound | SymbolLookup::Ambiguous { .. } => RankingViewSelection::Unresolved,
+    }
 }
