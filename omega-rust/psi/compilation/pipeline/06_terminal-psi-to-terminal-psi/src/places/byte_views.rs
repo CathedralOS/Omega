@@ -700,77 +700,22 @@ impl Storage<'_> {
         trace: &super::Reaching,
     ) -> Checked<Option<Proposition>> {
         let concerns = Construct::Operation(measurement.id);
-        let producer = self.operation(producer, concerns)?;
-        if !self.graph.dominates(
-            ProgramPoint::AfterOperation(producer.id),
+        let Some(result) = measurement.result.scalar_ref() else {
+            return Err(self.foreign(concerns, "a length measurement has no scalar result"));
+        };
+        let Some(extent) = self.extent_contents(
+            producer,
             ProgramPoint::AfterOperation(measurement.id),
-        )? {
-            return Ok(None);
-        }
-        if matches!(producer.kind, OperationKind::ByteSequenceSubslice { .. })
-            && !self.current_extent(producer.id, trace)?
-            && self.repeated_extent(producer.id)?
-        {
-            return Ok(None);
-        }
-        if matches!(
-            producer.kind,
-            OperationKind::EstablishElementView { .. }
-                | OperationKind::EstablishMutableElementView { .. }
-        ) {
-            let Some(result) = measurement.result.scalar_ref() else {
-                return Err(self.foreign(concerns, "a length measurement has no scalar result"));
-            };
-            let Some(extent) = self.extent_contents(
-                producer.id,
-                ProgramPoint::AfterOperation(measurement.id),
-                result.scalar_type,
-                trace,
-            )?
-            else {
-                return Ok(None);
-            };
-            return Ok(Some(Proposition::Equal(
-                semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
-                extent,
-            )));
-        }
-        let mut read = measurement.clone();
-        let OperationKind::ByteSequenceLength { source } = &mut read.kind else {
+            result.scalar_type,
+            trace,
+        )?
+        else {
             return Ok(None);
         };
-        source.path.clear();
-        source.place = match &producer.kind {
-            OperationKind::ByteSequenceSubslice { .. } => {
-                producer
-                    .result
-                    .as_structural()
-                    .ok_or_else(|| self.foreign(concerns, "a reaching subslice has no result"))?
-                    .place
-            }
-            OperationKind::EstablishByteSequenceLiteral { destination, .. } => *destination,
-            _ => return Ok(None),
-        };
-        let observation = terminal_semantics::structural_effect_leaf_observation(&read)
-            .map_err(crate::semantics_refusal(self.machine, measurement.id))?;
-        let Some(observation) = observation else {
-            return Ok(None);
-        };
-        match &producer.kind {
-            OperationKind::EstablishByteSequenceLiteral { .. } => {
-                terminal_semantics::literal_length_equation(&observation, producer)
-            }
-            OperationKind::ByteSequenceSubslice { .. } => {
-                let produced = terminal_semantics::structural_effect_leaf_observation(producer)
-                    .map_err(crate::semantics_refusal(self.machine, producer.id))?;
-                let Some(produced) = produced else {
-                    return Ok(None);
-                };
-                terminal_semantics::subslice_length_equation(&observation, &produced)
-            }
-            _ => unreachable!(),
-        }
-        .map_err(crate::semantics_refusal(self.machine, measurement.id))
+        Ok(Some(Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+            extent,
+        )))
     }
 
     // An endpoint SSA name in a loop may now denote a later occurrence than

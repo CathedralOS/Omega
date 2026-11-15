@@ -154,6 +154,20 @@ machine use(byte: u8) { }"
 /// bound cannot authorize its bytes, even under the same enclosing record.
 #[test]
 fn stored_byte_reads_keep_their_field_extent_and_bounds() {
+    // A literal's exact extent survives storing its descriptor. The sibling
+    // literal has another extent and cannot justify reading past this field.
+    let literal = r#"
+data Holder<'held> { known: &'held [u8]; path: &'held [u8]; }
+machine build_entry() {
+    let holder: Holder = Holder { known: "AB", path: "%" };
+    use(holder.path[0]);
+}
+machine use(byte: u8) {}
+"#;
+    assert_eq!(verdict(literal), "accepted");
+    assert_eq!(verdict(&literal.replace("path[0]", "path[1]")), "rejected");
+    assert_eq!(verdict(&literal.replace("path: \"%\"", "path: \"\"")), "rejected");
+
     let source = r#"
 data Holder<'held> { known: &'held [u8]; path: &'held [u8]; }
 data Outer<'held> { holder: Holder<'held>; count: u32; }
