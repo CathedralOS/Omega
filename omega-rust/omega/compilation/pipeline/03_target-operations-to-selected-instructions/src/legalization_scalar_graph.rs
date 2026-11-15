@@ -2864,7 +2864,7 @@ pub(crate) mod cleanup_calls {
     }
 
     pub(crate) fn validate_target(
-        rows: &[TargetUnitOperation],
+        rows: &[target_operations::TargetInstruction],
         operation: &AbstractOperation,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
@@ -2881,10 +2881,13 @@ pub(crate) mod cleanup_calls {
                 callee,
                 call_plan,
                 arguments,
-            } = row
+            } = &row.kind
             else {
                 return Err(LegalizationError::custody());
             };
+            if row.source.is_some() {
+                return Err(LegalizationError::custody());
+            }
             let expected_arguments = call
                 .arguments
                 .iter()

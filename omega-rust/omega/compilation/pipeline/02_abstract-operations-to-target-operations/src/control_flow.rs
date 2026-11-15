@@ -2635,6 +2635,8 @@ impl LiveDefinitions {
     }
 }
 
+// Arrival inference may rebuild a block. Attach owned source annotations only
+// after it settles, rather than cloning them on every visit to the fixed point.
 #[derive(Clone)]
 struct PendingControlBlock {
     block: semantic_vocabulary::BlockId,
@@ -3175,69 +3177,77 @@ pub(crate) fn lower(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
-    let blocks = lowered
-        .into_iter()
-        .map(|pending| {
-            let mut pending =
-                pending.ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            // Live arrivals can revisit a pending block. Stable source annotations
-            // are copied only once, when publishing the final target graph.
-            let source_terminal = optimized
-                .block(pending.block)
-                .and_then(|block| block.nodes.last())
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let retain_work =
-                |target: &mut Vec<optimization_unit::WorkSettlement>,
-                 identity,
-                 source: &optimization_unit::OptimizationEdge| {
-                    if identity != source.psi_edge {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    *target = source.work.clone();
-                    Ok(())
-                };
-            match &mut pending.terminator {
-                TargetControlTerminator::Jump { successor } => {
-                    let [source] = source_terminal.successors.as_slice() else {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    };
-                    retain_work(&mut successor.work, successor.psi_edge, source)?;
-                }
-                TargetControlTerminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    let [source_true, source_false] = source_terminal.successors.as_slice() else {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    };
-                    retain_work(&mut when_true.work, when_true.psi_edge, source_true)?;
-                    retain_work(&mut when_false.work, when_false.psi_edge, source_false)?;
-                }
-                TargetControlTerminator::StructuralCase { cases, .. } => {
-                    if cases.len() != source_terminal.successors.len() {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    for (case, source) in cases.iter_mut().zip(&source_terminal.successors) {
-                        retain_work(&mut case.work, case.psi_edge, source)?;
-                    }
-                }
-                _ => {}
-            }
-            Ok(TargetControlBlock {
+    let mut blocks = Vec::with_capacity(lowered.len());
+    for pending in lowered {
+        let mut pending =
+            pending.ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        // Live arrivals can revisit a pending block. Stable source annotations
+        // are copied only once, when publishing the final target graph.
+        let source = optimized
+            .block(pending.block)
+            .ok_or(LoweringError::InstructionMetadata {
+                machine: function.machine,
                 block: pending.block,
-                parameters: pending.parameters,
-                structural_parameters: pending.structural_parameters,
-                operations: pending.operations,
-                terminator: pending.terminator,
-                terminator_metadata: target_operations::TargetOperationMetadata {
-                    work: source_terminal.work.clone(),
-                    effect: source_terminal.effect,
-                    ownership: source_terminal.ownership.clone(),
-                },
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+                reason: "instruction metadata has no source block",
+            })?;
+        let source_terminal = source
+            .nodes
+            .last()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let retain_work = |target: &mut Vec<optimization_unit::WorkSettlement>,
+                           identity,
+                           source: &optimization_unit::OptimizationEdge| {
+            if identity != source.psi_edge {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            *target = source.work.clone();
+            Ok(())
+        };
+        match &mut pending.terminator {
+            TargetControlTerminator::Jump { successor } => {
+                let [source] = source_terminal.successors.as_slice() else {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                };
+                retain_work(&mut successor.work, successor.psi_edge, source)?;
+            }
+            TargetControlTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                let [source_true, source_false] = source_terminal.successors.as_slice() else {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                };
+                retain_work(&mut when_true.work, when_true.psi_edge, source_true)?;
+                retain_work(&mut when_false.work, when_false.psi_edge, source_false)?;
+            }
+            TargetControlTerminator::StructuralCase { cases, .. } => {
+                if cases.len() != source_terminal.successors.len() {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                for (case, source) in cases.iter_mut().zip(&source_terminal.successors) {
+                    retain_work(&mut case.work, case.psi_edge, source)?;
+                }
+            }
+            _ => {}
+        }
+        blocks.push(TargetControlBlock {
+            block: pending.block,
+            parameters: pending.parameters,
+            structural_parameters: pending.structural_parameters,
+            operations: super::function_contract::instructions(
+                function.machine,
+                source,
+                pending.operations,
+            )?,
+            terminator: pending.terminator,
+            terminator_metadata: target_operations::TargetOperationMetadata {
+                work: source_terminal.work.clone(),
+                effect: source_terminal.effect,
+                ownership: source_terminal.ownership.clone(),
+            },
+        });
+    }
     let mut provenance = TerminalPsiProvenance::default();
     for block in block_provenance {
         provenance.operations.extend(block.operations);

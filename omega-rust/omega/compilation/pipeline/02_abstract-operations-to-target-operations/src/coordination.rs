@@ -619,7 +619,10 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
             .zip(&unit.functions)
             .map(|(function, optimized)| {
                 if function.machine != optimized.machine {
-                    return Err(LoweringError::FunctionContract { machine: function.machine, reason: "function metadata identity differs" });
+                    return Err(LoweringError::FunctionContract {
+                        machine: function.machine,
+                        reason: "function metadata identity differs",
+                    });
                 }
                 let mut lowered = lower_function(
                     function,

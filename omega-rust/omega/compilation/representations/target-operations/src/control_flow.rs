@@ -48,7 +48,7 @@ pub struct TargetControlGraph {
 
 impl TargetControlGraph {
     pub fn operations(&self) -> impl Iterator<Item = &TargetUnitOperation> + '_ {
-        self.blocks.iter().flat_map(|block| &block.operations)
+        self.blocks.iter().flat_map(|block| block.operations())
     }
 }
 
@@ -57,7 +57,7 @@ pub struct TargetControlBlock {
     pub block: BlockId,
     pub parameters: Vec<TargetScalarBlockParameter>,
     pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
-    pub operations: Vec<TargetUnitOperation>, // Nonterminal operations only; control is owned by `terminator`.
+    pub operations: Vec<crate::TargetInstruction>, // Nonterminal operations only; control is owned by `terminator`.
     pub terminator: TargetControlTerminator,
     pub terminator_metadata: TargetOperationMetadata,
 }
@@ -72,6 +72,11 @@ pub struct TargetOperationMetadata {
 }
 
 impl TargetControlBlock {
+    /// Borrow kinds for semantic queries while full instruction records stay block-owned.
+    pub fn operations(&self) -> impl ExactSizeIterator<Item = &TargetUnitOperation> + Clone {
+        self.operations.iter().map(|instruction| &instruction.kind)
+    }
+
     pub fn structural_parameter(
         &self,
         place: semantic_vocabulary::PlaceId,

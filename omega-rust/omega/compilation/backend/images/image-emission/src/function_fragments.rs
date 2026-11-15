@@ -10381,7 +10381,7 @@ mod source {
                                     target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                                     target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
                                     target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => *place == *source,
-                                } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, &block.operations, &graph.structural_types, *psi_edge))).count() == 1
+                                } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, block.operations(), &graph.structural_types, *psi_edge))).count() == 1
                         && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                             SelectedTerminator::Return { psi_return_edge, instruction }
                                 if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnScalar)
@@ -10476,7 +10476,7 @@ mod source {
             if candidates.next().is_some()
                 || !cleanup_rosters_match(
                     source,
-                    &candidate.operations,
+                    candidate.operations(),
                     &target.graph.structural_types,
                 )
             {
@@ -10599,7 +10599,7 @@ mod source {
                         && cleanup_actions == actual
                         && return_cleanup_calls_match(
                             cleanup_actions,
-                            &candidate.operations,
+                            candidate.operations(),
                             &target.graph.structural_types,
                             match source {
                                 abstract_operations::return_or_return_unit_pattern!(
@@ -10622,7 +10622,7 @@ mod source {
                     cleanup_actions == actual
                         && return_cleanup_calls_match(
                             cleanup_actions,
-                            &candidate.operations,
+                            candidate.operations(),
                             &target.graph.structural_types,
                             match source {
                                 abstract_operations::return_or_return_unit_pattern!(
@@ -10678,9 +10678,10 @@ mod source {
                 && target.cleanup_actions == source.cleanup_actions
         }
 
-        fn cleanup_rosters_match(
+        fn cleanup_rosters_match<'operations>(
             source: &AbstractOperation,
-            operations: &[target_operations::TargetUnitOperation],
+            operations: impl Iterator<Item = &'operations target_operations::TargetUnitOperation>
+            + Clone,
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
         ) -> bool {
             let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(structural_types) else {
@@ -10697,21 +10698,21 @@ mod source {
                         .count()
                 })
                 .sum::<usize>();
-            expected == operations.iter().filter(|operation| matches!(operation, target_operations::TargetUnitOperation::CleanupCall { .. })).count()
-                && source.cleanup_rosters().all(|(edge, actions)| edge_cleanup_calls_match(actions, operations.iter().filter(|operation|
+            expected == operations.clone().filter(|operation| matches!(operation, target_operations::TargetUnitOperation::CleanupCall { .. })).count()
+                && source.cleanup_rosters().all(|(edge, actions)| edge_cleanup_calls_match(actions, operations.clone().filter(|operation|
                     matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), &mut layouts, edge))
         }
 
-        pub(super) fn return_cleanup_calls_match(
+        pub(super) fn return_cleanup_calls_match<'operations>(
             actions: &[TerminalAffineCleanupAction],
-            operations: &[target_operations::TargetUnitOperation],
+            operations: impl Iterator<Item = &'operations target_operations::TargetUnitOperation>,
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
             edge: semantic_vocabulary::EdgeId,
         ) -> bool {
             let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(structural_types) else {
                 return false;
             };
-            edge_cleanup_calls_match(actions, operations.iter(), &mut layouts, edge)
+            edge_cleanup_calls_match(actions, operations, &mut layouts, edge)
         }
 
         fn edge_cleanup_calls_match<'a>(
@@ -10896,7 +10897,7 @@ mod source {
                 }
                 assert!(return_cleanup_calls_match(
                     &actions,
-                    &calls,
+                    calls.iter(),
                     &structural_types,
                     edge
                 ));
@@ -10939,7 +10940,7 @@ mod source {
                     }
                     assert!(!return_cleanup_calls_match(
                         &actions,
-                        &hostile,
+                        hostile.iter(),
                         &structural_types,
                         edge
                     ));
@@ -15731,7 +15732,10 @@ mod source {
                             block,
                             parameters: vec![],
                             structural_parameters: vec![],
-                            operations: vec![target_operation],
+                            operations: vec![target_operations::TargetInstruction {
+                                kind: target_operation,
+                                source: None,
+                            }],
                             terminator_metadata: target_operations::TargetOperationMetadata {
                                 work: vec![],
                                 effect: optimization_unit::EffectLink {
@@ -15763,7 +15767,7 @@ mod source {
                 operation: usize,
             ) -> &mut StructuralArgument {
                 let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-                    &mut graph.blocks[0].operations[operation]
+                    &mut graph.blocks[0].operations[operation].kind
                 else {
                     unreachable!()
                 };
@@ -15780,7 +15784,7 @@ mod source {
                             reference_results, ..
                         },
                     ..
-                } = &mut graph.blocks[0].operations[operation]
+                } = &mut graph.blocks[0].operations[operation].kind
                 else {
                     unreachable!()
                 };
@@ -15794,7 +15798,7 @@ mod source {
                 let TargetUnitOperation::Call {
                     result: TargetCallResult::Structural { result_home, .. },
                     ..
-                } = &mut graph.blocks[0].operations[operation]
+                } = &mut graph.blocks[0].operations[operation].kind
                 else {
                     unreachable!()
                 };
@@ -15806,7 +15810,7 @@ mod source {
                 operation: usize,
             ) -> Option<&mut StructuralArgument> {
                 let TargetUnitOperation::StructuralByteSequenceFieldStore { destination, .. } =
-                    &mut graph.blocks[0].operations[operation]
+                    &mut graph.blocks[0].operations[operation].kind
                 else {
                     return None;
                 };
@@ -15836,7 +15840,7 @@ mod source {
                 operation: usize,
             ) -> Option<&mut TargetStructuralHomeRequirement> {
                 let TargetUnitOperation::EstablishZeroedStructural { result_home, .. } =
-                    &mut graph.blocks[0].operations[operation]
+                    &mut graph.blocks[0].operations[operation].kind
                 else {
                     return None;
                 };
@@ -15876,7 +15880,7 @@ mod source {
                             path: source.path.clone(),
                             field,
                         };
-                    target.graph.blocks[0].operations[0] =
+                    target.graph.blocks[0].operations[0].kind =
                         TargetUnitOperation::StructuralByteSequenceFieldLength {
                             psi_operation,
                             result,
@@ -15892,7 +15896,7 @@ mod source {
                     assert!(requires_graph_storage_replay(function.operations()));
                     for mutation in 0..9 {
                         let mut changed = target.clone();
-                        let operation = &mut changed.graph.blocks[0].operations[0];
+                        let operation = &mut changed.graph.blocks[0].operations[0].kind;
                         let TargetUnitOperation::StructuralByteSequenceFieldLength {
                             psi_operation,
                             result,
@@ -15927,7 +15931,12 @@ mod source {
                             }
                             _ => {
                                 let duplicate = operation.clone();
-                                changed.graph.blocks[0].operations.push(duplicate);
+                                changed.graph.blocks[0].operations.push(
+                                    target_operations::TargetInstruction {
+                                        kind: duplicate,
+                                        source: None,
+                                    },
+                                );
                             }
                         }
                         assert!(
@@ -16000,7 +16009,7 @@ mod source {
                             result: owner.clone(),
                         },
                     );
-                    target.graph.blocks[0].operations[0] =
+                    target.graph.blocks[0].operations[0].kind =
                         TargetUnitOperation::StructuralByteSequenceFieldLength {
                             psi_operation: observation,
                             result,
@@ -16010,16 +16019,19 @@ mod source {
                         };
                     target.graph.blocks[0].operations.insert(
                         0,
-                        TargetUnitOperation::EstablishZeroedStructural {
-                            psi_operation: producer,
-                            result_home: TargetStructuralHomeRequirement {
-                                origin: TargetStructuralHomeOrigin::OperationResult {
-                                    operation: producer,
-                                    result: owner.clone(),
+                        target_operations::TargetInstruction {
+                            source: None,
+                            kind: TargetUnitOperation::EstablishZeroedStructural {
+                                psi_operation: producer,
+                                result_home: TargetStructuralHomeRequirement {
+                                    origin: TargetStructuralHomeOrigin::OperationResult {
+                                        operation: producer,
+                                        result: owner.clone(),
+                                    },
+                                    layout: TargetStructuralHomeLayout::Aggregate(
+                                        ValueShape::integer(8, 8),
+                                    ),
                                 },
-                                layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(
-                                    8, 8,
-                                )),
                             },
                         },
                     );
@@ -16061,7 +16073,7 @@ mod source {
                             length: result.value,
                             obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
                         };
-                    stored_target.graph.blocks[0].operations[1] =
+                    stored_target.graph.blocks[0].operations[1].kind =
                         TargetUnitOperation::StructuralByteSequenceFieldStore {
                             psi_operation: observation,
                             destination: StructuralArgument {
@@ -16143,7 +16155,7 @@ mod source {
                                 let TargetUnitOperation::StructuralByteSequenceFieldLength {
                                     source,
                                     ..
-                                } = &mut changed.graph.blocks[0].operations[1]
+                                } = &mut changed.graph.blocks[0].operations[1].kind
                                 else {
                                     panic!("metadata")
                                 };
@@ -16198,17 +16210,18 @@ mod source {
                         length,
                         obligation,
                     };
-                    target.graph.blocks[0].operations[0] = TargetUnitOperation::ByteSequenceStore {
-                        psi_operation,
-                        destination,
-                        source,
-                        length: TargetUnitScalarArgumentSource::Parameter {
-                            parameter_index: 0,
-                            source_value: length,
-                            scalar_type: scalar,
-                        },
-                        obligation,
-                    };
+                    target.graph.blocks[0].operations[0].kind =
+                        TargetUnitOperation::ByteSequenceStore {
+                            psi_operation,
+                            destination,
+                            source,
+                            length: TargetUnitScalarArgumentSource::Parameter {
+                                parameter_index: 0,
+                                source_value: length,
+                                scalar_type: scalar,
+                            },
+                            obligation,
+                        };
                     if arrival {
                         let block = BlockId::new(2).unwrap();
                         let parameter = function.structural_parameters.remove(0);
@@ -16299,7 +16312,7 @@ mod source {
                             length,
                             obligation,
                         };
-                    target.graph.blocks[0].operations[0] =
+                    target.graph.blocks[0].operations[0].kind =
                         TargetUnitOperation::StructuralByteSequenceFieldStore {
                             psi_operation,
                             destination,
@@ -16316,7 +16329,7 @@ mod source {
                     assert!(requires_graph_storage_replay(function.operations()));
                     for mutation in 0..10 {
                         let mut changed = target.clone();
-                        let operation = &mut changed.graph.blocks[0].operations[0];
+                        let operation = &mut changed.graph.blocks[0].operations[0].kind;
                         let TargetUnitOperation::StructuralByteSequenceFieldStore {
                             psi_operation,
                             destination,
@@ -16352,7 +16365,12 @@ mod source {
                             }
                             _ => {
                                 let duplicate = operation.clone();
-                                changed.graph.blocks[0].operations.push(duplicate);
+                                changed.graph.blocks[0].operations.push(
+                                    target_operations::TargetInstruction {
+                                        kind: duplicate,
+                                        source: None,
+                                    },
+                                );
                             }
                         }
                         assert!(!retained_at(&function, 0, &changed), "mutation {mutation}");
@@ -16556,7 +16574,10 @@ mod source {
                         },
                         obligation,
                     },
-                ];
+                ]
+                .into_iter()
+                .map(|kind| target_operations::TargetInstruction { kind, source: None })
+                .collect();
                 assert!(retained_at(&function, 1, &target));
 
                 let mut grouped = target.clone();
@@ -16774,7 +16795,7 @@ mod source {
                     path: Vec::new(),
                     field,
                 };
-                target.graph.blocks[0].operations[1] =
+                target.graph.blocks[0].operations[1].kind =
                     TargetUnitOperation::StructuralScalarFieldRead {
                         psi_operation,
                         result,
@@ -17056,7 +17077,7 @@ mod source {
                             length,
                             obligation,
                         };
-                    target.graph.blocks[0].operations[0] =
+                    target.graph.blocks[0].operations[0].kind =
                         TargetUnitOperation::StructuralByteSequenceFieldByteStore {
                             psi_operation,
                             destination,
@@ -17078,7 +17099,7 @@ mod source {
                     ));
                     for corruption in 0..12 {
                         let mut changed = target.clone();
-                        let operation = &mut changed.graph.blocks[0].operations[0];
+                        let operation = &mut changed.graph.blocks[0].operations[0].kind;
                         let TargetUnitOperation::StructuralByteSequenceFieldByteStore {
                             psi_operation,
                             destination,
@@ -17105,7 +17126,12 @@ mod source {
                             10 => *value = scalar_input(value.source_value(), count_type),
                             _ => {
                                 let duplicate = operation.clone();
-                                changed.graph.blocks[0].operations.push(duplicate);
+                                changed.graph.blocks[0].operations.push(
+                                    target_operations::TargetInstruction {
+                                        kind: duplicate,
+                                        source: None,
+                                    },
+                                );
                             }
                         }
                         assert!(
@@ -17123,7 +17149,7 @@ mod source {
                         let TargetUnitOperation::StructuralByteSequenceFieldByteStore {
                             destination,
                             ..
-                        } = &mut target.graph.blocks[0].operations[0]
+                        } = &mut target.graph.blocks[0].operations[0].kind
                         else {
                             unreachable!();
                         };
@@ -17483,7 +17509,7 @@ mod source {
                 target.graph.parameters[0].access = StructuralAccess::Owned;
                 target.graph.parameters[0].multiplicity = multiplicity;
                 let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-                    &mut target.graph.blocks[0].operations[0]
+                    &mut target.graph.blocks[0].operations[0].kind
                 else {
                     unreachable!()
                 };
@@ -17519,7 +17545,7 @@ mod source {
                                 source,
                                 field,
                                 ..
-                            } = &mut changed.graph.blocks[0].operations[0]
+                            } = &mut changed.graph.blocks[0].operations[0].kind
                             else {
                                 unreachable!()
                             };
@@ -17656,7 +17682,7 @@ mod source {
                             source,
                             case,
                             field,
-                        } = &mut changed.graph.blocks[0].operations[0]
+                        } = &mut changed.graph.blocks[0].operations[0].kind
                         else {
                             unreachable!()
                         };
@@ -17705,14 +17731,14 @@ mod source {
                     changed.graph.blocks[0].operations = target.graph.blocks[0].operations.clone();
                     assert!(!retained(&function, operation, &changed));
                     let TargetUnitOperation::StructuralScalarFieldRead { field, .. } =
-                        &mut changed.graph.blocks[1].operations[0]
+                        &mut changed.graph.blocks[1].operations[0].kind
                     else {
                         unreachable!()
                     };
                     *field = StructuralFieldId::new(2).unwrap();
                     assert!(!retained(&function, operation, &changed));
                     let TargetUnitOperation::StructuralScalarFieldRead { psi_operation, .. } =
-                        &mut changed.graph.blocks[1].operations[0]
+                        &mut changed.graph.blocks[1].operations[0].kind
                     else {
                         unreachable!()
                     };
@@ -17830,7 +17856,7 @@ mod source {
                         right: operand.clone(),
                         capacity_obligation: obligation,
                     };
-                target.graph.blocks[0].operations[0] =
+                target.graph.blocks[0].operations[0].kind =
                     TargetUnitOperation::EstablishByteSequenceConcatenation {
                         psi_operation: producer,
                         result: result.clone(),
@@ -17847,16 +17873,19 @@ mod source {
                 };
                 target.graph.blocks[0]
                     .operations
-                    .push(TargetUnitOperation::ByteSequenceStore {
-                        psi_operation: OperationId::new(3).unwrap(),
-                        destination: result.place,
-                        source: PlaceId::new(2).unwrap(),
-                        length: TargetUnitScalarArgumentSource::Parameter {
-                            parameter_index: 0,
-                            source_value: ValueId::new(1).unwrap(),
-                            scalar_type: scalar,
+                    .push(target_operations::TargetInstruction {
+                        source: None,
+                        kind: TargetUnitOperation::ByteSequenceStore {
+                            psi_operation: OperationId::new(3).unwrap(),
+                            destination: result.place,
+                            source: PlaceId::new(2).unwrap(),
+                            length: TargetUnitScalarArgumentSource::Parameter {
+                                parameter_index: 0,
+                                source_value: ValueId::new(1).unwrap(),
+                                scalar_type: scalar,
+                            },
+                            obligation,
                         },
-                        obligation,
                     });
                 assert!(replacement_retained(&function, &replacement, &target));
                 for corruption in ["producer", "qualification", "multiplicity"] {
@@ -17865,7 +17894,7 @@ mod source {
                         psi_operation,
                         result,
                         ..
-                    } = &mut changed.graph.blocks[0].operations[0]
+                    } = &mut changed.graph.blocks[0].operations[0].kind
                     else {
                         unreachable!()
                     };
@@ -22048,7 +22077,7 @@ mod structural {
                 Ok(())
             };
             for block in &target.graph.blocks {
-                for row in &block.operations {
+                for row in block.operations() {
                     inspect(row)?;
                 }
             }
