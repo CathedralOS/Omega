@@ -229,13 +229,6 @@ framework or a list of unimplemented features.
 - Cost: programs using those placements are refused or require the Build entry to supply the membership.
 - Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts; narrowed 2026-11-15, Claude Code, after carrying record domains into the lowered checker
 
-### Evaluation requests without a declaration owner can refuse the whole program
-- Category: a verdict with nothing behind it
-- Where: [source evaluation frontier](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs), [declaration refusals](omega-rust/psi/compilation/representations/typed-trees/src/deferred_refusals.rs)
-- Saw: Known typing and construction gates can attach refusals to the declaration that owns them. The evaluation frontier still rejects program-level rows for explicit wire plans, access plans, and kept constant recipes before any entry asks for them. Ordinary numbered data derives schema metadata without a selected encoding, so checking it requests no wire evaluation. A wire plan row still needs the evaluation route.
-- Cost: An evaluation request recorded outside its declaration has no demand owner. For a source producer that emits such rows, use the existing per-declaration request list so a selected reader can ask for the work and an orphan is still refused.
-- Reported: 2026-11-13, Claude Code, while getting the route probe through typing. Narrowed by Codex after checking numbered data and tracing the remaining program-level guards.
-
 ### Reflection runtime visitation and the wire policy still stop at separate boundaries
 - Category: knowledge crossing a boundary
 - Where: [reflection elaboration](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/reflected_fields.rs), [wire protocol sample](samples/cli/systems/wire_protocol/main.omg#L170)
