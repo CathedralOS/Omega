@@ -128,3 +128,59 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
         }).unwrap().join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn inline_float_comparison_keeps_the_literal_format_in_the_saved_operator() {
+    use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
+
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let fixture =
+                repository().join("tests/fixtures/run/float/inline_literal_comparison/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&fixture, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            let publication = accepted.closure().publish().unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            let [operator] = module.boundary_machines.as_slice() else {
+                panic!("the inline comparison selects exactly one numeric declaration");
+            };
+            assert_eq!(
+                operator.scalar_parameters,
+                [ScalarType::IeeeFloat(IeeeFloatFormat::Binary64); 2]
+            );
+            assert!(
+                module
+                    .identities
+                    .text(operator.identity)
+                    .unwrap()
+                    .contains("Float::equal")
+            );
+            terminal_semantics::numeric_primitives::validate_boundary(module, operator).unwrap();
+
+            let invalid =
+                repository().join("tests/fixtures/fail/float/inline_literal_comparison/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("f64 and the explicitly suffixed f32 cannot select one equality")
+            .into_diagnostics();
+            let diagnostic = format!("{diagnostics:?}");
+            assert!(diagnostic.contains("typing operand types"), "{diagnostic}");
+            assert!(diagnostic.contains("__transition_subject"), "{diagnostic}");
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}

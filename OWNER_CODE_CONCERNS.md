@@ -87,13 +87,6 @@ framework or a list of unimplemented features.
 - Cost: The case cannot reach its byte-value oracle or the paired overlap checks. Preserve the checked shared and exclusive array-view relationships through the existing structural catalog and independent ownership walk.
 - Reported: 2026-11-15, Codex, while restoring the compiler ownership integration build.
 
-### A float literal loses its type in a transition comparison
-- Category: branch per shape
-- Where: [binary operand selection](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L1290)
-- Saw: On macOS arm64 at `93a8e980316`, after binding `chosen: f64` from an ordinary identity call, the transition comparison `chosen == 2.5f64` refuses with “typing operand types” at the generated transition binding. Binding the same literal to an explicitly typed local first, or returning it from the identity call, makes the same comparison and branch run with native and Psi exit 0.
-- Cost: An explicitly suffixed float literal needs an extra binding or call to reach ordinary IEEE equality. Preserve its carrier through the existing operator selection and keep typed-operand and mismatched-format controls.
-- Reported: 2026-11-15, Codex, while checking typed slice reads
-
 ### Fixture review stops even when a project has no dangerous service
 - Category: fake gates
 - Where: [fixture discovery call](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L709), [service discovery](omega-rust/omega/compilation/compiler/tests/support/dangerous_service_acceptance.rs#L47)
