@@ -1399,6 +1399,14 @@ AccessInitialize, AccessMoveOut and AccessView. Tag 4 names EmptyRunRelease,
 which consumes an empty run and returns its existing vacant backing. Tag 5 names
 AccessRelocate. Tags 6–9 name StaticInterruptInstall, StaticInterruptContext,
 StaticInterruptBeginCompletion and StaticInterruptFinishCompletion, respectively.
+Tag 10 names HostedPrimitive and adds a `u8` operation (`0` ProcessExit; other
+operations reject) followed by the canonical public requirement's `u64` boundary
+id. The primitive is a Machine boundary with its own checked source declaration
+and callable identity; the linked requirement remains a distinct Trait boundary.
+Receiving authenticates the exact compiler-owned core declarations and their
+complete signature, reach, crash and progress correspondence, and independently
+proves that the actual result type is empty. The link preserves the canonical
+terminal observation without supplying target realization or execution authority.
 Other tags reject. Earlier formats reject at the header, before any table is
 decoded. Vocabulary marker 133 and the artifact transport envelope remain unchanged.
 
@@ -1416,8 +1424,7 @@ omit it. A callback body must retain it, and native admission compares it to the
 caller's selected body.
 
 A boundary's optional checked callable adds its counted closed method arguments
-and a `u8` execution owner: `0` provider, `1` compiler access initialization,
-`2` compiler access extraction. Other tags reject. Each compiler access
+and the checked boundary execution encoding above. Each compiler access
 declaration requires exactly one matching lifecycle obligation row; deleting
 that row cannot change the declaration into a provider-supplied boundary.
 
