@@ -24,15 +24,10 @@ fn graph_unavailable(module: &TerminalModule, error: DescriptorGraphError) -> Re
     refusal
 }
 
-pub(crate) fn publish(
-    elaboration: &mut crate::Elaboration,
+pub(crate) fn publish_results(
+    module: &mut TerminalModule,
     selections: &[crate::Selected],
 ) -> Checked<()> {
-    publish_results(&mut elaboration.module, selections)?;
-    publish_parents(elaboration)
-}
-
-fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) -> Checked<()> {
     let selected: Vec<_> = module
         .machines
         .iter()
@@ -142,7 +137,7 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
 /// Complete the existing lender column after all descriptor transports are
 /// available. These rows describe actual source occurrences; 06 reconstructs
 /// them before deciding any loan and grants no authority from this publication.
-fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
+pub(crate) fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind};
     use terminal_semantics::descriptor_lifetimes::{
