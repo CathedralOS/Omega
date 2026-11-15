@@ -236,3 +236,81 @@ pub fn direct_hosted_primitive_leaves(
     }
     Ok(leaves)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use effects::provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema, ServiceSurface};
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+
+    /// Isolate contract projection, not source admission or execution authority.
+    /// Changing any part of the original exit contract must break custody.
+    #[test]
+    fn direct_projection_preserves_completion_nominal_result_and_progress() {
+        let mut surface = ServiceSurface::default();
+        surface.trait_name = surface.identities.intern("core::ProcessExit");
+        let requirement = surface.identities.intern("core::ProcessExit::exit_process");
+        let parameter = surface.identities.intern("i32");
+        let result = surface.identities.intern("core::Never");
+        surface.methods.push(ServiceMethod {
+            completion: BoundaryCompletion::External(ExternalCompletionKind::ProcessExit),
+            name: "exit_process".into(),
+            requirement_owner: "core::ProcessExit".into(),
+            requirement_identity: requirement,
+            parameter_count: 1,
+            parameter_type_identities: vec![parameter],
+            has_result: true,
+            result_type_identity: result,
+            service_reach: vec!["core::ProcessExit".into()],
+            terminates_guarantee: true,
+            ..Default::default()
+        });
+        let mut original = ProviderPlan {
+            target: "linux_x86_64".into(),
+            schema: ServiceSchema::from_declaration(std::sync::Arc::new(surface)),
+            ..Default::default()
+        };
+        let requirement = original
+            .identities
+            .intern("core::ProcessExit::exit_process");
+        original.rows.push(ProviderPlanRow {
+            method: "exit_process".into(),
+            requirement_identity: requirement,
+            declared_requirement_identity: requirement,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: ProviderBinding::CompilerIntrinsic {
+                machine: "core::ProcessExitPrimitive::exit_process".into(),
+            },
+        });
+        let input = DirectBoundaryInput {
+            row_index: 0,
+            declaration_identity: "primitive declaration".into(),
+            callable_identity: "primitive callable(i32)->core::Never".into(),
+            realization_owner: "core::ProcessExitPrimitive".into(),
+            realization_package: None,
+            mechanism: DirectBoundaryMechanism::Intrinsic,
+        };
+        let leaf = input
+            .finish(
+                &original,
+                backend_plan::DirectBoundaryExecution::Intrinsic(Some(
+                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
+                )),
+            )
+            .unwrap();
+        assert_eq!(leaf.satisfied_schema, original.schema);
+        assert!(leaf.validate_calling_custody().is_ok());
+        for change in 0..3 {
+            let mut changed = leaf.clone();
+            let schema = std::sync::Arc::make_mut(&mut changed.plan.schema.declaration);
+            match change {
+                0 => schema.methods[0].completion = BoundaryCompletion::NormalReturn,
+                1 => schema.methods[0].terminates_guarantee = false,
+                _ => schema.methods[0].result_type_identity = schema.identities.intern("Unit"),
+            }
+            assert!(changed.validate_calling_custody().is_err());
+        }
+    }
+}
