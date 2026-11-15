@@ -6946,24 +6946,6 @@ pub(crate) mod structural_fields {
         )
     }
 
-    pub(crate) fn view_slot_index_operands(
-        function: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: semantic_vocabulary::OperationId,
-        destination: &terminal_psi::StructuralArgument,
-        field: Option<semantic_vocabulary::StructuralFieldId>,
-    ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
-    {
-        let geometry = view_slot_geometry(function, destination, field, unit.geometry())
-            .ok_or(crate::LegalizationError::custody())?;
-        crate::legalization::runtime_indices::operands(
-            function,
-            unit,
-            operation,
-            &geometry.elements,
-        )
-    }
-
     pub(crate) fn view_slot_geometry(
         function: &PsiOptimizationFunction,
         destination: &terminal_psi::StructuralArgument,

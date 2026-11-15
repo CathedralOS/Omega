@@ -81,7 +81,6 @@ pub(crate) mod scalar_graph {
             LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
         };
         use scalar_graph_input::aggregate_results::home_layout;
-        use scalar_graph_input::structural_fields::view_slot_index_operands;
         pub(crate) mod call_instructions {
             use super::super::{Error, TargetOperationPlan};
             use crate::LegalizationError;
@@ -1242,6 +1241,38 @@ pub(crate) mod scalar_graph {
                 })
             }
 
+            /// The target row owns the replacement and each selector used to
+            /// reach its destination. Source correspondence is audited separately.
+            pub(crate) fn project_byte_view_store(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                let target_operations::TargetUnitOperation::StructuralByteViewFieldStore {
+                    psi_operation,
+                    destination,
+                    field,
+                    source,
+                    indices,
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                Ok(
+                    LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+                        destination: destination.clone(),
+                        field: *field,
+                        source: *source,
+                        indices: crate::legalization::runtime_indices::retained_operands(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            indices,
+                        )?,
+                    },
+                )
+            }
+
             pub(crate) fn project_structural_byte_sequence_field_byte_store(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
@@ -1922,6 +1953,15 @@ pub(crate) mod scalar_graph {
                 target_operations::TargetUnitOperation::StructuralCaseMembership { .. }
             ) {
                 storage_instructions::project_structural_case_membership(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::StructuralByteViewFieldStore { .. }
+            ) {
+                storage_instructions::project_byte_view_store(
                     optimized.machine,
                     &unit.accepted_obligation_facts,
                     targeted,
@@ -2618,27 +2658,6 @@ pub(crate) mod scalar_graph {
                         storage_instructions::project_structural_byte_sequence_field_store(
                             node, optimized, unit, targeted,
                         )?
-                    }
-                    AbstractOperation::StructuralByteViewFieldStore { field, source, .. } => {
-                        let target_operations::TargetUnitOperation::StructuralByteViewFieldStore {
-                            destination,
-                            ..
-                        } = targeted
-                        else {
-                            return Err(Error::custody());
-                        };
-                        LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
-                            indices: view_slot_index_operands(
-                                optimized,
-                                unit,
-                                operation,
-                                destination,
-                                *field,
-                            )?,
-                            destination: destination.clone(),
-                            field: *field,
-                            source: *source,
-                        }
                     }
                     AbstractOperation::ByteSequenceWrite { .. } => {
                         storage_instructions::project_byte_sequence_write(node, optimized, unit)?
