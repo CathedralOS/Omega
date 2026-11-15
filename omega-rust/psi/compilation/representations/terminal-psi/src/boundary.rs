@@ -978,8 +978,8 @@ pub(crate) mod declarations {
                             .boundary_machine(requirement)
                             .zip(other_module.boundary_machine(other_requirement))
                             .is_some_and(|(left, right)| {
-                                left.kind == BoundaryRequirementKind::Trait
-                                    && right.kind == BoundaryRequirementKind::Trait
+                                left.kind == crate::BoundaryRequirementKind::Trait
+                                    && right.kind == crate::BoundaryRequirementKind::Trait
                                     && left
                                         .declaration
                                         .as_ref()
