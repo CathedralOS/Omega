@@ -1019,6 +1019,13 @@ pub(crate) mod analysis {
                         Some((canonical(source)?, canonical(destination)?))
                     })
                     .collect::<Option<_>>()?;
+                for edge in &mut step.successors {
+                    edge.definitions = edge
+                        .definitions
+                        .iter()
+                        .map(canonical)
+                        .collect::<Option<_>>()?;
+                }
                 if residence_rules.is_some() {
                     for edge in &mut step.successors {
                         for binding in &mut edge.bindings {
@@ -1734,6 +1741,7 @@ pub(crate) mod case_flow {
                                     successors: targets
                                         .iter()
                                         .map(|target| DescriptorFlowEdge {
+                                            definitions: Vec::new(),
                                             target: position(*target),
                                             parameters: vec![],
                                             bindings: vec![],
@@ -4376,10 +4384,16 @@ pub(crate) mod engine {
             case_storage: &super::case_flow::Storage,
             reads: &DescriptorReadDepth<'_>,
         ) -> Option<State> {
+            let definitions = edge
+                .parameters
+                .iter()
+                .chain(&edge.definitions)
+                .cloned()
+                .collect::<Vec<_>>();
             let mut after = self.transfer(
                 machine,
                 before,
-                &edge.parameters,
+                &definitions,
                 edge.derivations(),
                 super::case_flow::Transfer::Arrival { edge, reads },
                 case_storage,
@@ -5591,6 +5605,7 @@ pub(crate) mod engine {
                 let mut step = DescriptorFlowStep::default();
                 if let Some(&target) = positions.get(index + 1) {
                     step.successors.push(DescriptorFlowEdge {
+                        definitions: Vec::new(),
                         target,
                         parameters: Vec::new(),
                         bindings: Vec::new(),
@@ -6068,6 +6083,7 @@ pub(crate) mod engine {
             let exit = (BlockId::new(2).unwrap(), 0);
             let replace = (BlockId::new(3).unwrap(), 0);
             let edge = |target| DescriptorFlowEdge {
+                definitions: Vec::new(),
                 target,
                 parameters: vec![],
                 bindings: vec![],

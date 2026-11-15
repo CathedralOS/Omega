@@ -534,6 +534,7 @@ pub mod descriptor_lifetimes {
                         if !edge
                             .parameters
                             .iter()
+                            .chain(&edge.definitions)
                             .any(|parameter| parameter.contains(location))
                         {
                             destinations.push(output.clone());
@@ -663,6 +664,10 @@ pub mod descriptor_lifetimes {
 
     #[derive(Clone)]
     pub struct DescriptorFlowEdge {
+        /// Sources consumed on this selected edge. Destination parameters
+        /// remain a separate roster, so swaps capture every old value before
+        /// any source or destination is retired.
+        pub definitions: Vec<DescriptorLocation>,
         pub target: DescriptorPosition,
         pub parameters: Vec<DescriptorLocation>,
         pub bindings: Vec<DescriptorFlowBinding>,
@@ -682,6 +687,7 @@ pub mod descriptor_lifetimes {
             if !self
                 .parameters
                 .iter()
+                .chain(&self.definitions)
                 .any(|parameter| parameter.contains(source))
             {
                 result.push(source.clone());
@@ -699,9 +705,20 @@ pub mod descriptor_lifetimes {
         birth: DescriptorPosition,
         descriptor: &DescriptorLocation,
     ) -> BTreeSet<DescriptorPosition> {
+        location_live_positions(steps, birth, descriptor, false)
+    }
+
+    fn location_live_positions(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        birth: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+        at_entry: bool,
+    ) -> BTreeSet<DescriptorPosition> {
         type Occurrence = (DescriptorPosition, DescriptorLocation);
         let mut pending = Vec::new();
-        if let Some(step) = steps.get(&birth) {
+        if at_entry {
+            pending.push((birth, descriptor.clone()));
+        } else if let Some(step) = steps.get(&birth) {
             for edge in &step.successors {
                 pending.extend(
                     edge.forward(descriptor)
@@ -784,6 +801,23 @@ pub mod descriptor_lifetimes {
     pub struct DescriptorLifetime {
         pub live: BTreeSet<DescriptorPosition>,
         pub authorized: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
+        /// All carrier names that can still own this resource on any arrival.
+        /// Unlike `authorized`, absence of a common name at a join does not
+        /// erase a surviving occurrence on one of its predecessors.
+        pub surviving: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
+    }
+
+    pub fn descriptor_entry_lifetime(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        entry: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+    ) -> DescriptorLifetime {
+        let live = location_live_positions(steps, entry, descriptor, true);
+        DescriptorLifetime {
+            live,
+            authorized: transported_locations(steps, entry, descriptor, true, false, false),
+            surviving: transported_locations(steps, entry, descriptor, true, false, true),
+        }
     }
 
     pub fn descriptor_location_lifetime(
@@ -793,7 +827,16 @@ pub mod descriptor_lifetimes {
     ) -> DescriptorLifetime {
         let live = descriptor_location_live_positions(steps, birth, descriptor);
         let authorized = authorized_locations(steps, birth, descriptor, &live);
-        DescriptorLifetime { live, authorized }
+        let surviving = if authorized.is_empty() {
+            BTreeMap::new()
+        } else {
+            transported_locations(steps, birth, descriptor, false, false, true)
+        };
+        DescriptorLifetime {
+            live,
+            authorized,
+            surviving,
+        }
     }
 
     fn authorized_locations(
@@ -815,7 +858,7 @@ pub mod descriptor_lifetimes {
         if live.contains(&birth) {
             return BTreeMap::new();
         }
-        transported_locations(steps, birth, descriptor, false, false)
+        transported_locations(steps, birth, descriptor, false, false, false)
     }
 
     pub(crate) fn value_locations(
@@ -836,7 +879,7 @@ pub mod descriptor_lifetimes {
                 return BTreeMap::new();
             }
         }
-        transported_locations(steps, establishment, value, at_entry, true)
+        transported_locations(steps, establishment, value, at_entry, true, false)
     }
 
     fn transported_locations(
@@ -845,6 +888,7 @@ pub mod descriptor_lifetimes {
         descriptor: &DescriptorLocation,
         at_entry: bool,
         invalidate_containers: bool,
+        may: bool,
     ) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
         let mut predecessors =
             BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &DescriptorFlowEdge)>>::new();
@@ -884,20 +928,32 @@ pub mod descriptor_lifetimes {
                                     .iter()
                                     .map(|(source, destination)| (source, destination)),
                                 invalidate_containers,
+                                may,
                             );
                             if !at_entry && *predecessor == birth {
                                 after.insert(descriptor.clone());
                             }
+                            let definitions = edge
+                                .parameters
+                                .iter()
+                                .chain(&edge.definitions)
+                                .cloned()
+                                .collect::<Vec<_>>();
                             transport_authority(
                                 &after,
-                                &edge.parameters,
+                                &definitions,
                                 edge.derivations(),
                                 invalidate_containers,
+                                may,
                             )
                         });
                 let mut current = incoming.next().unwrap_or_default();
                 for other in incoming {
-                    current.retain(|location| other.contains(location));
+                    if may {
+                        current.extend(other);
+                    } else {
+                        current.retain(|location| other.contains(location));
+                    }
                 }
                 if established.get(&position) != Some(&current) {
                     established.insert(position, current);
@@ -921,6 +977,7 @@ pub mod descriptor_lifetimes {
             ),
         >,
         invalidate_containers: bool,
+        may: bool,
     ) -> BTreeSet<DescriptorLocation> {
         let mut after = before
             .iter()
@@ -947,11 +1004,125 @@ pub mod descriptor_lifetimes {
                 .clone()
                 .filter_map(|(source, destination)| candidate.transported(destination, source))
                 .collect::<Vec<_>>();
-            if !sources.is_empty() && sources.iter().all(|source| before.contains(source)) {
+            if !sources.is_empty()
+                && if may {
+                    sources.iter().any(|source| before.contains(source))
+                } else {
+                    sources.iter().all(|source| before.contains(source))
+                }
+            {
                 after.insert(candidate);
             }
         }
         after
+    }
+
+    #[cfg(test)]
+    mod resource_tests {
+        use super::*;
+        use semantic_vocabulary::{BlockId, PlaceId};
+
+        fn position(ordinal: u32) -> DescriptorPosition {
+            (BlockId::new(1).unwrap(), ordinal)
+        }
+
+        fn root(number: u64) -> DescriptorLocation {
+            DescriptorLocation::whole(PlaceId::new(number).unwrap())
+        }
+
+        fn edge(target: u32) -> DescriptorFlowEdge {
+            DescriptorFlowEdge {
+                definitions: Vec::new(),
+                target: position(target),
+                parameters: Vec::new(),
+                bindings: Vec::new(),
+            }
+        }
+
+        #[test]
+        fn a_carrier_surviving_one_arrival_is_not_a_closed_resource() {
+            let mut steps = BTreeMap::new();
+            steps.insert(
+                position(0),
+                DescriptorFlowStep {
+                    successors: vec![edge(1), edge(2)],
+                    ..Default::default()
+                },
+            );
+            steps.insert(
+                position(1),
+                DescriptorFlowStep {
+                    definitions: vec![root(1)],
+                    successors: vec![edge(3)],
+                    ..Default::default()
+                },
+            );
+            steps.insert(
+                position(2),
+                DescriptorFlowStep {
+                    successors: vec![edge(3)],
+                    ..Default::default()
+                },
+            );
+            steps.insert(position(3), DescriptorFlowStep::default());
+            let lifetime = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            assert!(lifetime.authorized[&position(3)].is_empty());
+            assert_eq!(lifetime.surviving[&position(3)], BTreeSet::from([root(1)]));
+        }
+
+        #[test]
+        fn a_selected_edge_captures_swapped_carriers_before_consuming_old_names() {
+            let mut transfer = edge(1);
+            transfer.parameters = vec![root(1), root(2)];
+            transfer.definitions = vec![root(1), root(2)];
+            transfer.bindings = vec![
+                DescriptorFlowBinding::new(
+                    DescriptorFlowSource::Location(root(1)),
+                    root(2),
+                    terminal_psi::StructuralAccess::Owned,
+                    terminal_psi::StructuralAccess::Owned,
+                )
+                .unwrap(),
+                DescriptorFlowBinding::new(
+                    DescriptorFlowSource::Location(root(2)),
+                    root(1),
+                    terminal_psi::StructuralAccess::Owned,
+                    terminal_psi::StructuralAccess::Owned,
+                )
+                .unwrap(),
+            ];
+            let steps = BTreeMap::from([
+                (
+                    position(0),
+                    DescriptorFlowStep {
+                        successors: vec![transfer],
+                        ..Default::default()
+                    },
+                ),
+                (position(1), DescriptorFlowStep::default()),
+            ]);
+            let lifetime = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            assert_eq!(lifetime.authorized[&position(1)], BTreeSet::from([root(2)]));
+            assert_eq!(lifetime.surviving[&position(1)], BTreeSet::from([root(2)]));
+        }
+
+        #[test]
+        fn an_incoming_resource_observes_the_first_operation_before_transport() {
+            let steps = BTreeMap::from([
+                (
+                    position(0),
+                    DescriptorFlowStep {
+                        inputs: vec![root(1)],
+                        successors: vec![edge(1)],
+                        ..Default::default()
+                    },
+                ),
+                (position(1), DescriptorFlowStep::default()),
+            ]);
+            let lifetime = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            assert!(lifetime.live.contains(&position(0)));
+            assert!(!lifetime.live.contains(&position(1)));
+        }
     }
 }
 pub(crate) mod membership_presentations {
@@ -6058,6 +6229,7 @@ pub mod descriptor_results {
                     successors: targets
                         .iter()
                         .map(|target| DescriptorFlowEdge {
+                            definitions: Vec::new(),
                             target: position(*target),
                             parameters: Vec::new(),
                             bindings: Vec::new(),
@@ -7763,6 +7935,7 @@ pub mod descriptor_results {
                     successors: targets
                         .iter()
                         .map(|target| DescriptorFlowEdge {
+                            definitions: Vec::new(),
                             target: position(*target),
                             parameters: Vec::new(),
                             bindings: Vec::new(),
@@ -7847,6 +8020,7 @@ pub mod descriptor_results {
                 let after = (before.0, 1);
                 let mut operation = step(&[]);
                 operation.successors.push(DescriptorFlowEdge {
+                    definitions: Vec::new(),
                     target: after,
                     parameters: Vec::new(),
                     bindings: Vec::new(),
@@ -8893,6 +9067,7 @@ pub mod descriptor_results {
                     successors: target
                         .into_iter()
                         .map(|target| DescriptorFlowEdge {
+                            definitions: Vec::new(),
                             target,
                             parameters: Vec::new(),
                             bindings: Vec::new(),
@@ -9260,6 +9435,7 @@ pub mod descriptor_results {
                     .unwrap()
                     .successors
                     .push(DescriptorFlowEdge {
+                        definitions: Vec::new(),
                         target: position(5),
                         parameters: Vec::new(),
                         bindings: Vec::new(),
@@ -9280,6 +9456,7 @@ pub mod descriptor_results {
                                 successors: targets
                                     .iter()
                                     .map(|target| DescriptorFlowEdge {
+                                        definitions: Vec::new(),
                                         target: position(*target),
                                         parameters: Vec::new(),
                                         bindings: Vec::new(),
@@ -10127,8 +10304,8 @@ pub mod descriptor_results {
                     shape,
                     scalar_restriction: None,
                 };
-                let field = |number| terminal_psi::StructuralFieldDeclaration {
-                    id: semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
+                let field = |number: u32| terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(u64::from(number)).unwrap(),
                     identity: TerminalIdentityIndex(number),
                     inline_carrier: None,
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -14421,6 +14598,7 @@ pub mod descriptor_results {
                     record_owned_consumption(module, machine, operation, &mut step)?;
                     step.authority_derivations = step.derivations.clone();
                     step.successors.push(DescriptorFlowEdge {
+                        definitions: Vec::new(),
                         target: (block.id, position.1 + 1),
                         parameters: Vec::new(),
                         bindings: Vec::new(),
@@ -14495,6 +14673,7 @@ pub mod descriptor_results {
                         .map(|parameter| DescriptorLocation::whole(parameter.place))
                         .collect::<Vec<_>>();
                     let mut bindings = Vec::new();
+                    let mut definitions = Vec::new();
                     for (argument, parameter) in arguments.iter().zip(&block.structural_parameters)
                     {
                         if argument.access != parameter.access {
@@ -14517,6 +14696,11 @@ pub mod descriptor_results {
                                 )
                             };
                         step.inputs.push(source.observation());
+                        if parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                        {
+                            definitions.push(source.observation());
+                        }
                         bindings.push(DescriptorFlowBinding::new(
                             source,
                             DescriptorLocation::whole(parameter.place),
@@ -14525,6 +14709,7 @@ pub mod descriptor_results {
                         )?);
                     }
                     step.successors.push(DescriptorFlowEdge {
+                        definitions,
                         target: (target, 0),
                         parameters,
                         bindings,
@@ -14611,6 +14796,28 @@ pub mod descriptor_results {
                     _ => {
                         graph.normal_exits.push(position);
                     }
+                }
+                // Selected-edge disposal is a real carrier disposition.
+                // Keep its definitions apart from the destination roster:
+                // every binding reads the old frontier before both are killed.
+                let selected = block.terminator.successor_edges();
+                if selected.len() != step.successors.len() {
+                    return None;
+                }
+                for ((identity, target), edge) in selected.into_iter().zip(&mut step.successors) {
+                    if edge.target != (target, 0) {
+                        return None;
+                    }
+                    let (_, cleanup) = block
+                        .terminator
+                        .cleanup_rosters()
+                        .find(|(at, _)| *at == identity)?;
+                    for action in cleanup {
+                        edge.definitions
+                            .push(location(action.place(), action.path(), None)?);
+                    }
+                    edge.definitions.sort();
+                    edge.definitions.dedup();
                 }
                 if let Terminator::StructuralCase {
                     source,

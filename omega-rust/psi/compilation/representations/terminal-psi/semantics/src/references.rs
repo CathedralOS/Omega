@@ -142,7 +142,7 @@ pub(crate) mod reference_completion {
     /// Current storage names alone do not identify that resource: transport
     /// must preserve an authorized name from its actual formation, or the
     /// exact original reference leaf of a declared input.
-    pub fn reference_loan_parent<'a>(
+    pub fn reference_loan_parent<'a, Identity: Copy + PartialEq>(
         module: &terminal_psi::TerminalModule,
         machine: &terminal_psi::TerminalMachine,
         analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
@@ -150,11 +150,11 @@ pub(crate) mod reference_completion {
         descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
         candidates: impl Iterator<
             Item = (
-                semantic_vocabulary::ObligationId,
+                Identity,
                 &'a crate::descriptor_lifetimes::DescriptorLifetime,
             ),
         >,
-    ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+    ) -> Result<Option<Identity>, &'static str> {
         let mut parent = None;
         for (identity, lifetime) in candidates {
             if !lifetime
@@ -401,6 +401,9 @@ pub(crate) mod reference_completion {
                     previous.live.extend(lifetime.live);
                     for (at, names) in lifetime.authorized {
                         previous.authorized.entry(at).or_default().extend(names);
+                    }
+                    for (at, names) in lifetime.surviving {
+                        previous.surviving.entry(at).or_default().extend(names);
                     }
                 } else {
                     retained[position] = Some(lifetime);

@@ -2486,6 +2486,7 @@ fn adapt(
             if node.successors.is_empty() {
                 if index + 1 < block.nodes.len() {
                     step.successors.push(DescriptorFlowEdge {
+                        definitions: Vec::new(),
                         target: (block.id, position.1 + 1),
                         parameters: Vec::new(),
                         bindings: Vec::new(),
@@ -2572,6 +2573,7 @@ fn adapt(
                         .map(|parameter| DescriptorLocation::whole(parameter.place))
                         .collect::<Vec<_>>();
                     let mut bindings = Vec::new();
+                    let mut definitions = Vec::new();
                     for parameter in &target.structural_parameters {
                         let mut matching = edge
                             .structural_bindings
@@ -2600,6 +2602,12 @@ fn adapt(
                             )
                         };
                         step.inputs.push(source.observation());
+                        if parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity
+                                != terminal_psi::StructuralMultiplicity::Unrestricted
+                        {
+                            definitions.push(source.observation());
+                        }
                         bindings.push(DescriptorFlowBinding::new(
                             source,
                             DescriptorLocation::whole(parameter.place),
@@ -2608,6 +2616,7 @@ fn adapt(
                         )?);
                     }
                     step.successors.push(DescriptorFlowEdge {
+                        definitions,
                         target: (edge.target, 0),
                         parameters,
                         bindings,
