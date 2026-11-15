@@ -20,8 +20,8 @@ data Main {
 
 machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
-    let coefficients: [i32 in Wrapping; 5] = [1, 2, 3, 4, 5];
-    let result: i32 in Wrapping = evaluate_polynomial(&coefficients, 2);
+    let coefficients: [i32 in Wrapping; 5] = [1i32 as +Wrapping, 2i32 as +Wrapping, 3i32 as +Wrapping, 4i32 as +Wrapping, 5i32 as +Wrapping];
+    let result: i32 in Wrapping = evaluate_polynomial(&coefficients, 2i32 as +Wrapping);
     transition result == 57 {
         true -> block good(context)
         _ -> block bad(context, result)
