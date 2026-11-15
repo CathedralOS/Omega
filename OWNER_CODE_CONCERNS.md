@@ -227,13 +227,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
-### Two Build companion tests still type against a superseded test prelude
-- Category: misleading tests
-- Where: `omega-rust/psi/compilation/terminal-production/tests/build_companions.rs` (`product_queries_keep_their_selected_operation_in_value_positions`, `a_case_value_pattern_cannot_discard_its_applied_type`)
-- Saw: the first writes `BuildProduct::entry(product)` against a test prelude whose `BuildProduct` data owns the query, which the real prelude no longer declares (queries go through `builder.product.entry`), and is refused as a call naming no declaration; the second looks for a `MatchPattern::Value` arm in the target conversion helper and finds none. Both fail on `372860cf534b` before and after the selection-operation repair; the other eighteen tests in the file pass once the test prelude has the `module Build` unit and `build_selection_receiver` the real prelude has
-- Cost: the publication of Product query rows and the applied-case-pattern refusal have no passing test, so a regression in either is invisible
-- Reported: 2026-11-15, Claude Code, while repairing Build selection operation identity
-
 ### Every product gate is refused at a macOS layout alias while building for Linux
 - Category: a verdict with nothing behind it
 - Where: `source/library/std/targets/macos_arm64/filesystem_abi.omg:20` (`atime: CLayout<DarwinTimespec>`); reached by `tests/product/gate.sh` through each `tests/psi/*` gate and the product roots
