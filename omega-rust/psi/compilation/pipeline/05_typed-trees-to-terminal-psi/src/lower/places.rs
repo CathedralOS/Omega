@@ -1587,19 +1587,48 @@ impl<'a> Lowering<'a> {
                 else {
                     return Err(self.internal("a persistent loan has no reference descriptor type"));
                 };
-                if Some(declared) != borrowed_access(*access)
-                    || place.result.map(ValueType::erased)
-                        != Some(self.storage_value_type(referent)?.erased())
-                {
-                    return Err(
-                        self.internal("a reference formation changed its referent or access")
-                    );
+                if Some(declared) != borrowed_access(*access) {
+                    return Err(self.internal("a reference formation changed its source access"));
+                }
+                let reinterpret = place.result.map(ValueType::erased)
+                    != Some(self.storage_value_type(referent)?.erased());
+                if reinterpret && *access != language_core::ReferenceAccess::Shared {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Expression(
+                            "exclusive reference view without restoration evidence",
+                        ),
+                    ));
                 }
                 // A persistent reference borrows the original storage. The
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
                 let captured = continuing!(self.capture_place(place, home.as_deref()));
                 let lent = self.captured_loan(place, *access, captured, None)?;
+                let storage = if reinterpret {
+                    let byte_offset = self.zero(
+                        ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .expect("u64 is valid"),
+                        ),
+                        expression.source,
+                    )?;
+                    Some(terminal_psi::ReferenceStorageView {
+                        byte_offset,
+                        stored_scalar: match self.record_type(referent)?.shape {
+                            StorageShape::PrimitiveScalar { .. } => {
+                                place.result.and_then(ValueType::scalar)
+                            }
+                            _ => None,
+                        },
+                    })
+                } else {
+                    None
+                };
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
                 self.obligation(
@@ -1623,10 +1652,7 @@ impl<'a> Lowering<'a> {
                 let (root, place) = self.produce(
                     operation,
                     record,
-                    OperationKind::EstablishReference {
-                        source,
-                        storage: None,
-                    },
+                    OperationKind::EstablishReference { source, storage },
                 )?;
                 self.write(
                     place,

@@ -22,9 +22,7 @@ child by segment (`PlaceRow::children`), and the writes to a place
 (`PlaceRow::writes`).
 */
 
-use semantic_vocabulary::{
-    IdTable, MachineId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId,
-};
+use semantic_vocabulary::{IdTable, MachineId, PlaceId, ValueId};
 
 use crate::{ExactPlaceId, ProgramPoint, WriteId};
 
@@ -59,42 +57,9 @@ pub enum PlaceOrigin {
     },
 }
 
-/// One step of a projected place.
-///
-/// The lowered form's `StructuralPathSegment::Field` holds an interned text
-/// index; this crate names the field by `StructuralFieldId` instead, resolved
-/// once at elaboration, so no segment is compared by spelling.
-///
-/// Segments identify rows, not storage: two different segments under one
-/// parent may still select the same cell (see the module comment), so
-/// disjointness is never read off unequal segments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Segment {
-    /// ownership.md: "Record segments use the exact field identity".
-    Field(StructuralFieldId),
-    /// ownership.md: "A Case segment guards its payload namespace; it adds
-    /// neither physical storage nor an independent claim."
-    Case(StructuralCaseId),
-    /// ownership.md: "Fixed-array segments use canonical zero-based literal
-    /// indexes".
-    FixedIndex(u64),
-    /// An element selected at run time, named by the selector value captured
-    /// when the place was formed. `wiki/spec/terminal-psi/loans.md`: "Loan
-    /// formation captures a place, not a live selector expression." Because a
-    /// value never changes, a later write to the selector's source names a
-    /// different value and therefore a different place.
-    RuntimeIndex { selector: ValueId },
-    /// The descriptor's current extent, a scalar observation of its
-    /// contents. This is metadata, not a physical field or another owner.
-    /// byte_views.md: "a validated length observation of a machine or block
-    /// parameter equals that exact parameter's `ViewExtent`".
-    /// Replacing any ancestor descriptor replaces this observation's
-    /// reaching content, just as a store replaces a scalar field's.
-    Extent,
-    /// Cross a live permission descriptor into its separately owned backing.
-    /// It is never an inline field, a claim transfer or a disjointness fact.
-    Referent,
-}
+// Storage analysis and checking must retain the same resolved field IDs,
+// captured selectors and representation views. The representation owns them.
+pub use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
 /// One write, in program order: within a block, `WriteId`s increase in
 /// operation order.
@@ -185,7 +150,7 @@ pub fn record_write(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IdTable, PsiSemanticId};
+    use semantic_vocabulary::{IdTable, PsiSemanticId, StructuralFieldId};
 
     #[test]
     fn children_are_interned_once_per_segment_by_binary_search() {

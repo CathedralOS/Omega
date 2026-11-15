@@ -138,6 +138,9 @@ impl SourcePreparationRequest<'_> {
                 &mut program,
                 self.admission.layout_scopes,
                 self.admission.layout_selection_authority.clone(),
+                self.admission.invocation_sources.clone(),
+                self.compilation.purpose,
+                &mut accounting,
             )?;
             // `Buffer<capacity()>`: a const argument written as a call gets
             // its value first, because a constant below may be computed

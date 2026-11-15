@@ -6124,122 +6124,6 @@ pub(crate) mod storage_foundations {
             Ok(())
         }
     }
-    pub(crate) mod representation_geometry {
-
-        use crate::codec_error::{CodecError, malformed};
-        use semantic_vocabulary::{ScalarType, StructuralTypeId};
-        use terminal_psi::{
-            LayoutApplicationId, StructuralPathSegment, StructuralRecordStorage,
-            StructuralTypeShape, TargetLayoutApplication, TargetLayoutInput,
-            TargetLayoutRealization, TerminalModule,
-        };
-        use terminal_semantics::{
-            RecordStorageResolver, ReferenceStorageGeometry, StorageGeometryError,
-        };
-
-        pub(crate) fn fixed_region_is_compatible(
-            module: &TerminalModule,
-            source: StructuralTypeId,
-            path: &[StructuralPathSegment],
-            reference: StructuralTypeId,
-            stored: Option<ScalarType>,
-        ) -> Result<bool, CodecError> {
-            let Some(StructuralTypeShape::Reference { referent, .. }) =
-                module.structural_type(reference).map(|row| &row.shape)
-            else {
-                return Ok(false);
-            };
-            let mut pending = vec![source, *referent];
-            let mut visited = std::collections::BTreeSet::new();
-            let mut applications = Vec::<&TargetLayoutApplication>::new();
-            while let Some(carrier) = pending.pop() {
-                if !visited.insert(carrier) {
-                    continue;
-                }
-                let declaration = module.structural_type(carrier).ok_or(
-                    CodecError::MalformedStructuralFoundation(
-                        "reference geometry lost its declaration",
-                    ),
-                )?;
-                match &declaration.shape {
-                    StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                    StructuralTypeShape::Record { fields, storage } => {
-                        if let StructuralRecordStorage::TargetLayout(id) = storage {
-                            let application = module
-                                .target_layout_applications
-                                .iter()
-                                .find(|row| row.id == *id && row.record == carrier)
-                                .ok_or(CodecError::MalformedStructuralFoundation(
-                                    "reference geometry lost its exact layout application",
-                                ))?;
-                            applications.push(application);
-                        }
-                        pending.extend(
-                            fields
-                                .iter()
-                                .filter(|field| !field.relevance.is_erased())
-                                .filter_map(|field| field.field_type.as_structural()),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-            let Some(first) = applications.first() else {
-                return Ok(ReferenceStorageGeometry::new(
-                    module.structural_types.iter(),
-                    |application| Err(StorageGeometryError::UnresolvedExtent(application)),
-                )
-                .region_source_compatible(source, path, reference, stored));
-            };
-            if first.target_inputs.is_empty()
-                || applications
-                    .iter()
-                    .any(|row| row.target_inputs != first.target_inputs)
-            {
-                return malformed("reference geometry has no common complete layout input roster");
-            }
-            for input in &first.target_inputs {
-                let mut geometry =
-                    ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
-                        Err(StorageGeometryError::UnresolvedExtent(application))
-                    })
-                    .with_record_storage(RetainedLayout { module, input });
-                if !geometry.region_source_compatible(source, path, reference, stored) {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        }
-
-        struct RetainedLayout<'module> {
-            module: &'module TerminalModule,
-            input: &'module TargetLayoutInput,
-        }
-
-        impl RecordStorageResolver for RetainedLayout<'_> {
-            fn realization(
-                &self,
-                record: StructuralTypeId,
-                application: LayoutApplicationId,
-            ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
-                self.module
-                    .target_layout_applications
-                    .iter()
-                    .find(|row| row.id == application && row.record == record)
-                    .and_then(|application| {
-                        application.realizations.iter().find(|row| {
-                            row.target == self.input.target
-                                && row.pointer_size == self.input.pointer_size
-                                && row.pointer_alignment == self.input.pointer_alignment
-                                && row.case_tag_size == self.input.case_tag_size
-                                && row.case_tag_alignment == self.input.case_tag_alignment
-                                && row.little_endian == self.input.little_endian
-                        })
-                    })
-                    .ok_or(StorageGeometryError::UnresolvedLayout(record))
-            }
-        }
-    }
     pub(crate) mod structural_fields {
         use super::*;
         use semantic_vocabulary::{
@@ -7370,10 +7254,9 @@ pub(crate) mod storage_foundations {
         reference_byte_field_compatible, reference_carrier_memberships,
         reference_preserves_ancestor_qualifications, reference_source_projection_accessible,
         reference_source_projection_compatible, reference_source_storage_path,
-        reference_storage_source_compatible, resident_reference_plan, runtime_structural_field,
-        scalar_field_store_preserves_content, scalar_field_store_preserves_domain_content,
-        scalar_projection_entails_membership, store_preserves_content,
-        structural_memberships_disjoint_from_write,
+        resident_reference_plan, runtime_structural_field, scalar_field_store_preserves_content,
+        scalar_field_store_preserves_domain_content, scalar_projection_entails_membership,
+        store_preserves_content, structural_memberships_disjoint_from_write,
     };
 
     fn reference_store_carrier<'path>(
@@ -7589,12 +7472,18 @@ pub(crate) mod storage_foundations {
             *access,
         )?;
         if let Some(storage) = storage {
-            let offset_type = declared_scalar_type(machine, storage.byte_offset);
-            let offset_is_u64 = matches!(offset_type, Some(ScalarType::Integer(integer))
-                if !integer.is_address() && integer.bits() == Some(64)
-                    && integer.sign() == IntegerSign::Unsigned);
-            if !offset_is_u64 {
-                return malformed("reference storage offset is not a u64 scalar");
+            terminal_semantics::validate_reference_view_source(module, machine, source.place)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+            let producer = machine.operations().find(|candidate| {
+                candidate
+                    .result
+                    .as_scalar()
+                    .is_some_and(|result| result.id == storage.byte_offset)
+            });
+            if !producer.is_some_and(|producer| {
+                terminal_semantics::reference_view_offset_is_zero(producer, storage.byte_offset)
+            }) {
+                return malformed("reference storage view requires its captured zero offset");
             }
         }
         let compatible = match storage {
@@ -7607,13 +7496,14 @@ pub(crate) mod storage_foundations {
                 let (_, prefix) = source_path.split_last().expect("matched range");
                 let array = validate_structural_path(module, source_type, prefix)?;
                 validate_storage_interpretation(module, array, result.structural_type, *access)?;
-                representation_geometry::fixed_region_is_compatible(
+                terminal_semantics::reference_view_compatible(
                     module,
                     source_type,
                     source_path,
                     result.structural_type,
                     storage.stored_scalar,
-                )?
+                )
+                .map_err(CodecError::MalformedStructuralFoundation)?
             }
             Some(storage) => {
                 let observed = (*access == StructuralAccess::SharedBorrow)
@@ -7626,22 +7516,26 @@ pub(crate) mod storage_foundations {
                         )
                     })
                     .flatten();
-                let source_type = match observed {
+                let presentation = match observed {
                     Some(observed) => observed,
                     None => validate_structural_path(module, source_type, source_path)?,
                 };
                 validate_storage_interpretation(
                     module,
-                    source_type,
+                    presentation,
                     result.structural_type,
                     *access,
                 )?;
-                reference_storage_source_compatible(
-                    module.structural_types.iter(),
+                // A field's displayed type can be wider than its stored codec.
+                // Keep the original coordinates when measuring its backing.
+                terminal_semantics::reference_view_compatible(
+                    module,
                     source_type,
+                    source_path,
                     result.structural_type,
                     storage.stored_scalar,
                 )
+                .map_err(CodecError::MalformedStructuralFoundation)?
             }
             None => reference_source_projection_compatible(
                 module.structural_types.iter(),
@@ -7681,7 +7575,16 @@ pub(crate) mod storage_foundations {
         if !compatible {
             return malformed("reference establishment has incompatible source storage geometry");
         }
-        if result.multiplicity != StructuralMultiplicity::Affine
+        // A shared reference can be copied while each copy keeps its loan.
+        // Exclusive references still require a single affine descriptor.
+        let valid_multiplicity = result.multiplicity == StructuralMultiplicity::Affine
+            || result.multiplicity == StructuralMultiplicity::Unrestricted
+                && *access == StructuralAccess::SharedBorrow
+                && terminal_semantics::is_copyable_carrier(
+                    module.structural_types.iter(),
+                    result.structural_type,
+                );
+        if !valid_multiplicity
             || !result.qualifications.is_empty()
             || !result.claims.is_empty()
             || *access != source.access
@@ -8263,6 +8166,227 @@ pub(crate) mod storage_foundations {
             );
         }
         Ok(())
+    }
+    #[cfg(test)]
+    mod reference_view_receiving_tests {
+        use super::validate_establish_reference;
+        use crate::codec_error::CodecError;
+        use crate::sections::semantic_module::target_family_tests::unit_machine;
+        use semantic_vocabulary::{
+            AuthoredFieldStorage, AuthoredRecordStorage, IntegerSign, IntegerType, IntegerValue,
+            MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,
+            StructuralTypeId, ValueId,
+        };
+        use terminal_psi::*;
+
+        #[test]
+        fn byte_views_measure_the_original_field_and_keep_reference_crossings() {
+            // This field presents u64 but occupies four bytes. Its logical
+            // read type must not authorize an eight-byte view of that storage.
+            let ty = |raw| StructuralTypeId::new(raw).unwrap();
+            let scalar =
+                |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+            let mut module = TerminalModule::declarations();
+            let shapes = [
+                StructuralTypeShape::PrimitiveScalar(scalar(64)),
+                StructuralTypeShape::PrimitiveScalar(scalar(8)),
+                StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: TerminalIdentityIndex(7),
+                        field_type: StructuralFieldType::Scalar(scalar(64)),
+                        storage: Some(AuthoredFieldStorage::Scalar {
+                            byte_offset: 0,
+                            stored_scalar: Some(scalar(32)),
+                        }),
+                        inline_carrier: Some(ty(1)),
+                        relevance: BindingRelevance::Relevant,
+                    }],
+                    storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                        byte_size: 4,
+                        byte_alignment: 4,
+                    }),
+                },
+                StructuralTypeShape::FixedArray {
+                    element: ty(2),
+                    length: ArrayExtent::Literal(8),
+                },
+                StructuralTypeShape::Reference {
+                    referent: ty(4),
+                    access: StructuralAccess::SharedBorrow,
+                },
+                StructuralTypeShape::Reference {
+                    referent: ty(1),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ];
+            for (index, shape) in shapes.into_iter().enumerate() {
+                module.structural_types.push(StructuralTypeDeclaration {
+                    id: ty(index as u64 + 1),
+                    identity: TerminalIdentityIndex(index as u32 + 1),
+                    shape,
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: false,
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                });
+            }
+            let source = PlaceId::new(1).unwrap();
+            let offset = ValueId::new(1).unwrap();
+            let mut machine = unit_machine(MachineId::new(1).unwrap());
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: source,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            });
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place: source,
+                    position: 0,
+                    structural_type: ty(3),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+            machine.blocks[0].operations.push(Operation {
+                id: OperationId::new(1).unwrap(),
+                static_reach_binding: None,
+                required_contract: None,
+                suspension_crossing: None,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: offset,
+                    scalar_type: scalar(64),
+                    qualifications: Default::default(),
+                }),
+                kind: OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(0),
+                },
+            });
+            let mut formation = Operation {
+                id: OperationId::new(2).unwrap(),
+                static_reach_binding: None,
+                required_contract: None,
+                suspension_crossing: None,
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: PlaceId::new(2).unwrap(),
+                    structural_type: ty(5),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishReference {
+                    source: StructuralArgument {
+                        place: source,
+                        path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(7))],
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    storage: Some(ReferenceStorageView {
+                        byte_offset: offset,
+                        stored_scalar: None,
+                    }),
+                },
+            };
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has incompatible source storage geometry"
+                ))
+            );
+            let StructuralTypeShape::Record { fields, storage } =
+                &mut module.structural_types[2].shape
+            else {
+                unreachable!()
+            };
+            fields[0].storage = Some(AuthoredFieldStorage::Scalar {
+                byte_offset: 0,
+                stored_scalar: Some(scalar(64)),
+            });
+            *storage = StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                byte_size: 8,
+                byte_alignment: 8,
+            });
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Ok(())
+            );
+
+            // The source producer marks shared references as copyable. The
+            // importer must retain that permission without granting it to
+            // an exclusive reference or inventing a linear claim.
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Unrestricted;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Ok(())
+            );
+            let StructuralTypeShape::Reference { access, .. } =
+                &mut module.structural_types[4].shape
+            else {
+                unreachable!()
+            };
+            *access = StructuralAccess::MutableBorrow;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.access = StructuralAccess::MutableBorrow;
+            machine.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has inconsistent carrier ownership or access"
+                ))
+            );
+            let StructuralTypeShape::Reference { access, .. } =
+                &mut module.structural_types[4].shape
+            else {
+                unreachable!()
+            };
+            *access = StructuralAccess::SharedBorrow;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.access = StructuralAccess::SharedBorrow;
+            machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Linear;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has inconsistent carrier ownership or access"
+                ))
+            );
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Affine;
+
+            // A reference result can retain its own narrower physical codec.
+            // Reducing its referent to u64 must not erase the crossing fence.
+            machine.structural_parameters[0].structural_type = ty(6);
+            machine.structural_parameters[0].access = StructuralAccess::Owned;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.path = vec![StructuralPathSegment::Referent];
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference view crossing requires its captured physical storage correspondence"
+                ))
+            );
+        }
     }
 }
 pub(crate) mod structural_type_foundations {
