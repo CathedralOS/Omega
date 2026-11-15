@@ -1687,6 +1687,27 @@ mod tests {
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
         );
+        // A layout query typing recognized is served by the compiler and
+        // records no row; the same spelling without that recognition is
+        // still a name that resolves to nothing.
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.target = typed_trees::name::Identifier::generated("size_of");
+        node.layout_query = Some(typed_trees::expression::DataLayoutQueryRequest {
+            kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
+            operand: Default::default(),
+            nonempty_view: ExpressionHandle::invalid(),
+        });
+        assert_eq!(deferred(&program).unwrap(), Vec::new());
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.layout_query = None;
+        assert_eq!(
+            deferred(&program).unwrap(),
+            vec![(holder, DeferredRequest::UndeclaredCallName)]
+        );
         // An ambiguous source lookup stays unserved, regardless of which
         // declarations elsewhere happen to carry its spelling.
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
