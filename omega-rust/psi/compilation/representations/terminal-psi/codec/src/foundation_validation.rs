@@ -1855,6 +1855,137 @@ pub(crate) mod declaration_foundations {
             }
             Ok(())
         }
+
+        #[cfg(test)]
+        mod callback_backing_tests {
+            use super::*;
+            use semantic_vocabulary::{
+                CallingAbiIdentity, CallingDeclarationOwner, NativeParameterId, StructuralTypeId,
+            };
+            use terminal_psi::{
+                CallingAbiDeclaration, CallingAbiParameter, CallingAbiStorage,
+                CallingRuntimeFormal, StructuralRecordStorage, StructuralReferentIdentity,
+                StructuralTypeDeclaration, TerminalIdentityTableBuilder,
+            };
+
+            fn fixture() -> TerminalModule {
+                let mut module = TerminalModule::declarations();
+                let key = CallingAbiIdentity {
+                    requirement_identity: "Probe::inspect".into(),
+                    declaring_application: "Probe".into(),
+                    operands: Vec::new(),
+                };
+                let mut identities = TerminalIdentityTableBuilder::default();
+                let requirement_identity = identities.intern(&key.requirement_identity);
+                let declaring_application = identities.intern(&key.declaring_application);
+                let identity = identities.intern("Carrier");
+                module.identities = identities.build();
+                for raw in [1, 2] {
+                    module.structural_types.push(StructuralTypeDeclaration {
+                        id: StructuralTypeId::new(raw).unwrap(),
+                        identity,
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        copyable: true,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: true,
+                        shape: StructuralTypeShape::Record {
+                            fields: Vec::new(),
+                            storage: StructuralRecordStorage::Packed,
+                        },
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
+                }
+                module.calling_abi_signatures.push(CallingAbiDeclaration {
+                    id: key.id(),
+                    requirement_identity,
+                    declaring_application,
+                    operands: Vec::new(),
+                    formals: Vec::new(),
+                    default_eligible: true,
+                    physical_owner: Ok(CallingDeclarationOwner::BoundaryTrait),
+                    storage: Ok(CallingAbiStorage {
+                        parameters: vec![CallingAbiParameter {
+                            structural_type: StructuralTypeId::new(1).unwrap(),
+                            callback_backing: Some(StructuralTypeId::new(1).unwrap()),
+                            access: StructuralAccess::Owned,
+                        }],
+                        result: None,
+                        telescope: CallingSignatureTelescope {
+                            parameters: vec![CallingRuntimeFormal {
+                                identity: NativeParameterId::new(1).unwrap(),
+                                native_ordinal: 0,
+                            }],
+                            binders: Vec::new(),
+                            direct_callbacks: Vec::new(),
+                        },
+                    }),
+                });
+                module
+            }
+
+            #[test]
+            fn complete_owned_and_borrowed_carriers_require_their_exact_callback_backing() {
+                for access in [StructuralAccess::Owned, StructuralAccess::SharedBorrow] {
+                    let mut module = fixture();
+                    module.calling_abi_signatures[0]
+                        .storage
+                        .as_mut()
+                        .unwrap()
+                        .parameters[0]
+                        .access = access;
+                    validate_census(&module).unwrap();
+                    for missing_or_substituted in [None, Some(StructuralTypeId::new(2).unwrap())] {
+                        module.calling_abi_signatures[0]
+                            .storage
+                            .as_mut()
+                            .unwrap()
+                            .parameters[0]
+                            .callback_backing = missing_or_substituted;
+                        assert_eq!(
+                            validate_census(&module),
+                            malformed(
+                                "declaration ABI substitutes or omits its complete callback backing"
+                            )
+                        );
+                    }
+                }
+            }
+
+            #[test]
+            fn only_an_abstract_borrowed_referent_can_omit_callback_backing() {
+                let mut module = fixture();
+                let referent = StructuralTypeId::new(3).unwrap();
+                module
+                    .structural_referents
+                    .push(StructuralReferentIdentity {
+                        id: referent,
+                        identity: module.structural_types[0].identity,
+                        foreign_descriptor: true,
+                        abstract_opaque: true,
+                    });
+                let parameter = &mut module.calling_abi_signatures[0]
+                    .storage
+                    .as_mut()
+                    .unwrap()
+                    .parameters[0];
+                parameter.structural_type = referent;
+                parameter.callback_backing = None;
+                parameter.access = StructuralAccess::SharedBorrow;
+                validate_census(&module).unwrap();
+                module.structural_referents[0].abstract_opaque = false;
+                assert!(validate_census(&module).is_err());
+                module.structural_referents[0].abstract_opaque = true;
+                module.calling_abi_signatures[0]
+                    .storage
+                    .as_mut()
+                    .unwrap()
+                    .parameters[0]
+                    .access = StructuralAccess::Owned;
+                assert!(validate_census(&module).is_err());
+            }
+        }
     }
     pub(crate) mod opaque_representations {
 
