@@ -111,6 +111,7 @@ Write each item so any agent can start from it alone: current state, files and e
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
   - Retain provider choices in rootless package review without treating a choice as execution. A `Build::package` selecting a private `SelectedAnswer` for a public `Answer::read() -> u32` on UEFI still refuses review with `the exact Build provider selection custody`, even when `SelectedAnswer::read` returns `7u32` and a public `answer()` calls the requirement. Source checking completes, but no ProgramEntry roots the choice into an execution plan. Preserve the declared selection and its exact source contract without inventing an entry or deploying unrelated library bodies.
+  - Preserve the authored reach of a selected checked realization in package review. Add `reaches ReadCapability` to the pure `Reader::read` implementation in the [reviewed service rows probe](samples/cli/probes/reviewed_service_rows/main.omg). Source checking accepts it, but review refuses the selected provider's complete effect or calling policy. Keep the implementation's checked and authored rows available independently of its requirement without weakening either contract.
 
 ## Lowering, checker, and data-flow
 
@@ -146,6 +147,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **PUBLISHED-NO-RETURN.** Implement [published no-return](wiki/spec/language/state_contracts.md#published-no-return) and [core `Never`](wiki/spec/language/data_and_literals.md#the-uninhabited-type-never): no-normal-successor from an uninhabited result type or an impossible published postcondition, an uninhabited expression accepted at any expected type, and coverage that skips cases with uninhabited payloads.
   - Declare the `UefiOsHandoffTermination` operations `-> Never`, and `StaticInterruptWork::run` `-> Never` in place of `ensures false`.
+  - Retain the [canonical ProcessExit contract](wiki/spec/language/process_exit.md#canonical-boundary-and-authority) in native-binding review. A standalone macOS arm64 application using the standard library's exact Build binding directly and calling `ProcessExit::exit_process(0)` checks, but `omega packages update` refuses the boundary requirement's complete published contract. Recover the exact external completion and `Never` contract through review and verify native/Psi exit.
 
 - **ROLE-SEPARATED-BUILTIN-TYPE-NAMES.** Finish [builtin type names](wiki/spec/language/modules.md#builtin-type-names) for a `::` prefix shared by a builtin type and an operation-record value. Psi 02 still needs the eligible-root ambiguity rule for this qualifier.
 
@@ -207,8 +209,6 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Immediate product closure
 
-- **DELETED-CORPUS-PATHS.** Two references to the deleted corpus remain. The isolated inferred-reach case in `omega-rust/omega/compilation/compiler/tests/package_review.rs` needs its original `fetch_mark` support package or an equivalent current review witness. `samples/cli/probes/reviewed_service_rows/build.omg` still takes its dependency from `tests/omega/pass/effects/reviewed_service_rows_exit/library`, deleted in #2828.
-  Acceptance: neither file names a `tests/omega/` path.
 - **STALE-SAMPLE-WORKAROUNDS.** Four samples still carry code and comments written around native miscompiles that their own comments say were fixed in 2026-06 and 2026-07. `samples/cli/systems/bank_ledger/main.omg` writes each transaction through a six-state `transition` ladder in `Main::deposit` (lines 90-142) instead of one indexed write `main.ledger.txns[count]`, and lines 7-11 call the old bug "no longer load-bearing". `samples/cli/systems/account_ledger/main.omg` keeps its exit-91-93 "tripwire" arms and a long history of the `Transfer` payload miscompile (lines 9-25, 65-75, 353-361). `samples/cli/proofs/shapes_area/main.omg` (lines 11-14) keeps caller-side multiplications it says are no longer needed, and `samples/cli/proofs/bounded_counter/main.omg` (lines 4-6) keeps the history of a fixed case-payload bug. Rewrite each sample the plain way and confirm it with `mbx xtask sample-gate --filter <sample>`, which needs `std` to pass the lowered-form checker first (**LOWERED-FORM-CHECKER**). A regression that still matters belongs in a test under `tests/fixtures/`, not in a showcase sample.
   Acceptance: none of the four files describes a fixed bug or keeps code that works around one.
 - **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega packages update` peaks near 14 GB single-threaded.

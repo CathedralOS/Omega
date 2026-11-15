@@ -317,6 +317,81 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
 }
 
 #[test]
+fn imported_provider_review_keeps_reach_and_invocation_separate() {
+    use review_evidence::record::{PackageReviewNominalOwner, PackageReviewSynchronousInvocation};
+
+    let probes = fixture_package_inputs::repo_root().join("samples/cli/probes");
+    let support = reviewed_and_recovered(
+        &probes.join("reviewed_service_rows_support/main.omg"),
+        "macos_arm64",
+    );
+    let application = reviewed_and_recovered(
+        &probes.join("reviewed_service_rows/main.omg"),
+        "macos_arm64",
+    );
+    let [plan] = application.selected_providers().plans() else {
+        panic!("one selected provider for imported Operations");
+    };
+    let owner = plan.schema_declaration();
+    assert_eq!(owner.path(), "Operations");
+    assert_eq!(
+        owner.owner(),
+        PackageReviewNominalOwner::Package(support.package())
+    );
+    assert_eq!(plan.methods().len(), 2);
+    for (name, expected) in [
+        ("read", &["Operations", "ReadCapability"][..]),
+        ("identity", &["Operations"][..]),
+    ] {
+        let method = plan
+            .methods()
+            .iter()
+            .find(|method| method.name() == name)
+            .unwrap();
+        assert_eq!(method.requirement_owner(), owner);
+        assert_eq!(method.service_reach(), expected);
+        let authority = method.authority().service_reach();
+        assert!(
+            authority
+                .iter()
+                .all(|service| service.owner() == owner.owner())
+        );
+        assert_eq!(
+            authority
+                .iter()
+                .map(|service| service.path())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    for (name, expected) in [
+        ("read_value", &["ReadCapability"][..]),
+        ("pure_value", &[][..]),
+    ] {
+        let callable = support
+            .callables()
+            .callables()
+            .iter()
+            .find(|callable| callable.identity().path() == name)
+            .unwrap();
+        let reach = callable.checked_service_reach().realized().unwrap();
+        assert!(reach.iter().all(|service| service.owner() == owner.owner()));
+        assert_eq!(
+            reach
+                .iter()
+                .map(|service| service.path())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            callable.declared_synchronous_invocations(),
+            Some([PackageReviewSynchronousInvocation::Service(owner.clone())].as_slice())
+        );
+    }
+}
+
+#[test]
 fn build_service_audit_rejects_an_ordinary_trait() {
     let fixture = kept_fixture("fail/build/service_audit_requires_boundary/main.omg");
     let expected = std::fs::read_to_string(fixture.with_file_name("expected.txt")).unwrap();

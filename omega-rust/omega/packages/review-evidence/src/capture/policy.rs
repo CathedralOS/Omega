@@ -42,6 +42,7 @@ pub(super) fn project(
     )?;
     let accepted_declarations = super::providers::AcceptedDeclarations::new(
         accepted,
+        &origins,
         &services,
         checked.execution().plans().plans(),
     );
@@ -50,7 +51,6 @@ pub(super) fn project(
     let providers = declarations.selected_providers(
         package,
         target,
-        &origins,
         &accepted_declarations,
         &native_bindings,
     )?;
