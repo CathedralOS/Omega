@@ -1315,6 +1315,7 @@ fn adapt(
             return None;
         }
         graph.places.push(DescriptorPlace {
+            producer: None,
             place: parameter.place,
             definition: DescriptorDefinition::Parameter {
                 position,
@@ -1345,6 +1346,7 @@ fn adapt(
                 return None;
             }
             graph.places.push(DescriptorPlace {
+                producer: None,
                 place: parameter.place,
                 definition: DescriptorDefinition::Arrival {
                     access: parameter.access,
@@ -1367,6 +1369,7 @@ fn adapt(
                     return None;
                 }
                 graph.places.push(DescriptorPlace {
+                    producer: None,
                     place: place.id,
                     definition: if matches!(node.operation, O::EstablishByteSequenceLiteral { .. })
                     {
@@ -1389,12 +1392,14 @@ fn adapt(
                     return None;
                 }
                 graph.places.push(DescriptorPlace {
+                    producer: None,
                     place: result.place,
                     definition: DescriptorDefinition::Local,
                 });
             }
         }
     }
+    graph.places.sort_unstable_by_key(|row| row.place);
     let location = |root, path: &[StructuralPathSegment], field| {
         descriptor_location(types, root, *graph.place_types.get(&root)?, path, field)
     };
@@ -1505,6 +1510,13 @@ fn adapt(
             };
             if let Some(result) = result {
                 graph.payload_producers.insert(position, result.place);
+                let index = graph
+                    .places
+                    .binary_search_by_key(&result.place, |row| row.place)
+                    .ok()?;
+                if graph.places[index].producer.replace(position).is_some() {
+                    return None;
+                }
                 let destination = DescriptorLocation::whole(result.place);
                 step.definitions.push(destination.clone());
                 if !kernel::is_descriptor(types.iter(), result.structural_type)

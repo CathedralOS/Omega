@@ -6399,6 +6399,7 @@ pub mod descriptor_results {
                     id: MachineId::new(1).unwrap(),
                     returns: None,
                     places: vec![DescriptorPlace {
+                        producer: None,
                         place: root,
                         definition: DescriptorDefinition::Parameter {
                             position: 0,
@@ -6569,6 +6570,7 @@ pub mod descriptor_results {
                         scalar_restriction: None,
                     }];
                     machine.places.push(DescriptorPlace {
+                        producer: None,
                         place: selected,
                         definition: DescriptorDefinition::Local,
                     });
@@ -9048,6 +9050,7 @@ pub mod descriptor_results {
                     places: [original.root, copy.root]
                         .into_iter()
                         .map(|place| DescriptorPlace {
+                            producer: None,
                             place,
                             definition: DescriptorDefinition::Local,
                         })
@@ -11432,6 +11435,126 @@ pub mod descriptor_results {
                     "callee instruction numbers cannot supply caller capture history"
                 );
 
+                // Packing a borrowed view into an owned outer roster does
+                // not transfer ownership of the local storage it points at.
+                let mut borrowed_leaf = moved.clone();
+                let borrowed = StructuralTypeId::new(3).unwrap();
+                let outer = StructuralTypeId::new(4).unwrap();
+                let mut declaration = borrowed_leaf.structural_types[1].clone();
+                declaration.id = borrowed;
+                declaration.copyable = true;
+                declaration.shape = StructuralTypeShape::ElementView {
+                    element: bytes,
+                    access: Some(StructuralAccess::SharedBorrow),
+                };
+                borrowed_leaf.structural_types.push(declaration);
+                let mut declaration = borrowed_leaf.structural_types[1].clone();
+                declaration.id = outer;
+                declaration.shape = StructuralTypeShape::ElementView {
+                    element: borrowed,
+                    access: None,
+                };
+                borrowed_leaf.structural_types.push(declaration);
+                let argument = |place, access| {
+                    terminal_psi::StructuralArgument::whole(PlaceId::new(place).unwrap(), access)
+                };
+                let body = &mut borrowed_leaf.machines[0];
+                for (operation, place, ty) in [(2, 4, borrowed), (3, 5, outer)] {
+                    body.structural_places
+                        .push(terminal_psi::StructuralPlaceDeclaration {
+                            id: PlaceId::new(place).unwrap(),
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer: OperationId::new(operation).unwrap(),
+                                structural_type: ty,
+                            },
+                        });
+                }
+                body.blocks[0].operations.extend([
+                    sequence_result(
+                        2,
+                        4,
+                        borrowed,
+                        OperationKind::EstablishElementView {
+                            destination: PlaceId::new(4).unwrap(),
+                            source: argument(3, StructuralAccess::SharedBorrow),
+                            element: bytes,
+                            region: terminal_psi::ElementViewRegion::WholeCollection,
+                        },
+                    ),
+                    sequence_result(
+                        3,
+                        5,
+                        outer,
+                        OperationKind::CallStructural {
+                            callee: reader_id,
+                            structural_arguments: vec![argument(4, StructuralAccess::Owned)],
+                            claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                            selected_evidence: Vec::new(),
+                        },
+                    ),
+                ]);
+                let TerminalMachineResult::Structural(result) = &mut body.result else {
+                    unreachable!()
+                };
+                result.place = PlaceId::new(5).unwrap();
+                result.structural_type = outer;
+                let Terminator::ReturnStructural { source, .. } = &mut body.blocks[0].terminator
+                else {
+                    unreachable!()
+                };
+                *source = result.place;
+                let mut pack = moved.machines[0].clone();
+                pack.id = reader_id;
+                pack.contract.id = ContractId::new(2).unwrap();
+                pack.parameter_order.truncate(1);
+                pack.structural_parameters.truncate(1);
+                pack.structural_parameters[0].structural_type = borrowed;
+                pack.structural_places.retain(|row| row.id.get() != 2);
+                let StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                } = &mut pack.structural_places[1].kind
+                else {
+                    unreachable!()
+                };
+                *structural_type = outer;
+                pack.blocks[0].operations = vec![sequence_result(
+                    1,
+                    3,
+                    outer,
+                    OperationKind::EstablishStructuralArray {
+                        elements: vec![argument(1, StructuralAccess::Owned)],
+                    },
+                )];
+                let TerminalMachineResult::Structural(result) = &mut pack.result else {
+                    unreachable!()
+                };
+                result.structural_type = outer;
+                borrowed_leaf.machines.push(pack);
+                let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                    &borrowed_leaf,
+                    [caller],
+                    &[],
+                )
+                .unwrap();
+                let mut replay = Replay::with_slot_kind(
+                    &borrowed_leaf.structural_types,
+                    &graph,
+                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                );
+                assert!(
+                    replay
+                        .summary(reader_id, 0)
+                        .and_then(|summary| summary.result)
+                        .is_some(),
+                    "the helper can carry a view borrowed from its caller"
+                );
+                assert!(
+                    replay.summary(caller, 0).is_none(),
+                    "re-export must not turn a borrowed local leaf into owned storage"
+                );
+
                 // Each return keeps its own extent. A shorter literal roster
                 // must merge without claiming the longer one's ordinal.
                 let mut alternatives = moved.clone();
@@ -11554,6 +11677,191 @@ pub mod descriptor_results {
                     .collect::<Vec<_>>();
                 lengths.sort_unstable();
                 assert_eq!(lengths, [1, 2]);
+
+                let mut receiver = machine(2);
+                receiver.contract.id = ContractId::new(2).unwrap();
+                receiver.parameters = alternatives.machines[0].parameters.clone();
+                receiver.parameter_order = vec![terminal_psi::BoundaryParameterKind::Scalar];
+                receiver.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
+                    id: PlaceId::new(3).unwrap(),
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: OperationId::new(1).unwrap(),
+                        structural_type: sequence,
+                    },
+                }];
+                receiver.blocks[0].operations = vec![sequence_result(
+                    1,
+                    3,
+                    sequence,
+                    OperationKind::CallStructuralWithScalarArguments {
+                        callee: caller,
+                        arguments: vec![receiver.parameters[0].id],
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                        selected_evidence: Vec::new(),
+                    },
+                )];
+                let receiver_id = receiver.id;
+                let receiver_entry = receiver.entry;
+                alternatives.machines.push(receiver);
+                let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                    &alternatives,
+                    [receiver_id],
+                    &[],
+                )
+                .unwrap();
+                let mut replay = Replay::with_slot_kind(
+                    &alternatives.structural_types,
+                    &graph,
+                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                );
+                let states = replay.states(receiver_id, 0).unwrap();
+                let receiver = graph.iter().find(|row| row.id == receiver_id).unwrap();
+                let current = states.get(&(receiver_entry, 1)).unwrap();
+                let query = DescriptorContentsQuery {
+                    root: PlaceId::new(3).unwrap(),
+                    steps: vec![DescriptorContentsStep::AnyElement { element: bytes }],
+                };
+                assert_eq!(
+                    replay.read_contents(receiver, current, &query),
+                    Some(
+                        (1..=2)
+                            .map(|source| Origin::Backing(DescriptorCallOrigin::Literal {
+                                machine: caller,
+                                place: PlaceId::new(source).unwrap(),
+                            }))
+                            .collect()
+                    ),
+                    "whole-roster enumeration retains both return alternatives"
+                );
+                let query = DescriptorContentsQuery {
+                    root: PlaceId::new(3).unwrap(),
+                    steps: vec![DescriptorContentsStep::Address(
+                        DescriptorPathSegment::FixedIndex(1),
+                    )],
+                };
+                assert!(
+                    replay.read_contents(receiver, current, &query).is_none(),
+                    "the shorter return cannot supply ordinal one"
+                );
+
+                // Follow the contents of each nested roster, including the
+                // longer return's second element. A plain enumeration above
+                // can read an installed slot without traversing its account.
+                let mut nested = alternatives.clone();
+                let outer = StructuralTypeId::new(3).unwrap();
+                let mut declaration = nested.structural_types[1].clone();
+                declaration.id = outer;
+                declaration.shape = StructuralTypeShape::ElementView {
+                    element: sequence,
+                    access: None,
+                };
+                nested.structural_types.push(declaration);
+                let argument = |place| {
+                    terminal_psi::StructuralArgument::whole(
+                        PlaceId::new(place).unwrap(),
+                        StructuralAccess::Owned,
+                    )
+                };
+                let body = &mut nested.machines[0];
+                for (operation, place) in [(3, 6), (4, 7)] {
+                    body.structural_places
+                        .push(terminal_psi::StructuralPlaceDeclaration {
+                            id: PlaceId::new(place).unwrap(),
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer: OperationId::new(operation).unwrap(),
+                                structural_type: sequence,
+                            },
+                        });
+                    body.blocks[0].operations.push(sequence_result(
+                        operation,
+                        place,
+                        sequence,
+                        OperationKind::EstablishStructuralArray {
+                            elements: vec![argument(place - 5)],
+                        },
+                    ));
+                }
+                for (block_index, operation, place, inputs) in [
+                    (1, 5, 3, vec![argument(6), argument(7)]),
+                    (2, 6, 5, vec![argument(6)]),
+                ] {
+                    body.structural_places
+                        .iter_mut()
+                        .find(|row| row.id == PlaceId::new(place).unwrap())
+                        .unwrap()
+                        .kind = StructuralPlaceKind::OperationResult {
+                        producer: OperationId::new(operation).unwrap(),
+                        structural_type: outer,
+                    };
+                    body.blocks[block_index].operations = vec![sequence_result(
+                        operation,
+                        place,
+                        outer,
+                        OperationKind::EstablishStructuralArray { elements: inputs },
+                    )];
+                }
+                let TerminalMachineResult::Structural(result) = &mut body.result else {
+                    unreachable!()
+                };
+                result.structural_type = outer;
+                let receiver = &mut nested.machines[1];
+                let StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                } = &mut receiver.structural_places[0].kind
+                else {
+                    unreachable!()
+                };
+                *structural_type = outer;
+                let OperationResult::Structural(result) =
+                    &mut receiver.blocks[0].operations[0].result
+                else {
+                    unreachable!()
+                };
+                result.structural_type = outer;
+                let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                    &nested,
+                    [receiver_id],
+                    &[],
+                )
+                .unwrap();
+                let mut replay = Replay::with_slot_kind(
+                    &nested.structural_types,
+                    &graph,
+                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                );
+                let states = replay.states(receiver_id, 0).unwrap();
+                let receiver = graph.iter().find(|row| row.id == receiver_id).unwrap();
+                let current = states.get(&(receiver_entry, 1)).unwrap();
+                let mut query = DescriptorContentsQuery {
+                    root: PlaceId::new(3).unwrap(),
+                    steps: vec![
+                        DescriptorContentsStep::AnyElement { element: sequence },
+                        DescriptorContentsStep::AnyElement { element: bytes },
+                    ],
+                };
+                assert_eq!(
+                    replay.read_contents(receiver, current, &query),
+                    Some(
+                        (1..=2)
+                            .map(|source| Origin::Backing(DescriptorCallOrigin::Literal {
+                                machine: caller,
+                                place: PlaceId::new(source).unwrap(),
+                            }))
+                            .collect()
+                    ),
+                    "nested enumeration follows each alternative's actual element contents",
+                );
+                query.steps[0] =
+                    DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(1));
+                assert!(
+                    replay.read_contents(receiver, current, &query).is_none(),
+                    "nested traversal cannot make ordinal one exist in the shorter return"
+                );
             }
 
             // Moving a borrowed sequence value retires its descriptor, not
@@ -13686,6 +13994,7 @@ pub mod descriptor_results {
                     return None;
                 }
                 graph.places.push(DescriptorPlace {
+                    producer: None,
                     place: place.id,
                     definition: terminal_definition(module, machine, place.id, place.kind)?,
                 });
@@ -13693,6 +14002,7 @@ pub mod descriptor_results {
                     graph.place_types.insert(place.id, ty);
                 }
             }
+            graph.places.sort_unstable_by_key(|row| row.place);
             let location = |root, path: &[StructuralPathSegment], field| {
                 descriptor_location(
                     &module.structural_types,
@@ -13851,6 +14161,13 @@ pub mod descriptor_results {
                             })
                             || rows.next().is_some()
                         {
+                            return None;
+                        }
+                        let index = graph
+                            .places
+                            .binary_search_by_key(&result.place, |row| row.place)
+                            .ok()?;
+                        if graph.places[index].producer.replace(position).is_some() {
                             return None;
                         }
                         step.definitions
@@ -15968,6 +16285,25 @@ pub mod descriptor_results {
     }
 
     impl DescriptorMachine {
+        pub(crate) fn producer(&self, root: PlaceId) -> Option<DescriptorPosition> {
+            let index = self
+                .places
+                .binary_search_by_key(&root, |row| row.place)
+                .ok()?;
+            if index
+                .checked_sub(1)
+                .and_then(|index| self.places.get(index))
+                .is_some_and(|row| row.place == root)
+                || self
+                    .places
+                    .get(index + 1)
+                    .is_some_and(|row| row.place == root)
+            {
+                return None;
+            }
+            self.places[index].producer
+        }
+
         pub(crate) fn sequence_construction<'graph>(
             &'graph self,
             types: &[StructuralTypeDeclaration],
@@ -15995,22 +16331,14 @@ pub mod descriptor_results {
                         return None;
                     }
                     let position = (block, index.checked_sub(1)?);
-                    (self.payload_producers.get(&position) == Some(&root)).then_some(position)
+                    (self.producer(root) == Some(position)).then_some(position)
                 }
                 None => None,
             };
             let position = if let Some(position) = captured {
                 position
             } else {
-                let mut producers = self
-                    .payload_producers
-                    .iter()
-                    .filter(|(_, place)| **place == root);
-                let (&position, _) = producers.next()?;
-                if producers.next().is_some() {
-                    return None;
-                }
-                position
+                self.producer(root)?
             };
             let origin = DescriptorLocation::whole(root);
             let origins = self.originations.get(&position)?;
@@ -16198,6 +16526,63 @@ pub mod descriptor_results {
     }
 
     impl DescriptorResultSlot {
+        pub(crate) fn element_path(
+            types: &[StructuralTypeDeclaration],
+            account: (StructuralTypeId, &[Self]),
+            path: &[DescriptorPathSegment],
+        ) -> Option<(Vec<StructuralPathSegment>, Option<StructuralTypeId>)> {
+            descriptor_lifetimes::locations::resolved_path(
+                types,
+                account.0,
+                path,
+                |prefix, view, ordinal| {
+                    let StructuralTypeShape::ElementView { element, .. } =
+                        terminal_psi::find_structural_type(types, view)?.shape
+                    else {
+                        return None;
+                    };
+                    let origins = Self::matching(account.1, prefix)?.origins_at(prefix)?;
+                    crate::descriptor_replay::DescriptorStoredOrigin::element_at(
+                        &origins, element, ordinal,
+                    )?;
+                    Some(element)
+                },
+            )
+        }
+
+        pub(crate) fn canonicalize(slots: &mut [Self]) -> Option<()> {
+            slots.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+            if slots.windows(2).any(|rows| rows[0].path == rows[1].path) {
+                return None;
+            }
+            for slot in slots {
+                for origin in &mut slot.origins {
+                    if let DescriptorStoredOrigin::Carried { elements, .. } = origin {
+                        for slots in elements {
+                            Self::canonicalize(slots)?;
+                        }
+                    }
+                }
+            }
+            Some(())
+        }
+
+        pub(crate) fn matching<'slots>(
+            slots: &'slots [Self],
+            path: &[DescriptorPathSegment],
+        ) -> Option<&'slots Self> {
+            // Machine result accounts are ordered once by their owner. Query
+            // the longest recorded prefix instead of rescanning every sibling.
+            for length in (0..=path.len()).rev() {
+                if let Ok(index) =
+                    slots.binary_search_by(|slot| slot.path.as_slice().cmp(&path[..length]))
+                {
+                    return slots.get(index);
+                }
+            }
+            None
+        }
+
         pub(crate) fn origins_at(
             &self,
             path: &[DescriptorPathSegment],
@@ -16215,7 +16600,7 @@ pub mod descriptor_results {
                     return None;
                 };
                 let slots = elements.get(usize::try_from(*ordinal).ok()?)?;
-                let slot = exactly_one(slots.iter(), |slot| suffix.starts_with(&slot.path))?;
+                let slot = Self::matching(slots, suffix)?;
                 origins.extend(slot.origins_at(suffix)?);
             }
             (!origins.is_empty()).then_some(origins)
@@ -16262,6 +16647,9 @@ pub mod descriptor_results {
     }
 
     pub struct DescriptorPlace {
+        /// The canonical declaration's actual producer, retained once while
+        /// adapting its instruction. Roster queries need not rescan the body.
+        pub producer: Option<DescriptorPosition>,
         pub place: PlaceId,
         pub definition: DescriptorDefinition,
     }
