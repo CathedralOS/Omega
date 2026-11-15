@@ -243,12 +243,12 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         // A rank range: its lower bound would be the floor.
         (
             "remaining -> Nat::Descending in 0..=16",
-            "contract rank range on a ranking witness",
+            "contract rank range on a ranking witness while reading the signature of `spend`",
         ),
         // Two subjects select the bounded-distance view.
         (
             "(remaining, limit)",
-            "contract ranking view other than Nat::Descending",
+            "contract ranking view other than Nat::Descending while reading the signature of `spend`",
         ),
     ] {
         assert_eq!(refused(&looping(scalars, measure)), detail, "{measure}");
@@ -265,7 +265,7 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
                  }\n\
              }\n"
         ),
-        "contract ranking subject that is not an unsigned fixed-width integer formal"
+        "contract ranking subject that is not an unsigned fixed-width integer formal while reading the signature of `sink`"
     );
     // Two machines that call each other: one joint ranking, whose spelling
     // for differently shaped members the specification leaves open.
