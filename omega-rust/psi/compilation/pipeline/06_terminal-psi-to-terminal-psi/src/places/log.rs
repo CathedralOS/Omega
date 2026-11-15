@@ -556,6 +556,10 @@ impl Storage<'_> {
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. } => {}
+            // A module scalar application (a layout observation) has no
+            // operand and no storage: its scalar result is fixed by
+            // installation under the selected target, never by a place.
+            OperationKind::ReadScalarApplication { .. } => {}
             kind if kind.declared_invocation().is_some() => {
                 if produced.is_some() {
                     rows.push((fresh()?, Stored::Established));

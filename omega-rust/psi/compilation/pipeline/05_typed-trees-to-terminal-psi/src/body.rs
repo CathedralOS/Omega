@@ -964,6 +964,17 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
+    /// `size_of<T>()` or `align_of<T>()` of the record row `subject`.
+    /// layouts/plans.md: "Queries consume the same exact schema, target and
+    /// layout-policy application as placement and ABI" and "Interpretation
+    /// reports the selected target's layout". The value is therefore not
+    /// known here: lowering publishes one module layout observation for the
+    /// row and reads it, and installation closes it under the selected
+    /// target's validated geometry or refuses.
+    LayoutObservation {
+        subject: StructuralTypeId,
+        measurement: terminal_psi::LayoutMeasurement,
+    },
     /// One byte of a borrowed byte view, read at `index`. The view is
     /// measured where the byte is read, and the read owes `index < length`
     /// against that measurement (byte_views.md, `ByteSequenceRead`). A byte

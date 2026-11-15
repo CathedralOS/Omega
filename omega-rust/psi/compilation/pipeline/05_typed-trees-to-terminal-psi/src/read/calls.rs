@@ -724,6 +724,10 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         // Taken before anything nested is read, so no argument sees it.
         let expected = self.expected.take();
+        // A layout query names no declaration; typing kept its operand.
+        if let Some(query) = &call.layout_query {
+            return self.layout_query(id, call, query, source);
+        }
         self.bound_target(id, call.target_symbol)?;
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
@@ -840,6 +844,55 @@ impl<'t> Program<'t> {
     /// Its closed result belongs to the actual application, never to the
     /// type a caller hopes to receive. Other interpretations still need
     /// their evaluated policy, content, profile and resident correspondence.
+    /// `size_of<T>()` and `align_of<T>()` (layouts/plans.md, "These forms
+    /// take data types"). The operand is read as an ordinary value type, so
+    /// `CLayout<R>` and `R` name the record rows placement and ABI use, and
+    /// the observation measures exactly that row. Only a record row has a
+    /// storage geometry this reader can name; a scalar, a rigid type
+    /// parameter and the value form `align_of(view)` stay refused here
+    /// rather than receive a fabricated measurement.
+    fn layout_query(
+        &mut self,
+        id: MachineId,
+        call: &TableCallExpression,
+        query: &typed_trees::expression::DataLayoutQueryRequest,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::data_layout_queries::DataLayoutQueryKind;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if query.nonempty_view.is_valid()
+            || !query.operand.type_reference.is_valid()
+            || !call.arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || call.receiver.is_valid()
+        {
+            return unserved("layout query without exactly one type operand");
+        }
+        let ValueType::Record(subject, _, _) = self.value_type(id, query.operand.type_reference)?
+        else {
+            return unserved("layout query of a carrier with no record row");
+        };
+        let measurement = match query.kind {
+            DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
+            DataLayoutQueryKind::Alignment => terminal_psi::LayoutMeasurement::Alignment,
+        };
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::LayoutObservation {
+                subject,
+                measurement,
+            },
+            result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
+            ))),
+            source,
+        })
+    }
+
     fn borrow_factory_call(
         &mut self,
         id: MachineId,
@@ -2690,6 +2743,7 @@ fn mentions<'a>(
             Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
         }
         ExpressionKind::Integer(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => Ok(false),
         ExpressionKind::Referent(operand)

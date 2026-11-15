@@ -143,13 +143,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Even past (3), nothing in production fills `typed.access_view_plans` from a domain's `AccessPolicy` (only a `type_identity.rs` unit fixture does), and the source frontier refuses a non-empty table. So the tests still cannot reach their checks of exact shared and exclusive backing, alias rejection, field effects and reordered inputs. Build that route together with the issuer-set entry below (evaluate the applied policy once, join it to the selected layout, publish the view plan), make subject machines layout roots without the slowdown, then re-run `access_view_calls` unchanged.
 - Reported: 2026-11-15, Codex, while restoring Psi source inspection; narrowed 2026-11-15, Claude Code, after migrating the fixture.
 
-### Typed size and alignment queries are refused as unresolved calls
-- Category: knowledge crossing a boundary
-- Where: [layout query typing](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1999), [deferred call formation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L711), [layout observation consumer](omega-rust/psi/compilation/terminal-installation/src/scalar_applications.rs#L2597), [kept C scalar record](samples/cli/facts/c_layout_scalar_record/local/main.omg#L31)
-- Saw: On macOS arm64 at `a80de4a6944`, including #3422, the unchanged C scalar evaluator checks size 24, alignment 8, and offsets `[0, 8, 16]` for `linux_x86_64`. Both the direct Product check and `omega run --both` then refuse `size_of<CLayout<Record>>()` at line 31, column 159 as a call whose name resolves to no declaration. The CLI exits 200. Typing already identifies the layout query, while the checked artifact's layout observation consumer has no source producer for that request.
-- Cost: Placement can compute the exact selected layout, but a program cannot observe its extent or alignment through these core queries. Join the retained typed request to the existing checked layout observation path. Preserve target scope, policy identity and the existing refusal for unavailable or invalid geometry.
-- Reported: 2026-11-15, Codex, while restoring ranked Build-time invocation
-
 ### A reference match loses the incoming loan at its result
 - Category: knowledge crossing a boundary
 - Where: [descriptor location transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L963), [incoming descriptor authentication](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L428)

@@ -239,6 +239,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}

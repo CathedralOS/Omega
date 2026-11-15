@@ -704,6 +704,14 @@ pub(crate) fn defer_unbound_calls(
             let ExpressionNode::Call(call) = expression else {
                 continue;
             };
+            // `size_of<T>()` and `align_of<T>()` name no declaration by
+            // construction: typing recognized the compiler-known query and
+            // retained its operand, and Terminal Psi production reads that
+            // request as a layout observation. It is not a call awaiting a
+            // target.
+            if call.layout_query.is_some() {
+                continue;
+            }
             let receiver = if !call.receiver.is_valid() {
                 CallReceiver::Absent
             } else if let ExpressionNode::Name(path) =
@@ -1694,6 +1702,27 @@ mod tests {
             panic!("call expression")
         };
         node.target = typed_trees::name::Identifier::generated("address_of");
+        assert_eq!(
+            deferred(&program).unwrap(),
+            vec![(holder, DeferredRequest::UndeclaredCallName)]
+        );
+        // A layout query typing recognized is served by the compiler and
+        // records no row; the same spelling without that recognition is
+        // still a name that resolves to nothing.
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.target = typed_trees::name::Identifier::generated("size_of");
+        node.layout_query = Some(typed_trees::expression::DataLayoutQueryRequest {
+            kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
+            operand: Default::default(),
+            nonempty_view: ExpressionHandle::invalid(),
+        });
+        assert_eq!(deferred(&program).unwrap(), Vec::new());
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.layout_query = None;
         assert_eq!(
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
