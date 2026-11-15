@@ -58,6 +58,12 @@ struct WorktreeInfo {
     has_warm_target: bool,
 }
 
+impl WorktreeInfo {
+    fn is_unassigned_pool_slot(&self) -> bool {
+        self.slot_index.is_some() && self.topic.is_none()
+    }
+}
+
 fn worker_slot_index(name: &str) -> Option<usize> {
     let suffix = name.strip_prefix("worker-")?;
     let idx: usize = suffix.parse().ok()?;
@@ -721,7 +727,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                         "current"
                     } else if item.open_pr {
                         "open-pr"
-                    } else if item.slot_index.is_some() && item.at_main {
+                    } else if item.is_unassigned_pool_slot() && item.at_main {
                         "idle"
                     } else if item.slot_index.is_some() {
                         "assigned"
@@ -795,7 +801,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             // `target/`). A slot with a topic is still claimed by another session.
             let mut idle_slots: Vec<&WorktreeInfo> = items
                 .iter()
-                .filter(|w| w.slot_index.is_some() && w.topic.is_none() && !w.open_pr)
+                .filter(|w| w.is_unassigned_pool_slot() && !w.open_pr)
                 .collect();
             idle_slots.sort_by_key(|w| (!w.has_warm_target, w.slot_index.unwrap_or(usize::MAX)));
 
