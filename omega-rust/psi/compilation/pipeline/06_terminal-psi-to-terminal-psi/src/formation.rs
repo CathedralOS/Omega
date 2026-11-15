@@ -280,7 +280,7 @@ impl Scope<'_> {
                     RefusalReason::Unproved(
                         terminal_check_tables::UnprovedCause::NoRuleForGoalForm,
                     ) => RefusalReason::Unsupported,
-                    _ => RefusalReason::Violation(None),
+                    _ => RefusalReason::Violation,
                 };
                 crate::refusal(
                     reason,

@@ -43,7 +43,7 @@ fn a_clause_cannot_use_its_own_consequence_to_form_subtraction() {
         number(1),
     ))])
     .unwrap_err();
-    assert_eq!(error.reason, RefusalReason::Violation(None));
+    assert_eq!(error.reason, RefusalReason::Violation);
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn mutually_pending_clauses_supply_no_premises() {
     let second = Proposition::LessOrEqual(number(1), subtract(formal(2, u32_type()), number(1)));
     assert_eq!(
         form(vec![first, second]).unwrap_err().reason,
-        RefusalReason::Violation(None)
+        RefusalReason::Violation
     );
 }
 
@@ -103,7 +103,7 @@ fn a_bodyless_contract_is_not_exempt_from_formation() {
             .err()
             .unwrap()
             .reason,
-        RefusalReason::Violation(None)
+        RefusalReason::Violation
     );
 }
 
