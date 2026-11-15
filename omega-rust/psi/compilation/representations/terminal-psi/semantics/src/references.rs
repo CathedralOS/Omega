@@ -442,6 +442,16 @@ pub(crate) mod reference_completion {
         // reaches through a reference held by the input points into that
         // reference's original backing, whose own loan the descriptor flow
         // already transports; it is not a borrow of the caller's carrier.
+        let is_view = |shape: &StructuralTypeShape| {
+            matches!(
+                shape,
+                StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                    )
+            )
+        };
         for slot in &slots {
             let leaf = descriptor_location_type(
                 &module.structural_types,
@@ -450,15 +460,7 @@ pub(crate) mod reference_completion {
             )
             .and_then(|leaf| module.structural_type(leaf))
             .ok_or("returned view slot has no typed result leaf")?;
-            let is_view = matches!(
-                leaf.shape,
-                StructuralTypeShape::ElementView { .. }
-                    | StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-                    )
-            );
-            if !is_view {
+            if !is_view(&leaf.shape) {
                 continue;
             }
             let descriptor = DescriptorLocation {
@@ -473,9 +475,18 @@ pub(crate) mod reference_completion {
                 else {
                     continue;
                 };
-                if projection
-                    .path
-                    .contains(&terminal_psi::StructuralPathSegment::Referent)
+                // A formal that is itself a view hands back the descriptor
+                // it was given, or a window of it: that view's backing is
+                // the original one, not the argument's storage.
+                let formal = callee
+                    .structural_parameters
+                    .get(*position)
+                    .and_then(|formal| module.structural_type(formal.structural_type))
+                    .ok_or("returned view input has no typed formal")?;
+                if is_view(&formal.shape)
+                    || projection
+                        .path
+                        .contains(&terminal_psi::StructuralPathSegment::Referent)
                 {
                     continue;
                 }
