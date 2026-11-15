@@ -73,20 +73,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Psi loses a mutable byte view on arrival in another state
-- Category: branch per shape
-- Where: [byte descriptor source lookup](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L587), [structural argument binding](omega-rust/psi/interpreter/src/engine_custody.rs#L1143)
-- Saw: On macOS arm64 with CLI SHA-256 prefix `578557363f0a`, a local mutable view of `[41u8, 19u8]` passes to a nested state declared as `inspect(input: &mut [u8]) requires input.len == 2`. The program's native image exits 0 and the saved Psi opens independently. Psi refuses the successor's `ByteSequenceLength` at machine 3, block 1, operation 2 while matching its bound descriptor home.
-- Cost: A validated direct view changes its destination home without a usable payload binding. Preserve the exact caller backing and verify the state reads both original bytes.
-- Reported: 2026-11-15, Codex, while replaying a loan of descriptor storage.
-
-### Psi loses a live mutable byte descriptor on a short-circuit branch
-- Category: branch per shape
-- Where: [byte descriptor lookup](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs), [active structural argument binding](omega-rust/psi/interpreter/src/engine_custody.rs#L1028)
-- Saw: On macOS arm64 with the `578557363f0a` CLI SHA prefix, a state creates a mutable view of `[41u8, 19u8]` and tests `window.len == 2 && window[0] == 41u8 && window[1] == 19u8` in one transition. Native exits 0. Psi fails its first `ByteSequenceRead` at machine 1, block 4, operation 12 with `VerifiedStructuralPlaceMissing(PlaceId(3))`.
-- Cost: The bounds guard is checked, but its true branch cannot read the same live descriptor. Trace the exact branch custody through both guarded reads.
-- Reported: 2026-11-15, Codex, while replaying a loan of descriptor storage.
-
 ### The bounded concat probe describes an operation its source no longer uses
 - Category: the documents disagree
 - Where: [probe guide](samples/cli/probes/bounded_concat/README.md#L5), [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [fixed-array rule](wiki/spec/language/domains.md#domains-and-qualification)
