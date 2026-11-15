@@ -1011,16 +1011,16 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        // A written `reaches` ceiling is read with the signature
-        // (`reach_ceiling`). A ceiling bound by an installation is an
-        // abstract row with no concrete services to compare.
-        if machine.service_reach_is_installation_bound
+        if (machine.service_reach_is_installation_bound
             || self
                 .typed
                 .service_reach_rows
-                .is_abstract(machine.service_reach_row)
+                .is_abstract(machine.service_reach_row))
+            && self.conformer_requirement(id, machine)?.is_none()
         {
-            return unserved("service reach bound by an installation");
+            return unserved(
+                "service reach bound by an installation without a boundary requirement",
+            );
         }
         // A lifetime parameter selects no type, layout or monomorphized
         // copy (lifetimes.md: "Lifetime arguments are erased regions,
@@ -1445,7 +1445,7 @@ impl<'t> Program<'t> {
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
-        signature.reaches = self.reach_ceiling(id, machine.symbol)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
         signature.invokes = self.entry_ceiling(id, self.typed.machine_invokes(machine), false)?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
@@ -2075,14 +2075,6 @@ impl<'t> Program<'t> {
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
-        if requirement.service_reach_is_installation_bound
-            || self
-                .typed
-                .service_reach_rows
-                .is_abstract(requirement.service_reach_row)
-        {
-            return unserved("service reach bound by an installation");
-        }
         let (mut signature, mut names) = self.contract(
             id,
             requirement.symbol,
@@ -2380,7 +2372,11 @@ impl<'t> Program<'t> {
             .typed
             .closed_requirement_application(owner)
             .map_or(owner, |closed| closed.template);
-        let reaches = self.reach_ceiling(id, reach_author)?;
+        let reaches = self.reach_ceiling(
+            id,
+            reach_author,
+            matches!(declared, Declarer::Requirement { .. }),
+        )?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated

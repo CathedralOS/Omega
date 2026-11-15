@@ -12,8 +12,9 @@ use crate::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceMethod, PackagePolicyServiceReachDependency,
     PackagePolicyServiceSignature, PackagePolicyTargetContext, PackagePolicyTermination,
     PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackageReviewCallableSupply,
-    PackageReviewCheckedServiceReach, PackageReviewCrashInterface, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, PackageReviewSignatureParameter,
+    PackageReviewCheckedServiceReach, PackageReviewCrashInterface, PackageReviewInstallationReach,
+    PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
     PackageReviewWriteFrameCompleteness,
 };
 use backend_plan::SelectedCheckedInvocationRow;
@@ -149,14 +150,6 @@ impl PackageReviewInput<'_> {
             return Ok(review);
         }
         super::callables::validate_body_effect_inventory(module)?;
-        if !selected.installation_reach_resolutions().is_empty()
-            || !module
-                .root_service_reach
-                .installation_dependencies
-                .is_empty()
-        {
-            return Err(unavailable("the complete selected installation reach"));
-        }
         if accepted.closure().elaboration.boundaries.len() != declarations.boundaries.len() {
             return Err(unavailable(
                 "the accepted module's complete boundary inventory",
@@ -561,6 +554,69 @@ impl PackageReviewInput<'_> {
         })
     }
 
+    fn checked_installation_reach(
+        &self,
+        declarations: &AcceptedDeclarations<'_>,
+        plan: &ProviderPlan,
+        row: &ProviderPlanRow,
+        boundary: &BoundaryMachineDeclaration,
+    ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
+        let source = declarations
+            .accepted
+            .closure()
+            .elaboration
+            .boundaries
+            .get(boundary.id)
+            .and_then(|symbol| self.typed().trait_machine_signature(*symbol))
+            .ok_or_else(|| unavailable("the installation reach requirement declaration"))?;
+        let selected = self.compilation().execution().plans();
+        let matches = selected
+            .installation_reach_resolutions()
+            .iter()
+            .filter(|reach| {
+                reach.provider_plan_report_identity == plan.report_fingerprint()
+                    && selected.identity_text(reach.requirement_identity)
+                        == plan.identity_text(row.requirement_identity)
+            })
+            .collect::<Vec<_>>();
+        let reach = match (
+            source.1.service_reach_is_installation_bound,
+            matches.as_slice(),
+        ) {
+            (false, []) => return Ok(None),
+            (true, [reach]) => *reach,
+            _ => return Err(unavailable("the exact selected installation reach row")),
+        };
+        let module = declarations.accepted.module();
+        let project = |names: &[String]| -> Result<_, Vec<Diagnostic>> {
+            let mut ids = Vec::with_capacity(names.len());
+            for name in names {
+                let mut matches = module.services.iter().filter(|service| {
+                    module.identities.text(service.identity) == Some(name.as_str())
+                });
+                let service = matches
+                    .next()
+                    .filter(|_| matches.next().is_none())
+                    .ok_or_else(|| unavailable("the selected reach's exact service declaration"))?;
+                ids.push(service.id);
+            }
+            reviewed_services(declarations.service_names, &ids)
+        };
+        let upper_bound = project(&reach.upper_bound)?;
+        if upper_bound
+            != reviewed_services(
+                declarations.service_names,
+                &boundary.published_service_ceiling,
+            )?
+        {
+            return Err(unavailable("the selected reach's published upper bound"));
+        }
+        Ok(Some(PackageReviewSelectedInstallationReach {
+            upper_bound,
+            resolved: project(&reach.resolved_row)?,
+        }))
+    }
+
     fn checked_row(
         &self,
         declarations: &AcceptedDeclarations<'_>,
@@ -605,14 +661,35 @@ impl PackageReviewInput<'_> {
         // its governing requirement's ceiling in the execution contract.
         // The method row already publishes that ceiling, and the checked
         // body still owes its own empty reach in this projection.
-        let unrepresented_ceiling = !body.contract.published_service_ceiling.is_empty()
-            && (body.contract.published_service_ceiling != boundary.published_service_ceiling
-                || declarations.has_authored_reach(realization));
-        if !reach.is_empty()
+        let installation_reach =
+            self.checked_installation_reach(declarations, plan, row, boundary)?;
+        let unrepresented_reach = if installation_reach.is_some() {
+            reach.iter().any(|service| {
+                boundary
+                    .published_service_ceiling
+                    .binary_search(service)
+                    .is_err()
+            }) || body
+                .contract
+                .published_service_ceiling
+                .iter()
+                .any(|service| {
+                    boundary
+                        .published_service_ceiling
+                        .binary_search(service)
+                        .is_err()
+                })
+        } else {
+            !reach.is_empty()
+                || (!body.contract.published_service_ceiling.is_empty()
+                    && (body.contract.published_service_ceiling
+                        != boundary.published_service_ceiling
+                        || declarations.has_authored_reach(realization)))
+        };
+        if unrepresented_reach
             || !invocations.is_empty()
             || may_suspend
             || may_block
-            || unrepresented_ceiling
             || !body.contract.published_synchronous_entries.is_empty()
             || !body.contract.crash_routes.is_empty()
             || body.contract.published_may_block
@@ -636,7 +713,7 @@ impl PackageReviewInput<'_> {
                 machine_package_identity,
             },
             compiler_intrinsic_execution: None,
-            installation_reach: None,
+            installation_reach,
         })
     }
 
@@ -658,17 +735,37 @@ impl PackageReviewInput<'_> {
             .id_for_symbol(service.symbol)
             .and_then(|service| source.service_reaches.definition(service))
             .ok_or_else(|| unavailable("the selected requirement's own service"))?;
-        // The selected schema always names its slot. Only that exact service
-        // may be added to the published ceiling in this plan projection.
+        let mut authority = vec![requirement_owner.clone()];
+        let ceiling_matches = if signature.service_reach_is_installation_bound {
+            authority.extend(reviewed_services(
+                declarations.service_names,
+                &boundary.published_service_ceiling,
+            )?);
+            authority.sort();
+            authority.dedup();
+            let mut names = authority
+                .iter()
+                .map(PackageReviewNominalIdentity::path)
+                .collect::<Vec<_>>();
+            names.sort_unstable();
+            names
+                == method
+                    .service_reach
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+        } else {
+            method.service_reach.as_slice() == [declared_service.name.as_str()]
+                && boundary
+                    .published_service_ceiling
+                    .iter()
+                    .all(|id| Some(*id) == boundary.owning_service)
+        };
         if method.completion != boundary.completion
             || method.terminates_guarantee != boundary.unconditional_termination
-            || boundary
-                .published_service_ceiling
-                .iter()
-                .any(|id| Some(*id) != boundary.owning_service)
+            || !ceiling_matches
             || !method.entry_claims.is_empty()
             || !method.result_claims.is_empty()
-            || method.service_reach.as_slice() != [declared_service.name.as_str()]
             || !method.synchronous_invocations.is_empty()
             || boundary.declaration.as_ref().is_none_or(|declaration| {
                 method.may_suspend != declaration.source.published_may_suspend
@@ -700,7 +797,7 @@ impl PackageReviewInput<'_> {
                 result: callable.return_type.clone(),
             },
             authority: PackagePolicyServiceAuthority {
-                service_reach: vec![requirement_owner.clone()],
+                service_reach: authority,
                 synchronous_invocations: Vec::new(),
                 progress_premises: Vec::new(),
             },
@@ -746,7 +843,6 @@ impl PackageReviewInput<'_> {
             || signature.spelling.is_some()
             || signature.is_default
             || !signature.native_callback_parameters.is_empty()
-            || signature.service_reach_is_installation_bound
             || !source.state_signature_contracts(signature).is_empty()
             || !signature.declares_no_crash_route
             || !boundary.crash_routes.is_empty()
@@ -814,6 +910,14 @@ impl PackageReviewInput<'_> {
             declarations.service_names,
             &boundary.published_service_ceiling,
         )?;
+        let unresolved_installation_reaches = signature
+            .service_reach_is_installation_bound
+            .then(|| PackageReviewInstallationReach {
+                requirement: requirement.clone(),
+                upper_bound: declared_reach.clone(),
+            })
+            .into_iter()
+            .collect();
         Ok(PackagePolicyCallable {
             target_context: PackagePolicyTargetContext::TargetIndependent,
             role: PackagePolicyCallableRole::Boundary,
@@ -831,11 +935,15 @@ impl PackageReviewInput<'_> {
             contracts: Vec::new(),
             declared_service_reach: Some(declared_reach.clone()),
             service_reach_dependency: PackagePolicyServiceReachDependency {
-                concrete: declared_reach,
+                concrete: if signature.service_reach_is_installation_bound {
+                    Vec::new()
+                } else {
+                    declared_reach
+                },
                 parameters: Vec::new(),
             },
             checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
-            unresolved_installation_reaches: Vec::new(),
+            unresolved_installation_reaches,
             declared_synchronous_invocations: Some(Vec::new()),
             realized_synchronous_invocations: Vec::new(),
             capability_flows: Vec::new(),

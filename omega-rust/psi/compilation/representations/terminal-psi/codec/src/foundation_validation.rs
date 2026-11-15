@@ -2403,6 +2403,24 @@ pub(crate) mod declaration_foundations {
                 return malformed("installation reach requirement identity must be nonempty");
             }
             require_known_services(module, &dependency.upper_bound)?;
+            let mut boundaries = module
+                .boundary_machines
+                .iter()
+                .filter(|boundary| boundary.identity == dependency.requirement_identity);
+            let Some(boundary) = boundaries.next().filter(|_| boundaries.next().is_none()) else {
+                return malformed(
+                    "installation reach dependency has no exact boundary declaration",
+                );
+            };
+            let mut reach = boundary.fixed_service_reach.clone();
+            reach.extend(dependency.upper_bound.iter().copied());
+            reach.sort_unstable();
+            reach.dedup();
+            if reach != boundary.published_service_ceiling {
+                return malformed(
+                    "installation reach dependency differs from its exact published bound",
+                );
+            }
         }
         Ok(())
     }

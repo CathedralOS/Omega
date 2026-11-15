@@ -2441,6 +2441,7 @@ dependencies = [
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-terminal-psi",
  "terminal-semantics",

@@ -84,6 +84,7 @@ impl SelectedProductTarget {
             SupplyPlanning {
                 module: accepted.module(),
                 schemas: &schemas,
+                installation_requirements: &accepted.installation_reach_requirements(),
             },
         )?;
         Ok(Self {
