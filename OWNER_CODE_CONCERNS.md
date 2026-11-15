@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An assigned local worktree can lose its warm target between checks
+- Category: verifying costs more than writing
+- Where: [pool cache retention](tools/docs/testing.md#L589), [managed retention setup](tools/xtask/src/managed_cache_retention.rs#L1)
+- Saw: On macOS arm64 at `c55c52f59b1`, the assigned `worker-8` passed its focused test at 22:11:11 PST on 2026-11-14. By 22:11:49, the same slot's `target` was a dangling mbx symlink and its next command failed with `Not a directory (os error 20)`. A concurrent mbx 1.29.2 test log reported 37.9 GiB free against its 45.0 GiB floor and removal of two live target directories while two running commands kept theirs. The host had no `target.keep` setting. No command in this slot was compiling while its target was removed.
+- Cost: A local agent holding a pool slot can lose its binaries and incremental build state between tests. Repairing the link gets the next build started cold. Make cache retention follow the local pool's assignment lifetime within the workstation's disk budget.
+- Reported: 2026-11-15, Codex, while validating const-index record arguments
+
 ### The C layout field walk omits ranks on five recursive helpers
 - Category: a verdict with nothing behind it
 - Where: [C ABI field walk](source/library/core/c_layout.omg#L36), [scalar C-layout control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1202)
@@ -93,13 +100,6 @@ framework or a list of features that remain unimplemented.
 - Saw: At `01ee33b7779`, the scalar padding body by itself computes `r = offset % alignment` and returns zero if `r == 0`, or `alignment - r` otherwise. With `1 <= alignment <= 16`, Stage 06 refuses its published `result < alignment` after the value match. Returning the remainder directly proves `result < alignment`, and returning the subtraction directly with `0 < r < alignment` proves the same bound. A terminal branch that selects subtraction for `r > 0` and zero otherwise also proves the original guarantee.
 - Cost: A checked arithmetic bound is lost when the padding branches produce a joined value. Keep the result relation through the existing join and arithmetic proofs.
 - Reported: 2026-11-15, Codex, while restoring the C ABI field walk
-
-### Build-time record arguments refuse folded and named const indices
-- Category: a verdict with nothing behind it
-- Where: [type-expression inventory](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L187), [record argument construction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs#L270)
-- Saw: At clean `f54abf8157c`, a Build-time invocation with a `Storage` record holding `Buffer<4>` and four bytes succeeds, as does the equivalent `Buffer<outer()>` with two evaluation receipts. With `Buffer<(2 + 2)>`, the application closes to the same four-element array but the generated argument binding refuses `using a type written as an expression`. With `Buffer<CAPACITY>` and `const CAPACITY: u64 = 4u64`, the application stays open and the same call refuses `invocation value has no exact closed data application`.
-- Cost: The caller cannot pass the same checked record at equivalent const indices. Carry the available canonical value through existing const-argument completion and the generated argument type before rejecting unresolved work.
-- Reported: 2026-11-14, Codex, while checking closed const-argument replay
 
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: knowledge crossing a boundary
