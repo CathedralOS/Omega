@@ -166,7 +166,10 @@ machine use(byte: u8) {}
 "#;
     assert_eq!(verdict(literal), "accepted");
     assert_eq!(verdict(&literal.replace("path[0]", "path[1]")), "rejected");
-    assert_eq!(verdict(&literal.replace("path: \"%\"", "path: \"\"")), "rejected");
+    assert_eq!(
+        verdict(&literal.replace("path: \"%\"", "path: \"\"")),
+        "rejected"
+    );
 
     let source = r#"
 data Holder<'held> { known: &'held [u8]; path: &'held [u8]; }

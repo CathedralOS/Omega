@@ -361,34 +361,6 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
     }
 }
 
-fn query_call(
-    typed: &typed_trees::TypedTrees,
-    name: &str,
-) -> (
-    symbols::SymbolHandle,
-    typed_trees::expression::ExpressionHandle,
-) {
-    let author = typed.realized_machine_named(name).unwrap().symbol;
-    let mut expressions = typed
-        .expression_table
-        .iter_expressions()
-        .filter_map(|(handle, node)| {
-            let ExpressionNode::Call(call) = node else {
-                return None;
-            };
-            (typed_trees::references::StaticArgumentCall::Expression(handle, call)
-                .lexical_owner(typed)
-                == author)
-                .then_some(handle)
-        });
-    let call = expressions
-        .next()
-        .expect("the source author owns its query");
-    assert!(expressions.next().is_none(), "one exact declaration query");
-    (author, call)
-}
-
-
 #[test]
 fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
     let source = r#"
@@ -402,23 +374,17 @@ fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
             view
         }
     "#;
-    let library =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
-    let typed = customer_source::actual_library_source(
-        &library,
-        source,
-        semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(),
-    )
-    .unwrap();
+    let typed = typed_source(source);
     let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
     let facts = facts();
     let mut accounting = SourceCompletionAccounting::default();
-    let (describe, query) = query_call(&typed, "describe");
-    let schema = prepared
-        .entry_call(describe, query, &[])
-        .unwrap()
-        .invoke_recorded(target(&facts), &mut accounting)
-        .unwrap();
+    let schema = reflected_schema(
+        &typed,
+        &prepared,
+        "describe",
+        target(&facts),
+        &mut accounting,
+    );
     let carry = typed.realized_machine_named("carry").unwrap().symbol;
     let returned = prepared
         .entry(carry, carry, &[schema.value().clone()])
