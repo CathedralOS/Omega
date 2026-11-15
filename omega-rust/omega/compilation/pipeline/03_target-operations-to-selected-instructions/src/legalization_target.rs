@@ -1545,8 +1545,7 @@ pub(crate) mod control_flow {
                             } => {
                                 *call_plan == expected_plan
                                     && plan.function(*callee).is_some_and(|candidate| {
-                                        candidate.result
-                                            == abstract_operations::AbstractFunctionResult::Unit
+                                        candidate.result.structural().is_some_and(|result| declaration.result.matches_structural_result(result))
                                             && candidate
                                                 .parameters
                                                 .iter()
@@ -1574,7 +1573,11 @@ pub(crate) mod control_flow {
                         }
                         && declaration.completion
                             == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        && declaration.result.is_unit()
+                        && terminal_semantics::inhabitation::external_result_is_erased(
+                            declaration.completion,
+                            declaration.result.structural(),
+                            plan.structural_types.as_slice(),
+                        ) == Ok(true)
                         && arguments.len() == expected_arguments.len()
                         && arguments.len() == expected_plan.parameters.len()
                         && structural_arguments.len() == declaration.structural_parameters.len()

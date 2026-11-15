@@ -207,12 +207,10 @@ fn default_abi_eligible(declaration: &terminal_psi::CallingAbiDeclaration) -> bo
 
 /// Native bindings use the requirement's published ABI and the calling policy
 /// of their actual mechanism. A syscall must not inherit the platform C ABI.
-/// The name lookup supplies authored diagnostic labels, never ABI identity.
 pub fn native_calling_applications(
     profile: target::TargetProfile,
     program: &super::CallingProgram,
     bindings: &[crate::target_supply::NormalizedNativeSupply],
-    boundary_name: impl Fn(semantic_vocabulary::BoundaryMachineId) -> String,
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
     if bindings.is_empty() {
         return Ok(Vec::new());
@@ -221,7 +219,6 @@ pub fn native_calling_applications(
     let failure = |reason: String| vec![Diagnostic::error(reason)];
     let mut applications = Vec::new();
     for supplied in bindings {
-        let name = boundary_name(supplied.boundary);
         if supplied.binding.target() != profile {
             return Err(failure(
                 "native calling application has another target".into(),
@@ -240,6 +237,7 @@ pub fn native_calling_applications(
             .ok_or_else(|| {
                 failure("native calling application lost its exact callable identity".into())
             })?;
+        let name = language_semantics::type_identity::callable_display_path(requirement);
         let signature = module
             .calling_signatures
             .iter()

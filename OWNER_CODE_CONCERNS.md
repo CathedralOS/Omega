@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Psi execution requires native lowering of the guest program
+- Category: knowledge crossing a boundary
+- Where: [runtime admission](omega-rust/omega/compilation/native-compiler/src/realization.rs#L152), [borrowed-storage layout extraction](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L30)
+- Saw: At `2669589de8a`, the unchanged console program fails with the same native target-lowering error under both `omega run --both` and `omega run --engine psi`. Neither reaches guest execution. Runtime admission calls `lower_borrowed_storage_layouts`, which lowers the complete guest program to target operations and then keeps only its borrowed-storage descriptions. These observations do not measure the time spent in that lowering step.
+- Cost: A native lowering gap also prevents Psi execution, even when the interpreter could execute the checked guest operations. Have the layout owner provide the exact borrowed-storage descriptions without requiring native lowering of every guest body. Keep native binding, layout, authority and provider checks intact; native image production still needs its full lowering path.
+- Reported: 2026-11-15, Codex, while checking the console's interpreter and native paths
+
 ### Editing an unlinked compiler test changes the production compiler identity
 - Category: verifying costs more than writing
 - Where: [compiler build-input collection](omega-rust/omega/compilation/compiler/build.rs#L32), [recursive input scan](omega-rust/omega/compilation/compiler/build.rs#L98)

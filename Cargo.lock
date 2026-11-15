@@ -46,6 +46,7 @@ dependencies = [
  "diagnostics",
  "installation-evidence",
  "language-core",
+ "language-semantics",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",

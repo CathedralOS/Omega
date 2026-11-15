@@ -12628,7 +12628,11 @@ pub(crate) mod operation_contracts {
                     ..
                 } => boundary_machines.get(boundary).is_some_and(|boundary| {
                     boundary.completion == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        && boundary.result.is_unit()
+                        && terminal_semantics::inhabitation::external_result_is_erased(
+                            boundary.completion,
+                            boundary.result.structural(),
+                            unit.structural_types.as_slice(),
+                        ) == Ok(true)
                         && arguments.len() == boundary.scalar_parameters.len()
                         && arguments
                             .iter()
