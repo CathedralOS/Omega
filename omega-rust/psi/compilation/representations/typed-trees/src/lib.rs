@@ -512,9 +512,29 @@ pub(crate) mod canonical_values {
         type_name: &str,
     ) -> Option<&'a DataDefinition> {
         let carrier = program.unwrapped_type_reference(carrier)?;
+        // A layout storage application holds its semantic record's fields;
+        // the literal names that record and is applied at the storage type.
+        if let Some(storage) = program.layout_storage_arguments(carrier) {
+            let declaration = program.closed_data_definition(storage.semantic_type)?;
+            return (declaration.symbol.is_valid() && declaration.name.as_str() == type_name)
+                .then_some(declaration);
+        }
         let symbol = program.type_reference_node(carrier).as_named_symbol()?;
         let declaration = program.data_definition_by_symbol(symbol)?;
         (symbol.is_valid() && declaration.name.as_str() == type_name).then_some(declaration)
+    }
+
+    /// The type a constant's record literal is applied at: the storage
+    /// application when the carrier is one, so the literal constructs that
+    /// representation rather than the bare semantic record.
+    fn literal_application(
+        program: &TypedTrees,
+        carrier: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let underlying = program.unwrapped_type_reference(carrier)?;
+        program
+            .layout_storage_arguments(underlying)
+            .map(|_| underlying)
     }
 
     fn named_case<'a>(
@@ -546,6 +566,9 @@ pub(crate) mod canonical_values {
             type_symbol: definition.symbol,
             ..TableStructLiteral::default()
         };
+        if let Some(application) = literal_application(program, declared_type) {
+            literal.application_type = application;
+        }
         let declared_fields = if let Some(case_name) = case_name {
             let variant = named_case(program, definition, case_name)?;
             literal.case_name = Some(variant.name.clone());
@@ -685,7 +708,10 @@ pub(crate) mod canonical_values {
                 let Some(declaration) = aggregate_declaration(program, carrier, type_name) else {
                     return false;
                 };
-                if actual.type_symbol != declaration.symbol {
+                if actual.type_symbol != declaration.symbol
+                    || literal_application(program, carrier)
+                        .is_some_and(|application| actual.application_type != application)
+                {
                     return false;
                 }
                 let expressions = program.expression_table.struct_fields(actual.fields);

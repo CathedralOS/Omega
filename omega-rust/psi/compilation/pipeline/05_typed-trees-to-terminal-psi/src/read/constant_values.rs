@@ -246,7 +246,14 @@ impl Program<'_> {
         if declaration.name.as_str() != type_name {
             return Ok(false);
         }
-        if !row.requires.is_empty() {
+        // A record's default domain is its authored `requires` and the
+        // predicates of its fields' domains (dependent_values.md). A field
+        // domain is established by the materialized `as +D` entry, which
+        // the cast reader judged with that domain's predicate, so a row
+        // whose clauses all come from field domains holds once every field
+        // operand carries exactly its declared qualification (checked
+        // below). Authored clauses still need their own proof.
+        if !row.requires.is_empty() && !declaration.requires_facts.is_empty() {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -276,6 +283,15 @@ impl Program<'_> {
             else {
                 return Ok(false);
             };
+            if case.is_none()
+                && row
+                    .fields()
+                    .get(*position)
+                    .map(|field| field.value_type.qualification())
+                    != operand.result.map(|result| result.qualification())
+            {
+                return Ok(false);
+            }
             let name = self.typed.symbols.name(*symbol);
             let mut named = fields.iter().filter(|(field, _)| field.as_str() == name);
             let (Some((_, value)), None) = (named.next(), named.next()) else {

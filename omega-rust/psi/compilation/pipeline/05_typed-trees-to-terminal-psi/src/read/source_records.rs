@@ -831,6 +831,7 @@ mod tests {
                 },
             ]),
             requires: Vec::new(),
+            authored_layout: false,
         };
         let source = RecordSource {
             declaration: data.symbol,

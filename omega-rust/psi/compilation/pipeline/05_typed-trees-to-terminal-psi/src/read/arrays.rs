@@ -586,6 +586,7 @@ impl Program<'_> {
             identity,
             shape,
             requires: Vec::new(),
+            authored_layout: false,
         });
         let mut source = physical_source(reference);
         source.region_owner = self.lifetime_owner;
@@ -633,6 +634,7 @@ impl Program<'_> {
             identity,
             shape,
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources.push(physical_source(reference));
         // The row is the element's carrier; the regions its elements hold
@@ -704,6 +706,7 @@ impl Program<'_> {
                 policy,
             },
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources.push(physical_source(reference));
         Ok(id)

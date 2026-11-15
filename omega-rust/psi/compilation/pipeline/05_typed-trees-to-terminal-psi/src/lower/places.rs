@@ -2712,6 +2712,9 @@ impl<'a> Lowering<'a> {
                 },
             });
         }
+        if self.record_type(record)?.authored_layout {
+            return self.establish_laid_out(record, roster, source);
+        }
         let operation = self.operation_identity(source);
         self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(
@@ -2729,6 +2732,75 @@ impl<'a> Lowering<'a> {
                 // The operand root is named by the establishment's own
                 // roster; the row says only that the field has new contents.
                 Operand::Record(_) => self.write(leaf, at, Content::Overwritten)?,
+            }
+        }
+        Ok(Reached::Value((root, exact)))
+    }
+
+    /// A literal of `LayoutStorage<T, Policy>` storage. A byte view of
+    /// that storage observes every byte of the selected plan, padding
+    /// included, and padding has no zero promise of its own (layouts/plans.md,
+    /// "Padding has no universal zero/sign-extension promise"). The literal
+    /// is therefore the zero value followed by one store per field, the same
+    /// operations as `let x: T;` and its field assignments: each byte then
+    /// has contents, and each store owes the record's clauses as an
+    /// assignment does.
+    fn establish_laid_out(
+        &mut self,
+        record: StructuralTypeId,
+        roster: Vec<(&RecordField, Operand)>,
+        source: SourceOrigin,
+    ) -> Evaluation<(PlaceId, ExactPlaceId)> {
+        let (root, exact) = self.establish_zeroed(record, source)?;
+        let owed = self.record_type(record)?.requires.len();
+        let fields = roster
+            .into_iter()
+            .map(|(field, operand)| (field.id, operand))
+            .collect::<Vec<_>>();
+        for (position, (field, operand)) in fields.into_iter().enumerate() {
+            let operation = self.operation_identity(source);
+            self.owe_domains(operation, owed, source)?;
+            let leaf = self.project(exact, Segment::Field(field))?;
+            let at = ProgramPoint::AfterOperation(operation);
+            match operand {
+                Operand::Scalar(value) => {
+                    let path =
+                        self.storage_path(&[], ExecutionSite::Operation(operation), source)?;
+                    self.emit(
+                        operation,
+                        None,
+                        OperationKind::StructuralScalarFieldStore {
+                            destination: root,
+                            path,
+                            field,
+                            value,
+                            range_obligation: None,
+                        },
+                    )?;
+                    self.write(leaf, at, Content::Value(value))?;
+                }
+                Operand::Record(child) => {
+                    let path = self.storage_path(
+                        &[Step::Field {
+                            owner: record,
+                            field: position,
+                        }],
+                        ExecutionSite::Operation(operation),
+                        source,
+                    )?;
+                    self.emit(
+                        operation,
+                        None,
+                        OperationKind::StoreStructuralField {
+                            disposition: StructuralStoreDisposition::ReplaceDiscardable,
+                            destination: root,
+                            path,
+                            field: None,
+                            value: StructuralArgument::whole(child, StructuralAccess::Owned),
+                        },
+                    )?;
+                    self.write(leaf, at, Content::Overwritten)?;
+                }
             }
         }
         Ok(Reached::Value((root, exact)))
@@ -3442,6 +3514,37 @@ impl<'a> Lowering<'a> {
     /// this route reads (`i8`..`u64`, `bool`) admits zero and a constrained
     /// scalar type is refused by the reader, so a scalar home owes no
     /// domain clause and is never gated.
+    /// The zero value of `record` in a new root: the storage of `let x: T;`.
+    /// The zero of each scalar leaf is a constant the module holds, so the
+    /// row that says what the leaf holds names a value. The constants come
+    /// first: the establishment's domain obligations are stated over them.
+    fn establish_zeroed(
+        &mut self,
+        record: StructuralTypeId,
+        source: SourceOrigin,
+    ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let mut zeros = Vec::new();
+        let mut owed = 0;
+        self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
+        let operation = self.operation_identity(source);
+        self.owe_domains(operation, owed, source)?;
+        let (root, exact) = self.produce(
+            operation,
+            record,
+            OperationKind::EstablishZeroedStructural {},
+        )?;
+        let at = ProgramPoint::AfterOperation(operation);
+        self.write(exact, at, Content::Overwritten)?;
+        for (segments, zero) in zeros {
+            let mut leaf = exact;
+            for segment in segments {
+                leaf = self.project(leaf, segment)?;
+            }
+            self.write(leaf, at, Content::Value(zero))?;
+        }
+        Ok((root, exact))
+    }
+
     pub(super) fn declare_local(
         &mut self,
         slot: usize,
@@ -3453,30 +3556,7 @@ impl<'a> Lowering<'a> {
                 return Err(self.internal("a local of a rigid type is declared"));
             }
             ValueType::Record(record, _, _) => {
-                // The zero of each scalar leaf, as a constant the module
-                // holds, so the row that says what the leaf holds names a
-                // value. The constants come first: the establishment's
-                // domain obligations are stated over them.
-                let mut zeros = Vec::new();
-                let mut owed = 0;
-                self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
-                let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
-                let (root, exact) = self.produce(
-                    operation,
-                    record,
-                    OperationKind::EstablishZeroedStructural {},
-                )?;
-                let at = ProgramPoint::AfterOperation(operation);
-                self.write(exact, at, Content::Overwritten)?;
-                for (segments, zero) in zeros {
-                    let mut leaf = exact;
-                    for segment in segments {
-                        leaf = self.project(leaf, segment)?;
-                    }
-                    self.write(leaf, at, Content::Value(zero))?;
-                }
-                Bound::Record(root)
+                Bound::Record(self.establish_zeroed(record, source)?.0)
             }
             ValueType::Scalar(scalar_type, _) => {
                 let home = self
@@ -3929,6 +4009,7 @@ mod tests {
                 policy: Some(Policy::Wrapping),
             },
             requires: Vec::new(),
+            authored_layout: false,
         });
         types.push(RecordType {
             owns_linear_claim: false,
@@ -3940,6 +4021,7 @@ mod tests {
                 length: terminal_psi::ArrayExtent::Literal(2),
             },
             requires: Vec::new(),
+            authored_layout: false,
         });
         let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
         let mut signatures = IdTable::default();

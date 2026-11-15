@@ -70,6 +70,7 @@ impl Program<'_> {
             identity,
             shape: StorageShape::AtomicCell(cell),
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources
             .push(super::arrays::physical_source(reference));

@@ -333,6 +333,13 @@ pub struct RecordType {
     /// whether the place is that case, before it states a goal
     /// (`terminal-psi-to-terminal-psi`).
     pub requires: Vec<Proposition>,
+    /// The record is `LayoutStorage<T, Policy>` storage: its bytes follow a
+    /// selected plan and a byte view can observe all of them, padding
+    /// included. Construction therefore zeroes the storage before storing
+    /// its fields, as `let x: T;` followed by field stores does, so no byte
+    /// is left without contents (constants.md: "Semantically unobservable
+    /// padding is emitted as zero").
+    pub authored_layout: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
