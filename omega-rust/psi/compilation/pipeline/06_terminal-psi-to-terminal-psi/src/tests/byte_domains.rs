@@ -263,7 +263,7 @@ fn incoming_byte_literals_must_establish_the_domains_entire_theory() {
             terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes());
         assert!(
             matches!(received,
-                Err(terminal_codec::CodecError::MalformedStructuralFoundation(reason))
+                Err(terminal_codec::CodecError::MalformedOperationFoundation { reason, .. })
                     if reason == "scalar array establishment has an invalid result shape"),
             "{received:?}"
         );
