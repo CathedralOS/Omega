@@ -37,7 +37,15 @@ pub(super) fn judged_typed_result(
         )
         .program,
     );
-    assert_eq!(verdicts.len(), 1);
+    // The first verdict is the closure's. Any other is a further refusal of
+    // the same reading, never an acceptance.
+    assert!(
+        verdicts
+            .iter()
+            .skip(1)
+            .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
     verdicts.remove(0)
 }
 
