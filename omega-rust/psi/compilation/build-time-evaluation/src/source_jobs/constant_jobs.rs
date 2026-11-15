@@ -7,8 +7,10 @@
 use std::collections::VecDeque;
 
 use diagnostics::Diagnostic;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::data::DataField;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::references::TypedReferences;
 
@@ -309,7 +311,7 @@ pub(super) fn decoded(
     program: &TypedTrees,
     carrier: typed_trees::types::TypeReferenceHandle,
     value: &BuildTimeValue,
-) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, String> {
+) -> Result<DecodedCanonicalConstValue, String> {
     if !program
         .type_reference_table
         .contains_type_reference(carrier)
@@ -325,8 +327,7 @@ fn decode_snapshot(
     program: &TypedTrees,
     carrier: typed_trees::types::TypeReferenceHandle,
     value: &BuildTimeValue,
-) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, String> {
-    use language_semantics::const_value::DecodedCanonicalConstValue;
+) -> Result<DecodedCanonicalConstValue, String> {
     use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceNode};
     let unsupported =
         || "no product route yet: constant result needs its pure snapshot materializer".to_owned();
@@ -356,35 +357,47 @@ fn decode_snapshot(
         TypeReferenceNode::Named { symbol, .. } => *symbol,
         _ => return Err(unsupported()),
     };
-    if let Some(record) = program.data_definition_by_symbol(symbol) {
-        let BuildTimeValue::Struct { type_name, fields } = value else {
-            return Err(unsupported());
-        };
-        if *type_name != program.normalized_type_identity_text(underlying) {
-            return Err("constant result differs from its declared record type".into());
-        }
-        let members = program.data_members(record);
-        if members.len() != fields.len() {
-            return Err("constant result differs from its declared field count".into());
-        }
-        let fields = members
-            .iter()
-            .zip(fields)
-            .map(|(member, (identity, value))| {
-                let field = member.as_field().ok_or_else(unsupported)?;
-                if field.member_identity().spelling() != *identity {
-                    return Err("constant result differs from its declared field identity".into());
+    if let Some(declaration) = program.data_definition_by_symbol(symbol) {
+        let members = program.data_members(declaration);
+        let declared_name = declaration.name.as_str().to_owned();
+        return match value {
+            BuildTimeValue::Struct { type_name, fields } => {
+                if *type_name != program.normalized_type_identity_text(underlying) {
+                    return Err("constant result differs from its declared record type".into());
                 }
-                Ok((
-                    field.name.as_str().to_owned(),
-                    decode_snapshot(program, field.type_reference, value)?,
-                ))
-            })
-            .collect::<Result<_, String>>()?;
-        return Ok(DecodedCanonicalConstValue::Record {
-            type_name: record.name.as_str().to_owned(),
-            fields,
-        });
+                let fields = decode_snapshot_fields(
+                    program,
+                    members.iter().map(|member| member.as_field()),
+                    fields,
+                )?;
+                Ok(DecodedCanonicalConstValue::Record {
+                    type_name: declared_name,
+                    fields,
+                })
+            }
+            BuildTimeValue::Case { variant, payload } => {
+                // The invocation already checked the result carrier. Resolve
+                // its observed case only within that exact declaration.
+                let mut matching = members
+                    .iter()
+                    .filter_map(|member| member.as_variant())
+                    .filter(|case| case.member_identity().spelling() == *variant);
+                let (Some(case), None) = (matching.next(), matching.next()) else {
+                    return Err("constant result has no exact case of its declared type".into());
+                };
+                let fields = decode_snapshot_fields(
+                    program,
+                    program.data_payload_fields(case).iter().map(Some),
+                    payload,
+                )?;
+                Ok(DecodedCanonicalConstValue::Variant {
+                    type_name: declared_name,
+                    case_name: case.name.as_str().to_owned(),
+                    fields,
+                })
+            }
+            _ => Err(unsupported()),
+        };
     }
     let atom = program
         .symbols
@@ -414,6 +427,29 @@ fn decode_snapshot(
         }
         _ => Err(unsupported()),
     }
+}
+
+fn decode_snapshot_fields<'a>(
+    program: &TypedTrees,
+    declared: impl ExactSizeIterator<Item = Option<&'a DataField>>,
+    values: &[(String, BuildTimeValue)],
+) -> Result<Vec<(String, DecodedCanonicalConstValue)>, String> {
+    if declared.len() != values.len() {
+        return Err("constant result differs from its declared field count".into());
+    }
+    declared
+        .zip(values)
+        .map(|(field, (identity, value))| {
+            let field = field.ok_or("constant result does not match its declared record shape")?;
+            if field.member_identity().spelling() != *identity {
+                return Err("constant result differs from its declared field identity".into());
+            }
+            Ok((
+                field.name.as_str().to_owned(),
+                decode_snapshot(program, field.type_reference, value)?,
+            ))
+        })
+        .collect()
 }
 
 fn named_uses(program: &TypedTrees, constants: &[SymbolHandle]) -> Vec<Vec<ExpressionHandle>> {

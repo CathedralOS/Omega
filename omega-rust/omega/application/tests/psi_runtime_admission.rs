@@ -91,6 +91,31 @@ machine main() {
     );
 }
 
+#[test]
+fn psi_runs_a_named_sum_constant_with_its_case_payload() {
+    assert_psi_runs(
+        "sum-constant",
+        r#"data Policy [copy] {
+    case Read(number: u64);
+    case Write(number: u64);
+}
+const selected: Policy = Policy::Read { number: 7u64 };
+machine main() crashes Trap {
+    let result: u64 = match selected {
+        Policy::Read { number } -> number
+        _ -> 99u64
+    };
+    transition result == 7u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#,
+    );
+}
+
 fn compile(project: &Path, destination: NativeDestination) -> Result<BuildReport, BuildError> {
     let outcomes = build(BuildRequest {
         root_path: project.join("main.omg"),
