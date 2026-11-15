@@ -90,7 +90,7 @@ framework or a list of unimplemented features.
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L554), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
-- Saw: Empty activation still copies declaration and side-record storage before projection. On the scalar-contract and borrowed-root Build routes, each zero-body activation cloned 63 arenas and requested 5,072,323 bytes on Windows x86-64 at opt-level 1. The [measurement in #3634](https://github.com/CathedralOS/Omega/pull/3634) also covers the landed primary-body storage repair. Child-list rewrites still use completion-batch boundaries.
+- Saw: Empty activation still copies declaration and side-record storage before projection. On both original Build routes, continuation construction requested 4,136,141 bytes across 12,802 allocations and 58 arena clones; matching-symbol preparation separately requested 958,615 bytes across eight allocations and five clones, on Windows x86-64 at opt-level 1. The [measurement in #3646](https://github.com/CathedralOS/Omega/pull/3646) also covers nonempty completion. Child-list rewrites still use completion-batch boundaries.
 - Cost: Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
-- Reported: 2026-11-15, Codex, while measuring retained type and body storage.
+- Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 

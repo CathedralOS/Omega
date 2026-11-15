@@ -561,7 +561,9 @@ pub(crate) mod seeded_continuation {
                 )]);
             }
             self.resolved = successor;
-            Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
+            self.typed = self
+                .typed
+                .with_replaced_symbols(self.resolved.symbols.clone());
             Ok(self)
         }
 
