@@ -80,6 +80,13 @@ framework or a list of unimplemented features.
 - Cost: This fixture no longer checks whether each body yields the same diagnostic alone and in a group, or whether the direct reader stops at the first. Use a body form that still produces the intended refusal and keep the ordering and identity assertions.
 - Reported: 2026-11-15, Codex, while running the Stage06 suite for typed slice indexing.
 
+### The float equality refusal test never selects its IEEE comparison
+- Category: tests that pin the bug
+- Where: [float clause test](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/floats.rs#L99), [contract comparison reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/contracts.rs)
+- Saw: With only the Stage06 fixture constructors repaired on `696be2f33d1`, `what_is_not_computed_with_a_float_is_refused_by_name` reaches “contract IEEE comparison without its selected declaration” for `need(value: f32) requires value == value`. Its oracle still expects the pre-#3544 blanket comparison refusal. The test never reaches the original question of whether an unconstrained float can be assumed equal to itself.
+- Cost: The regression no longer exercises IEEE equality for a value that may be NaN. Select the checked comparison through the ordinary source route and preserve the negative proof that a caller cannot assume the equality without evidence.
+- Reported: 2026-11-15, Codex, when the lowered checker suite resumed after the record-layout fixture repair.
+
 ### A computed array extent blocks a layout constant before target evaluation
 - Category: knowledge crossing a boundary
 - Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [deferred type references](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L158), [checked const arguments](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs#L216)
@@ -185,13 +192,6 @@ framework or a list of unimplemented features.
 - Saw: A record constant computed through a `LayoutStorage` application now runs once under each deployment's admitted layout and folds the value all of them agree on (`fixed_layout_storage/const_name` exits 0 natively and in Psi). On that same branch the kept `const BYTES: u64 = size_of<Cell>();` still refuses: "source invocation requires selected target, scalar or external authority that is not supplied". Admission in `source_jobs.rs` finds a target, scalar or external demand on the invocation; the per-deployment run supplies only the target's admitted layouts, not its scalar observations (which demand list is non-empty was not isolated). The historical scalar control exposes an [earlier computed extent refusal](#a-computed-array-extent-blocks-a-layout-constant-before-target-evaluation). The existing Psi folded-constant rows have readers and no source producer.
 - Cost: Supply each deployment's target observations to the constant's per-deployment run, as its layouts now are, and fold it only when the deployments agree. Publish the exact source-selected provider commitment through the existing folded-constant closure. Preserve the wrong-target, absent/repeated plan, equal-result substitution and cast refusals.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles; narrowed the same day by Claude Code after the record constant was repaired.
-
-### Stage06 checker tests cannot build after the record layout flag changed
-- Category: tests that pin the bug
-- Where: [Stage06 fixture records](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests.rs), [record layout flag](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/body.rs)
-- Saw: On clean `f7d09fdf64f` on macOS arm64, `mbx test -p terminal-psi-to-terminal-psi --lib` exits 101 with 21 E0063 errors for missing `RecordType.authored_layout`. The constructors are in `tests.rs`, `tests/arrays.rs`, `tests/empty_records.rs` and `tests/references.rs`. The flag arrived in #3512 to distinguish source-authored layouts from ordinary record storage.
-- Cost: Rust cannot build the checker suite, so none of its source or proof controls runs. Give each existing fixture its original ordinary layout intent and run the full suite. The separate loan, ranking and diagnostic fixture failures still need their own repairs.
-- Reported: 2026-11-15, Codex, while validating indexed storage in the lowered checker.
 
 ### Six Stage06 loan and ranking controls fail on clean main
 - Category: tests that pin the bug
