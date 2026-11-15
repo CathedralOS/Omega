@@ -900,6 +900,16 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     })
 }
 
+/// An error that says the run itself is wrong, not the program: every other
+/// program would fail the same way.
+fn run_wide_refusal(row: &Row) -> Option<String> {
+    let run_wide = ["unknown target profile", "cannot start omega"];
+    run_wide
+        .iter()
+        .any(|needle| row.detail.contains(needle))
+        .then(|| format!("stopped at {}: {}", record::short(&row.program), row.detail))
+}
+
 fn head_commit(root: &Path) -> Result<String, String> {
     let output = Command::new("git")
         .args(["rev-parse", "--short=10", "HEAD"])
@@ -1003,6 +1013,12 @@ fn sweep(
                         options.timeout,
                     );
                     let mut progress = progress.lock().expect("progress");
+                    // A misspelled `--target` fails every program the same
+                    // way; stop rather than record thousands of such rows.
+                    if let Some(refusal) = run_wide_refusal(&row) {
+                        progress.error.get_or_insert(refusal);
+                        break;
+                    }
                     let written = match &mut progress.journal {
                         Some(journal) => journal.append(&row),
                         None => Ok(()),
@@ -1260,6 +1276,26 @@ mod tests {
                 "no product route yet: provider settlement for `",
             ]
         );
+    }
+
+    #[test]
+    fn a_misspelled_target_stops_the_run_not_one_program() {
+        let refused = row(
+            "samples/a/main.omg",
+            1,
+            1,
+            "error: unknown target profile `linx`; expected linux_x86_64
+",
+        );
+        assert!(run_wide_refusal(&refused).unwrap().contains("samples/a"));
+        let blocked = row(
+            "samples/a/main.omg",
+            1,
+            1,
+            "error: not supported yet: x
+",
+        );
+        assert!(run_wide_refusal(&blocked).is_none());
     }
 
     #[test]

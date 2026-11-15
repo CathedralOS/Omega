@@ -228,7 +228,14 @@ impl Journal {
                     path.display()
                 )
             })?;
-            if earlier != *header {
+            // A journal of another run that checked nothing (a refused
+            // `--target`, say) holds no work to protect.
+            let mut lines = lines.peekable();
+            let holds_rows = lines
+                .peek()
+                .is_some_and(|line| line.as_ref().is_ok_and(|line| !line.trim().is_empty()));
+            let same_run = earlier == *header;
+            if !same_run && holds_rows {
                 return Err(format!(
                     "{} belongs to another run (commit {}, target `{}`, shard {}, selection {}); \
                      remove it or choose another --out",
@@ -239,7 +246,7 @@ impl Journal {
                     earlier.fingerprint,
                 ));
             }
-            for line in lines {
+            for line in lines.take_while(|_| same_run) {
                 let Ok(line) = line else { break };
                 // A run killed mid-write leaves a torn last line; that program
                 // is simply checked again.
@@ -542,10 +549,16 @@ mod tests {
 
         let other = Header {
             commit: "def".to_owned(),
-            ..run
+            ..run.clone()
         };
         let refused = Journal::open(&out, &other).err().unwrap();
         assert!(refused.contains("another run"), "{refused}");
+
+        // A journal of another run that checked nothing is simply replaced.
+        let empty = dir.join("empty.json");
+        drop(Journal::open(&empty, &other).unwrap());
+        let (_, done) = Journal::open(&empty, &run).unwrap();
+        assert!(done.is_empty());
         let _ = fs::remove_dir_all(&dir);
     }
 
