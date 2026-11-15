@@ -532,7 +532,19 @@ impl Lowering<'_> {
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,
     )> {
-        self.scalar_constants.borrow_mut().value(value, |value| {
+        let mut constants = self.scalar_constants.borrow_mut();
+        while constants.registered_count() < self.tables.values.len() {
+            let id = ValueId::new(
+                u64::try_from(constants.registered_count())
+                    .ok()?
+                    .checked_add(1)?,
+            )?;
+            self.tables.values.get(id)?;
+            if !constants.register(id) {
+                return None;
+            }
+        }
+        constants.value(value, |value| {
             let row = self.tables.values.get(value)?;
             if row.rigid.is_some() {
                 return None;

@@ -130,7 +130,6 @@ pub(crate) mod call_foundations {
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
-        constants: &mut terminal_semantics::ScalarConstants,
     ) -> Result<(), CodecError> {
         let Terminator::InvokeNoNormal {
             callee,
@@ -163,7 +162,6 @@ pub(crate) mod call_foundations {
             erased_arguments,
             scalar_index,
             sources,
-            constants,
         )? {
             return Ok(());
         }
@@ -181,7 +179,6 @@ pub(crate) mod call_foundations {
         value: ValueId,
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
-        constants: &mut terminal_semantics::ScalarConstants,
     ) -> Option<(ScalarType, IntegerValue)> {
         let expected = sources.scalar_type(value)?;
         let known = constants.value(value, |value| scalar_index.computed_origin(value, sources))?;
@@ -194,7 +191,6 @@ pub(crate) mod call_foundations {
         erased_arguments: &[ScalarTerm],
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
-        constants: &mut terminal_semantics::ScalarConstants,
     ) -> Result<bool, CodecError> {
         use terminal_semantics::inhabitation::{
             known_scalar_value_with, predicates_are_false_with,
@@ -214,7 +210,7 @@ pub(crate) mod call_foundations {
             if sources.scalar_type(*actual) != Some(formal.scalar_type) {
                 return malformed("no-normal invocation has no exact scalar argument source");
             }
-            let known = scalar_actual(*actual, scalar_index, sources, constants);
+            let known = scalar_actual(*actual, scalar_index, sources);
             known_actuals.push((formal.id, known));
         }
         for (formal, actual) in contract.erased_scalar_formals.iter().zip(erased_arguments) {
@@ -222,7 +218,7 @@ pub(crate) mod call_foundations {
                 return malformed("no-normal invocation erased argument has the wrong carrier");
             }
             let known = known_scalar_value_with(actual, |value| {
-                scalar_actual(value, scalar_index, sources, constants)
+                scalar_actual(value, scalar_index, sources)
             });
             known_actuals.push((formal.id, known));
         }
@@ -1089,14 +1085,7 @@ pub(crate) mod call_foundations {
             let index = terminal_semantics::MachineScalarIndex::new(caller);
             let sources = terminal_semantics::normal_completion::ReturnSources::new(caller)
                 .map_err(CodecError::MalformedStructuralFoundation)?;
-            super::validate_no_normal_invocation(
-                module,
-                &caller.blocks[0],
-                query,
-                &index,
-                &sources,
-                &mut terminal_semantics::ScalarConstants::default(),
-            )
+            super::validate_no_normal_invocation(module, &caller.blocks[0], query, &index, &sources)
         }
 
         fn validate_no_normal_invocation(
@@ -3325,15 +3314,15 @@ pub(crate) mod machine_foundations {
         validate_parameter_places(machine)?;
         validate_entry_claims(module, machine)?;
         validate_loan_completions(module, machine)?;
+        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
         for block in &machine.blocks {
             for operation in &block.operations {
-                validate_operation_foundation(module, machine, operation, transfers).map_err(
-                    |error| {
+                validate_operation_foundation(module, machine, operation, transfers, &scalar_index)
+                    .map_err(|error| {
                         super::operation_foundation_error(
                             module, machine, block.id, operation, error,
                         )
-                    },
-                )?;
+                    })?;
             }
         }
         for invocation in machine.module_invocations() {
@@ -3345,8 +3334,6 @@ pub(crate) mod machine_foundations {
         }
         validate_operation_result_places(machine)?;
         let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
-        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
-        let mut scalar_constants = terminal_semantics::ScalarConstants::default();
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(
                 module,
@@ -3360,7 +3347,6 @@ pub(crate) mod machine_foundations {
                 inhabitation,
                 &scalar_index,
                 &return_sources,
-                &mut scalar_constants,
             )?;
             return_sources
                 .validate_whole_discards(&block.terminator, |ty| module.structural_type(ty))
@@ -10172,9 +10158,8 @@ pub(crate) mod value_foundations {
         TerminalMachine, TerminalModule, find_structural_case, nonlinear_multiplicity_pair_pattern,
     };
     use terminal_semantics::{
-        canonical_static_projection, contains_access_carrier, machine_scalar_constant_origin,
-        primitive_scalar_memberships, scalar_array_leaf_declaration, scalar_array_leaf_shape,
-        scalar_array_qualifications_hold, scalar_constant_value,
+        canonical_static_projection, contains_access_carrier, primitive_scalar_memberships,
+        scalar_array_leaf_declaration, scalar_array_leaf_shape, scalar_array_qualifications_hold,
         scalar_field_requires_initialization_evidence, structural_claim_paths_may_overlap,
         zeroed_projected_byte_qualifications_hold, zeroed_structural_shape,
     };
@@ -10183,6 +10168,7 @@ pub(crate) mod value_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         operation: &Operation,
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
     ) -> Result<(), CodecError> {
         let OperationKind::EstablishScalarArray { elements } = &operation.kind else {
             unreachable!("dispatched validate_establish_scalar_array")
@@ -10200,11 +10186,7 @@ pub(crate) mod value_foundations {
                 result.structural_type,
                 &result.qualifications,
                 elements,
-                |element| {
-                    scalar_constant_value(element, |value| {
-                        machine_scalar_constant_origin(machine, value)
-                    })
-                },
+                |element| scalar_index.constant_value(element),
             )
             || !matches!(
                 machine.structural_place(result.place),
@@ -11770,6 +11752,7 @@ fn validate_operation_foundation(
     machine: &TerminalMachine,
     operation: &Operation,
     transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
+    scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
 ) -> Result<(), CodecError> {
     if operation.required_contract.is_some() && operation.module_invocation().is_none() {
         return malformed(
@@ -11986,7 +11969,12 @@ fn validate_operation_foundation(
             storage_foundations::validate_scalar_structural_field(module, machine, operation)?
         }
         OperationKind::EstablishScalarArray { .. } => {
-            value_foundations::validate_establish_scalar_array(module, machine, operation)?
+            value_foundations::validate_establish_scalar_array(
+                module,
+                machine,
+                operation,
+                scalar_index,
+            )?
         }
         OperationKind::EstablishScalarCase { .. } => {
             value_foundations::validate_establish_scalar_case(module, machine, operation)?

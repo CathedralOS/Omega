@@ -547,9 +547,8 @@ pub use bytes::byte_sequence_predicates::{
     byte_parameter_predicates_in, byte_predicate_carrier, byte_predicate_requirement,
     byte_qualification_predicates_in, byte_sequence_concatenation_predicates,
     byte_sequence_source_predicates, byte_view_call_result, indexed_byte_store_goal,
-    machine_scalar_constant_origin, pure_byte_qualifications, scalar_array_qualifications_hold,
-    scalar_constant_value, scalar_operation_literal, scalar_operation_origin,
-    shared_byte_field_copy_predicates,
+    pure_byte_qualifications, scalar_array_qualifications_hold, scalar_operation_literal,
+    scalar_operation_origin, shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{

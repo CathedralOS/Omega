@@ -48,12 +48,6 @@ pub struct ReturnSources<'machine> {
     places: Vec<StructuralSource>,
 }
 
-impl crate::ValueTypes for ReturnSources<'_> {
-    fn value_type(&self, value: ValueId) -> Option<ScalarType> {
-        self.scalar_type(value)
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 struct StructuralSource {
     place: PlaceId,

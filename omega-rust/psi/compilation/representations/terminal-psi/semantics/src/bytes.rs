@@ -1059,22 +1059,62 @@ pub(crate) mod byte_sequence_predicates {
     );
 
     enum ScalarConstantState {
+        Unseen,
         Active,
         Complete(Option<KnownScalar>),
     }
 
-    /// Resolve each actual scalar definition once. Arithmetic belongs to the
-    /// existing typed term evaluator; this owner only follows real value IDs.
-    /// A cycle, unavailable input or exhausted search supplies no constant.
-    #[derive(Default)]
+    /// Resolve each actual scalar definition once. The prepared rows contain
+    /// only this owner's real IDs, so sparse or hostile IDs cannot size an arena.
+    /// Arithmetic stays with the existing typed evaluator; cycles and unavailable
+    /// inputs supply no constant.
     pub struct ScalarConstants {
-        values: std::collections::BTreeMap<semantic_vocabulary::ValueId, ScalarConstantState>,
+        values: Vec<(semantic_vocabulary::ValueId, ScalarConstantState)>,
+        valid: bool,
+    }
+
+    impl Default for ScalarConstants {
+        fn default() -> Self {
+            Self {
+                values: Vec::new(),
+                valid: true,
+            }
+        }
     }
 
     impl ScalarConstants {
+        pub fn for_values(values: impl IntoIterator<Item = semantic_vocabulary::ValueId>) -> Self {
+            let mut values = values
+                .into_iter()
+                .map(|id| (id, ScalarConstantState::Unseen))
+                .collect::<Vec<_>>();
+            values.sort_unstable_by_key(|(id, _)| *id);
+            let valid = values.windows(2).all(|pair| pair[0].0 < pair[1].0);
+            Self { values, valid }
+        }
+
+        pub fn registered_count(&self) -> usize {
+            self.values.len()
+        }
+
+        /// A draft owner appends its actual newly declared IDs in order. An
+        /// out-of-order or repeated declaration invalidates this query's scope.
+        pub fn register(&mut self, id: semantic_vocabulary::ValueId) -> bool {
+            if !self.valid || self.values.last().is_some_and(|(last, _)| *last >= id) {
+                self.valid = false;
+                return false;
+            }
+            self.values.push((id, ScalarConstantState::Unseen));
+            true
+        }
+
+        fn index(&self, value: semantic_vocabulary::ValueId) -> Option<usize> {
+            self.values.binary_search_by_key(&value, |(id, _)| *id).ok()
+        }
+
         fn known(&self, value: semantic_vocabulary::ValueId) -> Option<KnownScalar> {
-            match self.values.get(&value) {
-                Some(ScalarConstantState::Complete(value)) => *value,
+            match &self.values.get(self.index(value)?)?.1 {
+                ScalarConstantState::Complete(value) => *value,
                 _ => None,
             }
         }
@@ -1083,11 +1123,12 @@ pub(crate) mod byte_sequence_predicates {
             &mut self,
             value: semantic_vocabulary::ValueId,
             mut origin: impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
-        ) -> Option<(
-            semantic_vocabulary::ScalarType,
-            semantic_vocabulary::IntegerValue,
-        )> {
+        ) -> Option<KnownScalar> {
             use semantic_vocabulary::{ScalarTerm, ValueId};
+            if !self.valid {
+                return None;
+            }
+            self.index(value)?;
             enum Step {
                 Visit(ValueId),
                 Complete(ValueId, ScalarConstantOrigin),
@@ -1097,12 +1138,9 @@ pub(crate) mod byte_sequence_predicates {
             let mut remaining = 8192usize;
             while let Some(step) = pending.pop() {
                 let Some(next) = remaining.checked_sub(1) else {
-                    // Do not leave active entries behind, or retry the same
-                    // failed dependency graph on every later call.
-                    for id in active {
-                        if let Some(state @ ScalarConstantState::Active) = self.values.get_mut(&id)
-                        {
-                            *state = ScalarConstantState::Complete(None);
+                    for index in active {
+                        if matches!(self.values[index].1, ScalarConstantState::Active) {
+                            self.values[index].1 = ScalarConstantState::Complete(None);
                         }
                     }
                     return None;
@@ -1110,16 +1148,21 @@ pub(crate) mod byte_sequence_predicates {
                 remaining = next;
                 match step {
                     Step::Visit(id) => {
-                        if let Some(state) = self.values.get_mut(&id) {
-                            if matches!(state, ScalarConstantState::Active) {
-                                *state = ScalarConstantState::Complete(None);
-                            }
+                        let Some(index) = self.index(id) else {
                             continue;
+                        };
+                        match self.values[index].1 {
+                            ScalarConstantState::Complete(_) => continue,
+                            ScalarConstantState::Active => {
+                                self.values[index].1 = ScalarConstantState::Complete(None);
+                                continue;
+                            }
+                            ScalarConstantState::Unseen => {}
                         }
-                        self.values.insert(id, ScalarConstantState::Active);
-                        active.push(id);
+                        self.values[index].1 = ScalarConstantState::Active;
+                        active.push(index);
                         let Some(definition) = origin(id) else {
-                            self.values.insert(id, ScalarConstantState::Complete(None));
+                            self.values[index].1 = ScalarConstantState::Complete(None);
                             continue;
                         };
                         let mut dependencies = Vec::new();
@@ -1127,7 +1170,7 @@ pub(crate) mod byte_sequence_predicates {
                             ScalarConstantOrigin::Literal(..) => {}
                             ScalarConstantOrigin::Incoming(values) => {
                                 if values.len() > remaining {
-                                    self.values.insert(id, ScalarConstantState::Complete(None));
+                                    self.values[index].1 = ScalarConstantState::Complete(None);
                                     continue;
                                 }
                                 dependencies.extend(values.iter().copied());
@@ -1140,14 +1183,15 @@ pub(crate) mod byte_sequence_predicates {
                             }
                         }
                         if dependencies.len() > remaining {
-                            self.values.insert(id, ScalarConstantState::Complete(None));
+                            self.values[index].1 = ScalarConstantState::Complete(None);
                             continue;
                         }
                         pending.push(Step::Complete(id, definition));
                         pending.extend(dependencies.into_iter().rev().map(Step::Visit));
                     }
                     Step::Complete(id, definition) => {
-                        if matches!(self.values.get(&id), Some(ScalarConstantState::Complete(_))) {
+                        let index = self.index(id)?;
+                        if matches!(self.values[index].1, ScalarConstantState::Complete(_)) {
                             continue;
                         }
                         let known = |value| self.known(value);
@@ -1168,23 +1212,12 @@ pub(crate) mod byte_sequence_predicates {
                                 crate::inhabitation::known_scalar_value_with(&term, known)
                             }
                         };
-                        self.values
-                            .insert(id, ScalarConstantState::Complete(result));
+                        self.values[index].1 = ScalarConstantState::Complete(result);
                     }
                 }
             }
             self.known(value)
         }
-    }
-
-    pub fn scalar_constant_value(
-        value: semantic_vocabulary::ValueId,
-        origin: impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
-    ) -> Option<(
-        semantic_vocabulary::ScalarType,
-        semantic_vocabulary::IntegerValue,
-    )> {
-        ScalarConstants::default().value(value, origin)
     }
 
     /// Borrow the canonical scalar operation meaning. Merely knowing its
@@ -1222,27 +1255,6 @@ pub(crate) mod byte_sequence_predicates {
             .then_some(ScalarConstantOrigin::Computed(right))
     }
 
-    pub fn machine_scalar_constant_origin(
-        machine: &terminal_psi::TerminalMachine,
-        value: semantic_vocabulary::ValueId,
-    ) -> Option<ScalarConstantOrigin> {
-        scalar_constant_origin_with(
-            machine,
-            machine
-                .operations()
-                .find_map(|operation| scalar_operation_literal(operation, value)),
-            || {
-                machine.blocks.iter().find_map(|block| {
-                    block
-                        .parameters
-                        .iter()
-                        .position(|parameter| parameter.id == value)
-                        .map(|ordinal| (block.id, ordinal))
-                })
-            },
-        )
-    }
-
     /// Read a literal from the exact operation that owns this value. The
     /// caller borrows it from the same machine's draft coordinates or final
     /// index, never from a coincident numeric ID in another machine. This
@@ -1273,30 +1285,6 @@ pub(crate) mod byte_sequence_predicates {
         Some((result.scalar_type, literal))
     }
 
-    fn scalar_constant_origin_with(
-        machine: &terminal_psi::TerminalMachine,
-        literal: Option<(
-            semantic_vocabulary::ScalarType,
-            semantic_vocabulary::IntegerValue,
-        )>,
-        parameter: impl FnOnce() -> Option<(semantic_vocabulary::BlockId, usize)>,
-    ) -> Option<ScalarConstantOrigin> {
-        if let Some((scalar_type, literal)) = literal {
-            return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
-        }
-        let (owner, ordinal) = parameter()?;
-        if owner == machine.entry {
-            return None;
-        }
-        let incoming = machine
-            .blocks
-            .iter()
-            .flat_map(crate::control_graph::forwarded_bindings)
-            .filter(|binding| binding.target == owner)
-            .map(|binding| binding.arguments);
-        incoming_scalar_origin(incoming, ordinal)
-    }
-
     fn incoming_scalar_origin<'block>(
         bindings: impl Iterator<Item = Option<&'block [semantic_vocabulary::ValueId]>>,
         ordinal: usize,
@@ -1315,7 +1303,9 @@ pub(crate) mod byte_sequence_predicates {
             semantic_vocabulary::ValueId,
             semantic_vocabulary::BlockId,
             usize,
+            semantic_vocabulary::ScalarType,
         )>,
+        constants: std::cell::RefCell<ScalarConstants>,
         incoming: Vec<(
             semantic_vocabulary::BlockId,
             Option<&'machine [semantic_vocabulary::ValueId]>,
@@ -1337,10 +1327,21 @@ pub(crate) mod byte_sequence_predicates {
                         .parameters
                         .iter()
                         .enumerate()
-                        .map(|(ordinal, parameter)| (parameter.id, block.id, ordinal))
+                        .map(|(ordinal, parameter)| {
+                            (parameter.id, block.id, ordinal, parameter.scalar_type)
+                        })
                 })
                 .collect();
-            parameters.sort_by_key(|(value, _, _)| *value);
+            parameters.extend(
+                machine
+                    .parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, parameter)| {
+                        (parameter.id, machine.entry, ordinal, parameter.scalar_type)
+                    }),
+            );
+            parameters.sort_by_key(|(value, _, _, _)| *value);
             let mut incoming: Vec<_> = machine
                 .blocks
                 .iter()
@@ -1348,11 +1349,18 @@ pub(crate) mod byte_sequence_predicates {
                 .map(|binding| (binding.target, binding.arguments))
                 .collect();
             incoming.sort_by_key(|(target, _)| *target);
+            let constants = ScalarConstants::for_values(
+                definitions
+                    .iter()
+                    .map(|(id, _)| *id)
+                    .chain(parameters.iter().map(|(id, ..)| *id)),
+            );
             Self {
                 machine,
                 definitions,
                 parameters,
                 incoming,
+                constants: std::cell::RefCell::new(constants),
             }
         }
 
@@ -1381,11 +1389,9 @@ pub(crate) mod byte_sequence_predicates {
             {
                 return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
             }
-            let start = self.parameters.partition_point(|(id, _, _)| *id < value);
-            let (_, owner, ordinal) = *self
-                .parameters
-                .get(start)
-                .filter(|(id, _, _)| *id == value)?;
+            let start = self.parameters.partition_point(|(id, ..)| *id < value);
+            let (_, owner, ordinal, _) =
+                *self.parameters.get(start).filter(|(id, ..)| *id == value)?;
             if owner == self.machine.entry {
                 return None;
             }
@@ -1395,6 +1401,14 @@ pub(crate) mod byte_sequence_predicates {
                 .take_while(|(target, _)| *target == owner)
                 .map(|(_, arguments)| *arguments);
             incoming_scalar_origin(bindings, ordinal)
+        }
+
+        pub fn constant_value(&self, value: semantic_vocabulary::ValueId) -> Option<KnownScalar> {
+            let known = self
+                .constants
+                .borrow_mut()
+                .value(value, |value| self.computed_origin(value, self))?;
+            (known.0 == crate::ValueTypes::value_type(self, value)?).then_some(known)
         }
 
         /// A definition must have exactly one actual producer. The receiving
@@ -1412,6 +1426,32 @@ pub(crate) mod byte_sequence_predicates {
                 return scalar_operation_origin(operation, value, types);
             }
             self.constant_origin(value)
+        }
+    }
+
+    impl crate::ValueTypes for MachineScalarIndex<'_> {
+        fn value_type(
+            &self,
+            value: semantic_vocabulary::ValueId,
+        ) -> Option<semantic_vocabulary::ScalarType> {
+            let start = self.parameters.partition_point(|(id, ..)| *id < value);
+            let parameter = self.parameters.get(start).filter(|(id, ..)| *id == value);
+            if parameter.is_some()
+                && self
+                    .parameters
+                    .get(start + 1)
+                    .is_some_and(|(id, ..)| *id == value)
+            {
+                return None;
+            }
+            let mut definitions = self.definitions(value);
+            match definitions.next() {
+                Some(operation) if definitions.next().is_none() && parameter.is_none() => {
+                    Some(operation.result.scalar_ref()?.scalar_type)
+                }
+                Some(_) => None,
+                None => parameter.map(|(_, _, _, ty)| *ty),
+            }
         }
     }
 
@@ -1546,32 +1586,10 @@ pub(crate) mod byte_sequence_predicates {
             };
             let index = MachineScalarIndex::new(&machine);
             let expected = Some((ScalarType::Boolean, IntegerValue::Unsigned(1)));
-            assert_eq!(
-                scalar_constant_value(ValueId::new(2).unwrap(), |value| index
-                    .constant_origin(value)),
-                expected
-            );
-            assert_eq!(
-                scalar_constant_value(ValueId::new(3).unwrap(), |value| index
-                    .constant_origin(value)),
-                expected
-            );
-            assert_eq!(
-                scalar_constant_value(ValueId::new(1).unwrap(), |value| index
-                    .constant_origin(value)),
-                None
-            );
-            assert_eq!(
-                scalar_constant_value(ValueId::new(99).unwrap(), |value| index
-                    .constant_origin(value)),
-                None
-            );
-            assert_eq!(
-                scalar_constant_value(ValueId::new(2).unwrap(), |value| {
-                    machine_scalar_constant_origin(&machine, value)
-                }),
-                expected
-            );
+            assert_eq!(index.constant_value(ValueId::new(2).unwrap()), expected);
+            assert_eq!(index.constant_value(ValueId::new(3).unwrap()), expected);
+            assert_eq!(index.constant_value(ValueId::new(1).unwrap()), None);
+            assert_eq!(index.constant_value(ValueId::new(99).unwrap()), None);
         }
 
         #[test]
@@ -1615,7 +1633,11 @@ pub(crate) mod byte_sequence_predicates {
                 .iter()
                 .map(|op| (op.result.scalar_ref().unwrap().id, integer))
                 .collect::<std::collections::BTreeMap<_, _>>();
-            let mut constants = ScalarConstants::default();
+            let mut constants = ScalarConstants::for_values(
+                operations
+                    .iter()
+                    .map(|operation| operation.result.scalar_ref().unwrap().id),
+            );
             let mut visits = [0; 4];
             for _ in 0..2 {
                 assert_eq!(
@@ -1644,7 +1666,7 @@ pub(crate) mod byte_sequence_predicates {
             let ty = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
             let integer = ScalarType::Integer(ty);
             let id = |raw| ValueId::new(raw).unwrap();
-            let mut constants = ScalarConstants::default();
+            let mut constants = ScalarConstants::for_values((1..=8).map(id));
             let mut origin = |value: ValueId| {
                 Some(match value.get() {
                     1 => ScalarConstantOrigin::Literal(integer, IntegerValue::Unsigned(255)),
@@ -1678,7 +1700,7 @@ pub(crate) mod byte_sequence_predicates {
             for raw in [6, 7, 8, 99] {
                 assert_eq!(constants.value(id(raw), &mut origin), None);
             }
-            let mut budgeted = ScalarConstants::default();
+            let mut budgeted = ScalarConstants::for_values((1..=5000).map(id));
             assert_eq!(
                 budgeted.value(id(1), |value| Some(if value.get() == 5000 {
                     ScalarConstantOrigin::Literal(integer, IntegerValue::Unsigned(1))
@@ -1694,24 +1716,54 @@ pub(crate) mod byte_sequence_predicates {
         }
 
         #[test]
+        fn prepared_scalar_ids_refuse_duplicates_and_keep_sparse_ids_bounded() {
+            let high = ValueId::new(u64::MAX).unwrap();
+            let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+            let mut sparse = ScalarConstants::for_values([high]);
+            assert_eq!(sparse.registered_count(), 1);
+            assert_eq!(
+                sparse.value(high, |_| Some(ScalarConstantOrigin::Literal(
+                    integer,
+                    IntegerValue::Unsigned(1)
+                ))),
+                Some((integer, IntegerValue::Unsigned(1)))
+            );
+            let mut duplicate = ScalarConstants::for_values([high, high]);
+            assert_eq!(
+                duplicate.value(high, |_| panic!("duplicate source IDs supply no scope")),
+                None
+            );
+            let mut draft = ScalarConstants::default();
+            assert!(draft.register(ValueId::new(2).unwrap()));
+            assert!(!draft.register(ValueId::new(1).unwrap()));
+            assert_eq!(
+                draft.value(ValueId::new(2).unwrap(), |_| panic!(
+                    "non-monotonic declarations supply no scope"
+                )),
+                None
+            );
+        }
+
+        #[test]
         fn mixed_boolean_incoming_values_do_not_prove_a_constant() {
             for equal in [false, true] {
                 let actual =
-                    scalar_constant_value(ValueId::new(3).unwrap(), |value| match value.get() {
-                        1 => Some(ScalarConstantOrigin::Literal(
-                            ScalarType::Boolean,
-                            IntegerValue::Unsigned(1),
-                        )),
-                        2 => Some(ScalarConstantOrigin::Literal(
-                            ScalarType::Boolean,
-                            IntegerValue::Unsigned(u128::from(u8::from(equal))),
-                        )),
-                        3 => Some(ScalarConstantOrigin::Incoming(vec![
-                            ValueId::new(1).unwrap(),
-                            ValueId::new(2).unwrap(),
-                        ])),
-                        _ => None,
-                    });
+                    ScalarConstants::for_values((1..=3).map(|raw| ValueId::new(raw).unwrap()))
+                        .value(ValueId::new(3).unwrap(), |value| match value.get() {
+                            1 => Some(ScalarConstantOrigin::Literal(
+                                ScalarType::Boolean,
+                                IntegerValue::Unsigned(1),
+                            )),
+                            2 => Some(ScalarConstantOrigin::Literal(
+                                ScalarType::Boolean,
+                                IntegerValue::Unsigned(u128::from(u8::from(equal))),
+                            )),
+                            3 => Some(ScalarConstantOrigin::Incoming(vec![
+                                ValueId::new(1).unwrap(),
+                                ValueId::new(2).unwrap(),
+                            ])),
+                            _ => None,
+                        });
                 assert_eq!(
                     actual,
                     equal.then_some((ScalarType::Boolean, IntegerValue::Unsigned(1)))

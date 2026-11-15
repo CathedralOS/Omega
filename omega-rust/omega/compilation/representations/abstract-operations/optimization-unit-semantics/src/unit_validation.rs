@@ -10727,6 +10727,9 @@ pub(crate) mod operation_contracts {
                 &terminal_psi::StructuralDomainDeclaration,
             >,
             call_accesses: &crate::current_ownership::CallAccesses,
+            scalar_expressions: &crate::descriptor_results::scalar_expressions::ScalarExpressions<
+                '_,
+            >,
         ) -> Result<(), OptimizationUnitValidationError> {
             if !operation_scalar_types_match(
                 unit,
@@ -10755,6 +10758,7 @@ pub(crate) mod operation_contracts {
                 structural_types,
                 structural_domains,
                 call_accesses,
+                scalar_expressions,
             ) {
                 return Err(
                     OptimizationUnitValidationError::StructuralCallContractMismatch(
@@ -11782,6 +11786,9 @@ pub(crate) mod operation_contracts {
         pub(crate) fn scalar_array_establishment_matches(
             function: &PsiOptimizationFunction,
             operation: &O,
+            scalar_expressions: &crate::descriptor_results::scalar_expressions::ScalarExpressions<
+                '_,
+            >,
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
             domains: &BTreeMap<
                 semantic_vocabulary::StructuralDomainId,
@@ -11811,41 +11818,8 @@ pub(crate) mod operation_contracts {
                     &result.qualifications,
                     elements,
                     |element| {
-                        terminal_semantics::scalar_constant_value(element, |value| {
-                            if let Some((ty, literal)) =
-                                function
-                                    .block_nodes()
-                                    .find_map(|node| match node.operation {
-                                        O::IntegerConstant {
-                                            result,
-                                            scalar_type,
-                                            value: literal,
-                                            ..
-                                        } if result == value => Some((scalar_type, literal)),
-                                        _ => None,
-                                    })
-                            {
-                                return Some(terminal_semantics::ScalarConstantOrigin::Literal(
-                                    ty, literal,
-                                ));
-                            }
-                            let owner = function.blocks.iter().find(|block| {
-                                block
-                                    .parameters
-                                    .iter()
-                                    .any(|parameter| parameter.value == value)
-                            })?;
-                            if owner.id == function.entry {
-                                return None;
-                            }
-                            let incoming = function
-                                .block_nodes()
-                                .flat_map(|node| &node.successors)
-                                .filter(|edge| edge.target == owner.id)
-                                .map(|edge| edge.binding(value).map(|binding| binding.argument))
-                                .collect::<Option<Vec<_>>>()?;
-                            Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
-                        })
+                        let (ty, literal) = scalar_expressions.literal(element)?.integer_value()?;
+                        Some((semantic_vocabulary::ScalarType::Integer(ty), literal))
                     },
                 )
                 && result.projected_qualifications.is_empty()
@@ -12758,6 +12732,9 @@ pub(crate) mod operation_contracts {
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
             domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
             call_accesses: &crate::current_ownership::CallAccesses,
+            scalar_expressions: &crate::descriptor_results::scalar_expressions::ScalarExpressions<
+                '_,
+            >,
         ) -> bool {
             match operation {
         O::InvokeNoNormal { callee, structural_arguments, claim_transfers, requirement_obligations, crash_continuations, psi_edge, .. } => functions.get(callee).is_some_and(|callee| {
@@ -12840,7 +12817,7 @@ pub(crate) mod operation_contracts {
             super::scalar_arrays::structural_array_establishment_matches(caller, operation, types)
         }
         O::EstablishScalarArray { .. } => {
-            scalar_array_establishment_matches(caller, operation, types, domains)
+            scalar_array_establishment_matches(caller, operation, scalar_expressions, types, domains)
         }
         O::EstablishCase { .. } => case_establishment_matches(caller, operation, types, domains),
         O::EstablishRecord { .. } => {
@@ -14760,6 +14737,8 @@ pub(crate) mod operation_contracts {
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Result<(), OptimizationUnitValidationError> {
         let definitions = values::collect_value_definitions(function)?;
+        let scalar_expressions =
+            crate::descriptor_results::scalar_expressions::ScalarExpressions::new(function);
         let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
         atomic_coherence::validate_function_atomic_coherence(
             function,
@@ -14790,6 +14769,7 @@ pub(crate) mod operation_contracts {
                     structural_types,
                     structural_domains,
                     call_accesses,
+                    &scalar_expressions,
                 )?;
                 values::validate_successor_bindings(
                     function,
