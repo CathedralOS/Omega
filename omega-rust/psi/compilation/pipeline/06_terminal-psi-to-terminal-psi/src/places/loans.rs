@@ -244,17 +244,22 @@ pub(crate) fn reference_graph(
         [machine],
         &[],
     )
-    .map_err(|error| {
-        crate::refusal(
-            RefusalReason::Unsupported,
-            error.machine(),
-            error
-                .operation(module)
-                .map(Construct::Operation)
-                .unwrap_or(Construct::Machine),
-            &error.in_module(module),
-        )
-    })
+    .map_err(|error| graph_refusal(module, error))
+}
+
+fn graph_refusal(
+    module: &terminal_psi::TerminalModule,
+    error: terminal_semantics::descriptor_results::DescriptorGraphError,
+) -> terminal_check_tables::Refusal {
+    crate::refusal(
+        RefusalReason::Unsupported,
+        error.machine(),
+        error
+            .operation(module)
+            .map(Construct::Operation)
+            .unwrap_or(Construct::Machine),
+        &error.in_module(module),
+    )
 }
 
 impl Storage<'_> {
@@ -1529,7 +1534,7 @@ impl Storage<'_> {
                     operation,
                     &mut self.references.borrow_mut(),
                 )
-                .map_err(|reason| self.unsupported(concerns, reason))?;
+                .map_err(|error| graph_refusal(module, error))?;
                 self.lent(
                     module,
                     tables,

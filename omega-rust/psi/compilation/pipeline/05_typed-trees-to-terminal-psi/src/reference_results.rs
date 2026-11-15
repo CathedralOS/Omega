@@ -592,7 +592,7 @@ fn publish_parents(
                     operation,
                     &mut analysis,
                 )
-                .map_err(|reason| unavailable(machine.id, reason))?;
+                .map_err(|error| graph_unavailable(module, error))?;
                 if !retained.is_empty() {
                     let call = operation.kind.declared_invocation().ok_or_else(|| {
                         unavailable(machine.id, "retained reference lost its actual call")

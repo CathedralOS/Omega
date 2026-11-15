@@ -16123,6 +16123,38 @@ pub mod descriptor_results {
         "reference use without exact live backing correspondence";
 
     impl DescriptorGraphError {
+        /// Report a location only when the operation ID is unique and its
+        /// instruction matches. Other failures retain only the machine.
+        pub fn at_operation(
+            module: &TerminalModule,
+            machine: MachineId,
+            operation: &Operation,
+            detail: &'static str,
+        ) -> Self {
+            let position = exactly_one(module.machines.iter(), |row| row.id == machine)
+                .and_then(|machine| {
+                    exactly_one(
+                        machine.blocks.iter().flat_map(|block| {
+                            block
+                                .operations
+                                .iter()
+                                .enumerate()
+                                .filter_map(move |(index, row)| {
+                                    (row.id == operation.id).then_some((block.id, index, row))
+                                })
+                        }),
+                        |_| true,
+                    )
+                    .and_then(|(block, index, row)| (row == operation).then_some((block, index)))
+                })
+                .and_then(|(block, index)| u32::try_from(index).ok().map(|index| (block, index)));
+            Self::IncompleteMachine {
+                machine,
+                position,
+                detail: Some(detail),
+            }
+        }
+
         pub const fn detail(self) -> Option<&'static str> {
             match self {
                 Self::IncompleteMachine { detail, .. } => detail,
@@ -16176,6 +16208,23 @@ pub mod descriptor_results {
                     crate::OperationSemanticTag::for_operation(&operation.kind).name(),
                     operation.id
                 ));
+                if let Some(call) = operation.declared_invocation() {
+                    detail.push_str(&format!("; invocation target {:?}", call.callee));
+                    if let Some(required) = call.required_contract {
+                        detail.push_str(&format!("; required contract {required:?}"));
+                    }
+                    if let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee
+                        && let Some(name) =
+                            exactly_one(module.machines.iter(), |row| row.id == callee)
+                                .and_then(|callee| callee.declaration.as_ref())
+                                .and_then(|declaration| {
+                                    module.identities.text(declaration.callable)
+                                })
+                    {
+                        detail.push_str("; callee body ");
+                        detail.push_str(name);
+                    }
+                }
             }
             if let Some(name) = name {
                 detail.push_str("; declaration ");

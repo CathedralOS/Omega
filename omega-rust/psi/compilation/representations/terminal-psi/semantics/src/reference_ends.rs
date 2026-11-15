@@ -24,6 +24,31 @@ pub struct Error {
     pub detail: String,
 }
 
+impl Error {
+    fn local(
+        machine: MachineId,
+        operation: Option<OperationId>,
+        detail: impl Into<String>,
+    ) -> Self {
+        Self {
+            machine,
+            operation,
+            detail: detail.into(),
+        }
+    }
+
+    fn from_graph(
+        module: &TerminalModule,
+        error: crate::descriptor_results::DescriptorGraphError,
+    ) -> Self {
+        Self {
+            machine: error.machine(),
+            operation: error.operation(module),
+            detail: error.in_module(module),
+        }
+    }
+}
+
 pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidates>, Error> {
     let has_references = |machine: &terminal_psi::TerminalMachine| {
         machine
@@ -52,11 +77,7 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
             .map(|machine| machine.id),
         &[],
     )
-    .map_err(|error| Error {
-        machine: error.machine(),
-        operation: error.operation(module),
-        detail: error.in_module(module),
-    })?;
+    .map_err(|error| Error::from_graph(module, error))?;
     graph.sort_unstable_by_key(|machine| machine.id);
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
@@ -73,26 +94,10 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
                     operation: None,
                     detail: "reference disposition lost its prepared descriptor graph".into(),
                 })?;
-            let flow = analysis.flow(machine.id).map_err(|error| Error {
-                machine: error.machine(),
-                operation: error.operation(module),
-                detail: error.detail().map_or_else(
-                    || {
-                        format!(
-                            "reference disposition flow is incomplete for {:?}",
-                            machine.id
-                        )
-                    },
-                    str::to_owned,
-                ),
-            })?;
-            machine_candidates(module, machine, prepared, &flow, &mut analysis).map_err(
-                |detail| Error {
-                    machine: machine.id,
-                    operation: None,
-                    detail,
-                },
-            )?
+            let flow = analysis
+                .flow(machine.id)
+                .map_err(|error| Error::from_graph(module, error))?;
+            machine_candidates(module, machine, prepared, &flow, &mut analysis)?
         };
         let owner = result.push(candidates);
         if owner != machine.id {
@@ -112,7 +117,7 @@ fn machine_candidates(
     prepared: &crate::descriptor_results::DescriptorMachine,
     flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
     analysis: &mut DescriptorAnalysis<'_>,
-) -> Result<Candidates, String> {
+) -> Result<Candidates, Error> {
     let mut dead = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut live = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut lifetimes = Vec::new();
@@ -129,7 +134,13 @@ fn machine_candidates(
                 parameter.place,
                 parameter.structural_type,
             )
-            .ok_or("incoming reference disposition has no finite owned slot inventory")?;
+            .ok_or_else(|| {
+                Error::local(
+                    machine.id,
+                    None,
+                    "incoming reference disposition has no finite owned slot inventory",
+                )
+            })?;
         for slot in slots {
             lifetimes.push(crate::descriptor_lifetimes::descriptor_entry_lifetime(
                 flow,
@@ -150,25 +161,40 @@ fn machine_candidates(
                     output.structural_type,
                 )
                 .ok_or_else(|| {
-                    format!(
-                        "reference disposition has no finite owned slot inventory at {:?}",
-                        operation.id
+                    Error::local(
+                        machine.id,
+                        Some(operation.id),
+                        "reference disposition has no finite owned slot inventory",
                     )
                 })?;
             let birth = (
                 block.id,
-                u32::try_from(position).map_err(|_| "reference formation position overflows")?,
+                u32::try_from(position).map_err(|_| {
+                    Error::local(
+                        machine.id,
+                        Some(operation.id),
+                        "reference formation position overflows",
+                    )
+                })?,
             );
-            let retained = crate::reference_call_lifetimes(module, machine, operation, analysis)?;
+            let retained = crate::reference_call_lifetimes(module, machine, operation, analysis)
+                .map_err(|error| Error::from_graph(module, error))?;
             if !retained.is_empty() {
-                let call = operation
-                    .declared_invocation()
-                    .ok_or("retained reference disposition lost its invocation")?;
+                let call = operation.declared_invocation().ok_or_else(|| {
+                    Error::local(
+                        machine.id,
+                        Some(operation.id),
+                        "retained reference disposition lost its invocation",
+                    )
+                })?;
                 for (input, lifetime) in retained {
-                    let source = call
-                        .structural_arguments
-                        .get(input)
-                        .ok_or("retained reference disposition lost its exact input")?;
+                    let source = call.structural_arguments.get(input).ok_or_else(|| {
+                        Error::local(
+                            machine.id,
+                            Some(operation.id),
+                            "retained reference disposition lost its exact input",
+                        )
+                    })?;
                     add_dependencies(
                         module,
                         prepared,
@@ -177,7 +203,8 @@ fn machine_candidates(
                         &lifetime,
                         source,
                         &mut dependencies,
-                    )?;
+                    )
+                    .map_err(|detail| Error::local(machine.id, Some(operation.id), detail))?;
                     lifetimes.push(lifetime);
                 }
             }
@@ -194,7 +221,8 @@ fn machine_candidates(
                         &lifetime,
                         source,
                         &mut dependencies,
-                    )?;
+                    )
+                    .map_err(|detail| Error::local(machine.id, Some(operation.id), detail))?;
                 }
                 lifetimes.push(lifetime);
             }
@@ -241,9 +269,17 @@ fn machine_candidates(
                 .place_types
                 .get(&location.root)
                 .copied()
-                .ok_or("reference disposition lost its root type")?;
+                .ok_or_else(|| {
+                    Error::local(machine.id, None, "reference disposition lost its root type")
+                })?;
             let path = descriptor_path(&module.structural_types, root_type, &location.path)
-                .ok_or("reference disposition has no exact owned path")?;
+                .ok_or_else(|| {
+                    Error::local(
+                        machine.id,
+                        None,
+                        "reference disposition has no exact owned path",
+                    )
+                })?;
             if !crate::projection_stays_in_inline_storage(
                 module.structural_types.iter(),
                 root_type,
@@ -256,7 +292,11 @@ fn machine_candidates(
                 root_type,
                 &path,
             ) else {
-                return Err("reference disposition lost its leaf type".into());
+                return Err(Error::local(
+                    machine.id,
+                    None,
+                    "reference disposition lost its leaf type",
+                ));
             };
             if !matches!(
                 tip.shape,
@@ -331,7 +371,11 @@ fn machine_candidates(
             }
         }
         if !selected.is_empty() {
-            return Err("reference disposition has cyclic descriptor-storage ancestry".into());
+            return Err(Error::local(
+                machine.id,
+                None,
+                "reference disposition has cyclic descriptor-storage ancestry",
+            ));
         }
     }
     Ok(candidates)
