@@ -420,7 +420,7 @@ mod grammar {
     // Schema regions describe a declaration's binder, never a live value's
     // lifetime. Ordinary identity consumers still refuse them through the
     // default visitor; the signature reader must explicitly request them.
-    fn declared_region(
+    pub(super) fn declared_region(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
@@ -935,7 +935,10 @@ mod index {
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
         if reader.peek::<RegionForm>().is_some() {
-            return grammar::region(reader);
+            return match reader.peek::<RegionForm>() {
+                Some(RegionForm::Region) => grammar::declared_region(reader, visitor),
+                _ => grammar::region(reader),
+            };
         }
         if reader.peek::<IndexForm>() == Some(IndexForm::StaticApplication) {
             reader.production::<IndexForm>()?;

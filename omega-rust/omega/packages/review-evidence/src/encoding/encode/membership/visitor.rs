@@ -17,6 +17,7 @@ pub(super) struct Visitor<Contains> {
     depth: usize,
     failure: Option<Error>,
     unreadable: Option<MalformedIdentityExcerpt>,
+    declared_lifetimes: Option<usize>,
 }
 
 impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
@@ -28,6 +29,7 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
             depth: 0,
             failure: None,
             unreadable: None,
+            declared_lifetimes: None,
         }
     }
     pub(super) fn usage(&self) -> Usage {
@@ -59,8 +61,17 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
         Ok(())
     }
 
-    pub(super) fn runtime(&mut self, identity: &str) -> Result<(), Error> {
-        visit_type_identity_package_owners(identity, self).map_err(|error| {
+    // A declaration's binder scope belongs only to this type traversal.
+    // Embedded runtime identities explicitly enter with no declared scope.
+    pub(super) fn runtime(
+        &mut self,
+        identity: &str,
+        lifetimes: Option<usize>,
+    ) -> Result<(), Error> {
+        let previous = std::mem::replace(&mut self.declared_lifetimes, lifetimes);
+        let result = visit_type_identity_package_owners(identity, self);
+        self.declared_lifetimes = previous;
+        result.map_err(|error| {
             if let Some(failure) = self.failure {
                 return failure;
             }
@@ -69,9 +80,15 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
                 TypeIdentityVisitError::MalformedIdentity
                 | TypeIdentityVisitError::UnsupportedEmbeddedName
                 | TypeIdentityVisitError::Unadmitted(_) => {
-                    self.keep_unreadable("runtime type identity", identity, || {
-                        malformed_identity_offset(identity)
-                    });
+                    self.keep_unreadable(
+                        if lifetimes.is_some() {
+                            "declared type identity"
+                        } else {
+                            "runtime type identity"
+                        },
+                        identity,
+                        || malformed_identity_offset(identity),
+                    );
                     Error::MalformedIdentity
                 }
                 TypeIdentityVisitError::ResourceLimitExceeded
@@ -131,8 +148,12 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Observer for Visitor<Contains>
         })
     }
     fn type_identity(&mut self, identity: &str) -> Result<(), Error> {
-        let result = self.visit_type(identity);
+        let result = self.visit_type(identity, None);
         self.explain(result, "type identity", identity)
+    }
+    fn declared_type_identity(&mut self, identity: &str, lifetimes: usize) -> Result<(), Error> {
+        let result = self.visit_type(identity, Some(lifetimes));
+        self.explain(result, "declared type identity", identity)
     }
     fn nominal_path(&mut self, path: &str) -> Result<(), Error> {
         let result = self.visit_name(path);
@@ -165,6 +186,18 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> TypeIdentityPackageOwnerVisito
             .ok_or(Error::MalformedIdentity)
             .and_then(|package| self.package(package));
         self.bridge(result)
+    }
+    fn schema_region(&mut self, ordinal: u32) -> Result<(), TypeIdentityVisitError> {
+        if self
+            .declared_lifetimes
+            .is_some_and(|count| usize::try_from(ordinal).is_ok_and(|ordinal| ordinal < count))
+        {
+            Ok(())
+        } else {
+            Err(TypeIdentityVisitError::Unadmitted(
+                language_semantics::type_identity::vocabulary::Unadmitted::ApplicationScope,
+            ))
+        }
     }
     fn embedded_name(&mut self, name: &str) -> Result<(), TypeIdentityVisitError> {
         let result = self.visit_name(name);

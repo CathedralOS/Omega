@@ -62,11 +62,14 @@ pub(crate) fn encode_data_properties(
 pub(crate) fn encode_data_member(
     encoder: &mut Encoder,
     member: &PackageReviewDataMember,
+    lifetimes: usize,
 ) -> Result<(), PackageReviewEncodingError> {
     match member {
         PackageReviewDataMember::Field(field) => {
             encoder.tag("field", 0);
-            encoder.field("field", |encoder| encode_data_field(encoder, field))?;
+            encoder.field("field", |encoder| {
+                encode_data_field(encoder, field, lifetimes)
+            })?;
         }
         PackageReviewDataMember::Variant {
             identity,
@@ -77,7 +80,9 @@ pub(crate) fn encode_data_member(
             encoder.tag("variant", 1);
             encoder.field_by("identity", *identity, encode_optional_u64)?;
             encoder.field("name", |encoder| encoder.string(name))?;
-            encoder.sequence_field("payload", payload, encode_data_field)?;
+            encoder.sequence_field("payload", payload, |encoder, field| {
+                encode_data_field(encoder, field, lifetimes)
+            })?;
             encoder.field("retired_payload_identities", |encoder| {
                 encoder.sequence(retired_payload_identities, |encoder, identity| {
                     encoder.u64_field("identity", *identity)?;
@@ -92,18 +97,29 @@ pub(crate) fn encode_data_member(
 pub(crate) fn encode_data_field(
     encoder: &mut Encoder,
     field: &PackageReviewDataField,
+    lifetimes: usize,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", field.identity, encode_optional_u64)?;
     encoder.field("name", |encoder| encoder.string(&field.name))?;
     encoder.field_by("relevance", field.relevance, encode_relevance)?;
-    encoder.field_by("type_identity", &field.type_identity, encode_type_identity)
+    encoder.field("type_identity", |encoder| {
+        encode_type_identity_in_scope(encoder, &field.type_identity, Some(lifetimes))
+    })
 }
 
 pub(crate) fn encode_type_identity(
     encoder: &mut Encoder,
     identity: &PackageReviewTypeIdentity,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.observe_type_identity(&identity.canonical)?;
+    encode_type_identity_in_scope(encoder, identity, None)
+}
+
+fn encode_type_identity_in_scope(
+    encoder: &mut Encoder,
+    identity: &PackageReviewTypeIdentity,
+    lifetimes: Option<usize>,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.observe_type_identity(&identity.canonical, lifetimes)?;
     encoder.field("canonical", |encoder| encoder.string(&identity.canonical))
 }
 

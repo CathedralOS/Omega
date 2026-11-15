@@ -47,19 +47,23 @@ fn ordinal(value: &str) -> Result<(), Error> {
 }
 
 impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
-    pub(super) fn visit_type(&mut self, identity: &str) -> Result<(), Error> {
+    pub(super) fn visit_type(
+        &mut self,
+        identity: &str,
+        lifetimes: Option<usize>,
+    ) -> Result<(), Error> {
         if identity.len() > 4 * 1024 * 1024 {
             return Err(Error::InvalidPolicy);
         }
         if !identity.as_bytes().first().is_some_and(u8::is_ascii_digit) {
-            return self.runtime(identity);
+            return self.runtime(identity, lifetimes);
         }
         self.nested(|visitor| {
             let mut fields = Fields(identity);
             if fields.next()? != "signature-type" {
                 return Err(Error::MalformedIdentity);
             }
-            visitor.runtime(fields.next()?)?;
+            visitor.runtime(fields.next()?, None)?;
             visitor.topology(fields.next()?)?;
             fields.finish()
         })
@@ -98,14 +102,14 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
                         let mut child = Fields(fields.next()?);
                         match child.next()? {
                             "parameter" => {
-                                visitor.visit_type(child.next()?)?;
+                                visitor.visit_type(child.next()?, None)?;
                                 if child.next()?.is_empty() {
                                     return Err(Error::MalformedIdentity);
                                 }
                                 child.finish()?;
                             }
                             "result-type" => {
-                                visitor.visit_type(child.next()?)?;
+                                visitor.visit_type(child.next()?, None)?;
                                 child.finish()?;
                                 break;
                             }

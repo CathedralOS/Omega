@@ -1501,8 +1501,9 @@ fn accepted_package_review_keeps_public_data_lifetime_bindings() {
     .unwrap();
     let project = workspace.path().join("project");
     let original = r#"
+public data Text<'view> [copy] { bytes: &'view [u8]; }
 public data Message<'first, 'second> [copy] {
-    left: &'first [u8]; right: &'second [u8];
+    left: Text<'first>; right: &'second [u8];
 }
 machine main() {}
 "#;
@@ -1537,9 +1538,20 @@ machine main() {}
         let reviewed =
             review_evidence::project_package_review(&checked, identity, target, usize::MAX)
                 .unwrap_or_else(|error| panic!("public lifetime data review: {error:?}"));
-        let [shape] = reviewed.policy.public_data() else {
-            panic!("the actual public data declaration must be retained");
-        };
+        reviewed
+            .policy
+            .validate_package_membership(
+                |package| package == identity,
+                review_evidence::encoding::PackagePolicyMembershipLimits::default(),
+            )
+            .expect("declared field lifetimes must survive normal lock membership");
+        assert_eq!(reviewed.policy.public_data().len(), 2);
+        let shape = reviewed
+            .policy
+            .public_data()
+            .iter()
+            .find(|shape| shape.lifetime_parameter_count() == 2)
+            .expect("the actual two-binder Message declaration must be retained");
         assert_eq!(shape.lifetime_parameter_count(), 2);
         assert_eq!(shape.members().len(), 2);
         shapes.push(shape.clone());
