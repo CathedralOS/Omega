@@ -73,6 +73,20 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A published edge discards an unrestricted record as though it owns affine contents
+- Category: knowledge crossing a boundary
+- Where: [published copyable-discard control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/owned_dispatch.rs#L171), [schedule verification](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L626), [runtime edge preflight](omega-rust/psi/interpreter/src/engine_terminators.rs#L242)
+- Saw: On macOS arm64 with the reference-match cleanup repair on `30ae6323d4b`, a Build entry calls the existing copyable-record dispatch with `Selection::Root` and a `CopyHolder`. The unchanged closure completes in Psi, as does a freshly prepared twin with `RetireHome(spare)` on that edge. A twin replacing just that action with `DiscardRoot(spare)` passes Stage06 judgment and invocation publication, then fails with `AffineFrontierMismatch` at machine 4, block 4. The exact `spare` row is owned and unrestricted.
+- Cost: A published invocation can fail on cleanup the checker approved. Require the existing cleanup verifier and executor to agree on which checked homes can use whole affine discard, keeping the valid unrestricted retirement available.
+- Reported: 2026-11-15, Codex, while tracing shared-reference match cleanup.
+
+### Two returned-window probes still use retired callable forms
+- Category: tests that pin the bug
+- Where: [case-selected typed slice](samples/cli/probes/case_selected_slice_reference/main.omg#L7), [selected byte window](samples/cli/probes/byte_window_dispatch/main.omg#L21), [attached-machine refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L891), [dynamic type refusal](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs#L623)
+- Saw: On clean `30ae6323d4b` on macOS arm64, preparing the unchanged case-selected probe from `main` rejects `Storage::select` with `a data declaration cannot own a machine`. The unchanged byte-window probe refuses `dyn Payload` on line 21 with `dyn types are retired`. The kept `run/views/byte_subslice` is accepted through the same Stage 06 source path. Existing selected and rigid `Handoff` controls still retain their real declared source loan and reject a live overlapping write.
+- Cost: The two probes stop before their intended returned-window checks. Migrate the callable forms while preserving the typed slice's selected and rebound cells and both byte decoders' written ranges, values, and exit oracles. Then check both engines and keep the independent projection-bound concern open.
+- Reported: 2026-11-15, Codex, while reproducing retained result-window bounds
+
 ### An ordinary generic specialization publishes Psi bytes that cannot be reloaded
 - Category: knowledge crossing a boundary
 - Where: [specialization declaration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L454), [artifact validation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L1858), [anonymous source fixture](samples/cli/facts/nominal_declaration_owner/library/library.omg#L4)
@@ -103,9 +117,9 @@ framework or a list of features that remain unimplemented.
 
 ### A reference match loses the incoming loan at its result
 - Category: knowledge crossing a boundary
-- Where: [incoming descriptor authentication](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L429)
-- Saw: On macOS arm64 with the `2654b67f946` CLI, `let joined: &Ticket = match choice { true -> incoming, _ -> incoming };` followed by a call borrowing `joined` refuses because it cannot authenticate the incoming loan. Binding `incoming` to a local reference before the same match instead runs to exit 0 in native and fails in Psi with `AffineFrontierMismatch` at machine 4, block 4. The otherwise equivalent `&Ticket in Stamped` controls reproduce both outcomes with the qualified match change at `1264434c319`.
-- Cost: Branches that deliver a shared reference to the same backing cannot carry its checked loan into a caller. Preserve the incoming formation and live permission through the existing arrival and interpreter custody rules.
+- Where: [descriptor location transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L963), [incoming descriptor authentication](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L428)
+- Saw: On macOS arm64 at `30ae6323d4b`, `let joined: &Ticket = match choice { true -> incoming, _ -> incoming };` followed by a call borrowing `joined` refuses before publication because the call's reference descriptor has no authenticated formation or incoming loan. The `&Ticket in Stamped` twin gets the same refusal. Each arm forms its own loan. Descriptor transport intersects the authorized locations of each formation across predecessors, leaving neither arm's loan available at the result.
+- Cost: A machine cannot pass the match result to a borrowing call even when every arm borrows the same incoming record. Generalize the existing loan and arrival analysis to check each arm's immediate lender at the corresponding arrival. Keep the distinct-lifetime refusal when both arms borrow from another input.
 - Reported: 2026-11-15, Codex, while checking domains through value matches.
 
 ### A selected domain access plan never supplies its issuer set
