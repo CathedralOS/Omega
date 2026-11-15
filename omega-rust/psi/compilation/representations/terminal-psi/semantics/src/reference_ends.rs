@@ -358,11 +358,20 @@ fn add_dependencies(
         .get(&source.place)
         .copied()
         .ok_or("reference parent lost its source type")?;
+    // A runtime element selector has no static slot, but every parent
+    // descriptor the reference can borrow from lies inside the storage before
+    // that selector. Ordering against all of them is a superset of the real
+    // ancestry, so it can only add end-ordering constraints, never drop one.
+    let static_prefix = source
+        .path
+        .iter()
+        .position(|segment| segment.runtime_index().is_some())
+        .unwrap_or(source.path.len());
     let mut captured = crate::descriptor_lifetimes::descriptor_location(
         &module.structural_types,
         source.place,
         source_type,
-        &source.path,
+        &source.path[..static_prefix],
         None,
     )
     .ok_or("reference parent has no exact captured path")?;
