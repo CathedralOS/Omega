@@ -1,6 +1,6 @@
 # std_time_host_binding
 
-`Time::now`, a 50 ms `Time::sleep_for`, and `Time::elapsed_since` use the package-selected `TimeHost` provider. The unchanged program requires `slept == 50` and an elapsed duration of at least 50 ms, then exits 70.
+`instant_now`, a 50 ms `sleep_for`, and `elapsed_since` use the package-selected `TimeHost` provider. The unchanged program requires `slept == 50` and an elapsed duration of at least 50 ms, then exits 70.
 
 This is the TimeHost cohort of `BUILD-OWNED-TARGET-SELECTION` and `BUILD-OWNED-NATIVE-BINDINGS`. `std/build.omg::configure_time_host` selects ordinary Windows, Linux x86-64, Linux arm64 and shared Darwin implementations for the five hosted target rows. The owning package supplies the private raw clock and wait requirements directly through Build; callers retain the public TimeHost contract. The existing four Windows native rows retain their signatures and locators.
 
