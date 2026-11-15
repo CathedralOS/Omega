@@ -4308,18 +4308,23 @@ pub(crate) mod unit {
                             })
                             .ok_or(LegalizationError::custody())?
                             .as_checking();
-                            Ok::<_, LegalizationError>((element.index, scalar_type, element.stride))
+                            Ok::<_, LegalizationError>((element, scalar_type))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    // Selection reads the result, selector operands, extents and
+                    // proof keys from this row alone, so each must rejoin here.
                     if psi_operation != expected_operation
                         || source != expected_source
                         || path != expected_path
                         || *byte_offset != expected_offset
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || indices.len() != expected_indices.len()
                         || indices.iter().zip(&expected_indices).any(
-                            |(index, (value, scalar_type, stride))| {
-                                index.stride != *stride
-                                    || index.operand.source_value() != *value
+                            |(index, (element, scalar_type))| {
+                                index.stride != element.stride
+                                    || index.extent != element.extent
+                                    || index.obligation != element.obligation
+                                    || index.operand.source_value() != element.index
                                     || index.operand.scalar_type() != *scalar_type
                             },
                         )
@@ -4583,6 +4588,7 @@ pub(crate) mod unit {
                         || *path != abstract_operations::StructuralCopyPath::Ordinary(extent.path)
                         || *byte_offset != extent.byte_offset
                         || !super::runtime_indices_rejoin(indices, &extent.elements, sources)
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || *result_home
                             != scalar_graph_input::aggregate_results::result_home(
                                 optimized,
@@ -4601,6 +4607,7 @@ pub(crate) mod unit {
                         path,
                         field,
                         value: retained_value,
+                        value_type,
                         byte_offset,
                         indices,
                     },
@@ -4634,8 +4641,11 @@ pub(crate) mod unit {
                     {
                         return Err(LegalizationError::custody());
                     }
+                    // Selection derives the store's shape from the retained
+                    // value type, so it must name the written field's type.
                     if owned_projected_field_source(optimized, value, plan.geometry())?
                         != extent.field_type
+                        || *value_type != extent.field_type
                     {
                         return Err(LegalizationError::custody());
                     }
