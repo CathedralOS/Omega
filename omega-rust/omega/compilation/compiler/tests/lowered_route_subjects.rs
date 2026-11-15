@@ -846,6 +846,36 @@ fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
         if refusal.detail.contains("a boundary conformer is callable only through its provider slot")),
         "{verdict:?}"
     );
+
+    // The map owns the boundary contract. Its private helper stays an
+    // ordinary callable; the wrapper must still forward the right argument.
+    let through_helper = |argument: &str| {
+        format!(
+            "public boundary trait Probe {{
+                machine probe(value: u8) -> u8 ensures result == value reaches;
+             }}
+             public SuppliedProbe satisfies Probe {{
+                machine probe(value: u8) -> u8 {{ helper({argument}) }}
+             }}
+             machine helper(value: u8) -> u8 ensures result == value {{ value }}"
+        )
+    };
+    let helper_valid = judged_parts("boundary_subject_helper_valid", &through_helper("value"));
+    assert!(!helper_valid.is_empty());
+    assert!(
+        helper_valid
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{helper_valid:?}"
+    );
+    let helper_invalid = judged_parts(
+        "boundary_subject_helper_wrong_argument",
+        &through_helper("0u8"),
+    );
+    assert!(
+        helper_invalid.contains(&Verdict::Rejected),
+        "{helper_invalid:?}"
+    );
 }
 
 /// A generic body that calls another generic machine at its own type

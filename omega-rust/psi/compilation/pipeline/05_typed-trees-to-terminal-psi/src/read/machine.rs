@@ -39,6 +39,39 @@ fn refuse_parameters(
 }
 
 impl<'t> Program<'t> {
+    fn boundary_conformer_call_refusal(
+        &self,
+        id: MachineId,
+        machine: &Machine,
+        requirement: SymbolHandle,
+        formation: &str,
+    ) -> terminal_check_tables::Refusal {
+        let mut refusal = refuse(
+            id,
+            Construct::Machine,
+            Unserved::Machine("a boundary conformer is callable only through its provider slot"),
+        );
+        let active = if self
+            .typed
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(self.lifetime_owner)
+        {
+            self.typed.symbols.display_path(self.lifetime_owner, "::")
+        } else {
+            "no active source declaration".to_owned()
+        };
+        refusal.detail.push_str(&format!(
+            "; declaration `{}` ({:?}); requirement `{}`; {formation}; active source `{active}`; declared at {:?}",
+            self.typed.symbols.display_path(machine.symbol, "::"),
+            machine.symbol,
+            self.typed.symbols.display_path(requirement, "::"),
+            self.declared_at(machine.symbol),
+        ));
+        refusal
+    }
+
     fn unapplied_map_body(&self, symbol: SymbolHandle) -> bool {
         self.typed
             .owned_conformance_realization(symbol)
@@ -302,18 +335,17 @@ impl<'t> Program<'t> {
         }
         let diagnostic = self.next_identity()?;
         let (declared, _) = self.declaration(diagnostic, symbol)?;
-        if let Some((owner, _)) = self.conformer_requirement(diagnostic, declared)?
+        if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
             && self
                 .typed
                 .trait_definition_by_symbol(owner)
                 .is_some_and(|owner| owner.is_boundary)
         {
-            return Err(refuse(
+            return Err(self.boundary_conformer_call_refusal(
                 diagnostic,
-                Construct::Machine,
-                Unserved::Machine(
-                    "a boundary conformer is callable only through its provider slot",
-                ),
+                declared,
+                requirement.symbol,
+                "named callee admission",
             ));
         }
         // ponytail: linear scan over the discovered machines; a dense table
@@ -1049,18 +1081,17 @@ impl<'t> Program<'t> {
             return unserved("`satisfies` clause on a generic machine");
         }
         if matches!(reading, Reading::Closed)
-            && let Some((owner, _)) = self.conformer_requirement(id, machine)?
+            && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
             && self
                 .typed
                 .trait_definition_by_symbol(owner)
                 .is_some_and(|owner| owner.is_boundary)
         {
-            return Err(refuse(
+            return Err(self.boundary_conformer_call_refusal(
                 id,
-                Construct::Machine,
-                Unserved::Machine(
-                    "a boundary conformer is callable only through its provider slot",
-                ),
+                machine,
+                requirement.symbol,
+                "closed machine body admission",
             ));
         }
         Ok(())
