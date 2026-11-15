@@ -272,19 +272,18 @@ pub(crate) fn project(
             }
         }
         TargetControlTerminator::StructuralCase {
+            psi_block,
             source,
             path,
+            indices,
             byte_offset,
             layout,
             pointer_slots,
             region_byte_size,
             cases,
         } => {
-            // This selector does not realize descriptor-word or indexed pointer
-            // chases. Retaining the geometry must not broaden that capability.
-            if pointer_slots
-                .iter()
-                .any(|slot| slot.scalar_descriptor || slot.index_start != slot.index_end)
+            // Scalar-descriptor chases require a different lowering.
+            if pointer_slots.iter().any(|slot| slot.scalar_descriptor)
                 || byte_offset
                     .checked_add(layout.shape.byte_size)
                     .is_none_or(|end| end > *region_byte_size)
@@ -292,6 +291,13 @@ pub(crate) fn project(
             {
                 return Err(LegalizationError::custody());
             }
+            // The checked block owns the discriminator's read before any case edge.
+            let indices = crate::legalization::runtime_indices::retained_operands(
+                facts,
+                machine,
+                terminal_psi::ExecutionSite::Block(*psi_block),
+                indices,
+            )?;
             let selected_source = match source {
                 target_operations::TargetStructuralCaseSource::Home(home) => {
                     home_source(&home.origin)
@@ -365,8 +371,10 @@ pub(crate) fn project(
                 })
                 .collect::<Result<Vec<_>, LegalizationError>>()?;
             LegalizedScalarTerminator::StructuralCase {
+                psi_block: *psi_block,
                 source: selected_source,
                 path: path.clone(),
+                indices,
                 root_shape: source.layout().shape(),
                 byte_offset: *byte_offset,
                 layout: layout.clone(),
