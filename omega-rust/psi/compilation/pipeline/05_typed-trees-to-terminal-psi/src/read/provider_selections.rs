@@ -141,12 +141,7 @@ impl<'source> Program<'source> {
                 ProviderPlanningContext::new(typed, source::DependencyScope::Product),
                 scope.clone(),
             )
-            .ok_or_else(|| {
-                services::unavailable(
-                    context,
-                    "provider choice has no normalized schema projection",
-                )
-            })?;
+            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
             projected
                 .validate_correspondence()
                 .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;

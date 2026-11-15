@@ -137,6 +137,32 @@ fn write_structural(
             }
             Ok(())
         }
+        (
+            StructuralTypeShape::ElementView {
+                element,
+                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
+            BuildTimeValue::Array(elements),
+        ) => {
+            let mut contents = Vec::new();
+            let mut element_path = vec![Path::FixedIndex(0)];
+            for (ordinal, value) in elements.iter().enumerate() {
+                element_path[0] = Path::FixedIndex(
+                    u64::try_from(ordinal)
+                        .map_err(|_| "Terminal sequence input exceeds its index namespace")?,
+                );
+                write_structural(program, *element, value, &mut element_path, &mut contents)?;
+            }
+            contents.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+            values.push(TerminalBoundaryStorageValue {
+                path: path.clone(),
+                contents: TerminalStorageContents::Elements {
+                    length: elements.len(),
+                    values: contents.into(),
+                },
+            });
+            Ok(())
+        }
         (StructuralTypeShape::PrimitiveScalar(scalar), _) => {
             write_scalar(program, *scalar, *scalar, value, path, values)
         }
@@ -472,4 +498,14 @@ pub fn read_leaf(
         }) => scalar_result(instance.program(), value),
         _ => Err("Terminal result leaf is outside the compiler-owned vocabulary".into()),
     }
+}
+
+/// Project complete semantic access-plan data from the existing bound query
+/// and result receipts. The result remains descriptive: this operation does
+/// not admit a policy invocation, authorize a domain or join physical backing.
+pub fn access_plan_result(
+    query: &crate::PureTerminalEvaluationReceipt,
+    result: &crate::PureTerminalEvaluationReceipt,
+) -> Result<access_plans::AccessPlan, String> {
+    crate::source_jobs::access_plan_values::normalize(query, result)
 }

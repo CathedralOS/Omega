@@ -78,6 +78,7 @@ pub fn prepare_compilation(
             );
             let mut witness = crate::read::logical::projected_arrival(
                 typed,
+                compilation.purpose,
                 required,
                 binding.implementation,
                 &binding.visible_parameters,
@@ -89,14 +90,22 @@ pub fn prepare_compilation(
             Ok(witness)
         })
         .collect();
-    let (mut closure, primary_source, signatures) =
+    // Every refusal reading met is reported: the first as the closure's
+    // verdict, the rest beside it (`PreparedCompilation::further`).
+    let mut further = Vec::new();
+    let (mut closure, primary_source, signatures, prepared_applications) =
         match crate::elaborate_source_for(typed, compilation, publication, captures.clone()) {
             Ok(prepared) => (
                 Ok(prepared.program),
                 Some(prepared.source),
                 prepared.selected_calls,
+                prepared.prepared_applications,
             ),
-            Err(refusal) => (Err(refusal), None, Vec::new()),
+            Err(mut refused) => {
+                let first = refused.remove(0);
+                further = refused;
+                (Err(first), None, Vec::new(), Vec::new())
+            }
         };
     let mut source = crate::SourceCorrespondence {
         forms: vec![primary_source],
@@ -187,7 +196,30 @@ pub fn prepare_compilation(
     if let Some(reason) = selected_failure {
         closure = Err(reason);
     }
-    let forms = prepare_generic_forms(typed, templates, &captures, &mut source);
+    // Template proof forms retain both the checked source context and the
+    // actual publication mode of the invocation using their captures.
+    let forms = prepare_generic_forms(
+        typed,
+        compilation.purpose,
+        templates,
+        &captures,
+        publication,
+        &mut source,
+    );
+    closure = closure.and_then(|mut elaboration| {
+        crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
+            .map_err(|(owner, reason)| {
+                crate::refuse(
+                    owner,
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Declaration(reason),
+                )
+            })?;
+        // Proof scope retains the completed callable headers for later
+        // admission. Capture commitments are part of those headers.
+        crate::proof_scope::declare(typed, &mut elaboration, &signatures)?;
+        Ok(elaboration)
+    });
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {
@@ -199,7 +231,11 @@ pub fn prepare_compilation(
             arguments,
             *implementation,
             *signature,
-            captures.clone(),
+            crate::WitnessInputs {
+                captures: captures.clone(),
+                purpose: compilation.purpose,
+                outcome_subjects: Some(compilation.subjects),
+            },
         );
         let mut witness = match prepared {
             Ok(prepared) => {
@@ -232,6 +268,7 @@ pub fn prepare_compilation(
         source,
         program: TerminalCompilation::Prepared(PreparedCompilation {
             closure,
+            further,
             arrivals,
             forms,
             witnesses,
@@ -453,24 +490,32 @@ pub(crate) fn prepare_selected_signatures<'source>(
 
 fn prepare_generic_forms(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     mut templates: Vec<SymbolHandle>,
     captures: &crate::NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
     source: &mut crate::SourceCorrespondence,
 ) -> Vec<GenericForms> {
     let mut forms = Vec::new();
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let elaborated =
-            crate::prepare_generic_forms(typed, &[template], captures.clone()).map(|forms| {
-                forms
-                    .into_iter()
-                    .map(|prepared| {
-                        source.forms.push(Some(prepared.source));
-                        prepared.program
-                    })
-                    .collect::<Vec<_>>()
-            });
+        let elaborated = crate::prepare_generic_forms(
+            typed,
+            purpose,
+            &[template],
+            captures.clone(),
+            publication,
+        )
+        .map(|forms| {
+            forms
+                .into_iter()
+                .map(|prepared| {
+                    source.forms.push(Some(prepared.source));
+                    prepared.program
+                })
+                .collect::<Vec<_>>()
+        });
         if elaborated.is_err() {
             source.forms.push(None);
         }

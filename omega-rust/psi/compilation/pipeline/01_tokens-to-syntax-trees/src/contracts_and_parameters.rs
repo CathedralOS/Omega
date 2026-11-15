@@ -1384,6 +1384,9 @@ pub(crate) mod contracts {
             pub terminates_guarantee: bool,
             /// The signature wrote `crashes none` (see `MachineClauses`).
             pub declares_no_crash_route: bool,
+            /// The signature wrote a `crashes` clause: `crashes none` or at
+            /// least one `crashes Cause` route. A boundary requirement must.
+            pub writes_crash_clause: bool,
         }
 
         pub(crate) fn parse_signature_clauses<'tokens, 'source>(
@@ -1579,6 +1582,10 @@ pub(crate) mod contracts {
                 ]));
             }
 
+            let writes_crash_clause = crashes_none_declared
+                || contracts.iter().any(|contract: &CapabilityContract| {
+                    matches!(contract.kind, CapabilityContractKind::Crashes { .. })
+                });
             Ok((
                 SignatureClauses {
                     service_reaches: syntax_trees
@@ -1594,6 +1601,7 @@ pub(crate) mod contracts {
                     contracts: super::publish_capability_contracts(syntax_trees, contracts),
                     terminates_guarantee,
                     declares_no_crash_route: crashes_none_declared,
+                    writes_crash_clause,
                 },
                 input,
             ))

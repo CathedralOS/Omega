@@ -248,30 +248,14 @@ impl ProviderPlan {
         encoder.string(self.identity_text(self.provider_application));
         encoder.package_identity(self.provider_type_package_identity);
         encoder.string(&self.target);
-        encoder.string(
-            self.schema
-                .identity_text(self.schema.declaration.trait_name),
-        );
-        encoder.package_identity(self.schema.declaration.trait_package_identity);
-        encoder.receiver_applications(&self.schema);
-
-        let mut methods = self.schema.declaration.methods.iter().collect::<Vec<_>>();
-        methods.sort_by(|left, right| {
-            left.name.cmp(&right.name).then_with(|| {
-                self.schema
-                    .identity_text(left.requirement_identity)
-                    .cmp(self.schema.identity_text(right.requirement_identity))
-            })
-        });
-        encoder.len(methods.len());
-        for method in methods {
-            encoder.service_method(
-                method,
-                &self.schema.declaration.identities,
-                self.schema
-                    .calling_for_requirement(method.requirement_identity),
-            );
-        }
+        self.schema
+            .declaration
+            .encode_contract(&mut encoder, |method, encoder| {
+                encoder.calling_applications(
+                    self.schema
+                        .calling_for_requirement(method.requirement_identity),
+                );
+            });
 
         let mut rows = self.rows.iter().collect::<Vec<_>>();
         rows.sort_by_cached_key(|row| {
@@ -764,17 +748,10 @@ impl ProviderPlan {
                     ));
                 }
             }
-            if matches!(
-                method.completion,
-                semantic_vocabulary::BoundaryCompletion::External(_)
-            ) && method.has_result
-            {
-                errors.push(format!(
-                    "plan `{}` external completion requirement `{}` declares a normal result",
-                    self.name,
-                    self.schema.identity_text(method.requirement_identity)
-                ));
-            }
+            // Result presence describes the logical declaration, including an
+            // empty result. Canonical callable admission owns whether normal
+            // completion is possible; opaque type identity presence cannot
+            // establish that semantic judgment here.
             if method.has_result == !method.result_type_identity.is_valid() {
                 errors.push(format!(
                     "{} result presence disagrees with its exact result type identity",

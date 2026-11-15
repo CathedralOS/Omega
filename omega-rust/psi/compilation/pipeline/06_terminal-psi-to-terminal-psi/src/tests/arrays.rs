@@ -8,6 +8,7 @@ use typed_trees_to_terminal_psi::StorageShape;
 fn array_types() -> IdTable<StructuralTypeId, RecordType> {
     let mut types = IdTable::default();
     types.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: "u32-storage".into(),
@@ -19,11 +20,13 @@ fn array_types() -> IdTable<StructuralTypeId, RecordType> {
     });
     for (element, length, identity) in [(1, 4, "four"), (1, 2, "two"), (2, 2, "two-by-four")] {
         types.push(RecordType {
+            authored_layout: false,
             owns_linear_claim: false,
             copyable: true,
             identity: identity.into(),
             shape: StorageShape::FixedArray {
                 element: id(element),
+                qualification: typed_trees_to_terminal_psi::Qualification::NONE,
                 length: ArrayExtent::Literal(length),
             },
             requires: Vec::new(),
@@ -227,6 +230,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
     let foreign_capture = typed.expression_table.insert_match_subject(marker);
     let mut types = array_types();
     types.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: "Item".into(),
@@ -250,11 +254,13 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
         requires: Vec::new(),
     });
     types.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: "Items".into(),
         shape: StorageShape::FixedArray {
             element: id(5),
+            qualification: typed_trees_to_terminal_psi::Qualification::NONE,
             length: ArrayExtent::Literal(2),
         },
         requires: Vec::new(),
@@ -336,6 +342,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
 fn an_array_move_vacates_only_its_exact_element() {
     let mut types = IdTable::default();
     types.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
         identity: "OwnedElement".into(),
@@ -348,11 +355,13 @@ fn an_array_move_vacates_only_its_exact_element() {
         requires: Vec::new(),
     });
     types.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
         identity: "OwnedElements".into(),
         shape: StorageShape::FixedArray {
             element: id(1),
+            qualification: typed_trees_to_terminal_psi::Qualification::NONE,
             length: ArrayExtent::Literal(2),
         },
         requires: Vec::new(),

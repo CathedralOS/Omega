@@ -309,6 +309,50 @@ pub(crate) mod callable_identity {
             owner: &TraitDefinition,
             requirement: &StateSignature,
         ) -> Option<(Vec<String>, String, usize)> {
+            let mut type_parameters = self.trait_type_parameters(owner).to_vec();
+            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+            self.signature_definition_types(
+                super::callable_type_binders(owner.symbol, &type_parameters),
+                (requirement.symbol, requirement.symbol),
+                &[
+                    (owner.symbol, owner.lifetime_parameters.len()),
+                    (requirement.symbol, requirement.lifetime_parameters.len()),
+                ],
+                self.state_signature_parameters(requirement),
+                requirement.return_type,
+            )
+        }
+
+        /// Keep a machine's declared lifetime relation in its published type
+        /// identities. Overload identity deliberately omits this information;
+        /// a checked declaration must retain the stronger source promise.
+        pub fn machine_definition_types(&self, machine: &Machine) -> Option<(Vec<String>, String)> {
+            let [entry] = self.machine_states(machine) else {
+                return None;
+            };
+            // Captured lifetimes keep their portable declaration owner. Only
+            // this callable's own binders receive schema ordinals; otherwise
+            // a captured region absent from the inputs could look universal.
+            let lifetime_owner = self.lifetime_declaration_owner(machine.symbol);
+            let declared = super::declaration_lifetime_parameters(self, lifetime_owner)?.len();
+            let (parameters, result, _) = self.signature_definition_types(
+                super::callable_type_binders(machine.symbol, self.machine_type_parameters(machine)),
+                (machine.symbol, entry.symbol),
+                &[(lifetime_owner, declared)],
+                self.state_parameters(entry),
+                entry.return_type,
+            )?;
+            Some((parameters, result))
+        }
+
+        fn signature_definition_types(
+            &self,
+            mut binders: Vec<(symbols::SymbolHandle, String)>,
+            signature: (symbols::SymbolHandle, symbols::SymbolHandle),
+            lifetime_owners: &[(symbols::SymbolHandle, usize)],
+            parameters: &[crate::signature::StateParameter],
+            result: crate::types::TypeReferenceHandle,
+        ) -> Option<(Vec<String>, String, usize)> {
             use super::LifetimeParameterIdentity;
             use super::identity_context::{
                 SignatureElision, TypeIdentityContext, TypeIdentityQualification,
@@ -316,41 +360,35 @@ pub(crate) mod callable_identity {
             };
             use std::cell::Cell;
 
-            let mut type_parameters = self.trait_type_parameters(owner).to_vec();
-            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
-            let parameters = self.state_signature_parameters(requirement);
-            let mut binders = super::callable_type_binders(owner.symbol, &type_parameters);
             binders.extend(
                 parameters
                     .iter()
                     .enumerate()
                     .map(|(ordinal, parameter)| (parameter.symbol, format!("$value{ordinal}"))),
             );
-            let lifetimes = [
-                (owner.symbol, owner.lifetime_parameters.len()),
-                (requirement.symbol, requirement.lifetime_parameters.len()),
-            ]
-            .into_iter()
-            .flat_map(|(declaration, count)| {
-                (0..count).map(move |ordinal| LifetimeParameterIdentity {
-                    declaration,
-                    ordinal,
+            let lifetimes = lifetime_owners
+                .iter()
+                .copied()
+                .flat_map(|(declaration, count)| {
+                    (0..count).map(move |ordinal| LifetimeParameterIdentity {
+                        declaration,
+                        ordinal,
+                    })
                 })
-            })
-            .enumerate()
-            .map(|(ordinal, lifetime)| (lifetime, ordinal))
-            .collect::<Vec<_>>();
+                .enumerate()
+                .map(|(ordinal, lifetime)| (lifetime, ordinal))
+                .collect::<Vec<_>>();
             let invalid = Cell::new(false);
-            let outer = owner.lifetime_parameters.len();
-            let declared = requirement.lifetime_parameters.len();
-            let elision = SignatureElision::inputs(outer + declared);
+            let declared = lifetime_owners.last()?.1;
+            let outer = lifetimes.len() - declared;
+            let elision = SignatureElision::inputs(lifetimes.len());
             let context = TypeIdentityContext {
                 binders: &binders,
                 lifetime_binders: &lifetimes,
                 signature_elision: Some(&elision),
-                application_owner: requirement.symbol,
-                application_argument_owner: requirement.symbol,
-                signature_owners: Some((requirement.symbol, requirement.symbol)),
+                application_owner: signature.0,
+                application_argument_owner: signature.0,
+                signature_owners: Some(signature),
                 qualification: TypeIdentityQualification::PackageQualified,
                 invalid_application: Some(&invalid),
                 invalid_index_argument: Some(&invalid),
@@ -365,10 +403,16 @@ pub(crate) mod callable_identity {
                 .iter()
                 .map(|parameter| declared_type(parameter.type_reference))
                 .collect::<Option<Vec<_>>>()?;
-            // The requirement's one lifetime, declared or minted, is the
-            // first after the owner's.
+            // Only the callable's own lifetimes participate in output
+            // elision; enclosing lifetimes remain distinct captured regions.
             elision.enter_result(declared, outer);
-            let result = declared_type(requirement.return_type)?;
+            // An omitted result is the signature's Unit result, represented
+            // by the zero handle. A nonzero stale handle remains unavailable.
+            let result = if result.is_valid() {
+                declared_type(result)?
+            } else {
+                normalize_type_reference(self, result, &context)
+            };
             (!invalid.get()).then_some((parameters, result, elision.minted()))
         }
 
@@ -758,6 +802,23 @@ pub(crate) mod constraint_identity {
         context: &TypeIdentityContext<'_>,
     ) -> String {
         let ordinary_name = declared_domain_identity(program, domain, context);
+        if let Some(arguments) =
+            program.domain_arguments_for_instance(domain.symbol, domain.semantic_id)
+            && !arguments.is_empty()
+        {
+            return compound(
+                ConstraintForm::DeclaredDomain,
+                std::iter::once(atom(
+                    Label::Name,
+                    &context.name(program, domain.symbol, &ordinary_name),
+                ))
+                .chain(
+                    arguments
+                        .iter()
+                        .map(|argument| normalize_type_reference(program, *argument, context)),
+                ),
+            );
+        }
         if context.qualification == TypeIdentityQualification::Ordinary
             && domain.arguments.is_empty()
         {
@@ -931,64 +992,7 @@ pub(crate) mod constraint_identity {
         }
     }
 
-    pub(crate) fn bare(tag: impl Spelled) -> String {
-        tag.spelling().to_owned()
-    }
-
-    pub(crate) fn atom(tag: impl Spelled, value: &str) -> String {
-        let tag = tag.spelling();
-        let mut output = String::with_capacity(tag.len() + value.len() + 2);
-        output.push_str(tag);
-        output.push('(');
-        if value
-            .bytes()
-            .any(|byte| matches!(byte, b'\\' | b'(' | b')' | b','))
-        {
-            for character in value.chars() {
-                if matches!(character, '\\' | '(' | ')' | ',') {
-                    output.push('\\');
-                }
-                output.push(character);
-            }
-        } else {
-            output.push_str(value);
-        }
-        output.push(')');
-        output
-    }
-
-    pub(crate) fn byte_atom(tag: impl Spelled, value: &[u8]) -> String {
-        let tag = tag.spelling();
-        let mut output = String::with_capacity(tag.len() + value.len().saturating_mul(2) + 24);
-        output.push_str(tag);
-        output.push('(');
-        output.push_str(&value.len().to_string());
-        output.push(':');
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        for &byte in value {
-            output.push(char::from(HEX[usize::from(byte >> 4)]));
-            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        }
-        output.push(')');
-        output
-    }
-
-    pub(crate) fn compound(tag: impl Spelled, parts: impl IntoIterator<Item = String>) -> String {
-        let tag = tag.spelling();
-        let parts = parts.into_iter().collect::<Vec<_>>();
-        let mut output =
-            String::with_capacity(tag.len() + parts.iter().map(String::len).sum::<usize>() + 2);
-        output.push_str(tag);
-        output.push('(');
-        for (index, part) in parts.into_iter().enumerate() {
-            if index > 0 {
-                output.push(',');
-            }
-            output.push_str(&part);
-        }
-        output.push(')');
-        output
-    }
+    pub(crate) use language_semantics::type_identity::encoding::{atom, bare, byte_atom, compound};
 
     #[cfg(test)]
     pub(crate) mod byte_atom_tests {
@@ -1035,64 +1039,7 @@ pub(crate) mod constraint_identity {
     }
 }
 pub(crate) mod coordinates {
-    use language_semantics::type_identity::vocabulary::Spelled;
-
-    #[derive(Clone, Copy)]
-    pub(crate) enum CoordinateTag {
-        NamedCallable,
-        SpecializedCallable,
-        CapturedCallable,
-        NestedMachine,
-        ClosedRequirement,
-        LocalTraitApplication,
-        LocalTraitContract,
-        Refinements,
-        TraitApplication,
-        Parameter,
-        Path,
-        Parameters,
-        ResultDispatch,
-        Owner,
-        Name,
-        Template,
-        Declaration,
-        Arguments,
-        LocalArguments,
-        RuntimeValueCarrier,
-        Lifetimes,
-        Mutable,
-        Const,
-    }
-
-    impl Spelled for CoordinateTag {
-        fn spelling(self) -> &'static str {
-            match self {
-                Self::NamedCallable => "named-callable",
-                Self::SpecializedCallable => "specialized-callable",
-                Self::CapturedCallable => "captured-callable",
-                Self::NestedMachine => "nested-machine",
-                Self::ClosedRequirement => "closed-requirement",
-                Self::LocalTraitApplication => "local-trait-application",
-                Self::LocalTraitContract => "local-trait-contract",
-                Self::Refinements => "refinements",
-                Self::TraitApplication => "trait-application",
-                Self::Parameter => "parameter",
-                Self::Path => "path",
-                Self::Parameters => "parameters",
-                Self::ResultDispatch => "result-dispatch",
-                Self::Owner => "owner",
-                Self::Name => "name",
-                Self::Template => "template",
-                Self::Declaration => "declaration",
-                Self::Arguments => "arguments",
-                Self::LocalArguments => "local-arguments",
-                Self::RuntimeValueCarrier => "runtime-value-carrier",
-                Self::Lifetimes => "lifetimes",
-                Self::Mutable => "mutable",
-                Self::Const => "const",
-            }
-        }
-    }
+    pub(crate) use language_semantics::type_identity::encoding::CoordinateTag;
 }
 pub(crate) mod derived_declarations {
     use super::constraint_identity::{atom, compound};
@@ -1883,6 +1830,7 @@ pub(crate) mod identity_context {
     #[derive(Clone, Copy)]
     enum ElidedPosition {
         Fresh,
+        FirstResult,
         Only(usize),
         Ambiguous,
     }
@@ -1906,7 +1854,7 @@ pub(crate) mod identity_context {
         /// ambiguous when it has several.
         pub(crate) fn enter_result(&self, declared: usize, only: usize) {
             self.position.set(match declared + self.minted.get() {
-                0 => ElidedPosition::Fresh,
+                0 => ElidedPosition::FirstResult,
                 1 => ElidedPosition::Only(only),
                 _ => ElidedPosition::Ambiguous,
             });
@@ -1914,12 +1862,17 @@ pub(crate) mod identity_context {
 
         /// The schema ordinal of one elided position, or `None` when it is
         /// ambiguous and needs an explicit relation.
-        fn region(&self) -> Option<usize> {
+        pub(crate) fn region(&self) -> Option<usize> {
             match self.position.get() {
-                ElidedPosition::Fresh => {
+                ElidedPosition::Fresh | ElidedPosition::FirstResult => {
                     let ordinal = self.next.get();
                     self.next.set(ordinal + 1);
                     self.minted.set(self.minted.get() + 1);
+                    // With no inputs the first result occurrence introduces
+                    // one caller-chosen lifetime; later occurrences reuse it.
+                    if matches!(self.position.get(), ElidedPosition::FirstResult) {
+                        self.position.set(ElidedPosition::Only(ordinal));
+                    }
                     Some(ordinal)
                 }
                 ElidedPosition::Only(ordinal) => Some(ordinal),
@@ -2346,6 +2299,24 @@ pub(crate) mod identity_context {
         compound(NameForm::Nominal, [owner.encode(), atom(Label::Path, path)])
     }
 
+    fn elided_signature_lifetime_count(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> usize {
+        if context.signature_elision.is_none() {
+            return 0;
+        }
+        if let Some(declaration) = program.unique_data_definition_by_symbol(symbol) {
+            return declaration.lifetime_parameters.len();
+        }
+        if program.data_definition_by_symbol(symbol).is_some() {
+            // An ambiguous declaration cannot supply a guessed empty arity.
+            let _ = substitution::rejected(context);
+        }
+        0
+    }
+
     fn generic_type_identity(
         program: &TypedTrees,
         symbol: SymbolHandle,
@@ -2368,24 +2339,35 @@ pub(crate) mod identity_context {
                 ))],
             );
         }
+        let regions = if context.invalid_application.is_some()
+            && !context.declared_carrier
+            && !context.callable_operand_shape
+        {
+            if lifetimes.is_empty() {
+                (0..elided_signature_lifetime_count(program, symbol, context))
+                    .map(|_| {
+                        context
+                            .signature_elision
+                            .and_then(SignatureElision::region)
+                            .map_or_else(|| substitution::rejected(context), schema_region)
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                lifetimes
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, lifetime)| {
+                        context.lifetime_slot(program, lifetime, regions.get(ordinal).copied())
+                    })
+                    .collect()
+            }
+        } else {
+            Vec::new()
+        };
         Composite::new(
             TypeForm::Generic,
             std::iter::once(atom(Label::Name, &context.name(program, symbol, name)))
-                .chain(
-                    context
-                        .invalid_application
-                        .filter(|_| !context.declared_carrier && !context.callable_operand_shape)
-                        .into_iter()
-                        .flat_map(|_| {
-                            lifetimes.iter().enumerate().map(|(ordinal, lifetime)| {
-                                context.lifetime_slot(
-                                    program,
-                                    lifetime,
-                                    regions.get(ordinal).copied(),
-                                )
-                            })
-                        }),
-                )
+                .chain(regions)
                 .map(IdentityPart::Text)
                 .chain(arguments),
         )
@@ -2454,7 +2436,8 @@ pub(crate) mod identity_context {
             symbol = program.implementation_value_head(symbol);
         }
         if arguments.is_empty()
-            && (lifetimes.is_empty()
+            && ((lifetimes.is_empty()
+                && elided_signature_lifetime_count(program, symbol, context) == 0)
                 || context.invalid_application.is_none()
                 || context.declared_carrier)
         {
@@ -2758,66 +2741,67 @@ pub(crate) mod identity_context {
                 referee,
                 access,
                 lifetime,
-            } => Composite::new(
-                match access {
-                    language_core::ReferenceAccess::Shared => TypeForm::Reference,
-                    language_core::ReferenceAccess::Mutable => TypeForm::MutableReference,
-                    language_core::ReferenceAccess::WriteOnly => TypeForm::WriteOnlyReference,
-                },
-                std::iter::once(IdentityPart::Identity(normalize_type_identity(
-                    program, *referee, context,
-                )))
-                .chain(
-                    context
-                        .invalid_application
-                        .filter(|_| !context.declared_carrier && !context.callable_operand_shape)
-                        .filter(|_| {
-                            context.active_callable_signatures.is_empty()
-                                || lifetime.is_some()
-                                || !program
+            } => {
+                // Reserve the outer reference binder before its referent.
+                let region = context
+                    .invalid_application
+                    .filter(|_| !context.declared_carrier && !context.callable_operand_shape)
+                    .filter(|_| {
+                        context.active_callable_signatures.is_empty()
+                            || lifetime.is_some()
+                            || !program
+                                .type_reference_table
+                                .operand_lifetimes(type_reference)
+                                .is_empty()
+                    })
+                    .map(|_| {
+                        lifetime.as_ref().map_or_else(
+                            || {
+                                if let Some(elision) = context.signature_elision {
+                                    if let Some(ordinal) = elision.region() {
+                                        return schema_region(ordinal);
+                                    }
+                                } else if let Some(region) = program
                                     .type_reference_table
                                     .operand_lifetimes(type_reference)
-                                    .is_empty()
-                        })
-                        .map(|_| {
-                            lifetime.as_ref().map_or_else(
-                                || {
-                                    if let Some(elision) = context.signature_elision {
-                                        if let Some(ordinal) = elision.region() {
-                                            return schema_region(ordinal);
-                                        }
-                                    } else if let Some(region) = program
+                                    .first()
+                                {
+                                    return context.resolved_lifetime(program, *region);
+                                }
+                                if context.qualification
+                                    == TypeIdentityQualification::PackageQualified
+                                    && let Some(elided) = context.encountered_elided_regions
+                                {
+                                    elided.set(true);
+                                }
+                                bare(RegionForm::Elided)
+                            },
+                            |lifetime| {
+                                context.lifetime_slot(
+                                    program,
+                                    lifetime,
+                                    program
                                         .type_reference_table
                                         .operand_lifetimes(type_reference)
                                         .first()
-                                    {
-                                        return context.resolved_lifetime(program, *region);
-                                    }
-                                    if context.qualification
-                                        == TypeIdentityQualification::PackageQualified
-                                        && let Some(elided) = context.encountered_elided_regions
-                                    {
-                                        elided.set(true);
-                                    }
-                                    bare(RegionForm::Elided)
-                                },
-                                |lifetime| {
-                                    context.lifetime_slot(
-                                        program,
-                                        lifetime,
-                                        program
-                                            .type_reference_table
-                                            .operand_lifetimes(type_reference)
-                                            .first()
-                                            .copied(),
-                                    )
-                                },
-                            )
-                        })
-                        .map(IdentityPart::Text),
-                ),
-            )
-            .intern(program),
+                                        .copied(),
+                                )
+                            },
+                        )
+                    });
+                Composite::new(
+                    match access {
+                        language_core::ReferenceAccess::Shared => TypeForm::Reference,
+                        language_core::ReferenceAccess::Mutable => TypeForm::MutableReference,
+                        language_core::ReferenceAccess::WriteOnly => TypeForm::WriteOnlyReference,
+                    },
+                    std::iter::once(IdentityPart::Identity(normalize_type_identity(
+                        program, *referee, context,
+                    )))
+                    .chain(region.map(IdentityPart::Text)),
+                )
+                .intern(program)
+            }
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
@@ -2903,6 +2887,20 @@ pub(crate) mod identity_context {
                     && !symbol.is_valid() =>
             {
                 text_identity(program, substitution::rejected(context))
+            }
+            TypeReferenceNode::Named { symbol, name }
+                if elided_signature_lifetime_count(program, *symbol, context) != 0 =>
+            {
+                generic_reference_identity(
+                    program,
+                    *symbol,
+                    name,
+                    &[],
+                    &[],
+                    arena::HandleSpan::empty(),
+                    context,
+                )
+                .intern(program)
             }
             TypeReferenceNode::Named { symbol, name } => Composite::new(
                 TypeForm::Named,
@@ -3945,9 +3943,7 @@ pub(crate) mod package_policy_reading_tests {
             FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
         };
         use crate::{AccessFieldPlan, AccessViewPlan, AccessorTarget};
-        use access_plans::{
-            AccessFields, AccessPlan, BoundaryReach, FieldAccess, validate_access_plan,
-        };
+        use access_plans::{AccessFields, BoundaryReach, FieldAccess, validate_placement};
         use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
         use numerics::arithmetic::ArithmeticDomain;
         use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
@@ -4383,12 +4379,8 @@ pub(crate) mod package_policy_reading_tests {
                     access.key_at(0).expect("first field"),
                     access.key_at(1).expect("second field"),
                 ];
-                let placement = validate_access_plan(AccessPlan {
-                    layout,
-                    access,
-                    reach: BoundaryReach::default(),
-                })
-                .expect("an inaccessible placement validates");
+                let placement = validate_placement(layout, access, BoundaryReach::default())
+                    .expect("an inaccessible placement validates");
                 let field =
                     |key, name: &str, member_identity, accessor: &str, targets| AccessFieldPlan {
                         access_key: key,
@@ -4596,6 +4588,7 @@ pub(crate) mod package_policy_reading_tests {
                     .program
                     .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
                         type_reference: reference,
+                        lifetime_scope: None,
                         binders,
                         substitutions,
                         exact_toolchain_sources: &self.toolchain,
@@ -8192,6 +8185,10 @@ impl TypeIdentityRequest<'_> {
 #[derive(Clone, Copy)]
 pub struct ExactOwnerTypeIdentityRequest<'a> {
     pub type_reference: TypeReferenceHandle,
+    /// The actual lexical declaration and its retained binder roster let
+    /// unresolved lifetime names use the same exact scope as resolved IDs.
+    /// Absence keeps the existing carrier-only identity request.
+    pub lifetime_scope: Option<(SymbolHandle, &'a [(LifetimeParameterIdentity, usize)])>,
     pub binders: &'a [(SymbolHandle, String)],
     pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
@@ -8827,6 +8824,66 @@ impl TypedTrees {
             .unwrap_or_default()
     }
 
+    /// Projects a retained domain application into the existing canonical
+    /// application grammar. The caller supplies its exact declaration identity;
+    /// the retained telescope supplies every carrier/type/const coordinate.
+    pub fn domain_application_identity(
+        &self,
+        declaration: SymbolHandle,
+        identity: language_semantics::SemanticDomainId,
+        declaration_identity: &str,
+        toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<String, &'static str> {
+        let arguments = self
+            .domain_arguments_for_instance(declaration, identity)
+            .ok_or("domain identity lost its complete application")?;
+        if arguments.is_empty() {
+            return Ok(declaration_identity.to_owned());
+        }
+        let definition = self
+            .domain_definition(declaration)
+            .ok_or("domain identity lost its declaration")?;
+        let parameters = self.domain_type_parameters(definition);
+        if parameters.len() != arguments.len() {
+            return Err("domain identity has an incomplete declaration telescope");
+        }
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources: toolchain_sources,
+            missing_exact_nominal_owner: Some(&invalid),
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let parts = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| {
+                let argument = match parameter.kind {
+                    crate::data::TypeParameterKind::Type => {
+                        IndexIdentityArgument::TypeArgument(*argument)
+                    }
+                    crate::data::TypeParameterKind::Const { .. } => {
+                        IndexIdentityArgument::TypeReference(*argument)
+                    }
+                    _ => {
+                        invalid.set(true);
+                        return String::new();
+                    }
+                };
+                substitution::index_argument(self, argument, &context)
+            });
+        let application = compound(
+            TypeForm::Generic,
+            std::iter::once(atom(Label::Name, declaration_identity)).chain(parts),
+        );
+        if invalid.get() {
+            return Err("domain identity has an unresolved or unowned application argument");
+        }
+        Ok(application)
+    }
+
     pub fn type_identity_by_text(&self, text: &str) -> TypeIdentityId {
         self.type_identities.by_text(text)
     }
@@ -9158,11 +9215,30 @@ impl TypedTrees {
         request: ExactOwnerTypeIdentityRequest<'_>,
     ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
+        let invalid = Cell::new(false);
+        let (lifetime_owner, lifetime_binders) = request
+            .lifetime_scope
+            .unwrap_or((SymbolHandle::invalid(), &[]));
+        if request.lifetime_scope.is_some() && !lifetime_owner.is_valid() {
+            return None;
+        }
+        if request.lifetime_scope.is_some_and(|(_, binders)| {
+            binders
+                .iter()
+                .any(|(region, _)| lifetime_parameter_name(self, *region).is_none())
+        }) {
+            return None;
+        }
         let identity = normalize_type_identity(
             self,
             request.type_reference,
             &TypeIdentityContext {
                 binders: request.binders,
+                application_owner: lifetime_owner,
+                application_argument_owner: lifetime_owner,
+                lifetime_binders,
+                invalid_application: request.lifetime_scope.map(|_| &invalid),
+                encountered_elided_regions: request.lifetime_scope.map(|_| &invalid),
                 substitutions: request.substitutions,
                 substitution_semantics: SubstitutionSemantics::Transitive,
                 active_const_substitutions: &[],
@@ -9172,7 +9248,7 @@ impl TypedTrees {
                 ..TypeIdentityContext::default()
             },
         );
-        (!missing_exact_nominal_owner.get()).then_some(identity)
+        (!missing_exact_nominal_owner.get() && !invalid.get()).then_some(identity)
     }
 
     pub fn exact_owner_nominal_identity(

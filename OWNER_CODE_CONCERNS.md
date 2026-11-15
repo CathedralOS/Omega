@@ -1,16 +1,16 @@
 # Code Repair Queue
 
-Agents repair obvious code-quality and architecture defects without waiting for
-owner sign-off. This queue records concrete structural problems outside the
-current repair so another agent can take them through validation and landing.
-An entry is neither a new language rule nor a reason to stop the current work.
+Agents fix obvious code-quality and architecture defects without waiting for
+the owner. This queue lists concrete structural problems found outside an
+agent's current repair, so another agent can fix, validate and land them. An
+entry is neither a new language rule nor a reason to stop the current work.
 
-Use [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) only for genuinely unsettled language
-or high-level architecture choices. Apply the existing
-[architecture rules](AGENTS.md#conventions-and-workflow) directly; cross-cutting
-scope, conflicting edits and engineering difficulty do not require a decision.
-Plain missing functionality belongs in the existing outcome in [TASKS.md](TASKS.md),
-not here. A fail-closed "not implemented yet" is not an unsound acceptance.
+Use [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) only for truly unsettled language or
+high-level architecture choices. Apply the existing
+[architecture rules](AGENTS.md#conventions-and-workflow) directly; wide scope,
+conflicting edits and difficulty need no decision. Plain missing functionality belongs in its existing outcome in
+[TASKS.md](TASKS.md), not here. Refusing with "not implemented yet" fails
+closed; it is not an unsound acceptance.
 
 ## How to add one
 
@@ -19,18 +19,18 @@ properly reaches beyond the crate you are in. An ordinary bug, a style
 preference, or anything you can repair inside your own task does not belong
 here: just fix it.
 
-The best moment is your first hour in an area, before you have a change of your
-own to defend. Name the defective mechanism and its cost, not a speculative
-framework or a list of features that remain unimplemented.
+The best time is your first hour in an area, before you have your own change to
+defend. Name the broken mechanism and what it costs, not a speculative
+framework or a list of unimplemented features.
 
 - Add the entry at the top of the list under "Entries"; the list is flat, newest first.
 - Name one category from the list below on its `Category` line.
 - Keep it to the lines of the template. Link the file and line.
 - Add it in the pull request you are already landing; never open one for it.
-- Reconcile overlapping reports by the remaining defect; do not preserve duplicates.
-- Any repairing agent removes the entry when the fix lands. Remove stale reports
-  after verifying that the offending code or premise is gone; do not keep a
-  completion log or mistake deleting a report for implementing its feature.
+- Merge overlapping reports into one entry for the defect that remains; do not keep duplicates.
+- Whoever fixes it removes the entry when the fix lands. Remove a stale report
+  after checking that its code or premise is gone; keep no log of finished
+  work, and do not mistake deleting a report for implementing its feature.
 
 ```markdown
 ### <one line naming the concern>
@@ -47,7 +47,7 @@ framework or a list of features that remain unimplemented.
 
 1. **One idea, several implementations.** Your fix had to be applied in more
    than one place to work.
-2. **Knowledge crossing a boundary.** A stage imports something that is not its
+2. **Knowledge crossing a boundary.** A stage imports something other than its
    input representation, its output representation or a foundation crate.
 3. **Branch per shape.** Logic keyed on where a value sits (local, field,
    parameter, match arm) instead of what it is.
@@ -59,16 +59,16 @@ framework or a list of features that remain unimplemented.
 **Honesty**
 
 6. **A verdict with nothing behind it.** Something is accepted by default, by
-   fallback, or because a lookup came back empty.
+   a fallback, or because a lookup returned nothing.
 7. **Tests that pin the bug.** A fixture that would still pass if the feature
    were broken, or a check that quietly stopped running.
-8. **Zombie machinery.** Code only tests call, a retired path still being fed,
-   a fallback nobody can remove.
+8. **Zombie machinery.** Code that only tests call, a retired path that still
+   receives input, a fallback nobody can remove.
 
 **Direction**
 
 9. **The documents disagree.** You can cite a rule for either answer, or a
-   document blesses the thing that is rotting.
+   document approves code that is decaying.
 10. **Verifying costs more than writing.** You waited longer than you worked.
 
 ## Entries
@@ -77,7 +77,7 @@ framework or a list of features that remain unimplemented.
 - Category: Verifying costs more than writing
 - Where: [compiler test targets](omega-rust/omega/compilation/compiler/Cargo.toml#L110), [compiler feature alignment](omega-rust/omega/compilation/compiler/Cargo.toml#L102), and the `coherent-native-controls-24-01` receipt in continuation claim `18e81ab82af520780000000018e96239`
 - Saw: On macOS arm64 at `a827cf2c269`, a fixed-source nextest selection of 24 controls across 12 binaries spent 22m17s building before 176.905s of test execution. The command used the retained CLI feature union, optimization level 1, two codegen units and three jobs; 1,219 tests were not selected. Actual compiler processes remained active. The source of this build cost has not been established.
-- Cost: Each affected-source iteration waits about twenty-two minutes before exposing the next semantic refusal. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
+- Cost: The recorded twelve-binary replay spent twenty-two minutes building before exposing the next semantic refusal. A later three-binary replay at c16df641c12 built in 2m51s; that smaller selection does not identify the earlier cost. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
 - Reported: 2026-11-14, Codex, while carrying stored-machine programs through Console and native-binding preparation
 
 ### Callback and interrupt records lose the machine that owns their operation
@@ -87,65 +87,74 @@ framework or a list of features that remain unimplemented.
 - Cost: equal operation numbers in different machines can select an unrelated reached use or overwrite an installation site. Preserve the owning machine with the operation through the record, encoding and consumers so each registration names its actual call.
 - Reported: 2026-11-14, Codex, while reviewing stored-machine executable preparation
 
-### Build-time record arguments refuse folded and named const indices
+### The private-operator twin in `lowered_route_qualified` expects wording typing no longer prints
+- Category: tests that pin the bug
+- Where: `omega-rust/omega/compilation/compiler/tests/support/qualified_operator_homes.rs:133`
+- Saw: with `Distance::add` made private, typing refuses with "builtin operator `+` takes unqualified operands only, but `distance_left` has type `u32 in Distance` and no operator `+` is declared for it" (`03_symbol-resolved-trees-to-typed-trees/src/operator_calls.rs`, wording from #3541); the test accepts only "not a plain or policy-qualified scalar", "no visible operator" or "private operator", so `domain_operators_cross_package_boundaries_without_importing_their_module` fails at dc83fcb65264.
+- Cost: the lowered-form checker's area tests are red for a correct refusal; the oracle should name the refusal by what it checks, not by retired text.
+- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
+
+### A `fail/` proof fixture compiles, so `lowered_route_governance` fails at its base
 - Category: a verdict with nothing behind it
-- Where: [type-expression inventory](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L187), [record argument construction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs#L270)
-- Saw: At clean `f54abf8157c`, a Build-time invocation with a `Storage` record holding `Buffer<4>` and four bytes succeeds, as does the equivalent `Buffer<outer()>` with two evaluation receipts. With `Buffer<(2 + 2)>`, the application closes to the same four-element array but the generated argument binding refuses `using a type written as an expression`. With `Buffer<CAPACITY>` and `const CAPACITY: u64 = 4u64`, the application stays open and the same call refuses `invocation value has no exact closed data application`.
-- Cost: The caller cannot pass the same checked record at equivalent const indices. Carry the available canonical value through existing const-argument completion and the generated argument type before rejecting unresolved work.
-- Reported: 2026-11-14, Codex, while checking closed const-argument replay
+- Where: `tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg`, `omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs:44`
+- Saw: `omega --check --target linux_x86_64` on the fixture prints `compiled 237 source file(s)` at dc83fcb65264, although its header expects `carrier arithmetic in a clause term`; `an_invalid_bound_entry_reports_the_routes_rejection` panics with "the compilation must be rejected after Psi 04".
+- Cost: the governance test is red for every agent that runs the lowered-form checker's area tests, and an unused partial predicate (`value + 1u32 == 1u32`) is accepted without the rejection the fixture pins.
+- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
 
-### The shared typed-view Build-time control stops before its mutable twin
-- Category: knowledge crossing a boundary
-- Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L216), [generated caller](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L198)
-- Saw: At `6c485f370e4`, returning the original shared typed view stopped at `call the view's original incoming borrow cannot be identified`. At `ffb2464f7b6` on macOS arm64, #3374's stored-lifetime rule also exposed six fixtures that relied on implicit field lifetimes. Naming the data lifetimes and retaining the exact field owner restored the five owned-sequence, byte-record, and numbered-case controls. The original shared nonempty and empty inputs now type with a distinct outer loan and element byte lifetime. Their generated invocation fails at `source invocation lifetime arguments are not materialized`, before the returned-backing consumer and exclusive twin.
-- Cost: Both entry points need the original checked lifetime binding. The caller currently constructs shared typed argument literals locally, and the admitted host input path accepts only the issued layout context. Use ordinary call lifetime instantiation and the existing checked structural input and descriptor tables to retain the host view's actual immutable backing, including nested byte fields and an empty sequence. The existing borrow lookup must identify that host formal through `echo` and `consume`, and the same admission must still refuse when the host supplies immutable bytes for the exclusive twin.
-- Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls. Updated by Codex after the stored-lifetime migration.
-
-### Instruction selection reconstructs target operands from earlier executable bodies
+### Equality preparation reconstructs resolved types from names
 - Category: re-deriving
-- Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
-- Saw: At `1897804e0dbd`, ordinary Omega 03 construction receives target operations together with abstract operations and the optimized executable unit. It zips optimized blocks and operation nodes with target rows (`legalization_source.rs:3101`) and reconstructs structural-call indices from optimized definitions, path geometry and accepted obligation facts. Target arguments already retain index operands and strides, but omit the extent and proof facts this reconstruction supplies: the target handoff is incomplete. Descriptor-bearing call results can reconstruct an optimized catalog graph and selected boundary operations to derive origins. These are production construction paths, not only explicit independent validators or shared immutable type-catalog queries; no miscompile or runtime cost was measured in this audit.
-- Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
-- Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
+- Where: [operand scope](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L722), [field comparison](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L515), [operand lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L3356)
+- Saw: Source inspection at `c30b00a0b878` finds `EqualityScope::value_types` storing value/type string pairs. Field comparison converts a resolved type to its name and looks it up again using the containing data's source context. Recursion tracks `Vec<String>`; `Equatable` recognition compares a rendered path and `equals` selection compares row spelling. No runnable misbinding was reproduced.
+- Cost: Equality maintains another model of relationships already resolved upstream. Carry exact value, type/application and requirement-row identities through preparation, keeping names for diagnostics. Check same-leaf imported types, aliased fields and generated/applied types; unrelated declaration order or diagnostic spelling must not change selection. Preserve recursive-equality rejection using the traversed identities.
+- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
-### A rigid requirement call cannot return a reference
-- Category: a verdict with nothing behind it
-- Where: [bodyless declarations](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L119), [selected result frontier](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references/selected_results.rs#L25), [returned origins](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L2130), [projection transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2236), [source control and missing-evidence twins](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L695)
-- Saw: On `01ee33b7779` and `f54abf8157c` with only test probes, the existing `Handoff` consumer published and ran in Psi. Its rigid check form still refused `call reference result has no complete actual return-source correspondence`. Returning `Chosen::hand(source)` from the same relay instead refused `call reference result needs an exact retained input projection`. A provisional conversion on `01ee33b7779` of a closed descriptor prefix to `WithinRegion` let the forwarded closure publish and complete in Psi while leaving both rigid checks refused. The full projection values for `forget_address()` on a public region and `without_runtime_coordinates()` on a window compare equal, so the retained prefix cannot identify which evidence reached publication. Removing only the selected lifetime groups still refused at the public frontier.
-- Cost: The rigid callee is bodyless and has no owned declaration frontier, while the selected call already knows its declared region before projection transport erases that distinction. Move the canonical public lifetime account into the existing declaration-contract owner and let the same `ReferenceResultShape` serve both call routes. Carry verified `ReferenceOriginExtent::WithinRegion` in the existing projection address representation through composition that proves containment and through result publication. Keep the body's reconstructed backing separate from the declaration's permitted region.
-- Reported: 2026-11-15, Claude Code (worker-1), after the requirement schema kept its elided signature lifetimes. Codex reproduced and refined the two ownership gaps on `01ee33b7779`.
+### Selection recomputes the plan for a call's indirect result
+- Category: re-deriving
+- Where: [indirect result check](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_inputs.rs#L1492) (`aggregate_result_input::indirect_result`)
+- Saw: Selection decides whether a call returns through a caller-supplied result pointer by running `calling_conventions::evaluate_call_plan` on a result-only signature and comparing its result placement with the stored one. Borrowed and owned call arguments now take their placements from the stored plan, and the independent audit compares that plan with the callee's own plan. This check still recomputes the plan.
+- Cost: Every call whose result comes back through a result pointer runs the calling convention a second time in default compilation. Read the register from the stored placement's shape and location, and leave the plan comparison to the audit. A live claim (call_contract_repair domain enforcement) lists this file.
+- Reported: 2026-11-15, Claude Code, while removing the recomputed plan from borrowed and owned call arguments
+
+### Literal declaration validation still judges selected predicates in syntax
+- Category: one idea, several implementations
+- Where: [production constant validation](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L569), [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [operator applicability](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L197), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)
+- Saw: At `c30b00a0b878`, complete resolution still sends literal record/case and nested constrained-member predicates through `ProveSyntax`. That path interprets named/indexed domain facts and approximates operator applicability from root spellings and parameter carriers. Computed initializers already defer to checked evaluation; top-level qualified destinations require the exact checked judgment or refuse. This is source inspection, with no divergent acceptance reproduced; the older `const_integer` classifier has no production callers.
+- Cost: Declaration-dependent meaning has another implementation before ordinary checking. Retain selected declarations, scope, substitutions and exact destination/initializer through the existing forward evaluation handoff; keep literal decoding and anonymous primitive normalization. Under **EARLY-TERMINAL-JOBS**, check matching declaration/static-argument/construction outcomes and independence from unrelated incompatible operators, preserving false unused-declaration, overflow, zero-divisor, carrier, arity and uncertain-predicate refusals. Removing this evaluator must not remove those obligations.
+- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
+
+### Constant-index finalization searches argument storage to recover its owner
+- Category: re-deriving
+- Where: [receiving parameter search](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L236), [finalization caller](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L5029)
+- Saw: At `c30b00a0b878`, production `finalize_const_argument_selections` calls `carrier::receiving_parameters` with an argument span. It scans child types, constants, parameters, returns, fields, payloads, locals, lexical inputs, generated instances and domain constraints for that span, then recovers the receiving declaration's parameters. Conflicting owners return `None`. This is source inspection; no incorrect finalization or timing was measured.
+- Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
+- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
+
+### A narrow installation bound rejects a valid selected child
+- Category: knowledge crossing a boundary
+- Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
+- Saw: The original fixture retains B's X and C/D's Y in A's selected row. Narrow A to `reaches <= X` and move its C call to `main` after the call to A, leaving the same two writes and target selections. On macOS arm64, `AProvider::visit` at line 13, column 59 still refuses. Source checking charges B's whole X + Y upper bound even though the exact selected B only reaches X.
+- Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
+- Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
+
+### Float fixtures stop before target and requirement policy checks
+- Category: tests that pin the bug
+- Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)
+- Saw: On `8329cdc221e`, the two conversion fixtures stop at `coordinates::entry::rx` with “call receiver, requirement or coercion call”. The separate kept `Float::add` case stops in `carry` with “numeric primitive has no canonical result contract yet”.
+- Cost: The library and selected UEFI twin never distinguish target capability, and the closed addition never reaches the toolchain owner in recovered policy. Retain each authored operation while completing its canonical call contract.
+- Reported: 2026-11-15, Codex, while replaying kept package-review numeric fixtures.
+
+### Static callable specialization needs a portable receipt for open structural reach
+- Category: knowledge crossing a boundary
+- Where: [static operand reader](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs), [checked application producer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L537), [retained reach reader](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L2324), [open structural requirements](wiki/spec/language/effects.md#deferred-callback-reach)
+- Saw: On `f8687f1fcd3`, `apply<picked>(7u64)` refuses at static binding for `machine apply<const Callback: machine(value: u64) -> u64>(value: u64) -> u64 { Callback(value) }`. Wiring the existing binder judgment and specialization receipt in a local prototype let native and Psi exit 0. It rejected a callback requiring `value <= 8u64` and a generic body claiming a result absent from its binder. The saved runtime artifact could not reopen: `checked specialization has no retained application`. The producer only materializes type and scalar telescopes. The retained reader rejects a structural binder in the reach dependency even though omission on that binder means open reach. Changing the body to `transition { true -> Callback(value) }` also exposed a named call that bypasses static-call preparation. The kept [package review witness](tests/fixtures/pass/facts/static_callback_reach_boundary_schema/main.omg#L62) on `8329cdc221e` stops at line 62, column 37 because no pass specializes the call's static arguments. Its policy oracle requires `StepContract::step` to recover the original static `Count` binder.
+- Cost: Route ordinary callable arguments and named transition calls through the existing binder check and exact source application. Generalize the retained reach dependency to preserve the originating open or finite bound across production and readback. An empty finite bound cannot stand for omitted reach.
+- Reported: 2026-11-15, Codex, macOS arm64, while carrying the static callback witness into a saved Psi artifact.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
-- Where: [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L935), [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L566), [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L847), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)
-- Saw: `SeededTypingBase` holds `Arc<TypedTrees>`, but body completion calls `Arc::unwrap_or_clone(retained.typed)` and feeds the candidate to one mutable `Lowerer`. `SourceContinuation::complete_selected` starts from `input.typing.clone()` while its `Arc<SourceCompletionInput>` stays retained for later selections, so `activate_body_completion`'s `Arc::make_mut` deep-copies every `TypedTrees` table once per selected-source continuation, even when one small body set changes; later completions in that loop own the Arc uniquely. Sharing the outer Arc does not make the stored tables independently owned. No local repair fits: per-table copy-on-write still copies the expression and statement arenas every completion appends to, and `Arena` exposes contiguous spans (`span`, `storage_slice`, `storage_view`), so paged sharing changes its contract (verified 2026-11-15 at `171113b06`).
-- Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. Defer wide Psi 02–04 representation splits while `LOWERED-FORM-CHECKER` coverage is actively churning those stages unless a measured continuation bottleneck requires it earlier. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
-- Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals
+- Where: [activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs), [source application preparation](omega-rust/psi/compilation/representations/typed-trees/src/references.rs)
+- Saw: Type, expression and statement tables share retained pages and append private rows. Empty selected activation still copies declaration and side-record storage before projection narrows its roots. Later declarations can also give a retained call its source application; that necessary write still detaches the earlier completion batch's whole page.
+- Cost: Unrelated declaration storage is copied even for an empty body batch. A real update to one retained call can copy unrelated bodies from its earlier batch. Use the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share the remaining immutable declaration storage and keep body replacements under their actual owner, not the earlier batch. Do not skip source application preparation, projection, source authority checks, or signature and inferred-summary dependencies.
+- Measured: On Windows x86-64 at opt-level 1, the two original Build routes each selected 75 files and zero bodies. Activation requested 5,072,931 bytes across 13,043 allocations and cloned 63 arenas. Later full completions of 1,695 / 1,693 machines requested 322,765,350 / 322,664,660 bytes, including new output and required preparation. They still copied earlier pages containing 21,773 / 21,757 expression rows and 1,955 statement rows. These are operation counts, not a runtime-speedup claim. The [historical macOS measurement](wiki/drafts/measurements/selected_body_copies.md) at `d66164cd0f5` recorded 32,333,303 activation bytes, 14,553 allocations and 101 cloned arenas; it did not measure repeated nonempty completion.
+- Reported: 2026-11-15, Codex, after measuring retained type and body storage on the original scalar-contract and borrowed-root Build routes
 
-### Some record domains still reach the lowered checker only as a refusal or a placeholder
-- Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/qualifications.rs` (`declare_structural`, `structural_establishments`); `lower/places.rs` (`projected_memberships`); `terminal-psi/semantics/src/structural_qualifications.rs`; `06_terminal-psi-to-terminal-psi/src/lib.rs` (boundary calls with qualified structural formals)
-- Saw: record domains now travel through Psi 05 as structural domain declarations, whole-value and projected (field) qualifications and explicit cast rows, and one shared judgment in 06 and artifact ingress holds every transfer to them. What remains carried by something else, or refused: a domain governed by an access policy is declared with an empty issuer set because nothing evaluates its plan; a cast through a requirement route is refused by name because the lowered form carries a conformance edge only as the closed application of a selected call; a persistent reference to a value in a domain is refused by name (a reference type names its referent's storage type, which carries field domains but not the referent's own); domains on array elements and qualified boundary results are refused; a host value the evaluator issues is presented with its formal's memberships only at the Build entry
-- Cost: programs using the unsupported routes and access modes stay refused; native/Psi execution of qualified records remains unverified.
-- Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts; narrowed 2026-11-15, Claude Code, after carrying record domains into the lowered checker
-
-### A whole-program stage refuses every program for a library construct nobody calls
-- Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers: the declaration-lowering queries in `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
-- Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) and the construction-destination pass's call gates (a mathematical call taking a built argument, a callee whose parameters typing does not select), a membership fact whose domain selection stays late-bound (found through the owners of the value it constrains), and a const argument typing does not admit now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program. A refusal inside one declaration's lowering (`type_resolved_cohort`) returns midway through it, so those gates need a clean per-declaration rollback before they can move
-- Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
-- Reported: 2026-11-13, Claude Code, while getting the route probe through typing
-
-### The parser still accepts a boundary requirement with no `crashes` clause
-- Category: a verdict with nothing behind it
-- Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
-- Saw: [effects](wiki/spec/language/effects.md#open-callable-contracts) requires a written crash clause. The lowered-form checker only enforces it at a call. At `eea1528bbeb`, the lexer and parser found 1,734 omissions across 1,053 sample files, 69 across 39 test-fixture files, and one of 401 bundled-library requirements. The counts include boundary traits parsed in isolation when another part of the file failed. Twelve sample boundary trait declarations still failed to parse in isolation and are outside those counts. The bundled omission is [the interrupt-table validator](OWNER_QUESTIONS.md#1-may-the-interrupt-table-validator-trap-before-publication). Migrate the missing clauses to their intended ceilings before making the parser reject them
-- Cost: a library or program author learns that the clause is missing only when some caller is refused. Thirty other bundled requirements with no known provider or caller already carry `crashes Trap crashes Abort`
-- Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
-
-### Layout evaluation forms every target's library layouts instead of the subject's closure
-- Category: a verdict with nothing behind it
-- Where: [reusable layout scope](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L272) (no root bindings); [layout evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/fixed_layouts.rs#L64), which then selects all declarations; reached at `source/library/std/targets/macos_arm64/filesystem_abi.omg` (`CLayout<DarwinTimespec>`)
-- Saw: at `c06ddb0f570`, the entryless `fractional_integer_landing` fixture stops during preparation at `DarwinTimespec` on `linux_arm64`, where `c_abi_fields::append` requires unsupported clause arithmetic. The [explicitly demanded scalar layout](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1203) at `59b8d53b729` reaches the same arithmetic refusal on `linux_x86_64` before checking size 24, alignment 8 and offsets `[0, 8, 16]`. (The earlier alias refusal at the same field, "selected type alias has no retained source declaration", was a separate defect in extension resolution and is fixed.)
-- Cost: a program that never demands the macOS layout is refused for it, against [demand-driven layout formation](wiki/spec/build/configuration.md#multi-target-compilation); may be the same uncalled-library refusal as "A whole-program stage refuses every program for a library construct nobody calls"
-- Reported: 2026-11-15, Claude Code, while removing the product gate's duplicate review pass

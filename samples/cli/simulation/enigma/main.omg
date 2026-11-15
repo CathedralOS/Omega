@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // enigma: a table-driven Enigma I. The published wirings sit in `[i32; 26]`
 // fields as decoded letter values (A = 0 .. Z = 25), an inversion loop
 // derives the inverse tables at runtime, and every rotor pass is a
@@ -230,7 +231,7 @@ machine enc_char(main: &mut Main, key: i32, l: i32, m: i32, r: i32)
 // Identity plugboard plus the derived inverse wirings, in its own machine so
 // the entry's proof rosters stay short. All indexing is on plain i32 arrays;
 // the guard facts ride on params with `requires`, not on field paths.
-machine derive_tables(main: &mut Main) reaches Console {
+machine derive_tables(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> dt_init(main) }
 
     machine dt_init(main: &mut Main) {
@@ -267,14 +268,14 @@ machine derive_tables(main: &mut Main) reaches Console {
     }
     machine dt_bad(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        Console::exit_process(4);
+        ProcessExit::exit_process(4);
     }
     machine dt_done(main: &mut Main) {}
 }
 
 // Press every letter of main.plain through the stepping scrambler: step the
 // rotors, run enc_char, record the cipher letter, echo it as a byte.
-machine press_all(main: &mut Main) reaches Console {
+machine press_all(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> pa_loop(main) }
 
     machine pa_loop(main: &mut Main) {
@@ -336,18 +337,18 @@ machine press_all(main: &mut Main) reaches Console {
     }
     machine pa_bad_char(main: &mut Main) {
         Console::write_line("FAIL: a pressed letter is not A-Z (exit 3)");
-        Console::exit_process(3);
+        ProcessExit::exit_process(3);
     }
     machine pa_bad_index(main: &mut Main) {
         Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        Console::exit_process(4);
+        ProcessExit::exit_process(4);
     }
     machine pa_done(main: &mut Main) {}
 }
 
 // Compare the produced letters against the expected vector; exits 1 on any
 // mismatch, otherwise returns so the caller can print its own PASS line.
-machine compare_all(main: &mut Main) reaches Console {
+machine compare_all(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> ca_init(main) }
 
     machine ca_init(main: &mut Main) {
@@ -380,12 +381,12 @@ machine compare_all(main: &mut Main) reaches Console {
     }
     machine ca_fail(main: &mut Main) {
         Console::write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
     machine ca_done(main: &mut Main) {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("enigma: Enigma I, rotors I II III, reflector B, rings AAA");
     main.fwd_left = [4, 10, 12, 5, 11, 6, 3, 16, 21, 25, 13, 19, 14, 22, 24, 7, 23, 20, 18, 15, 0, 8, 1, 17, 2, 9];
     main.fwd_mid = [0, 9, 3, 10, 18, 8, 17, 20, 23, 1, 11, 7, 22, 19, 12, 2, 16, 6, 25, 13, 15, 24, 5, 21, 14, 4];
@@ -444,12 +445,12 @@ machine Main::main(main: &mut Main) reaches Console {
         compare_all(main);
         Console::write_line("PASS: AAAAA -> KGYRQ with plug AW ER MT");
         Console::write_line("enigma: both self-checks pass (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

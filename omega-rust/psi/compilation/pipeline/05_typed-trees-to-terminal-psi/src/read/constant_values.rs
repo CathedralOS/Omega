@@ -1,9 +1,9 @@
-//! Constant values arrive as materialized source data, never as a source
-//! checking verdict. Source completion joins computed values to their real
-//! invocation receipts before freezing. Reading independently checks the
-//! carrier, each scalar leaf of a scalar, array or record value, and the
-//! exact retained initializer entry; that entry is
-//! an ordinary subject machine whose body the lowered checker also judges.
+//! This reader checks each materialized constant's type, case and values.
+//! Source completion links computed values to their invocation receipts
+//! before it freezes the typed source. The lowered checker judges the exact
+//! retained initializer as an ordinary machine.
+//! A declared domain on a leaf arrives as the `as +D` entry that
+//! materialization wrote, and is judged as any other such cast.
 
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use semantic_vocabulary::{IntegerValue, MachineId, ScalarType};
@@ -22,6 +22,15 @@ impl Program<'_> {
     ) -> Checked<()> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
         let carrier = self.value_type(id, constant.declared_type)?;
+        if self.typed.stored_value_multiplicity(constant.declared_type)
+            != language_semantics::Multiplicity::Unrestricted
+        {
+            return Err(crate::reject(
+                id,
+                crate::SourceOrigin::of(constant.initializer_source_span),
+                "a constant's type must permit copying",
+            ));
+        }
         let qualification = match carrier {
             ValueType::Scalar(_, qualification) | ValueType::Record(_, qualification, _) => {
                 qualification
@@ -30,7 +39,10 @@ impl Program<'_> {
                 return Err(unserved("constant requires its pure snapshot materializer"));
             }
         };
-        if !qualification.is_none() {
+        // A declared domain on the constant is re-established by the
+        // materialized initializer's `as +D` entries, which this reading
+        // judges with the domain's issuer and predicate obligations.
+        if qualification.policy.is_some() {
             return Err(unserved(
                 "qualified constant requires its declared value obligations",
             ));
@@ -99,11 +111,11 @@ impl Program<'_> {
 
     /// Whether the materialized initializer, as the reader typed it, is the
     /// evaluated canonical value leaf by leaf: each integer has the
-    /// encoding's carrier and value, each array element and each record
-    /// field agrees in turn, and a record field is matched to the value's
-    /// field by the declared field symbol at its position. A data type with
-    /// `requires`, a qualified leaf or a sum value has a domain obligation or
-    /// a case this reading does not judge, so it is refused, not compared.
+    /// encoding's carrier and value. An aggregate must name its declared
+    /// type and any selected case, then each field agrees with the value
+    /// named by its declared symbol. Data with `requires` and
+    /// policy-qualified leaves still need their checked obligations. A leaf
+    /// with declared domains is compared beneath the entries that added them.
     fn constant_agrees(
         &self,
         id: MachineId,
@@ -117,11 +129,23 @@ impl Program<'_> {
             }
             _ => return Ok(false),
         };
-        if !qualification.is_none() {
+        if qualification.policy.is_some() {
             return Err(unserved(
                 "qualified constant requires its declared value obligations",
             ));
         }
+        // Each declared domain was added by an `as +D` entry that the cast
+        // reader judged; the value is the operand beneath those entries.
+        let mut leaf = materialized;
+        while let ExpressionKind::Requalify(operand) | ExpressionKind::Establish { operand, .. } =
+            &leaf.kind
+        {
+            leaf = operand;
+        }
+        if qualification.domains.is_empty() != std::ptr::eq(leaf, materialized) {
+            return Ok(false);
+        }
+        let materialized = leaf;
         Ok(match (value, &materialized.kind) {
             (
                 DecodedCanonicalConstValue::Integer {
@@ -168,46 +192,115 @@ impl Program<'_> {
                 true
             }
             (
-                DecodedCanonicalConstValue::Record { fields, .. },
+                DecodedCanonicalConstValue::Record { type_name, fields },
                 ExpressionKind::Record { fields: operands },
-            ) => {
-                let Some(ValueType::Record(record, ..)) = materialized.result else {
-                    return Ok(false);
-                };
-                let (Some(row), Some(source)) =
-                    (self.records.get(record), self.record_sources.get(record))
-                else {
-                    return Ok(false);
-                };
-                if !row.requires.is_empty() {
-                    return Err(unserved(
-                        "constant of data with requires needs its default-domain proof",
-                    ));
-                }
-                if operands.len() != fields.len() || source.fields.len() != fields.len() {
-                    return Ok(false);
-                }
-                for (position, operand) in operands {
-                    let Some(symbol) = source.fields.get(*position) else {
-                        return Ok(false);
-                    };
-                    let name = self.typed.symbols.name(*symbol);
-                    let mut named = fields.iter().filter(|(field, _)| field.as_str() == name);
-                    let (Some((_, value)), None) = (named.next(), named.next()) else {
-                        return Ok(false);
-                    };
-                    if !self.constant_agrees(id, value, operand)? {
-                        return Ok(false);
-                    }
-                }
-                true
-            }
-            (DecodedCanonicalConstValue::Variant { .. }, _) => {
-                return Err(unserved(
-                    "constant of a sum type requires its case materializer",
-                ));
-            }
+            ) => self.constant_aggregate_agrees(
+                id,
+                materialized.result,
+                type_name,
+                None,
+                fields,
+                operands,
+            )?,
+            (
+                DecodedCanonicalConstValue::Variant {
+                    type_name,
+                    case_name,
+                    fields,
+                },
+                ExpressionKind::Case {
+                    case,
+                    fields: operands,
+                },
+            ) => self.constant_aggregate_agrees(
+                id,
+                materialized.result,
+                type_name,
+                Some((*case, case_name)),
+                fields,
+                operands,
+            )?,
             _ => false,
         })
+    }
+
+    fn constant_aggregate_agrees(
+        &self,
+        id: MachineId,
+        result: Option<ValueType>,
+        type_name: &str,
+        case: Option<(usize, &str)>,
+        fields: &[(String, DecodedCanonicalConstValue)],
+        operands: &[(usize, Expression)],
+    ) -> Checked<bool> {
+        let Some(ValueType::Record(record, ..)) = result else {
+            return Ok(false);
+        };
+        let (Some(row), Some(source)) = (self.records.get(record), self.record_sources.get(record))
+        else {
+            return Ok(false);
+        };
+        let Some(declaration) = self.typed.data_definition_by_symbol(source.declaration) else {
+            return Ok(false);
+        };
+        if declaration.name.as_str() != type_name {
+            return Ok(false);
+        }
+        // A record's default domain is its authored `requires` and the
+        // predicates of its fields' domains (dependent_values.md). A field
+        // domain is established by the materialized `as +D` entry, which
+        // the cast reader judged with that domain's predicate, so a row
+        // whose clauses all come from field domains holds once every field
+        // operand carries exactly its declared qualification (checked
+        // below). Authored clauses still need their own proof.
+        if !row.requires.is_empty() && !declaration.requires_facts.is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration(
+                    "constant of data with requires needs its default-domain proof",
+                ),
+            ));
+        }
+        let declared_fields = if let Some((position, name)) = case {
+            let Some((symbol, payload)) = source.cases.get(position) else {
+                return Ok(false);
+            };
+            if !symbol.is_valid() || self.typed.symbols.name(*symbol) != name {
+                return Ok(false);
+            }
+            payload
+        } else {
+            &source.fields
+        };
+        if operands.len() != fields.len() || declared_fields.len() != fields.len() {
+            return Ok(false);
+        }
+        for (position, operand) in operands {
+            let Some(symbol) = declared_fields
+                .get(*position)
+                .filter(|symbol| symbol.is_valid())
+            else {
+                return Ok(false);
+            };
+            if case.is_none()
+                && row
+                    .fields()
+                    .get(*position)
+                    .map(|field| field.value_type.qualification())
+                    != operand.result.map(|result| result.qualification())
+            {
+                return Ok(false);
+            }
+            let name = self.typed.symbols.name(*symbol);
+            let mut named = fields.iter().filter(|(field, _)| field.as_str() == name);
+            let (Some((_, value)), None) = (named.next(), named.next()) else {
+                return Ok(false);
+            };
+            if !self.constant_agrees(id, value, operand)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }

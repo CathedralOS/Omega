@@ -91,9 +91,9 @@ fn private_inputs_cross_an_omitted_helper_chain() {
     let entry = machine(
         vec![],
         vec![
-            Statement::Evaluate(call(2, vec![unsigned(1)])),
-            Statement::Evaluate(call(2, vec![unsigned(2)])),
-            Statement::Evaluate(call(3, vec![unsigned(3)])),
+            Statement::discard(call(2, vec![unsigned(1)])),
+            Statement::discard(call(2, vec![unsigned(2)])),
+            Statement::discard(call(3, vec![unsigned(3)])),
             returns(call(3, vec![unsigned(4)])),
         ],
     );
@@ -154,7 +154,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
     bodies.push(Body {
         slots: vec![u32_type().into()],
         statements: vec![
-            Statement::Evaluate(strict(Strict::Subtract, slot(0, u32_type()), unsigned(1))),
+            Statement::discard(strict(Strict::Subtract, slot(0, u32_type()), unsigned(1))),
             Statement::Arm {
                 guard: None,
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
@@ -196,7 +196,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
     let mut bodies = IdTable::default();
     bodies.push(Body {
         slots: vec![u32_type().into()],
-        statements: vec![Statement::Evaluate(expression(
+        statements: vec![Statement::discard(expression(
             ExpressionKind::Call {
                 required_contract: None,
                 callee: id::<MachineId>(2).into(),
@@ -208,7 +208,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
     });
     bodies.push(Body {
         slots: vec![u32_type().into()],
-        statements: vec![Statement::Evaluate(strict(
+        statements: vec![Statement::discard(strict(
             Strict::Subtract,
             slot(0, u32_type()),
             unsigned(1),

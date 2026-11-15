@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use input::parser;
 use data::dataset;
@@ -11,7 +12,7 @@ data Main {
     allocation: Allocation;
     audit: Audit;
 }
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     block Tokens::read(&mut context.tokens);
     Dataset::load(&mut context.data, &context.tokens);
     transition context.data.valid {
@@ -34,25 +35,25 @@ machine Main::main(context: &mut Main) reaches Console {
     }
     machine corrupt(context: &mut Main) {
         Console::write_line("ERROR audit_failed");
-        Console::exit_process(66);
+        ProcessExit::exit_process(66);
     }
     machine output(context: &mut Main) {
         report(&context.data, &context.allocation, &context.audit);
         Console::write("leakage "); number(context.audit.leakage); Console::write_line("");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(context: &mut Main) {
         Console::write_line("ERROR invalid_input");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine infeasible(context: &mut Main) {
         Console::write_line("ERROR indivisible_single_group");
-        Console::exit_process(65);
+        ProcessExit::exit_process(65);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

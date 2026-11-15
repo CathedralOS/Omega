@@ -15,6 +15,7 @@ use calling_conventions::{
 };
 use language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition;
 use layout::BoundaryValueLayout;
+use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalCallingSignature {
@@ -185,8 +186,51 @@ impl CanonicalCallingSignature {
                 },
             });
         }
-        let result = storage
-            .result
+        // External completion must retain the exact declared logical result,
+        // even when that result has no physical calling slot.
+        for binding in module
+            .calling_signatures
+            .iter()
+            .filter(|binding| binding.application.as_ref() == Ok(&declaration))
+        {
+            let boundary = module
+                .boundary_machine(binding.boundary)
+                .ok_or("calling result lost its exact boundary declaration")?;
+            if matches!(
+                boundary.completion,
+                semantic_vocabulary::BoundaryCompletion::External(_)
+            ) {
+                let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
+                else {
+                    return Err("external completion lost its structural logical result".into());
+                };
+                if storage.result != Some(result.structural_type) {
+                    return Err(
+                        "external calling result differs from its logical declaration".into(),
+                    );
+                }
+                terminal_semantics::inhabitation::external_result_is_erased(
+                    boundary.completion,
+                    storage.result,
+                    &module.structural_types,
+                )?;
+            }
+        }
+        // Calling geometry carries no result slot for a result domain that
+        // admits no value. Keep the declared logical storage unchanged; an
+        // unknown domain and an inhabited zero-sized record still take their
+        // ordinary layout path. This runs once per declaration application,
+        // independently of how many executable calls use that application.
+        let physical_result = match storage.result {
+            Some(result) => {
+                let contracts = TerminalContracts::new(&module.structural_types);
+                let inhabitation = Inhabitation::prepare(&contracts)
+                    .map_err(|error| format!("calling result domain is malformed: {error:?}"))?;
+                (inhabitation.status(result) != Status::ProvedEmpty).then_some(result)
+            }
+            None => None,
+        };
+        let result = physical_result
             .map(|result| recipes.value(result))
             .transpose()?
             .map(|recipe| {

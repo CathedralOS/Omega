@@ -4,13 +4,11 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use compiler::{CheckedCompileRequest, CompilationOutput, CompilationProduct, CompilationSession};
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-use package_compilation::PackageDependencyAcquisition;
 use package_compilation::{
-    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyAcquisition,
+    PackageDependencyBinding, PackageSourceBinding,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -88,87 +86,55 @@ fn captured_package_source(
         .unwrap_or_else(|reason| panic!("bind captured {name}: {reason}"))
 }
 
-fn inputs(
-    consumer: &Path,
-    library: &Path,
+struct RegisteredDependency<'source> {
+    alias: &'source str,
+    location: &'source str,
+    name: &'source str,
+    source: &'source Path,
     owner: PackageKeyIdentity,
-    copied: Option<(&Path, PackageKeyIdentity)>,
+}
+
+/// Pass the sealed acquisitions through the same source join as the consumer's
+/// Build. The issued requests must match both the package sources and their order.
+fn registered_inputs(
+    consumer: &Path,
+    declared: &str,
+    dependencies: &[RegisteredDependency<'_>],
 ) -> PackageCompilationInputs {
     let root_owner = PackageKeyIdentity::from_digest([1; 32]).unwrap();
-    let standard = PackageKeyIdentity::from_digest([2; 32]).unwrap();
-    let standard_root = fixture_package_inputs::bundled_standard_library_root();
-    let mut packages = vec![
-        captured_package_source(root_owner, "consumer", consumer),
-        captured_package_source(standard, "omega_language_std", &standard_root),
-        captured_package_source(owner, "owner_identity_library", library),
-    ];
-    let mut edges = vec![
-        PackageDependencyBinding::new(root_owner, "omega_language_std", standard),
-        PackageDependencyBinding::new(root_owner, "shared", owner),
-    ];
-    if let Some((path, identity)) = copied {
-        packages.push(captured_package_source(identity, "copied_library", path));
-        edges.push(PackageDependencyBinding::new(
-            root_owner,
-            "foreign_copy",
-            identity,
+    let mut packages = vec![captured_package_source(root_owner, declared, consumer)];
+    let mut bindings = Vec::with_capacity(dependencies.len());
+    let mut acquisitions = Vec::with_capacity(dependencies.len());
+    for (request_ordinal, dependency) in dependencies.iter().enumerate() {
+        packages.push(captured_package_source(
+            dependency.owner,
+            dependency.name,
+            dependency.source,
         ));
+        bindings.push(PackageDependencyBinding::new(
+            root_owner,
+            dependency.alias,
+            dependency.owner,
+        ));
+        acquisitions.push(PackageDependencyAcquisition {
+            request_ordinal,
+            request: BuildRequest::Dependency {
+                purpose: DependencyPurpose::Product,
+                alias: Some(ProjectName::parse(dependency.alias).unwrap()),
+                source: BuildDependencySource::Path(dependency.location.to_owned()),
+            },
+            package: dependency.owner,
+        });
     }
-    let binding = fixture_package_inputs::candidate_program_entry_binding(
-        "linux_x86_64",
-        &standard_root,
-        standard,
-    )
-    .unwrap_or_else(|errors| panic!("entry candidate: {errors:?}"))
-    .unwrap();
     PackageCompilationInputs::new(
         root_owner,
         BuildDeclarationKind::Application,
         packages,
-        edges,
-    )
-    .expect("exact supplied source graph")
-    .with_accepted_semantic_bindings(vec![binding])
-    .expect("accepted entry binding")
-}
-
-/// The graph a nine-place consumer's own Build settles. Its `build.omg`
-/// registers one Product dependency, `shared` at `location` (`../library`, or
-/// `../../library` from a reject twin one directory deeper), under the
-/// application name `declared` that the same Build declares, so the root
-/// carries exactly that edge plus the acquisition record for that executed
-/// request. Source preparation joins the two, and refuses a graph whose edges
-/// were not requested. The acquired package is the anonymous library with the
-/// owner its standalone check derived, not the sample's declared library.
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-fn registered_inputs(
-    consumer: &Path,
-    declared: &str,
-    location: &str,
-    library: &Path,
-    owner: PackageKeyIdentity,
-) -> PackageCompilationInputs {
-    let root_owner = PackageKeyIdentity::from_digest([1; 32]).unwrap();
-    PackageCompilationInputs::new(
-        root_owner,
-        BuildDeclarationKind::Application,
-        vec![
-            captured_package_source(root_owner, declared, consumer),
-            captured_package_source(owner, "owner_identity_library", library),
-        ],
-        vec![PackageDependencyBinding::new(root_owner, "shared", owner)],
+        bindings,
     )
     .expect("exact registered source graph")
-    .with_dependency_acquisitions(vec![PackageDependencyAcquisition {
-        request_ordinal: 0,
-        request: BuildRequest::Dependency {
-            purpose: DependencyPurpose::Product,
-            alias: Some(ProjectName::parse("shared").unwrap()),
-            source: BuildDependencySource::Path(location.to_owned()),
-        },
-        package: owner,
-    }])
-    .expect("acquisition for the registered `shared` request")
+    .with_dependency_acquisitions(acquisitions)
+    .expect("acquisitions for the registered dependency requests")
 }
 
 fn scratch_library(name: &str, extra: bool) -> PathBuf {
@@ -209,11 +175,60 @@ fn anonymous_publication_reloads_without_rebasing_and_copied_owner_differs() {
         checked_owner(&copied),
         "the complete captured source is an input"
     );
+    let checked = orchestration::check_source(
+        &mut CompilationSession::default(),
+        CheckedCompileRequest::new(&first.join("library.omg"), None),
+    )
+    .result
+    .unwrap_or_else(|failure| panic!("entryless check: {:?}", failure.into_diagnostics()));
+    let entryless = checked
+        .terminal_publication()
+        .published()
+        .expect("entryless Check publication")
+        .artifact();
+    let entryless = CanonicalTerminalArtifact::from_bytes(&entryless.to_bytes())
+        .expect("entryless Check artifact reload");
+    assert_eq!(entryless.semantic_module().entry, None);
     let first = artifact(&first);
     let relocated = artifact(&relocated);
     let copied = artifact(&copied);
     let reloaded = CanonicalTerminalArtifact::from_bytes(&first.to_bytes())
         .expect("canonical artifact reload");
+    let specialization = |artifact: &CanonicalTerminalArtifact| {
+        let mut specializations = artifact
+            .semantic_module()
+            .machines
+            .iter()
+            .filter(|machine| {
+                machine
+                    .declaration
+                    .as_ref()
+                    .unwrap()
+                    .specialization
+                    .is_some()
+            });
+        let specialized = specializations
+            .next()
+            .expect("the authored identity<Token> application");
+        assert!(
+            specializations.next().is_none(),
+            "one generated application"
+        );
+        let application = specialized.closed_reach_application.as_ref().unwrap();
+        assert_eq!(application.parameter_kinds, [0]);
+        let [terminal_psi::ClosedReachParameter::Type { argument }] =
+            application.telescope.as_slice()
+        else {
+            panic!("the application has its declared type argument");
+        };
+        assert!(argument.contains("library::Token"), "{argument}");
+        (
+            application.template_base_commitment,
+            application.specialization_commitment,
+            argument.clone(),
+        )
+    };
+    assert_eq!(specialization(&entryless), specialization(&reloaded));
     for same in [&relocated, &reloaded] {
         assert!(declaration(&first).same_identity_as(
             &first.semantic_module().identities,
@@ -260,7 +275,20 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             &authored,
         );
         let declared = format!("owner_{place}");
-        let supplied = registered_inputs(&staged, &declared, "../library", &library, owner);
+        let inputs = |consumer: &Path, location: &str| {
+            registered_inputs(
+                consumer,
+                &declared,
+                &[RegisteredDependency {
+                    alias: "shared",
+                    location,
+                    name: "owner_identity_library",
+                    source: &library,
+                    owner,
+                }],
+            )
+        };
+        let supplied = inputs(&staged, "../library");
         let checked = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
@@ -348,13 +376,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let failure = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
-                package_inputs: Some(registered_inputs(
-                    &invalid,
-                    &declared,
-                    "../../library",
-                    &library,
-                    owner,
-                )),
+                package_inputs: Some(inputs(&invalid, "../../library")),
                 ..CheckedCompileRequest::new(&invalid.join("main.omg"), Some("linux_x86_64"))
             },
         )
@@ -378,7 +400,35 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
     assert_ne!(owner, copied_owner);
     let temporary = fixture_package_inputs::sealed_fixture_staging::temporary_session_root();
     let source = "use shared::library;\nuse foreign_copy::library;\nmachine main() { let result: u8 = shared::library::read(foreign_copy::library::Token { value: 7 }); }\n";
-    let build = "machine build(builder: &mut Build) { Build::application(builder, \"copied_owner_consumer\"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }\n";
+    let build = r#"machine build(builder: &mut Build) {
+    Build::application(builder, "copied_owner_consumer");
+    let mut shared_dependency: DependencyDescription =
+        dependency::from_source(Source::Path { location: "../anonymous-owner-control-original" });
+    dependency::with_alias(&mut shared_dependency, "shared");
+    let shared_registration: DependencyRegistration = Build::dependency(builder, shared_dependency);
+    let mut copied_dependency: DependencyDescription =
+        dependency::from_source(Source::Path { location: "../anonymous-owner-control-copy" });
+    dependency::with_alias(&mut copied_dependency, "foreign_copy");
+    let copied_registration: DependencyRegistration = Build::dependency(builder, copied_dependency);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}
+"#;
+    let dependencies = [
+        RegisteredDependency {
+            alias: "shared",
+            location: "../anonymous-owner-control-original",
+            name: "owner_identity_library",
+            source: &library,
+            owner,
+        },
+        RegisteredDependency {
+            alias: "foreign_copy",
+            location: "../anonymous-owner-control-copy",
+            name: "copied_library",
+            source: &copied,
+            owner: copied_owner,
+        },
+    ];
     for (name, source, rejects) in [
         (
             "owner-positive",
@@ -397,11 +447,10 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
         let result = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
-                package_inputs: Some(inputs(
+                package_inputs: Some(registered_inputs(
                     &staged,
-                    &library,
-                    owner,
-                    Some((&copied, copied_owner)),
+                    "copied_owner_consumer",
+                    &dependencies,
                 )),
                 ..CheckedCompileRequest::new(&staged.join("main.omg"), Some("linux_x86_64"))
             },
@@ -419,12 +468,15 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
                 "{diagnostic}"
             );
         } else {
-            result.unwrap_or_else(|failure| {
+            let checked = result.unwrap_or_else(|failure| {
                 panic!(
                     "matching anonymous owner must remain valid: {:?}",
                     failure.into_diagnostics()
                 )
             });
+            let (_, application) = compiler::prepare_program_entry(&checked)
+                .expect("Build selected an exact Linux ProgramEntry for the matching owner");
+            application.receipt.unwrap().unwrap();
         }
     }
 }

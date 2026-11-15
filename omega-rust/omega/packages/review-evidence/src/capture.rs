@@ -5,10 +5,13 @@ nonempty contract or authority inventory prevents a partial review capsule.
 */
 
 mod callables;
+mod calling;
 mod declarations;
 mod input;
+mod native_bindings;
 mod package_review;
 mod policy;
+mod providers;
 mod runtime_permissions;
 mod semantic_bindings;
 

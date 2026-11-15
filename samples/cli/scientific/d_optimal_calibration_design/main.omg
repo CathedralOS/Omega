@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: status identifiable
 // Finite stdin: linear|quadratic, n k, n (setting precision) pairs, 3 predictions.
@@ -10,7 +11,7 @@ data Main {
     used: i64 in Wrapping;
     bytes: i64 in Wrapping;
 }
-machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches Console {
+machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value < 0 { true -> negative(main, value) _ -> digits(main, value, 100000000000000000) }
     machine negative(main: &mut Main, value: i64 in Wrapping) {
         Console::write("-");
@@ -25,10 +26,10 @@ machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches Console {
     }
     machine done() { }
 }
-machine Main::rational(main: &mut Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches Console {
+machine Main::rational(main: &mut Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches ProcessExit + Console {
     Main::number(main, numerator); Console::write("/"); Main::number(main, denominator);
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     main.bytes = 0; main.used = 0;
     transition { _ -> block mode(main) }
     machine mode(main: &mut Main) {
@@ -244,9 +245,9 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write("variance "); Main::rational(main, numerator, denominator); Console::write_byte(10);
         transition { _ -> variances(main, index+1) }
     }
-    machine done(main: &mut Main) { Console::exit_process(0); }
-    machine singular(main: &mut Main) { Console::write_line("status non-identifiable"); Console::exit_process(3); }
-    machine invalid(main: &mut Main) { Console::write_line("invalid input"); Console::exit_process(2); }
+    machine done(main: &mut Main) { ProcessExit::exit_process(0); }
+    machine singular(main: &mut Main) { Console::write_line("status non-identifiable"); ProcessExit::exit_process(3); }
+    machine invalid(main: &mut Main) { Console::write_line("invalid input"); ProcessExit::exit_process(2); }
 }
 machine Main::mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i32 {
     transition degree == 1 { true -> linear(position) _ -> quadratic(position) }
@@ -259,7 +260,7 @@ machine Main::mode_character(degree: i64 in Wrapping, position: i64 in Wrapping)
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

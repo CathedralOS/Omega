@@ -24,7 +24,7 @@ pub(crate) mod bindings_and_conformances {
     fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         let source = r#"
         boundary trait Console {
-            machine write_byte(byte: i32) reaches;
+            machine write_byte(byte: i32) reaches crashes none;
         }
 
         machine console_write_byte(byte: i32)
@@ -117,7 +117,7 @@ pub(crate) mod bindings_and_conformances {
     fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
         let source = r#"
         boundary trait Kernel32Requirements {
-            machine write_file() reaches;
+            machine write_file() reaches crashes none;
         }
 
         machine write_file_binding() -> i32 {
@@ -163,7 +163,7 @@ pub(crate) mod bindings_and_conformances {
     fn rejects_legacy_named_compiler_intrinsic_payload() {
         let source = r#"
         boundary trait Console {
-            machine write_byte(byte: i32) reaches;
+            machine write_byte(byte: i32) reaches crashes none;
         }
 
         machine console_write_byte(byte: i32)
@@ -181,7 +181,7 @@ pub(crate) mod bindings_and_conformances {
     fn retired_vtable_slot_rejects_before_consuming_its_payload() {
         let source = r#"
         boundary trait Firmware {
-            machine invoke(this: addr) reaches;
+            machine invoke(this: addr) reaches crashes none;
         }
 
         machine legacy(this: addr)
@@ -984,7 +984,7 @@ pub(crate) mod bindings_and_conformances {
             "host demo_target provides Flags { open_read -> Syscall(0) }",
         ] {
             let source = format!(
-                "boundary trait Flags {{ machine open_read() -> i32 reaches; }}\n{declaration}"
+                "boundary trait Flags {{ machine open_read() -> i32 reaches crashes none; }}\n{declaration}"
             );
             let error = super::parse_tokenized_error(&source, "provides syntax must be retired");
             assert!(
@@ -2106,7 +2106,8 @@ pub(crate) mod definitions_and_contracts {
         public boundary trait Transfer {
             machine transfer(value: u32) -> u32
             reaches none
-            ensures result >= value, result <= 100u32;
+            ensures result >= value, result <= 100u32
+            crashes none;
         }
         "#;
         let parsed = super::parse_source(source, "callable delimiters should parse");
@@ -2221,10 +2222,9 @@ pub(crate) mod definitions_and_contracts {
     #[test]
     fn parses_target_scoped_bodyless_boundary_machine() {
         let source = r#"
-        boundary trait Console { machine exit_process(code: i32) reaches; }
-        data ConsoleNativeProvider {}
-        linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(code: i32)
-            satisfies Console::exit_process;
+        boundary trait ProcessExit { machine exit_process(code: i32) -> Never reaches ProcessExit terminates; }
+        linux_x86_64 boundary machine terminate_process(code: i32) -> Never
+            satisfies ProcessExit::exit_process;
         "#;
 
         let parsed = super::parse_source_verbose(
@@ -2238,7 +2238,7 @@ pub(crate) mod definitions_and_contracts {
                 Item::Machine(machine) => Some(machine),
                 _ => None,
             })
-            .find(|machine| machine.name.as_str(&parsed) == "ConsoleNativeProvider::exit_process")
+            .find(|machine| machine.name.as_str(&parsed) == "terminate_process")
             .expect("target-scoped catalog leaf");
         assert!(machine.boundary);
         assert!(machine.bodyless);
@@ -2975,10 +2975,43 @@ pub(crate) mod definitions_and_contracts {
         }
     }
 
+    /// A boundary requirement has no body to infer crash routes from, so the
+    /// parser refuses one that writes neither `crashes none` nor a route. A
+    /// route on a nested binder contract does not stand in for the
+    /// requirement's own ceiling.
+    #[test]
+    fn boundary_requirement_must_write_its_crash_ceiling() {
+        let parses = |source: &str| {
+            let tokens = Lexer::new(source).tokenize().expect("valid tokens");
+            parse_syntax_trees(&tokens)
+        };
+        for written in ["crashes none", "crashes Trap", "crashes Trap crashes Abort"] {
+            let source =
+                format!("boundary trait Mark {{ machine read() -> u64 reaches none {written}; }}");
+            assert!(parses(&source).is_ok(), "{written}");
+        }
+        let omitted = parses("boundary trait Mark { machine read() -> u64 reaches none; }")
+            .expect_err("a boundary requirement cannot infer its crash ceiling");
+        super::expect_error(&omitted, "Mark::read` must declare its crash ceiling");
+
+        let nested = parses(
+            "boundary trait Mark {
+                machine relay<machine Step>() -> u64
+                requires machine Step() -> u64 reaches none crashes Trap;
+                reaches none;
+            }",
+        )
+        .expect_err("a nested binder route does not annotate the requirement");
+        super::expect_error(&nested, "Mark::relay` must declare its crash ceiling");
+
+        // An ordinary trait's requirement keeps its omitted clause.
+        assert!(parses("trait Plain { machine read() -> u64; }").is_ok());
+    }
+
     #[test]
     fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_realizers() {
         let source = r#"
-        public boundary trait Mark { machine read() -> u64 reaches; }
+        public boundary trait Mark { machine read() -> u64 reaches crashes none; }
         MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
         machine main() { let value: u64 = Mark::read(); }
     "#;
@@ -2998,7 +3031,10 @@ pub(crate) mod definitions_and_contracts {
         assert!(signature.service_reaches.is_empty());
         assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
 
-        let missing = source.replace("read() -> u64 reaches;", "read() -> u64;");
+        let missing = source.replace(
+            "read() -> u64 reaches crashes none;",
+            "read() -> u64 crashes none;",
+        );
         let tokens = Lexer::new(&missing).tokenize().expect("valid tokens");
         let error = parse_syntax_trees(&tokens)
             .expect_err("a boundary requirement cannot infer its ceiling");
@@ -3031,7 +3067,7 @@ pub(crate) mod definitions_and_contracts {
         // retained; `crashes none` publishes no crash contract. Both read
         // without the rule.
         let source = r#"
-            public boundary trait Mark { machine read() -> u64 reaches none; }
+            public boundary trait Mark { machine read() -> u64 reaches none crashes none; }
             public machine quiet() -> u64 reaches none crashes none { 7 }
         "#;
         let parsed = super::parse_source(source, "explicit empty rows parse");
@@ -3670,7 +3706,8 @@ pub(crate) mod domains_and_transitions {
             ensures
                 handle in FileHandle::Open
             reaches
-                Filesystem;
+                Filesystem
+            crashes none;
         }
         "#;
 
@@ -6775,7 +6812,8 @@ pub(crate) mod properties_and_requirements {
         boundary trait Console {
             machine write_line(text: String)
             reaches
-                Console;
+                Console
+            crashes none;
         }
         "#;
 
@@ -7379,7 +7417,8 @@ pub(crate) mod properties_and_requirements {
         let source = r#"
         boundary trait InterruptCompletion {
             machine complete(acknowledgement: u64)
-            reaches <= MachineControl + PortIo;
+            reaches <= MachineControl + PortIo
+            crashes none;
         }
     "#;
         let tokens = Lexer::new(source)
@@ -7435,7 +7474,7 @@ pub(crate) mod properties_and_requirements {
     fn rejects_installation_bound_reach_outside_bodyless_boundary_requirement() {
         for source in [
             "trait Completion { machine complete() reaches <= MachineControl; }",
-            "boundary trait Completion { machine complete() reaches <= MachineControl {} }",
+            "boundary trait Completion { machine complete() reaches <= MachineControl crashes none {} }",
             "machine run<machine Op>() requires machine Op() reaches <= MachineControl; {}",
         ] {
             let error = super::parse_source_error(
@@ -8119,7 +8158,9 @@ pub(crate) mod static_parameters {
             for source in [
                 format!("data Counter {{ value: u32; }} machine Counter::step({parameter}) {{}}"),
                 format!("trait Operation {{ machine step({parameter}); }}"),
-                format!("boundary trait Operation {{ machine step({parameter}) reaches; }}"),
+                format!(
+                    "boundary trait Operation {{ machine step({parameter}) reaches crashes none; }}"
+                ),
                 format!("machine run() {{ machine step({parameter}) {{}} }}"),
             ] {
                 let tokens = Lexer::new(&source).tokenize().unwrap();

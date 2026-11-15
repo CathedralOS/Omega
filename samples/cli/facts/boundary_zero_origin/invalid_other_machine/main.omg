@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Request { internal: u64; }
 const ZERO: u64 = 0;
-boundary trait Io { machine acquire(request: &mut Request) -> i32 reaches requires request.internal == ZERO; }
+boundary trait Io { machine acquire(request: &mut Request) -> i32 reaches requires request.internal == ZERO crashes none; }
 Actual satisfies Io { machine acquire(request: &mut Request) -> i32 requires request.internal == ZERO { request.internal = 9; 7 } }
 machine other(request: &mut Request) -> i32 requires request.internal == ZERO { Io::acquire(request) }
 machine main() crashes Trap {

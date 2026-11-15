@@ -32,11 +32,9 @@ may wait until EOF, as with an ordinary stream reader.
 ## Frozen reference
 
 `data/oracle.json`, `.stdout` files and `FROZEN.sha256` were authored before any
-Omega check or execution. Both absolute and relative tolerances are zero.
-`reference.py` constructs delays independently and uses Python Fraction direct
-rational sums to generate the oracle; it is supplementary, not the application.
-The reference defaults to a separate build/reference directory, preserving the
-frozen data. `validate.py` compares entire stdout bytes and exact exits.
+Omega check or execution. Both absolute and relative tolerances are zero. The
+reference defaults to a separate build/reference directory, preserving the
+frozen data.
 
 Existing sample comparison: audio/sine_tone, square_tone and scale_melody
 synthesize and play WAV files; they do not ingest multiple recordings or infer
@@ -51,7 +49,6 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega packages update
 # Review pending package decisions through the ordinary documented workflow.
 OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega --check samples/cli/independent/microphone_delay_beamforming/main.omg
 OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega run --both --keep samples/cli/independent/microphone_delay_beamforming/main.omg < samples/cli/independent/microphone_delay_beamforming/data/east.stdin
-python3 samples/cli/independent/microphone_delay_beamforming/validate.py --omega /absolute/path/to/omega
 ```
 
 `controls/bounds/main.omg` is a separate complete intended-invalid source with

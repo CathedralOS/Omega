@@ -70,19 +70,16 @@ error: state `write_cell` receives `cell` while local borrow `held` is still act
 ```
 
 Removing the competing borrow restores clean compilation and zero exit.
-The negative obligation is a static loan-exclusivity and borrow-window gate: overlapping mutable loans are decided and refused at compile time before any runtime realization, so no runtime trap is reachable for the loan-exclusivity violation itself, while the positive side's restored write is verified at runtime by both the Terminal Psi interpreter and native execution. Each place is pinned twice in the corpus goldens—on the check/outcome side (`tests/omega/corpus_outcomes.txt`) and on the native execution side (`tests/omega/corpus_native_windows_x86_64.txt` as `built ... exit:0`).
+The negative obligation is a static loan-exclusivity and borrow-window
+gate: overlapping mutable loans are decided and refused at compile time
+before any runtime realization, so no runtime trap is reachable for the
+loan-exclusivity violation itself, while the positive side's restored
+write is verified at runtime by both the Terminal Psi interpreter and
+native execution.
 
 ### Host-pinned macOS ARM64 native rows
 
 The nine positives were measured and recorded on this host with
-
-```sh
-OMEGA_LIBRARY_ROOT=$PWD/source/library python3 tools/corpus_gate.py --native --record --filter facts/borrowed_restoration_window
-```
-
-producing nine rows in `tests/omega/corpus_native_macos_arm64.txt`, one per place
-(`call_result`, `const_name`, `field`, `local`, `match_join`, `other_machine`,
-`other_state`, `parameter`, `target_body`):
 
 ```
 pass/facts/borrowed_restoration_window_through_<place>_exit built <ms>ms exit:0
@@ -119,9 +116,6 @@ reject twins break.
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`)
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/borrowed_restoration_window_through_<place>_exit/`
-  - Negative controls: `tests/omega/fail/facts/borrowed_restoration_window_through_<place>_rejected/`
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** Passing a mutable borrow `&mut cell` to mutating callee `write_cell` stores `cell.value = 100u64`. Upon callee return, the loan window retires and restored owner access establishes post-borrow invariant `val >= 100u64 && val <= 100u64` directly from the restored storage state without any post-hoc caller equality guard (`transition x == 100`).

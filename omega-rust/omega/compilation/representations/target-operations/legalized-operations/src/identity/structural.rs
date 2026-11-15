@@ -45,6 +45,24 @@ pub(super) fn encode_boundary_settlement(
     encode_ownership_roster(bytes, &settlement.ownership);
 }
 
+pub fn encode_external_execution(
+    bytes: &mut Vec<u8>,
+    execution: target_operations::ExternalExecutionBinding,
+) {
+    match execution {
+        target_operations::ExternalExecutionBinding::Provider(provider) => {
+            bytes.push(0);
+            encode_provider_execution(bytes, provider);
+        }
+        target_operations::ExternalExecutionBinding::NativeBinding(native) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&native.receipt());
+            bytes.extend_from_slice(&native.contract());
+            bytes.extend_from_slice(&native.calling());
+        }
+    }
+}
+
 pub fn encode_provider_execution(
     bytes: &mut Vec<u8>,
     execution: target_operations::ProviderExecutionBinding,

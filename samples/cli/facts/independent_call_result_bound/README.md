@@ -53,15 +53,11 @@ requirement's dependencies, and the existing independence walk does the rest.
 | [another machine](other_machine/main.omg) | forwarding result contract |
 | [another target body](target_body/main.omg) | four Build-selected `Evaluation` implementations |
 
-Each place has `invalid/main.omg`. The root duplicates local. Every positive
-binds all four hosted ProgramEntry targets, expects zero and must run with
-`omega run --both`. The nine source-identical pass/fail pairs are pinned under
-`tests/omega/pass/facts/independent_call_result_bound_through_<place>_exit` and
-`tests/omega/fail/facts/independent_call_result_bound_through_<place>_rejected`
-(nine each; the reject fixture is a byte-identical copy of `<place>/invalid/main.omg`).
-A returned difference is tested only after the subtraction; that observation
-does not supply its formation proof. Replacing the final `difference == 0` with
-`difference == 1` makes every place trap on both engines.
+Each place has `invalid/main.omg`. The root duplicates local. Every positive binds all
+four hosted ProgramEntry targets, expects zero and must run with `omega run --both`. A
+returned difference is tested only after the subtraction; that observation does not
+supply its formation proof. Replacing the final `difference == 0` with `difference ==
+1` makes every place trap on both engines.
 
 The [applied requirement](applied_requirement/main.omg) states the local place on
 a const-generic requirement, `IndependentSource<17u64>`. A call through it carries

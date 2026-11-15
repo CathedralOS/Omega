@@ -80,7 +80,7 @@ pub(crate) mod constraints {
 pub(crate) mod construction {
     use crate::{
         ValidatedLegalizedOperations, ValidatedSelectedInstructions,
-        legalization::legalize_target_operations_with_types,
+        legalization::legalize_retained_target_operations,
         selection::select_instructions_with_types,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
@@ -104,16 +104,14 @@ pub(crate) mod construction {
         .ok_or_else(|| {
             OptimizedSelectionPipelineError::Legalization(crate::LegalizationError::custody())
         })?;
-        let legalized = legalize_target_operations_with_types(
+        let legalized = legalize_retained_target_operations(
             input.target,
-            input.source,
-            input.unit,
+            input.evidence,
             input.origins,
-            input.callable_roots,
+            input.callable_invocations,
             input.installed_interrupts,
             input.installed_entry_execution,
             input.installed_stack_requirements,
-            Some(closed_types),
         )
         .map_err(OptimizedSelectionPipelineError::Legalization)?;
         let selection_constraints = selection_constraints(&legalized, register_environment);
@@ -142,7 +140,7 @@ pub(crate) mod custody {
         legalized: &ValidatedLegalizedOperations,
         selected: &ValidatedSelectedInstructions,
     ) -> StagedOptimizedSelectionCustodyReceipt {
-        let (target, unit) = (input.target, input.unit);
+        let target = input.target;
         StagedOptimizedSelectionCustodyReceipt {
             core: StagedOptimizedCustodyCore {
                 psi: target.psi,
@@ -151,8 +149,8 @@ pub(crate) mod custody {
                 optimization: input.optimization,
                 projection: input.projection,
                 manifest: input.manifest,
-                optimization_unit: unit.identity,
-                work_schedule: unit.work_schedule,
+                optimization_unit: input.evidence.optimization_unit,
+                work_schedule: input.evidence.work_schedule,
                 register_environment: register_environment.identity(),
             },
             legalized: legalized.receipt().identity(),
@@ -163,22 +161,19 @@ pub(crate) mod custody {
     }
 }
 pub(crate) mod input {
-    use abstract_operations::AbstractOperationPlan;
     use optimization_core::{
         OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationWorkBudget,
         OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
     };
-    use optimization_unit::PsiOptimizationUnit;
     use target_operations::{BoundaryOriginFacts, TargetOperationPlan};
 
     #[derive(Debug)]
     pub struct TargetSelectionInput<'input> {
         pub target: &'input TargetOperationPlan,
-        pub source: &'input AbstractOperationPlan,
-        pub unit: &'input PsiOptimizationUnit,
+        pub evidence: TargetSelectionEvidence<'input>,
         pub closed_module: &'input terminal_codec::ClosedTerminalModule,
         pub origins: BoundaryOriginFacts<'input>,
-        pub callable_roots: &'input terminal_semantics::callable_values::CallableInvocationRoots,
+        pub callable_invocations: &'input PreparedCallableInvocations,
         pub installed_entry_execution:
             Option<&'input provider_admission::AdmittedInstalledEntryExecution>,
         pub installed_interrupts: &'input provider_admission::AdmittedInstalledInterruptCohort,
@@ -189,6 +184,71 @@ pub(crate) mod input {
         pub manifest: PrePhysicalOptimizationManifestIdentity,
         pub selections: OptimizationSelections,
         pub budget_per_pass: OptimizationWorkBudget,
+    }
+
+    /// The actual optimized-unit query result prepared before retained selection.
+    /// Its private association prevents a result from another graph, entry or
+    /// work schedule from being attached to this target's instruction plan.
+    #[derive(Debug)]
+    pub struct PreparedCallableInvocations {
+        psi: terminal_psi::TerminalPsiIdentity,
+        optimization_unit: optimization_core::OptimizationUnitIdentity,
+        work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+        entry: semantic_vocabulary::MachineId,
+        invocations:
+            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    }
+
+    impl PreparedCallableInvocations {
+        pub fn new(
+            unit: &optimization_unit::PsiOptimizationUnit,
+            roots: &terminal_semantics::callable_values::CallableInvocationRoots,
+        ) -> Result<Self, &'static str> {
+            let program =
+                optimization_unit_semantics::callable_values::optimized_callable_values(unit)?;
+            let invocations =
+                terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
+                    &program,
+                    [unit.entry],
+                    roots,
+                )?;
+            Ok(Self {
+                psi: unit.psi,
+                optimization_unit: unit.identity,
+                work_schedule: unit.work_schedule,
+                entry: unit.entry,
+                invocations: std::sync::Arc::new(invocations),
+            })
+        }
+
+        pub(crate) fn for_target(
+            &self,
+            target: &TargetOperationPlan,
+            evidence: TargetSelectionEvidence<'_>,
+        ) -> Result<
+            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+            &'static str,
+        > {
+            if self.psi != target.psi
+                || self.optimization_unit != evidence.optimization_unit
+                || self.work_schedule != evidence.work_schedule
+                || self.entry != target.entry
+            {
+                return Err(
+                    "callable invocation facts differ from the actual target unit, schedule or entry",
+                );
+            }
+            Ok(std::sync::Arc::clone(&self.invocations))
+        }
+    }
+
+    /// Immutable judgments and input identities, not executable input bodies.
+    #[derive(Debug, Clone, Copy)]
+    pub struct TargetSelectionEvidence<'input> {
+        pub optimization_unit: optimization_core::OptimizationUnitIdentity,
+        pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+        pub accepted_obligation_facts: &'input [optimization_unit::AcceptedObligationFact],
+        pub ownership_frontier_facts: &'input [optimization_unit::OwnershipFrontierFact],
     }
 }
 pub(crate) mod model {
@@ -289,7 +349,7 @@ pub(crate) mod model {
     impl std::error::Error for OptimizedSelectionPipelineError {}
 }
 
-pub use input::TargetSelectionInput;
+pub use input::{PreparedCallableInvocations, TargetSelectionEvidence, TargetSelectionInput};
 pub use model::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt,

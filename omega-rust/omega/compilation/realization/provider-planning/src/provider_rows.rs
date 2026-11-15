@@ -178,6 +178,8 @@ impl DirectBoundaryInput {
         plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
         plan.provider_type = self.realization_owner.clone();
         plan.provider_type_package_identity = self.realization_package;
+        plan.origin_package_identity = self.realization_package;
+        plan.provider_application = plan.identities.intern(&self.realization_owner);
         declaration.trait_name = declaration.identities.intern(&self.callable_identity);
         declaration.trait_package_identity = self.realization_package;
         plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
@@ -204,8 +206,230 @@ impl DirectBoundaryInput {
             plan,
             satisfied_requirement_identity: requirement.to_owned(),
             execution,
+            target_realization: None,
         };
         leaf.validate_calling_custody().map_err(Diagnostic::error)?;
         Ok(leaf)
+    }
+}
+
+/// Realize the checked core primitive at its own callable coordinate, retaining
+/// the canonical requirement's complete schema as its semantic owner.
+/// No source callback or provider-name classification supplies execution here.
+pub fn direct_compiler_primitive_leaves(
+    module: &terminal_psi::TerminalModule,
+    schemas: &[effects::provider_plan::ServiceSchema],
+    target: &str,
+) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
+    let fail = |reason: &str| vec![Diagnostic::error(reason)];
+    if target.is_empty() {
+        return Err(fail("hosted primitive requires one explicit native target"));
+    }
+    let text = |identity| {
+        module
+            .identities
+            .text(identity)
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| fail("hosted primitive lost its exact declaration identity"))
+    };
+    let mut leaves = Vec::new();
+    for boundary in &module.boundary_machines {
+        let Some(declaration) = &boundary.declaration else {
+            continue;
+        };
+        let (canonical, execution, target_realization) = match declaration.execution {
+            terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
+                operation,
+                requirement,
+            } => {
+                let execution = match operation {
+                    language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
+                        effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                    }
+                    _ => return Err(fail("hosted primitive has no native catalog projection")),
+                };
+                let canonical = module
+                    .boundary_machine(requirement)
+                    .ok_or_else(|| fail("hosted primitive lost its canonical requirement link"))?;
+                (canonical, execution, None)
+            }
+            terminal_psi::CheckedBoundaryExecution::NumericPrimitive => {
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .map_err(fail)?;
+                let meaning = boundary
+                    .numeric_intrinsic
+                    .ok_or_else(|| fail("numeric primitive lost its semantic meaning"))?;
+                let profile = target::TargetProfile::from_canonical_target_name(target)
+                    .map_err(|_| fail("numeric primitive has no recognized target"))?;
+                let requirement = text(boundary.identity)?;
+                let entry = profile
+                    .canonical_float_realization(requirement)
+                    .ok_or_else(|| {
+                        fail("numeric primitive has no canonical target realization entry")
+                    })?;
+                if let target::CanonicalFloatRealization::Unsupported { constraint } = entry {
+                    return Err(vec![Diagnostic::error(format!(
+                        "canonical float operation `{requirement}` has no realization on target `{target}`: {constraint}"
+                    ))]);
+                }
+                (
+                    boundary,
+                    effects::CompilerIntrinsicExecutionIdentity::from(meaning),
+                    Some(entry),
+                )
+            }
+            _ => continue,
+        };
+        let requirement = text(canonical.identity)?;
+        let mut originals = schemas.iter().flat_map(|schema| {
+            schema.declaration.methods.iter().filter_map(move |method| {
+                (schema.identity_text(method.requirement_identity) == requirement)
+                    .then_some((schema, method))
+            })
+        });
+        let (Some((schema, method)), None) = (originals.next(), originals.next()) else {
+            return Err(fail(
+                "hosted primitive needs one exact canonical requirement schema",
+            ));
+        };
+        let mut original = effects::provider_plan::ProviderPlan {
+            target: target.to_owned(),
+            schema: schema.clone(),
+            ..Default::default()
+        };
+        let coordinate = original.identities.intern(requirement);
+        original.rows.push(effects::provider_plan::ProviderPlanRow {
+            method: method.name.clone(),
+            requirement_identity: coordinate,
+            declared_requirement_identity: coordinate,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                machine: text(declaration.source.semantic_declaration)?.to_owned(),
+            },
+        });
+        let row_index = 0;
+        let input = DirectBoundaryInput {
+            row_index,
+            declaration_identity: text(declaration.source.semantic_declaration)?.to_owned(),
+            callable_identity: text(declaration.source.callable)?.to_owned(),
+            realization_owner: text(declaration.source.machine.identity())?.to_owned(),
+            // Receiving has already authenticated both declarations as exact
+            // core members; the canonical schema retains that package custody.
+            realization_package: original.schema.declaration.trait_package_identity,
+            mechanism: DirectBoundaryMechanism::Intrinsic,
+        };
+        let mut leaf = input
+            .finish(
+                &original,
+                backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)),
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+        leaf.target_realization = target_realization;
+        if !leaf
+            .bind_to_terminal(module)
+            .map_err(|reason| fail(&reason))?
+        {
+            return Err(fail(
+                "hosted primitive lost its exact receiving declaration",
+            ));
+        }
+        leaves.push(leaf);
+    }
+    Ok(leaves)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use effects::provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema, ServiceSurface};
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+
+    /// Isolate contract projection, not source admission or execution authority.
+    /// Changing any part of the original exit contract must break custody.
+    #[test]
+    fn direct_projection_preserves_completion_nominal_result_and_progress() {
+        let mut surface = ServiceSurface::default();
+        surface.trait_name = surface.identities.intern("core::ProcessExit");
+        let requirement = surface.identities.intern("core::ProcessExit::exit_process");
+        let parameter = surface.identities.intern("i32");
+        let result = surface.identities.intern("core::Never");
+        surface.methods.push(ServiceMethod {
+            completion: BoundaryCompletion::External(ExternalCompletionKind::ProcessExit),
+            name: "exit_process".into(),
+            requirement_owner: "core::ProcessExit".into(),
+            requirement_identity: requirement,
+            parameter_count: 1,
+            parameter_type_identities: vec![parameter],
+            has_result: true,
+            result_type_identity: result,
+            service_reach: vec!["core::ProcessExit".into()],
+            terminates_guarantee: true,
+            ..Default::default()
+        });
+        let mut original = ProviderPlan {
+            target: "linux_x86_64".into(),
+            schema: ServiceSchema::from_declaration(std::sync::Arc::new(surface)),
+            ..Default::default()
+        };
+        let requirement = original
+            .identities
+            .intern("core::ProcessExit::exit_process");
+        original.rows.push(ProviderPlanRow {
+            method: "exit_process".into(),
+            requirement_identity: requirement,
+            declared_requirement_identity: requirement,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: ProviderBinding::CompilerIntrinsic {
+                machine: "core::ProcessExitPrimitive".into(),
+            },
+        });
+        let input = DirectBoundaryInput {
+            row_index: 0,
+            declaration_identity: "primitive declaration".into(),
+            callable_identity: "primitive callable(i32)->core::Never".into(),
+            realization_owner: "core::ProcessExitPrimitive".into(),
+            realization_package: None,
+            mechanism: DirectBoundaryMechanism::Intrinsic,
+        };
+        let leaf = input
+            .finish(
+                &original,
+                backend_plan::DirectBoundaryExecution::Intrinsic(Some(
+                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
+                )),
+            )
+            .unwrap();
+        assert_eq!(leaf.satisfied_schema, original.schema);
+        assert!(leaf.validate_calling_custody().is_ok());
+        let errors = leaf.plan.validate_against_schema();
+        assert!(
+            errors.is_empty(),
+            "the complete logical exit contract: {errors:?}"
+        );
+        let mut missing_result_identity = leaf.clone();
+        std::sync::Arc::make_mut(&mut missing_result_identity.plan.schema.declaration).methods[0]
+            .result_type_identity = Default::default();
+        assert!(
+            missing_result_identity
+                .plan
+                .validate_against_schema()
+                .iter()
+                .any(|error| error
+                    .contains("result presence disagrees with its exact result type identity"))
+        );
+        for change in 0..3 {
+            let mut changed = leaf.clone();
+            let schema = std::sync::Arc::make_mut(&mut changed.plan.schema.declaration);
+            match change {
+                0 => schema.methods[0].completion = BoundaryCompletion::NormalReturn,
+                1 => schema.methods[0].terminates_guarantee = false,
+                _ => schema.methods[0].result_type_identity = schema.identities.intern("Unit"),
+            }
+            assert!(changed.validate_calling_custody().is_err());
+        }
     }
 }

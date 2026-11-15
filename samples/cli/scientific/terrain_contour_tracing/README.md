@@ -45,16 +45,11 @@ array access; none extracts a contour graph, resolves a saddle or stitches
 paths. A repository search for contour/marching/terrain/saddle on the base
 found no related sample.
 
-`data/reference.py` independently derives crossings with exact rational
-arithmetic and constructs saddle pairs from corner neighborhoods rather than
-copying the application's sixteen-case dispatch. `data/expected.json` and
-`data/FROZEN.json` were generated before the first Omega check or execution.
-All sixteen cell masks under both policies appear in 32 fixtures; the emitted
-per-cell segments make those cases independently observable. Additional cases
-cover flat terrain, hills, pits, exits, multiple saddles, asymmetric crossings,
-EOF input and malformed input. `validate.py` canonicalizes path orientation
-and cycle rotation, then compares all coordinates, segments, paths and counts;
-process status and stderr are also checked. It never updates expectations.
+`data/expected.json` and `data/FROZEN.json` were generated before the first
+Omega check or execution. All sixteen cell masks under both policies appear in
+32 fixtures; the emitted per-cell segments make those cases independently
+observable. Additional cases cover flat terrain, hills, pits, exits, multiple
+saddles, asymmetric crossings, EOF input and malformed input.
 
 From the repository root, with a verified compiler at `$OMEGA` and matching
 `OMEGA_LIBRARY_ROOT=source/library` (use absolute paths when needed):
@@ -64,7 +59,6 @@ $OMEGA update --project samples/cli/independent/terrain_contour_tracing --target
 # Read the generated review and explicitly accept its intended rows before --resume.
 $OMEGA --check --target linux_x86_64 samples/cli/independent/terrain_contour_tracing/main.omg
 $OMEGA --target linux_x86_64 samples/cli/independent/terrain_contour_tracing/main.omg
-python3 samples/cli/independent/terrain_contour_tracing/validate.py --executable <published-executable>
 printf '10000020000\n' | $OMEGA run --both --keep samples/cli/independent/terrain_contour_tracing/main.omg
 ```
 

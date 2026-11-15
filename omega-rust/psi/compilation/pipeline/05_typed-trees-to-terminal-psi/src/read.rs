@@ -23,6 +23,7 @@ serve is refused when it is set, never ignored.
 */
 
 mod arrays;
+mod atomics;
 mod authority;
 mod boundaries;
 pub(crate) use authority::has_predicates;
@@ -62,7 +63,7 @@ mod transitions;
 mod types;
 
 use arena::Arena;
-use semantic_vocabulary::{CrashCause, IdTable, MachineId, StructuralTypeId};
+use semantic_vocabulary::{CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::TypedTrees;
@@ -84,6 +85,12 @@ pub(crate) struct LocalSummaryBodies {
     pub result_contracts: Vec<MachineId>,
 }
 
+pub(crate) struct DeclaredDomain {
+    pub instance: crate::body::DomainInstance,
+    pub carrier: ValueType,
+    pub predicate: Option<semantic_vocabulary::Proposition>,
+}
+
 pub(crate) struct Program<'t> {
     type_purpose: storage_metadata::TypePurpose,
     /// Sorted exact record IDs whose complete nested source type was read for a value use.
@@ -101,6 +108,7 @@ pub(crate) struct Program<'t> {
         Vec<typed_trees::trait_definition::TraitApplicationEnvironment>,
     /// Choices made by this reader, prepared once before source admission.
     pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
+    pub purpose: source::DependencyScope,
     named_captures: crate::NamedCaptures,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
@@ -167,6 +175,10 @@ pub(crate) struct Program<'t> {
     /// Every declaration in these machines' verification subject is rooted;
     /// reaching one dependency helper alone does not close its possible uses.
     pub subject_machines: Vec<MachineId>,
+    /// The original request's fixed membership for outcome inference inside
+    /// independent witnesses. It neither roots declarations nor supplies the
+    /// complete caller roster needed by private input/result inference.
+    pub outcome_subjects: Option<Vec<Option<PackageKeyIdentity>>>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
     /// What each type parameter in scope stands for while one machine's
@@ -215,15 +227,10 @@ pub(crate) struct Program<'t> {
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
     pub byte_domains: Vec<crate::body::SourceByteDomain>,
+    pub scalar_applications: terminal_psi::ScalarApplications,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
-    pub declared_domains: Vec<(SymbolHandle, ValueType)>,
-    /// Domain predicates read before the source closure is frozen for publication.
-    pub domain_predicates: Vec<(
-        SymbolHandle,
-        ValueType,
-        Vec<semantic_vocabulary::Proposition>,
-    )>,
+    pub declared_domains: Vec<DeclaredDomain>,
     /// Only completed source contracts enter this stage-local query cache.
     /// It contains no value facts and is never published as evidence.
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -274,9 +281,20 @@ pub(crate) struct Program<'t> {
     /// The machine each chosen provider gives each requirement it supplies,
     /// recorded by `supplied_slots`.
     pub supplied: Vec<crate::SuppliedRequirement>,
+    /// `Some` while a compilation reports every refusal it meets
+    /// (`elaborate_source_for`): a declaration or body that is refused is
+    /// recorded here and reading goes on with the next one, so one run names
+    /// every machine the checker cannot read yet. `None`, as for a direct
+    /// reading, refuses at the first.
+    pub collected: Option<Vec<terminal_check_tables::Refusal>>,
+    /// Machines whose signature was refused while `collected` is `Some`. A
+    /// later call of one is refused at once as depending on it, instead of
+    /// reading and refusing the same signature again for every caller.
+    refused_signatures: Vec<SymbolHandle>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
+#[derive(Clone)]
 struct Slot {
     symbol: SymbolHandle,
     value_type: ValueType,
@@ -334,16 +352,23 @@ impl<'t> Program<'t> {
 
     #[cfg(test)]
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
-        Self::with_captures(typed, rigid, crate::named_captures(typed))
+        Self::with_captures(
+            typed,
+            rigid,
+            source::DependencyScope::Product,
+            crate::named_captures(typed),
+        )
     }
 
     pub fn with_captures(
         typed: &'t TypedTrees,
         rigid: bool,
+        purpose: source::DependencyScope,
         captures: crate::NamedCaptures,
     ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
+            purpose,
             declaration_metadata: Vec::new(),
             typed,
             type_purpose: storage_metadata::TypePurpose::Value,
@@ -375,6 +400,7 @@ impl<'t> Program<'t> {
             requirements: Vec::new(),
             fixed_inputs: Vec::new(),
             subject_machines: Vec::new(),
+            outcome_subjects: None,
             selections: Vec::new(),
             scope: Vec::new(),
             scopes: IdTable::default(),
@@ -391,8 +417,8 @@ impl<'t> Program<'t> {
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             byte_domains: Vec::new(),
+            scalar_applications: Default::default(),
             declared_domains: Vec::new(),
-            domain_predicates: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -409,6 +435,8 @@ impl<'t> Program<'t> {
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
+            collected: None,
+            refused_signatures: Vec::new(),
         }
     }
 
@@ -663,7 +691,148 @@ mod tests {
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
+            authored_layout: false,
         }
+    }
+
+    #[test]
+    fn a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence() {
+        use language_semantics::DomainPredicatePresence;
+        use semantic_vocabulary::Proposition;
+        use source::{
+            DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum, SourceSpan,
+        };
+        use typed_trees::domain::{DomainDefinition, ProofFact};
+
+        let text = "Never Always Bare";
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_checked_instance(
+                "domains.omg".into(),
+                text,
+                "domains".into(),
+                None,
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Product,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources(Some(std::sync::Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let domains = builder.insert_children(
+            root,
+            [(0, 5), (6, 12), (13, 17)].map(|(start, end)| {
+                (
+                    SymbolKind::Domain,
+                    SymbolNameRef::Source(SourceSpan::new(source, source::Span::new(start, end))),
+                )
+            }),
+        );
+        let subjects = domains
+            .handles()
+            .map(|domain| {
+                builder
+                    .insert_children(
+                        domain,
+                        [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
+                    )
+                    .handle_at(0)
+            })
+            .collect::<Vec<_>>();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        for (((symbol, name), predicate), subject_symbol) in domains
+            .handles()
+            .zip(["Never", "Always", "Bare"])
+            .zip([Some(false), Some(true), None])
+            .zip(subjects)
+        {
+            let (predicate_presence, facts) = if let Some(value) = predicate {
+                let expression = typed
+                    .expression_table
+                    .insert(ExpressionNode::Boolean(value));
+                (
+                    DomainPredicatePresence::Present,
+                    typed
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(expression)]),
+                )
+            } else {
+                (DomainPredicatePresence::Absent, arena::HandleSpan::empty())
+            };
+            let semantic_id = typed.semantic_domains.intern(name);
+            typed.push_domain_definition(DomainDefinition {
+                symbol,
+                name: name.into(),
+                semantic_id,
+                subject_symbol,
+                predicate_presence,
+                facts,
+                ..Default::default()
+            });
+        }
+        let mut program = Program::new(&typed, false);
+        let carrier = program.records.push(plain_record());
+        program
+            .declared_domains
+            .extend(domains.handles().map(|symbol| DeclaredDomain {
+                instance: crate::body::DomainInstance {
+                    declaration: symbol,
+                    identity: typed.domain_definition(symbol).unwrap().semantic_id,
+                },
+                carrier: ValueType::record(carrier),
+                predicate: None,
+            }));
+        let bodies = semantic_vocabulary::IdTable::default();
+        let components = crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
+        program.prepare_domain_predicates(machine()).unwrap();
+        let elaboration = crate::lower_program(
+            None,
+            &bodies,
+            &components,
+            crate::body::Signatures {
+                machines: &program.signatures,
+                declarations: &program.declaration_signatures,
+                declaration_aliases: None,
+                boundaries: &program.boundaries,
+            },
+            &program.records,
+            &[],
+            &program.callables,
+            &program.boundaries,
+            &crate::reach::ServiceMap::default(),
+            &program.external_providers,
+            &program.static_contracts,
+            terminal_codec::TerminalPublication::Invocation,
+            Some(program.typed),
+            Some(&program),
+        )
+        .unwrap();
+        let domains = &elaboration.program.module.structural_domains;
+        let predicates = domains
+            .iter()
+            .map(|domain| {
+                domain
+                    .predicate
+                    .as_ref()
+                    .map(|predicate| &predicate.proposition)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            predicates,
+            [
+                Some(&Proposition::Falsehood),
+                Some(&Proposition::Truth),
+                None
+            ]
+        );
+        assert!(
+            domains
+                .iter()
+                .all(|domain| !domain.complete_predicate_theory)
+        );
     }
 
     fn unit_machines() -> (TypedTrees, [SymbolHandle; 2]) {
@@ -1496,7 +1665,12 @@ mod tests {
                 scalar_type,
                 Qualification {
                     policy: None,
-                    domains: DomainSet::EMPTY.with(foreign).unwrap(),
+                    domains: DomainSet::EMPTY
+                        .with(crate::body::DomainInstance {
+                            declaration: foreign,
+                            identity: language_semantics::SemanticDomainId::NULL,
+                        })
+                        .unwrap(),
                 },
             ),
             ..slot()

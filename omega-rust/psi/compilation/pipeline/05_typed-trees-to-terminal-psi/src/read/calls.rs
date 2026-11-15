@@ -9,6 +9,7 @@ use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::StructuralAccess;
 use typed_trees::expression::{
     BuildSelectionRequest, ExpressionHandle, ExpressionNode, TableCallExpression,
 };
@@ -181,6 +182,9 @@ impl<'t> Program<'t> {
     /// one state the symbol is. `None` for anything else, including a state
     /// of a machine with several.
     fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+        if !self.typed.symbols.symbols().nodes().is_valid(symbol) {
+            return None;
+        }
         match self.typed.symbols.get(symbol).kind {
             SymbolKind::Machine => Some(symbol),
             SymbolKind::State => {
@@ -354,6 +358,17 @@ impl<'t> Program<'t> {
                 .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?,
         };
         let names_target = |symbol: SymbolHandle| symbol == target || generated == Some(symbol);
+        let selects_target = |symbol| {
+            names_target(symbol)
+                || self.entered_machine(symbol).is_some_and(|selected| {
+                    self.entered_machine(target) == Some(selected)
+                        // The retained application maps the execution entry
+                        // to its exact template entry. The ledger can name
+                        // that entry by its machine, as in a transition.
+                        || generated.and_then(|template| self.entered_machine(template))
+                            == Some(selected)
+                })
+        };
         if let Some(occurrence) = selection {
             let Some(selected) = self.typed.authored_declaration_selections().get(occurrence)
             else {
@@ -364,12 +379,7 @@ impl<'t> Program<'t> {
                 // entry state, and so does the call; a call of the machine
                 // being read records the two differently.
                 AuthoredDeclarationSelectionTarget::Resolved(resolved)
-                    if names_target(resolved.selected_symbol())
-                        || self
-                            .entered_machine(resolved.selected_symbol())
-                            .is_some_and(|selected| {
-                                Some(selected) == self.entered_machine(target)
-                            }) => {}
+                    if selects_target(resolved.selected_symbol()) => {}
                 AuthoredDeclarationSelectionTarget::Resolved(_) => {
                     return unserved("selection resolved to another declaration");
                 }
@@ -575,6 +585,10 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         // Taken before anything nested is read, so no argument sees it.
         let expected = self.expected.take();
+        // A layout query names no declaration; typing kept its operand.
+        if let Some(query) = &call.layout_query {
+            return self.layout_query(id, call, query, source);
+        }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(runtime) = call.runtime_call {
             if call.target_symbol.is_valid()
@@ -708,6 +722,57 @@ impl<'t> Program<'t> {
     /// Its closed result belongs to the actual application, never to the
     /// type a caller hopes to receive. Other interpretations still need
     /// their evaluated policy, content, profile and resident correspondence.
+    /// `size_of<T>()` and `align_of<T>()` (layouts/plans.md, "These forms
+    /// take data types"). The operand is read as an ordinary value type, so
+    /// `CLayout<R>` and `R` name the record rows placement and ABI use, and
+    /// the observation measures exactly that row. Only a record row has a
+    /// storage geometry this reader can name; a scalar, a rigid type
+    /// parameter and the value form `align_of(view)` stay refused here
+    /// rather than receive a fabricated measurement.
+    pub(super) fn layout_query(
+        &mut self,
+        id: MachineId,
+        call: &TableCallExpression,
+        query: &typed_trees::expression::DataLayoutQueryRequest,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::data_layout_queries::DataLayoutQueryKind;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if query.nonempty_view.is_valid()
+            || !query.operand.type_reference.is_valid()
+            || !call.arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || call.receiver.is_valid()
+        {
+            return unserved("layout query without exactly one type operand");
+        }
+        let ValueType::Record(subject, _, _) = self.value_type(id, query.operand.type_reference)?
+        else {
+            return unserved("layout query of a carrier with no record row");
+        };
+        let measurement = match query.kind {
+            DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
+            DataLayoutQueryKind::Alignment => terminal_psi::LayoutMeasurement::Alignment,
+        };
+        let scalar_type = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
+        );
+        let application = crate::qualifications::layout_observation(
+            &mut self.scalar_applications,
+            subject,
+            measurement,
+            scalar_type,
+        )
+        .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::LayoutObservation { application },
+            result: Some(ValueType::plain(scalar_type)),
+            source,
+        })
+    }
+
     fn borrow_factory_call(
         &mut self,
         id: MachineId,
@@ -1717,7 +1782,17 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("callee without a symbol"),
             ));
         }
+        // An authored free-machine call may retain its entry-state symbol.
+        // Primitive custody and visibility belong to the exact machine owner.
+        let target = if self.typed.symbols.get(target).kind == SymbolKind::State {
+            self.call_target_symbol(id, target)?
+        } else {
+            target
+        };
         self.visible_to(id, target)?;
+        if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
+            return Ok(fence);
+        }
         if let Some((boundary, signature)) = self.read_boundary_declaration(id, target)? {
             return self.call_with_signature(
                 id,
@@ -1729,11 +1804,12 @@ impl<'t> Program<'t> {
                 expected,
             );
         }
-        let machine = self.call_target_symbol(id, target)?;
-        self.visible_to(id, machine)?;
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let callee = self.machine(machine)?;
+        let callee = match self.inherited_type_arguments(id, target) {
+            Some(arguments) => self.application(target, arguments)?,
+            None => self.machine(target)?,
+        };
         self.call_of(
             id,
             slots,
@@ -1742,6 +1818,43 @@ impl<'t> Program<'t> {
             source,
             expected,
         )
+    }
+
+    /// A direct entry into a lexical child carries the caller's own
+    /// telescope even when the call has no explicit static application.
+    /// Read the child's signature at those same rigid types. The existing
+    /// application owner also requests the child's independent body check.
+    fn inherited_type_arguments(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Option<Vec<crate::body::ValueType>> {
+        if !self.rigid || id.get() != 1 {
+            return None;
+        }
+        let caller = *self.symbols.get(id)?;
+        let mut enclosing = self.typed.symbols.get(target).parent;
+        while enclosing.is_valid() && enclosing != caller {
+            enclosing = self.typed.symbols.get(enclosing).parent;
+        }
+        if enclosing != caller {
+            return None;
+        }
+        let machine = self.typed.machine_by_symbol(target)?;
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty() || !machine.conformance_bounds.is_empty() {
+            return None;
+        }
+        parameters
+            .iter()
+            .map(|parameter| {
+                self.scope.iter().find_map(|(binder, value)| {
+                    (*binder == parameter.symbol
+                        && matches!(value, crate::body::ValueType::Rigid(_)))
+                    .then_some(*value)
+                })
+            })
+            .collect()
     }
 
     /// Resolve the same exact entry identity for direct and selected calls.
@@ -2097,7 +2210,8 @@ impl<'t> Program<'t> {
             read.push(if *erased {
                 self.erased_term(id, slots, *argument, formal.scalar())?
             } else if let Some(borrowed) = borrowed {
-                let (lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
+                let (mut lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
+                lent.result = self.borrowed_argument_type(id, slots, &lent, *formal, borrowed)?;
                 // Its position among the runtime actuals, as the invocation
                 // row counts them: erased arguments are not actuals.
                 let actual = formals[..read.len()]
@@ -2313,10 +2427,32 @@ impl<'t> Program<'t> {
         formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
+        self.lent_from(id, slots, argument, None, formal, expected)
+    }
+
+    /// `lent`, where an explicit borrow `argument` lends `beneath` in place
+    /// of its own target: `&(text as +D)` lends `text`, and the caller
+    /// qualifies the reference it forms (`borrow_value`).
+    pub(super) fn lent_from(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        argument: ExpressionHandle,
+        beneath: Option<ExpressionHandle>,
+        formal: &crate::body::Borrowed,
+        expected: ValueType,
+    ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
-            && let Some(view) = self.borrowed_byte_range(id, slots, argument, expected, source)?
+            && let Some(view) = self.borrowed_array_range(
+                id,
+                slots,
+                argument,
+                expected,
+                source,
+                Some(formal.access),
+            )?
         {
             return Ok((
                 Expression {
@@ -2324,7 +2460,6 @@ impl<'t> Program<'t> {
                     result: view.result,
                     kind: ExpressionKind::Borrow {
                         access: formal.access,
-                        formation: formal.access,
                         place: Box::new(view),
                         home: None,
                     },
@@ -2342,7 +2477,9 @@ impl<'t> Program<'t> {
         // binding, a field or another helper call. An ordinary owned value
         // still needs an explicit borrow of its place.
         let (operand, access, explicit) = match node {
-            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access, true),
+            ExpressionNode::Borrow(borrow) => {
+                (beneath.unwrap_or(borrow.target), borrow.access, true)
+            }
             _ => (argument, formal.access, false),
         };
         // A recast presents the same captured place under another type. The
@@ -2429,11 +2566,13 @@ impl<'t> Program<'t> {
         // parameter is the exclusive loan the program wrote, lent on for
         // observation: the place must admit that exclusive loan (every
         // check below is made at the written access), and the callee
-        // receives the formal's access. No other difference has a row.
+        // receives a shared child of that formation. Both loans remain in
+        // the lowered form, so the checker judges the actual formation and
+        // its complete descendant lifetime against existing cohorts.
         let attenuated = explicit
             && access == ReferenceAccess::Mutable
             && formal.access == ReferenceAccess::Shared;
-        if access != formal.access && !attenuated {
+        if !access.forms(formal.access) {
             return unserved("borrow whose access differs from its formal's");
         }
         // An existing view already carries its backing; an owned array still
@@ -2450,7 +2589,6 @@ impl<'t> Program<'t> {
                     result: place.result,
                     kind: ExpressionKind::Borrow {
                         access: formal.access,
-                        formation: formal.access,
                         place: Box::new(place),
                         home: None,
                     },
@@ -2504,7 +2642,7 @@ impl<'t> Program<'t> {
         if place.result.and_then(ValueType::policy).is_some() {
             return unserved("loan of a policy-qualified integer");
         }
-        let home = match (&place.kind, slot.and_then(|slot| slots.get(slot))) {
+        let mut home = match (&place.kind, slot.and_then(|slot| slots.get(slot))) {
             (ExpressionKind::Slot(_), Some(lender))
                 if matches!(lender.value_type, ValueType::Scalar(_, Qualification::NONE))
                     && !lender.homed =>
@@ -2547,13 +2685,52 @@ impl<'t> Program<'t> {
             }
             _ => None,
         };
+        if attenuated {
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(argument);
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("exclusive formation without its retained reference type");
+            }
+            let formed = self.local_type(id, reference)?;
+            let Some((referent, StructuralAccess::MutableBorrow)) =
+                self.reference_referent(id, formed)?
+            else {
+                return unserved("exclusive formation without its actual reference type");
+            };
+            if !self.same_type(place.result, referent) {
+                return unserved("exclusive formation changes its captured referent type");
+            }
+            let result = place.result;
+            let value = Expression {
+                call_context: None,
+                result,
+                kind: ExpressionKind::Borrow {
+                    access,
+                    place: Box::new(place),
+                    home: home.take(),
+                },
+                source,
+            };
+            let parent = self.finish_reference_value(id, slots, value, formed, source)?;
+            place = Expression {
+                call_context: None,
+                result,
+                kind: ExpressionKind::Referent(Box::new(parent)),
+                source,
+            };
+        }
         Ok((
             Expression {
                 call_context: None,
                 result: presentation.or(place.result),
                 kind: ExpressionKind::Borrow {
                     access: formal.access,
-                    formation: access,
                     place: Box::new(place),
                     home,
                 },
@@ -2561,6 +2738,65 @@ impl<'t> Program<'t> {
             },
             lender_text,
         ))
+    }
+
+    /// A slice lend presents the backing with the formal's access. The
+    /// captured place and its producer retain the actual descriptor type and
+    /// loan. Other geometry still requires exact correspondence.
+    pub(super) fn borrowed_argument_type(
+        &mut self,
+        machine: MachineId,
+        slots: &[Slot],
+        lent: &Expression,
+        expected: ValueType,
+        formal: &crate::body::Borrowed,
+    ) -> Checked<Option<ValueType>> {
+        use crate::StorageShape;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+
+        let actual = lent.result;
+        let (
+            Some(ValueType::Record(actual_row, qualification, regions)),
+            ValueType::Record(expected_row, _, _),
+        ) = (actual, expected)
+        else {
+            return Ok(actual);
+        };
+        let actual_access = match self.data_type(machine, actual_row)?.shape {
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+            _ => return Ok(actual),
+        };
+        let expected_access = match self.data_type(machine, expected_row)?.shape {
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+            _ => return Ok(actual),
+        };
+        let lends_mutable_backing = formal.referent == crate::body::BorrowedReferent::Slice
+            && formal.access == ReferenceAccess::Mutable
+            && expected_access.is_none()
+            && actual_access == Some(StructuralAccess::MutableBorrow);
+        let lends_for_observation = formal.access == ReferenceAccess::Shared
+            && matches!(actual_access, None | Some(StructuralAccess::MutableBorrow))
+            && expected_access == Some(StructuralAccess::SharedBorrow);
+        // A shared loan of the direct formal may observe its descriptor.
+        // Only that formal supplies the inner mutable access it describes.
+        let observes_mutable_formal = formal.access == ReferenceAccess::Shared
+            && actual_access.is_none()
+            && expected_access == Some(StructuralAccess::MutableBorrow)
+            && matches!(
+                &lent.kind,
+                ExpressionKind::Borrow { place, .. }
+                    if matches!(place.kind, ExpressionKind::Slot(slot)
+                        if slots.get(slot).and_then(|slot| slot.borrowed) == Some(ReferenceAccess::Mutable))
+            );
+        if !lends_mutable_backing && !lends_for_observation && !observes_mutable_formal {
+            return Ok(actual);
+        }
+        let presented = ValueType::Record(expected_row, qualification, regions);
+        Ok(if self.same_type(Some(presented), expected) {
+            Some(presented)
+        } else {
+            actual
+        })
     }
 }
 
@@ -2656,11 +2892,21 @@ fn mentions<'a>(
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
+                if mentions(id, operand, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
         ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
         ExpressionKind::SavedSubject(_) => {
             Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
         }
         ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_) => Ok(false),
@@ -2686,7 +2932,7 @@ fn mentions<'a>(
             }
             Ok(false)
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
@@ -2771,7 +3017,10 @@ mod tests {
 
     #[test]
     fn copied_call_bindings_keep_their_exact_authored_state() {
-        use language_semantics::declaration_selection::ResolvedAuthoredCallBinding;
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+            ResolvedAuthoredCallBinding,
+        };
         use symbols::{SymbolNameRef, SymbolTableBuilder};
         use typed_trees::{MachineSpecialization, machine::Machine, state::State};
         let mut builder = SymbolTableBuilder::default();
@@ -2835,6 +3084,28 @@ mod tests {
             original: source_state,
         };
         let id = MachineId::new(1).unwrap();
+        let mut selection = |symbol| {
+            typed
+                .record_resolved_authored_declaration_selection_once(
+                    source::SourceSpan::default(),
+                    AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                    AuthoredDeclarationSelectionKind::Call,
+                    symbol,
+                )
+                .unwrap()
+        };
+        let ledger_names_machine = selection(source);
+        let ledger_names_unrelated_entry = selection(foreign_state);
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, Some(ledger_names_machine), None)
+                .is_ok()
+        );
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, Some(ledger_names_unrelated_entry), None)
+                .is_err()
+        );
         assert!(
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
@@ -2895,6 +3166,11 @@ mod tests {
             .edit(|rows| rows[0].states = Default::default());
         assert!(
             Program::new(&typed, false)
+                .direct_selection(id, state, Some(ledger_names_machine), None)
+                .is_err()
+        );
+        assert!(
+            Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
                 .is_err(),
             "a machine receipt alone does not establish its entry correspondence"
@@ -2953,7 +3229,6 @@ mod tests {
                 call_context: None,
                 kind: ExpressionKind::Borrow {
                     access: ReferenceAccess::Mutable,
-                    formation: ReferenceAccess::Mutable,
                     place: Box::new(place),
                     home: None,
                 },

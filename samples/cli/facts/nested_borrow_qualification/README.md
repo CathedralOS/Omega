@@ -66,27 +66,16 @@ not demonstrate execution on that host.
 
 ## Pinned Fixtures
 
-The row is pinned by 18 fixtures: nine
-`tests/omega/pass/facts/nested_borrow_qualification_through_<place>_exit`
-fixtures, each a byte-identical copy of its place program and `build.omg`
-(`ProgramEntry` for all four hosted targets, `Expected exit: 0`), and nine
-`tests/omega/fail/facts/nested_borrow_qualification_through_<place>_rejected`
-twins, each a byte-identical copy of its `invalid/` program pinning the
-diagnostic `cannot prove requires contract`. Their source records in
-[`corpus_outcomes.txt`](../../../../tests/omega/corpus_outcomes.txt) come from
-direct clean fixture observations at `ee4db530ba1e`. The fresh d58 cohorts
-check these eighteen fixture IDs as well as the corresponding sample projects.
-Fixture and sample observations retain their own input identities.
+The fresh d58 cohorts check these eighteen fixture IDs as well as the
+corresponding sample projects. Fixture and sample observations retain their
+own input identities.
 
 ## Requirements witnessed
 
 - Establishment: writing word 3 to zero establishes `Terminated` before record
   construction; the consuming helper relies on the stored qualification.
-- Identity and lifetime: nested references address the original array and name
-  storage; state transport keeps their actual backing live. Additional
-  [owned forwarding](../../../../tests/omega/run/state_owned_nested_borrow/main.omg)
-  and [shared backing](../../../../tests/omega/run/state_shared_nested_backing/main.omg)
-  controls exercise moved carriers and two loans ending in different states.
+- Identity and lifetime: nested references address the original array and name storage;
+  state transport keeps their actual backing live.
 - Composition: the nine places transport that same fact without changing its
   array, index, required value, or consuming operation.
 - Soundness: deleting the field qualification must reject before execution.

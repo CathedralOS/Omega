@@ -365,7 +365,7 @@ pub mod scalar_conditions {
         MachineId, ScalarApplicationId, ScalarConditionRole, ScalarType, ValueId,
     };
 
-    use super::ProofDeclarationId;
+    use super::{ProofDeclarationId, ScalarApplication, ScalarApplications};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ScalarConditionSubject {
@@ -451,6 +451,55 @@ pub mod scalar_conditions {
     }
 
     impl ScalarPredicateCondition {
+        fn new(
+            subject: ScalarConditionSubject,
+            role: ScalarConditionRole,
+            description: String,
+            nodes: Arena<ScalarPredicateNode>,
+            root: Handle<ScalarPredicateNode>,
+        ) -> Result<Self, &'static str> {
+            let mut preceding = Vec::new();
+            for (reference, node) in nodes.iter() {
+                if matches!(
+                    node.0,
+                    PredicateNode::Missing
+                        | PredicateNode::Value(ScalarValue::Unknown)
+                        | PredicateNode::Leaf(ScalarRangeObservation::Missing)
+                ) {
+                    return Err("scalar predicate contains an absent node or observation");
+                }
+                let kind = node.0.value_kind(
+                    &mut |child| {
+                        preceding
+                            .iter()
+                            .find(|(reference, _)| *reference == child)
+                            .map(|(_, kind)| *kind)
+                            .ok_or("scalar predicate lost a preceding child")
+                    },
+                    &mut |_| Ok(PredicateValueKind::Integer),
+                )?;
+                preceding.push((reference, kind));
+            }
+            if !nodes.is_valid(root) {
+                return Err("scalar predicate lost its root");
+            }
+            if preceding
+                .iter()
+                .find(|(reference, _)| *reference == root)
+                .map(|(_, kind)| *kind)
+                != Some(PredicateValueKind::Boolean)
+            {
+                return Err("scalar predicate root is not Boolean");
+            }
+            Ok(Self {
+                subject,
+                role,
+                description,
+                nodes,
+                root,
+            })
+        }
+
         pub fn nodes(&self) -> &Arena<ScalarPredicateNode> {
             &self.nodes
         }
@@ -528,47 +577,13 @@ pub mod scalar_conditions {
             nodes: Arena<ScalarPredicateNode>,
             root: Handle<ScalarPredicateNode>,
         ) -> Result<(), &'static str> {
-            let mut preceding = Vec::new();
-            for (reference, node) in nodes.iter() {
-                if matches!(
-                    node.0,
-                    PredicateNode::Missing
-                        | PredicateNode::Value(ScalarValue::Unknown)
-                        | PredicateNode::Leaf(ScalarRangeObservation::Missing)
-                ) {
-                    return Err("scalar predicate contains an absent node or observation");
-                }
-                let kind = node.0.value_kind(
-                    &mut |child| {
-                        preceding
-                            .iter()
-                            .find(|(reference, _)| *reference == child)
-                            .map(|(_, kind)| *kind)
-                            .ok_or("scalar predicate lost a preceding child")
-                    },
-                    &mut |_| Ok(PredicateValueKind::Integer),
-                )?;
-                preceding.push((reference, kind));
-            }
-            if !nodes.is_valid(root) {
-                return Err("scalar predicate lost its root");
-            }
-            if preceding
-                .iter()
-                .find(|(reference, _)| *reference == root)
-                .map(|(_, kind)| *kind)
-                != Some(PredicateValueKind::Boolean)
-            {
-                return Err("scalar predicate root is not Boolean");
-            }
-            self.predicates.insert(ScalarPredicateCondition {
-                subject,
-                role,
-                description,
-                nodes,
-                root,
-            });
+            let condition = ScalarPredicateCondition::new(subject, role, description, nodes, root)?;
+            self.insert_predicate(condition);
             Ok(())
+        }
+
+        pub fn insert_predicate(&mut self, condition: ScalarPredicateCondition) {
+            self.predicates.insert(condition);
         }
 
         pub fn observations(&self) -> impl Iterator<Item = &ScalarRangeObservation> {
@@ -658,6 +673,153 @@ pub mod scalar_conditions {
                 steps,
             });
             Ok(())
+        }
+    }
+
+    impl ScalarApplications {
+        /// A ground comparison can follow its observations into target
+        /// closure. Runtime values still need the ordinary source proof.
+        pub(super) fn layout_predicate(
+            &self,
+            subject: Option<ProofDeclarationId>,
+            description: impl FnOnce() -> String,
+            goal: &semantic_vocabulary::Proposition,
+        ) -> Result<Option<ScalarPredicateCondition>, &'static str> {
+            let mut builder = LayoutPredicate {
+                applications: self,
+                nodes: Arena::new(),
+                observes_target: false,
+            };
+            let Some(root) = builder.proposition(goal, 0) else {
+                return Ok(None);
+            };
+            if !builder.observes_target {
+                return Ok(None);
+            }
+            ScalarPredicateCondition::new(
+                ScalarConditionSubject::Declaration(
+                    subject.ok_or("layout call requirement has no exact caller declaration")?,
+                ),
+                ScalarConditionRole::Prerequisite,
+                description(),
+                builder.nodes,
+                root,
+            )
+            .map(Some)
+        }
+    }
+
+    struct LayoutPredicate<'module> {
+        applications: &'module ScalarApplications,
+        nodes: Arena<ScalarPredicateNode>,
+        observes_target: bool,
+    }
+
+    impl LayoutPredicate<'_> {
+        fn push(
+            &mut self,
+            node: PredicateNode<Handle<ScalarPredicateNode>, ScalarRangeObservation>,
+        ) -> Option<Handle<ScalarPredicateNode>> {
+            (self.nodes.storage_slice().len() < 4096)
+                .then(|| self.nodes.insert(ScalarPredicateNode(node)))
+        }
+
+        fn term(
+            &mut self,
+            term: &semantic_vocabulary::ScalarTerm,
+        ) -> Option<Handle<ScalarPredicateNode>> {
+            use semantic_vocabulary::{IntegerValue, ScalarTerm};
+            let node = match term {
+                ScalarTerm::Application {
+                    application,
+                    scalar_type,
+                } => {
+                    let declared = match self.applications.declaration(*application)? {
+                        ScalarApplication::LayoutObservation { scalar_type, .. }
+                        | ScalarApplication::Evaluate { scalar_type, .. } => *scalar_type,
+                        ScalarApplication::Missing => return None,
+                    };
+                    if declared != *scalar_type || !matches!(declared, ScalarType::Integer(_)) {
+                        return None;
+                    }
+                    self.observes_target = true;
+                    PredicateNode::Leaf(ScalarRangeObservation::Application(*application))
+                }
+                ScalarTerm::Integer { value, .. } => {
+                    let value = match value {
+                        IntegerValue::Unsigned(value) => BigInt::from_u128(*value),
+                        IntegerValue::Signed(value) => BigInt::from_i128(*value),
+                    };
+                    PredicateNode::Value(ScalarValue::Integer(value))
+                }
+                ScalarTerm::Boolean(value) => PredicateNode::Value(ScalarValue::Boolean(*value)),
+                _ => return None,
+            };
+            self.push(node)
+        }
+
+        fn proposition(
+            &mut self,
+            goal: &semantic_vocabulary::Proposition,
+            depth: usize,
+        ) -> Option<Handle<ScalarPredicateNode>> {
+            use numerics::scalar_predicates::PredicateOperator;
+            use semantic_vocabulary::Proposition;
+            if depth >= 64 {
+                return None;
+            }
+            let (operator, left, right) = match goal {
+                Proposition::Truth | Proposition::Falsehood => {
+                    return self.push(PredicateNode::Value(ScalarValue::Boolean(matches!(
+                        goal,
+                        Proposition::Truth
+                    ))));
+                }
+                Proposition::Equal(left, right) => (PredicateOperator::Equal, left, right),
+                Proposition::LessThan(left, right) => (PredicateOperator::Less, left, right),
+                Proposition::LessOrEqual(left, right) => {
+                    (PredicateOperator::LessOrEqual, left, right)
+                }
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } => {
+                    let premise = self.proposition(premise, depth + 1)?;
+                    let left = self.push(PredicateNode::Not(premise))?;
+                    let right = self.proposition(conclusion, depth + 1)?;
+                    return self.push(PredicateNode::Binary {
+                        operator: PredicateOperator::Or,
+                        left,
+                        right,
+                    });
+                }
+                Proposition::Conjunction(terms) | Proposition::Disjunction(terms) => {
+                    let operator = if matches!(goal, Proposition::Conjunction(_)) {
+                        PredicateOperator::And
+                    } else {
+                        PredicateOperator::Or
+                    };
+                    let mut terms = terms.iter();
+                    let mut left = self.proposition(terms.next()?, depth + 1)?;
+                    for term in terms {
+                        let right = self.proposition(term, depth + 1)?;
+                        left = self.push(PredicateNode::Binary {
+                            operator,
+                            left,
+                            right,
+                        })?;
+                    }
+                    return Some(left);
+                }
+                _ => return None,
+            };
+            let left = self.term(left)?;
+            let right = self.term(right)?;
+            self.push(PredicateNode::Binary {
+                operator,
+                left,
+                right,
+            })
         }
     }
 
@@ -1189,6 +1351,65 @@ impl TerminalModule {
             crate::TargetMachineCallable::Boundary(_) if required.is_some() => None,
             crate::TargetMachineCallable::Boundary(_) => self.callable_requires(callee),
         }
+    }
+
+    /// Ground layout prerequisites belong to the actual retained call and
+    /// can be reconstructed from its declared contract during independent readback.
+    pub fn layout_call_conditions(
+        &self,
+        machine: &TerminalMachine,
+    ) -> Result<Vec<(semantic_vocabulary::ObligationId, ScalarPredicateCondition)>, &'static str>
+    {
+        if self.scalar_applications.declarations().is_empty() {
+            return Ok(Vec::new());
+        }
+        let owner = self
+            .scalar_applications
+            .proof_scope
+            .callable_declaration(crate::TargetMachineCallable::Machine(machine.id));
+        let calls = machine
+            .module_invocations()
+            .map(|call| {
+                let inputs = call.inputs.declared();
+                (
+                    inputs.callee,
+                    inputs.required_contract,
+                    inputs.requirement_obligations,
+                )
+            })
+            .chain(machine.boundary_invocations().map(|call| {
+                (
+                    crate::TargetMachineCallable::Boundary(call.boundary),
+                    None,
+                    call.requirement_obligations,
+                )
+            }));
+        let mut conditions = Vec::new();
+        for (callee, required, obligations) in calls {
+            let Some(clauses) = self.invocation_requires(callee, required) else {
+                continue;
+            };
+            for (clause, obligation) in clauses.iter().zip(obligations) {
+                let condition = self.scalar_applications.layout_predicate(
+                    owner,
+                    || {
+                        format!(
+                            "layout-dependent call requirement {} of {callee:?}",
+                            obligation.get()
+                        )
+                    },
+                    clause,
+                )?;
+                if let Some(condition) = condition {
+                    conditions.push((*obligation, condition));
+                }
+            }
+        }
+        conditions.sort_unstable_by_key(|(obligation, _)| *obligation);
+        if conditions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err("layout call requirements reuse an obligation identity");
+        }
+        Ok(conditions)
     }
 
     pub fn invocation_ensures(

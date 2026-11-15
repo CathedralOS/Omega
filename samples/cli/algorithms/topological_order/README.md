@@ -19,11 +19,10 @@ On agreement it prints `PASS` and exits `0`.
 
 An intended-invalid control in `../invalid_topological_order/` marks node `8` (violating
 `node < 8`) as emitted and is rejected at compile time
-(`cannot prove requires contract for call mark_emitted from Main::main`).
+(`cannot prove requires contract for call mark_emitted from main`).
 
 After ordinary package review on macOS arm64:
 
 ```sh
-python3 tools/sample_native_gate.py --cli build/dev-target/debug/omega --target macos_arm64 --filter algorithms/topological_order --jobs 1
 build/dev-target/debug/omega run --both samples/cli/algorithms/topological_order/main.omg < /dev/null
 ```

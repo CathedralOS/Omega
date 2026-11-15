@@ -16,6 +16,3 @@ An intended-invalid control in `../invalid_committed_generation/` stores an unbo
 `cells_valid` cell and is rejected with
 "data `Grid`'s default domain is still FALSE at state exit".
 
-```sh
-python3 tools/sample_native_gate.py --cli build/dev-target/debug/omega --target linux_x86_64 --filter simulation/committed_generation --jobs 1 < /dev/null
-```

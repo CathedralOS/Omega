@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 70
 // A borrowed invocation keeps a record-equality crash ceiling, including
 // all eight elements of each domain-qualified fixed array.
@@ -14,15 +15,15 @@ crashes Abort
     main.left == main.right
 {}
 
-machine Main::main(main: &mut Main) reaches Console
+machine Main::main(main: &mut Main) reaches ProcessExit + Console
 crashes Abort
 {
     Main::inspect(main);
-    Console::exit_process(70);
+    ProcessExit::exit_process(70);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console
+machine entry_start() reaches ProcessExit + Console
 crashes Abort
 {
     let mut entry_storage: Main;

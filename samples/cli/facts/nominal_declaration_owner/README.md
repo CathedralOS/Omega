@@ -56,10 +56,9 @@ under the same module spelling. No host path or display name supplies identity.
   with the reloaded Terminal artifact. All four hosted targets are bound; only available-host Linux x86-64
   execution is claimed here.
 
-The nine pairs are pinned under `tests/omega/{pass,fail}/facts/` as
-`nominal_declaration_owner_through_<place>`. Compiler-internal source binding,
-canonical record ordering, full-capture changes and preservation of supplied/core
-owners have focused tests in `package-compilation::anonymous_owner`.
+Compiler-internal source binding, canonical record ordering, full-capture changes
+and preservation of supplied/core owners have focused tests in
+`package-compilation::anonymous_owner`.
 
 This row covers genuinely missing/default Builds, the only anonymous roots.
 An authored `build.omg` must declare a package, application or workspace role

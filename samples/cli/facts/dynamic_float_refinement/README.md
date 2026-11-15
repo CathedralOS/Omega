@@ -61,9 +61,8 @@ The governing contracts are [dynamic dispatch](../../../../wiki/spec/terminal-ps
 [numeric values](../../../../wiki/spec/language/numeric_values.md) and
 [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
-Pins are `tests/omega/{pass,fail}/facts/dynamic_float_refinement_through_<place>_*`.
-Every positive, including [the root program](main.omg), binds all four hosted
-targets and declares exit zero. Run a place with `omega run --both <place>/main.omg`.
+Every positive, including [the root program](main.omg), binds all four hosted targets
+and declares exit zero. Run a place with `omega run --both <place>/main.omg`.
 
 Linux x86-64 qualification is complete for both nine-place rows. Exact source
 `51ca56236d0f` has eighteen accepted corpus positives, eighteen intended corpus

@@ -68,14 +68,11 @@ Different applications reject. Borrowing does not grant disposal authority.
 Cleanup prerequisites are proved at the actual disposal edge, and explicit
 qualification casts cannot erase or replace a retained application.
 
-Additional productions exercise named domains, transparent aliases, repeated
-and conjoined selections, generic and const machine applications, generic
+Additional productions exercise named domains, transparent aliases, repeated and
+conjoined selections, generic and const machine applications, generic
 containers, and deeper/sibling/terminal nested calls. Controls cover conflicting
 applications, direct hook invocation, unauthorized selection, wrong carriers,
 crashing, exiting, fallible, blocking and suspending hooks, and cast erasure.
-The nine standard places and these controls have source pins under
-`tests/omega/{pass,fail}/facts/domain_selected_cleanup_*` and registered focused
-corpus outcomes.
 
 Additional runtime evidence passes direct indexed, indexed predicate and computed
 index productions, nested helpers beneath distinct result overloads, and explicit

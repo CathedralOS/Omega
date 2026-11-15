@@ -27,6 +27,30 @@ impl Fixture {
     }
 
     fn with_effects(declares_no_crash_route: bool, suspends: bool, blocks: bool) -> Self {
+        Self::with_scope_and_effects(
+            declares_no_crash_route,
+            suspends,
+            blocks,
+            DependencyScope::Product,
+        )
+    }
+
+    fn with_scope_and_effects(
+        declares_no_crash_route: bool,
+        suspends: bool,
+        blocks: bool,
+        scope: DependencyScope,
+    ) -> Self {
+        Self::with_owner_provenance(declares_no_crash_route, suspends, blocks, scope, true)
+    }
+
+    fn with_owner_provenance(
+        declares_no_crash_route: bool,
+        suspends: bool,
+        blocks: bool,
+        scope: DependencyScope,
+        retain_provenance: bool,
+    ) -> Self {
         let app_text = "machine entry() { Raw::read(); }";
         let supplier_text = format!(
             "boundary trait Raw {{ machine read() reaches none {} {} {}; }}\n\
@@ -54,7 +78,7 @@ impl Fixture {
                     Some(PackageKeyIdentity::from_digest([package; 32]).unwrap()),
                     SourceOrigin::User,
                     source::SourceResolutionStratum::Base,
-                    DependencyScope::Product,
+                    scope,
                 )
                 .source_id
         })
@@ -78,7 +102,11 @@ impl Fixture {
                 ),
                 (
                     SymbolKind::Trait,
-                    SymbolNameRef::Source(span(ids[1], &supplier_text, "Raw")),
+                    if retain_provenance {
+                        SymbolNameRef::Source(span(ids[1], &supplier_text, "Raw"))
+                    } else {
+                        SymbolNameRef::Static("Raw")
+                    },
                 ),
             ],
         );
@@ -303,4 +331,77 @@ fn a_requirement_signature_retains_operational_promises_without_an_executable_bo
             "call target is not a machine declaration while reading the body of `Raw::read`"
         );
     }
+}
+
+#[test]
+fn a_build_boundary_publishes_its_own_complete_service_contract() {
+    let fixture = Fixture::with_scope_and_effects(true, false, false, DependencyScope::Build);
+    let owner = fixture
+        .typed
+        .trait_definition_by_symbol(fixture.owner)
+        .expect("the exact declaring trait");
+    let project = |scope| {
+        typed_trees::service_declarations::projection::from_typed(
+            typed_trees::provider_declarations::ProviderPlanningContext::new(&fixture.typed, scope),
+            owner,
+        )
+    };
+    let refused = project(DependencyScope::Product)
+        .err()
+        .expect("the Product catalog must not claim a Build source instance");
+    assert!(refused.message.contains("Raw"), "{}", refused.message);
+    assert!(
+        refused
+            .message
+            .contains("outside the Product dependency scope")
+    );
+    assert_eq!(
+        refused.source_span,
+        fixture
+            .typed
+            .symbols
+            .symbol_provenance_source_span(fixture.owner)
+    );
+    let expected = project(DependencyScope::Build)
+        .expect("the Build declaration has a complete schema")
+        .declaration
+        .declaration_commitment();
+    let elaboration = crate::elaborate(
+        &fixture.typed,
+        crate::Compilation {
+            entries: &[],
+            subjects: &[],
+            purpose: DependencyScope::Build,
+            calling: None,
+            providers: None,
+            selected: &[fixture.owner, fixture.requirement],
+            declaration_metadata: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+    )
+    .expect("ordinary declaration publication keeps the Build contract");
+    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+        panic!("one selected requirement");
+    };
+    let published = boundary
+        .declaration
+        .as_ref()
+        .expect("the checked declaration remains present");
+    assert_eq!(published.service_declaration, expected);
+    assert_ne!(published.service_declaration, [0; 32]);
+}
+
+#[test]
+fn service_metadata_refuses_lost_provenance_in_a_tree_with_sources() {
+    let fixture = Fixture::with_owner_provenance(true, false, false, DependencyScope::Build, false);
+    assert!(fixture.typed.symbols.source_files().next().is_some());
+    assert_eq!(
+        crate::declare::service_declaration_scope(&fixture.typed, fixture.owner),
+        Err("boundary declaration lost its retained source provenance")
+    );
+    assert_eq!(
+        crate::declare::service_declaration_scope(&TypedTrees::default(), SymbolHandle::invalid()),
+        Ok(DependencyScope::Product)
+    );
 }

@@ -34,10 +34,8 @@ width, category and grid extent and must exit 64 before resampling. Modes 1–6 
 Every output cell closes to its complete area. The application also sums each
 class across destination cells and compares it with source cells clipped once
 against the complete destination footprint. It audits no-data and full-area
-closure as well. The independent reference in `data/reference.py` enumerates
-unit squares, using no rectangle intersection calculation. `data/fixtures.json`
-and six complete stdout files were frozen before compiler execution; validation
-never regenerates them.
+closure as well. `data/fixtures.json` and six complete stdout files were frozen
+before compiler execution; validation never regenerates them.
 
 Existing sample comparison: `collections/heat_grid` updates values in a grid,
 `simulation/grid_walk` walks a coordinate path, `collections/matrix_multiply`
@@ -55,9 +53,6 @@ omega packages update --project samples/cli/independent/landcover_area_resamplin
 # Read the pending review. Accept only its reviewed decisions, then:
 omega packages update --resume --project samples/cli/independent/landcover_area_resampling
 omega --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
-python3 samples/cli/independent/landcover_area_resampling/validate.py /absolute/path/to/native/executable --output samples/cli/independent/landcover_area_resampling/build/validation/native
-# Build the documented corpus_runner test target once, then reuse its executable.
-python3 samples/cli/independent/landcover_area_resampling/validate_terminal.py /absolute/path/to/corpus_runner --output samples/cli/independent/landcover_area_resampling/build/validation/terminal
 printf '2\n' | omega run --both samples/cli/independent/landcover_area_resampling/main.omg
 omega --check samples/cli/independent/landcover_area_resampling/controls/out_of_bounds/main.omg
 ```

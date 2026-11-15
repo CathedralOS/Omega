@@ -14,10 +14,16 @@ pub enum BoundaryApplicationRealizationRole {
     NongenericCheckedBody,
     SpecializedCheckedBody,
     ExactCompilerIntrinsic,
+    NativeBinding,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundaryApplicationRealization {
+    NativeBinding {
+        receipt: [u8; 32],
+        contract: [u8; 32],
+        calling: [u8; 32],
+    },
     NongenericCheckedBody {
         realization_machine: NominalDeclarationIdentity,
         realization_state: NominalDeclarationIdentity,
@@ -38,6 +44,7 @@ pub enum BoundaryApplicationRealization {
 impl BoundaryApplicationRealization {
     pub const fn role(&self) -> BoundaryApplicationRealizationRole {
         match self {
+            Self::NativeBinding { .. } => BoundaryApplicationRealizationRole::NativeBinding,
             Self::NongenericCheckedBody { .. } => {
                 BoundaryApplicationRealizationRole::NongenericCheckedBody
             }
@@ -52,6 +59,11 @@ impl BoundaryApplicationRealization {
 
     fn has_strong_commitments(&self) -> bool {
         match self {
+            Self::NativeBinding {
+                receipt,
+                contract,
+                calling,
+            } => *receipt != [0; 32] && *contract != [0; 32] && *calling != [0; 32],
             Self::NongenericCheckedBody {
                 realization_contract_commitment,
                 ..
@@ -71,7 +83,7 @@ impl BoundaryApplicationRealization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryApplicationRealizationCompanion {
     terminal_operation: OperationId,
-    selected_plan_digest: [u8; 32],
+    selected_plan_digest: Option<[u8; 32]>,
     realization: BoundaryApplicationRealization,
 }
 
@@ -81,6 +93,12 @@ impl BoundaryApplicationRealizationCompanion {
         selected_plan_digest: [u8; 32],
         realization: BoundaryApplicationRealization,
     ) -> Result<Self, &'static str> {
+        if matches!(
+            realization,
+            BoundaryApplicationRealization::NativeBinding { .. }
+        ) {
+            return Err("native binding cannot carry provider-plan custody");
+        }
         if selected_plan_digest == [0; 32] {
             return Err("boundary application realization has an empty selected-plan digest");
         }
@@ -89,7 +107,28 @@ impl BoundaryApplicationRealizationCompanion {
         }
         Ok(Self {
             terminal_operation,
-            selected_plan_digest,
+            selected_plan_digest: Some(selected_plan_digest),
+            realization,
+        })
+    }
+
+    pub fn native_binding(
+        terminal_operation: OperationId,
+        receipt: [u8; 32],
+        contract: [u8; 32],
+        calling: [u8; 32],
+    ) -> Result<Self, &'static str> {
+        let realization = BoundaryApplicationRealization::NativeBinding {
+            receipt,
+            contract,
+            calling,
+        };
+        if !realization.has_strong_commitments() {
+            return Err("native boundary application has an empty receipt or contract");
+        }
+        Ok(Self {
+            terminal_operation,
+            selected_plan_digest: None,
             realization,
         })
     }
@@ -98,8 +137,8 @@ impl BoundaryApplicationRealizationCompanion {
         self.terminal_operation
     }
 
-    pub const fn selected_plan_digest(&self) -> &[u8; 32] {
-        &self.selected_plan_digest
+    pub const fn selected_plan_digest(&self) -> Option<&[u8; 32]> {
+        self.selected_plan_digest.as_ref()
     }
 
     pub const fn role(&self) -> BoundaryApplicationRealizationRole {

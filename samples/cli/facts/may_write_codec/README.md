@@ -33,9 +33,7 @@ witness runs both choices and observes an independent path marker.
 | another target body | [target_body](target_body/main.omg) | [overlap](invalid_target_body/main.omg) |
 
 Root [main.omg](main.omg) carries the same operation. Each positive binds all four
-hosted `ProgramEntry` targets. Matching fixtures live under
-`tests/omega/{pass,fail}/facts/may_write_codec_through_<place>_{exit,overlapping}`;
-their source and Build files match the samples exactly.
+hosted `ProgramEntry` targets.
 
 Run `omega run --both samples/cli/facts/may_write_codec/<place>/main.omg`.
 Each twin is intended-invalid and requires its authored `cannot prove` fragment.

@@ -437,6 +437,11 @@ impl Program<'_> {
                 crate::StorageShape::Sum(case_types)
             },
             requires: Vec::new(),
+            authored_layout: application.as_ref().is_some_and(|application| {
+                typed
+                    .layout_storage_arguments(application.reference)
+                    .is_some()
+            }),
         });
         self.record_sources.push(RecordSource {
             declaration: symbol,
@@ -506,12 +511,10 @@ impl Program<'_> {
         // A payload's clause holds only of a value in its case, and no
         // clause here is conditional on the case yet.
         for value_type in payloads {
-            if value_type.qualification().domains.members().any(|domain| {
-                typed
-                    .domain_definition(domain)
-                    .is_some_and(super::authority::has_predicates)
-            }) {
-                return Err(unserved("case payload in a domain with predicates"));
+            for domain in value_type.qualification().domains.members() {
+                if super::authority::has_predicates(self.domain_theory(id, domain)?) {
+                    return Err(unserved("case payload in a domain with predicates"));
+                }
             }
         }
         self.records
@@ -998,13 +1001,18 @@ impl Program<'_> {
             .find(|reference| reference.is_valid())
         {
             Some(reference) => {
+                // A layout storage application holds its semantic record's
+                // fields; the literal names that record and builds the
+                // storage representation.
+                let semantic =
+                    super::source_records::semantic_reference(self.typed, reference, id)?;
                 let selected = self
                     .typed
-                    .closed_data_definition(reference)
+                    .closed_data_definition(semantic)
                     .ok_or_else(|| unserved("literal without its closed record application"))?;
                 if self
                     .typed
-                    .closed_data_constructor_definition(reference, literal.type_symbol)
+                    .closed_data_constructor_definition(semantic, literal.type_symbol)
                     != Some(selected)
                 {
                     return Err(typing("literal application changed its declared owner"));
@@ -1641,6 +1649,7 @@ mod tests {
             identity: "Owned".into(),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
+            authored_layout: false,
         });
         assert!(!copy_field_is_unrestricted(
             ValueType::record(owned),

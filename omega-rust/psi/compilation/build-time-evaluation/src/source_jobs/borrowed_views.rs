@@ -148,13 +148,10 @@ machine run() -> i64 crashes none {
         panic!("one actual execution retains its invocation receipt")
     };
     let module = receipt.program().view().module();
-    let [application] = module.closed_conformance_applications.as_slice() else {
-        panic!("one complete First selection")
+    let [header] = module.declaration_contracts.as_slice() else {
+        panic!("one selected public header")
     };
-    let [method] = application.static_applications.as_slice() else {
-        panic!("one complete declared method tuple")
-    };
-    let [lifetime] = method
+    let [lifetime] = header
         .result_lifetimes
         .as_deref()
         .expect("the public frontier is resolved")
@@ -181,10 +178,13 @@ machine run() -> i64 crashes none {
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
         .expect("receiving validation retains the complete public input set");
     let physical = module
-        .machine(match method.callable {
-            terminal_psi::TargetMachineCallable::Machine(machine) => machine,
-            _ => panic!("ordinary checked implementation"),
-        })
+        .machine(
+            header
+                .selected_application
+                .as_ref()
+                .expect("the public header names its selected implementation")
+                .realization,
+        )
         .unwrap();
     assert_eq!(
         physical
@@ -224,7 +224,7 @@ machine run() -> i64 crashes none {
         .clone();
     assert_eq!(
         terminal_semantics::closed_conformances::validate_closed_conformances(&narrowed),
-        Err("selected public result replaces declared lifetimes with body origins")
+        Err("public reference result replaces declared lifetimes with body origins")
     );
     // Keeping the original lifetime union cannot authorize a different
     // reference access. The application checksum does not replace this
@@ -271,55 +271,19 @@ machine run() -> i64 crashes none {
         terminal_semantics::closed_conformances::validate_closed_conformances(&changed_access),
         Err("public reference path or access differs from its original declared type"),
     );
-    // An application checksum describes its contents; recomputing it cannot
-    // change the original public signature's declared lifetime relation.
+    // The public header's lifetime account is checked against the original
+    // public signature; narrowing it cannot drop a possible input.
     let mut rewritten = module.clone();
-    let changed = &mut rewritten.closed_conformance_applications[0];
-    let original_definition = changed.schemas[0].definition.clone();
-    let original_commitment = changed.commitment;
+    let [header] = rewritten.declaration_contracts.as_mut_slice() else {
+        panic!("one selected public header")
+    };
     assert_eq!(
-        changed.static_applications[0]
-            .result_lifetimes
-            .as_mut()
-            .unwrap()[0]
-            .inputs
-            .pop(),
+        header.result_lifetimes.as_mut().unwrap()[0].inputs.pop(),
         Some(terminal_psi::BoundaryLifetimeDependency::Referent {
             argument_index: 1,
             access: terminal_psi::StructuralAccess::MutableBorrow,
         }),
     );
-    changed.commitment =
-        terminal_psi::closed_conformance_application_commitment(&rewritten.identities, changed);
-    changed.report_fingerprint = terminal_psi::closed_conformance_application_report_fingerprint(
-        &rewritten.identities,
-        changed,
-    );
-    assert_ne!(changed.commitment, original_commitment);
-    assert_eq!(changed.schemas[0].definition, original_definition);
-    let commitment = changed.commitment;
-    let report = changed.report_fingerprint;
-    let update = |dispatch: &mut terminal_psi::StaticRequirementDispatch| {
-        if dispatch.conformance_application_commitment == original_commitment {
-            dispatch.conformance_application_commitment = commitment;
-            dispatch.conformance_application_report_fingerprint = report;
-        }
-    };
-    for contract in &mut rewritten.declaration_contracts {
-        if let Some(dispatch) = &mut contract.selected_application {
-            update(dispatch);
-        }
-    }
-    for machine in &mut rewritten.machines {
-        if let Some(dispatch) = &mut machine.selected_application {
-            update(dispatch);
-        }
-    }
-    for call in &mut rewritten.proof_output_calls {
-        if let Some(dispatch) = &mut call.static_requirement_dispatch {
-            update(dispatch);
-        }
-    }
     assert_eq!(
         terminal_semantics::closed_conformances::validate_closed_conformances(&rewritten),
         Err("selected result lifetimes differ from the original public definition")
@@ -645,6 +609,29 @@ fn a_view_returned_by_a_call_keeps_the_loan_of_its_input() {
     );
     assert_ne!(forwarded_conflict, forwarded);
     let refusal = run(&forwarded_conflict).expect_err("the forwarded view keeps its input loan");
+    assert!(
+        refusal.contains("storage is changed while a conflicting reference remains live"),
+        "{refusal}"
+    );
+}
+
+#[test]
+fn ending_one_returned_view_preserves_the_other_caller_loan() {
+    let source = RETURNED_VIEW_SOURCE.replace(
+        "    see(view);\n    name[0] = 9;",
+        "    let other: &[u8] = inner(&name);\n    see(view);\n    see(other);\n    name[0] = 9;",
+    );
+    assert_ne!(source, RETURNED_VIEW_SOURCE);
+    assert_eq!(
+        run(&source).expect("both returned views have reached their last use"),
+        BuildTimeValue::Int(7)
+    );
+    let conflict = source.replace(
+        "    see(other);\n    name[0] = 9;",
+        "    name[0] = 9;\n    see(other);",
+    );
+    assert_ne!(source, conflict);
+    let refusal = run(&conflict).expect_err("ending view leaves the other loan live");
     assert!(
         refusal.contains("storage is changed while a conflicting reference remains live"),
         "{refusal}"

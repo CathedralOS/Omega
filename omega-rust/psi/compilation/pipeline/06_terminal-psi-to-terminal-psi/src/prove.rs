@@ -51,10 +51,15 @@ use semantic_vocabulary::{
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/ieee_float_order.rs"]
+mod ieee_float_order;
 #[path = "prove/ranges.rs"]
 mod ranges;
 #[path = "prove/reach.rs"]
 mod reach;
+#[cfg(test)]
+#[path = "prove/tests.rs"]
+mod tests;
 #[path = "prove/widths.rs"]
 mod widths;
 
@@ -100,6 +105,7 @@ fn covered(
     }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::ScalarIeeeFloatComparison { .. } => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(|part| covered(part, fixed, width))
         }
@@ -244,6 +250,13 @@ impl Direction {
             Self::Lower => Self::Upper,
         }
     }
+
+    const fn prefers(self, order: Option<Ordering>) -> bool {
+        matches!(
+            (self, order),
+            (Self::Upper, Some(Ordering::Less)) | (Self::Lower, Some(Ordering::Greater))
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -277,6 +290,10 @@ pub struct ProofSearchActivity {
 impl ProofSearchActivity {
     pub fn started(&self) -> usize {
         self.started
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.started = self.started.saturating_add(other.started);
     }
 }
 
@@ -587,13 +604,17 @@ impl<'a> Prover<'a> {
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
-        decide_primitive(
-            self.context,
-            &proposition,
-            PrimitiveJudgment::ClosedIntegerRelation,
-        )
-        .ok()
-        .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
+        let judgment = if matches!(proposition, Proposition::ScalarIeeeFloatComparison { .. })
+            || matches!(&proposition, Proposition::Implication { premise, conclusion }
+                if **conclusion == Proposition::Falsehood && matches!(**premise, Proposition::ScalarIeeeFloatComparison { .. }))
+        {
+            PrimitiveJudgment::ClosedIeeeFloatRelation
+        } else {
+            PrimitiveJudgment::ClosedIntegerRelation
+        };
+        decide_primitive(self.context, &proposition, judgment)
+            .ok()
+            .map(|()| primitive(proposition, judgment))
     }
 
     fn reflexive(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -990,7 +1011,45 @@ impl<'a> Prover<'a> {
         } else {
             return None;
         };
-        Some(ex_falso(false_relation, goal))
+        Some(ex_falso(self.at_literals(false_relation)?, goal))
+    }
+
+    /// `relation` restated so that both its endpoints are plain literals.
+    ///
+    /// `refute` chains through any endpoint that has a value, and a closed
+    /// term such as `(21 <<% 1) >>% 1` has one, but the kernel's denotation
+    /// calls a relation `Falsehood` only between plain literals
+    /// (`closed_integer_relation`). Chained as it stood, `T < T` reached
+    /// `ex_falso` undecided and the kernel refused the certificate
+    /// (`RuleConclusionMismatch("predicate denotation")`), which blocked
+    /// programs whose untaken arm calls a crashing state. Each closed endpoint
+    /// gains one closed step to its value, as `literal_endpoint` does, so the
+    /// relation becomes `21 < 21`, which the kernel does decide.
+    fn at_literals(&self, relation: ProofNode) -> Option<ProofNode> {
+        let (_, left, right) = order(&relation.conclusion)?;
+        let (left, right) = (left.clone(), right.clone());
+        let plain = |term: &ScalarTerm| {
+            let (integer, value) = term.integer_value()?;
+            ScalarTerm::integer(integer, value).ok()
+        };
+        let mut relation = relation;
+        if !matches!(left, ScalarTerm::Integer { .. }) {
+            let value = plain(&left)?;
+            relation = chain(
+                self.closed(Proposition::LessOrEqual(value, left))?,
+                relation,
+            )
+            .ok()?;
+        }
+        if !matches!(right, ScalarTerm::Integer { .. }) {
+            let value = plain(&right)?;
+            relation = chain(
+                relation,
+                self.closed(Proposition::LessOrEqual(right, value))?,
+            )
+            .ok()?;
+        }
+        Some(relation)
     }
 
     /// `premise => conclusion`: the kernel adds the premise as the next
@@ -1130,12 +1189,16 @@ impl<'a> Prover<'a> {
                 .closed(goal.clone())
                 .ok_or("mathematical strict order over open terms"),
             Proposition::Atom(_)
+            | Proposition::FloatMeaningEqual(_)
             | Proposition::IeeeFloatComparison { .. }
-            | Proposition::ScalarIeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
+            Proposition::ScalarIeeeFloatComparison { .. } => self
+                .closed(goal.clone())
+                .or_else(|| self.ieee_float_order(goal))
+                .ok_or("the IEEE order premises do not establish this comparison"),
             Proposition::Implication {
                 premise,
                 conclusion,
@@ -1155,7 +1218,9 @@ impl<'a> Prover<'a> {
             return Err("order of non-integers");
         };
         if let (ScalarTerm::Value { .. }, ScalarTerm::Value { .. }) = (left, right)
-            && let Some(proof) = self.relation(left, right, strict)
+            && let Some(proof) = self
+                .relation(left, right, strict)
+                .or_else(|| (!strict).then(|| self.successor(left, right)).flatten())
         {
             return Ok(proof);
         }
@@ -1191,6 +1256,104 @@ impl<'a> Prover<'a> {
             proof = chain(proof, right_proof)?;
         }
         Ok(proof)
+    }
+
+    /// `left <= right` where the result equations define `left` as one more
+    /// than a value below `right`, such as a loop's `position + 1` against a
+    /// length the guard `position < length` bounded. Neither side has a
+    /// literal bound, so interval reasoning cannot see it. Integers are
+    /// discrete: `a < b` gives `a + 1 <= b` (`IntegerOrderDiscreteness`), and
+    /// the same equations carry that back onto `left`
+    /// (`ValueEqualityTransport`). The kernel recomputes the unfolded form.
+    fn successor(&mut self, left: &ScalarTerm, right: &ScalarTerm) -> Option<ProofNode> {
+        if self.equations.is_empty() {
+            return None;
+        }
+        let goal = Proposition::LessOrEqual(left.clone(), right.clone());
+        crate::known::Known::transport_inputs(
+            &self.facts,
+            &self.equations,
+            &goal,
+            &self.definitions,
+            &mut self.transport,
+        );
+        let selected: Vec<usize> = self
+            .transport
+            .selected
+            .iter()
+            .map(|&index| self.equations[index])
+            .collect();
+        // The goal with its values unfolded, such as `a +exact 1 <= b`, and
+        // that order read over the mathematical integers.
+        let unfolded = check_value_equality_denotation(
+            self.context,
+            &goal,
+            selected.iter().map(|&index| &self.facts[index].proposition),
+        )
+        .ok()?;
+        let lifted = lift_exact_integer_order(&unfolded)?;
+        let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(below, one), above) = &lifted
+        else {
+            return None;
+        };
+        let (
+            IntegerMathTerm::MathValue {
+                source_type,
+                value: below,
+            },
+            IntegerMathTerm::MathValue {
+                source_type: other,
+                value: above,
+            },
+        ) = (below.as_ref(), above)
+        else {
+            return None;
+        };
+        if source_type != other || **one != IntegerMathTerm::literal(IntegerValue::Unsigned(1)) {
+            return None;
+        }
+        let scalar_type = ScalarType::Integer(*source_type);
+        let strict = self.relation(
+            &ScalarTerm::value(*below, scalar_type),
+            &ScalarTerm::value(*above, scalar_type),
+            true,
+        )?;
+        let upper = IntegerMathTerm::MathValue {
+            source_type: *source_type,
+            value: *above,
+        };
+        let discrete = node(
+            lifted,
+            ProofRule::IntegerOrderDiscreteness {
+                relation: Box::new(strict),
+            },
+        );
+        // Substituting the bound for itself changes nothing; the rule lets
+        // the mathematical order conclude in the carrier spelling transport
+        // unfolds the goal to.
+        let unchanged = primitive(
+            Proposition::IntegerMathEqual(upper.clone(), upper),
+            PrimitiveJudgment::ReflexiveEquality,
+        );
+        let carrier = node(
+            unfolded,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(discrete),
+                equality: Box::new(unchanged),
+                endpoint: 1,
+            },
+        );
+        let equalities = selected
+            .iter()
+            .map(|&index| self.facts[index].proof(&self.facts))
+            .collect();
+        Some(node(
+            goal,
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(carrier),
+                equalities,
+            },
+        ))
     }
 
     /// `from <= to` (or `<` when `strict`) between two values through order
@@ -1265,6 +1428,8 @@ impl<'a> Prover<'a> {
                     }
                 }
                 // `a < a + d` and `a - d < a` when `0 < d`.
+                // An arrival can prove the same result equation as an operation
+                // axiom. Either equation warrants the checked order step.
                 Proposition::Equal(
                     output,
                     ScalarTerm::ExactIntegerAdd {
@@ -1272,7 +1437,7 @@ impl<'a> Prover<'a> {
                         left,
                         right,
                     },
-                ) if axiom.is_some() && left.as_ref() == at => {
+                ) if matches!(output, ScalarTerm::Value { .. }) && left.as_ref() == at => {
                     if let Some(positive) = self.positive(*scalar_type, right) {
                         let conclusion = Proposition::LessThan(at.clone(), output.clone());
                         steps.push((
@@ -1295,7 +1460,7 @@ impl<'a> Prover<'a> {
                         left,
                         right,
                     },
-                ) if axiom.is_some() && output == at => {
+                ) if output == at => {
                     if let Some(positive) = self.positive(*scalar_type, right) {
                         let conclusion =
                             Proposition::LessThan(output.clone(), left.as_ref().clone());
@@ -1360,23 +1525,105 @@ impl<'a> Prover<'a> {
                 Ok((bound.literal, Some(bound.proof)))
             }
             _ => {
-                let Some(Proposition::IntegerMathLessOrEqual(expression, _)) =
-                    lift_exact_integer_order(&Proposition::LessOrEqual(term.clone(), term.clone()))
-                else {
-                    return Err("comparison term outside the scalar subset");
+                let integer = term
+                    .scalar_type()
+                    .as_integer()
+                    .ok_or("comparison term outside the scalar subset")?;
+                // A result's carrier bound can be looser than the arithmetic
+                // image, while a result's local facts can sharpen that image.
+                let image = self.bound_from_arithmetic_image(term, direction);
+                let definition = self.bound_on_definition(term, integer, direction);
+                let bound = match (image, definition) {
+                    (Ok(image), Some(definition))
+                        if direction
+                            .prefers(integer.compare(definition.literal, image.literal)) =>
+                    {
+                        definition
+                    }
+                    (Ok(image), _) => image,
+                    (Err(_), Some(definition)) => definition,
+                    (Err(reason), None) => return Err(reason),
                 };
-                let relation = self.arithmetic_image(&expression, direction)?;
-                let equality = self
-                    .reflexive(Proposition::IntegerMathEqual(
-                        expression.clone(),
-                        expression,
-                    ))
-                    .ok_or("the kernel refuses the expression identity")?;
-                let bound = Self::carrier_bound_from_image(term, relation, equality, direction)
-                    .ok_or("the image bound is outside the comparison carrier")?;
                 Ok((bound.literal, Some(bound.proof)))
             }
         }
+    }
+
+    fn bound_from_arithmetic_image(
+        &mut self,
+        term: &ScalarTerm,
+        direction: Direction,
+    ) -> Result<Bound, Unproven> {
+        let Some(Proposition::IntegerMathLessOrEqual(expression, _)) =
+            lift_exact_integer_order(&Proposition::LessOrEqual(term.clone(), term.clone()))
+        else {
+            return Err("comparison term outside the scalar subset");
+        };
+        let relation = self.arithmetic_image(&expression, direction)?;
+        let equality = self
+            .reflexive(Proposition::IntegerMathEqual(
+                expression.clone(),
+                expression,
+            ))
+            .ok_or("the kernel refuses the expression identity")?;
+        Self::carrier_bound_from_image(term, relation, equality, direction)
+            .ok_or("the image bound is outside the comparison carrier")
+    }
+
+    /// A predicate can unfold an operation that already produced a scalar
+    /// here. Each value with that exact definition can supply a bound on the
+    /// unfolded term, so use the tightest one available in this context.
+    fn bound_on_definition(
+        &mut self,
+        term: &ScalarTerm,
+        integer: IntegerType,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let (index, bound) = self
+            .axioms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, axiom)| {
+                let value = match axiom {
+                    Proposition::Equal(
+                        ScalarTerm::Value {
+                            id,
+                            scalar_type: ScalarType::Integer(result_type),
+                        },
+                        definition,
+                    ) if definition == term && *result_type == integer => *id,
+                    _ => return None,
+                };
+                self.bound(value, direction).map(|bound| (index, bound))
+            })
+            .reduce(|best, next| {
+                let (_, best_bound) = &best;
+                let (_, next_bound) = &next;
+                if direction.prefers(integer.compare(next_bound.literal, best_bound.literal)) {
+                    next
+                } else {
+                    best
+                }
+            })?;
+        let goal = Self::oriented(
+            term,
+            ScalarTerm::integer(integer, bound.literal).ok()?,
+            direction,
+        );
+        let equality = node(
+            self.axioms[index].clone(),
+            ProofRule::SemanticAxiom { index },
+        );
+        Some(Bound {
+            literal: bound.literal,
+            proof: node(
+                goal,
+                ProofRule::ValueEqualityTransport {
+                    premise: Box::new(bound.proof),
+                    equalities: vec![equality],
+                },
+            ),
+        })
     }
 
     /// The proof that a bound evidence part needs: `Truth` for a literal
@@ -1423,12 +1670,11 @@ impl<'a> Prover<'a> {
             }
         }
         candidates.into_iter().reduce(|best, next| {
-            let better = matches!(
-                (integer.compare(next.literal, best.literal), direction),
-                (Some(Ordering::Less), Direction::Upper)
-                    | (Some(Ordering::Greater), Direction::Lower)
-            );
-            if better { next } else { best }
+            if direction.prefers(integer.compare(next.literal, best.literal)) {
+                next
+            } else {
+                best
+            }
         })
     }
 
@@ -1640,12 +1886,11 @@ impl<'a> Prover<'a> {
                     .into_iter()
                     .flatten()
                     .reduce(|best, next| {
-                        let better = matches!(
-                            (integer.compare(next.literal, best.literal), direction),
-                            (Some(Ordering::Less), Direction::Upper)
-                                | (Some(Ordering::Greater), Direction::Lower)
-                        );
-                        if better { next } else { best }
+                        if direction.prefers(integer.compare(next.literal, best.literal)) {
+                            next
+                        } else {
+                            best
+                        }
                     })
             }
             _ => None,
@@ -2138,13 +2383,11 @@ impl<'a> Prover<'a> {
         let stronger = limit(&related)
             .zip(limit(&interval))
             .is_some_and(|(related, interval)| {
-                let order = compare_integer_math_terms(&related, &interval)
-                    .ok()
-                    .flatten();
-                match direction {
-                    Direction::Upper => order == Some(Ordering::Less),
-                    Direction::Lower => order == Some(Ordering::Greater),
-                }
+                direction.prefers(
+                    compare_integer_math_terms(&related, &interval)
+                        .ok()
+                        .flatten(),
+                )
             });
         Ok(if stronger { related } else { interval })
     }

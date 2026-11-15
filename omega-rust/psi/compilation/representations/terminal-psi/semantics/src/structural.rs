@@ -58,6 +58,12 @@ pub(crate) mod inline_carriers {
                 | StructuralFieldType::RefinedScalar(_),
                 StructuralTypeShape::PrimitiveScalar(scalar),
             ) if field.field_type.scalar_type() == Some(*scalar) => Some(carrier),
+            (_, StructuralTypeShape::AtomicCell(cell))
+                if field.field_type.atomic_cell_type() == Some(*cell)
+                    && carrier.scalar_restriction.is_none() =>
+            {
+                Some(carrier)
+            }
             (_, StructuralTypeShape::ByteSequence(declared))
                 if field
                     .field_type
@@ -115,6 +121,10 @@ pub(crate) mod inline_carriers {
                         &field.field_type,
                         carrier.scalar_restriction.as_ref().unwrap_or(&plain),
                     )
+                }
+                (_, StructuralTypeShape::AtomicCell(cell)) => {
+                    field.field_type.atomic_cell_type() == Some(*cell)
+                        && carrier.scalar_restriction.is_none()
                 }
                 (_, StructuralTypeShape::ByteSequence(declared)) => field
                     .field_type
@@ -295,6 +305,40 @@ pub(crate) mod inline_carriers {
                 ),
                 None
             );
+        }
+
+        #[test]
+        fn atomic_field_carrier_is_storage_but_never_a_plain_scalar_read() {
+            let (mut declarations, path) = fixture();
+            let cell = semantic_vocabulary::AtomicCellType::Boolean;
+            declarations[1].shape = StructuralTypeShape::AtomicCell(cell);
+            let StructuralTypeShape::Record { fields, .. } = &mut declarations[0].shape else {
+                panic!("record")
+            };
+            fields[0].field_type = StructuralFieldType::Atomic(ScalarType::Boolean);
+            validate_inline_carriers(&declarations, &declarations[0]).unwrap();
+            assert!(
+                crate::canonical_inline_region(declarations.iter(), declarations[0].id, &path)
+                    .is_some()
+            );
+            assert_eq!(
+                crate::atomic_cell_type(declarations.iter(), declarations[0].id, &path),
+                Some(cell)
+            );
+            assert!(
+                crate::primitive_projection_type(declarations.iter(), declarations[0].id, &path)
+                    .is_none()
+            );
+            assert!(
+                crate::canonical_primitive_read_path(
+                    declarations.iter(),
+                    declarations[0].id,
+                    &path
+                )
+                .is_none()
+            );
+            declarations[1].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+            assert!(validate_inline_carriers(&declarations, &declarations[0]).is_err());
         }
 
         #[test]
@@ -2024,6 +2068,20 @@ pub(crate) mod primitive_place {
         .is_some()
     }
 
+    /// Returns the exact declared descriptor stored at an inline path.
+    /// The storage of a borrowed view belongs to its carrier. Its elements do not.
+    pub fn inline_descriptor_type<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        if !projection_stays_in_inline_storage(declarations.clone(), root, path) {
+            return None;
+        }
+        runtime_structural_path_tip(declarations, root, path)
+            .filter(|declaration| declaration.shape.is_borrowed_descriptor())
+    }
+
     pub fn inline_backing_container(
         declarations: &[StructuralTypeDeclaration],
         root: StructuralTypeId,
@@ -2384,6 +2442,13 @@ pub(crate) mod primitive_place {
                     step(Some(CanonicalStructuralPathSegment::Field(field.id)));
                     match field.field_type {
                         StructuralFieldType::Structural(child) => Position::Declared(child),
+                        _ if field.field_type.atomic_cell_type().is_some()
+                            && field.inline_carrier.is_some() =>
+                        {
+                            Position::Declared(
+                                crate::inline_carrier_declaration(declarations.clone(), field)?.id,
+                            )
+                        }
                         _ => match field.field_type.byte_sequence_carrier() {
                             Some(carrier) => {
                                 if !matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. }) {
@@ -3179,7 +3244,7 @@ pub(crate) mod static_path {
         root: StructuralTypeId,
         path: &[CanonicalStructuralPathSegment],
     ) -> Option<&'a StructuralTypeDeclaration> {
-        let selected = canonical_projection_type(declarations.clone(), root, path, None, None)?;
+        let selected = canonical_projection_type(declarations.clone(), root, path, None)?;
         let mut matching = declarations.filter(|declaration| declaration.id == selected);
         let declaration = matching.next()?;
         matching.next().is_none().then_some(declaration)
@@ -3193,7 +3258,7 @@ pub(crate) mod static_path {
         path.iter()
             .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
             .then_some(())?;
-        canonical_projection_type(types, root, path, None, None)
+        canonical_projection_type(types, root, path, None)
     }
 
     pub fn canonical_structural_storage_path<'a>(
@@ -3202,7 +3267,7 @@ pub(crate) mod static_path {
         path: &[CanonicalStructuralPathSegment],
     ) -> Option<Vec<StructuralPathSegment>> {
         let mut storage = Vec::with_capacity(path.len());
-        canonical_projection_type(types, root, path, Some(&mut storage), None)?;
+        canonical_projection_type(types, root, path, Some(&mut storage))?;
         Some(storage)
     }
 
@@ -3212,22 +3277,66 @@ pub(crate) mod static_path {
         path: &[CanonicalStructuralPathSegment],
         dependencies: &mut std::collections::BTreeSet<StructuralTypeId>,
     ) -> Option<()> {
-        canonical_projection_type(types, root, path, None, Some(dependencies))?;
+        let declaration = |identity| exactly_one(types.clone(), |row| row.id == identity);
+        canonical_projection_type_with_lookup(
+            types.clone(),
+            declaration,
+            root,
+            path,
+            None,
+            Some(dependencies),
+        )?;
+        Some(())
+    }
+
+    /// Visit the exact owned carrier at each inline prefix until the path
+    /// crosses a referent, an inactive case, or a non-inline element.
+    pub fn visit_canonical_inline_carriers<'a>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        declaration: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+        mut carrier: &'a StructuralTypeDeclaration,
+        path: &[CanonicalStructuralPathSegment],
+        mut visit: impl FnMut(usize, &'a StructuralTypeDeclaration),
+    ) -> Option<()> {
+        for (index, step) in path.iter().enumerate() {
+            match step {
+                CanonicalStructuralPathSegment::Field(_) => {}
+                CanonicalStructuralPathSegment::FixedIndex(_)
+                    if matches!(carrier.shape, StructuralTypeShape::FixedArray { .. }) => {}
+                _ => break,
+            }
+            let selected = canonical_projection_type_with_lookup(
+                types.clone(),
+                &declaration,
+                carrier.id,
+                std::slice::from_ref(step),
+                None,
+                None,
+            )?;
+            carrier = declaration(selected)?;
+            visit(index + 1, carrier);
+        }
         Some(())
     }
 
     fn canonical_projection_type<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[CanonicalStructuralPathSegment],
+        storage: Option<&mut Vec<StructuralPathSegment>>,
+    ) -> Option<StructuralTypeId> {
+        let declaration = |identity| exactly_one(types.clone(), |row| row.id == identity);
+        canonical_projection_type_with_lookup(types.clone(), declaration, root, path, storage, None)
+    }
+
+    fn canonical_projection_type_with_lookup<'a>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        declaration: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
         mut root: StructuralTypeId,
         path: &[CanonicalStructuralPathSegment],
         mut storage: Option<&mut Vec<StructuralPathSegment>>,
         mut dependencies: Option<&mut std::collections::BTreeSet<StructuralTypeId>>,
     ) -> Option<StructuralTypeId> {
-        let declaration = |identity| {
-            let mut matching = types.clone().filter(|candidate| candidate.id == identity);
-            let selected = matching.next()?;
-            matching.next().is_none().then_some(selected)
-        };
         let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
         for segment in path {
             if let Some(dependencies) = dependencies.as_mut() {
@@ -3276,6 +3385,10 @@ pub(crate) mod static_path {
                     }
                     let child = match &field.field_type {
                         StructuralFieldType::Structural(child) => *child,
+                        leaf if leaf.byte_sequence_carrier().is_some() => {
+                            // The carrier row on this field identifies the stored descriptor.
+                            crate::inline_carrier_declaration(types.clone(), field)?.id
+                        }
                         leaf => {
                             leaf.canonical_leaf_type()?
                                 .leaf_declaration(types.clone())?
@@ -3780,7 +3893,7 @@ pub(crate) mod structural_effect {
                 result: ValueId,
             },
             ElementViewRead {
-                source: PlaceId,
+                source: StructuralArgument,
                 index: ValueId,
                 length: ValueId,
                 result: ValueId,
@@ -4057,7 +4170,7 @@ pub(crate) mod structural_effect {
                         ..
                     },
                 ) => StructuralEffectObservation::ElementViewRead {
-                    source: *source,
+                    source: source.clone(),
                     index: *index,
                     length: *length,
                     result: operation.result.expect_scalar().id,
@@ -4623,6 +4736,24 @@ pub(crate) mod structural_effect {
         ) -> Option<ScalarType> {
             element_view_leaf(types, element, path).map(|leaf| leaf.scalar_type)
         }
+        /// A by-value read copies a statically selected scalar from its element.
+        pub fn element_view_read_scalar(
+            types: &[StructuralTypeDeclaration],
+            element: StructuralTypeId,
+            path: &[StructuralPathSegment],
+        ) -> Option<ScalarType> {
+            if !terminal_psi::find_structural_type(types, element)?.copyable
+                || !path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                    )
+                })
+            {
+                return None;
+            }
+            element_view_leaf_scalar(types, element, path)
+        }
         pub fn element_view_write_goal(
             types: &[StructuralTypeDeclaration],
             element: StructuralTypeId,
@@ -4652,7 +4783,8 @@ pub(crate) mod structural_effect {
     pub use byte_extent::{literal_length_equation, subslice_length_equation};
     pub use element_extent::{
         ElementViewLeaf, element_establishment_length_equation, element_subslice_length_equation,
-        element_view_leaf, element_view_leaf_scalar, element_view_write_goal,
+        element_view_leaf, element_view_leaf_scalar, element_view_read_scalar,
+        element_view_write_goal,
     };
 
     use crate::OperationSemanticError;

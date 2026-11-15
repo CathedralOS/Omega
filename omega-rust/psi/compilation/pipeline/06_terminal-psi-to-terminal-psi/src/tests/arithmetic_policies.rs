@@ -68,7 +68,7 @@ fn binary(operation: Strict, operand: ValueType, requires: Vec<Proposition>) -> 
         requires,
         ..unit(
             vec![operand, operand],
-            vec![Statement::Evaluate(operate(
+            vec![Statement::discard(operate(
                 operation,
                 named(0, operand),
                 named(1, operand),
@@ -149,7 +149,7 @@ fn a_policy_result_requires_a_matching_qualified_operand() {
                 named(1, parameters[1]),
                 result_type,
             );
-            let mut closure = accepted(vec![unit(parameters, vec![Statement::Evaluate(add)])]);
+            let mut closure = accepted(vec![unit(parameters, vec![Statement::discard(add)])]);
             let module = &mut closure.elaboration.module;
             let machine = &module.machines[0];
             let matching = machine.parameters[carried].qualifications;
@@ -226,7 +226,7 @@ fn divided_by_a_sum(policy: Policy) -> Lending {
         requires: vec![at_least(1, half), at_least(2, half)],
         ..unit(
             vec![plain(), plain()],
-            vec![Statement::Evaluate(operate(
+            vec![Statement::discard(operate(
                 Strict::Divide,
                 unsigned(1),
                 sum,
@@ -291,7 +291,7 @@ fn a_saturating_shift_is_refused_by_name() {
     let shift = |policy| {
         unit(
             vec![qualified(policy), plain()],
-            vec![Statement::Evaluate(operate(
+            vec![Statement::discard(operate(
                 Strict::ShiftLeft,
                 named(0, qualified(policy)),
                 named(1, plain()),

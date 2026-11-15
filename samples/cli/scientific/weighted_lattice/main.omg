@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Exact weighted finite binary lattice partition and occupancy moments.
 // Expected exit: 0.
 use omega_language_std::ByteRead;
@@ -16,7 +17,7 @@ machine input_byte() -> i32 reaches Console {
     machine absent() -> i32 { -1 }
 }
 
-machine main() reaches Console {
+machine main() reaches ProcessExit + Console {
     let sites: i32 = block input_byte();
     let activity: i32 = block input_byte();
     let bond: i32 = block input_byte();
@@ -68,9 +69,9 @@ machine main() reaches Console {
             false -> done()
         }
     }
-    machine done() { Console::exit_process(0); }
+    machine done() { ProcessExit::exit_process(0); }
     machine invalid() {
         Console::write_line("invalid: expected NABT, N=1..8 A,B=1..3 T=o|r; ring N>=3; optional LF then EOF");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }

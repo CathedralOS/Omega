@@ -1,7 +1,7 @@
 // A zero divisor follows the declared runtime Trap route; constant admission must not ban this ordinary call.
 // Expected crash: Trap
 public boundary trait Endpoint {
-    machine upper() -> u64 reaches terminates;
+    machine upper() -> u64 reaches terminates crashes none;
 }
 public Actual satisfies Endpoint {
     machine upper() -> u64 { 7 }

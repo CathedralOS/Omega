@@ -1,6 +1,0 @@
-{
-  "frozen_utc": "2026-10-10T23:50:26.117849+00:00",
-  "base": "30ec6a20142f4e79e236c20912455939df40ea96",
-  "oracle_sha256": "7dd3788aec16d4870152fcce959069808534df441029a14eb2628d8f805707c3",
-  "note": "Frozen before any successful Omega check or execution. Original-boundary exact rational pairwise intersections; tolerances chosen independently of application outputs."
-}

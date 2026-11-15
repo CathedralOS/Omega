@@ -1717,6 +1717,7 @@ mod propositions {
                     case: *case,
                 },
                 ContentConservation(conservation) => ContentConservation(conservation.clone()),
+                FloatMeaningEqual(clause) => FloatMeaningEqual(clause.clone()),
                 Conjunction(_) | Disjunction(_) | Implication { .. } => {
                     unreachable!("the logical clone continuation owns these children")
                 }
@@ -1861,6 +1862,7 @@ mod propositions {
                             true
                         }
                         ContentConservation(a) => matches!(right, ContentConservation(b) if a == b),
+                        FloatMeaningEqual(a) => matches!(right, FloatMeaningEqual(b) if a == b),
                     };
                     if !equal {
                         return false;
@@ -1885,6 +1887,7 @@ mod propositions {
                     match current {
                         Truth | Falsehood => {}
                         Atom(identity) => identity.hash(state),
+                        FloatMeaningEqual(clause) => clause.hash(state),
                         Equal(left, right) | LessThan(left, right) | LessOrEqual(left, right) => {
                             left.hash(state);
                             right.hash(state);
@@ -1998,6 +2001,7 @@ mod propositions {
             conclusion: Box<Proposition>,
         },
         ContentConservation(ContentConservation),
+        FloatMeaningEqual(crate::FloatMeaningClause),
     }
 
     impl Proposition {
@@ -2037,6 +2041,9 @@ mod propositions {
                 match proposition {
                     Self::Truth | Self::Falsehood => {}
                     Self::Atom(_) => {}
+                    Self::FloatMeaningEqual(clause) => clause
+                        .validate()
+                        .map_err(PropositionError::InvalidFloatMeaningClause)?,
                     Self::Equal(left, right) => require_same_type(left, right)?,
                     Self::LessThan(left, right) | Self::LessOrEqual(left, right) => {
                         require_same_integer_type(left, right)?
@@ -2180,6 +2187,11 @@ mod propositions {
             while let Some(proposition) = pending.pop() {
                 match proposition {
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+                    Proposition::FloatMeaningEqual(clause) => {
+                        for source in clause.sources() {
+                            self.validate_term(source)?;
+                        }
+                    }
                     crate::ordered_comparison_operands!(left, right) => {
                         self.validate_term(left)?;
                         self.validate_term(right)?;
@@ -2436,6 +2448,7 @@ mod propositions {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum PropositionError {
         OpaqueCallableInProof,
+        InvalidFloatMeaningClause(&'static str),
         StructuralIdentityTypeMismatch,
         NonCanonicalStructuralIdentityOperands,
         EmptyStructuralReadPath,
@@ -2558,6 +2571,18 @@ mod value_ids {
             IntegerMath(&'a mut IntegerMathTerm),
         }
 
+        impl ScalarTerm {
+            pub fn remap_value_ids(&mut self, mut map: impl FnMut(ValueId) -> ValueId) {
+                let mut pending = vec![self];
+                while let Some(term) = pending.pop() {
+                    match term {
+                        Self::Value { id, .. } => *id = map(*id),
+                        _ => pending.extend(term.operands_mut().into_iter().rev()),
+                    }
+                }
+            }
+        }
+
         impl Proposition {
             pub fn remap_value_ids(&mut self, mut map: impl FnMut(ValueId) -> ValueId) {
                 let mut pending = vec![Pending::Proposition(self)];
@@ -2572,6 +2597,13 @@ mod value_ids {
                             | Self::StructuralIdentity { .. }
                             | Self::StructuralCaseMembership { .. }
                             | Self::ContentConservation(_) => {}
+                            Self::FloatMeaningEqual(clause) => {
+                                *clause = clause.map_sources_or_invalid(|source| {
+                                    let mut source = source.clone();
+                                    source.remap_value_ids(&mut map);
+                                    source
+                                });
+                            }
                             Self::Equal(left, right)
                             | Self::LessThan(left, right)
                             | Self::LessOrEqual(left, right)
@@ -2606,18 +2638,7 @@ mod value_ids {
                                 }
                             }
                         },
-                        Pending::Scalar(term) => match term {
-                            ScalarTerm::Value { id, .. } => *id = map(*id),
-                            crate::scalar_term_predicate_quint_pattern!(..)
-                            | ScalarTerm::Boolean(_)
-                            | ScalarTerm::Integer { .. }
-                            | ScalarTerm::IeeeFloatLiteral(_) => {}
-                            _ => {
-                                for operand in term.operands_mut().into_iter().rev() {
-                                    pending.push(Pending::Scalar(operand));
-                                }
-                            }
-                        },
+                        Pending::Scalar(term) => term.remap_value_ids(&mut map),
                     }
                 }
             }
@@ -2734,6 +2755,11 @@ mod value_ids {
                     | Proposition::StructuralIdentity { .. }
                     | Proposition::StructuralCaseMembership { .. }
                     | Proposition::ContentConservation(_) => complete = false,
+                    Proposition::FloatMeaningEqual(clause) => {
+                        for source in clause.sources().rev() {
+                            pending.push(Pending::Scalar(source));
+                        }
+                    }
                     crate::scalar_comparison_operands!(left, right) => {
                         pending.push(Pending::Scalar(right));
                         pending.push(Pending::Scalar(left));

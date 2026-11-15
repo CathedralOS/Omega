@@ -1,7 +1,7 @@
-//! Load the real core and allocator units in an explicit retained test package.
-//! The compiler catalog and loader read the same candidate library files.
-//! No package-lock admission or private policy selection authority is supplied.
-//! No closed application, checked tree or catalogue row is inserted here.
+//! Load the real core and allocator units into an explicit retained test package.
+//! The compiler catalog and the loader read the same candidate library files.
+//! This supplies no package-lock admission or private policy-selection authority,
+//! and inserts no closed application, checked tree or catalogue row.
 
 use std::{
     path::{Path, PathBuf},

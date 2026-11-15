@@ -62,15 +62,6 @@ Every reject twin fails closed with:
 
 ## Pinned Fixtures
 
-The row is pinned under
-`tests/omega/pass/facts/signed_8bit_shift_left_bound_through_*_exit` and
-`tests/omega/fail/facts/signed_8bit_shift_left_bound_through_*_rejected`. Each
-positive fixture is a byte-identical copy of its `<place>/main.omg`; the
-place's `build.omg` carries a fixture-unique `Build::application` name, binds
-`ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`,
-`macos_arm64`, `linux_arm64`), and records native exit 0 with Terminal Psi
-agreement. Each reject twin is a byte-identical copy of its
-`<place>/invalid/main.omg` and pins its widened-bound (`[20, 25]`) refusal:
 `cannot prove requires contract for call verify_i8_shifted` together with the
 `shifted >= 100 && shifted <= 100` fact demand and its `s >= 100 && s <= 100`
 requirement spelling.

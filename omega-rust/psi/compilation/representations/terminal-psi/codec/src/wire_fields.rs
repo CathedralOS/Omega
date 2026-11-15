@@ -495,13 +495,23 @@ impl Field<i128> for I128 {
     }
 }
 
-pub(crate) struct Path;
-impl Field<Vec<StructuralPathSegment>> for Path {
+pub(crate) const DECLARED_LIFETIME_FAMILY: bool = true;
+
+pub(crate) struct Path<const LIFETIME_FAMILY: bool = false>;
+impl<const LIFETIME_FAMILY: bool> Field<Vec<StructuralPathSegment>> for Path<LIFETIME_FAMILY> {
     fn write(writer: &mut Writer, value: &Vec<StructuralPathSegment>) -> Result<(), CodecError> {
-        encode_structural_path(writer, "operation path", value)
+        if LIFETIME_FAMILY {
+            super::structural_place_wire::encode_declared_lifetime_path(writer, value)
+        } else {
+            encode_structural_path(writer, "operation path", value)
+        }
     }
     fn read(reader: &mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        decode_structural_path(reader)
+        if LIFETIME_FAMILY {
+            super::structural_place_wire::decode_declared_lifetime_path(reader)
+        } else {
+            decode_structural_path(reader)
+        }
     }
 }
 
@@ -1015,9 +1025,28 @@ delegated_fields! {
     CallResult: terminal_psi::BoundaryMachineResult
         => super::structural_signature_wire::encode_call_result,
            super::structural_signature_wire::decode_call_result;
-    LifetimeDependency: terminal_psi::BoundaryLifetimeDependency
-        => super::structural_signature_wire::reference_outputs::encode_dependency,
-           super::structural_signature_wire::reference_outputs::decode_dependency;
+}
+
+pub(crate) struct DeclaredLifetimeDependency;
+impl Field<terminal_psi::BoundaryLifetimeDependency> for DeclaredLifetimeDependency {
+    fn write(
+        writer: &mut Writer,
+        value: &terminal_psi::BoundaryLifetimeDependency,
+    ) -> Result<(), CodecError> {
+        super::structural_signature_wire::reference_outputs::encode_dependency(
+            writer,
+            value,
+            super::structural_place_wire::encode_declared_lifetime_path,
+        )
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<terminal_psi::BoundaryLifetimeDependency, CodecError> {
+        super::structural_signature_wire::reference_outputs::decode_dependency(
+            reader,
+            super::structural_place_wire::decode_declared_lifetime_path,
+        )
+    }
 }
 
 macro_rules! wire_enum {

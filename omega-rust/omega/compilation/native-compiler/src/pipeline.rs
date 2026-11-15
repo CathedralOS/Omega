@@ -79,21 +79,31 @@ pub(crate) fn lower_to_target(
     budget: optimization_core::OptimizationWorkBudget,
     observation: &NativePipelineObservation,
 ) -> Result<ValidatedOptimizedTargetOperations, TargetLoweringError> {
-    let selections = selections.selections();
-    let optimized = {
-        observation.enter(NativePipelineStage::AbstractOptimization);
-        abstract_operations_to_abstract_operations::optimize_abstract_operations(
-            input.into_optimization_input(),
-            selections,
-            &selections.project_psi(),
-            budget,
-        )
-        .map_err(TargetLoweringError::AbstractOptimization)
-    }?;
+    let optimized = optimize_abstract(input, selections, budget, observation)
+        .map_err(TargetLoweringError::AbstractOptimization)?;
     observation.enter(NativePipelineStage::AbstractToTarget);
     let (program, lowering_facts) = optimized.into_lowering_parts();
     lower_optimized_to_target_operations(program, lowering_facts, request)
         .map_err(TargetLoweringError::Target)
+}
+
+pub(crate) fn optimize_abstract(
+    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    selections: &optimization_core::PostTerminalOptimizationSelections,
+    budget: optimization_core::OptimizationWorkBudget,
+    observation: &NativePipelineObservation,
+) -> Result<
+    abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan,
+    abstract_operations_to_abstract_operations::AbstractOptimizationError,
+> {
+    observation.enter(NativePipelineStage::AbstractOptimization);
+    let selections = selections.selections();
+    abstract_operations_to_abstract_operations::optimize_abstract_operations(
+        input.into_optimization_input(),
+        selections,
+        &selections.project_psi(),
+        budget,
+    )
 }
 
 pub(crate) fn emit_target(
@@ -112,14 +122,26 @@ pub(crate) fn emit_target(
             .map_err(|reason| {
                 BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
             })?;
+        let callable_invocations =
+            target_operations_to_selected_instructions::PreparedCallableInvocations::new(
+                optimized.unit(),
+                &callable_roots,
+            )
+            .map_err(|reason| {
+                BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
+            })?;
         stage_optimized_instruction_selection(
             TargetSelectionInput {
                 target: target_input.target_operations(),
-                source: optimized.plan(),
-                unit: optimized.unit(),
+                evidence: target_operations_to_selected_instructions::TargetSelectionEvidence {
+                    optimization_unit: optimized.unit().identity,
+                    work_schedule: optimized.unit().work_schedule,
+                    accepted_obligation_facts: &optimized.unit().accepted_obligation_facts,
+                    ownership_frontier_facts: &optimized.unit().ownership_frontier_facts,
+                },
                 closed_module: target_input.lowering_facts().closed_module(),
                 origins: target_input.boundary_origins(),
-                callable_roots: &callable_roots,
+                callable_invocations: &callable_invocations,
                 installed_interrupts: target_input.lowering_facts().installed_interrupts(),
                 installed_entry_execution: target_input.installed_entry_execution(),
                 installed_stack_requirements: target_input.installed_stack_requirements(),

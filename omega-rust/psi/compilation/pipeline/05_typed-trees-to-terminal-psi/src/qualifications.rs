@@ -1,21 +1,21 @@
-//! Publish each qualification's declared meaning once, and intern the
+//! Publish the declared meaning of each qualification once, and intern the
 //! complete sets used by lowering. Source handles are construction coordinates;
-//! only exact declaration identities and module-local domain IDs leave this stage.
+//! only exact application identities and module-local domain IDs leave this stage.
 
 use semantic_vocabulary::{
     DomainSemanticId, MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType,
     StructuralDomainId, StructuralTypeId,
 };
-use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
     NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute,
     ScalarDomainPredicate, ScalarQualificationCatalog, ScalarQualificationSet,
-    StructuralDomainDeclaration, StructuralEstablishmentRoute, StructuralQualificationChange,
-    TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder,
+    StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
+    StructuralQualificationChange, TerminalIdentityIndex, TerminalIdentityTable,
+    TerminalIdentityTableBuilder,
 };
 
-use crate::body::{DomainSet, Policy, Qualification, ValueType};
+use crate::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
 use crate::{Unserved, refuse};
 
 /// Structural declarations retain the exact source and carrier that produced
@@ -23,7 +23,26 @@ use crate::{Unserved, refuse};
 #[derive(Default)]
 pub(crate) struct StructuralDomains {
     pub declarations: Vec<StructuralDomainDeclaration>,
-    pub source_bindings: Vec<(SymbolHandle, StructuralTypeId, StructuralDomainId)>,
+    pub source_bindings: Vec<(DomainInstance, StructuralTypeId, StructuralDomainId)>,
+}
+
+pub(crate) fn domain_identity(
+    typed: &typed_trees::TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    instance: DomainInstance,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
+    let declaration = crate::declare::nominal(typed, sources, instance.declaration, identities)?;
+    let exact = identities
+        .text(declaration)
+        .ok_or("domain application lost its retained declaration identity")?;
+    let identity = typed.domain_application_identity(
+        instance.declaration,
+        instance.identity,
+        exact,
+        sources,
+    )?;
+    Ok(identities.intern(&identity))
 }
 
 #[derive(Default)]
@@ -31,16 +50,39 @@ pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
     pub identities: TerminalIdentityTableBuilder,
     last_semantic_domain: u64,
-    domains: Vec<(SymbolHandle, ScalarDomainId)>,
+    domains: Vec<(DomainInstance, ScalarDomainId)>,
     policies: Vec<(ScalarType, Policy, ScalarDomainId)>,
     issuers: Vec<(MachineId, ScalarDomainId, u32)>,
     /// The module's structural domain catalog, in identity order.
     pub structural: Vec<StructuralDomainDeclaration>,
     /// Each used record domain by its declaration, and its catalog identity.
-    structural_domains: Vec<(SymbolHandle, StructuralTypeId, StructuralDomainId)>,
+    structural_domains: Vec<(DomainInstance, StructuralTypeId, StructuralDomainId)>,
     structural_issuers: Vec<(MachineId, StructuralDomainId, u32)>,
     /// Explicit structural casts, in machine and edge order.
     pub structural_changes: Vec<StructuralQualificationChange>,
+}
+
+pub(crate) fn layout_observation(
+    applications: &mut terminal_psi::ScalarApplications,
+    subject: semantic_vocabulary::StructuralTypeId,
+    measurement: terminal_psi::LayoutMeasurement,
+    scalar_type: ScalarType,
+) -> Result<semantic_vocabulary::ScalarApplicationId, &'static str> {
+    let declaration = terminal_psi::ScalarApplication::LayoutObservation {
+        subject,
+        measurement,
+        semantics_version: terminal_psi::LayoutMeasurement::SEMANTICS_VERSION,
+        scalar_type,
+    };
+    if let Some(position) = applications
+        .declarations()
+        .iter()
+        .position(|existing| *existing == declaration)
+    {
+        return semantic_vocabulary::ScalarApplicationId::new(position as u64 + 1)
+            .ok_or("scalar application namespace is exhausted");
+    }
+    applications.insert(declaration)
 }
 
 /// Which declared route an issuer restriction names.
@@ -226,8 +268,9 @@ impl Qualifications {
                 Unserved::Declaration(detail),
             )
         };
-        for &(symbol, carrier) in &source.declared_domains {
-            let carrier = match carrier {
+        for declared in &source.declared_domains {
+            let symbol = declared.instance;
+            let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
                 ValueType::Record(carrier, _, _) => {
                     result.declare_structural(
@@ -236,37 +279,29 @@ impl Qualifications {
                         &sources,
                         symbol,
                         carrier,
-                        &unavailable,
+                        declared.predicate.clone(),
                     )?;
                     continue;
                 }
-                ValueType::Rigid(_) => continue,
+                ValueType::Rigid(_) => {
+                    return Err(unavailable("domain retains an unresolved carrier"));
+                }
             };
             let semantic_domain = result.next_semantic_domain(&unavailable)?;
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
-            let definition = typed
-                .domain_definition(symbol)
-                .ok_or_else(|| unavailable("a used scalar domain lost its declaration"))?;
+            let definition = source.domain_theory(diagnostic, symbol)?;
             let identity =
-                crate::declare::nominal(typed, &sources, symbol, builder).map_err(unavailable)?;
-            let clauses = source
-                .domain_predicates
-                .iter()
-                .find(|(owner, value_type, _)| {
-                    *owner == symbol && *value_type == ValueType::plain(carrier)
-                })
-                .map(|(_, _, clauses)| clauses.clone())
-                .ok_or_else(|| unavailable("scalar domain lost its prepared source predicates"))?;
-            let mut predicate = if clauses.is_empty() {
-                None
-            } else {
-                Some(ScalarDomainPredicate {
-                    subject: semantic_vocabulary::ValueId::new(1).expect("one is a subject"),
-                    proposition: crate::canonical::conjunction(clauses, diagnostic)?,
-                })
-            };
+                domain_identity(typed, &sources, symbol, builder).map_err(unavailable)?;
+            let mut predicate =
+                declared
+                    .predicate
+                    .clone()
+                    .map(|proposition| ScalarDomainPredicate {
+                        subject: semantic_vocabulary::ValueId::new(1).expect("one is a subject"),
+                        proposition,
+                    });
             let establishment_routes = match establishment_routes(
                 typed,
                 source,
@@ -476,46 +511,46 @@ impl Qualifications {
         Ok(())
     }
 
-    /// Publish a record domain from its prepared source clauses. Lowering
-    /// retains its memberships and issuer routes; the checker proves them.
+    /// Retain the generic predicate over the domain's own carrier for
+    /// declaration formation. Field sites separately prove the same clauses
+    /// at their declared storage paths (`RecordType::requires`).
     fn declare_structural(
         &mut self,
         diagnostic: MachineId,
         source: &crate::read::Program<'_>,
         sources: &[(source::SourceId, [u8; 32])],
-        symbol: SymbolHandle,
+        symbol: DomainInstance,
         carrier: StructuralTypeId,
-        unavailable: &impl Fn(&'static str) -> terminal_check_tables::Refusal,
+        proposition: Option<semantic_vocabulary::Proposition>,
     ) -> Checked<()> {
         let typed = source.typed;
-        let definition = typed
-            .domain_definition(symbol)
-            .ok_or_else(|| unavailable("a used record domain lost its declaration"))?;
-        let clauses = if crate::read::has_predicates(definition) {
-            source.domain_predicates.iter()
-                .find(|(owner, value_type, _)| {
-                    *owner == symbol
-                        && matches!(*value_type, ValueType::Record(found, Qualification::NONE, _) if found == carrier)
-                })
-                .map(|(_, _, clauses)| clauses.clone())
-                .ok_or_else(|| unavailable("record domain lost its prepared source predicates"))?
-        } else {
-            Vec::new()
+        let unavailable = |detail| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(detail),
+            )
         };
-        // A complete empty theory is still known, unlike an absent theory.
-        let predicate = Some(terminal_psi::StructuralDomainPredicate {
-            subject: semantic_vocabulary::PlaceId::new(1).expect("one is a place"),
-            proposition: crate::canonical::conjunction(clauses, diagnostic)?,
-        });
-        let semantic_domain = self.next_semantic_domain(unavailable)?;
+        let definition = source.domain_theory(diagnostic, symbol)?;
+        let predicate = proposition
+            .map(|proposition| {
+                Ok::<_, terminal_check_tables::Refusal>(StructuralDomainPredicate {
+                    subject: crate::body::self_place()
+                        .ok_or_else(|| unavailable("record domain subject identity"))?,
+                    proposition,
+                })
+            })
+            .transpose()?;
+        let semantic_domain = self.next_semantic_domain(&unavailable)?;
         let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
             .ok_or_else(|| unavailable("record domain identity overflow"))?;
-        let identity = crate::declare::nominal(typed, sources, symbol, &mut self.identities)
-            .map_err(unavailable)?;
-        // A governed domain's access plan decides who may issue it, and
-        // nothing evaluates a plan yet: no machine in the program is shown to
-        // be an issuer, so the lowered form permits nobody. Its values still
-        // pass whole through formals, results and fields.
+        let identity =
+            domain_identity(typed, sources, symbol, &mut self.identities).map_err(unavailable)?;
+        // A governed domain's access plan decides who may issue it. An
+        // evaluated plan reads as its routes below; a plan nobody has run
+        // shows no machine to be an issuer, so the lowered form permits
+        // nobody. Its values still pass whole through formals, results and
+        // fields.
         let planned = matches!(
             definition.issuance(),
             typed_trees::domain::DomainIssuance::Planned(_)
@@ -529,7 +564,7 @@ impl Qualifications {
                 sources,
                 &mut self.identities,
                 definition,
-                unavailable,
+                &unavailable,
                 |kind, declaration, identity| match kind {
                     RouteKind::ExactMachine => StructuralEstablishmentRoute::ExactMachine {
                         declaration,

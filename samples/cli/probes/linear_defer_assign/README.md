@@ -25,17 +25,11 @@ mbx run -p omega -- packages update --project samples/cli/probes/linear_defer_as
 
 ## Native realization
 
-Measured on macOS arm64 on 2026-10-13. The probe binds `ProgramEntry`, but its
-only disposition of `Receipt` is a `boundary requirement` with no provider, and
-native realization correctly refuses a reachable requirement with zero
-selected provider rows (pinned by
-`tests/omega/fail/providers/consuming_trait_requirement_without_provider`).
-A native build needs either a selected provider for `Receipt::ack` or a probe
-that binds no entry and moves into `tests/omega/`.
-Before that refusal, `let mut receipt: Receipt;` itself fails Terminal
-validation ("zeroed structural establishment has an invalid result shape"):
-the local is established as zeroed storage with linear multiplicity, which
-spec/language/ownership.md rules out ("Implicit zero-filling establishes no
-linear obligation"). Routing it to a deferred home instead reaches Psi 06's
-"linear local lost its exact call result custody": a linear home has no
-custody rule for a value established by a later whole assignment.
+Measured on macOS arm64 on 2026-10-13. Before that refusal, `let mut receipt:
+Receipt;` itself fails Terminal validation ("zeroed structural establishment
+has an invalid result shape"): the local is established as zeroed storage with
+linear multiplicity, which spec/language/ownership.md rules out ("Implicit
+zero-filling establishes no linear obligation"). Routing it to a deferred home
+instead reaches Psi 06's "linear local lost its exact call result custody": a
+linear home has no custody rule for a value established by a later whole
+assignment.

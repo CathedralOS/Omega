@@ -15,64 +15,64 @@ layout the former corpus used, so a fixture keeps the name it always had:
   or expectation files state the exit.
 - `tests/fixtures/packages/` holds the package projects fixtures depend on.
 
-The directory sits at the depth `tests/omega/` had because a fixture's
+The directory sits at the depth `tests/omega/` had, because a fixture's
 `build.omg` reaches the bundled library by a relative path
 (`../../../../../source/library/std`); moving a fixture deeper breaks it.
-Tests in other crates read the same directory. Keep the few programs a test
-names, never a matrix: `cargo xtask check-rules` caps new `.omg` files at six
-per pull request. Name a fixture for the compiler behavior it pins. A fixture
-that imports `omega_language_std` needs a `build.omg`: it depends on
+Tests in other crates read the same directory. Keep only the programs a test
+names, never a matrix: `cargo xtask check-rules` allows at most six new `.omg`
+files per pull request. Name a fixture for the compiler behavior it pins. A
+fixture that imports `omega_language_std` needs a `build.omg` that depends on
 `source/library/std` and binds the program entry roots.
 
-Nothing runs every fixture and nothing records outcomes. The fixture corpus
-that used to live in `tests/omega/`, its runner (`corpus_runner.rs`) and its
-ledger were removed on the owner's ruling of 2026-11-13;
+Nothing runs every fixture and nothing records outcomes. The owner's ruling
+of 2026-11-13 removed the fixture corpus in `tests/omega/`, its runner
+(`corpus_runner.rs`) and its ledger;
 [tests/README.md](../../../../../tests/README.md) says how to read a deleted
 fixture from history. A file in a kept fixture that only the runner read (for
 example `expected_terminal_inspections.txt`) is now a note about the program,
-not a checked oracle.
+not a checked expected result.
 
 ## Running a fixture through the CLI
 
-The corpus constructs its package inputs explicitly. Its native result does
-not establish the ordinary install/update workflow. An unlocked CLI invocation
-supplies no accepted semantic bindings; a fixture depending on package-owned
-std can therefore stop at entry-schema admission before reaching the compiler
-behavior under test. Do not bypass that boundary or infer acceptance from the
-dependency's name or location.
+Tests build their package inputs explicitly, so their native results do not
+show the ordinary install/update workflow works. An unlocked CLI run supplies
+no accepted semantic bindings, so a fixture using package-owned std can stop
+at entry-schema admission before the behavior under test. Do not bypass that
+check or treat a dependency as accepted because of its name or location.
 
-For example, prepare the reference-pressure witness on macOS ARM64 from the
+For example, prepare the reference-pressure fixture on macOS ARM64 from the
 repository root:
 
 ```text
 omega packages update --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit --target macos_arm64
 ```
 
-If review requests decisions, inspect the reported file and accept or reject
-the actual findings. Only after resolving them, resume without repeating
-`--target`, then run the original source:
+If review asks for decisions, read the reported file and accept or reject
+each finding. Then resume without repeating `--target`, and run the source:
 
 ```text
 omega packages update --resume --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit
 omega run tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit/main.omg
 ```
 
-The authored success is process exit 70, not 0; compilation failure is CLI
-exit 200. `run --both` also compares checked interpretation; supply finite
-stdin as described in the [CLI guide](../../../application/README.md).
-The local lock retains this project's exact source/compiler acceptance, not a
-portable fixture oracle. Source or compiler changes require fresh review, not
-copying bindings or deleting a stale lock to turn it into an unlocked request.
+The program succeeds with process exit 70, not 0; a compilation failure is
+CLI exit 200. `run --both` also runs the Psi interpreter and compares; give it
+finite stdin as the [CLI guide](../../../application/README.md) describes.
+The local lock accepts this exact source and compiler, not a portable
+result. A source or compiler change needs fresh review, not copied bindings
+or a deleted stale lock.
 
-The source-backed target/provider custody check runs with the existing SDK suite:
+The source-based check of target and provider records runs in the SDK suite:
 `mbx nextest run -p compiler --test package_review historical_constant_closure_requires_exact_target_and_provider`.
-It checks canonical transport, exact target/provider inputs and Windows Terminal execution without running a foreign native image.
+It checks canonical transport, exact target and provider inputs, and Windows
+Terminal execution, without running a foreign native image.
 
 ## Shared multi-target pipeline observations
 
-The standalone measurement process isolates invocation counts from parallel
-corpus traffic. It uses the ordinary reviewed fixture inputs and source-to-native
-compilation entrance. For the byte-conversion fact's named target implementation:
+The `terminal_sharing` example runs in its own process so parallel work
+cannot skew its counts. It uses the ordinary reviewed fixture inputs
+and source-to-native entry point. For the
+byte-conversion fixture's named target implementation:
 
 ```bash
 OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
@@ -81,24 +81,22 @@ OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
   linux_x86_64 windows_x86_64
 ```
 
-Each target must have one completed application invocation, with every Omega
-00–09 entry count equal to one and one fragment/image emission attempt. Each
-image must equal its independently compiled single-target image. The host
-product executes natively and through a serialized/reloaded Terminal artifact.
-The shared request also requires one source completion, one Build execution,
-one Terminal production, and the same Terminal allocation for both targets.
-Its `checks=2` is the existing request counter, not a numbered Psi-stage count.
-Full numbered source/Psi invocation acceptance remains open.
+Each target must have one completed application run that enters Omega
+00–09 once each and attempts fragment/image emission once. Each image must
+equal the image from compiling that target alone. The host product runs
+natively and from a reloaded Terminal artifact. The shared
+request must also complete source, run Build and produce Terminal Psi once
+each, using one Terminal allocation for both targets. Its `checks=2`
+is the existing request counter, not a Psi stage count. Checking every numbered
+source and Psi stage count is still open.
 
-The command prints `native_pipeline_evidence` and retains the canonical
-`program.oterm`, invocation records, each `<target>-shared.image`, and each
-`<target>-single.image` in that process's directory. Counter collection is
-optional observation data and never an input to checking, admission or reuse.
-Failed invocations retain their entered prefix. Independent callable body
-pipelines are visible as separate units; the fixture refuses to silently count
-those as one application pipeline.
+The command prints `native_pipeline_evidence` and keeps the canonical
+`program.oterm`, invocation records, each `<target>-shared.image` and each
+`<target>-single.image` in its process directory. The counters are optional
+observations, never an input to checking, admission or reuse. A failed run keeps its entered stages. Separate callable-body pipelines show as separate
+units; the example refuses to count them as one application pipeline.
 
-The existing target-local refusal control uses the same entrance:
+The control case for a refusal on one target uses the same entry point:
 
 ```bash
 OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
@@ -108,7 +106,6 @@ OMEGA_PHASE_PROFILE=1 mbx run -p compiler --example terminal_sharing -- \
   linux_x86_64 macos_arm64
 ```
 
-The Linux product still completes its full pipeline, agrees with independent
-compilation, and runs in both engines. macOS retains its intended rejection;
-this particular control rejects before entering native production, so its native
-invocation count is zero.
+The Linux product still completes its full pipeline, matches its separate
+compilation and runs on both engines. macOS is rejected as intended; this
+control rejects before native production starts, so its native count is zero.

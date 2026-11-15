@@ -61,30 +61,6 @@ Both engines trapped consistently on the corrupted value, verifying bidirectiona
 
 ## Pinned Corpus Fixtures
 
-All 18 corpus fixtures are pinned under `tests/omega/`:
-
-### Pass Fixtures (`tests/omega/pass/facts/`)
-- `four_variant_enum_payload_bound_through_local_exit`
-- `four_variant_enum_payload_bound_through_field_exit`
-- `four_variant_enum_payload_bound_through_parameter_exit`
-- `four_variant_enum_payload_bound_through_call_result_exit`
-- `four_variant_enum_payload_bound_through_match_join_exit`
-- `four_variant_enum_payload_bound_through_const_name_exit`
-- `four_variant_enum_payload_bound_through_other_state_exit`
-- `four_variant_enum_payload_bound_through_other_machine_exit`
-- `four_variant_enum_payload_bound_through_target_body_exit`
-
-### Fail Fixtures (`tests/omega/fail/facts/`)
-- `four_variant_enum_payload_bound_through_local_rejected`
-- `four_variant_enum_payload_bound_through_field_rejected`
-- `four_variant_enum_payload_bound_through_parameter_rejected`
-- `four_variant_enum_payload_bound_through_call_result_rejected`
-- `four_variant_enum_payload_bound_through_match_join_rejected`
-- `four_variant_enum_payload_bound_through_const_name_rejected`
-- `four_variant_enum_payload_bound_through_other_state_rejected`
-- `four_variant_enum_payload_bound_through_other_machine_rejected`
-- `four_variant_enum_payload_bound_through_target_body_rejected`
-
 ### Invalid controls and reject twins
 
 Each place has an `invalid/` reject twin that widens one variant's bound (`Gamma(v: u64) where v >= 39u64 && v <= 80u64`).

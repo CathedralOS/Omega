@@ -1,0 +1,56 @@
+// Expected exit: 0
+// Every IEEE comparison is observed with distinct true and false outcomes.
+data Reading { before: u32; value: f64; after: u32; }
+
+machine expect(value: bool) crashes Trap {
+    transition value { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine choose32(flag: bool, left: f32, right: f32) -> f32 {
+    match flag { true -> left false -> right }
+}
+machine same32(value: f32) -> f32 { value }
+machine same64(value: f64) -> f64 { value }
+
+machine main() crashes Trap {
+    let landing: f32 = 1.25f32;
+    let left: f32 = choose32(true, same32(landing), 2.5f32);
+    let right: f32 = choose32(false, 1.25f32, 2.5f32);
+    expect(left == same32(1.25f32));
+    expect(!(left == right));
+    expect(left != right);
+    expect(!(left != same32(1.25f32)));
+    expect(left < right);
+    expect(!(right < left));
+    expect(left <= right);
+    expect(left <= same32(1.25f32));
+    expect(!(right <= left));
+    expect(right > left);
+    expect(!(left > right));
+    expect(right >= left);
+    expect(right >= same32(2.5f32));
+    expect(!(left >= right));
+    expect(same32(-0.0f32) == same32(0.0f32));
+
+    let reading: Reading = Reading { before: 17, value: 2.5f64, after: 29 };
+    let wide: f64 = same64(reading.value);
+    expect(wide == same64(2.5f64));
+    expect(!(wide == same64(1.25f64)));
+    expect(wide != same64(1.25f64));
+    expect(!(wide != same64(2.5f64)));
+    expect(same64(1.25f64) < wide);
+    expect(!(wide < same64(1.25f64)));
+    expect(same64(1.25f64) <= wide);
+    expect(wide <= same64(2.5f64));
+    expect(!(wide <= same64(1.25f64)));
+    expect(wide > same64(1.25f64));
+    expect(!(same64(1.25f64) > wide));
+    expect(wide >= same64(1.25f64));
+    expect(wide >= same64(2.5f64));
+    expect(!(same64(1.25f64) >= wide));
+    expect(same64(-0.0f64) == same64(0.0f64));
+    expect(reading.before == 17u32);
+    expect(reading.after == 29u32);
+}

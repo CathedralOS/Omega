@@ -19,6 +19,9 @@ use std::path::Path;
 /// A core declaration that typed rules recognize by identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CoreVocabulary {
+    /// The ordinary `Never` data declaration in core `never.omg`.
+    /// This identifies a nominal ABI result; it proves no inhabitedness.
+    Never,
     /// The `MachineControl` service in core `assembly.omg`.
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
@@ -40,6 +43,10 @@ pub enum CoreVocabulary {
     StaticInterruptCompletionPermit,
     /// A reflection operation or result type in core `reflect.omg`.
     Reflection(ReflectionDeclaration),
+    /// The semantic access policy requirement and its result vocabulary.
+    AccessPolicy,
+    AccessPolicyPlan,
+    AccessPlan,
     /// Core `extent.omg`'s linear `Extent` storage data.
     Extent,
     /// One of `Extent`'s declared domains in `extent.omg`.
@@ -197,11 +204,13 @@ const TASK_REGISTER: &[u8] = core_source!("task_register.omg");
 const INTERRUPT: &[u8] = core_source!("interrupt.omg");
 const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
 const REFLECT: &[u8] = core_source!("reflect.omg");
+const LAYOUT: &[u8] = core_source!("layout.omg");
 const EXTENT: &[u8] = core_source!("extent.omg");
 const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
 const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
 const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 const INTEGER: &[u8] = core_source!("integer.omg");
+const NEVER: &[u8] = core_source!("never.omg");
 
 const fn row(
     file: &'static str,
@@ -232,6 +241,25 @@ const fn selector(
 }
 
 const ROWS: &[CoreVocabularyRow] = &[
+    row("never.omg", "Never", NEVER, CoreVocabulary::Never),
+    row(
+        "layout.omg",
+        "AccessPolicy",
+        LAYOUT,
+        CoreVocabulary::AccessPolicy,
+    ),
+    row(
+        "layout.omg",
+        "AccessPolicy::plan",
+        LAYOUT,
+        CoreVocabulary::AccessPolicyPlan,
+    ),
+    row(
+        "layout.omg",
+        "AccessPlan",
+        LAYOUT,
+        CoreVocabulary::AccessPlan,
+    ),
     row(
         "assembly.omg",
         "MachineControl",
@@ -599,6 +627,21 @@ mod tests {
     }
 
     #[test]
+    fn never_identifies_only_the_exact_bundled_ordinary_declaration() {
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", NEVER)),
+            Some(CoreVocabulary::Never)
+        );
+        for candidate in [
+            site("other.omg", "Never", NEVER),
+            site("never.omg", "Other", NEVER),
+            site("never.omg", "Never", b"public data Never {}"),
+        ] {
+            assert_eq!(CoreVocabularyCatalog::classify(candidate), None);
+        }
+    }
+
+    #[test]
     fn rows_match_only_their_exact_file_declaration_and_source() {
         assert_eq!(
             CoreVocabularyCatalog::classify(site("assembly.omg", "MachineControl", ASSEMBLY)),
@@ -684,6 +727,22 @@ mod tests {
                 "core::reflect::inspect_record_fields",
                 REFLECT
             )),
+            None
+        );
+    }
+    #[test]
+    fn never_recognition_requires_its_unchanged_core_declaration() {
+        let source = core_source!("never.omg");
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", source)),
+            Some(CoreVocabulary::Never),
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Other", source)),
+            None
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("never.omg", "Never", b"public data Never {}")),
             None
         );
     }

@@ -136,6 +136,7 @@ impl TerminalNativeRealizationProposal {
         )
         .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
         scope.bind_checked_source_entry(self.program_entry().checked_entry());
+        scope.bind_native_supply(&self.providers().native_bindings);
         Ok(scope)
     }
 
@@ -219,6 +220,8 @@ impl TerminalNativeRealizationProposal {
             selection,
             provenance,
             &self.boundary_applications().calling,
+            &self.providers().native_bindings,
+            Some(self.target_profile()),
             scope,
         )?;
         crate::settlement::comparison_settlement::settle_comparison_occurrences(
@@ -313,9 +316,8 @@ impl TerminalNativeRealizationProposal {
                 &selection,
                 intrinsic_provenance.into_iter(),
                 &demands,
-                &module.boundary_machines,
-                &module.external_providers,
-                &module.identities,
+                module,
+                &self.providers().direct_boundary_leaves,
             )?;
         let demands = demands
             .into_iter()

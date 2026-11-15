@@ -55,6 +55,53 @@ fn an_indexed_data_requirement_proves_the_consuming_arithmetic() {
     );
 }
 
+// A classified borrowed array must keep the same indexed predicate when its
+// callable is read. Prefix and sibling inputs give the array a nonfirst root.
+fn qualified_array_input(last: u16, body: &str) -> String {
+    format!(
+        r#"
+domain [u16; 4096]::Terminated requires self[4095] == {last};
+data Prefix {{ unrelated: u16; }}
+machine entry(before: Prefix, path: &[u16; 4096] in Terminated, after: &[u16; 1]) -> u16
+{{ {body} + 65535u16 }}
+"#
+    )
+}
+
+#[test]
+fn an_indexed_domain_formal_supplies_only_its_actual_array_leaf() {
+    let positive = qualified_array_input(0, "path[4095]");
+    let accepted = judge(invocation(&positive, "entry")).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    for negative in [
+        qualified_array_input(1, "path[4095]"),
+        qualified_array_input(0, "after[0]"),
+    ] {
+        let verdict = judge(invocation(&negative, "entry")).unwrap();
+        assert!(
+            matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))),
+            "{verdict:?}",
+        );
+    }
+}
+
+#[test]
+fn an_owned_array_domain_is_proved_again_at_its_declared_result() {
+    let text = r#"
+domain [u16; 4096]::Terminated requires self[4095] == 0;
+data Prefix { unrelated: u16; }
+machine entry(before: Prefix, path: [u16; 4096] in Terminated) -> [u16; 4096] in Terminated
+{ path }
+"#;
+    let verdict = judge(invocation(text, "entry")).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
 #[test]
 fn each_contract_index_is_checked_against_its_own_array() {
     let refused = invocation(
@@ -215,9 +262,9 @@ fn a_storage_snapshot_requires_its_exact_establishing_call() {
         assert_eq!(
             refused.detail,
             if shared_call {
-                "a returned storage snapshot is outside the call's established storage"
+                "a returned storage snapshot is outside the call's established storage in machine `main`"
             } else {
-                "a storage snapshot is not after a declared call"
+                "a storage snapshot is not after a declared call in machine `main`"
             }
         );
     }

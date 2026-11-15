@@ -497,7 +497,7 @@ pub(crate) mod capabilities {
                         }
                         OperationKind::BoundaryCall { boundary, .. } => {
                             let declaration = program.verified_boundary_machine(boundary)?;
-                            if crate::embedding::program::compiler_owns_boundary_execution(
+                            if crate::embedding::program::interpreter_owns_boundary_execution(
                                 declaration,
                             ) {
                                 continue;
@@ -580,7 +580,9 @@ pub(crate) mod capabilities {
                             pending.push(callee);
                         } else {
                             external_demands.insert(TerminalExternalCompletionDemand {
-                                boundary: *boundary,
+                                boundary: program
+                                    .verified_boundary_machine(boundary)?
+                                    .external_completion_requirement(),
                                 kind: *kind,
                             });
                         }

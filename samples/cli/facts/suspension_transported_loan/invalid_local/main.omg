@@ -1,6 +1,6 @@
 // Invalid: the backing forbids suspension, so the transported loan cannot keep it across the call.
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
-public boundary trait Scheduler { machine park() reaches suspends; }
+public boundary trait Scheduler { machine park() reaches suspends crashes none; }
 public Immediate satisfies Scheduler { machine park() {} }
 data Cell [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: i32; }
 data Message<'view> { left: i32; body: &'view Cell; right: i32; }

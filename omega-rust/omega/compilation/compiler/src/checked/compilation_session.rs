@@ -95,7 +95,7 @@ impl CompilationSession {
     ) -> CheckedCompileOutcome {
         run_on_compile_thread(|| {
             Ok::<_, CompileFailure>(
-                self.select_completed_source(source, returned, None)
+                self.select_completed_source(source, returned, None, None)
                     .finish_check(),
             )
         })
@@ -113,7 +113,7 @@ impl CompilationSession {
             let root = source.root().to_path_buf();
             let package_inputs = source.package_inputs().cloned();
             let selected = self
-                .select_completed_source(source, returned, None)
+                .select_completed_source(source, returned, product.inspection_name(), None)
                 .result
                 .map_err(crate::CompilationProductError::from)?;
             let mut outputs = crate::target_batch::produce_products(vec![(
@@ -152,7 +152,7 @@ impl CompilationSession {
                 self.check_package_build_selecting(build, Some(&mut frontier))
             }
             TypedFrontierRequest::Source { source, returned } => {
-                self.select_completed_source(source, returned, Some(&mut frontier))
+                self.select_completed_source(source, returned, None, Some(&mut frontier))
                     .finish_check()
                     .result
             }
@@ -162,7 +162,7 @@ impl CompilationSession {
 
     /// The frozen typed trees of a standalone source program, as the
     /// lowered-form checker is shown them, without running the program's
-    /// Build and without Psi 05, validation's judgments or Psi 06.
+    /// Build and without Psi 05 or Psi 06.
     ///
     /// The machine named `entry` in `request.root_path` (`main`, when `entry`
     /// is `None` and the source declares one) is bound to the request
@@ -205,9 +205,10 @@ impl CompilationSession {
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
+        inspection: Option<&str>,
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> SelectedCompileOutcome {
-        match source.select(returned, frontier) {
+        match source.select(returned, inspection, frontier) {
             Ok(outcome) => outcome,
             Err(failure) => refusal(failure),
         }

@@ -5,8 +5,6 @@
 The values are 212.0 and 2.0, so the comparison is false.
 
 Owning task: **OPERATOR-BOUNDARY-CALLS**. This folder is the std-free witness.
-`tests/omega/pending/arithmetic/float_computation_no_route` stays unchanged and
-still depends on std.
 
 Every place copies that fact sentence and the same operation: the program
 compares the two `f64` values 212.0 and 2.0 with `==` and reaches `done()`
@@ -88,52 +86,17 @@ target the corpus check leg reads from these bindings).
   artifact's boundary roster carries `path(Float::equal)` rows for this program;
   a control program that compares two `u64` values and uses no float at all has
   zero `Float::equal` rows in its artifact.
-- **The operand format is the route's boundary.** A control program that
-  compares an `f64` left operand with an `f32` right operand is refused by
-  checking with ``builtin `==` cannot combine `f64` and `f32` `` rather than
-  silently widening, pinned as
-  [`float_comparison_route_mixed_format_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_mixed_format_rejected/main.omg)
-  for the root and transported across all nine places
-  (`<place>/controls/mixed_format/`, pinned as the nine
-  `tests/omega/fail/facts/float_comparison_route_through_<place>_rejected`
-  fixtures).
 - **The value decides the observable.** The nine twins keep the route and the
   program and move only the right operand to 212.0; the comparison becomes true
   and both engines abort instead of exiting 0.
 
 ## Pinned fixtures
 
-Nine pass fixtures `tests/omega/pass/facts/float_comparison_route_through_<place>_exit`
-are byte-identical copies of the place programs and record the `0` native exit
-oracle. Nine twin fixtures
-`tests/omega/run/facts/float_comparison_route_through_<place>_traps` are
-byte-identical copies of the place twins and record the `trap` oracle, following
-`tests/omega/run/facts/double_indexed_rmw_through_local_traps`: a twin whose
-only authored obligation is a runtime comparison result checks clean and rejects
-at runtime, so its pin is the runtime oracle, not a `fail/` diagnostic row.
-
-Nine further fixtures
-`tests/omega/fail/facts/float_comparison_route_through_<place>_rejected` pin the
-place transport of the format boundary: each is a byte-identical copy of
-`<place>/controls/mixed_format/main.omg` (the place program with the right
-operand declared `f32`) and each rejects with ``builtin `==` cannot combine
-`f64` and `f32` ``. The root's form of the same control is pinned as
-[`float_comparison_route_mixed_format_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_mixed_format_rejected/main.omg).
-
-The nine `_rejected` fixtures and the nine `_exit` fixtures were re-recorded
-at `114906953e1` with the corpus runner built at that base (sha256
-`f14e17c7521b980e193ba6929baec279dd843ec8144214f42e19e4e94cacfe5a`): nine
-`rejected ... expected` rows in `tests/omega/corpus_outcomes.txt`, each
-followed by the full refusal ``builtin `==` cannot combine `f64` and `f32`; a
-landed float retains its format, so changing format requires an explicit
-conversion`` (target_body carries it once per bound body); nine
-`built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`; and
-nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in
-`tests/omega/corpus_both_macos_arm64.txt`. The nine run-tier `_traps` twins
-gained their host rows at the same base: `built ... exit:signal signal:5` in
-the native golden and `built ... exit:signal signal:5 interpreter:trapped` in
-the combined golden. Before recording, the filtered re-measure at the same
-base read 46 fixtures with 0 structural moves.
+The nine run-tier `_traps` twins gained their host rows at the same base:
+`built ... exit:signal signal:5` in the native golden and `built ...
+exit:signal signal:5 interpreter:trapped` in the combined golden. Before
+recording, the filtered re-measure at the same base read 46 fixtures with 0
+structural moves.
 
 ## Requirements and evidence
 
@@ -215,9 +178,7 @@ unexecuted here.
 
 At fixed base `bc2c778d57d90b75587d484a6a882ad2cecac9a4`, the optimized
 producer refuses the existing local place with `Terminal boundary application
-has no unique exact selected row`. The same refusal occurs with an explicit
-`float_operations` import, and blocks the parent's unchanged
-`tests/omega/pass/float/named_provider_directed_divide_exit/main.omg` customer.
+has no unique exact selected row`.
 
 Checking and Terminal retain the callable identity of the token-bearing
 `Float::equal` machine. The shared provider-schema identity helper instead
@@ -247,8 +208,7 @@ oracle are unchanged. Those historical observations cover Linux only.
 The active [nonnumeric contract control](controls/nonnumeric_contract/main.omg)
 invokes an ordinary boundary predicate over f64. Its boolean supplies no IEEE
 upper-bound law, so forwarding the operand into `bounded` must reject the
-unproved precondition. It is pinned in
-[`float_comparison_route_nonnumeric_contract_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_nonnumeric_contract_rejected/main.omg).
+unproved precondition.
 
 The integrated selector preserves Product and Invocation scopes separately.
 Matching-host verification at `46a8d4e7c64e2738a34b7bdee0a6e64ea5c18cb6`

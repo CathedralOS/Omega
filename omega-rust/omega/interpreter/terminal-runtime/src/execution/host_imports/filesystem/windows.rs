@@ -81,8 +81,8 @@ pub(super) fn admit(
     layouts: &[NativeBorrowedStorageLayout],
 ) -> Result<Option<Call>, TerminalRuntimeError> {
     if !binding
-        .import()
-        .is_some_and(|(locator, _)| locator.target() == target::TargetProfile::WindowsX64)
+        .foreign_import_locator()
+        .is_some_and(|locator| locator.target() == target::TargetProfile::WindowsX64)
         || !cfg!(all(target_os = "windows", target_arch = "x86_64"))
     {
         return Ok(None);

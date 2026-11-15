@@ -1,0 +1,21 @@
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "native_boundary_supply");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind<HostProcessId::get>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "msvcrt.dll", export: "_getpid"
+        } });
+    Build::bind<HostProcessId::get>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_getpid"
+        } });
+    Build::bind<HostProcessId::get>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 39 });
+    Build::bind<HostProcessId::get>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 172 });
+}

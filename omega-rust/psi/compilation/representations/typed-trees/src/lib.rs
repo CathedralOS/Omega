@@ -368,12 +368,123 @@ pub mod type_system;
 pub mod values;
 pub(crate) mod canonical_values {
     use crate::TypedTrees;
-    use crate::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
-    use crate::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+    use crate::data::{DataDefinition, DataField, DataVariant};
+    use crate::expression::{
+        ExpressionNode, TableCastExpression, TableStructLiteral, TableStructLiteralField,
+    };
+    use crate::types::{
+        DomainConstraint, DomainConstraintSubject, FixedArrayLength, PrimitiveType,
+        TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    };
+    use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
     use language_semantics::const_value::DecodedCanonicalConstValue;
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
 
+    /// The declared domains a carrier qualifies its value with, innermost
+    /// first, and the carrier beneath them.
+    ///
+    /// An evaluated snapshot holds a value's bits and declared carrier, not
+    /// the evidence its invocation checked for each domain on it. The
+    /// materializer re-establishes each domain with an `as +D` entry, so the
+    /// reader of the materialized value owes that domain's ordinary issuer
+    /// and predicate checks (domains.md, "Domain-only casts"); the
+    /// evaluator refuses a domain whose issuance is restricted before this
+    /// point, since a constant grants no authority (constants.md). An
+    /// arithmetic policy stays on the carrier, where integer landing reads
+    /// it; any other constraint, alone or beside a declared domain, has no
+    /// materialization and yields `None`.
+    pub(crate) fn declared_domain_qualifications(
+        program: &TypedTrees,
+        carrier: TypeReferenceHandle,
+    ) -> Option<(TypeReferenceHandle, Vec<&DomainConstraint>)> {
+        let mut base = carrier;
+        let mut outermost_first = Vec::new();
+        while base.is_valid() {
+            let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = program.type_reference_node(base)
+            else {
+                break;
+            };
+            let constraints = program.type_reference_table.constraints(*constraints);
+            if constraints
+                .iter()
+                .all(|constraint| matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
+            {
+                break;
+            }
+            for constraint in constraints.iter().rev() {
+                let TypeConstraintNode::Domain(domain) = constraint else {
+                    return None;
+                };
+                if domain.subject != DomainConstraintSubject::Declared || !domain.symbol.is_valid()
+                {
+                    return None;
+                }
+                outermost_first.push(domain);
+            }
+            base = *base_type;
+        }
+        outermost_first.reverse();
+        Some((base, outermost_first))
+    }
+
     pub(crate) fn materialize(
+        program: &mut TypedTrees,
+        declared_type: TypeReferenceHandle,
+        value: &DecodedCanonicalConstValue,
+    ) -> Option<ExpressionNode> {
+        let (base, domains) = declared_domain_qualifications(program, declared_type)?;
+        if domains.is_empty() {
+            return materialize_carrier(program, declared_type, value);
+        }
+        let domains = domains.into_iter().cloned().collect::<Vec<_>>();
+        let mut node = materialize_carrier(program, base, value)?;
+        for (position, domain) in domains.iter().enumerate() {
+            // Each entry adds one domain; the type after it carries that
+            // domain and every one added beneath it.
+            let result_type = if position + 1 == domains.len() {
+                declared_type
+            } else {
+                let constraints = program.type_reference_table.insert_constraints(
+                    domains[..=position]
+                        .iter()
+                        .cloned()
+                        .map(TypeConstraintNode::Domain),
+                );
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Constrained {
+                        base_type: base,
+                        constraints,
+                    })
+            };
+            node = ExpressionNode::Cast(TableCastExpression {
+                value: program.expression_table.insert(node),
+                target_type: result_type,
+                result_type,
+                target_label: arena::HandleSpan::empty(),
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                semantic_domain: arena::HandleSpan::empty(),
+                semantic_domain_arguments: arena::HandleSpan::empty(),
+                semantic_domain_symbol: domain.symbol,
+                semantic_domain_id: domain.semantic_id,
+                form: added(position == 0),
+            });
+        }
+        Some(node)
+    }
+
+    fn added(first: bool) -> CastForm {
+        CastForm::Entry(CastEntry {
+            kind: CastEntryKind::Add,
+            first,
+            after_carrier: false,
+        })
+    }
+
+    fn materialize_carrier(
         program: &mut TypedTrees,
         declared_type: TypeReferenceHandle,
         value: &DecodedCanonicalConstValue,
@@ -435,6 +546,53 @@ pub(crate) mod canonical_values {
         }
     }
 
+    fn aggregate_declaration<'a>(
+        program: &'a TypedTrees,
+        carrier: TypeReferenceHandle,
+        type_name: &str,
+    ) -> Option<&'a DataDefinition> {
+        let carrier = program.unwrapped_type_reference(carrier)?;
+        // A layout storage application holds its semantic record's fields;
+        // the literal names that record and is applied at the storage type.
+        if let Some(storage) = program.layout_storage_arguments(carrier) {
+            let declaration = program.closed_data_definition(storage.semantic_type)?;
+            return (declaration.symbol.is_valid() && declaration.name.as_str() == type_name)
+                .then_some(declaration);
+        }
+        let symbol = program.type_reference_node(carrier).as_named_symbol()?;
+        let declaration = program.data_definition_by_symbol(symbol)?;
+        (symbol.is_valid() && declaration.name.as_str() == type_name).then_some(declaration)
+    }
+
+    /// The type a constant's record literal is applied at: the storage
+    /// application when the carrier is one, so the literal constructs that
+    /// representation rather than the bare semantic record.
+    fn literal_application(
+        program: &TypedTrees,
+        carrier: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let underlying = program.unwrapped_type_reference(carrier)?;
+        program
+            .layout_storage_arguments(underlying)
+            .map(|_| underlying)
+    }
+
+    fn named_case<'a>(
+        program: &'a TypedTrees,
+        declaration: &'a DataDefinition,
+        name: &str,
+    ) -> Option<&'a DataVariant> {
+        let mut matching = program
+            .data_members(declaration)
+            .iter()
+            .filter_map(|member| member.as_variant())
+            .filter(|case| case.name.as_str() == name);
+        let (Some(case), None) = (matching.next(), matching.next()) else {
+            return None;
+        };
+        case.symbol.is_valid().then_some(case)
+    }
+
     fn record(
         program: &mut TypedTrees,
         declared_type: TypeReferenceHandle,
@@ -442,27 +600,17 @@ pub(crate) mod canonical_values {
         case_name: Option<&str>,
         fields: &[(String, DecodedCanonicalConstValue)],
     ) -> Option<ExpressionNode> {
-        let declared_type = program.unwrapped_type_reference(declared_type)?;
-        let symbol = &program
-            .type_reference_node(declared_type)
-            .as_named_symbol()?;
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol.is_valid() && definition.symbol == *symbol)?;
-        if definition.name.as_str() != type_name {
-            return None;
-        }
+        let definition = aggregate_declaration(program, declared_type, type_name)?;
         let mut literal = TableStructLiteral {
             type_name: definition.name.clone(),
             type_symbol: definition.symbol,
             ..TableStructLiteral::default()
         };
+        if let Some(application) = literal_application(program, declared_type) {
+            literal.application_type = application;
+        }
         let declared_fields = if let Some(case_name) = case_name {
-            let variant = program.data_members(definition).iter().find_map(|member| {
-                let variant = member.as_variant()?;
-                (variant.name.as_str() == case_name).then_some(variant)
-            })?;
+            let variant = named_case(program, definition, case_name)?;
             literal.case_name = Some(variant.name.clone());
             literal.case_symbol = Some(variant.symbol);
             program.data_payload_fields(variant).to_vec()
@@ -512,7 +660,176 @@ pub(crate) mod canonical_values {
         ))
     }
 
+    fn matches_materialized(
+        program: &TypedTrees,
+        carrier: TypeReferenceHandle,
+        expression: crate::expression::ExpressionHandle,
+        value: &DecodedCanonicalConstValue,
+    ) -> bool {
+        if !program.expression_table.expression_is_valid(expression) {
+            return false;
+        }
+        let Some((base, domains)) = declared_domain_qualifications(program, carrier) else {
+            return false;
+        };
+        if !domains.is_empty() {
+            let mut expression = expression;
+            for (position, domain) in domains.iter().enumerate().rev() {
+                if !program.expression_table.expression_is_valid(expression) {
+                    return false;
+                }
+                let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
+                else {
+                    return false;
+                };
+                if cast.form != added(position == 0)
+                    || cast.semantic_domain_symbol != domain.symbol
+                    || cast.semantic_domain_id != domain.semantic_id
+                    || (position + 1 == domains.len() && cast.result_type != carrier)
+                {
+                    return false;
+                }
+                expression = cast.value;
+            }
+            return matches_materialized(program, base, expression, value);
+        }
+        match (program.expression_table.expression(expression), value) {
+            (ExpressionNode::Boolean(actual), DecodedCanonicalConstValue::Boolean(expected)) => {
+                actual == expected
+            }
+            (
+                ExpressionNode::Integer(actual),
+                DecodedCanonicalConstValue::Integer {
+                    integer_type,
+                    value,
+                },
+            ) => {
+                actual.landing()
+                    == Some(IntegerLanding {
+                        landed_type: *integer_type,
+                        domain: program.type_reference_table.arithmetic_domain(carrier),
+                    })
+                    && actual.value_bignum().as_ref() == Some(value)
+            }
+            (
+                ExpressionNode::ArrayLiteral(actual),
+                DecodedCanonicalConstValue::Array { type_name, values },
+            ) => {
+                let Some(underlying) = program.unwrapped_type_reference(carrier) else {
+                    return false;
+                };
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                } = program.type_reference_node(underlying)
+                else {
+                    return false;
+                };
+                let expressions = program.expression_table.expression_handles(*actual);
+                *type_name == program.display_type_reference(carrier)
+                    && *length == values.len()
+                    && expressions.len() == values.len()
+                    && expressions.iter().zip(values).all(|(expression, value)| {
+                        matches_materialized(program, *element_type, *expression, value)
+                    })
+            }
+            (ExpressionNode::StructLiteral(actual), value) => {
+                let (type_name, case_name, fields) = match value {
+                    DecodedCanonicalConstValue::Record { type_name, fields } => {
+                        (type_name, None, fields)
+                    }
+                    DecodedCanonicalConstValue::Variant {
+                        type_name,
+                        case_name,
+                        fields,
+                    } => (type_name, Some(case_name.as_str()), fields),
+                    _ => return false,
+                };
+                let Some(declaration) = aggregate_declaration(program, carrier, type_name) else {
+                    return false;
+                };
+                if actual.type_symbol != declaration.symbol
+                    || literal_application(program, carrier)
+                        .is_some_and(|application| actual.application_type != application)
+                {
+                    return false;
+                }
+                let expressions = program.expression_table.struct_fields(actual.fields);
+                if let Some(case_name) = case_name {
+                    let Some(case) = named_case(program, declaration, case_name) else {
+                        return false;
+                    };
+                    actual.case_symbol == Some(case.symbol)
+                        && actual.case_name.as_ref() == Some(&case.name)
+                        && matches_fields(
+                            program,
+                            program.data_payload_fields(case).iter().map(Some),
+                            expressions,
+                            fields,
+                        )
+                } else {
+                    actual.case_symbol.is_none()
+                        && actual.case_name.is_none()
+                        && matches_fields(
+                            program,
+                            program
+                                .data_members(declaration)
+                                .iter()
+                                .map(|member| member.as_field()),
+                            expressions,
+                            fields,
+                        )
+                }
+            }
+            _ => false,
+        }
+    }
+
+    fn matches_fields<'a>(
+        program: &TypedTrees,
+        declared: impl ExactSizeIterator<Item = Option<&'a DataField>>,
+        expressions: &[TableStructLiteralField],
+        fields: &[(String, DecodedCanonicalConstValue)],
+    ) -> bool {
+        declared.len() == fields.len()
+            && expressions.len() == fields.len()
+            && declared
+                .zip(expressions)
+                .zip(fields)
+                .all(|((field, expression), (name, value))| {
+                    field.is_some_and(|field| {
+                        field.symbol == expression.field_symbol
+                            && field.name == expression.name
+                            && field.name.as_str() == name
+                            && matches_materialized(
+                                program,
+                                field.type_reference,
+                                expression.value,
+                                value,
+                            )
+                    })
+                })
+    }
+
     impl TypedTrees {
+        pub fn canonical_const_materialization_matches(
+            &self,
+            carrier: TypeReferenceHandle,
+            expression: crate::expression::ExpressionHandle,
+            value: &DecodedCanonicalConstValue,
+        ) -> bool {
+            matches_materialized(self, carrier, expression, value)
+        }
+
+        /// The declared domains on a constant carrier, innermost first
+        /// (`declared_domain_qualifications`).
+        pub fn constant_domain_qualifications(
+            &self,
+            carrier: TypeReferenceHandle,
+        ) -> Option<Vec<&DomainConstraint>> {
+            declared_domain_qualifications(self, carrier).map(|(_, domains)| domains)
+        }
+
         pub fn materialize_canonical_const_value(
             &mut self,
             carrier: TypeReferenceHandle,
@@ -524,7 +841,8 @@ pub(crate) mod canonical_values {
 }
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, CallableContractScope, CallableSubstitution,
-    ClosedRequirementApplication, NamedConformanceCaptureIndex, RequirementLocalArgument,
+    ClosedRequirementApplication, MachineInstantiation, NamedConformanceCaptureIndex,
+    RequirementLocalArgument,
 };
 pub(crate) mod frozen {
     use super::TypedTrees;
@@ -1098,7 +1416,7 @@ pub struct TypedTrees {
     pub service_reach_rows: language_semantics::ServiceReachRowTable,
     pub authored_service_reach_rows: Vec<signature::AuthoredServiceReachRow>,
     pub semantic_domains: language_semantics::SemanticDomainTable,
-    pub applied_domain_applications: Vec<domain::AppliedDomainApplication>,
+    pub applied_domain_applications: domain::AppliedDomainApplications,
     pub applied_data_cleanup_selections: Vec<domain::AppliedDataCleanupSelection>,
     pub external_bindings: language_semantics::ExternalBindingTable,
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
@@ -1121,7 +1439,6 @@ pub struct TypedTrees {
     /// Requests no pass served, on the declarations that hold them, ordered
     /// by declaration (`deferred_refusals.rs`).
     pub deferred_refusals: Vec<deferred_refusals::DeferredRefusal>,
-    pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
     pub evidence_forwardings: Vec<EvidenceForwarding>,
     pub proof_output_calls: Vec<ProofOutputCall>,
     pub declaration_indexes: declaration_index::DeclarationIndexes,
@@ -1133,16 +1450,6 @@ pub struct TypedTrees {
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
     pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
     pub type_identities: crate::type_identity::TypeIdentityTable,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-pub struct BoundaryCompletionDeclaration {
-    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub owner: symbols::SymbolHandle,
-    pub owner_path: String,
-    pub requirement: symbols::SymbolHandle,
-    pub requirement_path: String,
-    pub completion: semantic_vocabulary::BoundaryCompletion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -1376,7 +1683,7 @@ impl TypedTrees {
             service_reach_rows: language_semantics::ServiceReachRowTable::default(),
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
-            applied_domain_applications: Vec::new(),
+            applied_domain_applications: Default::default(),
             applied_data_cleanup_selections: Vec::new(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
@@ -1397,7 +1704,6 @@ impl TypedTrees {
             data_implementation_applications: Arena::new(),
             target_machine_families: Vec::new(),
             deferred_refusals: Vec::new(),
-            boundary_completion_declarations: Arena::default(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             declaration_indexes: declaration_index::DeclarationIndexes::default(),

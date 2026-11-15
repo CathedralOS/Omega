@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A turn-based combat simulator -- a small but complete app that stresses how the
 // pieces compose: two `Fighter` records (hp + attack), damage ARITHMETIC
 // (`hp = (hp - attacker.attack) % 101`, fully Exact via the modular idiom: the
@@ -22,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
     main.hero.hp = 30;
     main.hero.attack = 7;
@@ -51,18 +52,18 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: the hero out-damaged the monster and won (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
     machine monster_wins(main: &mut Main) {
         Console::write_line("result: the monster won this fight (exit 2)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

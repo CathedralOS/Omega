@@ -362,8 +362,7 @@ pub(crate) mod control_flow {
                 .iter()
                 .find_map(|block| {
                     block
-                        .operations
-                        .iter()
+                        .operations()
                         .position(|operation| match operation {
                             TargetUnitOperation::Call { psi_operation, .. }
                             | TargetUnitOperation::NormalizedForeignCall {
@@ -384,6 +383,7 @@ pub(crate) mod control_flow {
             sources.extend(
                 call_block.operations[..call_position]
                     .iter()
+                    .map(|instruction| &instruction.kind)
                     .filter_map(definition),
             );
             elements
@@ -536,20 +536,16 @@ pub(crate) mod control_flow {
                             operation: false,
                         },
                     }));
-                    rows.extend(
-                        candidate
-                            .operations
-                            .iter()
-                            .filter_map(definition)
-                            .map(|row| InputRow {
-                                row,
-                                scope: SourceScope::Block {
-                                    block: candidate.block,
-                                    interval,
-                                    operation: true,
-                                },
-                            }),
-                    );
+                    rows.extend(candidate.operations().filter_map(definition).map(|row| {
+                        InputRow {
+                            row,
+                            scope: SourceScope::Block {
+                                block: candidate.block,
+                                interval,
+                                operation: true,
+                            },
+                        }
+                    }));
                 }
                 let mut by_value: Vec<_> = (0..rows.len()).collect();
                 by_value.sort_by_key(|position| rows[*position].row.0);
@@ -955,30 +951,28 @@ pub(crate) mod control_flow {
             }
             match &source.origin {
                 target_operations::TargetStructuralHomeOrigin::OperationResult { .. } => {
-                    let mut producers =
-                        graph.blocks.iter().flat_map(|candidate| {
-                            candidate.operations.iter().filter_map(move |operation| {
-                                let (producer, result) = operation.structural_result()?;
-                                if result.place != expected_source {
-                                    return None;
-                                }
-                                let expected =
-                                    result_home(optimized, expected_source, plan).ok()?;
-                                if !matches!(&expected.origin,
+                    let mut producers = graph.blocks.iter().flat_map(|candidate| {
+                        candidate.operations.iter().filter_map(move |operation| {
+                            let (producer, result) = operation.kind.structural_result()?;
+                            if result.place != expected_source {
+                                return None;
+                            }
+                            let expected = result_home(optimized, expected_source, plan).ok()?;
+                            if !matches!(&expected.origin,
                                 target_operations::TargetStructuralHomeOrigin::OperationResult {
                                     operation, result: declaration,
                                 } if *operation == producer && declaration == result)
-                                {
-                                    return None;
-                                }
-                                if operation.structural_result_home().is_some_and(
-                                    |(identity, home)| identity != producer || home != &expected,
-                                ) {
-                                    return None;
-                                }
-                                Some((candidate.block, expected))
-                            })
-                        });
+                            {
+                                return None;
+                            }
+                            if operation.kind.structural_result_home().is_some_and(
+                                |(identity, home)| identity != producer || home != &expected,
+                            ) {
+                                return None;
+                            }
+                            Some((candidate.block, expected))
+                        })
+                    });
                     let Some((producer_block, home)) = producers.next() else {
                         return false;
                     };
@@ -1077,6 +1071,8 @@ pub(crate) mod control_flow {
             cases: &[TargetControlCaseSuccessor],
             expected_source: PlaceId,
             expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
+            indices: &[target_operations::TargetStructuralRuntimeIndex],
+            scalar_sources: &sources::AvailableSources<'_>,
         ) -> bool {
             let available = match source {
                 TargetStructuralCaseSource::Home(home) => {
@@ -1122,7 +1118,7 @@ pub(crate) mod control_flow {
             if !available {
                 return false;
             }
-            let Ok((selected, expected_offset, _, expected_layout)) = dispatch_projection(
+            let Ok((selected, expected_offset, _, expected_layout, elements)) = dispatch_projection(
                 optimized,
                 expected_source,
                 path,
@@ -1132,7 +1128,10 @@ pub(crate) mod control_flow {
             ) else {
                 return false;
             };
-            if expected_offset != byte_offset || expected_layout != *layout {
+            if expected_offset != byte_offset
+                || expected_layout != *layout
+                || !super::super::unit::runtime_indices_rejoin(indices, &elements, scalar_sources)
+            {
                 return false;
             }
             let Some(declaration) =
@@ -1232,6 +1231,57 @@ pub(crate) mod control_flow {
         }
     }
 
+    pub(crate) fn validate_instruction_metadata(
+        instruction: &target_operations::TargetInstruction,
+        node: &optimization_unit::OptimizationNode,
+    ) -> Result<(), LegalizationError> {
+        let invalid = |reason| LegalizationError::InstructionMetadata {
+            machine: None,
+            operation: node.operation.psi_operation(),
+            reason,
+        };
+        let source = instruction
+            .source
+            .as_ref()
+            .ok_or_else(|| invalid("instruction lost its source annotations"))?;
+        let result = match node.definitions.as_slice() {
+            [] => None,
+            [result] => Some(*result),
+            _ => {
+                return Err(invalid(
+                    "source instruction has multiple scalar definitions",
+                ));
+            }
+        };
+        for (matches, reason) in [
+            (
+                Some(source.operation) == node.operation.psi_operation(),
+                "instruction operation identity differs",
+            ),
+            (
+                source.result == result,
+                "instruction scalar definition differs",
+            ),
+            (
+                source.metadata.work == node.work,
+                "instruction work charge differs",
+            ),
+            (
+                source.metadata.effect == node.effect,
+                "instruction effect order differs",
+            ),
+            (
+                source.metadata.ownership == node.ownership,
+                "instruction custody events differ",
+            ),
+        ] {
+            if !matches {
+                return Err(invalid(reason));
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate(
         function: &TargetFunction,
         graph: &TargetControlGraph,
@@ -1312,10 +1362,34 @@ pub(crate) mod control_flow {
         let block_entries = block_entry_states(optimized, descriptor_inputs)?;
         let source_inputs = sources::SourceInputs::new(graph, optimized);
         for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
+            let terminal = source.nodes.last().ok_or(LegalizationError::custody())?;
+            if block.terminator_metadata.work != terminal.work
+                || block.terminator_metadata.effect != terminal.effect
+                || block.terminator_metadata.ownership != terminal.ownership
+                || crate::legalization_control::project(
+                    function.machine,
+                    block,
+                    function
+                        .structural_contract
+                        .as_ref()
+                        .map(|contract| contract.parameters.as_slice())
+                        .unwrap_or(&[]),
+                    &unit.accepted_obligation_facts,
+                )? != crate::legalization_source::scalar_graph::terminator::audit_project(
+                    terminal,
+                    function_inputs,
+                    plan,
+                    native,
+                    unit,
+                    &block.terminator,
+                )?
+            {
+                return Err(LegalizationError::custody());
+            }
             let body_len = block
                 .operations
                 .iter()
-                .position(|row| matches!(row, TargetUnitOperation::CleanupCall { .. }))
+                .position(|row| matches!(&row.kind, TargetUnitOperation::CleanupCall { .. }))
                 .unwrap_or(block.operations.len());
             let (body, cleanup_calls) = block.operations.split_at(body_len);
 
@@ -1334,20 +1408,20 @@ pub(crate) mod control_flow {
             {
                 return Err(LegalizationError::custody());
             }
-            let source_nodes: Vec<_> = source.nodes.iter().collect();
             let mut available = source_inputs.available(block.block);
             let mut custody = block_entries
                 .get(&block.block)
                 .cloned()
                 .ok_or(LegalizationError::custody())?;
-            for (node_index, (operation, node)) in body.iter().zip(&source_nodes).enumerate() {
+            for (node_index, (operation, node)) in body.iter().zip(&source.nodes).enumerate() {
                 custody.set_position(block.block, node_index)?;
-                if matches!(operation, TargetUnitOperation::Return { .. }) {
+                validate_instruction_metadata(operation, node)?;
+                if matches!(&operation.kind, TargetUnitOperation::Return { .. }) {
                     return Err(LegalizationError::custody());
                 }
                 super::unit::validate_operation(
                     function,
-                    operation,
+                    &operation.kind,
                     &node.operation,
                     &graph.scalar_parameters,
                     &graph.parameters,
@@ -1437,8 +1511,11 @@ pub(crate) mod control_flow {
                                     semantic.place == *expected_source
                                 && semantic.access == terminal_psi::StructuralAccess::Owned
                                 && optimized.result.structural().is_some_and(|result| {
-                                    result.structural_type == semantic.structural_type
-                                        && result.multiplicity == semantic.multiplicity
+                                    plan.geometry().declaration(semantic.structural_type).is_ok_and(|source| {
+                                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                                            result, source, semantic.multiplicity,
+                                        )
+                                    })
                                 })
                                 }) && parameter.place == *expected_source
                                     && graph
@@ -1546,8 +1623,14 @@ pub(crate) mod control_flow {
                             } => {
                                 *call_plan == expected_plan
                                     && plan.function(*callee).is_some_and(|candidate| {
-                                        candidate.result
-                                            == abstract_operations::AbstractFunctionResult::Unit
+                                        candidate.result.structural().is_some_and(|result| {
+                                            declaration.result.accepts_provider_result(
+                                                &terminal_psi::TerminalMachineResult::Structural(result.clone()),
+                                                declaration.identity,
+                                                declaration.declaration.as_ref().map(|callable| callable.source.semantic_declaration),
+                                                &unit.structural_domains,
+                                            )
+                                        })
                                             && candidate
                                                 .parameters
                                                 .iter()
@@ -1575,7 +1658,11 @@ pub(crate) mod control_flow {
                         }
                         && declaration.completion
                             == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        && declaration.result.is_unit()
+                        && terminal_semantics::inhabitation::external_result_is_erased(
+                            declaration.completion,
+                            declaration.result.structural(),
+                            plan.structural_types.as_slice(),
+                        ) == Ok(true)
                         && arguments.len() == expected_arguments.len()
                         && arguments.len() == expected_plan.parameters.len()
                         && structural_arguments.len() == declaration.structural_parameters.len()
@@ -1686,7 +1773,9 @@ pub(crate) mod control_flow {
                 }
                 (
                     TargetControlTerminator::StructuralCase {
+                        psi_block,
                         source,
+                        indices,
                         path,
                         byte_offset,
                         layout,
@@ -1695,12 +1784,13 @@ pub(crate) mod control_flow {
                         region_byte_size,
                     },
                     AbstractOperation::StructuralCase {
+                        psi_block: expected_block,
                         source: expected_source,
                         path: expected_path,
                         cases: expected_cases,
                     },
                 ) => {
-                    path == expected_path
+                    psi_block == expected_block && path == expected_path
                         && structural_cases::matches(
                             graph,
                             optimized,
@@ -1715,6 +1805,8 @@ pub(crate) mod control_flow {
                             cases,
                             *expected_source,
                             expected_cases,
+                            indices,
+                            &available,
                         )
                 }
                 (
@@ -1969,6 +2061,7 @@ pub(crate) mod element_view {
                     region,
                     element_stride,
                     source: established_source,
+                    source_argument,
                 } => {
                     let Some((argument, expected_region)) =
                         self.optimized.block_nodes().find_map(|node| {
@@ -1998,6 +2091,9 @@ pub(crate) mod element_view {
                     else {
                         return Err("view result does not match an exact declared establishment");
                     };
+                    if source_argument != argument {
+                        return Err("view source argument differs from its establishment");
+                    }
                     let backing = match established_source {
                         TargetStructuralArgumentSource::Placement(placement) => {
                             self.optimized
@@ -2481,13 +2577,7 @@ pub(crate) mod expressions {
             value: ValueId,
             aliases: &[(ValueId, ValueId)],
         ) -> bool {
-            matches!(
-                expression,
-                Expression::Immediate { .. }
-                    | Expression::Parameter { .. }
-                    | Expression::ScalarHome(_)
-                    | Expression::BlockParameter(_)
-            ) && self.expression(expression, value, aliases)
+            expression.operand_value().is_some() && self.expression(expression, value, aliases)
         }
 
         pub(crate) fn boolean_source(
@@ -2545,6 +2635,35 @@ pub(crate) mod expressions {
             home == expected && definitions.next().is_none()
         }
 
+        fn element_read_geometry(
+            &self,
+            source: &terminal_psi::StructuralArgument,
+            indices: &[target_operations::TargetStructuralRuntimeIndex],
+            path: &[terminal_psi::StructuralPathSegment],
+            scalar_type: ScalarType,
+            element_byte_offset: u32,
+        ) -> bool {
+            use crate::legalization::scalar_graph_input::element_views::read_geometry;
+            use crate::structural_inputs::structural_reference_input::element_leaf_projection;
+
+            let Some(geometry) = read_geometry(self.optimized, source, self.types) else {
+                return false;
+            };
+            let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
+                terminal_psi::find_structural_type(self.types, geometry.selected)
+                    .map(|declaration| &declaration.shape)
+            else {
+                return false;
+            };
+            super::unit::runtime_indices_rejoin(
+                indices,
+                &geometry.elements,
+                self.available
+                    .unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY),
+            ) && element_leaf_projection(*element, path, scalar_type, self.types)
+                .is_some_and(|(offset, _, steps)| offset == element_byte_offset && steps.is_empty())
+        }
+
         pub(crate) fn float_element_read(
             &self,
             expression: &target_operations::TargetScalarExpression,
@@ -2555,7 +2674,7 @@ pub(crate) mod expressions {
                 psi_operation,
                 source_value,
                 source,
-                view,
+                indices,
                 index,
                 length,
                 obligation,
@@ -2566,7 +2685,6 @@ pub(crate) mod expressions {
                 return false;
             };
             *source_value == value
-                && self.element_view(view, *source, &[])
                 && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::ElementViewRead {
                         psi_operation: operation, result, source: expected,
@@ -2577,10 +2695,7 @@ pub(crate) mod expressions {
                         && expected == source && path == expected_path
                         && length == expected_length && obligation == expected_obligation
                         && self.integer_source(index, *expected_index, &[])
-                        && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
-                            .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                                element, path, result.scalar_type, self.types))
-                            .is_some_and(|(offset, _, _)| offset == *element_byte_offset)))
+                        && self.element_read_geometry(source, indices, path, result.scalar_type, *element_byte_offset)))
         }
 
         pub(crate) fn expression(
@@ -2609,24 +2724,26 @@ pub(crate) mod expressions {
                     *source_value == resolved
                         && crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.optimized, source, self.types)
                             .is_some_and(|(geometry, carrier)| {
-                                *length_byte_offset == if matches!(carrier, terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) { 8 } else { 0 }
+                                let expected_offset = match carrier {
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 8,
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => 0,
+                                    // A bounded view's length is its exact capacity.
+                                    terminal_psi::ByteSequenceCarrier::BoundedView { .. } => return false,
+                                };
+                                *length_byte_offset == expected_offset
                                 && super::unit::runtime_indices_rejoin(indices, &geometry.elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY))
                             })
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                             AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                             if operation == psi_operation && result.value == resolved && expected == source))
                 }
-                Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation, path, element_byte_offset } => {
+                Expression::ElementViewRead { psi_operation, source_value, source, indices, index, length, obligation, path, element_byte_offset } => {
                     *source_value == resolved
-                        && self.element_view(view, *source, aliases)
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                             AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
                             if operation == psi_operation && result.value == resolved && expected == source
                             && path == expected_path
-                            && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
-                                .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                                    element, path, result.scalar_type, self.types))
-                                .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
+                            && self.element_read_geometry(source, indices, path, result.scalar_type, *element_byte_offset)
                             && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
                 }
                 Expression::ElementViewLength { psi_operation, source_value, source, indices, length_byte_offset } => {
@@ -2741,7 +2858,7 @@ pub(crate) mod expressions {
                 psi_operation,
                 source_value,
                 source,
-                view,
+                indices,
                 index,
                 length,
                 obligation,
@@ -2751,16 +2868,12 @@ pub(crate) mod expressions {
             {
                 let resolved = resolve(value, aliases);
                 return *source_value == resolved
-                    && self.element_view(view, *source, aliases)
                     && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
                         if operation == psi_operation && result.value == resolved && expected == source
                         && result.scalar_type == ScalarType::Boolean
                         && path == expected_path
-                        && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
-                            .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                                element, path, result.scalar_type, self.types))
-                            .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
+                        && self.element_read_geometry(source, indices, path, result.scalar_type, *element_byte_offset)
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)));
             }
             if let Boolean::BlockParameter(parameter) = expression {
@@ -3325,8 +3438,7 @@ pub(crate) mod normalized_foreign {
             || psi_operation != expected_operation
             || boundary != expected_boundary
             || binding.native_target() != Some(native.target)
-            || binding.provider_plan_report_identity()
-                != provider_execution.provider_plan_report_identity().get()
+            || !binding.matches_execution(*provider_execution)
             || !binding.has_valid_entry_mechanism()
             || validated.plan() != &binding.boundary_entry_plan
             || operands.len() != scalar_shapes.len() + structural.len() + private_ordinals.len()
@@ -3983,12 +4095,31 @@ pub(crate) mod unit {
                     let declaration = plan
                         .structural_type(result.structural_type)
                         .ok_or(LegalizationError::custody())?;
-                    let terminal_psi::StructuralTypeShape::FixedArray {
-                        element,
-                        length: terminal_psi::ArrayExtent::Literal(length),
-                    } = declaration.shape
-                    else {
-                        return Err(LegalizationError::custody());
+                    let (element, length) = match declaration.shape {
+                        terminal_psi::StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } => (element, length),
+                        // An owned sequence is backed by its constant roster in the
+                        // read-only literal pool; target lowering admits no other form.
+                        terminal_psi::StructuralTypeShape::ElementView {
+                            element,
+                            access: None,
+                        } => {
+                            let roster = target_operations::constant_element_roster(
+                                optimized.blocks.iter().flat_map(|block| {
+                                    block.nodes.iter().map(|node| &node.operation)
+                                }),
+                                abstracted,
+                                unit.geometry(),
+                            )
+                            .ok_or(LegalizationError::custody())?;
+                            if roster.element != element {
+                                return Err(LegalizationError::custody());
+                            }
+                            (element, roster.count)
+                        }
+                        _ => return Err(LegalizationError::custody()),
                     };
                     if psi_operation != expected_operation
                         || elements != expected_elements
@@ -4201,18 +4332,23 @@ pub(crate) mod unit {
                             })
                             .ok_or(LegalizationError::custody())?
                             .as_checking();
-                            Ok::<_, LegalizationError>((element.index, scalar_type, element.stride))
+                            Ok::<_, LegalizationError>((element, scalar_type))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    // Selection reads the result, selector operands, extents and
+                    // proof keys from this row alone, so each must rejoin here.
                     if psi_operation != expected_operation
                         || source != expected_source
                         || path != expected_path
                         || *byte_offset != expected_offset
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || indices.len() != expected_indices.len()
                         || indices.iter().zip(&expected_indices).any(
-                            |(index, (value, scalar_type, stride))| {
-                                index.stride != *stride
-                                    || index.operand.source_value() != *value
+                            |(index, (element, scalar_type))| {
+                                index.stride != element.stride
+                                    || index.extent != element.extent
+                                    || index.obligation != element.obligation
+                                    || index.operand.source_value() != element.index
                                     || index.operand.scalar_type() != *scalar_type
                             },
                         )
@@ -4476,6 +4612,7 @@ pub(crate) mod unit {
                         || *path != abstract_operations::StructuralCopyPath::Ordinary(extent.path)
                         || *byte_offset != extent.byte_offset
                         || !super::runtime_indices_rejoin(indices, &extent.elements, sources)
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || *result_home
                             != scalar_graph_input::aggregate_results::result_home(
                                 optimized,
@@ -4494,6 +4631,7 @@ pub(crate) mod unit {
                         path,
                         field,
                         value: retained_value,
+                        value_type,
                         byte_offset,
                         indices,
                     },
@@ -4527,8 +4665,11 @@ pub(crate) mod unit {
                     {
                         return Err(LegalizationError::custody());
                     }
+                    // Selection derives the store's shape from the retained
+                    // value type, so it must name the written field's type.
                     if owned_projected_field_source(optimized, value, plan.geometry())?
                         != extent.field_type
+                        || *value_type != extent.field_type
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -5153,6 +5294,8 @@ pub(crate) mod unit {
                 destination_type,
                 destination_storage,
                 source,
+                byte_offset,
+                byte_size,
                 indices,
             } = target
             else {
@@ -5249,6 +5392,7 @@ pub(crate) mod unit {
                 || path != expected_path
                 || destination_type != declared_type
                 || !storage_matches
+                || (*byte_offset, *byte_size) != (geometry.byte_offset, geometry.byte_size)
                 || !super::runtime_indices_rejoin(indices, &geometry.elements, sources)
                 || source.source_value() != value.value
                 || source.scalar_type() != value.scalar_type
@@ -5444,6 +5588,7 @@ pub(crate) mod unit {
                     operation,
                     token,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5516,6 +5661,7 @@ pub(crate) mod unit {
                     boundary,
                     operands,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5617,6 +5763,7 @@ pub(crate) mod unit {
                     location,
                     operand,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5761,6 +5908,7 @@ pub(crate) mod unit {
                     selector,
                     scratch,
                     result_home,
+                    ..
                 },
                 AbstractOperation::ActivateTaskRegister {
                     psi_operation: expected_operation,
@@ -5828,6 +5976,7 @@ pub(crate) mod unit {
                     selector,
                     scratch,
                     result_home,
+                    ..
                 },
                 AbstractOperation::ReloadSegmentDescriptors {
                     psi_operation: expected_operation,
@@ -6545,6 +6694,7 @@ pub(crate) mod unit {
                     service,
                     operation,
                     source,
+                    ..
                 },
                 AbstractOperation::GlobalDescriptorTable {
                     psi_operation: expected_operation,

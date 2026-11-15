@@ -705,7 +705,7 @@ pub(super) fn realize_target_supply_detailed(
         }
         plans.push(plan);
     }
-    let direct_boundary_leaves = direct_leaves(
+    let mut direct_boundary_leaves = direct_leaves(
         module,
         request.target,
         &request.calling_applications,
@@ -714,6 +714,23 @@ pub(super) fn realize_target_supply_detailed(
         &request.evaluated_binding_identities,
         request.reached,
     )?;
+    let primitive_schemas = crate::compiler_primitive_schemas(module)?;
+    for leaf in crate::direct_compiler_primitive_leaves(module, &primitive_schemas, request.target)
+        .map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })?
+    {
+        if !direct_boundary_leaves.iter().any(|known| {
+            known.declaration_identity == leaf.declaration_identity
+                && known.callable_identity == leaf.callable_identity
+        }) {
+            direct_boundary_leaves.push(leaf);
+        }
+    }
     for (ordinal, boundary) in request.reached.iter().enumerate() {
         if covered[ordinal] {
             continue;
@@ -726,6 +743,10 @@ pub(super) fn realize_target_supply_detailed(
             module.identities.text(
                 if module.boundary_machine(*boundary).is_some_and(|row| {
                     row.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
+                        || row.declaration.as_ref().is_some_and(|declaration| {
+                            declaration.execution
+                                != terminal_psi::CheckedBoundaryExecution::Provider
+                        })
                 }) {
                     declaration.source.semantic_declaration
                 } else {

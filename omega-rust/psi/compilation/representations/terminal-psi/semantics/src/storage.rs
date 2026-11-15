@@ -1610,6 +1610,23 @@ pub(crate) mod arrival_storage {
         matching.next().is_none() && !declaration.shape.is_canonical_view_descriptor()
     }
 
+    /// A loan of a writable descriptor slot keeps the slot's parent
+    /// occurrence. A direct view lends the original payload instead.
+    pub fn borrowed_view_payload_parameter<'types>(
+        parameter: &StructuralParameterDeclaration,
+        declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
+    ) -> bool {
+        let Some(declaration) =
+            exactly_one(declarations, |row| row.id == parameter.structural_type)
+        else {
+            return false;
+        };
+        declaration.shape.is_view_descriptor()
+            && (crate::stored_reference_access(&declaration.shape)
+                != Some(terminal_psi::StructuralAccess::MutableBorrow)
+                || !borrowed_storage_parameter(parameter, std::iter::once(declaration)))
+    }
+
     pub fn borrowed_storage_reference_ceiling<'types>(
         parameter: &StructuralParameterDeclaration,
         mut declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
@@ -1862,6 +1879,15 @@ pub(crate) mod arrival_storage {
                 _ => Some(access),
             };
         };
+        // A canonical direct view leaves permission on its declared formal.
+        // Its carrier alone has no access to use in place of that loan.
+        if selected.shape.is_canonical_view_descriptor()
+            && argument.path.is_empty()
+            && let Some(parameter) = arrival_parameter(machine, argument.place)
+            && parameter.access != terminal_psi::StructuralAccess::Owned
+        {
+            return descriptor_parameter_access(parameter, types.iter());
+        }
         match &selected.shape {
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -2250,6 +2276,13 @@ pub mod borrowed_storage {
         Unknown,
     }
 
+    /// One step of a projection's captured address. Stripping runtime
+    /// coordinates for publication erases each runtime selector to a
+    /// coordinate-free step rather than forgetting the whole address, so a
+    /// returned view of one runtime element still names the storage after
+    /// that element (`cells[*].x`) instead of the whole array it lies in.
+    /// A forgotten public region has no address at all, which keeps the
+    /// two kinds of inexact bound apart.
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     enum AddressStep {
         Path(Vec<StructuralPathSegment>, Option<Position>),
@@ -2258,6 +2291,10 @@ pub mod borrowed_storage {
             end: ValueId,
             at: Position,
         },
+        /// A runtime element selector whose index was stripped.
+        ErasedElement,
+        /// A runtime window whose bounds were stripped.
+        ErasedWindow,
     }
 
     impl Projection {
@@ -2346,15 +2383,36 @@ pub mod borrowed_storage {
         }
 
         pub fn without_runtime_coordinates(mut self) -> Self {
-            if self.address.as_ref().is_some_and(|steps| {
-                steps.iter().any(|step| match step {
-                    AddressStep::Window { .. } => true,
-                    AddressStep::Path(path, _) => {
-                        path.iter().any(|segment| segment.runtime_index().is_some())
+            if let Some(steps) = self.address.take() {
+                let mut erased = Vec::with_capacity(steps.len());
+                for step in steps {
+                    match step {
+                        AddressStep::Window { .. } => erased.push(AddressStep::ErasedWindow),
+                        AddressStep::Path(path, _) => {
+                            let mut run = Vec::new();
+                            for segment in path {
+                                if segment.runtime_index().is_some() {
+                                    if !run.is_empty() {
+                                        erased.push(AddressStep::Path(
+                                            std::mem::take(&mut run),
+                                            None,
+                                        ));
+                                    }
+                                    erased.push(AddressStep::ErasedElement);
+                                } else {
+                                    run.push(segment);
+                                }
+                            }
+                            if !run.is_empty() {
+                                erased.push(AddressStep::Path(run, None));
+                            }
+                        }
+                        step @ (AddressStep::ErasedElement | AddressStep::ErasedWindow) => {
+                            erased.push(step)
+                        }
                     }
-                })
-            }) {
-                self.address = None;
+                }
+                self.address = Some(erased);
             }
             if let Some(position) = self
                 .path
@@ -2438,6 +2496,31 @@ pub mod borrowed_storage {
             &self,
             ordering: &ScalarOrdering,
         ) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
+            self.origin_path_with(|at, value| ordering.known_unsigned(at, value))
+        }
+
+        /// The coordinate-free origin of a projection whose runtime
+        /// coordinates were stripped: each erased element selector becomes
+        /// `Element`, and the storage named after it stays exact. `None` for
+        /// a projection with no erased coordinate, an unaddressed (forgotten)
+        /// region, or a stripped window not narrowed back to one element,
+        /// whose start is unknown.
+        pub fn stripped_origin_path(&self) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
+            if !self
+                .address
+                .as_ref()?
+                .iter()
+                .any(|step| matches!(step, AddressStep::ErasedElement | AddressStep::ErasedWindow))
+            {
+                return None;
+            }
+            self.origin_path_with(|_, _| None)
+        }
+
+        fn origin_path_with(
+            &self,
+            known_unsigned: impl Fn(Position, ValueId) -> Option<u64>,
+        ) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
             use terminal_psi::ReferenceOriginProjection::{Element, Exact};
             if self.indirect {
                 return None;
@@ -2454,7 +2537,12 @@ pub mod borrowed_storage {
             for step in self.address.as_ref()? {
                 match step {
                     AddressStep::Window { start, at, .. } => {
-                        append_offset(&mut offset, ordering.known_unsigned(*at, *start))?
+                        append_offset(&mut offset, known_unsigned(*at, *start))?
+                    }
+                    AddressStep::ErasedWindow => append_offset(&mut offset, None)?,
+                    AddressStep::ErasedElement => {
+                        offset = None;
+                        result.push(Element);
                     }
                     AddressStep::Path(path, at) => {
                         for segment in path {
@@ -2467,7 +2555,7 @@ pub mod borrowed_storage {
                                     let index = match segment {
                                         StructuralPathSegment::FixedIndex(index) => Some(*index),
                                         StructuralPathSegment::RuntimeIndex { index, .. } => {
-                                            ordering.known_unsigned((*at)?, *index)
+                                            known_unsigned((*at)?, *index)
                                         }
                                         _ => unreachable!(),
                                     };
@@ -2524,7 +2612,9 @@ pub mod borrowed_storage {
                         let work = prefix.iter().chain(suffix).try_fold(0usize, |used, step| {
                             used.checked_add(match step {
                                 AddressStep::Path(path, _) => path.len(),
-                                AddressStep::Window { .. } => 1,
+                                AddressStep::Window { .. }
+                                | AddressStep::ErasedElement
+                                | AddressStep::ErasedWindow => 1,
                             })
                         })?;
                         if work > 4096
@@ -2708,6 +2798,45 @@ pub mod borrowed_storage {
     mod tests {
         use super::*;
         use terminal_psi::TerminalIdentityIndex;
+
+        #[test]
+        fn a_stripped_element_selector_keeps_the_storage_after_it() {
+            use terminal_psi::ReferenceOriginProjection::{Element, Exact};
+            let cells = StructuralPathSegment::Field(TerminalIdentityIndex(7));
+            let x = StructuralPathSegment::Field(TerminalIdentityIndex(8));
+            let selector = StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(3).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            };
+            let selected = Projection::new(&[cells.clone(), selector, x.clone()])
+                .at((semantic_vocabulary::BlockId::new(1).unwrap(), 0));
+            let stripped = selected.clone().without_runtime_coordinates();
+            assert_eq!(stripped.path.as_slice(), std::slice::from_ref(&cells));
+            assert_eq!(
+                stripped.stripped_origin_path(),
+                Some(vec![Exact(cells.clone()), Element, Exact(x)])
+            );
+            assert_eq!(
+                stripped.clone().without_runtime_coordinates(),
+                stripped,
+                "stripping is idempotent"
+            );
+            let mut forgotten = selected;
+            forgotten.forget_address();
+            assert_eq!(forgotten.stripped_origin_path(), None);
+            let window = Projection::new(std::slice::from_ref(&cells))
+                .with_window(
+                    ValueId::new(1).unwrap(),
+                    ValueId::new(2).unwrap(),
+                    (semantic_vocabulary::BlockId::new(1).unwrap(), 0),
+                )
+                .without_runtime_coordinates();
+            assert_eq!(
+                window.stripped_origin_path(),
+                None,
+                "a stripped window has no known start"
+            );
+        }
 
         #[test]
         fn a_slice_keeps_its_input_field_but_not_a_later_field_or_index() {
@@ -4158,13 +4287,16 @@ pub(crate) mod storage_regions {
 }
 pub(crate) mod structural_locals {
 
-    use terminal_psi::{StructuralOperationResult, StructuralTypeDeclaration};
+    use terminal_psi::{
+        StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
 
     /// A vacant home holds nothing, so the memberships a record home
     /// declares grant nothing: they are the type of the value a later store
     /// must deliver, which the structural qualification judgment holds that
-    /// store to. A byte view keeps its narrower rule: whole-value byte
-    /// domains only.
+    /// store to. A reference home declares such memberships beneath its
+    /// referent. A byte view keeps its whole-value byte domains.
     pub fn validate_vacant_structural_local<'a>(
         declarations: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
         result: &StructuralOperationResult,
@@ -4184,13 +4316,23 @@ pub(crate) mod structural_locals {
         let byte_view = declaration.shape.is_borrowed_byte_view();
         let record = matches!(
             declaration.shape,
-            terminal_psi::StructuralTypeShape::Record { .. }
-                | terminal_psi::StructuralTypeShape::Sum { .. }
-                | terminal_psi::StructuralTypeShape::Mixed { .. }
+            StructuralTypeShape::Record { .. }
+                | StructuralTypeShape::Sum { .. }
+                | StructuralTypeShape::Mixed { .. }
         );
-        if (!result.projected_qualifications.is_empty() && !record)
-            || (!result.qualifications.is_empty() && !byte_view && !record)
-        {
+        let projected = &result.projected_qualifications;
+        let declares_contents = record
+            || match declaration.shape {
+                StructuralTypeShape::Reference { .. } => projected
+                    .iter()
+                    .all(|row| row.path.first() == Some(&StructuralPathSegment::Referent)),
+                StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::ElementView { .. } => {
+                    projected.iter().all(|row| row.is_element_membership())
+                }
+                _ => projected.is_empty(),
+            };
+        if !declares_contents || (!result.qualifications.is_empty() && !byte_view && !record) {
             return Err("vacant structural local has invalid declared qualifications");
         }
         Ok(())

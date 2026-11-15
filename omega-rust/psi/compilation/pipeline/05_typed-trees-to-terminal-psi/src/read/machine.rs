@@ -14,13 +14,13 @@ use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
-    ValueType,
+    Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
+    Termination, ValueType,
 };
 use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
@@ -273,11 +273,34 @@ impl<'t> Program<'t> {
             outcomes: Vec::with_capacity(self.subject_machines.len()),
             result_contracts: Vec::with_capacity(self.subject_machines.len()),
         };
+        let mut complete_subject = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
+            *complete_subject.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local subject without a machine"),
+                )
+            })? = true;
+        }
+        for (id, &symbol) in self.symbols.iter() {
             if boundary.get(id) == Some(&true) {
                 continue;
             }
-            let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let complete = complete_subject.get(id) == Some(&true);
+            let outcome_subject = match &self.outcome_subjects {
+                Some(subjects) if !complete => typed_trees::source_subjects::contains(
+                    self.typed,
+                    symbol,
+                    subjects,
+                    self.purpose,
+                )
+                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Declaration(reason)))?,
+                _ => complete,
+            };
+            if !outcome_subject {
+                continue;
+            }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
@@ -289,7 +312,7 @@ impl<'t> Program<'t> {
                 && crate::template_of(self.typed, symbol).is_none()
             {
                 local.outcomes.push(id);
-                if !machine.is_public {
+                if complete && !machine.is_public {
                     local.result_contracts.push(id);
                 }
             }
@@ -326,6 +349,18 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.refused_signatures.contains(&symbol) {
+            let mut refused = refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Machine("a call of a machine whose signature is refused above"),
+            );
+            refused.detail.push_str(&format!(
+                " (`{}`)",
+                self.typed.symbols.display_path(symbol, "::")
+            ));
+            return Err(refused);
+        }
         if self.type_purpose == super::storage_metadata::TypePurpose::StorageDescription {
             return Err(refuse(
                 self.next_identity()?,
@@ -486,8 +521,12 @@ impl<'t> Program<'t> {
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
         let widths = std::mem::replace(&mut self.width_scope, outer_widths);
-        let (signature, names, value_parameters) =
-            read.map_err(|refusal| self.read_failure_at(refusal, symbol, "the signature"))?;
+        let (signature, names, value_parameters) = read.map_err(|refusal| {
+            if self.collected.is_some() && !self.refused_signatures.contains(&symbol) {
+                self.refused_signatures.push(symbol);
+            }
+            self.read_failure_at(refusal, symbol, "the signature")
+        })?;
         self.admitted_declarations.include(symbol);
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
@@ -788,17 +827,24 @@ impl<'t> Program<'t> {
             return false;
         };
         if !membership.domain_symbol.is_valid()
-            || !membership.domain_arguments.is_empty()
             || !typed.expression_table.expression_is_valid(membership.value)
-            || typed
+        {
+            return false;
+        }
+        let identity = if membership.semantic_domain.is_valid() {
+            membership.semantic_domain
+        } else {
+            let Some(declaration) = typed
                 .domain_definition(membership.domain_symbol)
-                .is_none_or(|domain| {
-                    // An unapplied authored membership keeps its selected
-                    // symbol even when it has no interned instance ID. An
-                    // instance ID that is present must agree with that symbol.
-                    membership.semantic_domain != language_semantics::SemanticDomainId::NULL
-                        && domain.semantic_id != membership.semantic_domain
-                })
+                .filter(|declaration| typed.domain_type_parameters(declaration).is_empty())
+            else {
+                return false;
+            };
+            declaration.semantic_id
+        };
+        if typed
+            .domain_arguments_for_instance(membership.domain_symbol, identity)
+            .is_none()
         {
             return false;
         }
@@ -834,7 +880,7 @@ impl<'t> Program<'t> {
                             matches!(constraint, TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
                                 && domain.symbol == membership.domain_symbol
-                                && domain.arguments.is_empty())
+                                && domain.semantic_id == identity)
                         })
                     {
                         return true;
@@ -1034,16 +1080,16 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        // A written `reaches` ceiling is read with the signature
-        // (`reach_ceiling`). A ceiling bound by an installation is an
-        // abstract row with no concrete services to compare.
-        if machine.service_reach_is_installation_bound
+        if (machine.service_reach_is_installation_bound
             || self
                 .typed
                 .service_reach_rows
-                .is_abstract(machine.service_reach_row)
+                .is_abstract(machine.service_reach_row))
+            && self.conformer_requirement(id, machine)?.is_none()
         {
-            return unserved("service reach bound by an installation");
+            return unserved(
+                "service reach bound by an installation without a boundary requirement",
+            );
         }
         // A lifetime parameter selects no type, layout or monomorphized
         // copy (lifetimes.md: "Lifetime arguments are erased regions,
@@ -1467,7 +1513,7 @@ impl<'t> Program<'t> {
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
-        signature.reaches = self.reach_ceiling(id, machine.symbol)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
         signature.invokes = self.entry_ceiling(
             id,
             self.typed.machine_invokes(machine),
@@ -1485,6 +1531,10 @@ impl<'t> Program<'t> {
             .and_then(|template| self.typed.machine_by_symbol(template))
             .unwrap_or(machine);
         names.machine = authored.name.as_str().to_owned();
+        names.declared = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(authored.symbol);
         names.state = state.name.as_str().to_owned();
         if matches!(reading, Reading::Closed | Reading::Provider)
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
@@ -1904,11 +1954,85 @@ impl<'t> Program<'t> {
     pub(super) fn requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
         Ok((signature, names))
+    }
+
+    /// Core's authenticated numeric catalog supplies its exact pure contract.
+    /// The receiver independently checks this same contract and all declared
+    /// source coordinates; selecting it here grants no target realization.
+    pub(super) fn numeric_primitive_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Signature> {
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        if self.typed.symbols.sealed_intrinsic(target)
+            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            return Err(unavailable(
+                "numeric primitive has no exact catalog custody",
+            ));
+        }
+        let requirement =
+            typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
+                self.typed, target,
+            )
+            .ok_or_else(|| unavailable("numeric primitive has no complete declaration"))?;
+        let meaning = self
+            .typed
+            .numeric_intrinsic_execution(target)
+            .ok_or_else(|| unavailable("numeric primitive has no closed semantic meaning"))?;
+        let ensures =
+            terminal_semantics::numeric_primitives::ensures(meaning).map_err(unavailable)?;
+        let parameters = requirement
+            .parameters
+            .iter()
+            .map(|formal| {
+                let (value_type, erased, borrowed) = self.formal(id, formal, None)?;
+                if erased || borrowed.is_some() || formal.is_const || formal.is_mutable {
+                    return Err(unavailable("numeric primitive has a noncanonical formal"));
+                }
+                Ok(value_type)
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        let result = self.result_type(id, requirement.return_type)?;
+        let expected = meaning
+            .signature()
+            .ok_or_else(|| unavailable("numeric primitive has no scalar signature"))?;
+        let expected_operand = expected
+            .operand
+            .scalar_type()
+            .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
+        let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
+            .map_err(unavailable)?;
+        if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
+            || result != Some(ValueType::plain(expected_result))
+        {
+            return Err(unavailable(
+                "numeric primitive differs from its canonical scalar signature",
+            ));
+        }
+        Ok(Signature {
+            operational: crate::body::OperationalCeilings {
+                suspension: Some(false),
+                blocking: Some(false),
+            },
+            parameters,
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result,
+            requires: Vec::new(),
+            ensures,
+            crashes: CrashCeiling::DeclaredNone,
+            reaches: crate::Ceiling::Authored(Vec::new()),
+            invokes: crate::Ceiling::Authored(Vec::new()),
+            termination: Termination::Promised,
+            ranking: None,
+        })
     }
 
     /// Read the types, logical clauses and ceilings of a requirement.
@@ -1918,7 +2042,7 @@ impl<'t> Program<'t> {
     pub(super) fn declared_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         self.callable_signature(
@@ -2073,7 +2197,7 @@ impl<'t> Program<'t> {
     fn applied_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         self.callable_signature(
@@ -2251,6 +2375,10 @@ impl<'t> Program<'t> {
             &bound,
         )?;
         names.machine = requirement.name.as_str().to_owned();
+        names.declared = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(requirement.symbol);
         Ok((signature, names))
     }
 
@@ -2593,7 +2721,11 @@ impl<'t> Program<'t> {
             .typed
             .closed_requirement_application(owner)
             .map_or(owner, |closed| closed.template);
-        let reaches = self.reach_ceiling(id, reach_author)?;
+        let reaches = self.reach_ceiling(
+            id,
+            reach_author,
+            matches!(declared, Declarer::Requirement { .. }),
+        )?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -2803,6 +2935,41 @@ impl<'t> Program<'t> {
         Ok(nothing)
     }
 
+    /// A slice formal carries its borrowed descriptor. A loan of a stored
+    /// value uses the referent's carrier. The executable signature and calling
+    /// ABI use this same choice when they read the formal's type.
+    pub(super) fn borrowed_formal_carrier(
+        &self,
+        reference: TypeReferenceHandle,
+        referee: TypeReferenceHandle,
+    ) -> (TypeReferenceHandle, BorrowedReferent) {
+        let types = &self.typed.type_reference_table;
+        if types.contains_type_reference(referee)
+            && matches!(
+                types.type_reference(referee),
+                TypeReferenceNode::Slice { .. }
+            )
+        {
+            (reference, BorrowedReferent::Slice)
+        } else {
+            (referee, BorrowedReferent::Value)
+        }
+    }
+
+    pub(super) fn formal_value_type(
+        &mut self,
+        machine: MachineId,
+        carrier: TypeReferenceHandle,
+        referent: BorrowedReferent,
+    ) -> Checked<ValueType> {
+        if referent == BorrowedReferent::Slice
+            && let Some(value) = self.view_type_with_formal_access(machine, carrier, true)?
+        {
+            return Ok(value);
+        }
+        self.value_type(machine, carrier)
+    }
+
     /// A formal's type, whether it is `[erased]`, and the reference it is
     /// passed by. An erased formal is scalar: an erased record travels in
     /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
@@ -2892,20 +3059,11 @@ impl<'t> Program<'t> {
         if erased {
             return unserved("erased reference parameter");
         }
-        // A byte view keeps the region it names in its type (`bytes`). A
-        // reference to anything else is a loan of one place, and what its
-        // lifetime relates it to has no reader yet.
-        // Domains retain the slice carrier. The full qualified formal still
-        // goes through value_type below, where its domains and region are read.
-        let table = &self.typed.type_reference_table;
-        let is_view = matches!(
-            table.type_reference(table.unconstrained_type_reference(referee)),
-            TypeReferenceNode::Slice { .. }
-        );
+        let (carrier, referent) = self.borrowed_formal_carrier(formal.type_reference, referee);
         // Retain the outer loan itself, independently of nested views in
         // its referent. A returned reference cannot borrow only a pointer
         // word or substitute a referent's nested lifetime for this one.
-        let ordinary_region = if is_view {
+        let ordinary_region = if referent == BorrowedReferent::Slice {
             None
         } else {
             let identity = self
@@ -2930,11 +3088,7 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = if is_view {
-            self.value_type(id, formal.type_reference)?
-        } else {
-            self.value_type(id, referee)?
-        };
+        let value_type = self.formal_value_type(id, carrier, referent)?;
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require
@@ -2979,11 +3133,7 @@ impl<'t> Program<'t> {
             Some(crate::body::Borrowed {
                 position: 0,
                 access,
-                referent: if is_view {
-                    crate::body::BorrowedReferent::Slice
-                } else {
-                    crate::body::BorrowedReferent::Value
-                },
+                referent,
                 regions,
                 home,
             }),
@@ -3009,7 +3159,11 @@ impl<'t> Program<'t> {
     }
 
     // The outer caller may only receive a refusal, without the partial machine
-    // roster. Keep the actual declaration here, where its identity is known.
+    // roster. Keep the actual declaration here, where its identity is known:
+    // its name, and its position when the refused construct has none of its
+    // own, so the diagnostic leads to the file, line and column even inside
+    // a dependency. The innermost declaration read places the refusal; an
+    // outer one only adds its name.
     fn read_failure_at(
         &self,
         mut refusal: terminal_check_tables::Refusal,
@@ -3020,6 +3174,13 @@ impl<'t> Program<'t> {
             " while reading {part} of `{}`",
             self.typed.symbols.display_path(declaration, "::")
         ));
+        if refusal.source_span.is_none() {
+            refusal.source_span = self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(declaration)
+                .filter(|span| *span != source::SourceSpan::default());
+        }
         refusal
     }
 
@@ -3175,11 +3336,23 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    let called = self.call_statement_at(id, &slots, handle)?;
-                    if !call.discards_result {
-                        undiscarded(id, &called)?;
+                    let called = self.call_statement_at(
+                        id,
+                        &slots,
+                        state
+                            .statement_nodes
+                            .handle_at(u32::try_from(position).map_err(|_| {
+                                refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Statement("statement coordinate overflows"),
+                                )
+                            })?),
+                    )?;
+                    Statement::Evaluate {
+                        expression: called,
+                        discards_result: call.discards_result,
                     }
-                    Statement::Evaluate(called)
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
@@ -3211,10 +3384,10 @@ impl<'t> Program<'t> {
                                 target: Target::Value(expression),
                             }
                         }
-                        (false, _) | (true, None) => {
-                            undiscarded(id, &expression)?;
-                            Statement::Evaluate(expression)
-                        }
+                        (false, _) | (true, None) => Statement::Evaluate {
+                            expression,
+                            discards_result: false,
+                        },
                     }
                 }
                 StatementNode::LocalData(local)
@@ -3225,6 +3398,16 @@ impl<'t> Program<'t> {
                     self.record_pattern(id, &slots, local)?;
                     position += 1;
                     continue;
+                }
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
+                {
+                    let (slot, statement) =
+                        self.atomic_binding(id, &slots, local, statements.get(position + 1))?;
+                    slots.push(slot);
+                    slot_names.push(local.name.as_str().to_owned());
+                    position += 1;
+                    statement
                 }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
@@ -3281,13 +3464,6 @@ impl<'t> Program<'t> {
             };
             body.push(read);
             position += 1;
-        }
-        if !completed && signature.result.is_some() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Completion("value machine can fall off its end"),
-            ));
         }
         if let Some(names) = self.names.get_mut(id) {
             for statement in &body {
@@ -3490,7 +3666,7 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
-        | Statement::Evaluate(_) => {}
+        | Statement::Evaluate { .. } => {}
     }
 }
 
@@ -3510,7 +3686,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Witness { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
-        | Statement::Evaluate(_) => Vec::new(),
+        | Statement::Evaluate { .. } => Vec::new(),
     };
     for (target, arm) in arms {
         let (Target::Value(value), Some(arm)) = (target, arm.span()) else {
@@ -3540,8 +3716,15 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
+                spans(operand, binder, out);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_)
@@ -3551,7 +3734,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(element, binder, out);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
@@ -3710,7 +3893,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
             expression_slot_uses(destination, uses);
             expression_slot_uses(value, uses);
         }
-        Statement::Evaluate(value) => expression_slot_uses(value, uses),
+        Statement::Evaluate {
+            expression: value, ..
+        } => expression_slot_uses(value, uses),
         // Counted although nothing evaluates it: a type parameter's value is
         // never an erased term, so counting it can only refuse more.
         Statement::Witness { term, .. } => expression_slot_uses(term, uses),
@@ -3737,6 +3922,11 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
 
 fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
     match &expression.kind {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
+                expression_slot_uses(operand, uses);
+            }
+        }
         ExpressionKind::Slot(slot) => {
             if let Some(count) = uses.get_mut(*slot) {
                 *count += 1;
@@ -3744,6 +3934,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_) => {}
@@ -3752,7 +3944,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(element, uses);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
@@ -3815,20 +4007,4 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             }
         }
     }
-}
-
-/// A statement evaluated for effect leaves no value behind. One that has a
-/// value and is not the machine's final value is a defect the route hands
-/// back, never a statement it reads past. `wiki/spec/language/effects.md`:
-/// "A non-Unit call result cannot be silently discarded. Intentional discard
-/// is `_ = call();`".
-fn undiscarded(id: MachineId, statement: &Expression) -> Checked<()> {
-    if statement.result.is_some() {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Statement("expression statement that discards its value"),
-        ));
-    }
-    Ok(())
 }

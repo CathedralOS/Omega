@@ -231,7 +231,7 @@ machine wrong(builder: &Build) {
 /// to be taken out of it.
 #[test]
 fn storing_or_returning_the_lent_build_is_not_accepted() {
-    refused_with(
+    rejected_with(
         "stored",
         "data Kept<'storage> {
     build: Build<'storage>;
@@ -240,14 +240,14 @@ machine wrong(builder: &mut Build) {
     let kept: Kept = Kept { build: builder };
 }
 ",
-        "owned extraction from borrowed storage",
+        "an owned value was moved out of borrowed storage, and the place does not hold a value again",
     );
     // The result states the lent value's region, so it is the extraction
     // itself, not an unrelated region, that is refused.
-    refused_with(
+    rejected_with(
         "returned",
         "machine wrong<'storage>(builder: &mut Build<'storage>) -> Build<'storage> {\n    builder\n}\n",
-        "owned extraction from borrowed storage",
+        "an owned value was moved out of borrowed storage, and the place does not hold a value again",
     );
 }
 
@@ -423,6 +423,49 @@ machine helper(builder: &mut Build) -> bool {{
     rejected_with(
         "bind-during-observation",
         &helper("Build::bind(builder, linux_arm64::ProgramEntry, main); observe(view)"),
+        "conflicting loans",
+    );
+}
+
+#[test]
+fn an_explicit_exclusive_argument_to_a_shared_formal_requires_the_cohort_to_end() {
+    let helper = |operations: &str| {
+        format!(
+            "machine observe(builder: &Build) -> bool {{ builder.freestanding }}
+machine observe_both(left: &Build, right: &Build) -> bool {{ left.freestanding && right.freestanding }}
+machine helper(builder: &mut Build) -> bool {{
+    let view: &Build = builder;
+    {operations}
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals(
+            "ordinary-exclusive-after-cohort",
+            &helper(
+                "let observed: bool = observe(view); let exclusive: bool = observe(&mut builder); observed && exclusive"
+            ),
+        ),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals(
+            "ordinary-shared-during-cohort",
+            &helper("let shared: bool = observe(builder); observe(view) && shared"),
+        ),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "ordinary-exclusive-during-cohort",
+        &helper("let exclusive: bool = observe(&mut builder); observe(view) && exclusive"),
+        "conflicting loans",
+    );
+    rejected_with(
+        "ordinary-exclusive-beside-shared",
+        &helper(
+            "let observed: bool = observe(view); observe_both(&mut builder, builder) && observed",
+        ),
         "conflicting loans",
     );
 }

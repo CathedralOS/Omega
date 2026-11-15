@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Rule 30 elementary cellular automaton -- evolves a 31-cell row packed into
 // one 64-bit word for 16 generations from a single centre seed and streams
 // each generation as a '#'/space line through Console::write_byte. The whole
@@ -21,7 +22,7 @@ requires self.g >= 0 && self.g <= 16,
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
     main.cells = 0x8000; // single live cell in the centre (bit 15)
     main.g = 0;
@@ -79,12 +80,12 @@ machine Main::main(main: &mut Main) reaches Console {
     machine finish(main: &mut Main) {
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

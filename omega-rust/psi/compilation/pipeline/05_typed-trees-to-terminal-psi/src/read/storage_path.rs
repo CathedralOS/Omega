@@ -30,14 +30,17 @@ pub(super) fn walk<'a, E>(
                 Some(subject) => place = subject,
                 None => return Ok(place),
             },
-            ExpressionKind::Slot(_)
+            ExpressionKind::Atomic(_)
+            | ExpressionKind::Slot(_)
             | ExpressionKind::Borrow { .. }
             | ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
+            | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::ByteSubslice { .. }
+            | ExpressionKind::CollectionSubslice { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Array { .. }

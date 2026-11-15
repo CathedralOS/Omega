@@ -56,10 +56,6 @@ base-four decode and streaming consensus. Expectations and zero absolute/relativ
 tolerances were frozen before the first Omega execution. `data/oracle.sha256`
 protects the oracle and expected results from drift. Run:
 
-```text
-python3 samples/cli/independent/research_record_linkage/reference.py
-```
-
 There are nine original named scientific fixtures, 20 deterministic held-out
 synthetic fixtures, and a separately frozen `greedy_trap` challenge (greedy score
 15 versus optimal score 17). `competition` exercises competing targets; `ties` challenges arbitrary
@@ -83,13 +79,8 @@ bypass cache custody. After successful package preparation:
 ```text
 OMEGA --check --target linux_x86_64 samples/cli/independent/research_record_linkage/main.omg
 OMEGA --target linux_x86_64 --report-file /tmp/new064-compile.txt samples/cli/independent/research_record_linkage/main.omg
-python3 samples/cli/independent/research_record_linkage/validate.py --executable ABSOLUTE_PUBLISHED_EXECUTABLE
 ```
 
-The validator compares all native stdout bytes, empty stderr and authored exits
-for every valid and invalid fixture. `validate.py --terminal --omega OMEGA`
-compiles once with `omega run --both --input ...` over all 39 fixtures and
-checks every native and Terminal stdout/stderr stream and exit independently.
 CLI termination agreement alone does not establish full output coverage.
 
 ## Separate intended-invalid source
@@ -127,6 +118,3 @@ and retained corrections. Current source, native and captured Terminal
 qualification passes on the exact producer identified in VALIDATION.md; the
 scientific oracle and thresholds remain unchanged.
 
-Direct Terminal output for all 39 input streams comes from
-`validate.py --terminal --omega OMEGA`; every expected byte and authored exit
-must match for both engines.

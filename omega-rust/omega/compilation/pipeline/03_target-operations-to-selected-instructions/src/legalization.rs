@@ -11,7 +11,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v61",
+            b"omega.terminal-target-legalization-independent-replay.v69",
         )
     }
 
@@ -107,6 +107,11 @@ pub(crate) mod model {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LegalizationError {
+        InstructionMetadata {
+            machine: Option<semantic_vocabulary::MachineId>,
+            operation: Option<semantic_vocabulary::OperationId>,
+            reason: &'static str,
+        },
         CallableValueProvenance {
             reason: &'static str,
         },
@@ -182,6 +187,14 @@ pub(crate) mod model {
     impl std::error::Error for LegalizationError {}
 
     impl LegalizationError {
+        pub(crate) fn instruction_metadata(reason: &'static str) -> Self {
+            Self::InstructionMetadata {
+                machine: None,
+                operation: None,
+                reason,
+            }
+        }
+
         #[track_caller]
         pub fn custody() -> Self {
             Self::SourceCustodyMismatch {
@@ -197,6 +210,15 @@ pub(crate) mod model {
             operation: Option<semantic_vocabulary::OperationId>,
         ) -> Self {
             match self {
+                Self::InstructionMetadata {
+                    machine: None,
+                    operation: reported,
+                    reason,
+                } => Self::InstructionMetadata {
+                    machine: Some(machine),
+                    operation: reported.or(operation),
+                    reason,
+                },
                 Self::SourceCustodyMismatch {
                     machine: None,
                     operation: None,
@@ -232,7 +254,7 @@ pub(crate) mod obligations {
     pub(crate) fn facts<'unit>(
         unit: &'unit PsiOptimizationUnit,
         optimized: &PsiOptimizationFunction,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: ObligationId,
     ) -> impl Iterator<Item = &'unit optimization_unit::AcceptedObligationFact> {
         matching_fact(
@@ -247,7 +269,7 @@ pub(crate) mod obligations {
     pub(crate) fn accepted_fact(
         unit: &PsiOptimizationUnit,
         optimized: &PsiOptimizationFunction,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: ObligationId,
     ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
         retained_fact(
@@ -261,7 +283,7 @@ pub(crate) mod obligations {
     pub(crate) fn retained_fact(
         facts: &[optimization_unit::AcceptedObligationFact],
         machine: semantic_vocabulary::MachineId,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         obligation: ObligationId,
     ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
         matching_fact(facts, machine, owner.into(), obligation)
@@ -272,10 +294,9 @@ pub(crate) mod obligations {
     fn matching_fact(
         facts: &[optimization_unit::AcceptedObligationFact],
         machine: semantic_vocabulary::MachineId,
-        owner: optimization_unit::PsiProvenance,
+        owner: optimization_unit::AcceptedObligationOwner,
         obligation: ObligationId,
     ) -> Option<&optimization_unit::AcceptedObligationFact> {
-        let owner = optimization_unit::AcceptedObligationOwner::from(owner);
         // Attachment sorts these exact keys and admission rejects duplicates or
         // disorder. Borrow that index; don't scan or build another per-query one.
         facts
@@ -299,23 +320,22 @@ pub(crate) mod obligations {
     }
 }
 pub(crate) mod runtime_indices {
-    use super::scalar_graph_input::primitive_locals::read_root_type;
     use crate::LegalizationError;
     use crate::legalization::accepted_fact;
     use crate::structural_inputs::structural_reference_input::RuntimeElement;
     use crate::structural_inputs::structural_reference_input::{
-        collection_projection, reference_formation_geometry, runtime_projection_elements,
+        reference_formation_geometry, runtime_projection_elements,
     };
     use legalized_operations::LegalizedRuntimeIndexOperand;
     use optimization_unit::PsiOptimizationFunction;
-    use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
+    use semantic_vocabulary::{ScalarType, StructuralTypeId, ValueId};
 
     /// Resolve retained proof keys against the admitted catalog, without reading
     /// an earlier function body or recomputing its structural projection.
     pub(crate) fn retained_operands(
         facts: &[optimization_unit::AcceptedObligationFact],
         machine: semantic_vocabulary::MachineId,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         indices: &[target_operations::TargetStructuralRuntimeIndex],
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
         let owner = owner.into();
@@ -341,7 +361,7 @@ pub(crate) mod runtime_indices {
     pub(crate) fn operands(
         optimized: &PsiOptimizationFunction,
         unit: &crate::native_geometry::NativeUnit<'_>,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         elements: &[RuntimeElement],
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
         let owner = owner.into();
@@ -388,7 +408,7 @@ pub(crate) mod runtime_indices {
     pub(crate) fn projection(
         optimized: &PsiOptimizationFunction,
         unit: &crate::native_geometry::NativeUnit<'_>,
-        owner: impl Into<optimization_unit::PsiProvenance>,
+        owner: impl Into<optimization_unit::AcceptedObligationOwner>,
         root: StructuralTypeId,
         path: &[terminal_psi::StructuralPathSegment],
         declarations: &crate::native_geometry::NativeGeometry<'_>,
@@ -412,30 +432,6 @@ pub(crate) mod runtime_indices {
         operands(optimized, unit, owner, &elements)
     }
 
-    pub(crate) fn collection_view(
-        optimized: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: OperationId,
-        source: &terminal_psi::StructuralArgument,
-    ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
-        if !source
-            .path
-            .iter()
-            .any(|segment| segment.runtime_index().is_some())
-        {
-            return Ok(Vec::new());
-        }
-        let root = read_root_type(optimized, source.place).ok_or(LegalizationError::custody())?;
-        let path = match source.path.last() {
-            Some(terminal_psi::StructuralPathSegment::FixedRange { .. }) => {
-                &source.path[..source.path.len() - 1]
-            }
-            _ => &source.path,
-        };
-        let (_, _, elements) = collection_projection(root, path, unit.geometry())
-            .ok_or(LegalizationError::custody())?;
-        operands(optimized, unit, operation, &elements)
-    }
     #[cfg(test)]
     mod retained_tests {
         use super::retained_operands;
@@ -542,7 +538,7 @@ pub(crate) use source::derive_source_function_rosters;
 #[cfg(test)]
 pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
+    _abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
     callable_roots: &terminal_semantics::callable_values::CallableInvocationRoots,
@@ -550,61 +546,52 @@ pub(crate) fn legalize_target_operations(
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    legalize_target_operations_with_types(
+    let callable_invocations = crate::PreparedCallableInvocations::new(unit, callable_roots)
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
+    legalize_retained_target_operations(
         target,
-        abstract_plan,
-        unit,
+        crate::TargetSelectionEvidence {
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            accepted_obligation_facts: &unit.accepted_obligation_facts,
+            ownership_frontier_facts: &unit.ownership_frontier_facts,
+        },
         origins,
-        callable_roots,
+        &callable_invocations,
         installed_interrupts,
         installed_entry_execution,
         installed_stack_requirements,
-        None,
     )
 }
 
-pub(crate) fn legalize_target_operations_with_types(
+pub(crate) fn legalize_retained_target_operations(
     target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
+    evidence: crate::TargetSelectionEvidence<'_>,
     origins: target_operations::BoundaryOriginFacts<'_>,
-    callable_roots: &terminal_semantics::callable_values::CallableInvocationRoots,
+    callable_invocations: &crate::PreparedCallableInvocations,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    crate::installed_interrupts::validate_target(
-        target,
-        origins.module,
-        installed_interrupts,
-        abstract_plan,
-    )?;
+    crate::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
     validate_boundary_origins(target, origins)?;
-    let rosters = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
+    let rosters = source::derive_target_function_rosters(target, evidence)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
-        optimization_unit: unit.identity,
-        work_schedule: unit.work_schedule,
+        optimization_unit: evidence.optimization_unit,
+        work_schedule: evidence.work_schedule,
         target: target.target,
         profile: target.profile,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
     };
-    let program = optimization_unit_semantics::callable_values::optimized_callable_values(unit)
-        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
-    let callable_invocations =
-        terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
-            &program,
-            [target.entry],
-            callable_roots,
-        )
+    let callable_invocations = callable_invocations
+        .for_target(target, evidence)
         .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
     Ok(seal(
         target,
-        unit,
         plan,
-        std::sync::Arc::new(callable_invocations),
+        callable_invocations,
         installed_interrupts,
         installed_entry_execution,
         installed_stack_requirements,
@@ -613,7 +600,6 @@ pub(crate) fn legalize_target_operations_with_types(
 
 pub(crate) fn seal(
     target: &TargetOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
     plan: LegalizedOperationPlan,
     callable_invocations: std::sync::Arc<
         terminal_semantics::callable_values::ReachableCallableInvocations,
@@ -625,8 +611,8 @@ pub(crate) fn seal(
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),
-        optimization_unit: unit.identity,
-        work_schedule: unit.work_schedule,
+        optimization_unit: plan.optimization_unit,
+        work_schedule: plan.work_schedule,
         target: target.target,
         function_count: plan.scalar_functions.len(),
     };
@@ -744,6 +730,19 @@ pub(crate) fn audit_target_operation_plan(
         )
         .map_err(|error| error.attributed(function.machine, None))?;
     }
+    let expected = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
+    let retained = source::derive_target_function_rosters(
+        target,
+        crate::TargetSelectionEvidence {
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            accepted_obligation_facts: &unit.accepted_obligation_facts,
+            ownership_frontier_facts: &unit.ownership_frontier_facts,
+        },
+    )?;
+    if expected.scalar_functions != retained.scalar_functions {
+        return Err(LegalizationError::custody());
+    }
     Ok(())
 }
 
@@ -765,7 +764,7 @@ pub(crate) fn validate_call_descriptor_origins(
             .graph
             .blocks
             .iter()
-            .flat_map(|block| &block.operations)
+            .flat_map(|block| block.operations())
         {
             if let target_operations::TargetUnitOperation::Call {
                 result:

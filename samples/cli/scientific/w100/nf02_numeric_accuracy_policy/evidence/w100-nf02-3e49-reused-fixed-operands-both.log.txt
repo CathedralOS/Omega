@@ -1,3 +1,0 @@
-native compile FAILED:
-  error: cannot compile accepted package inputs: checked compilation failed for package `reused_fixed_integer_operands_exit` with 1 diagnostic(s)
-  error: target root slot `linux_x86_64::ProgramEntry` takes boundary schema `LinuxX86_64Application` from a dependency's `targets/linux_x86_64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it

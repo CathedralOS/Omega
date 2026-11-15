@@ -80,6 +80,8 @@ impl DynamicElfNativeArtifact {
             final_image_symbol_digest,
             &parts.selected_provider_plans,
             &parts.provider_executions,
+            &parts.native_bindings,
+            &parts.native_calling,
             parts.boundary_application_coverage.as_ref(),
         )
     }
@@ -156,6 +158,8 @@ impl DynamicElfNativeArtifact {
             self.parts.object.foreign_calls(),
             &self.parts.selected_provider_plans,
             &self.parts.provider_executions,
+            &self.parts.native_bindings,
+            &self.parts.native_calling,
         )
         .map_err(super::provider_execution::ProviderExecutionReplayError::dynamic_message)?;
         let final_image_symbol_digest =

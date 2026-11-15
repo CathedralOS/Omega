@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Integer RPN (reverse-Polish notation) calculator over a fixed-capacity stack.
 //
 // Stack: [i32 in Saturating; 4], growing from index 0. `sp` is the next free index (0=empty).
@@ -39,13 +40,13 @@ data Main {
 // push(value): write value at slots[sp], then sp++.
 // Dispatches on sp so we can use const-indexed writes.
 // ---------------------------------------------------------------------------
-machine Main::push(main: &mut Main, value: i32 in Saturating) {
+machine push(main: &mut Main, value: i32 in Saturating) {
     let s: i32 in Saturating = main.stack.sp;
     main.stack.sp = s + 1;
-    Main::write_slot(main, s, value);
+    write_slot(main, s, value);
 }
 
-machine Main::write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
+machine write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in Saturating) {
     transition idx == 0 {
         true -> w0(main, value)
         _ -> try_w1(main, idx, value)
@@ -77,7 +78,7 @@ machine Main::write_slot(main: &mut Main, idx: i32 in Saturating, value: i32 in 
 // pop_result(): extract the single remaining value into main.stack.result.
 // Only called when sp == 1 (one element on the stack).
 // ---------------------------------------------------------------------------
-machine Main::pop_result(main: &mut Main) {
+machine pop_result(main: &mut Main) {
     main.stack.result = main.stack.slots[0];
     main.stack.sp = 0;
 }
@@ -90,7 +91,7 @@ machine Main::pop_result(main: &mut Main) {
 // reads and the push computation. For this sample sp is always 2 when
 // add/sub/mul is called, so only the sp==2 arm fires.
 // ---------------------------------------------------------------------------
-machine Main::add(main: &mut Main) {
+machine add(main: &mut Main) {
     transition main.stack.sp == 2 {
         true -> add_sp2(main)
         _ -> done(main)
@@ -109,7 +110,7 @@ machine Main::add(main: &mut Main) {
 // ---------------------------------------------------------------------------
 // sub(): a - b where a = slots[sp-2], b = slots[sp-1].
 // ---------------------------------------------------------------------------
-machine Main::sub(main: &mut Main) {
+machine sub(main: &mut Main) {
     transition main.stack.sp == 2 {
         true -> sub_sp2(main)
         _ -> done(main)
@@ -128,7 +129,7 @@ machine Main::sub(main: &mut Main) {
 // ---------------------------------------------------------------------------
 // mul(): a * b where a = slots[sp-2], b = slots[sp-1].
 // ---------------------------------------------------------------------------
-machine Main::mul(main: &mut Main) {
+machine mul(main: &mut Main) {
     transition main.stack.sp == 2 {
         true -> mul_sp2(main)
         _ -> done(main)
@@ -147,20 +148,20 @@ machine Main::mul(main: &mut Main) {
 // ---------------------------------------------------------------------------
 // main: evaluate "32 4 + 2 * 2 -" = 70.
 // ---------------------------------------------------------------------------
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
-    Main::push(main, 32);
-    Main::push(main, 4);
-    Main::add(main);       // stack: [36], sp=1
+    push(main, 32);
+    push(main, 4);
+    add(main);       // stack: [36], sp=1
 
-    Main::push(main, 2);
-    Main::mul(main);       // stack: [72], sp=1
+    push(main, 2);
+    mul(main);       // stack: [72], sp=1
 
-    Main::push(main, 2);
-    Main::sub(main);       // stack: [70], sp=1
+    push(main, 2);
+    sub(main);       // stack: [70], sp=1
 
     // Extract result from slot 0.
-    Main::pop_result(main);
+    pop_result(main);
 
     // Verify the result is 70.
     transition main.stack.result == 70 {
@@ -178,27 +179,27 @@ machine Main::main(main: &mut Main) reaches Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: (32+4)*2-2 == 70 and the stack drained to empty (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(70);
     }
 
     machine bad_result(main: &mut Main) {
         Console::write_line("FAIL: RPN result != 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(71);
     }
 
     machine bad_sp(main: &mut Main) {
         Console::write_line("FAIL: stack pointer != 0 after pop_result (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(72);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

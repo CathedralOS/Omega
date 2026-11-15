@@ -1,9 +1,9 @@
-//! Finite scalar origin equations with explicit invocation and return custody.
+//! Where each scalar's value comes from, with calls and returns as explicit edges.
 //!
-//! Recursive calls remain graph edges. In particular, this graph does not erase
-//! a call/return pair, select one incoming source, or claim that a cyclic formal
-//! has a producing event. The lifetime replay must match those edges in an
-//! activation and discharge the native success/argument obligations separately.
+//! Recursive calls stay graph edges: the graph never drops a call/return pair,
+//! picks one incoming source, or claims a cyclic parameter has a producing
+//! event. The lifetime replay must match those edges in an activation and
+//! check native success and argument obligations separately.
 
 use std::collections::BTreeMap;
 

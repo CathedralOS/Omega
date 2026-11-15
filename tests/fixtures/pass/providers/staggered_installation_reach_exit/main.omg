@@ -1,13 +1,13 @@
 // Expected exit: 0
-boundary trait X { machine touch(value: &mut u32) reaches X; }
-boundary trait Y { machine touch(value: &mut u32) reaches Y; }
+boundary trait X { machine touch(value: &mut u32) reaches X crashes none; }
+boundary trait Y { machine touch(value: &mut u32) reaches Y crashes none; }
 XProvider satisfies X { machine touch(value: &mut u32) { value = 11; } }
 YProvider satisfies Y { machine touch(value: &mut u32) { value = 22; } }
 
-boundary trait A { machine visit(first: &mut u32, second: &mut u32) reaches <= X + Y; }
-boundary trait B { machine visit(value: &mut u32) reaches <= X + Y; }
-boundary trait C { machine visit(value: &mut u32) reaches <= X + Y; }
-boundary trait D { machine visit(value: &mut u32) reaches <= X + Y; }
+boundary trait A { machine visit(first: &mut u32, second: &mut u32) reaches <= X + Y crashes none; }
+boundary trait B { machine visit(value: &mut u32) reaches <= X + Y crashes none; }
+boundary trait C { machine visit(value: &mut u32) reaches <= X + Y crashes none; }
+boundary trait D { machine visit(value: &mut u32) reaches <= X + Y crashes none; }
 
 AProvider satisfies A {
     machine visit(first: &mut u32, second: &mut u32) { B::visit(first); C::visit(second); }

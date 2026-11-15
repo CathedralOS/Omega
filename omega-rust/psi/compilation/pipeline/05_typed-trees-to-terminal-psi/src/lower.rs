@@ -86,7 +86,7 @@ use self::places::{Bound, Records, Witness};
 use crate::body::{Body, Signature, Signatures, Statement, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
-use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse};
+use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject};
 
 #[derive(Debug)]
 pub(crate) struct Lowered {
@@ -174,7 +174,7 @@ pub(crate) fn machine(
     if component.is_empty() {
         // Even an acyclic body must prove formation of its authored measure.
         lowering.begin_ranking(id)?;
-        lowering.body(body)?;
+        lowering.body(id, body)?;
     } else {
         lowering.component(id, bodies, component, &formals)?;
     }
@@ -353,6 +353,7 @@ fn contract_header(
         parameter_order: formals.order,
         structural_parameters: formals.records,
         result,
+        result_lifetimes: None,
         declared_service_reach: match &signature.reaches {
             crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
             crate::Ceiling::Inferred => None,
@@ -491,6 +492,7 @@ impl<'a> Lowering<'a> {
             slots: vec![None; slot_types.len()],
             selected: Vec::new(),
             slot_types,
+            lender_homes: &[],
             qualifications,
             coercions_start,
             value_qualifications: Vec::new(),
@@ -499,7 +501,6 @@ impl<'a> Lowering<'a> {
             invariants: Vec::new(),
             borrowed_roots: Vec::new(),
             exclusive_roots: Vec::new(),
-            joining: 0,
             fallthrough: None,
             block_ranks: IdTable::default(),
             active_rank: None,
@@ -810,6 +811,7 @@ struct Lowering<'a> {
     selected: Vec<places::Chosen>,
     /// The declared type of each slot, as the body states it.
     slot_types: &'a [ValueType],
+    lender_homes: &'a [Option<StructuralTypeId>],
     /// The `PublishedGuarantee` of each `ensures` clause, by position: the
     /// identity Terminal Psi's `ContractClause` holds.
     published: Vec<ObligationId>,
@@ -825,11 +827,6 @@ struct Lowering<'a> {
     /// Those of `borrowed_roots` lent with `&mut`: the only borrowed storage
     /// an owned value may be moved out of (`places::record`).
     exclusive_roots: Vec<PlaceId>,
-    /// How many operands that only some paths evaluate and that rejoin
-    /// (the right of `&&` and `||`, an arm of a value `match`) enclose what
-    /// is being lowered. A home made there would hold the local on those
-    /// paths only, so a loan that needs one is refused.
-    joining: usize,
     /// The block a guarded arm's guard turns away to, when nothing has been
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
@@ -984,7 +981,32 @@ impl<'a> Lowering<'a> {
     /// (`completes_normally`): a callee some path of which returns keeps its
     /// continuation, and so does a statement some path of which goes on past
     /// the call (the right operand of `&&`, one arm of a `match`).
-    fn body(&mut self, body: &Body) -> Checked<()> {
+    fn body(&mut self, member: MachineId, body: &Body) -> Checked<()> {
+        self.lender_homes = self.records.lender_homes(member, self.id)?;
+        let entry = self.current()?;
+        let source = self
+            .sources
+            .blocks
+            .get(entry)
+            .copied()
+            .ok_or_else(|| self.internal("a body entry has no source correspondence"))?;
+        let source = match source {
+            terminal_check_tables::program::SourceOrigin::Authored(span) => {
+                SourceOrigin::Authored(span)
+            }
+            terminal_check_tables::program::SourceOrigin::Unpositioned(reason) => {
+                SourceOrigin::Unpositioned(reason)
+            }
+        };
+        // By-value formals are already bound here. Place them in their
+        // homes before any path may lend one. Local initializers establish
+        // theirs where the binding actually becomes live.
+        for (slot, home) in self.lender_homes.iter().copied().enumerate() {
+            if let (Some(home), Some(Bound::Scalar(value))) = (home, *self.slot_mut(slot)?) {
+                let place = self.establish_home(value, home, source)?;
+                *self.slot_mut(slot)? = Some(Bound::Home(place));
+            }
+        }
         let mut statements = body.statements.iter();
         while let Some(statement) = statements.next() {
             let lowered = self.statement(statement);
@@ -995,7 +1017,10 @@ impl<'a> Lowering<'a> {
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } => None,
-                Statement::Bind { value, .. } | Statement::Evaluate(value) => Some(value.source),
+                Statement::Bind { value, .. }
+                | Statement::Evaluate {
+                    expression: value, ..
+                } => Some(value.source),
                 Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }
@@ -1018,7 +1043,14 @@ impl<'a> Lowering<'a> {
                     self.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
                 }
                 Some(_) => {
-                    return Err(self.internal("a value machine fell off its last statement"));
+                    // Only a Unit result permits implicit Unit completion.
+                    // An unfinished value body supplies neither a result nor
+                    // a checked non-returning completion.
+                    return Err(reject(
+                        self.id,
+                        SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn),
+                        "value machine can fall off its end",
+                    ));
                 }
             }
         }
@@ -1125,7 +1157,7 @@ impl<'a> Lowering<'a> {
             self.path.clear();
             self.enter(block);
             self.begin_ranking(member)?;
-            self.body(body)?;
+            self.body(member, body)?;
         }
         Ok(())
     }
@@ -1340,11 +1372,26 @@ impl<'a> Lowering<'a> {
                 }
             }
         }
+        // Literal ordinals enumerate literals, while roots also include
+        // records, parameters and operation results. Number the declarations
+        // once here so those interleaved roots cannot leave literal gaps.
+        let mut byte_literal_ordinal = 0;
         let structural_places = self
             .roots
             .iter()
-            .map(|(id, (kind, _))| StructuralPlaceDeclaration { id, kind: *kind })
-            .collect();
+            .map(|(id, (kind, _))| {
+                let mut kind = *kind;
+                if let StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    ..
+                } = &mut kind
+                {
+                    *declaration_ordinal = self.position(byte_literal_ordinal)?;
+                    byte_literal_ordinal += 1;
+                }
+                Ok(StructuralPlaceDeclaration { id, kind })
+            })
+            .collect::<Checked<Vec<_>>>()?;
         self.call_formations.sort_unstable_by_key(|row| row.site);
         let mut machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,

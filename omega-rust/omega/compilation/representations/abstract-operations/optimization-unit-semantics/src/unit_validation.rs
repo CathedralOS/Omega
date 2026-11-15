@@ -433,6 +433,7 @@ mod activation_storage {
                 source,
                 path,
                 cases,
+                ..
             } => Terminator::StructuralCase {
                 source: *source,
                 path: path.clone(),
@@ -1821,8 +1822,11 @@ mod catalogs {
 
         for block in &function.blocks {
             for node in &block.nodes {
-                // The discriminator a terminator reads before choosing an
-                // edge is owned by the block, never by one of its edges.
+                // A moved discriminator keeps its original checked read site.
+                let checked_block = match &node.operation {
+                    O::StructuralCase { psi_block, .. } => *psi_block,
+                    _ => block.id,
+                };
                 for (_, obligation) in node
                     .operation
                     .terminator_read_path()
@@ -1833,7 +1837,7 @@ mod catalogs {
                     require_accepted_goal_fact(
                         unit,
                         function.machine,
-                        optimization_unit::AcceptedObligationOwner::Terminator(block.id),
+                        optimization_unit::AcceptedObligationOwner::Terminator(checked_block),
                         Some(obligation),
                         None,
                     )?;
@@ -3515,6 +3519,7 @@ pub(crate) mod function_structure {
                         source,
                         path: selected_path,
                         cases,
+                        ..
                     } => {
                         *source == before
                             && path == selected_path
@@ -7149,6 +7154,7 @@ pub(crate) mod function_structure {
                     | O::ByteSequenceLength { source, .. }
                     | O::EstablishElementView { source, .. }
                     | O::ElementViewLength { source, .. }
+                    | O::ElementViewRead { source, .. }
                     | O::ElementViewSubslice { source, .. } => {
                         vec![source.place]
                     }
@@ -7164,7 +7170,6 @@ pub(crate) mod function_structure {
                         destination: source,
                         ..
                     }
-                    | O::ElementViewRead { source, .. }
                     | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
                     | O::StructuralScalarFieldRead { source, .. }
                     | O::ReturnStructural { source, .. } => {
@@ -8248,31 +8253,29 @@ pub(crate) mod function_structure {
                         O::ReleaseReference { source, path, .. } => {
                             let valid = structural_source_contract(function, *source).is_some_and(
                                 |signature| {
-                                    (path.is_empty()
-                                || (signature.access == StructuralAccess::Owned
-                                    && signature.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Affine
-                                    && signature.is_unqualified()
-                                    && !signature.has_result_evidence()))
-                                && path.iter().all(|segment| {
-                                    matches!(
-                                        segment,
-                                        StructuralPathSegment::Field(_)
-                                            | StructuralPathSegment::FixedIndex(_)
-                                    )
-                                })
-                                && crate::unit_validation::references::leaf_type(
-                                    structural_types,
-                                    signature.structural_type,
-                                    path,
-                                )
-                                .and_then(|selected| structural_types.get(&selected))
-                                .is_some_and(|declaration| {
-                                    matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::Reference { .. }
-                                    )
-                                })
+                                    // A view result owns its descriptor while its access
+                                    // describes the borrowed backing.
+                                    let owns_carrier = signature.access == StructuralAccess::Owned
+                                        || signature.operation_result().is_some();
+                                    owns_carrier
+                                        && (path.is_empty()
+                                            || (signature.multiplicity
+                                                == terminal_psi::StructuralMultiplicity::Affine
+                                                && signature.is_unqualified()
+                                                && !signature.has_result_evidence()))
+                                        && path.iter().all(|segment| {
+                                            matches!(
+                                                segment,
+                                                StructuralPathSegment::Field(_)
+                                                    | StructuralPathSegment::FixedIndex(_)
+                                            )
+                                        })
+                                        && terminal_semantics::inline_descriptor_type(
+                                            structural_types.values().copied(),
+                                            signature.structural_type,
+                                            path,
+                                        )
+                                        .is_some()
                                 },
                             );
                             if !valid {
@@ -10678,6 +10681,11 @@ pub(crate) mod operation_contracts {
                         roots.insert(left.root());
                         roots.insert(right.root());
                     }
+                    Proposition::FloatMeaningEqual(clause) => {
+                        for source in clause.sources() {
+                            scalar_term_roots(source, roots);
+                        }
+                    }
                     Proposition::ContentConservation(conservation) => {
                         content_term_roots(conservation.left(), roots);
                         content_term_roots(conservation.right(), roots);
@@ -12651,7 +12659,11 @@ pub(crate) mod operation_contracts {
                     ..
                 } => boundary_machines.get(boundary).is_some_and(|boundary| {
                     boundary.completion == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        && boundary.result.is_unit()
+                        && terminal_semantics::inhabitation::external_result_is_erased(
+                            boundary.completion,
+                            boundary.result.structural(),
+                            unit.structural_types.as_slice(),
+                        ) == Ok(true)
                         && arguments.len() == boundary.scalar_parameters.len()
                         && arguments
                             .iter()
@@ -14730,6 +14742,7 @@ pub(crate) mod operation_contracts {
                 source,
                 path,
                 cases,
+                ..
             } = &node.operation
             {
                 return super::structural_cases::validate(
@@ -15303,15 +15316,6 @@ pub(crate) mod references {
         leaf_referent(types, current, fields)
     }
 
-    pub(crate) fn is_reference_projection(
-        function: &PsiOptimizationFunction,
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        source: &StructuralArgument,
-    ) -> bool {
-        projected_carrier_type(function, types, source).is_some()
-            && source.access != StructuralAccess::Owned
-    }
-
     pub(crate) fn storage_projection(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -15373,12 +15377,6 @@ pub(crate) mod references {
         if !reference_source_accessible(function, types, source) {
             return None;
         }
-        let contract = structural_source_contract(function, source.place)?;
-        let path = reference_source_storage_path(
-            types.values().copied(),
-            contract.structural_type,
-            &source.path,
-        );
         if !source.path.contains(&StructuralPathSegment::Referent) {
             let contract = structural_source_contract(function, source.place)?;
             if !access_covers(contract.access, source.access)
@@ -15403,12 +15401,11 @@ pub(crate) mod references {
                 _ => None,
             });
         }
-        let source = StructuralArgument {
-            place: source.place,
-            access: source.access,
-            path: path.to_vec(),
-        };
-        projected_carrier_type(function, types, &source)
+        // A reborrow can select storage below a permission crossing. Keep
+        // the checked final suffix instead of requiring Referent to end the
+        // path, which would lose a stored parent's selected sibling field.
+        let (referent, suffix) = access_referent_tail(function, types, source)?;
+        access_path_type(types, referent, &source.path[suffix..])
     }
 
     fn direct_reference_parameter<'a>(

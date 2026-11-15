@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A two-digit calculator -- a small but complete app that ties together everything
 // needed to read and evaluate input. It parses the expression "12+34": the operands
 // are read from the text through named widening, subtracting '0', and combining
@@ -29,7 +30,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
     main.text = "12+34";
 
@@ -64,19 +65,19 @@ machine Main::main(main: &mut Main) reaches Console {
     machine unknown(main: &mut Main) {
         Console::write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(0);
     }
     machine emit(main: &mut Main) {
         Console::write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.result as i32);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(main.result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

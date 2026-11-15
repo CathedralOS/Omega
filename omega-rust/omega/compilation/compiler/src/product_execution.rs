@@ -28,6 +28,13 @@ pub enum CompilationProduct {
 }
 
 impl CompilationProduct {
+    pub(crate) fn inspection_name(&self) -> Option<&str> {
+        match self {
+            Self::Inspection(name) => Some(name),
+            _ => None,
+        }
+    }
+
     pub fn optimization_rollback(&self) -> crate::OptimizationRollback {
         match self {
             Self::Terminal(rollback) => rollback.clone(),
@@ -275,7 +282,7 @@ impl TargetCompilation {
     }
 
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
-        TerminalProductRequest::declarations(&mut self.realization.custody, &self.selections)
+        TerminalProductRequest::new(&mut self.realization.custody, &self.selections)
     }
 
     pub(crate) fn finish(
@@ -406,9 +413,9 @@ impl ProductRequest {
             }
         };
         let requested = match product {
-            CompilationProduct::Inspection(machine) => {
+            CompilationProduct::Inspection(_) => {
                 return Ok(TerminalCompilation::Inspection(
-                    inspection::InspectionCompilation::new(realization, machine),
+                    inspection::InspectionCompilation::new(realization),
                 ));
             }
             CompilationProduct::Check => ProductReportRequest::Check,

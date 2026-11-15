@@ -53,10 +53,8 @@ omega --check samples/cli/facts/aggregate_struct_return_abi/<place>/invalid/main
 
 Measured on `2d783d092d9d` (producer `target/debug/omega`, opt-level 1, host `macos_arm64`):
 
-- `python3 tools/sample_native_gate.py --filter cli/facts/aggregate_struct_return_abi` exits 0: `10/10 samples meet their documented oracle on macos_arm64` and `9/9 intended-invalid controls match their authored rejection`.
-- `python3 tools/corpus_gate.py --filter facts/aggregate_struct_return_abi` reports `0 structural move(s)` over `18 fixtures ({'checked': 9, 'rejected': 9})`, with `0 fail fixtures did not reject`.
-- `python3 tools/corpus_gate.py --native --record --filter facts/aggregate_struct_return_abi` pinned the nine positive places as `built ... exit:0`.
-
+- `10/10 samples meet their documented oracle on macos_arm64` and `9/9
+  intended-invalid controls match their authored rejection`.
 The oracle was shown to discriminate at the native boundary rather than merely agreeing with itself. `omega run --both --keep --target macos_arm64` emits a Mach-O arm64 image in which `make_quartet` writes the 32-byte aggregate through the caller return home in `X8` (`mov x8, x8` / `str x1, [x8]` … `str x0, [x8, #0x18]`) and `probe` sets `mov x8, sp` before the call, copies four words, and computes `sum - 0x64`. Re-signing that image and patching only the single instruction that loads the fourth field (`movz x3, #0x28` to `movz x3, #0x27`, 40 to 39) changes the observed process outcome from `exit 0` to `exit 133` (SIGTRAP from the `brk #0` crash arm). The recorded exit is therefore what the program actually produces through the indirect aggregate return path.
 
 ## Requirements and Evidence
@@ -74,8 +72,15 @@ This row establishes that end-to-end nine-place fact preservation and ABI callin
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering allocates caller-frame `sret` destination stack storage, passes the destination pointer in the target-mandated register to the callee, materializes 64-bit field stores into the return home, computes worst-case stack usage (WCSU), and inserts function entry prologues and multi-return epilogues honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and `sret` field offsets resolve, basic blocks and short/near branches relax with offset reflow around exit transitions, machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
 
-The row is pinned by `tests/omega/pass/facts/aggregate_struct_return_abi_through_*_exit` and `tests/omega/fail/facts/aggregate_struct_return_abi_through_*_rejected` fixtures; every positive records native exit 0 in `tests/omega/corpus_native_macos_arm64.txt` and every twin records `rejected ... expected` in `tests/omega/corpus_outcomes.txt` at `@114906953e11+wt`, with the nine `_exit` fixtures also recording `exit:0 interpreter-exit:0 interpreter:agrees` in `tests/omega/corpus_both_macos_arm64.txt`. The places and twins were measured with the wave's shared opt-level-1 producer at `9ff26a870215`: the root and all nine places report `native exit 0` and `interp exit: 0`, and all nine twins refuse with the `may overflow \`u64\`` fragment; the corpus legs on the rebased checkout at `114906953e11` are clean over 36 fixtures (18 `checked`, 18 `rejected ... expected`) with all nine `_exit` fixtures executed at exit 0.
-Remaining open: Floating-point vector aggregate return classification (`HFA`/`HVX`), multi-return branch epilogue reflow with divergent aggregate return shapes, and dynamic slice view returns across indirect memory destinations.
+The places and twins were measured with the wave's shared opt-level-1 producer
+at `9ff26a870215`: the root and all nine places report `native exit 0` and
+`interp exit: 0`, and all nine twins refuse with the `may overflow \`u64\``
+fragment; the corpus legs on the rebased checkout at `114906953e11` are clean
+over 36 fixtures (18 `checked`, 18 `rejected ... expected`) with all nine
+`_exit` fixtures executed at exit 0. Remaining open: Floating-point vector
+aggregate return classification (`HFA`/`HVX`), multi-return branch epilogue
+reflow with divergent aggregate return shapes, and dynamic slice view returns
+across indirect memory destinations.
 
 ## Build-owned target-body migration
 

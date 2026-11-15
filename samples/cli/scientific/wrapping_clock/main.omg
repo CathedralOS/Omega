@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // IND17: independent acquisition counter reconstruction and clock fitting.
 use omega_language_std::Console;
 use clock::model;
@@ -6,7 +7,7 @@ use clock::fit;
 use input::reader;
 use report::output;
 
-machine main() reaches Console {
+machine main() reaches ProcessExit + Console {
     let mut acquisition: Acquisition;
     block read_acquisition(&mut acquisition);
     transition acquisition.error == 0 { true -> decode(&mut acquisition) false -> reject(&acquisition) }
@@ -17,10 +18,10 @@ machine main() reaches Console {
     machine fitted(acquisition: &mut Acquisition) {
         fit_clock(acquisition);
         report(acquisition);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine reject(acquisition: &Acquisition) {
         Console::write("ERROR "); number(acquisition.error); Console::write_line("");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
 }

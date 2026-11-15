@@ -227,12 +227,6 @@ pub(crate) mod conformances {
         pub callable: crate::TargetMachineCallable,
         pub application_commitment: Option<[u8; 32]>,
         pub method_arguments: Vec<crate::ClosedReachArgument>,
-        /// The original public signature's lifetime membership for this
-        /// complete method tuple. Each group relates all of its possible
-        /// incoming backing sources to its result descriptors. It describes
-        /// the interface; actual formation and loan completion are still owed.
-        /// `None` is unavailable, while `Some([])` declares no borrowed result.
-        pub result_lifetimes: Option<Vec<DeclaredResultLifetime>>,
     }
 
     /// One declared lifetime, without depending on its source spelling or the
@@ -443,30 +437,6 @@ pub(crate) mod conformances {
             bytes.extend((value.len() as u64).to_le_bytes());
             bytes.extend(value);
         }
-        fn path(
-            bytes: &mut Vec<u8>,
-            identities: &TerminalIdentityTable,
-            path: &[crate::StructuralPathSegment],
-        ) {
-            bytes.extend((path.len() as u64).to_le_bytes());
-            for segment in path {
-                if let crate::StructuralPathSegment::Field(field) = segment {
-                    bytes.push(crate::structural_path_encoding::SegmentTag::Field as u8);
-                    text(bytes, identities, *field);
-                } else {
-                    crate::structural_path_encoding::encode_structural_path_segment(
-                        bytes,
-                        segment,
-                        |bytes, value| bytes.extend(value),
-                        |bytes, scalar| {
-                            bytes.extend(callable_result_bytes(
-                                ClosedConformanceCallableResult::Scalar(scalar),
-                            ));
-                        },
-                    );
-                }
-            }
-        }
         let mut bytes = Vec::new();
         bytes.extend((application.schemas.len() as u64).to_le_bytes());
         for schema in &application.schemas {
@@ -536,43 +506,6 @@ pub(crate) mod conformances {
                         bytes.push(4);
                         text(&mut bytes, identities, *identity);
                         bytes.extend(contract_commitment);
-                    }
-                }
-            }
-            bytes.push(u8::from(applied.result_lifetimes.is_some()));
-            if let Some(lifetimes) = &applied.result_lifetimes {
-                bytes.extend((lifetimes.len() as u64).to_le_bytes());
-                for lifetime in lifetimes {
-                    bytes.extend((lifetime.inputs.len() as u64).to_le_bytes());
-                    for input in &lifetime.inputs {
-                        let (tag, argument_index, access) = match input {
-                            crate::BoundaryLifetimeDependency::Referent {
-                                argument_index,
-                                access,
-                            } => (0, *argument_index, *access),
-                            crate::BoundaryLifetimeDependency::Stored {
-                                argument_index,
-                                access,
-                                ..
-                            } => (1, *argument_index, *access),
-                        };
-                        bytes.push(tag);
-                        bytes.extend(argument_index.to_le_bytes());
-                        bytes.push(match access {
-                            crate::StructuralAccess::Owned => 0,
-                            crate::StructuralAccess::SharedBorrow => 1,
-                            crate::StructuralAccess::MutableBorrow => 2,
-                            crate::StructuralAccess::WriteOnlyBorrow => 3,
-                        });
-                        if let crate::BoundaryLifetimeDependency::Stored { path: source, .. } =
-                            input
-                        {
-                            path(&mut bytes, identities, source);
-                        }
-                    }
-                    bytes.extend((lifetime.results.len() as u64).to_le_bytes());
-                    for result in &lifetime.results {
-                        path(&mut bytes, identities, result);
                     }
                 }
             }
@@ -776,14 +709,24 @@ pub(crate) mod declarations {
                 (Self::Scalar(expected), crate::TerminalMachineResult::Scalar(result)) => {
                     *expected == result.value_type()
                 }
-                (Self::Structural(expected), crate::TerminalMachineResult::Structural(result)) => {
-                    expected.structural_type == result.structural_type
-                        && expected.multiplicity == result.multiplicity
-                        && expected.qualifications == result.qualifications
-                        && expected.projected_qualifications == result.projected_qualifications
+                (Self::Structural(_), crate::TerminalMachineResult::Structural(result)) => {
+                    self.matches_structural_result(result)
                 }
                 _ => false,
             }
+        }
+
+        pub fn matches_structural_result(
+            &self,
+            result: &crate::StructuralResultDeclaration,
+        ) -> bool {
+            let Self::Structural(expected) = self else {
+                return false;
+            };
+            expected.structural_type == result.structural_type
+                && expected.multiplicity == result.multiplicity
+                && expected.qualifications == result.qualifications
+                && expected.projected_qualifications == result.projected_qualifications
         }
 
         pub fn matches_operation_result(&self, result: &crate::OperationResult) -> bool {
@@ -806,6 +749,13 @@ pub(crate) mod declarations {
             match self {
                 Self::Scalar(scalar) => Some(scalar.scalar_type),
                 Self::Unit | Self::Structural(_) => None,
+            }
+        }
+
+        pub const fn structural(&self) -> Option<StructuralTypeId> {
+            match self {
+                Self::Structural(result) => Some(result.structural_type),
+                Self::Unit | Self::Scalar(_) => None,
             }
         }
 
@@ -893,6 +843,7 @@ pub(crate) mod declarations {
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CheckedBoundaryCallable {
+        pub service_declaration: [u8; 32],
         pub source: crate::CheckedMachineDeclaration,
         pub execution: CheckedBoundaryExecution,
         pub method_arguments: Vec<crate::ClosedReachArgument>,
@@ -901,6 +852,13 @@ pub(crate) mod declarations {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum CheckedBoundaryExecution {
         Provider,
+        /// Exact sealed numeric declaration, realized by the selected target table.
+        NumericPrimitive,
+        /// The actual primitive remains distinct from the public requirement.
+        HostedPrimitive {
+            operation: language_core::sealed_intrinsics::HostedOperation,
+            requirement: semantic_vocabulary::BoundaryMachineId,
+        },
         AccessInitialize,
         AccessMoveOut,
         AccessRelocate,
@@ -927,6 +885,8 @@ pub(crate) mod declarations {
                     Some(StaticInterruptOperation::FinishCompletion)
                 }
                 Self::Provider
+                | Self::NumericPrimitive
+                | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::AccessInitialize
                 | Self::AccessMoveOut
@@ -942,6 +902,8 @@ pub(crate) mod declarations {
         pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
             match self {
                 Self::Provider
+                | Self::NumericPrimitive
+                | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::StaticInterruptInstall
                 | Self::StaticInterruptContext
@@ -958,19 +920,75 @@ pub(crate) mod declarations {
     impl CheckedBoundaryCallable {
         pub fn same_identity_as(
             &self,
-            identities: &crate::TerminalIdentityTable,
+            module: &crate::TerminalModule,
             other: &Self,
-            other_identities: &crate::TerminalIdentityTable,
+            other_module: &crate::TerminalModule,
         ) -> bool {
+            let identities = &module.identities;
+            let other_identities = &other_module.identities;
+            let same_execution = match (self.execution, other.execution) {
+                (
+                    CheckedBoundaryExecution::HostedPrimitive {
+                        operation,
+                        requirement,
+                    },
+                    CheckedBoundaryExecution::HostedPrimitive {
+                        operation: other_operation,
+                        requirement: other_requirement,
+                    },
+                ) => {
+                    operation == other_operation
+                        && module
+                            .boundary_machine(requirement)
+                            .zip(other_module.boundary_machine(other_requirement))
+                            .is_some_and(|(left, right)| {
+                                left.kind == crate::BoundaryRequirementKind::Trait
+                                    && right.kind == crate::BoundaryRequirementKind::Trait
+                                    && left
+                                        .declaration
+                                        .as_ref()
+                                        .zip(right.declaration.as_ref())
+                                        .is_some_and(|(left, right)| {
+                                            left.execution == CheckedBoundaryExecution::Provider
+                                                && right.execution
+                                                    == CheckedBoundaryExecution::Provider
+                                                && left.source.same_identity_as(
+                                                    identities,
+                                                    &right.source,
+                                                    other_identities,
+                                                )
+                                        })
+                            })
+                }
+                (CheckedBoundaryExecution::HostedPrimitive { .. }, _)
+                | (_, CheckedBoundaryExecution::HostedPrimitive { .. }) => false,
+                (left, right) => left == right,
+            };
             self.source
                 .same_identity_as(identities, &other.source, other_identities)
-                && self.execution == other.execution
+                && self.service_declaration == other.service_declaration
+                && same_execution
                 && self.method_arguments.len() == other.method_arguments.len()
                 && self
                     .method_arguments
                     .iter()
                     .zip(&other.method_arguments)
                     .all(|(left, right)| left.same_identity_as(identities, right, other_identities))
+        }
+    }
+
+    impl BoundaryMachineDeclaration {
+        /// The public contract observed for this actual external operation.
+        /// Admission validates any primitive link before execution consumes it.
+        pub fn external_completion_requirement(&self) -> semantic_vocabulary::BoundaryMachineId {
+            match self
+                .declaration
+                .as_ref()
+                .map(|declaration| declaration.execution)
+            {
+                Some(CheckedBoundaryExecution::HostedPrimitive { requirement, .. }) => requirement,
+                _ => self.id,
+            }
         }
     }
 

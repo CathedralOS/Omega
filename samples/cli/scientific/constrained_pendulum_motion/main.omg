@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 64 (empty stdin); valid data fixtures exit 0.
 // Expected output contains: INVALID: expected scenario
 use omega_language_std::ByteRead;
@@ -14,7 +15,7 @@ data Main {
     initial_energy: f64;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
     let input: ByteRead = block Console::read_byte();
     transition input {
@@ -145,16 +146,16 @@ machine Main::main(main: &mut Main) reaches Console {
         print_micro(main.pendulum.energy - main.initial_energy);
         Console::write_line("");
         Console::write_line("COMPLETE 32 steps");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("INVALID: expected scenario 0..3, length 1..2, LF, EOF");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -45,6 +45,7 @@ pub(crate) struct PreparedProgram<'source> {
     pub program: Elaboration,
     pub source: SourceFormCorrespondence,
     pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
+    pub prepared_applications: Vec<(MachineId, crate::declare::PreparedApplication)>,
 }
 
 /// Reading and lowering retain the exact typed occurrence until its emitted

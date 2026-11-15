@@ -9,15 +9,6 @@ This fact row demonstrates that zero-extending a bounded 32-bit unsigned `u32` v
 
 Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
 
-## Pinned fixtures
-
-The nine positive places and nine reject twins are pinned as
-`tests/omega/pass/facts/narrow_to_wide_unsigned_32to64_extension_through_<place>_exit`
-and `tests/omega/fail/facts/narrow_to_wide_unsigned_32to64_extension_unproved_at_<place>`.
-Each twin authors `expected.txt` carrying the fragment ``may overflow `u64` ``.
-`tests/omega/corpus_native_windows_x86_64.txt` records nine real
-`built ... exit:0` rows, one per place.
-
 ## Places
 
 | Place | Project | Transport | Positive Witness | Reject Twin |

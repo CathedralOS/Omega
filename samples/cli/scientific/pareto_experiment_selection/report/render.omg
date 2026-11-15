@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Numeric output is computed at runtime through the settled byte console provider.
 // Fixed three-digit fields make reports exact byte oracles without floating tolerance.
 use domain::model;
@@ -16,7 +17,7 @@ requires value <= 999 {
     Console::write("|");
     number(application, value);
 }
-public machine report(application: &mut Application) reaches Console
+public machine report(application: &mut Application) reaches ProcessExit + Console
 invokes Console
 {
     Console::write_line("PARETO|id|source|position|cost|days|gain|risk|status|certificate");
@@ -100,7 +101,7 @@ invokes Console
     }
     machine internal_error(application: &mut Application) {
         Console::write_line("ERROR|internal-invariant");
-        Console::exit_process(3);
+        ProcessExit::exit_process(3);
     }
     machine done(application: &mut Application) { Console::write_line("END"); }
 }

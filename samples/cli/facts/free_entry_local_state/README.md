@@ -48,10 +48,6 @@ Host: Linux x86_64. Producer: `target/debug/omega`, dev profile, `opt-level` 1, 
 
 The nine place positives and their `invalid/main.omg` twins differ only in the entry contract: `machine start()` versus `machine start(unprovided: &mut Unprovided)`. Both contain the same ordinary record declaration. The hosted contract supplies no arrival parameter or backing, so the twin must reject even though an all-zero `Unprovided` would be an ordinary valid local. The root twin retains the separate unprovided `u64` control. The pinned fragment is `hosted ProgramEntry exposes no arrival parameters`.
 
-## Pinned fixtures
-
-The nine pass fixtures under `tests/omega/pass/facts/free_entry_local_state_through_<place>_exit` are byte-identical to the place programs and record native exit 0. The nine reject fixtures under `tests/omega/fail/facts/free_entry_local_state_through_<place>_unprovided` are byte-identical to the place twins.
-
 ## Requirements and evidence
 
 - **Owning requirement:** `EXPLICIT-ENTRY-STORAGE` — a free entry owns and cleans ordinary local state, with no provisioned ZII context. Unprovided parameters still reject.

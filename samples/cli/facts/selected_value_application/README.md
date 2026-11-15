@@ -58,19 +58,14 @@ retained observations cover `macos_arm64` and `linux_x86_64`, not all four hosts
 | Another machine | [program](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | Target body | [program](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-The same sources and Build companions are pinned in
-`tests/omega/{pass,fail}/facts/selected_value_application_through_<place>_*`.
-Each twin changes only the supplied index from 9 to 11. Parameter, state and
-machine transports reject at their preceding `requires`; the other six reject
-the unproved exact subtraction. The separate [bound control](probes/invalid_bound/main.omg)
-removes the subtraction and still rejects the invalid selected call.
+Parameter, state and machine transports reject at their preceding `requires`; the other six
+reject the unproved exact subtraction. The separate [bound
+control](probes/invalid_bound/main.omg) removes the subtraction and still rejects the
+invalid selected call.
 
-[Distinct private/public binder names](probes/distinct_binder_names/main.omg)
-and [two Value binders sharing one runtime subject](probes/shared_runtime_subject/main.omg)
-challenge name-based or one-to-one-actual correspondence. Source-only formation
-controls under `tests/omega/{pass,fail}/generics/unused_selected_value_*` check
-unused member carriers, proved/unproved requirement facts and Value-to-Const refusal
-even when the generic wrapper has no executable instantiation.
+[Distinct private/public binder names](probes/distinct_binder_names/main.omg) and [two
+Value binders sharing one runtime subject](probes/shared_runtime_subject/main.omg)
+challenge name-based or one-to-one-actual correspondence.
 
 Fresh optimized baseline `1b2dbda4df7b59894492bda731238f4338f4b3fe`
 rejects the unchanged source-only reproduction with `state choose expects 2

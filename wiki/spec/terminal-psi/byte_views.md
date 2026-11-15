@@ -344,6 +344,10 @@ a caller-supplied element view needs no local establishment to preserve a
 guard's length observation through state transfers. Byte and element counts
 are never equated across the two view families.
 
+A shared partial borrow of a fixed typed array establishes its whole-array
+view first. The subslice keeps the array's backing and applies its endpoints
+to that view's measured element count.
+
 Each typed-slice operation requires the same custody shape as its byte-view
 counterpart, restated in elements: a length observation yields the element
 count of the identical view; a read or write carries a checked
@@ -356,17 +360,19 @@ and no derived element views.
 | Operation | Result | Required evidence |
 | --- | --- | --- |
 | `ElementViewLength { source }` | Exact `u64` element count. | An available shared or exact mutable element descriptor at the operand's full structural path. The operand retains captured selectors and readable access; the count is that descriptor's own stored runtime length. Observation neither copies the descriptor nor consumes its backing. |
-| `ElementViewRead { source, index, length, obligation, path }` | The scalar at `path` inside the selected element: the element itself when `path` is empty. | A `[copy]` element type; `u64` index and length; dominating length observation of the identical view; checked `index < length`; a static `path` of record fields and literal indexes ending at a scalar leaf of the element (`view[i].value`). |
+| `ElementViewRead { source, index, length, obligation, path }` | The scalar at `path` inside the selected element: the element itself when `path` is empty. | A shared observation of the exact structural descriptor; a `[copy]` element type; `u64` index and length; an observation of the same descriptor's length immediately before the read; checked `index < length`; a static `path` of record fields and literal indexes ending at a scalar leaf of the element (`view[i].value`). |
 | `ElementViewWrite { destination, path, index, value, length, obligation }` | Unit; replace the scalar leaf at `path` inside one element without changing extent. | Exclusive mutable element view; a value with the projected leaf's carrier; `u64` index and current same-view length; checked `index < length` and both declared bounds for a bounded integer leaf. The static field/literal-index path selects the same leaf in replay; an empty path selects a scalar element. |
-| `ElementViewSubslice { source, start, end, length, obligation }` | Shared or mutable element view of `[start, end)` over the identical backing, without increasing source access. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length` in element units. |
+| `ElementViewSubslice { source, start, end, length, obligation }` | Shared or mutable element view of `[start, end)` over the identical backing, without increasing source access. | `u64` endpoints; an observation of the same descriptor's length immediately before the subslice; ordered proof legs `start <= end` and `end <= length` in element units. |
 
-Length observations retain the whole structural operand: its home, ordered
-projection, and access. An empty projection observes the whole descriptor.
-Stored-reference crossings retain their original backing; runtime selectors
-own the same bound obligations as other structural observations. Matching a
-containing root does not equate sibling descriptors or their counts. Whole-view
-read and subslice operations accept only the corresponding empty-path length
-observation; a projected count cannot donate bounds to another view.
+Length observations and scalar element reads retain the descriptor's home,
+ordered structural projection, and access. An empty projection selects the
+whole descriptor. The descriptor projection locates the stored slice. The
+read's separate static element path locates the scalar within the indexed
+element. Stored-reference crossings retain their original backing, and each
+operation's runtime selectors carry its own bound obligations. A read requires
+an immediately preceding length from the same descriptor, including its
+projection and selector values. Subslice operations still require the matching whole-view length
+observation.
 
 A by-value `ElementViewRead` exists only for `[copy]` element types: a
 non-copy element cannot move out of borrowed storage, and the transfer rule

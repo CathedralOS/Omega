@@ -1,20 +1,15 @@
-/*
-Projection of the target-entry semantic-binding review candidate from checked
-source (`candidate_target_entry_binding`).
-
-Package review nominates `owner`'s boundary trait matching
-`target.program_entry_slot()` without granting entry authority. A package that
-declares no such trait has no candidate. One that does needs the trait's
-service schema to bind the candidate to; the lowered route publishes no
-service schema yet, so that nomination is refused by name instead of being
-formed from a retained copy.
-*/
+//! Nominate a target entry from its exact checked declaration and source.
 
 use crate::record::SemanticBindingReviewCandidate;
 use diagnostics::Diagnostic;
-use package_compilation::AcceptedSemanticBindingRole;
+use effects::provider_plan::ServiceSchema;
+use package_compilation::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
+};
 use products::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
+use std::path::Path;
+use typed_trees::service_declarations::ProviderSchemaDeclaration;
 
 #[derive(Debug, Clone)]
 pub enum SemanticBindingProjectionError {
@@ -33,29 +28,87 @@ pub fn candidate_target_entry_binding(
     target: target::TargetProfile,
 ) -> Result<Option<SemanticBindingReviewCandidate>, SemanticBindingProjectionError> {
     let slot = target.program_entry_slot();
-    let (Some(package), Some(schema_name)) = (slot.physical_contract_package, slot.boundary_schema)
+    let (Some(contract), Some(schema_name)) =
+        (slot.physical_contract_package, slot.boundary_schema)
     else {
         return Ok(None);
     };
-    let role = package_compilation::program_entry_semantic_binding_role(package);
-    let mut definitions = checked.traits().iter().filter(|definition| {
-        definition.is_boundary
+    let role = package_compilation::program_entry_semantic_binding_role(contract);
+    let program = checked.source_inspection().program();
+    let provenance = |symbol| {
+        program
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| program.symbols.source_file(span))
+    };
+    let contract_path = Path::new(contract.package_relative_source());
+    let mut definitions = program.traits().iter().filter_map(|definition| {
+        (definition.is_boundary
             && definition.name.as_str() == schema_name
-            && checked.symbols.symbol_package_identity(definition.symbol) == Some(owner)
+            && program.symbols.symbol_package_identity(definition.symbol) == Some(owner))
+        .then(|| provenance(definition.symbol))
+        .flatten()
+        .filter(|source| {
+            source.package_identity == Some(owner)
+                && source.path.strip_prefix(&source.package_root).ok() == Some(contract_path)
+        })
+        .map(|source| (definition, source))
     });
-    let Some(definition) = definitions.next() else {
+    let Some((definition, source)) = definitions.next() else {
         return Ok(None);
     };
-    if definitions.next().is_some() {
+    let competing = definitions.count();
+    if competing != 0 {
         return Err(SemanticBindingProjectionError::Ambiguous {
             role,
-            candidate_count: 2,
+            candidate_count: 1 + competing,
         });
     }
-    Err(SemanticBindingProjectionError::MissingCallableFacts {
-        diagnostics: vec![Diagnostic::error(format!(
-            "no product route yet: target entry binding review of `{}` requires the route-owned service schema of that boundary trait",
-            checked.symbols.display_path(definition.symbol, "::"),
-        ))],
-    })
+    let missing =
+        |diagnostics| SemanticBindingProjectionError::MissingCallableFacts { diagnostics };
+    let failure = |message| missing(vec![Diagnostic::error(message)]);
+    if checked.execution().target_profile() != Some(target) {
+        return Err(failure(
+            "entry proposal belongs to a different checked target",
+        ));
+    }
+    checked
+        .sources()
+        .require_owner(program)
+        .map_err(|error| missing(vec![error]))?;
+    checked
+        .terminal_publication()
+        .require_source_owner(program)
+        .map_err(|error| missing(vec![error]))?;
+    checked.terminal_publication().accepted().map_err(missing)?;
+    let consumed = source::source_identity::consumed_source_unit(source, false)
+        .map_err(|error| missing(vec![Diagnostic::error(error)]))?;
+    if !checked
+        .sources()
+        .package_subject()
+        .is_some_and(|subject| subject.consumed_units().binary_search(&consumed).is_ok())
+    {
+        return Err(failure("entry declaration has no exact consumed source"));
+    }
+    let services = checked
+        .source_inspection()
+        .inventory()
+        .services_for(program)
+        .map_err(|error| missing(vec![error]))?;
+    let surface = services
+        .declaration(ProviderSchemaDeclaration::BoundaryTrait(definition.symbol))
+        .filter(|surface| surface.package == Some(owner))
+        .ok_or_else(|| failure("entry declaration has no checked service schema"))?;
+    surface
+        .exact_requirements()
+        .map_err(|error| missing(vec![error]))?;
+    let schema = ServiceSchema::from_declaration(std::sync::Arc::clone(surface.declaration));
+    let binding = AcceptedSemanticBinding::new_service(
+        role,
+        owner,
+        surface.path,
+        accepted_service_schema_digest(role, &schema),
+    )
+    .map_err(failure)?;
+    Ok(Some(SemanticBindingReviewCandidate::new(binding, schema)))
 }

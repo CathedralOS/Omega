@@ -45,7 +45,9 @@ pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
     for statement in &body.statements {
         match statement {
             Statement::Bind { value, .. }
-            | Statement::Evaluate(value)
+            | Statement::Evaluate {
+                expression: value, ..
+            }
             | Statement::Witness { term: value, .. } => expression(machine, value)?,
             Statement::Store {
                 destination, value, ..
@@ -91,7 +93,14 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             "a suspend-marked call must be a complete statement, simple let initializer, transition subject or terminal expression".to_owned()));
     }
     match &value.kind {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
+                expression(machine, operand)?;
+            }
+        }
         ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Slot(_)
@@ -126,7 +135,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
                 expression(machine, element)?;
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())

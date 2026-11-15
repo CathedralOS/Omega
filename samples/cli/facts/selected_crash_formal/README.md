@@ -33,9 +33,8 @@ fact to discharge its authored value < Zero Trap route.
 | Another machine | [other_machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | A selected target implementation | [target_body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-The row is pinned under `tests/omega/{pass,fail}/facts/selected_crash_formal_through_*`.
-All nine positives and the root bind all four hosted targets and expect exit 0.
-Only the available Linux x86-64 host supplies native execution evidence here.
+All nine positives and the root bind all four hosted targets and expect exit 0. Only the
+available Linux x86-64 host supplies native execution evidence here.
 
 ## Requirements established by this row
 

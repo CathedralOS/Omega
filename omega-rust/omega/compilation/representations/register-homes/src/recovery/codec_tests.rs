@@ -1,11 +1,11 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v101), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v102), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use abstract_operations::StructuralTypeCatalog;
-use access_plans::{AccessFields, AccessPlan, BoundaryReach, validate_access_plan};
+use access_plans::{AccessFields, BoundaryReach, validate_placement};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
@@ -436,7 +436,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &101_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &103_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }
@@ -1720,12 +1720,8 @@ fn catalog() -> StructuralTypeCatalog {
             placement: LayoutPlacementReport::At { offset: 0 },
         }],
     };
-    let placement = validate_access_plan(AccessPlan {
-        access: AccessFields::inaccessible(&layout).unwrap(),
-        layout,
-        reach: BoundaryReach::default(),
-    })
-    .unwrap();
+    let placement_fields = AccessFields::inaccessible(&layout).unwrap();
+    let placement = validate_placement(layout, placement_fields, BoundaryReach::default()).unwrap();
     let schema = StructuralTypeId::new(1).unwrap();
     let view = TerminalAccessViewPlan {
         carrier: StructuralTypeId::new(2).unwrap(),

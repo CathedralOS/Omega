@@ -6,6 +6,10 @@ use super::*;
 use std::sync::Arc;
 
 pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
+    try_typed(text).expect("boundary-call fixture must pass source typing")
+}
+
+pub(super) fn try_typed(text: &str) -> Result<typed_trees::TypedTrees, diagnostics::Diagnostic> {
     // The boundary belongs to this fixture's user package. Its declared
     // owner is required by ordinary header publication; it grants no
     // toolchain identity or provider-execution authority.
@@ -34,7 +38,7 @@ pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
         },
     )
     .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
 }
 
 pub(super) fn entry(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {
@@ -126,6 +130,28 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
         matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
         "{verdict:?}"
+    );
+}
+
+#[test]
+fn source_boundary_contract_alternatives_keep_each_actual_argument() {
+    for actual in [34603008, 36700160] {
+        let source = boundary_source("reaches none", actual).replace(
+            "requires value <= 10",
+            "requires value == 34603008 || value == 36700160",
+        );
+        let verdict = judge(invocation(typed(&source))).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+    let source = boundary_source("reaches none", 0).replace(
+        "requires value <= 10",
+        "requires value == 34603008 || value == 36700160",
+    );
+    let verdict = judge(invocation(typed(&source))).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{verdict:?}",
     );
 }
 
@@ -325,6 +351,101 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
     );
 }
 
+/// A boundary requirement with a value parameter, `take<const Count: u64>`,
+/// whose contract compares an `i32` formal with that `u64` parameter. Typed
+/// preparation closes it once per application, so `take<4>` has an array
+/// formal of four bytes and the clause `used <= 4`. `calls` is the entry's
+/// body; it may apply the requirement or not.
+fn value_generic_boundary(calls: &str) -> typed_trees::FrozenTypedTrees {
+    let typed = typed(&format!(
+        r#"
+boundary trait Sink {{
+    machine take<const Count: u64>(items: &[u8; Count], used: i32) -> u32
+    reaches none
+    requires used <= Count
+    crashes none;
+}}
+machine entry() -> u32 crashes none {{
+    let buffer: [u8; 4] = [0, 0, 0, 0];
+    {calls}
+}}
+"#
+    ));
+    typed_trees_to_typed_trees::prepare_typed_trees(
+        typed,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0
+}
+
+/// What a native binding of `Sink::take` claims: the generic requirement,
+/// named as the Build names it.
+fn claimed(
+    frozen: &typed_trees::FrozenTypedTrees,
+    requirement: symbols::SymbolHandle,
+) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+    let entry = entry(frozen);
+    typed_trees_to_terminal_psi::elaborate_for(
+        frozen,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[requirement],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+}
+
+fn sink_requirement(frozen: &typed_trees::FrozenTypedTrees) -> symbols::SymbolHandle {
+    let sink = frozen
+        .traits()
+        .iter()
+        .find(|declared| declared.name.as_str() == "Sink")
+        .expect("the program declares `Sink`");
+    frozen.trait_machine_signatures(sink)[0].symbol
+}
+
+/// numeric_values.md, "Integer equality and order": integers of different
+/// types compare by their exact values, in contracts too. A native binding
+/// claims each closed application of a value-generic requirement, because
+/// only those have a contract with literal array lengths, and claims nothing
+/// when nothing applies it.
+#[test]
+fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
+    let applied = value_generic_boundary("Sink::take<4>(&buffer, 3)");
+    let requirement = sink_requirement(&applied);
+    let elaboration = claimed(&applied, requirement).unwrap();
+    // The claim and the call name the one closed application.
+    assert_eq!(elaboration.module.boundary_machines.len(), 1);
+    let verdict = judge(Ok(elaboration)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    // The twin differs in one argument: an `i32` of 5 is past the `u64` 4.
+    let verdict = judge(claimed(
+        &value_generic_boundary("Sink::take<4>(&buffer, 5)"),
+        requirement,
+    ))
+    .unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{verdict:?}"
+    );
+
+    // With no application there is no contract to read, so the claim
+    // publishes no boundary; a consumer's call would close its own.
+    let unapplied = value_generic_boundary("7u32");
+    let elaboration = claimed(&unapplied, sink_requirement(&unapplied)).unwrap();
+    assert!(elaboration.module.boundary_machines.is_empty());
+}
+
 #[test]
 fn a_closed_boundary_application_does_not_authorize_an_unrelated_selection() {
     use typed_trees::expression::ExpressionNode;
@@ -478,33 +599,6 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
             "{guard}: {rejected:?}"
         );
     }
-}
-
-/// A boundary requirement has no body to infer a crash ceiling from and no
-/// static selection to defer to, so one that writes no `crashes` clause is
-/// refused where it is called, and the same call with `crashes none` written
-/// is read.
-#[test]
-fn a_boundary_requirement_without_a_crash_ceiling_is_refused_by_name() {
-    let call = |crashes: &str| {
-        let typed = typed(&format!(
-            r#"
-boundary trait Probe {{
-    machine read(value: u32) -> u32
-    reaches none{crashes};
-}}
-machine entry() -> u32 {{ Probe::read(1) }}
-"#
-        ));
-        invocation(typed)
-    };
-    let refusal = call("").unwrap_err();
-    assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refusal.detail,
-        "call boundary requirement must declare its crash ceiling while reading the body of `entry`"
-    );
-    assert!(call("\n    crashes none").is_ok());
 }
 
 fn borrowed_requirement(
@@ -2470,10 +2564,24 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         captures[0].conformance_application.identity_encoding,
         captures[1].conformance_application.identity_encoding
     );
-    assert_named_invocation_value(
-        compilation_verdicts_of(&prepared),
-        semantic_vocabulary::IntegerValue::Unsigned(7),
+    let verdicts = compilation_verdicts_of(&prepared);
+    let RouteVerdict::Accepted(invocation) = &verdicts[0] else {
+        panic!("expected the closed invocation: {verdicts:?}");
+    };
+    let module = &invocation.elaboration.module;
+    terminal_semantics::closed_reach::validate_closed_reach_applications(module).unwrap();
+    let retained = module
+        .machines
+        .iter()
+        .filter_map(|machine| machine.closed_reach_application.as_ref()?.capture.as_ref())
+        .collect::<Vec<_>>();
+    assert_eq!(retained.len(), 2);
+    assert!(
+        retained
+            .iter()
+            .all(|capture| capture.parameter_kinds == [0, 0])
     );
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
     let mut missing = (*prepared).clone();
     missing.captured_machine_applications = Default::default();
     missing

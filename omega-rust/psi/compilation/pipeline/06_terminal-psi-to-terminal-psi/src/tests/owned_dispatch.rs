@@ -168,11 +168,16 @@ fn a_dispatch_edge_disposes_of_exactly_what_the_schedule_says() {
 }
 
 #[test]
-fn owned_copyable_storage_can_be_discarded_on_a_case_edge() {
+fn a_copyable_case_edge_can_retire_its_home() {
+    const WRONG_CUSTODY: &str = "disposal of storage the affine schedule does not own";
     let program = format!(
         r#"{DATA}
 data CopyHolder [copy] {{ value: u32; }}
-machine build_entry(selection: Selection, spare: CopyHolder) {{
+machine build_entry() {{
+    let spare: CopyHolder = CopyHolder {{ value: 1 }};
+    dispatch(Selection::Root, spare);
+}}
+machine dispatch(selection: Selection, spare: CopyHolder) {{
     transition selection {{
         Selection::Root -> done()
         Selection::Named {{ package }} -> take(package)
@@ -181,31 +186,120 @@ machine build_entry(selection: Selection, spare: CopyHolder) {{
 machine done() {{ }}
 "#
     );
-    let Ok(RouteVerdict::Accepted(accepted)) = judge_build(&program) else {
-        panic!("the dispatch may receive an owned copyable argument");
+    let run = |closure: &crate::AcceptedClosure| {
+        let publication = closure.publish_invocation().unwrap();
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        assert_eq!(
+            instance
+                .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+                .unwrap(),
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        );
     };
-    let mut elaboration = accepted.elaboration;
-    let machine = &mut elaboration.module.machines[0];
-    let spare = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.position == 1)
-        .unwrap()
-        .place;
-    let actions = machine
-        .blocks
-        .iter_mut()
-        .find_map(|block| match &mut block.terminator {
-            Terminator::StructuralCase { cases, .. } => cases
-                .iter_mut()
-                .find(|edge| !edge.cleanup_actions.is_empty())
-                .map(|edge| &mut edge.cleanup_actions),
-            _ => None,
-        })
-        .unwrap();
-    actions.push(TerminalAffineCleanupAction::DiscardRoot(spare));
-    let Ok(RouteVerdict::Accepted(accepted)) = judge(Ok(elaboration)) else {
-        panic!("freely discardable owned storage retains its disposal authority");
+    let Ok(RouteVerdict::Accepted(unchanged)) = judge_build(&program) else {
+        panic!("the original case dispatch should execute");
     };
-    accepted.publish_invocation().unwrap();
+    run(&unchanged);
+
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of("machine product_entry() { }", &program);
+    let original = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        roster(
+            &[symbol(&typed, "build_entry")],
+            &[Some(package())],
+            source::DependencyScope::Build,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let edit = |module: &mut terminal_psi::TerminalModule,
+                change: &dyn Fn(PlaceId, &mut Vec<TerminalAffineCleanupAction>)| {
+        let machine = module
+            .machines
+            .iter_mut()
+            .find(|machine| {
+                machine.structural_parameters.len() == 2
+                    && machine
+                        .blocks
+                        .iter()
+                        .any(|block| matches!(block.terminator, Terminator::StructuralCase { .. }))
+            })
+            .unwrap();
+        let spare = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.position == 1)
+            .unwrap();
+        assert_eq!(
+            spare.multiplicity,
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        );
+        assert_eq!(spare.access, terminal_psi::StructuralAccess::Owned);
+        let place = spare.place;
+        let branch = machine
+            .blocks
+            .iter_mut()
+            .find_map(|block| match &mut block.terminator {
+                Terminator::StructuralCase { cases, .. } => cases
+                    .iter_mut()
+                    .find(|edge| !edge.cleanup_actions.is_empty()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(branch.payload_fields.is_empty(), "the entry selects Root");
+        change(place, &mut branch.cleanup_actions);
+        (machine.id, branch.edge)
+    };
+
+    let mut retirement = original.clone();
+    edit(&mut retirement.module, &|place, actions| {
+        actions.push(TerminalAffineCleanupAction::RetireHome(place));
+    });
+    let verdict = judge(Ok(retirement));
+    let Ok(RouteVerdict::Accepted(retirement)) = verdict else {
+        panic!("the owned copyable binding may retire: {verdict:?}");
+    };
+    run(&retirement);
+
+    let mut discard = original;
+    let (machine, edge) = edit(&mut discard.module, &|place, actions| {
+        actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
+    });
+    let verdict = judge(Ok(discard));
+    assert!(
+        matches!(
+            &verdict,
+            Ok(RouteVerdict::FallBack(refusal))
+                if refusal.detail == format!("{WRONG_CUSTODY} in machine `dispatch`")
+                    && refusal.machine == machine
+                    && refusal.concerns == terminal_check_tables::Construct::Edge(edge)
+        ),
+        "{verdict:?}"
+    );
+
+    // The receiver checks the action even when the source checker never saw
+    // the supplied bytes. Change only the accepted edge's retirement action.
+    let module = retirement.elaboration.module.clone();
+    let encoded = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()).unwrap();
+
+    let mut wrong = module;
+    edit(&mut wrong, &|place, actions| {
+        let action = actions
+            .iter_mut()
+            .find(|action| **action == TerminalAffineCleanupAction::RetireHome(place))
+            .unwrap();
+        *action = TerminalAffineCleanupAction::DiscardRoot(place);
+    });
+    let encoded = terminal_codec::ClosedTerminalModule::new(wrong).unwrap();
+    assert_eq!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "whole-root discard has no owned affine source"
+        ))
+    );
 }

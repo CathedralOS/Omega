@@ -12,6 +12,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
             identity: identity.to_owned(),
             shape,
             requires: Vec::new(),
+            authored_layout: false,
         });
     };
     add(
@@ -27,6 +28,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
         true,
         crate::StorageShape::FixedArray {
             element: id(1),
+            qualification: Qualification::NONE,
             length: ArrayExtent::Literal(3),
         },
     );
@@ -70,14 +72,13 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
         let argument = of_type(
             ExpressionKind::Borrow {
                 access,
-                formation: access,
                 place: Box::new(actual),
                 home: None,
             },
             view,
         );
         let mut statements = statements;
-        statements.push(Statement::Evaluate(call(2, vec![argument], None)));
+        statements.push(Statement::discard(call(2, vec![argument], None)));
         statements.push(Statement::Arm {
             guard: None,
             target: Target::Unit,
@@ -176,7 +177,7 @@ fn direct_array_windows_check_endpoints_against_the_whole_loan() {
         view,
     );
     let window = of_type(
-        ExpressionKind::ByteSubslice {
+        ExpressionKind::CollectionSubslice {
             base: Box::new(whole),
             start: Some(endpoint(1)),
             end: Some(endpoint(3)),

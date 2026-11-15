@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Supplemental runtime numeric checks from frozen data/expected.json.
 // The application is main.omg; this entry verifies the same private domain
 // through native and Terminal execution, since CLI --both compares statuses.
@@ -8,7 +9,7 @@ use domain::mixture;
 
 data Main { result: Mixture; }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> case_0(main) }
     machine case_0(main: &mut Main) {
         Console::write_line("domain case: nominal");
@@ -1804,12 +1805,12 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> bad(main)
         }
     }
-    machine good(main: &mut Main) { Console::write_line("VERIFIED: domain_oracles"); Console::exit_process(0); }
-    machine bad(main: &mut Main) { Console::write_line("FAIL: domain_oracles"); Console::exit_process(77); }
+    machine good(main: &mut Main) { Console::write_line("VERIFIED: domain_oracles"); ProcessExit::exit_process(0); }
+    machine bad(main: &mut Main) { Console::write_line("FAIL: domain_oracles"); ProcessExit::exit_process(77); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

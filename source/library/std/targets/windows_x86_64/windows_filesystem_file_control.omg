@@ -71,9 +71,9 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
 windows_x86_64 machine windows_update_readonly(handle: u64, readonly: bool) -> i32
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     let classified: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(handle);
-    transition classified != 0 { true -> block query(classified, readonly) false -> failed() }
+    transition (classified as -WindowsDiskFileOrAbsent) != 0 { true -> block query(classified, readonly) false -> failed() }
     machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
-    machine query(handle: i64 in WindowsDiskFileOrAbsent, readonly: bool) -> i32 requires handle != 0 {
+    machine query(handle: i64 in WindowsDiskFileOrAbsent, readonly: bool) -> i32 requires (handle as -WindowsDiskFileOrAbsent) != 0 {
         let mut current: WindowsNativeFileBasicInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, &mut current, 40);
         // The classifier authorizes the typed query. The setter accepts the

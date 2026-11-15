@@ -59,19 +59,42 @@ impl Program<'_> {
             let mut descriptions = Vec::with_capacity(source.signatures.len());
             for signature in signatures {
                 let signature = signature?;
-                let telescope = signature
-                    .telescope
+                let selected = signature
+                    .projections_in_context(typed, self.purpose)
+                    .next()
+                    .ok_or_else(|| {
+                        services::unavailable(
+                            context,
+                            "calling ABI has no declaration in the selected checked context",
+                        )
+                    })?;
+                let physical_owner = selected
+                    .physical_owner
                     .as_ref()
                     .map_err(|reason| services::unavailable(context, reason.clone()))?;
-                if !telescope.binders.is_empty() || !telescope.direct_callbacks.is_empty() {
-                    return Err(services::unavailable(
-                        context,
-                        "calling metadata needs its exact published callback catalog",
-                    ));
-                }
                 let mut agreed = None;
-                for projection in &signature.projections {
-                    let projection = projection
+                for original in signature.projections_in_context(typed, self.purpose) {
+                    if original.formals != selected.formals
+                        || original.default_eligible != selected.default_eligible
+                        || original.physical_owner != selected.physical_owner
+                    {
+                        return Err(services::unavailable(
+                            context,
+                            "equal declaration ABI keys have different declarations in the selected checked context",
+                        ));
+                    }
+                    let telescope = original
+                        .telescope
+                        .as_ref()
+                        .map_err(|reason| services::unavailable(context, reason.clone()))?;
+                    if !telescope.binders.is_empty() || !telescope.direct_callbacks.is_empty() {
+                        return Err(services::unavailable(
+                            context,
+                            "calling metadata needs its exact published callback catalog",
+                        ));
+                    }
+                    let projection = original
+                        .storage
                         .as_ref()
                         .map_err(|reason| services::unavailable(context, reason.clone()))?;
                     if projection.parameters.len() != telescope.parameters.len() {
@@ -81,7 +104,7 @@ impl Program<'_> {
                         ));
                     }
                     self.scope.clear();
-                    self.lifetime_owner = signature.template;
+                    self.lifetime_owner = original.source;
                     let mut bound = std::collections::HashSet::<
                         symbols::SymbolHandle,
                         symbols::BuildSymbolHasher,
@@ -148,16 +171,17 @@ impl Program<'_> {
                         });
                     }
                     let omitted_unit = !projection.result.is_valid()
-                        && !signature.source_templates.is_empty()
-                        && signature.source_templates.iter().all(|symbol| {
-                            if let Some((_, declared)) = typed.trait_machine_signature(*symbol) {
+                        && {
+                            if let Some((_, declared)) =
+                                typed.trait_machine_signature(original.source)
+                            {
                                 !declared.return_type.is_valid()
-                            } else if let Some(machine) = typed.machine_by_symbol(*symbol) {
+                            } else if let Some(machine) = typed.machine_by_symbol(original.source) {
                                 matches!(typed.machine_states(machine), [state] if !state.return_type.is_valid())
                             } else {
                                 false
                             }
-                        });
+                        };
                     if !omitted_unit
                         && !typed
                             .type_reference_table
@@ -216,6 +240,9 @@ impl Program<'_> {
                 descriptions.push(PreparedCallingStorage {
                     id: signature.id,
                     storage,
+                    formals: selected.formals.clone(),
+                    default_eligible: selected.default_eligible,
+                    physical_owner: *physical_owner,
                 });
             }
             let mut properties: Vec<StorageDescriptionProperties> = Vec::new();
@@ -266,9 +293,10 @@ impl Program<'_> {
                         // The descriptor does not own its backing storage.
                         // The referent's linear claim therefore stays separate.
                     }
-                    // Opaque data has no authored children to traverse. Its
-                    // declared multiplicity still supplies the claim above.
+                    // Opaque and atomic carriers have no authored children.
+                    // Declared multiplicity still supplies the claim above.
                     StorageShape::Opaque
+                    | StorageShape::AtomicCell(_)
                     | StorageShape::ByteSequence(_)
                     | StorageShape::PrimitiveScalar { .. } => {}
                 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Topological order via iterative source removal over a directed graph held
 // in CSR (offsets + targets) form. Each pass scans all nodes and emits every
 // node whose in-degree reached zero, decrementing its successors' in-degrees
@@ -35,7 +36,7 @@ data Positions {
     at: [u64; 8];
 }
 
-machine Topo::init(t: &mut Topo) {
+machine init(t: &mut Topo) {
     t.emitted_count = 0;
     transition { _ -> loop_(t, 0) }
 
@@ -56,7 +57,7 @@ machine Topo::init(t: &mut Topo) {
     machine done() {}
 }
 
-machine Topo::compute_indeg(t: &mut Topo, g: &Graph) {
+machine compute_indeg(t: &mut Topo, g: &Graph) {
     transition { _ -> loop_(t, g, 0, g.offsets[g.node_count]) }
 
     machine loop_(t: &mut Topo, g: &Graph, e: u64, edge_count: u64) {
@@ -87,7 +88,7 @@ machine Topo::compute_indeg(t: &mut Topo, g: &Graph) {
 // Source-removal passes: repeat until a full pass emits nothing (cyclic
 // remainder) or all nodes are emitted. `progress` is 1 when the current pass
 // emitted at least one node.
-machine Topo::sort(t: &mut Topo, g: &Graph) {
+machine sort(t: &mut Topo, g: &Graph) {
     transition { _ -> pass(t, g, 0) }
 
     machine pass(t: &mut Topo, g: &Graph, pass_index: u64) {
@@ -245,7 +246,7 @@ machine edges_ordered(g: &Graph, positions: &Positions) -> bool {
     }
 }
 
-machine Topo::verify(t: &Topo, g: &Graph, positions: &mut Positions) -> bool {
+machine verify(t: &Topo, g: &Graph, positions: &mut Positions) -> bool {
     transition t.emitted_count == 8 {
         true -> build(t, g, positions)
         _ -> (false)
@@ -269,7 +270,7 @@ data Main {
     positions: Positions;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     // 0->5, 0->6, 1->6, 2->4, 2->7, 3->7, 4->1, 5->2, 6->3 (9 edges).
     main.graph_dag = Graph {
         node_count: 8,
@@ -284,14 +285,14 @@ machine Main::main(main: &mut Main) reaches Console {
         targets: [1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     };
 
-    Topo::init(&mut main.topo_dag);
-    Topo::compute_indeg(&mut main.topo_dag, &main.graph_dag);
-    Topo::sort(&mut main.topo_dag, &main.graph_dag);
-    let dag_ok: bool = Topo::verify(&main.topo_dag, &main.graph_dag, &mut main.positions);
+    init(&mut main.topo_dag);
+    compute_indeg(&mut main.topo_dag, &main.graph_dag);
+    sort(&mut main.topo_dag, &main.graph_dag);
+    let dag_ok: bool = verify(&main.topo_dag, &main.graph_dag, &mut main.positions);
 
-    Topo::init(&mut main.topo_cyc);
-    Topo::compute_indeg(&mut main.topo_cyc, &main.graph_cyc);
-    Topo::sort(&mut main.topo_cyc, &main.graph_cyc);
+    init(&mut main.topo_cyc);
+    compute_indeg(&mut main.topo_cyc, &main.graph_cyc);
+    sort(&mut main.topo_cyc, &main.graph_cyc);
     let cyc_ok: bool = main.topo_cyc.emitted_count == 1 && main.topo_cyc.order[0] == 3;
 
     transition dag_ok && cyc_ok {
@@ -301,17 +302,17 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine pass() {
         Console::write_line("PASS: topological_order emitted [0,5,2,4,1,6,3,7] on the DAG and detected the 3-cycle");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 
     machine fail() {
         Console::write_line("FAIL: topological_order verification mismatch");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

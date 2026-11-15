@@ -268,7 +268,7 @@ impl<'b> Walk<'b> {
                             if !(changed && cyclic) {
                                 continue;
                             }
-                            for &caller in components.callers(this) {
+                            for caller in components.callers(this) {
                                 if components.same_component(caller, this)
                                     && !refused[caller]
                                     && !std::mem::replace(&mut stale[caller], true)
@@ -446,7 +446,7 @@ impl<'b> Walk<'b> {
                         return Ok(normal);
                     }
                 }
-                Statement::Evaluate(expression) => {
+                Statement::Evaluate { expression, .. } => {
                     if !self.expression(machine, expression)? {
                         return Ok(normal);
                     }
@@ -507,8 +507,18 @@ impl<'b> Walk<'b> {
     /// call in it has no normal completion, so evaluation never finishes.
     fn expression(&mut self, machine: MachineId, expression: &Expression) -> Checked<bool> {
         match &expression.kind {
+            ExpressionKind::Atomic(operation) => {
+                for operand in operation.inputs() {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
+            | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Boolean(_)
@@ -555,7 +565,7 @@ impl<'b> Walk<'b> {
                 Ok(true)
             }
             ExpressionKind::ArrayView { base, .. } => self.expression(machine, base),
-            ExpressionKind::ByteSubslice { base, start, end } => {
+            ExpressionKind::CollectionSubslice { base, start, end } => {
                 for operand in std::iter::once(base.as_ref())
                     .chain(start.as_deref())
                     .chain(end.as_deref())

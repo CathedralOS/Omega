@@ -87,9 +87,10 @@ fn named_captures(typed: &TypedTrees) -> NamedCaptures {
 }
 
 pub use body::{
-    Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainSet, Expression,
-    ExpressionKind, Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement,
-    StorageShape, Strict, Target, Termination, ValueType, self_place,
+    Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainInstance,
+    DomainSet, Expression, ExpressionKind, Policy, Qualification, RecordField, RecordType,
+    Selector, Signature, Statement, StorageShape, Strict, Target, Termination, ValueType,
+    self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use callable_headers::{CallableCrashPolicy, CallableHeader};
@@ -204,8 +205,7 @@ pub enum Unserved {
     Typing(&'static str),
     /// A name or type the typed trees hold only as a spelling.
     Spelling(&'static str),
-    /// A completion rule of the machine body (a value machine that can fall
-    /// off its last statement, a statement after an unconditional arm).
+    /// A completion or control-flow form the route cannot judge yet.
     Completion(&'static str),
     /// A declaration the check claims and the route does not judge: a
     /// subject declaration or a Build selection of any kind other than a
@@ -300,8 +300,12 @@ pub fn elaborate_for(
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
-    elaborate_source_for(typed, compilation, publication, named_captures(typed))
-        .map(|prepared| prepared.program)
+    // The first refusal read is the one a reading that stops there meets;
+    // `prepare_compilation` reports the rest beside it.
+    let mut prepared = elaborate_source_for(typed, compilation, publication, named_captures(typed))
+        .map_err(|mut refused| refused.swap_remove(0))?;
+    proof_scope::declare(typed, &mut prepared.program, &prepared.selected_calls)?;
+    Ok(prepared.program)
 }
 
 fn elaborate_source_for<'source>(
@@ -309,18 +313,28 @@ fn elaborate_source_for<'source>(
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
     captures: NamedCaptures,
-) -> Checked<PreparedProgram<'source>> {
-    let mut program = read::Program::with_captures(typed, false, captures);
+) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
+    let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
     program.publication = publication;
     program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
-    program.build_entry_context(first, compilation.purpose, compilation.entries)?;
+    let alone = |refused: Refusal| vec![refused];
+    program
+        .build_entry_context(first, compilation.purpose, compilation.entries)
+        .map_err(alone)?;
+    // Every claimed declaration and every body is read even after one is
+    // refused, so one compilation names every machine the checker cannot
+    // read yet (`read::Program::keep`). The first entry is the exception:
+    // it is machine 1, the frame every other refusal is reported in.
+    program.collected = Some(Vec::new());
     let entry = if let Some((entry, others)) = compilation.entries.split_first() {
-        let entry = program.machine(*entry)?;
+        let entry = program.machine(*entry).map_err(alone)?;
         program.fixed_inputs.push(entry);
         for other in others {
-            let other = program.machine(*other)?;
-            program.fixed_inputs.push(other);
+            match program.machine(*other) {
+                Ok(other) => program.fixed_inputs.push(other),
+                Err(refused) => program.keep(Err(refused)).map_err(alone)?,
+            }
         }
         Some(entry)
     } else {
@@ -329,21 +343,80 @@ fn elaborate_source_for<'source>(
         // or from whichever subject machine happens to be read first.
         None
     };
-    program.selected_declarations(first, compilation.selected)?;
-    program.supplied_slots(first, compilation.supplies)?;
-    program.subject_declarations(first, compilation.subjects, compilation.purpose)?;
-    let mut prepared = finish_reading(
+    for selected in compilation.selected {
+        let read = program.selected_declarations(first, std::slice::from_ref(selected));
+        program.keep(read).map_err(alone)?;
+    }
+    for supply in compilation.supplies {
+        let read = program.supplied_slots(first, std::slice::from_ref(supply));
+        program.keep(read).map_err(alone)?;
+    }
+    program
+        .subject_declarations(first, compilation.subjects, compilation.purpose)
+        .map_err(alone)?;
+    let bodies = read_bodies(&mut program, first).map_err(alone)?;
+    // Past reading, each step works over the whole closure, so the first
+    // refusal there ends it, except the storage plan of each machine
+    // (`finish_storage`).
+    let refused = program.collected.take().unwrap_or_default();
+    if !refused.is_empty() {
+        return Err(refused);
+    }
+    let mut further = Vec::new();
+    let mut elaboration = finish_reading_into(
         program,
         entry,
-        IdTable::default(),
+        bodies,
         Some(typed),
         compilation.calling,
         compilation.providers,
-    )?;
-    prepared.selected_calls =
-        compilation::prepare_selected_signatures(typed, &prepared.program, &prepared.source)?;
-    proof_scope::declare(typed, &mut prepared.program, &prepared.selected_calls)?;
-    Ok(prepared)
+        &mut further,
+    )
+    .map_err(|first| {
+        let mut refused = vec![first];
+        refused.append(&mut further);
+        refused
+    })?;
+    elaboration.selected_calls =
+        compilation::prepare_selected_signatures(typed, &elaboration.program, &elaboration.source)
+            .map_err(alone)?;
+    Ok(elaboration)
+}
+
+/// Reads the body of every machine discovered so far, and of each callee
+/// those bodies discover. A refused body is recorded (`read::Program::keep`)
+/// and the next is read; the table then holds only the bodies before the
+/// first refused one, and is used only when nothing was refused.
+fn read_bodies(
+    program: &mut read::Program<'_>,
+    diagnostic: MachineId,
+) -> Checked<IdTable<MachineId, Body>> {
+    let mut bodies = IdTable::default();
+    let mut complete = true;
+    let mut position = 0;
+    // `program.body` appends callees while bodies are read, so the bound is
+    // re-read on every step.
+    while position < program.symbols.len() {
+        position += 1;
+        let next = MachineId::new(position as u64).ok_or_else(|| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Machine("identity overflow"),
+            )
+        })?;
+        match program.body(next) {
+            Ok(body) if complete => {
+                bodies.push(body);
+            }
+            Ok(_) => {}
+            Err(refused) => {
+                program.keep(Err(refused))?;
+                complete = false;
+            }
+        }
+    }
+    Ok(bodies)
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery
@@ -352,7 +425,25 @@ fn elaborate_source_for<'source>(
 /// carrying a generic body's proofs into one of its specializations. Any
 /// refusal refuses the whole closure.
 pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration> {
-    elaborate_form(typed, entry, false, named_captures(typed))
+    elaborate_form(
+        typed,
+        declaration_context(typed, entry),
+        entry,
+        false,
+        named_captures(typed),
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+/// Single-declaration APIs use that declaration's checked source context.
+/// Source-free representation fixtures retain the Product interpretation.
+fn declaration_context(typed: &TypedTrees, declaration: SymbolHandle) -> source::DependencyScope {
+    typed
+        .symbols
+        .symbol_provenance_source_span(declaration)
+        .and_then(|span| typed.symbols.source_file(span))
+        .map(|source| source.dependency_scope)
+        .unwrap_or(source::DependencyScope::Product)
 }
 
 /// Elaborates the generic check form of `template`, a machine whose generic
@@ -365,7 +456,14 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
 /// once, against the requirements alone, and is never sealed, encoded or
 /// run.
 pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<Elaboration> {
-    elaborate_form(typed, template, true, named_captures(typed))
+    elaborate_form(
+        typed,
+        declaration_context(typed, template),
+        template,
+        true,
+        named_captures(typed),
+        terminal_codec::TerminalPublication::Portable,
+    )
 }
 
 /// Elaborates a generic machine over a finite type family once per
@@ -383,22 +481,31 @@ pub fn elaborate_alternatives(
     typed: &TypedTrees,
     template: SymbolHandle,
 ) -> Checked<Vec<Elaboration>> {
-    prepare_alternatives(typed, template, named_captures(typed))
-        .map(|forms| forms.into_iter().map(|form| form.program).collect())
+    prepare_alternatives(
+        typed,
+        declaration_context(typed, template),
+        template,
+        named_captures(typed),
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .map(|forms| forms.into_iter().map(|form| form.program).collect())
 }
 
 fn prepare_alternatives<'source>(
     typed: &'source TypedTrees,
+    purpose: source::DependencyScope,
     template: SymbolHandle,
     captures: NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<Vec<PreparedProgram<'source>>> {
     let first = MachineId::new(1).expect("1 is nonzero");
-    let alternatives = read::Program::with_captures(typed, false, captures.clone())
+    let alternatives = read::Program::with_captures(typed, false, purpose, captures.clone())
         .family_alternatives(first, template)?;
     alternatives
         .into_iter()
         .map(|arguments| {
-            let mut program = read::Program::with_captures(typed, false, captures.clone());
+            let mut program = read::Program::with_captures(typed, false, purpose, captures.clone());
+            program.publication = publication;
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
             finish_reading(program, Some(entry), IdTable::default(), None, None, None)
@@ -415,19 +522,36 @@ pub fn elaborate_generic_forms(
     typed: &TypedTrees,
     templates: &[SymbolHandle],
 ) -> Checked<Vec<Elaboration>> {
-    prepare_generic_forms(typed, templates, named_captures(typed))
-        .map(|forms| forms.into_iter().map(|form| form.program).collect())
+    let captures = named_captures(typed);
+    let mut forms = Vec::new();
+    for template in templates {
+        forms.extend(
+            prepare_generic_forms(
+                typed,
+                declaration_context(typed, *template),
+                &[*template],
+                captures.clone(),
+                terminal_codec::TerminalPublication::Portable,
+            )?
+            .into_iter()
+            .map(|prepared| prepared.program),
+        );
+    }
+    Ok(forms)
 }
 
 fn prepare_generic_forms<'source>(
     typed: &'source TypedTrees,
+    purpose: source::DependencyScope,
     templates: &[SymbolHandle],
     captures: NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<Vec<PreparedProgram<'source>>> {
     let mut forms = Vec::new();
     for template in templates {
         if let Some(declared) = typed.trait_definition_by_symbol(*template) {
-            let mut program = read::Program::with_captures(typed, true, captures.clone());
+            let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
+            program.publication = publication;
             program.generic_trait(declared)?;
             forms.push(finish_reading(
                 program,
@@ -439,12 +563,22 @@ fn prepare_generic_forms<'source>(
             )?);
             continue;
         }
-        match prepare_form(typed, *template, true, captures.clone()) {
+        match prepare_form(
+            typed,
+            purpose,
+            *template,
+            true,
+            captures.clone(),
+            publication,
+        ) {
             Ok(form) => forms.push(form),
-            Err(rigid) => match prepare_alternatives(typed, *template, captures.clone()) {
-                Ok(alternatives) => forms.extend(alternatives),
-                Err(_) => return Err(rigid),
-            },
+            Err(rigid) => {
+                match prepare_alternatives(typed, purpose, *template, captures.clone(), publication)
+                {
+                    Ok(alternatives) => forms.extend(alternatives),
+                    Err(_) => return Err(rigid),
+                }
+            }
         }
     }
     Ok(forms)
@@ -471,6 +605,12 @@ pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHa
         .executable_application_template(machine)
         .ok()
         .flatten()
+}
+
+struct WitnessInputs<'scope> {
+    captures: NamedCaptures,
+    purpose: source::DependencyScope,
+    outcome_subjects: Option<&'scope [Option<PackageKeyIdentity>]>,
 }
 
 /// Elaborates the conformance witness of `implementation` for `requirement`:
@@ -501,7 +641,11 @@ pub fn elaborate_witness(
         arguments,
         implementation,
         None,
-        named_captures(typed),
+        WitnessInputs {
+            captures: named_captures(typed),
+            purpose: declaration_context(typed, implementation),
+            outcome_subjects: None,
+        },
     )
     .map(|prepared| prepared.program)
 }
@@ -513,12 +657,13 @@ fn prepare_witness<'source>(
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
     expected: Option<&'source typed_trees::signature::StateSignature>,
-    captures: NamedCaptures,
+    inputs: WitnessInputs<'_>,
 ) -> Checked<PreparedProgram<'source>> {
     let generic = typed
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
-    let mut program = read::Program::with_captures(typed, generic, captures);
+    let mut program = read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures);
+    program.outcome_subjects = inputs.outcome_subjects.map(|subjects| subjects.to_vec());
     let entry = program.witnessed(
         declaring_trait,
         requirement,
@@ -545,7 +690,12 @@ pub fn elaborate_callable_witness<'a>(
     required: &'a typed_trees::signature::StateSignature,
     supplied: CallableDeclaration<'a>,
 ) -> Checked<Elaboration> {
-    let mut program = read::Program::with_captures(typed, false, named_captures(typed));
+    let mut program = read::Program::with_captures(
+        typed,
+        false,
+        declaration_context(typed, required.symbol),
+        named_captures(typed),
+    );
     let entry = program.witnessed_signature(required, &[], None)?;
     let callee = program.callable_contract(supplied)?;
     let bodies = witness_call(&mut program, entry, callee)?;
@@ -604,7 +754,6 @@ fn witness_call(
                             call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: borrowed.access,
-                                formation: borrowed.access,
                                 place: Box::new(place),
                                 home: borrowed.home.clone(),
                             },
@@ -640,7 +789,10 @@ pub(crate) fn callable_refinement_body(required: &body::Signature, call: Express
                 target: Target::Value(call),
                 source,
             },
-            None => Statement::Evaluate(call),
+            None => Statement::Evaluate {
+                expression: call,
+                discards_result: false,
+            },
         }],
     }
 }
@@ -673,7 +825,7 @@ fn finish_logical_witness<'source>(
     program.prepare_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
-    let components = prepare_call_components(&bodies, &program.signatures)?;
+    let components = prepare_call_components(&bodies, &mut program.signatures)?;
     let mut witness = lower_program(
         Some(entry),
         &bodies,
@@ -728,20 +880,26 @@ fn capture_source_questions(
 
 fn elaborate_form(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     entry: SymbolHandle,
     rigid: bool,
     captures: NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
-    prepare_form(typed, entry, rigid, captures).map(|prepared| prepared.program)
+    prepare_form(typed, purpose, entry, rigid, captures, publication)
+        .map(|prepared| prepared.program)
 }
 
 fn prepare_form<'source>(
     typed: &'source TypedTrees,
+    purpose: source::DependencyScope,
     entry: SymbolHandle,
     rigid: bool,
     captures: NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<PreparedProgram<'source>> {
-    let mut program = read::Program::with_captures(typed, rigid, captures);
+    let mut program = read::Program::with_captures(typed, rigid, purpose, captures);
+    program.publication = publication;
     let entry = program.machine(entry)?;
     finish_reading(program, Some(entry), IdTable::default(), None, None, None)
 }
@@ -752,12 +910,34 @@ fn prepare_form<'source>(
 /// identities (`declare`). This owner publishes their proof scopes once after
 /// the declarations are formed.
 fn finish_reading<'source>(
+    program: read::Program<'source>,
+    entry: Option<MachineId>,
+    bodies: IdTable<MachineId, Body>,
+    declared: Option<&'source TypedTrees>,
+    calling: Option<CallingPolicySelections<'_>>,
+    providers: Option<provider_selections::ProviderSelections<'_>>,
+) -> Checked<PreparedProgram<'source>> {
+    finish_reading_into(
+        program,
+        entry,
+        bodies,
+        declared,
+        calling,
+        providers,
+        &mut Vec::new(),
+    )
+}
+
+/// `finish_reading`, putting each machine refused after the first one, where
+/// each machine is refused on its own, into `further`.
+fn finish_reading_into<'source>(
     mut program: read::Program<'source>,
     entry: Option<MachineId>,
     mut bodies: IdTable<MachineId, Body>,
     declared: Option<&'source TypedTrees>,
     calling: Option<CallingPolicySelections<'_>>,
     providers: Option<provider_selections::ProviderSelections<'_>>,
+    further: &mut Vec<Refusal>,
 ) -> Checked<PreparedProgram<'source>> {
     // Refusals need a coordinate even for an empty declaration module. This
     // diagnostic anchor is never installed as an entry or an input boundary.
@@ -781,7 +961,8 @@ fn finish_reading<'source>(
             let body = program.body(next)?;
             bodies.push(body);
         }
-        let components = prepare_call_components(&bodies, &program.signatures)?;
+        program.prepare_domain_predicates(diagnostic)?;
+        let components = prepare_call_components(&bodies, &mut program.signatures)?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
         if !program.prepare_calling_policies(diagnostic, calling, &mut policies)? {
@@ -844,7 +1025,8 @@ fn finish_reading<'source>(
     };
     // Real typed bodies retain their actual declarations in check forms too.
     // A synthetic frame has no such declaration and is recorded as undeclared.
-    declare::declare(program.typed, &program, &mut elaboration).map_err(declaration_error)?;
+    let prepared_applications =
+        declare::declare(program.typed, &program, &mut elaboration).map_err(declaration_error)?;
     if let Some(typed) = declared {
         elaboration.provider_candidate_intents = declare::provider_candidates(
             typed,
@@ -891,8 +1073,13 @@ fn finish_reading<'source>(
                 })?);
         }
     }
+    reference_results::publish_requirements(
+        &mut elaboration.module,
+        &program,
+        &program.requirements,
+    )?;
     reference_results::publish(&mut elaboration, &program.selections)?;
-    finish_storage(diagnostic, &mut elaboration)?;
+    finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
@@ -920,6 +1107,7 @@ fn finish_reading<'source>(
         program: elaboration,
         source,
         selected_calls: Vec::new(),
+        prepared_applications,
     })
 }
 
@@ -961,6 +1149,8 @@ pub fn lower_generic(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
 ) -> Checked<Elaboration> {
+    // This model-level entrance borrows its caller's headers. Source preparation
+    // above already owns and completes the same signature table in place.
     lower_generic_for(
         Some(entry),
         bodies,
@@ -985,9 +1175,14 @@ fn lower_generic_for<'source>(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
     publication: terminal_codec::TerminalPublication,
-    typed_source: Option<&'source TypedTrees>,
+    source: Option<&'source read::Program<'source>>,
 ) -> Checked<PreparedProgram<'source>> {
-    let components = prepare_call_components(bodies, signatures.machines)?;
+    let mut machine_signatures = signatures.machines.clone();
+    let components = prepare_call_components(bodies, &mut machine_signatures)?;
+    let signatures = body::Signatures {
+        machines: &machine_signatures,
+        ..signatures
+    };
     lower_program(
         entry,
         bodies,
@@ -1001,8 +1196,8 @@ fn lower_generic_for<'source>(
         &external_providers::ExternalProviderNamespace::default(),
         &static_contracts::StaticContracts::default(),
         publication,
-        typed_source,
-        None,
+        source.map(|source| source.typed),
+        source,
     )
 }
 
@@ -1010,7 +1205,7 @@ fn lower_generic_for<'source>(
 /// Progress inference and lowering borrow the same component/ranking data.
 fn prepare_call_components(
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: &mut IdTable<MachineId, Signature>,
 ) -> Checked<components::Components> {
     for (machine, body) in bodies.iter() {
         operational::positions(machine, body)?;
@@ -1290,6 +1485,13 @@ fn lower_program<'source>(
         source.constructions.extend(lowered.source_constructions);
         source.folded_calls.extend(lowered.source_folded_calls);
     }
+    if let Some(source) = declarations {
+        let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
+        let conditions = std::mem::take(&mut module.scalar_applications.conditions);
+        module.scalar_applications = source.scalar_applications.clone();
+        module.scalar_applications.proof_scope = proof_scope;
+        module.scalar_applications.conditions = conditions;
+    }
     module.identities = std::mem::take(&mut qualifications.identities).build();
     module.scalar_qualifications = qualifications.catalog.clone();
     boundaries.publish(
@@ -1408,6 +1610,7 @@ fn lower_program<'source>(
     let mut prepared = PreparedProgram {
         source,
         selected_calls: Vec::new(),
+        prepared_applications: Vec::new(),
         program: Elaboration {
             module,
             tables,
@@ -1439,62 +1642,69 @@ fn lower_program<'source>(
     };
     if declarations.is_none() {
         reference_results::publish(&mut prepared.program, &[])?;
-        finish_storage(diagnostic, &mut prepared.program)?;
+        finish_storage(diagnostic, &mut prepared.program, &mut Vec::new())?;
     }
     Ok(prepared)
 }
 
-fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Checked<()> {
+/// `further` receives every machine whose storage plan is refused as not
+/// supported after the first, which is the refusal returned; the plan of
+/// each later machine is still made, so one compilation names them all.
+fn finish_storage(
+    diagnostic: MachineId,
+    elaboration: &mut Elaboration,
+    further: &mut Vec<Refusal>,
+) -> Checked<()> {
+    let mut unsupported: Vec<Refusal> = Vec::new();
+    let names = &elaboration.names;
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
-    reference_ends::install(module, tables, sources)?;
+    reference_ends::install(module, tables, sources, further)?;
     for ordinal in 0..module.machines.len() {
         let machine = &module.machines[ordinal];
-        let plan =
-            terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
-                let (concerns, operation, origin) = match error.site() {
-                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
-                        Construct::Operation(at),
-                        machine
-                            .operations()
-                            .find(|operation| operation.id == at)
-                            .map(|operation| {
-                                terminal_semantics::OperationSemanticTag::for_operation(
-                                    &operation.kind,
-                                )
+        let plan = terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
+            let (concerns, operation, origin) = match error.site() {
+                Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
+                    Construct::Operation(at),
+                    machine
+                        .operations()
+                        .find(|operation| operation.id == at)
+                        .map(|operation| {
+                            terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
                                 .name()
-                            }),
-                        sources
-                            .get(machine.id)
-                            .and_then(|source| source.operations.get(at))
-                            .copied(),
-                    ),
-                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
-                        Construct::Edge(at),
-                        Some("control-flow edge"),
-                        sources
-                            .get(machine.id)
-                            .and_then(|source| source.edges.get(at))
-                            .copied(),
-                    ),
-                    None => (Construct::Machine, None, None),
-                };
-                let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                        (terminal_check_tables::RefusalReason::Unsupported, detail)
-                    }
-                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
-                        terminal_check_tables::RefusalReason::ForeignIdentity,
-                        detail,
-                    ),
-                };
-                terminal_check_tables::Refusal {
-                    reason,
-                    machine: machine.id,
-                    concerns,
-                    source_span: None,
-                    detail: match (operation, origin) {
+                        }),
+                    sources
+                        .get(machine.id)
+                        .and_then(|source| source.operations.get(at))
+                        .copied(),
+                ),
+                Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
+                    Construct::Edge(at),
+                    Some("control-flow edge"),
+                    sources
+                        .get(machine.id)
+                        .and_then(|source| source.edges.get(at))
+                        .copied(),
+                ),
+                None => (Construct::Machine, None, None),
+            };
+            let (reason, detail) = match error {
+                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                    (terminal_check_tables::RefusalReason::Unsupported, detail)
+                }
+                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
+                    terminal_check_tables::RefusalReason::ForeignIdentity,
+                    detail,
+                ),
+            };
+            terminal_check_tables::Refusal {
+                reason,
+                machine: machine.id,
+                concerns,
+                source_span: None,
+                detail: {
+                    let detail = match (operation, origin) {
                         (
                             Some(operation),
                             Some(terminal_check_tables::program::SourceOrigin::Authored(span)),
@@ -1504,9 +1714,24 @@ fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Check
                         ),
                         (Some(operation), _) => format!("while checking {operation}: {detail}"),
                         (None, _) => detail.to_owned(),
-                    },
-                }
-            })?;
+                    };
+                    match names.get(machine.id) {
+                        Some(name) => {
+                            format!("while checking storage in `{}`: {detail}", name.machine)
+                        }
+                        None => detail,
+                    }
+                },
+            }
+        });
+        let plan = match plan {
+            Ok(plan) => plan,
+            Err(refused) if refused.reason == RefusalReason::Unsupported => {
+                unsupported.push(refused);
+                continue;
+            }
+            Err(refused) => return Err(refused),
+        };
         let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership
@@ -1570,6 +1795,11 @@ fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Check
             }
         }
     }
+    if !unsupported.is_empty() {
+        let first = unsupported.remove(0);
+        further.append(&mut unsupported);
+        return Err(first);
+    }
     lower::publish_write_frames(diagnostic, module, tables)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
@@ -1612,9 +1842,12 @@ mod publication_scope_tests {
             ranking: None,
         });
         let lower = |publication| {
-            lower_generic_for(
+            let mut signatures = signatures.clone();
+            let components = prepare_call_components(&bodies, &mut signatures).unwrap();
+            lower_program(
                 Some(entry),
                 &bodies,
+                &components,
                 body::Signatures {
                     declarations: &IdTable::default(),
                     declaration_aliases: None,
@@ -1623,7 +1856,13 @@ mod publication_scope_tests {
                 },
                 &IdTable::default(),
                 &[],
+                &callables::CallableNamespace::default(),
+                &boundaries::BoundaryNamespace::default(),
+                &reach::ServiceMap::default(),
+                &external_providers::ExternalProviderNamespace::default(),
+                &static_contracts::StaticContracts::default(),
                 publication,
+                None,
                 None,
             )
             .unwrap()

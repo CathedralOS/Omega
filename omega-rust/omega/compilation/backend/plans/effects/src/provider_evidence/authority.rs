@@ -777,6 +777,12 @@ pub enum TerminalAuthorityClosureCustody {
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
         provider_plan: crate::provider_plan::ProviderPlanDigest,
     },
+    NativeBinding {
+        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
+        declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
+        receipt: [u8; 32],
+    },
     ProgramRoot {
         service_identity: terminal_psi::TerminalIdentityIndex,
     },
@@ -808,6 +814,32 @@ impl TerminalAuthorityClosureLeaf {
                 requirement_identity,
                 declared_requirement_identity,
                 provider_plan,
+            },
+            mechanism,
+            origin,
+            exercised,
+            permitted,
+        };
+        leaf.validate()?;
+        Ok(leaf)
+    }
+
+    pub fn native_binding(
+        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        requirement_identity: terminal_psi::TerminalIdentityIndex,
+        declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
+        receipt: [u8; 32],
+        mechanism: TerminalMechanismIdentity,
+        origin: TerminalAuthorityClosureLeafOrigin,
+        exercised: Option<TerminalAuthorityDisposition>,
+        permitted: Option<TerminalAuthorityDisposition>,
+    ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
+        let leaf = Self {
+            custody: TerminalAuthorityClosureCustody::NativeBinding {
+                service_schema,
+                requirement_identity,
+                declared_requirement_identity,
+                receipt,
             },
             mechanism,
             origin,
@@ -868,7 +900,7 @@ impl TerminalAuthorityClosureLeaf {
         ) {
             return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
         }
-        if matches!(self.custody, TerminalAuthorityClosureCustody::SelectedRequirement { declared_requirement_identity, .. } if declared_requirement_identity.is_absent())
+        if matches!(self.custody, TerminalAuthorityClosureCustody::SelectedRequirement { declared_requirement_identity, .. } | TerminalAuthorityClosureCustody::NativeBinding { declared_requirement_identity, .. } if declared_requirement_identity.is_absent())
             || self.subject_identity().is_absent()
         {
             return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
@@ -886,6 +918,10 @@ impl TerminalAuthorityClosureLeaf {
             if self.permitted.is_some() {
                 return Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent);
             }
+        }
+        if matches!(self.custody, TerminalAuthorityClosureCustody::NativeBinding { receipt, .. } if receipt == [0; 32])
+        {
+            return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
         }
         if let Some(permitted) = &self.permitted {
             let exercised = self
@@ -912,6 +948,10 @@ impl TerminalAuthorityClosureLeaf {
             TerminalAuthorityClosureCustody::SelectedRequirement {
                 requirement_identity,
                 ..
+            }
+            | TerminalAuthorityClosureCustody::NativeBinding {
+                requirement_identity,
+                ..
             } => requirement_identity,
             TerminalAuthorityClosureCustody::ProgramRoot { service_identity } => service_identity,
         }
@@ -919,7 +959,8 @@ impl TerminalAuthorityClosureLeaf {
 
     pub const fn service_schema(&self) -> Option<crate::provider_plan::ServiceSchemaDigest> {
         match self.custody {
-            TerminalAuthorityClosureCustody::SelectedRequirement { service_schema, .. } => {
+            TerminalAuthorityClosureCustody::SelectedRequirement { service_schema, .. }
+            | TerminalAuthorityClosureCustody::NativeBinding { service_schema, .. } => {
                 Some(service_schema)
             }
             TerminalAuthorityClosureCustody::ProgramRoot { .. } => None,
@@ -931,7 +972,15 @@ impl TerminalAuthorityClosureLeaf {
             TerminalAuthorityClosureCustody::SelectedRequirement { provider_plan, .. } => {
                 Some(provider_plan)
             }
-            TerminalAuthorityClosureCustody::ProgramRoot { .. } => None,
+            TerminalAuthorityClosureCustody::ProgramRoot { .. }
+            | TerminalAuthorityClosureCustody::NativeBinding { .. } => None,
+        }
+    }
+
+    pub const fn native_binding_receipt(&self) -> Option<[u8; 32]> {
+        match self.custody {
+            TerminalAuthorityClosureCustody::NativeBinding { receipt, .. } => Some(receipt),
+            _ => None,
         }
     }
 
@@ -992,7 +1041,7 @@ impl TerminalAuthorityClosureReviewReceipt {
             if identities
                 .text(leaf.subject_identity())
                 .is_none_or(str::is_empty)
-                || matches!(leaf.custody, TerminalAuthorityClosureCustody::SelectedRequirement { declared_requirement_identity, .. } if identities.text(declared_requirement_identity).is_none_or(str::is_empty))
+                || matches!(leaf.custody, TerminalAuthorityClosureCustody::SelectedRequirement { declared_requirement_identity, .. } | TerminalAuthorityClosureCustody::NativeBinding { declared_requirement_identity, .. } if identities.text(declared_requirement_identity).is_none_or(str::is_empty))
             {
                 return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
             }
@@ -1100,6 +1149,10 @@ fn compare_closure_leaves(
                 .map(|plan| *plan.as_bytes())
                 .cmp(&right.provider_plan().map(|plan| *plan.as_bytes()))
         })
+        .then_with(|| {
+            left.native_binding_receipt()
+                .cmp(&right.native_binding_receipt())
+        })
         .then_with(|| left.origin.cmp(&right.origin))
         .then_with(|| {
             terminal_mechanism_identity_bytes(left.mechanism)
@@ -1133,6 +1186,25 @@ fn same_closure_leaf_key(
             left_schema == right_schema
                 && left_requirement == right_requirement
                 && left_plan == right_plan
+                && left.origin == right.origin
+        }
+        (
+            TerminalAuthorityClosureCustody::NativeBinding {
+                service_schema: left_schema,
+                requirement_identity: left_requirement,
+                receipt: left_receipt,
+                ..
+            },
+            TerminalAuthorityClosureCustody::NativeBinding {
+                service_schema: right_schema,
+                requirement_identity: right_requirement,
+                receipt: right_receipt,
+                ..
+            },
+        ) => {
+            left_schema == right_schema
+                && left_requirement == right_requirement
+                && left_receipt == right_receipt
                 && left.origin == right.origin
         }
         _ => false,
@@ -1189,6 +1261,21 @@ fn terminal_authority_closure_review_identity(
                     .unwrap_or_default();
                 digest.raw(&(declared.len() as u64).to_be_bytes());
                 digest.raw(declared.as_bytes());
+            }
+            TerminalAuthorityClosureCustody::NativeBinding {
+                service_schema,
+                declared_requirement_identity,
+                receipt,
+                ..
+            } => {
+                digest.byte(2);
+                digest.raw(service_schema.as_bytes());
+                let declared = identities
+                    .text(declared_requirement_identity)
+                    .unwrap_or_default();
+                digest.raw(&(declared.len() as u64).to_be_bytes());
+                digest.raw(declared.as_bytes());
+                digest.raw(&receipt);
             }
             TerminalAuthorityClosureCustody::ProgramRoot { .. } => digest.byte(1),
         }

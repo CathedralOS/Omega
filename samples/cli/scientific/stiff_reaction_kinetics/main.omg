@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 2. Empty stdin is invalid; valid input returns 0.
 // Expected output contains: INVALID reaction input
 use omega_language_std::Console;
@@ -8,7 +9,7 @@ use domain::rates;
 use domain::integrate;
 use domain::report;
 data Main { input: Input; problem: Problem; solution: Solution; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     block Input::read(&mut main.input);
     transition valid(&main.input) { true -> prepare(main) false -> invalid(main) }
     machine prepare(main: &mut Main) {
@@ -31,12 +32,12 @@ machine Main::main(main: &mut Main) reaches Console {
         integer64(narrow_u64_to_i64_saturating(main.solution.accepted)); Console::write(" ");
         integer64(narrow_u64_to_i64_saturating(main.solution.rejected)); Console::write_line("");
     }
-    machine invalid(main: &mut Main) { Console::write_line("INVALID reaction input"); Console::exit_process(2); }
-    machine exhausted(main: &mut Main) { Console::write_line("EXHAUSTED integration convergence"); Console::exit_process(3); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID reaction input"); ProcessExit::exit_process(2); }
+    machine exhausted(main: &mut Main) { Console::write_line("EXHAUSTED integration convergence"); ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

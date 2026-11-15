@@ -1,9 +1,10 @@
+use omega::language::core::ProcessExit;
 // A tick-PACED marquee -- the first render loop verified against REAL elapsed time. A '#'
 // sweeps across a carrier line for 24 frames at ~15ms each (write_line + Clock.sleep), and
-// the loop's wall-clock cost is then ASSERTED through std `Time::elapsed_since`: elapsed >=
+// the loop's wall-clock cost is then ASSERTED through std `elapsed_since`: elapsed >=
 // 100ms. Natively the monotonic clock measures real sleep time; the interpreter's virtual
 // clock advances by the slept milliseconds, so the same assertion holds deterministically.
-// Composes: std Clock and Time capabilities in a live render loop, carrier byte writes at a
+// Composes: std Clock and the TimeHost clock reads in a live render loop, carrier byte writes at a
 // runtime index, and per-frame host output.
 // Expected exit: 0.
 // Expected output contains: #
@@ -11,21 +12,21 @@ use omega_language_std::Console;
 use omega_language_std::Clock;
 use omega_language_std::Duration;
 use omega_language_std::Instant;
-use omega_language_std::Time;
+use omega_language_std::elapsed_since;
+use omega_language_std::instant_now;
 domain [u8; 12]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    time: Time;
     line: [u8; 12] in Utf8;
     frame: u32 in Wrapping;
     pos: u32 in Wrapping;
     t_start: Instant;
     pause: [u8; 256];
 }
-machine Main::main(main: &mut Main) reaches Clock + Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
-    main.t_start = Time::now(&mut main.time);
+    main.t_start = instant_now();
     main.frame = 0;
     transition { _ -> frame_loop(main) }
     machine frame_loop(main: &mut Main) {
@@ -44,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition { _ -> frame_loop(main) }
     }
     machine finish(main: &mut Main) {
-        let elapsed: Duration = Time::elapsed_since(&mut main.time, main.t_start);
+        let elapsed: Duration = elapsed_since(main.t_start);
         transition elapsed.seconds == 0 {
             true -> check_subsecond(main, elapsed.subsecond_nanoseconds)
             false -> ok(main)
@@ -57,18 +58,18 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: elapsed time came in under 100ms (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

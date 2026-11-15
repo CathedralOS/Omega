@@ -2645,6 +2645,9 @@ pub(crate) mod operator {
             Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(operation))) => {
                 Some(CatalogFamily::Collection(operation))
             }
+            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence)) => {
+                Some(CatalogFamily::AtomicFence)
+            }
             _ => CatalogFamily::naming(namespace, leaf),
         };
         let sealed_source = family.is_some_and(|family| {
@@ -2918,7 +2921,7 @@ pub(crate) mod operator {
             || entry.return_type.is_valid()
             || !valid_parameter
         {
-            return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `public machine Atomic::fence(ordering: FenceOrdering);`").with_source_span(machine.name.source_span()));
+            return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `public machine fence(ordering: FenceOrdering);` in `module Atomic`").with_source_span(machine.name.source_span()));
         }
         Ok(())
     }
@@ -2935,12 +2938,17 @@ pub(crate) mod operator {
             "/../../../../../source/library/core/atomic.omg"
         ));
 
-        fn parsed(
+        const ORDERING: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/fence_ordering.omg"
+        ));
+
+        fn parse_into(
+            sources: &mut SourceMap,
             text: &str,
             path: &str,
             origin: SourceOrigin,
-        ) -> (syntax_trees::SyntaxTrees, Arc<SourceMap>) {
-            let mut sources = SourceMap::default();
+        ) -> syntax_trees::SyntaxTrees {
             let source_id = sources
                 .add_checked_instance(
                     PathBuf::from("toolchain").join(path),
@@ -2955,8 +2963,17 @@ pub(crate) mod operator {
             let tokens = source_files_to_tokens::lexer::Lexer::new(text)
                 .tokenize()
                 .expect("the test source must tokenize");
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-                .expect("the test source must parse");
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+                .expect("the test source must parse")
+        }
+
+        fn parsed(
+            text: &str,
+            path: &str,
+            origin: SourceOrigin,
+        ) -> (syntax_trees::SyntaxTrees, Arc<SourceMap>) {
+            let mut sources = SourceMap::default();
+            let syntax = parse_into(&mut sources, text, path, origin);
             (syntax, Arc::new(sources))
         }
 
@@ -2966,9 +2983,16 @@ pub(crate) mod operator {
             origin: SourceOrigin,
         ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>>
         {
-            let (syntax, sources) = parsed(text, path, origin);
+            let mut sources = SourceMap::default();
+            let mut syntax = parse_into(&mut sources, text, path, origin);
+            syntax.extend_from(&parse_into(
+                &mut sources,
+                ORDERING,
+                "fence_ordering.omg",
+                SourceOrigin::Toolchain,
+            ));
             let mut request = ResolutionRequest::new(syntax);
-            request.sources = Some(sources);
+            request.sources = Some(Arc::new(sources));
             resolve(request)
         }
 
@@ -2978,7 +3002,11 @@ pub(crate) mod operator {
                 .expect("the bundled fence declaration must resolve");
             assert_eq!(trees.machines.len(), 1, "one authoritative machine owner");
             let machine = &trees.machines[0];
-            assert_eq!(machine.name.as_str(), "Atomic::fence");
+            assert_eq!(machine.name.as_str(), "fence");
+            assert_eq!(
+                trees.symbols.display_path(machine.symbol, "::"),
+                "Atomic::fence"
+            );
             assert_eq!(
                 machine.supply_mode,
                 language_semantics::MachineSupplyMode::CompilerProvided
@@ -3009,7 +3037,7 @@ pub(crate) mod operator {
                 assert!(
                     errors.iter().any(|error| error
                         .message
-                        .contains("only the sealed toolchain declaration")),
+                        .contains("neither a boundary signature nor a compiler-catalog primitive")),
                     "unexpected errors: {errors:?}"
                 );
             }

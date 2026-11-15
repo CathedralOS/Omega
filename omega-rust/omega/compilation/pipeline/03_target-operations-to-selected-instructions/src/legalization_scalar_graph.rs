@@ -2110,26 +2110,6 @@ pub(crate) mod byte_views {
             && super::literals::declaration_producer(function, place).is_some()
     }
 
-    pub(crate) fn element_type(
-        function: &PsiOptimizationFunction,
-        place: semantic_vocabulary::PlaceId,
-        types: &crate::native_geometry::NativeGeometry<'_>,
-    ) -> Option<semantic_vocabulary::StructuralTypeId> {
-        let identity = view_type(function, place, types)?;
-        match terminal_psi::find_structural_type(types, identity)?.shape {
-            terminal_psi::StructuralTypeShape::ElementView { element, .. } => Some(element),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn contains_view(
-        function: &PsiOptimizationFunction,
-        place: semantic_vocabulary::PlaceId,
-        types: &crate::native_geometry::NativeGeometry<'_>,
-    ) -> bool {
-        view_type(function, place, types).is_some()
-    }
-
     pub(crate) fn owned_byte_result(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
@@ -2869,7 +2849,7 @@ pub(crate) mod cleanup_calls {
     }
 
     pub(crate) fn validate_target(
-        rows: &[TargetUnitOperation],
+        rows: &[target_operations::TargetInstruction],
         operation: &AbstractOperation,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
@@ -2886,10 +2866,13 @@ pub(crate) mod cleanup_calls {
                 callee,
                 call_plan,
                 arguments,
-            } = row
+            } = &row.kind
             else {
                 return Err(LegalizationError::custody());
             };
+            if row.source.is_some() {
+                return Err(LegalizationError::custody());
+            }
             let expected_arguments = call
                 .arguments
                 .iter()
@@ -2978,8 +2961,15 @@ pub(crate) mod control {
                         }
                     }
                     };
-                if structural_type != declared.structural_type
-                    || multiplicity != declared.multiplicity
+                if !structural_types
+                    .declaration(structural_type)
+                    .is_ok_and(|source| {
+                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                            declared,
+                            source,
+                            multiplicity,
+                        )
+                    })
                     || !trivial_affine_locals.is_empty()
                     || !super::aggregate_results::cleanup(
                         function_inputs,
@@ -3226,6 +3216,23 @@ pub(crate) mod element_views {
             return None;
         }
         descriptor_source_geometry(root, &source.path, types)
+    }
+
+    pub(crate) fn read_geometry(
+        function: &PsiOptimizationFunction,
+        source: &StructuralArgument,
+        types: &crate::native_geometry::NativeGeometry<'_>,
+    ) -> Option<ReferenceSourceGeometry> {
+        if source.access != StructuralAccess::SharedBorrow {
+            return None;
+        }
+        let geometry = descriptor_geometry(function, source, types)?;
+        (geometry.readable
+            && matches!(
+                terminal_psi::find_structural_type(types, geometry.selected)?.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ))
+        .then_some(geometry)
     }
 
     pub(crate) fn length_geometry(
@@ -3667,6 +3674,7 @@ pub(crate) mod interrupt_installation {
             arguments,
             calls,
             result_home,
+            ..
         } = target
         else {
             return Err(LegalizationError::custody());
@@ -4944,14 +4952,14 @@ pub(crate) mod structural_case {
             u32,
             calling_conventions::ValueShape,
             calling_conventions::ConventionalSumLayout,
+            Vec<RuntimeElement>,
         ),
         LegalizationError,
     > {
         let root = source_identity(function, source, source_result(function, source))?;
         let geometry = reference_source_geometry(root, path, plan.geometry())
             .ok_or(LegalizationError::custody())?;
-        if !geometry.elements.is_empty()
-            || !geometry.readable
+        if !geometry.readable
             || geometry
                 .pointer_slots
                 .iter()
@@ -4973,7 +4981,7 @@ pub(crate) mod structural_case {
         {
             return Err(LegalizationError::custody());
         }
-        Ok((selected, byte_offset, root_shape, layout))
+        Ok((selected, byte_offset, root_shape, layout, geometry.elements))
     }
 
     #[allow(clippy::type_complexity)]
@@ -5021,29 +5029,6 @@ pub(crate) mod structural_case {
             .and_then(|ordinal| u32::try_from(ordinal).ok())
             .map(|tag| (tag, byte_offset, geometry.elements))
             .ok_or(LegalizationError::custody())
-    }
-
-    /// Runtime-index operands for a case-membership test whose pointer chase
-    /// is already stored on the target row. Called only when the path contains
-    /// a runtime index, because extent and obligation are not part of that chase.
-    pub(crate) fn membership_address(
-        function: &PsiOptimizationFunction,
-        source: PlaceId,
-        path: &[terminal_psi::StructuralPathSegment],
-        plan: &crate::native_geometry::NativePlan<'_>,
-    ) -> Result<Vec<RuntimeElement>, LegalizationError> {
-        let identity = source_identity(function, source, source_result(function, source))?;
-        let geometry = reference_source_geometry(identity, path, plan.geometry())
-            .ok_or(LegalizationError::custody())?;
-        if !geometry.readable
-            || geometry
-                .pointer_slots
-                .iter()
-                .any(|slot| slot.scalar_descriptor)
-        {
-            return Err(LegalizationError::custody());
-        }
-        Ok(geometry.elements)
     }
 
     pub(crate) fn structural_transport_layout(
@@ -6946,42 +6931,6 @@ pub(crate) mod structural_fields {
         })
     }
 
-    pub(crate) fn byte_index_operands(
-        function: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: semantic_vocabulary::OperationId,
-        source: &terminal_psi::StructuralArgument,
-        field: semantic_vocabulary::StructuralFieldId,
-    ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
-    {
-        let geometry = byte_geometry(function, source, field, unit.geometry())
-            .ok_or(crate::LegalizationError::custody())?;
-        crate::legalization::runtime_indices::operands(
-            function,
-            unit,
-            operation,
-            &geometry.elements,
-        )
-    }
-
-    pub(crate) fn view_slot_index_operands(
-        function: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: semantic_vocabulary::OperationId,
-        destination: &terminal_psi::StructuralArgument,
-        field: Option<semantic_vocabulary::StructuralFieldId>,
-    ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
-    {
-        let geometry = view_slot_geometry(function, destination, field, unit.geometry())
-            .ok_or(crate::LegalizationError::custody())?;
-        crate::legalization::runtime_indices::operands(
-            function,
-            unit,
-            operation,
-            &geometry.elements,
-        )
-    }
-
     pub(crate) fn view_slot_geometry(
         function: &PsiOptimizationFunction,
         destination: &terminal_psi::StructuralArgument,
@@ -8326,7 +8275,7 @@ pub(crate) mod nodes {
                     length,
                     ..
                 } => {
-                    if !super::byte_views::contains_view(optimized, *source, types)
+                    if super::element_views::read_geometry(optimized, source, types).is_none()
                         || function_inputs.value_type(*index)
                             != Some(ScalarType::Integer(u64_type()))
                         || function_inputs.value_type(*length)

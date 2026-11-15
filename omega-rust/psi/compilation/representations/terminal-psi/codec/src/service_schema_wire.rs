@@ -78,7 +78,6 @@ wire_enum! {
         2 => FixedImage(operation: FixedImage),
     }
     Hosted: HostedOperation, "HostedOperation" {
-        1 => ConsoleExitProcess,
         2 => ConsoleWriteByte,
         3 => ConsoleReadByte,
         4 => ProcessExit,
@@ -142,6 +141,7 @@ wire_record! {
         requirement_identity: ProviderIdentity,
         parameter_count: Count,
         parameter_type_identities: List<ProviderIdentity>,
+        declared_type_signature: Digest,
         entry_claims: List<EntryClaim>,
         has_result: Flag,
         result_type_identity: ProviderIdentity,
@@ -211,6 +211,11 @@ mod tests {
         let application = identities.intern("applied(Service)");
         let requirement = identities.intern("Service::exchange");
         let scalar = identities.intern("named(u32)");
+        let declared_type_signature = language_semantics::service_surface::declared_type_signature(
+            std::iter::once(identities.text(scalar)),
+            identities.text(scalar),
+        )
+        .unwrap();
         let surface = Arc::new(ServiceSurface {
             trait_name: owner,
             identities,
@@ -231,6 +236,7 @@ mod tests {
                 requirement_identity: requirement,
                 parameter_count: 1,
                 parameter_type_identities: vec![scalar],
+                declared_type_signature,
                 entry_claims: vec![ServiceEntryClaim {
                     parameter_index: 0,
                     carrier_identity: scalar,
@@ -317,6 +323,12 @@ mod tests {
         surface.methods[0].has_result = false;
         surface.methods[0].result_type_identity = ProviderIdentityId::default();
         surface.methods[0].result_claims.clear();
+        surface.methods[0].declared_type_signature =
+            language_semantics::service_surface::declared_type_signature(
+                std::iter::once(surface.identities.text(scalar)),
+                "unit",
+            )
+            .unwrap();
         module.service_schemas = vec![no_result];
         assert!(module.service_schema(declaration, application).is_ok());
         Arc::make_mut(&mut module.service_schemas[0].surface).methods[0].has_result = true;
@@ -326,7 +338,6 @@ mod tests {
     #[test]
     fn sealed_native_meaning_survives_transport() {
         for meaning in [
-            TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ConsoleExitProcess),
             TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ConsoleReadByte),
             TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ConsoleWriteByte),
             TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ProcessExit),

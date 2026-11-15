@@ -21,6 +21,7 @@ use super::authority::Access;
 use super::places::Member;
 use super::types::{OPEN_CARRIER_FAMILY, TypeTruth};
 use super::{Program, Slot};
+use crate::StorageShape;
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
 use crate::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
@@ -163,7 +164,7 @@ pub(super) fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checke
 
 impl Program<'_> {
     // Contract clauses: a comparison of formals, literals and Booleans, or a
-    // conjunction of those. Terms name formal `i` as value `i + 1`.
+    // conjunction or disjunction of those. Terms name formal `i` as value `i + 1`.
 
     /// Source-free models have no authored operator to complete. An authored
     /// data clause keeps its record declaration; callable clauses keep the
@@ -244,6 +245,25 @@ impl Program<'_> {
         }
     }
 
+    /// Read every remaining alternative before simplifying. Otherwise `true`
+    /// could hide arithmetic that still needs a safety proof. Reuse the
+    /// existing representation for `!=`.
+    fn disjunctive_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        operands: &[ExpressionHandle],
+    ) -> Checked<Proposition> {
+        let mut disjuncts = Vec::new();
+        for &operand in operands {
+            match self.clause(id, scope, operand)? {
+                Proposition::Disjunction(inner) => disjuncts.extend(inner),
+                other => disjuncts.push(other),
+            }
+        }
+        canonical::clauses(disjuncts, Repeated::Refuse, id).map(Proposition::Disjunction)
+    }
+
     /// Read one authored callable predicate at the observation its contract
     /// chooses. Both ordinary and projected refinement signatures use this
     /// owner; naming a logical membership never introduces its own evidence.
@@ -304,6 +324,11 @@ impl Program<'_> {
             ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
                 return self.mathematical_clause(id, scope, call);
             }
+            ExpressionNode::Call(call) => {
+                if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
+                    return Ok(predicate);
+                }
+            }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 // A callable predicate is Boolean, including a named input
                 // and its negation. Keep its actual contract input identity;
@@ -361,7 +386,7 @@ impl Program<'_> {
                 return match open[..] {
                     [only] => self.clause(id, scope, only),
                     [] => unserved("disjunction that type equations decide false"),
-                    _ => unserved("disjunction"),
+                    _ => self.disjunctive_clause(id, scope, &open),
                 };
             }
         }
@@ -406,16 +431,8 @@ impl Program<'_> {
                 return canonical::clauses(conjuncts, Repeated::Refuse, id)
                     .map(Proposition::Conjunction);
             }
-            BinaryOperator::Or if scope.subject.is_some() => {
-                let mut disjuncts = Vec::new();
-                for side in [binary.left, binary.right] {
-                    match self.clause(id, scope, side)? {
-                        Proposition::Disjunction(inner) => disjuncts.extend(inner),
-                        other => disjuncts.push(other),
-                    }
-                }
-                return canonical::clauses(disjuncts, Repeated::Refuse, id)
-                    .map(Proposition::Disjunction);
+            BinaryOperator::Or => {
+                return self.disjunctive_clause(id, scope, &[binary.left, binary.right]);
             }
             BinaryOperator::Equal
             | BinaryOperator::Less
@@ -423,7 +440,6 @@ impl Program<'_> {
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
             | BinaryOperator::NotEqual => operator,
-            BinaryOperator::Or => return unserved("disjunction"),
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply
@@ -442,24 +458,56 @@ impl Program<'_> {
             *operands = self.mathematical_operator_operands();
             return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
         }
-        // A wholly anonymous operand lands in its partner's type.
+        // A wholly anonymous operand lands in its partner's type; an
+        // operand that already has a type keeps it (numeric_values.md,
+        // "Integer equality and order": "Already-typed operands retain their
+        // types").
         let ((left, left_type), (right, right_type)) = if self.wholly_anonymous(binary.left) {
             let right = self.term(id, scope, binary.right, None)?;
             (self.term(id, scope, binary.left, right.1.scalar())?, right)
         } else {
             let left = self.term(id, scope, binary.left, None)?;
-            let right = self.term(id, scope, binary.right, left.1.scalar())?;
+            let expected = if self.wholly_anonymous(binary.right) {
+                left.1.scalar()
+            } else {
+                None
+            };
+            let right = self.term(id, scope, binary.right, expected)?;
             (left, right)
         };
         *operands = [left_type, right_type].map(|operand| self.operator_operand_reference(operand));
         let left_type = self.clause_operand_type(id, left_type)?;
         let right_type = self.clause_operand_type(id, right_type)?;
+        // Integers of different types compare by their exact values ("The
+        // operands may differ in width, signedness, or both"), which is the
+        // comparison of their embeddings: `characters <= 4096u64` with an
+        // `i32` formal is `embed(characters) <= 4096`.
+        if left_type != right_type
+            && let (Some(_), Some(_)) = (left_type.as_integer(), right_type.as_integer())
+        {
+            if let MathematicalTerms::Refused(why) = scope.mathematical {
+                return Err(refuse(id, Construct::Machine, Unserved::Contract(why)));
+            }
+            let embedded = |term| {
+                IntegerMathTerm::embed(term).ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("embed of a value that is not an integer"),
+                    )
+                })
+            };
+            return mathematical_relation(comparison, embedded(left)?, embedded(right)?, id);
+        }
         if left_type != right_type {
             return Err(refuse(
                 id,
                 Construct::Machine,
                 Unserved::Typing("clause operand types differ"),
             ));
+        }
+        if matches!(left_type, ScalarType::IeeeFloat(_)) {
+            return unserved("IEEE comparison without its selected declaration");
         }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
@@ -484,6 +532,83 @@ impl Program<'_> {
             .map(Proposition::Disjunction),
             _ => unserved("comparison"),
         }
+    }
+
+    /// A selected pure comparison denotes its canonical IEEE predicate. Its
+    /// full result contract states equivalence, so this is the same Boolean
+    /// meaning rather than a consequence guessed from an operator token.
+    fn numeric_comparison_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Checked<Option<Proposition>> {
+        if self.typed.symbols.sealed_intrinsic(call.target_symbol)
+            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            return Ok(None);
+        }
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            call.authored_call_selection,
+            call.authored_call_binding,
+        )?;
+        self.applies_nothing(
+            id,
+            call.target_symbol,
+            call.authored_machine_application,
+            &call.machine_arguments,
+        )?;
+        if call.receiver.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || call.requirement_application.is_valid()
+            || call.exact_coercion_target.is_valid()
+            || call.build_selection.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || call.static_requirement_dispatch.is_some()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.installed_interrupt_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
+            return Err(unavailable(
+                "float comparison in a contract cannot use a receiver, evidence arguments or another call selection",
+            ));
+        }
+        let meaning = self
+            .typed
+            .numeric_intrinsic_execution(call.target_symbol)
+            .ok_or_else(|| unavailable("numeric predicate lost its exact declaration meaning"))?;
+        let signature = meaning
+            .signature()
+            .ok_or_else(|| unavailable("numeric predicate has no complete scalar signature"))?;
+        let operand = signature
+            .operand
+            .scalar_type()
+            .filter(|operand| matches!(operand, ScalarType::IeeeFloat(_)))
+            .ok_or_else(|| unavailable("numeric predicate has no permanent float format"))?;
+        let arguments = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments);
+        let [left, right] = arguments else {
+            return Err(unavailable("float comparison needs exactly two arguments"));
+        };
+        let (left, left_type) = self.term(id, scope, *left, Some(operand))?;
+        let (right, right_type) = self.term(id, scope, *right, Some(operand))?;
+        if left_type != ValueType::plain(operand) || right_type != ValueType::plain(operand) {
+            return Err(unavailable(
+                "numeric predicate changes its selected carrier or qualification",
+            ));
+        }
+        terminal_semantics::numeric_primitives::comparison_predicate(meaning, left, right)
+            .map(Some)
+            .map_err(unavailable)
     }
 
     /// A clause's authored text, each formal left open by position, for
@@ -526,11 +651,14 @@ impl Program<'_> {
             // statement of the clause names its own argument there.
             ExpressionNode::Call(call)
                 if self.embeds(call)
-                    || self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
+                    || self.builtin_call(call, symbols::BuiltinFunction::ContentOld)
+                    || self.typed.symbols.sealed_intrinsic(call.target_symbol)
+                        == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement) =>
             {
                 text.push_text(call.target.as_str());
                 text.push_text("(");
-                for argument in table.expression_handles(call.arguments) {
+                for (position, argument) in table.expression_handles(call.arguments).iter().enumerate() {
+                    if position != 0 { text.push_text(", "); }
                     self.write_clause_text(slots, *argument, text);
                 }
                 text.push_text(")");
@@ -551,16 +679,6 @@ impl Program<'_> {
 
     fn clause_operand_type(&self, id: MachineId, value_type: ValueType) -> Checked<ScalarType> {
         match value_type {
-            // structural_predicates.md, "Equality expansion": "IEEE leaves
-            // retain the exact format and IEEE comparison kind: NaN is not
-            // reflexive and signed zeros compare equal. Do not replace them
-            // with mathematical equality." A clause comparison here is the
-            // mathematical one, so a float operand has no reader yet.
-            ValueType::Scalar(ScalarType::IeeeFloat(_), _) => Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("comparison of floats in a clause"),
-            )),
             ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
                 Ok(scalar)
             }
@@ -709,7 +827,10 @@ impl Program<'_> {
                             },
                             ValueType::Scalar(scalar_type, qualification),
                         )),
-                        ScalarType::IeeeFloat(_) => unserved("float field in a clause"),
+                        ScalarType::IeeeFloat(format) => Ok((
+                            ScalarTerm::ieee_float_field_path(root, Vec::new(), format),
+                            ValueType::Scalar(scalar_type, qualification),
+                        )),
                         ScalarType::Callable(_) => unserved("callable field in a clause"),
                     };
                 }
@@ -766,17 +887,12 @@ impl Program<'_> {
                 else {
                     return unserved("extent of non-collection storage");
                 };
-                if !matches!(
-                    self.data_type(id, record)?.shape,
-                    crate::StorageShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(
-                                terminal_psi::StructuralAccess::SharedBorrow
-                                    | terminal_psi::StructuralAccess::MutableBorrow
-                            ),
-                        }
-                    )
-                ) {
+                if self
+                    .data_type(id, record)?
+                    .shape
+                    .length_operation()
+                    .is_none()
+                {
                     return unserved("extent without its descriptor operation");
                 }
                 let scalar_type = semantic_vocabulary::IntegerType::new(
@@ -810,6 +926,26 @@ impl Program<'_> {
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 unserved("clause that projects a formal or result")
             }
+            ExpressionNode::Integer(literal)
+                if literal.landing().is_none()
+                    && matches!(expected, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected else {
+                    unreachable!("float landing selected this arm")
+                };
+                let value = self.anonymous_float(id, expression, format)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(format)),
+                ))
+            }
+            ExpressionNode::Float(literal) => {
+                let value = self.float_literal(id, literal, expected)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(value.format())),
+                ))
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 Ok((
@@ -818,6 +954,19 @@ impl Program<'_> {
                         value,
                     },
                     ValueType::plain(ScalarType::Integer(integer)),
+                ))
+            }
+            ExpressionNode::Binary(_)
+                if self.wholly_anonymous(expression)
+                    && matches!(expected, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected else {
+                    unreachable!("float landing selected this arm")
+                };
+                let value = self.anonymous_float(id, expression, format)?;
+                Ok((
+                    ScalarTerm::IeeeFloatLiteral(value),
+                    ValueType::plain(ScalarType::IeeeFloat(format)),
                 ))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
@@ -869,6 +1018,26 @@ impl Program<'_> {
             ExpressionNode::Call(call) if self.embeds(call) => {
                 unserved("embed outside a mathematical comparison")
             }
+            ExpressionNode::Call(call) if call.layout_query.is_some() => {
+                let query = call.layout_query.as_ref().expect("matched a layout query");
+                let source =
+                    crate::SourceOrigin::of(typed.expression_table.source_span(expression));
+                let measured = self.layout_query(id, call, query, source)?;
+                if let (
+                    crate::body::ExpressionKind::LayoutObservation { application },
+                    Some(ValueType::Scalar(scalar_type, qualification)),
+                ) = (measured.kind, measured.result)
+                {
+                    return Ok((
+                        ScalarTerm::Application {
+                            application,
+                            scalar_type,
+                        },
+                        ValueType::Scalar(scalar_type, qualification),
+                    ));
+                }
+                unserved("layout query has no scalar application")
+            }
             ExpressionNode::Call(_) => unserved("call in a clause term"),
             _ => unserved("term other than a formal, a literal or an embedded integer"),
         }
@@ -909,7 +1078,9 @@ impl Program<'_> {
         };
         let mut term = self.term(id, &inputs, argument, expected)?;
         let is_input = match &mut term.0 {
-            ScalarTerm::IntegerField { version, .. } | ScalarTerm::BooleanField { version, .. } => {
+            ScalarTerm::IntegerField { version, .. }
+            | ScalarTerm::BooleanField { version, .. }
+            | ScalarTerm::IeeeFloatField { version, .. } => {
                 *version = semantic_vocabulary::ContentPlaceVersion::Entry;
                 true
             }
@@ -964,6 +1135,16 @@ impl Program<'_> {
     ) -> Checked<(ScalarTerm, ValueType)> {
         use language_core::cast_form::CastEntryKind;
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        if cast.form == language_core::cast_form::CastForm::Value && cast.result_type.is_valid() {
+            let (term, before) = self.term(id, scope, cast.value, expected)?;
+            let after = self.scalar_domain_cast_type(id, cast.result_type, before)?;
+            if before == after {
+                return Ok((term, after));
+            }
+            return Err(unavailable(
+                "value cast in a clause changes its qualification",
+            ));
+        }
         let Some(entry) = cast.form.entry() else {
             return Err(unavailable("cast in a clause term"));
         };
@@ -1114,28 +1295,7 @@ impl Program<'_> {
         }
         let left = self.mathematical_term(id, scope, left)?;
         let right = self.mathematical_term(id, scope, right)?;
-        match comparison {
-            // The codec holds an equality's operands in the vocabulary's
-            // order (`validate_canonical_proposition`).
-            BinaryOperator::Equal if left <= right => {
-                Ok(Proposition::IntegerMathEqual(left, right))
-            }
-            BinaryOperator::Equal => Ok(Proposition::IntegerMathEqual(right, left)),
-            BinaryOperator::Less => Ok(Proposition::IntegerMathLessThan(left, right)),
-            BinaryOperator::LessOrEqual => Ok(Proposition::IntegerMathLessOrEqual(left, right)),
-            BinaryOperator::Greater => Ok(Proposition::IntegerMathLessThan(right, left)),
-            BinaryOperator::GreaterOrEqual => Ok(Proposition::IntegerMathLessOrEqual(right, left)),
-            BinaryOperator::NotEqual => canonical::clauses(
-                vec![
-                    Proposition::IntegerMathLessThan(left.clone(), right.clone()),
-                    Proposition::IntegerMathLessThan(right, left),
-                ],
-                Repeated::Refuse,
-                id,
-            )
-            .map(Proposition::Disjunction),
-            _ => unserved("comparison"),
-        }
+        mathematical_relation(comparison, left, right, id)
     }
 
     /// One side of a comparison between mathematical integers: `embed` of a
@@ -1347,11 +1507,11 @@ impl Program<'_> {
                 },
                 ValueType::Scalar(ScalarType::Boolean, qualification),
             )),
-            ValueType::Scalar(ScalarType::IeeeFloat(_), Qualification::NONE) => {
-                unserved("float field in a clause")
-            }
+            ValueType::Scalar(ScalarType::IeeeFloat(format), qualification) => Ok((
+                ScalarTerm::ieee_float_field_path(root, path, format),
+                ValueType::Scalar(ScalarType::IeeeFloat(format), qualification),
+            )),
             ValueType::Scalar(ScalarType::Callable(_), _) => unserved("callable field in a clause"),
-            ValueType::Scalar(..) => unserved("float field in a clause"),
             ValueType::Record(_, _, _) => unserved("data value compared whole in a clause"),
         }
     }
@@ -1457,13 +1617,15 @@ impl Program<'_> {
                         Unserved::Contract("member of something that is not data"),
                     )
                 };
-                let Some((root, base, receiver)) = self.projected(id, scope, member.receiver)?
+                let Some((root, mut base, receiver)) =
+                    self.projected(id, scope, member.receiver)?
                 else {
                     return Err(not_data());
                 };
                 let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
                     return Err(not_data());
                 };
+                let record = self.through_shared_referent(id, &mut base, record)?;
                 (root, base, record, member.selection.field_symbol())
             }
             ExpressionNode::Indexed(indexed) => {
@@ -1476,7 +1638,8 @@ impl Program<'_> {
                 let Some(array) = self.opened(id, Some(receiver), Access::Read)? else {
                     return Err(unavailable("index of something that is not an array"));
                 };
-                let (element, terminal_semantics::CollectionExtent::Fixed(length)) =
+                let array = self.through_shared_referent(id, &mut path, array)?;
+                let (element, qualification, terminal_semantics::CollectionExtent::Fixed(length)) =
                     self.array_element(id, array)?
                 else {
                     return Err(unavailable("indexed clause without a fixed array extent"));
@@ -1503,7 +1666,7 @@ impl Program<'_> {
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
-                let value_type = self.storage_value_type(id, element)?;
+                let value_type = self.storage_value_type(id, element, qualification)?;
                 return Ok(Some((root, path, value_type)));
             }
             ExpressionNode::TypeExpression(_)
@@ -1545,6 +1708,43 @@ impl Program<'_> {
             }
         };
         Ok(Some((root, path, value_type)))
+    }
+
+    /// A clause names storage beneath a stored shared reference, such as
+    /// `self.buffer[4095]` for `buffer: &'s [u16; 4096]`, as the referent the
+    /// reference lends: one `Referent` step, then the referent's own fields
+    /// or elements. A shared referent cannot change while it is lent, so a
+    /// fact about it holds for as long as the reference does. Storage behind
+    /// an exclusive reference can be written through it, so a clause there is
+    /// refused by name. Anything that is not a reference is `record` itself.
+    fn through_shared_referent(
+        &self,
+        id: MachineId,
+        path: &mut Vec<CanonicalStructuralPathSegment>,
+        record: super::authority::Opened,
+    ) -> Checked<super::authority::Opened> {
+        match self.data_type(id, record.record())?.shape {
+            StorageShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            } => {
+                path.push(CanonicalStructuralPathSegment::Referent);
+                self.opened(id, Some(ValueType::record(referent)), Access::Read)?
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("referent that is not data"),
+                        )
+                    })
+            }
+            StorageShape::Reference { .. } => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("clause through an exclusive stored reference"),
+            )),
+            _ => Ok(record),
+        }
     }
 }
 
@@ -1646,5 +1846,39 @@ impl Program<'_> {
             Some(alternatives) => Ok(alternatives),
             None => unserved("type parameter that is not a finite family"),
         }
+    }
+}
+
+/// `comparison` between two mathematical integers, as the kernel states it:
+/// `>` and `>=` are `<` and `<=` swapped, `!=` is the disjunction of the two
+/// strict orders, and an equality holds its operands in the vocabulary's
+/// order (`validate_canonical_proposition`).
+fn mathematical_relation(
+    comparison: BinaryOperator,
+    left: IntegerMathTerm,
+    right: IntegerMathTerm,
+    id: MachineId,
+) -> Checked<Proposition> {
+    match comparison {
+        BinaryOperator::Equal if left <= right => Ok(Proposition::IntegerMathEqual(left, right)),
+        BinaryOperator::Equal => Ok(Proposition::IntegerMathEqual(right, left)),
+        BinaryOperator::Less => Ok(Proposition::IntegerMathLessThan(left, right)),
+        BinaryOperator::LessOrEqual => Ok(Proposition::IntegerMathLessOrEqual(left, right)),
+        BinaryOperator::Greater => Ok(Proposition::IntegerMathLessThan(right, left)),
+        BinaryOperator::GreaterOrEqual => Ok(Proposition::IntegerMathLessOrEqual(right, left)),
+        BinaryOperator::NotEqual => canonical::clauses(
+            vec![
+                Proposition::IntegerMathLessThan(left.clone(), right.clone()),
+                Proposition::IntegerMathLessThan(right, left),
+            ],
+            Repeated::Refuse,
+            id,
+        )
+        .map(Proposition::Disjunction),
+        _ => Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("comparison"),
+        )),
     }
 }

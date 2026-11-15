@@ -2,32 +2,26 @@
 
 [mod.rs](mod.rs) owns the reusable inspection operation;
 [summary.rs](summary.rs) formats the Terminal module summary;
-[commands/inspect.rs](../commands/inspect.rs) owns CLI execution and output; and
-[arguments/inspect.rs](../arguments/inspect.rs) parses the request.
-Inspection grants no execution or native authority.
+[commands/inspect.rs](../commands/inspect.rs) runs the CLI command and writes
+its output; and [arguments/inspect.rs](../arguments/inspect.rs) parses the
+request. Inspection grants no execution or native authority.
 
 A root beside a `build.omg` is prepared through the package manager exactly as
 `--check` prepares it, so declared dependency aliases resolve; a standalone root
-is checked directly. Inspection stops at the checked program without the
+is checked directly. Inspection stops at the checked program, before the
 manager's review or trust admission.
 
-Natural-ranked and unranked modules use ordinary verification; the legacy
-unsigned-countdown carrier and its separate verification entrance are retired,
-and a verification failure never retries with a different profile.
-Natural-cycle rows identify the verified components.
+Natural-ranked and unranked modules use ordinary verification. The old
+unsigned-countdown carrier and its separate verification entry point are
+retired, and a failed verification never retries with a different profile.
+Natural-cycle rows name the verified components. Termination alone gives no
+work ceiling; the
+[logical-work contract](../../../../../wiki/spec/resources/logical_work.md)
+owns quantitative analysis.
 
-A supported fixed-work certificate is replayed before its numeric ceiling is
-printed. Unsupported analysis or an unrepresentable ceiling prints
-`fixed_work status=unknown` with the existing deriver's diagnostic. This is a
-limitation report, not proof that no finite bound exists or a complete
-component/foreign-wait resource analysis. Missing identities, invalid semantics,
-and failed certificate replay remain errors. The
-[logical-work contract](../../../../../../wiki/spec/resources/logical_work.md)
-owns full quantitative analysis; termination alone supplies no work ceiling.
+CLI regressions live in
+[named_psi_inspection.rs](../../tests/named_psi_inspection.rs).
 
-CLI and corrupted-evidence regressions live in
-[inspect_terminal.rs](../../tests/inspect_terminal.rs).
-
-`--artifact <file>` consumes an external canonical envelope through the same
-public decoder as Terminal installation. It reports malformed semantics before
-printing a module and grants no installation or execution authority.
+`--artifact <file>` reads an external canonical envelope through the same
+public decoder that Terminal installation uses. It reports malformed semantics
+before printing a module and grants no installation or execution authority.

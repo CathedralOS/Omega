@@ -25,6 +25,7 @@ pub(crate) fn publish_products(
     work: Vec<crate::project::build_directory::TargetWork>,
     mut reports: Vec<(target::TargetProfile, Result<CompilationOutput, BuildError>)>,
     product: &ProjectProduct,
+    validators: &crate::StageValidatorRequest,
     timings: &mut CompileTimings,
 ) -> Vec<TargetBuildOutcome> {
     let mut outcomes = Vec::with_capacity(work.len());
@@ -46,7 +47,14 @@ pub(crate) fn publish_products(
                 };
                 match report {
                     Err(error) => Err(error),
-                    Ok(report) => publish_product(report, product, &directory, timings),
+                    Ok(report) => publish_product(
+                        report,
+                        product,
+                        target.profile,
+                        validators,
+                        &directory,
+                        timings,
+                    ),
                 }
             }
         };
@@ -61,9 +69,12 @@ pub(crate) fn publish_products(
 fn publish_product(
     output: CompilationOutput,
     product: &ProjectProduct,
+    profile: target::TargetProfile,
+    validators: &crate::StageValidatorRequest,
     directory: &Path,
     timings: &mut CompileTimings,
 ) -> Result<BuildOutcome, BuildError> {
+    let mut stage_validations = Vec::new();
     let (output, executable_path) = match product {
         ProjectProduct::Check
         | ProjectProduct::Terminal
@@ -71,7 +82,12 @@ fn publish_product(
         | ProjectProduct::Native {
             destination: NativeDestination::Retained | NativeDestination::RuntimeAdmission,
             ..
-        } => (output, None),
+        } => {
+            if !validators.is_empty() {
+                stage_validations = validators.run(product, profile, None)?;
+            }
+            (output, None)
+        }
         ProjectProduct::Native {
             destination: NativeDestination::Published,
             ..
@@ -79,6 +95,14 @@ fn publish_product(
             let report = output
                 .into_report()
                 .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))?;
+            // Requested validators check the retained stage output before it
+            // is written out; default compilation runs none.
+            if !validators.is_empty() {
+                stage_validations = timings.record_result(
+                    StageMeta::new("validate", "retained product", "validator rows"),
+                    || validators.run(product, profile, Some(&report)),
+                )?;
+            }
             let (report, path) = timings
                 .record_result(
                     StageMeta::new("publish", "retained product", "published product"),
@@ -92,6 +116,7 @@ fn publish_product(
         output,
         timings: timings.clone(),
         executable_path,
+        stage_validations,
     })
 }
 

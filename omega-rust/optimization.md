@@ -1,33 +1,32 @@
 # Optimization implementation
 
-The [public optimization contract](../wiki/spec/build/optimizations.md) owns
-exact selection, identity phases, semantic preservation, rollback, and policy
-authority. This page identifies implementation entrances, not another rule
-inventory. The [pipeline architecture](pipeline.md#discoverability-architecture)
-owns source organization; it does not impose file-size quotas.
+The [public optimization contract](../wiki/spec/build/optimizations.md)
+defines exact selection, identity phases, semantic preservation, rollback and
+policy authority. This page says where the code starts; it is no rule inventory. The [pipeline architecture](pipeline.md#discoverability-architecture)
+governs source layout; it sets no file-size limits.
 
 The [exact-rule inventory](omega/foundation/optimization-core/rules.md)
-records current experimental status, applicability, and composition limits.
+records each rule's experimental status, applicability and composition limits.
 
 ## Selection and portable publication
 
-[Build-value admission](omega/packages/package-compilation/src/build_execution/build_value/optimization.rs) admits
-the exact vocabulary. Shared Build declarations project the
+[Build-value admission](omega/packages/package-compilation/src/build_execution/build_value/optimization.rs)
+accepts the exact names. Shared Build declarations put the
 [optimization vocabulary](omega/packages/build-declarations/src/prelude/optimizations.rs)
 into the toolchain prelude from one mapping. The
 [checked result](omega/compilation/products/src/checked_compilation.rs)
-retains the complete evaluated Build, including selection and report requests.
+keeps the whole evaluated Build, including selection and report requests.
 [Rollback settlement](omega/foundation/optimization-core/src/rollback.rs)
-owns exact-name validation, subtractive selection and the resulting receipt.
-The compiler consumes its effective selection before artifact production without
-changing the authored selection; product-specific phase admission remains in
+validates exact names, subtracts rolled-back rules and produces the receipt.
+The compiler uses the result before producing artifacts, without
+changing the authored selection; product-specific phase admission stays in
 the compiler. No compiler-local optimizer dispatcher wraps the transform.
 
 The [Psi X-to-X entrance](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, records the carrier's Terminal Psi
 identity before and after the selected passes, and returns the only
 optimization-stage result accepted by Terminal publication. Its
-[Psi-local vocabulary](psi/foundation/optimization/src/optimization_selections.rs)
+[Psi-local vocabulary](psi/foundation/optimization/src/lib.rs)
 does not import native target vocabulary and names nine members. The
 [entrance's exhaustive dispatch](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/psi_optimization.rs)
 executes five of them here, in canonical order: control-flow cleanup, sparse
@@ -66,127 +65,124 @@ remainder by one); any other checked operation keeps its check. The
 execution record survives canonical Terminal encoding and independent decoding.
 
 The [post-Terminal abstract phase](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs)
-joins verified input construction, bounded execution, and independent projection
-publication. Its result exposes the current abstract program and replay evidence,
-not the executing session or analysis cache. Legacy `Psi` names still occur in
-that crate's internal rule machinery; they do not authorize a receiving lowerer
-to rerun pre-Terminal passes. The compiler consumes only the pending
-post-Terminal selection projection and preserves the complete selection binding.
+builds verified input, runs within a work budget and publishes an
+independent projection. Its result exposes the current abstract program and
+replay evidence, not the running session or analysis cache. Old `Psi` names
+in that crate's rule code do not let a later lowerer rerun pre-Terminal
+passes. The compiler reads only the post-Terminal selection and keeps the
+whole selection attached.
 
-Structural-call contract validation preserves unrestricted write-only subloans
+Structural-call contract validation keeps unrestricted write-only subloans
 through exact field/literal-index paths from mutable or write-only parameter
-roots. Indexing requires a material root and primitive/record leaf; an existing
-reference ABI does not grant readable access. Empty-selection publication retains
+roots. Indexing needs a material root and primitive/record leaf; an existing
+reference ABI does not grant read access. Empty-selection publication keeps
 the complete abstract plan, not just a matching entry signature.
-`WRITE-ONLY-BORROW` in [TASKS.md](../TASKS.md) retains the acceptance command and
-remaining stack-pointer transport and platform coverage.
+`WRITE-ONLY-BORROW` in [TASKS.md](../TASKS.md) holds the acceptance command
+and remaining stack-pointer transport and platform coverage.
 
-Abstract publication owns the immutable current plan independently of the
-receipt and retained replay inputs. Replay checks the exact schedule, candidate
-declarations, applied-versus-skipped disposition, commits, consumed analyses and
-facts, and baseline-policy/cost evidence. A decoder, report, or jointly altered
-decision log cannot supply missing transformation authority.
+Abstract publication owns the read-only current plan apart from the receipt
+and stored replay inputs. Replay checks the exact schedule, candidate
+declarations, applied/skipped outcome, commits, analyses and facts used, and
+baseline-policy/cost evidence. A decoder, report or edited decision log
+cannot supply missing authority for a transformation.
 
 ## One physical sequence
 
 The [native pipeline](omega/compilation/native-compiler/src/pipeline.rs)
-checks the retained selection, then performs instruction selection, selected
-X-to-X execution, allocation, machine construction, and canonical frame
-realization once. Mandatory lowering is not an optional optimization.
+checks the stored selection, then runs instruction selection, selected
+X-to-X rewrites, allocation, machine construction and canonical frame
+realization once. Required lowering is not optional optimization.
 
-The entrance rejects selections without an implemented current-data stage
-before execution; it does not duplicate stage-owned rule admission.
-In particular, retained selected-lowering catalog entries do not imply native
-publication support, and retired post-allocation rewrite names cannot select an
-alternate emitter. [Selected optimization](omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs),
+It first rejects selections no implemented stage serves, without repeating
+stage-owned rule admission. A selected-lowering catalog entry does
+not imply native publication support, and retired post-allocation rewrite
+names cannot choose another emitter. [Selected optimization](omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs),
 [allocation](omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs),
 and [layout optimization](omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/phase.rs)
-admit their own exact catalog selections when executing their phase. Their errors
-return through the stage result. The exact executable catalogs, not historical
-matrices, determine applicability and composition.
+admit their own exact catalog selections when their phase runs; errors
+return through the stage result. The exact executable catalogs, not old
+tables, decide applicability and composition.
 
-The current selected program and allocation are separate from the evidence of
-how they were obtained. Downstream construction consumes those current facts;
-replay alone inspects retained transformation history. Do not add a program
-representation or a complete emission route for each rule, fixture shape, or
-optimization-history combination.
+The current selected program and allocation are kept apart from the
+evidence of how they were produced. Later stages use current facts; only
+replay reads stored history. Do not add a program representation or
+emission path per rule, fixture shape or optimization-history combination.
 
 [Allocation](omega/compilation/pipeline/05_selected-instructions-to-register-homes/README.md)
-owns homes and pressure recovery.
-[Machine emission](omega/compilation/backend/machine-emission/README.md) owns frame
-realization, fragment emission, and text placement. Target ISA crates own
-instruction alternatives, effects, encoders, and decoders. Object construction
-and callable/image admission remain later owners; an encoding receipt does not
-replace their checks.
+owns register homes and pressure recovery.
+[Machine emission](omega/compilation/backend/machine-emission/README.md) owns
+frame realization, fragment emission and text placement. Target ISA crates
+own instruction alternatives, effects, encoders and decoders. Object
+construction and callable/image admission happen later; an encoding receipt
+does not replace their checks.
 
 ## Catalogs and independent replay
 
-An owning stage has one exact ordered catalog, a small execution join, and
-separate proposal and validation implementations. A selected descriptor retains
-the rule, validator, policy, analyses, invalidations, budgets, and applicability;
-custody coordinators must not reproduce its name-to-implementation schedule.
-Each pass may order its local rules, but a family map below it is not a second
-enablement point.
+A stage that owns rules has one exact ordered catalog, a small runner, and
+separate proposal and validation code. A selected catalog entry holds the
+rule, validator, policy, analyses, invalidations, budgets and applicability;
+coordinators must not repeat its name-to-implementation mapping. Each pass
+may order its own rules, but a family map below it is not a second place to
+enable them.
 
-Analyses and candidates bind the current revision and exact fact identities.
-Committing a rewrite requires independent reconstruction, result validation,
-and analysis invalidation or preservation evidence. Neutral models and canonical
-encoding can be shared; a validator must not call the producer's matcher,
-transformation helper, or fact-producing algorithm to attest to that result.
-Shared predicates and primitives are not a shared output-producing decision
-procedure.
-Shared mechanics belong at the nearest genuine semantic owner, not under one
-sibling rule merely because it was implemented first.
+Analyses and candidates are tied to the current revision and exact fact
+identities. Committing a rewrite needs an independent rebuild, a result
+check, and evidence that each analysis was invalidated or still holds.
+Neutral models and canonical encoding may be shared; a validator must not
+call the producer's matcher, rewrite helper or fact-producing algorithm to
+vouch for its result. Shared predicates and primitives are not shared
+output-deciding code. Shared code belongs with the nearest real semantic
+owner, not under whichever sibling rule came first.
 
-The bounded countdown machinery illustrates a private restriction, not a
+The bounded countdown code shows an implementation restriction, not a
 language limit. Its
 [ranked-cycle validation](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/ranked_cycles_validation.rs)
-reconstructs component/ranking evidence. Only authenticated guard-zero and
-decrement-one relocation to the canonical preheader suffix may normalize the
-otherwise frozen component; provenance and work settlements remain unchanged.
-The separate ranked-rewrite join must still authorize and validate application.
-Analysis custody alone is neither execution nor general loop-motion authority.
+rebuilds the component and ranking evidence. Only verified guard-zero and
+decrement-one relocation to the canonical preheader suffix may change the
+otherwise frozen component; provenance and work accounting stay unchanged.
+The separate ranked-rewrite step must still authorize and validate it.
+The analysis alone neither runs a rewrite nor permits general loop motion.
 
-Ordinary Natural-ranked and unranked cycles instead retain exact verified-source
-components and freeze the complete cyclic function, including prefixes and exits.
-Unranked safety verification supplies no ranking certificate or fixed-work bound.
-Raw cyclic units remain insufficient input; receiving legalization replays the
+Ordinary Natural-ranked and unranked cycles instead keep exact verified
+source components and freeze the whole cyclic function, prefixes and exits
+included. Unranked safety checking gives no ranking certificate or fixed
+work bound. Raw cyclic units are not enough input; legalization replays the
 same source-bound topology before ordinary native selection.
 
-Keep candidate construction, policy choice, and independent validation separate.
+Keep candidate building, policy choice and independent validation separate.
 The Rust reference compiler uses deterministic policies; discrete candidates
 and explicit decision records leave room for a future learned policy in the
-Omega-written product compiler. This is a structure requirement, not a Rust
-training, corpus, evaluation, or model-integration project. Cost estimates rank
-choices; neither they nor a future model can replace semantic, translation, or
-publication evidence.
+Omega-written product compiler. This constrains structure; it is not a Rust
+training, corpus, evaluation or model-integration project. Cost estimates rank choices; neither they nor a future model
+can replace semantic, translation or publication evidence.
 
 ## Validation when extending a stage
 
-Exercise exact selection and empty identity execution; wrong target, unsupported
-composition, malformed source, and stale evidence; independent one-field and
-cross-rule corruption; deterministic ordering and each exhausted work budget;
-and actual downstream replay. A codec round trip or isolated applied-rule test
-does not establish compiler-generated application or publication support.
-Keep positive, refusal, corruption, and compatibility fixtures beside the rule
-or boundary they test. Use differential execution only on genuinely supported
-target/host paths and distinguish two related artifacts from a same-artifact
-end-to-end comparison.
+Test exact selection and empty identity execution; wrong target,
+unsupported composition, malformed source and stale evidence; one-field and
+cross-rule corruption; deterministic order and each exhausted work budget;
+and real downstream replay. A codec round trip or one applied-rule test does
+not show the compiler applies or publishes the rule. Keep positive,
+refusal, corruption and compatibility fixtures beside the rule or boundary
+they test. Use differential execution only on really supported target/host
+paths, and tell two related artifacts apart from a same-artifact end-to-end
+comparison.
 
 ## Operational rollback
 
-Keep `build.omg` unchanged and supply one repeatable, case-sensitive argument
-per affected exact rule. This command works in PowerShell and POSIX shells:
+Leave `build.omg` unchanged and pass the repeatable, case-sensitive flag
+once per affected rule. This command works in PowerShell and POSIX shells:
 
 ```text
 omega --disable-optimization ControlFlowCleanup --target linux_x86_64 main.omg
 ```
 
-Check target and composition support before attributing failure to a rule.
-Unknown or duplicate names reject; a known unselected name is a visible no-op.
-Check-only requests reject rollback. Programmatic Terminal publication supports
-only its Psi-phase overlay; native publication settles its applicable phases.
-All routes execute the same identity stages when the effective selection is empty.
+Check target and composition support before blaming a rule. Unknown or
+duplicate names are rejected; a known unselected name is a visible no-op.
+Check-only requests reject rollback. Programmatic Terminal publication
+supports only its Psi-phase overlay; native publication settles the phases
+it uses. With an empty effective selection, every path runs the same
+identity stages.
 
 After successful CLI publication, capture the printed receipt with the build log:
 
@@ -194,16 +190,15 @@ After successful CLI publication, capture the printed receipt with the build log
 optimizer rollback: requested=[ControlFlowCleanup]; applied=[ControlFlowCleanup]; effective=[]
 ```
 
-`applied` is the authored/requested intersection; `effective` is authored minus
-requested. Verify every intended selected rule is applied and absent from the
-effective set. An unselected rule has no applied member. The in-memory report
-retains the receipt; the CLI does not currently publish a separate receipt file.
-Empty effective selection must match ordinary identity-phase semantics and
-artifact output apart from explicit rollback provenance.
+`applied` is the authored/requested intersection; `effective` is authored
+minus requested. Check that every rule meant for rollback is in `applied`
+and absent from `effective`. An unselected rule never appears in `applied`.
+The in-memory report keeps the receipt; the CLI writes no receipt file yet. An empty effective selection must match ordinary identity-phase
+semantics and artifact output, apart from the recorded rollback.
 
-Before deployment, run the affected target/workload checks and retain command,
-log, compiler identity, target, and output digest. Restore only the affected
-argument after semantic/corruption, differential, determinism, target,
-measurement, and rollback coverage passes; do not replace exact selection with
-a broad optimization level. [Promotion evidence](omega/foundation/optimization-core/README.md#exact-rule-promotion-records)
+Before deploying, run the affected target/workload checks and keep the
+command, log, compiler identity, target and output digest. Drop the
+rollback flag only after semantic/corruption, differential, determinism,
+target, measurement and rollback tests pass; do not replace
+exact selection with a broad optimization level. [Promotion evidence](omega/foundation/optimization-core/README.md#exact-rule-promotion-records)
 remains a separate owner-reviewed requirement.

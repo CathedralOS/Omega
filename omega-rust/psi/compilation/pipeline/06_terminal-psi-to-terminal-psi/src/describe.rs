@@ -21,16 +21,19 @@ is not proof of falsehood"). An unproved condition is not described as
 */
 
 use semantic_vocabulary::{
-    CrashCause, IntegerCarrier, IntegerSign, InvocationSite, MachineId, OperationId, ScalarType,
+    CrashCause, IntegerCarrier, IntegerSign, InvocationSite, MachineId, ObligationId, OperationId,
+    ScalarType,
 };
 use terminal_check_tables::MachineTables;
 use terminal_check_tables::edges::Callee;
-use terminal_check_tables::obligations::{CrashSite, ObligationKind};
+use terminal_check_tables::obligations::{CrashSite, ExecutionSite, ObligationKind};
 use terminal_check_tables::{
     names::{Binder, MachineNames},
     program::{Elaboration, SourceOrigin},
 };
-use terminal_psi::{OperationKind, OperationResult};
+use terminal_psi::{
+    ArrayExtent, OperationKind, OperationResult, StructuralTypeShape, TerminalModule,
+};
 
 /// The statement of one unproved obligation of `machine`, which arises at
 /// `site`.
@@ -38,6 +41,7 @@ pub(crate) fn unproved(
     elaboration: &Elaboration,
     machine: MachineId,
     tables: &MachineTables,
+    obligation: ObligationId,
     kind: ObligationKind,
     site: SourceOrigin,
 ) -> String {
@@ -122,16 +126,23 @@ pub(crate) fn unproved(
                 None => format!("cannot prove ensures clause {}", u64::from(clause) + 1),
             }
         }
-        ObligationKind::OperationSafety {
-            site: terminal_check_tables::obligations::ExecutionSite::Operation(operation),
-        } => operation_safety(elaboration, machine, names, operation, site),
-        ObligationKind::OperationSafety {
-            site: terminal_check_tables::obligations::ExecutionSite::Block(_),
-        } => {
-            format!(
-                "cannot prove storage index bounds in {}",
-                owner(names, site)
-            )
+        ObligationKind::OperationSafety { site: execution } => {
+            let statement = match execution {
+                ExecutionSite::Operation(operation) => {
+                    operation_safety(elaboration, machine, names, operation, site)
+                }
+                ExecutionSite::Block(_) => format!(
+                    "cannot prove storage index bounds in {}",
+                    owner(names, site)
+                ),
+            };
+            if let Some(extent) =
+                indexed_extent(&elaboration.module, machine, execution, obligation)
+            {
+                format!("{statement}: cannot prove index is within length {extent}")
+            } else {
+                statement
+            }
         }
         ObligationKind::DataDomain { clause, .. } => format!(
             "cannot prove requires clause {} of a data type in {}",
@@ -335,6 +346,48 @@ fn crash_coverage(
             names.machine
         ),
     }
+}
+
+/// Name the exact array whose projection owns the failed bound. A single
+/// operation can index several arrays, so the operation alone cannot identify
+/// the extent.
+fn indexed_extent(
+    module: &TerminalModule,
+    machine: MachineId,
+    site: ExecutionSite,
+    obligation: ObligationId,
+) -> Option<u64> {
+    let lowered = module.machine(machine)?;
+    let projections = match site {
+        ExecutionSite::Operation(operation) => {
+            lowered.operation(operation)?.kind.structural_projections()
+        }
+        ExecutionSite::Block(block) => lowered.block(&block)?.terminator.storage_uses(),
+    };
+    projections.into_iter().find_map(|projection| {
+        let position = projection.path.iter().position(|step| {
+            step.runtime_index()
+                .is_some_and(|(_, owner)| owner == obligation)
+        })?;
+        let root = lowered.structural_place_type(projection.root).or_else(|| {
+            lowered
+                .block_structural_parameters()
+                .find(|parameter| parameter.place == projection.root)
+                .map(|parameter| parameter.structural_type)
+        })?;
+        let array = terminal_semantics::runtime_structural_path_tip(
+            module.structural_types.iter(),
+            root,
+            &projection.path[..position],
+        )?;
+        match array.shape {
+            StructuralTypeShape::FixedArray {
+                length: ArrayExtent::Literal(extent),
+                ..
+            } => Some(extent),
+            _ => None,
+        }
+    })
 }
 
 /// A partial operation's unproved safety condition: overflow of an add, subtract or

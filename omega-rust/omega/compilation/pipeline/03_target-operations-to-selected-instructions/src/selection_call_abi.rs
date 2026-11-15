@@ -13,8 +13,8 @@ use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 use terminal_psi::StructuralAccess;
 pub(crate) mod borrowed_argument {
     use super::{
-        CallSignature, LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, ValueShape,
-        evaluate_call_plan, scalar_shape,
+        LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, ValueShape, scalar_shape,
+        stored_plan_placements,
     };
     use crate::selection::established_view_input::{
         accepts_at, accepts_view_loan, completed_descriptor, element_view_type, view_access,
@@ -343,7 +343,7 @@ pub(crate) mod borrowed_argument {
         } else {
             destination_shape
         };
-        let expected = expected_signature_plan(source, call, argument_index, shape)?;
+        let stored = stored_argument_placement(source, call, argument_index, shape)?;
         let no_indirect_home = !exclusive
             && !block_forward
             && address_join.is_none()
@@ -362,7 +362,6 @@ pub(crate) mod borrowed_argument {
                 &parameters,
                 source.geometry(),
             ))
-            || call.call_plan != expected
             || (no_indirect_home
                 && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
             || target.place != semantic.place
@@ -379,7 +378,7 @@ pub(crate) mod borrowed_argument {
                 != byte_view
                     .map(|_| 1)
                     .or(element_view.map(|(_, _, stride)| stride))
-            || Some(&target.destination) != expected.parameters.get(argument_index)
+            || target.destination != *stored
         {
             return None;
         }
@@ -480,10 +479,8 @@ pub(crate) mod borrowed_argument {
         }
         crate::selection::reference_input::borrowed_argument(source, semantic, target, indices)?;
         let shape = target.shape;
-        let expected = expected_signature_plan(source, call, argument_index, shape)?;
-        (call.call_plan == expected
-            && Some(&target.destination) == expected.parameters.get(argument_index))
-        .then_some(())
+        let stored = stored_argument_placement(source, call, argument_index, shape)?;
+        (target.destination == *stored).then_some(())
     }
 
     fn projected_loan_shape(
@@ -512,43 +509,32 @@ pub(crate) mod borrowed_argument {
         .then_some(shape)
     }
 
-    fn expected_signature_plan(
+    /// The stored call plan's placement for this argument, after checking
+    /// that every argument is the placement the plan gives it, that each
+    /// scalar argument's placement has its value's shape, and that this
+    /// argument's placement has the shape its source geometry requires.
+    /// Legalization stored the plan; selection does not compute it again.
+    fn stored_argument_placement<'call>(
         source: &crate::native_geometry::NativeFunction<'_>,
-        call: &LegalizedScalarCall,
+        call: &'call LegalizedScalarCall,
         argument_index: usize,
-        shape: calling_conventions::ValueShape,
-    ) -> Option<calling_conventions::CallPlan> {
-        evaluate_call_plan(
-            source.call_plan.policy,
-            &CallSignature {
-                parameters: call
-                    .arguments
-                    .iter()
-                    .enumerate()
-                    .map(|(position, argument)| match argument {
-                        LegalizedScalarArgument::Scalar {
-                            source: value,
-                            placement,
-                        } => {
-                            let shape = scalar_shape(scalar_value_type(source, *value)?)?;
-                            (placement.shape == shape).then_some(shape)
-                        }
-                        LegalizedScalarArgument::Structural { target, .. } => {
-                            Some(if position == argument_index {
-                                shape
-                            } else {
-                                target.shape
-                            })
-                        }
-                    })
-                    .collect::<Option<Vec<_>>>()?,
-                result: call
-                    .result_placement
-                    .as_ref()
-                    .map(|placement| placement.shape),
-            },
-        )
-        .ok()
+        shape: ValueShape,
+    ) -> Option<&'call calling_conventions::ValuePlacement> {
+        stored_plan_placements(source.call_plan.policy, call)?;
+        for argument in &call.arguments {
+            if let LegalizedScalarArgument::Scalar {
+                source: value,
+                placement,
+            } = argument
+                && placement.shape != scalar_shape(scalar_value_type(source, *value)?)?
+            {
+                return None;
+            }
+        }
+        call.call_plan
+            .parameters
+            .get(argument_index)
+            .filter(|placement| placement.shape == shape)
     }
 }
 pub(crate) mod input_site {
@@ -688,6 +674,7 @@ pub(crate) mod normalized_foreign {
     ) -> register_model::RegisterConstraintFamily {
         match call.binding.mechanism {
             target_operations::NormalizedForeignCallMechanism::Import { .. }
+            | target_operations::NormalizedForeignCallMechanism::HostedImport { .. }
             | target_operations::NormalizedForeignCallMechanism::Component { .. }
             | target_operations::NormalizedForeignCallMechanism::Table { .. } => {
                 register_model::RegisterConstraintFamily::Call
@@ -819,11 +806,7 @@ pub(crate) mod normalized_foreign {
         let operands = call.binding.operand_placements();
         if call.binding.native_target() != Some(environment.target())
             || !call.binding.has_valid_entry_mechanism()
-            || call.binding.provider_plan_report_identity()
-                != call
-                    .provider_execution
-                    .provider_plan_report_identity()
-                    .get()
+            || !call.binding.matches_execution(call.provider_execution)
         {
             return Err(invalid!());
         }
@@ -1244,7 +1227,7 @@ pub(crate) mod owned_argument {
     use crate::structural_inputs::structural_reference_input::runtime_projection;
 
     use super::{
-        LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, evaluate_call_plan,
+        LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, stored_plan_placements,
     };
     use legalized_operations::LegalizedScalarInstructionKind;
 
@@ -1371,13 +1354,30 @@ pub(crate) mod owned_argument {
                 _ => return None,
             }
         }
-        let expected =
-            evaluate_call_plan(source.call_plan.policy, &super::call_abi_signature(call)).ok()?;
-        (expected == call.call_plan).then_some(())
+        stored_plan_placements(source.call_plan.policy, call)
     }
 }
 use borrowed_argument::validate_borrowed_argument;
-use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
+
+/// Legalization stored this call's calling-convention plan. Selection checks
+/// that the plan uses the caller's policy and that every argument and the
+/// result sit where the plan puts them; it does not compute the plan again.
+/// The independent audit compares the stored plan with the callee's own plan.
+pub(crate) fn stored_plan_placements(
+    caller: CallingPolicy,
+    call: &LegalizedScalarCall,
+) -> Option<()> {
+    (call.call_plan.policy == caller
+        && call.arguments.len() == call.call_plan.parameters.len()
+        && call
+            .arguments
+            .iter()
+            .zip(&call.call_plan.parameters)
+            .all(|(argument, placement)| argument.placement() == placement)
+        && call.result_placement == call.call_plan.result)
+        .then_some(())
+}
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
@@ -1458,20 +1458,6 @@ pub(crate) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> 
         call.arguments[*index].placement().shape.class == calling_conventions::ValueClass::Float
     });
     order
-}
-
-fn call_abi_signature(call: &LegalizedScalarCall) -> CallSignature {
-    CallSignature {
-        parameters: call
-            .arguments
-            .iter()
-            .map(|argument| argument.placement().shape)
-            .collect(),
-        result: call
-            .result_placement
-            .as_ref()
-            .map(|placement| placement.shape),
-    }
 }
 
 fn is_register_location(location: &&ValueLocation) -> bool {

@@ -12,6 +12,7 @@ pub struct DirectBoundaryLeaf {
     pub satisfied_schema: effects::provider_plan::ServiceSchema,
     pub plan: effects::provider_plan::ProviderPlan,
     pub satisfied_requirement_identity: String,
+    pub target_realization: Option<target::CanonicalFloatRealization>,
     pub execution: DirectBoundaryExecution, // Preserves exact refusal until executable demand activates this row.
 }
 
@@ -113,6 +114,54 @@ impl DirectBoundaryLeaf {
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
         Ok(())
+    }
+
+    /// Bind the projected callable to its exact receiving declaration before
+    /// deriving any schema-keyed permission or executable realization.
+    /// A retained but unused source declaration may be absent from this module.
+    pub fn bind_to_terminal(
+        &mut self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<bool, String> {
+        let mut declarations = module.boundary_machines.iter().filter(|boundary| {
+            boundary.declaration.as_ref().is_some_and(|declaration| {
+                module.identities.text(
+                    if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
+                        || declaration.execution != terminal_psi::CheckedBoundaryExecution::Provider
+                    {
+                        declaration.source.semantic_declaration
+                    } else {
+                        declaration.source.machine.identity()
+                    },
+                ) == Some(self.declaration_identity.as_str())
+                    && module.identities.text(declaration.source.callable)
+                        == Some(self.callable_identity.as_str())
+            })
+        });
+        let Some(boundary) = declarations.next() else {
+            return Ok(false);
+        };
+        if declarations.next().is_some() {
+            return Err("direct boundary leaf has multiple exact Terminal declarations".into());
+        }
+        self.validate_calling_custody()?;
+        let identity = module
+            .identities
+            .text(boundary.identity)
+            .filter(|text| !text.is_empty())
+            .ok_or("direct boundary leaf has no Terminal boundary identity")?;
+        let declaration = std::sync::Arc::make_mut(&mut self.plan.schema.declaration);
+        let terminal_requirement = declaration.identities.intern(identity);
+        declaration.trait_name = terminal_requirement;
+        self.plan.rows[0].requirement_identity = self.plan.identities.intern(identity);
+        self.plan.rows[0].declared_requirement_identity = self.plan.rows[0].requirement_identity;
+        declaration.methods[0].requirement_identity = terminal_requirement;
+        if let DirectBoundaryExecution::Foreign(Ok(binding)) = &mut self.execution {
+            binding.trait_name = identity.to_owned();
+            binding.requirement_identity = identity.to_owned();
+        }
+        self.validate_bound_calling_custody(module)?;
+        Ok(true)
     }
 
     pub fn validate_calling_custody(&self) -> Result<(), String> {
@@ -231,41 +280,92 @@ impl DirectBoundaryLeaf {
             .plan
             .identities
             .text(self.plan.rows[0].requirement_identity);
-        let count = module
-            .boundary_machines
-            .iter()
-            .filter(|boundary| {
-                module.identities.text(boundary.identity) == Some(route)
-                    && boundary.declaration.as_ref().is_some_and(|declaration| {
-                        module
-                            .identities
-                            .text(declaration.source.semantic_declaration)
-                            == Some(self.declaration_identity.as_str())
-                            && module.identities.text(declaration.source.callable)
-                                == Some(self.callable_identity.as_str())
-                    })
-            })
-            .count();
-        if count != 1 {
-            return Err(format!(
-                "direct callable route rejoins {count} exact Source/Terminal declarations"
-            ));
+        let mut matching = module.boundary_machines.iter().filter(|boundary| {
+            module.identities.text(boundary.identity) == Some(route)
+                && boundary.declaration.as_ref().is_some_and(|declaration| {
+                    module.identities.text(
+                        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
+                            || declaration.execution
+                                != terminal_psi::CheckedBoundaryExecution::Provider
+                        {
+                            declaration.source.semantic_declaration
+                        } else {
+                            declaration.source.machine.identity()
+                        },
+                    ) == Some(self.declaration_identity.as_str())
+                        && module.identities.text(declaration.source.callable)
+                            == Some(self.callable_identity.as_str())
+                })
+        });
+        let boundary = matching
+            .next()
+            .ok_or("direct callable route has no exact receiving declaration")?;
+        if matching.next().is_some() {
+            return Err(
+                "direct callable route rejoins multiple exact Source/Terminal declarations".into(),
+            );
         }
-        let boundary = module
-            .boundary_machines
-            .iter()
-            .find(|boundary| {
-                module.identities.text(boundary.identity) == Some(route)
-                    && boundary.declaration.as_ref().is_some_and(|declaration| {
-                        module
-                            .identities
-                            .text(declaration.source.semantic_declaration)
-                            == Some(self.declaration_identity.as_str())
-                            && module.identities.text(declaration.source.callable)
-                                == Some(self.callable_identity.as_str())
-                    })
-            })
-            .ok_or("direct callable route lost its retained boundary")?;
+        let numeric = boundary.declaration.as_ref().is_some_and(|declaration| {
+            declaration.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+        });
+        if numeric {
+            let expected_schema =
+                crate::canonical_schemas::numeric_requirement_schema(module, boundary)?;
+            if self.satisfied_schema != expected_schema {
+                return Err("numeric leaf changes its canonical declared schema".into());
+            }
+            let meaning = boundary
+                .numeric_intrinsic
+                .ok_or("numeric leaf lost its closed meaning")?;
+            if self.execution != DirectBoundaryExecution::Intrinsic(Some(meaning.into())) {
+                return Err("numeric leaf changes its declared operation".into());
+            }
+            let profile = target::TargetProfile::from_canonical_target_name(&self.plan.target)
+                .map_err(|_| "numeric leaf has an unknown target")?;
+            let expected = profile
+                .canonical_float_realization(route)
+                .ok_or("numeric leaf has no target table entry")?;
+            if !matches!(
+                expected,
+                target::CanonicalFloatRealization::CatalogIntrinsic { .. }
+            ) || self.target_realization != Some(expected)
+            {
+                return Err(
+                    "numeric leaf differs from its target realization and admissions".into(),
+                );
+            }
+        } else if self.target_realization.is_some() {
+            return Err("a nonnumeric leaf carries a numeric target realization".into());
+        }
+        if numeric {
+            return Ok(());
+        }
+        if let Some(terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
+            operation,
+            requirement,
+        }) = boundary
+            .declaration
+            .as_ref()
+            .map(|declaration| declaration.execution)
+        {
+            let expected = crate::canonical_schemas::hosted_requirement_schema(
+                module,
+                operation,
+                requirement,
+            )?;
+            let execution = match operation {
+                language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
+                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                }
+                _ => return Err("hosted primitive has no exact native execution".into()),
+            };
+            if self.satisfied_schema != expected
+                || self.execution != DirectBoundaryExecution::Intrinsic(Some(execution))
+            {
+                return Err("hosted primitive changes its canonical contract or execution".into());
+            }
+            return Ok(());
+        }
         if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
             let schema = Self::declared_schema(module, boundary.id)?;
             if self.satisfied_schema.declaration.as_ref() != schema.surface.as_ref()

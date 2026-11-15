@@ -1,10 +1,11 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use platform::input;
 use platform::report;
 use domain::reconcile;
 
 data Main { web: Web; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("trophic reconciliation v1; hundredths");
     transition { _ -> block node_input(main, 0) }
     machine node_input(main: &mut Main, node: u64) requires node < 3 {
@@ -93,14 +94,14 @@ machine Main::main(main: &mut Main) reaches Console {
     machine feasibility(main: &mut Main, deficits: i32 in Saturating) {
         transition deficits == 0 { true -> feasible(main) false -> infeasible(main) }
     }
-    machine feasible(main: &mut Main) { Console::write_line("FEASIBLE"); Console::exit_process(0); }
-    machine infeasible(main: &mut Main) { Console::write_line("INFEASIBLE"); Console::exit_process(3); }
-    machine invalid(main: &mut Main) { Console::write_line("INVALID INPUT"); Console::exit_process(64); }
-    machine broken(main: &mut Main) { Console::write_line("BALANCE FAILURE"); Console::exit_process(70); }
+    machine feasible(main: &mut Main) { Console::write_line("FEASIBLE"); ProcessExit::exit_process(0); }
+    machine infeasible(main: &mut Main) { Console::write_line("INFEASIBLE"); ProcessExit::exit_process(3); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID INPUT"); ProcessExit::exit_process(64); }
+    machine broken(main: &mut Main) { Console::write_line("BALANCE FAILURE"); ProcessExit::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

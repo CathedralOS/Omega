@@ -1,0 +1,33 @@
+// A constant grants no authority. `StampAccess::plan` names `stamp` as the
+// one issuer of `Ticket::Stamped`, and the constant's evaluated value holds
+// only the tickets' numbers, so rebuilding `ISSUED` would issue the domain
+// without `stamp`. The constant is refused at evaluation. The twin
+// `run/domains/constant_qualified_elements` restricts no issuer.
+
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::reflect;
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::Issuance;
+use omega::language::core::access;
+
+StampAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })
+    }
+}
+
+data Ticket [copy] { number: u32; }
+domain Ticket::Stamped access StampAccess;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine make() -> [Ticket in Stamped; 2] {
+    [stamp(Ticket { number: 4 }), stamp(Ticket { number: 9 })]
+}
+const ISSUED: [Ticket in Stamped; 2] = make();
+machine number(ticket: Ticket in Stamped) -> u32 { ticket.number }
+machine complete() { }
+machine fail() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let second: u32 = number(ISSUED[1u64]);
+    transition second == 9 { true -> complete() _ -> fail() }
+}

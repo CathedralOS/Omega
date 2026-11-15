@@ -24,7 +24,7 @@ fn path(path: &[CanonicalStructuralPathSegment]) -> Result<Vec<Segment>, &'stati
             CanonicalStructuralPathSegment::Field(field) => Ok(Segment::Field(*field)),
             CanonicalStructuralPathSegment::Case(case) => Ok(Segment::Case(*case)),
             CanonicalStructuralPathSegment::FixedIndex(index) => Ok(Segment::FixedIndex(*index)),
-            CanonicalStructuralPathSegment::Referent => Err("a contract through a referent"),
+            CanonicalStructuralPathSegment::Referent => Ok(Segment::Referent),
         })
         .collect()
 }

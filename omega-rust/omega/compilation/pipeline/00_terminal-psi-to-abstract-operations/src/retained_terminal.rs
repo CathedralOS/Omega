@@ -210,6 +210,7 @@ mod native_providers {
                     external_binding_rows: self.execution.external_bindings(),
                     settlements,
                     compiler_builtins: &self.compiler_builtins,
+                    native_bindings: &proposal.providers().native_bindings,
                     native_callbacks: self.callbacks,
                     installed_interrupts: &proposal.occurrences().installed_interrupts,
                     installed_calling: &proposal.boundary_applications().calling,

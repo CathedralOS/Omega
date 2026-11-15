@@ -26,8 +26,8 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
-    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
-    TerminalPsiProvenance,
+    BoundarySettlementBinding, ScalarFunctionAbi, TargetControlTerminator, TargetFunction,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
 use terminal_psi::{StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction};
 #[path = "control_flow_operations.rs"]
@@ -47,6 +47,31 @@ pub(crate) use cf_storage::{
 };
 #[path = "references.rs"]
 pub(crate) mod references;
+
+fn binding_indices(
+    bindings: &[abstract_operations::AbstractStructuralBinding],
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    prepared: &crate::function_signature::PreparedFunctionSignature,
+    live: &LiveDefinitions,
+) -> Result<Vec<Vec<target_operations::TargetStructuralRuntimeIndex>>, LoweringError> {
+    bindings
+        .iter()
+        .map(|binding| {
+            if binding
+                .argument
+                .path
+                .iter()
+                .any(|segment| segment.runtime_index().is_some())
+            {
+                primitive_storage::field_indices(function, types, prepared, live, &binding.argument)
+            } else {
+                Ok(Vec::new())
+            }
+        })
+        .collect()
+}
+
 mod dominance {
     use std::collections::{BTreeSet, VecDeque};
 
@@ -404,6 +429,12 @@ mod interrupt_installation {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
                 arguments: scope.arguments().clone(),
+                indices: super::scalar_sources::argument_indices(
+                    site.function,
+                    site.types,
+                    site.live,
+                    scope.arguments().each_ref(),
+                )?,
                 calls,
                 result_home,
             });
@@ -785,6 +816,7 @@ mod static_interrupts {
             boundary: *boundary,
             operation,
             token: token.clone(),
+            indices: super::scalar_sources::projection_indices(function, types, live, token)?,
             result_home,
         });
         provenance.operations.push(*psi_operation);
@@ -997,6 +1029,7 @@ mod structural_case {
         provenance: &mut TerminalPsiProvenance,
     ) -> Result<TargetControlTerminator, LoweringError> {
         let AbstractOperation::StructuralCase {
+            psi_block,
             source,
             path,
             cases,
@@ -1011,18 +1044,25 @@ mod structural_case {
             || regions
                 .pointer_slots
                 .iter()
-                .any(|slot| slot.scalar_descriptor || !slot.indices.is_empty())
+                .any(|slot| slot.scalar_descriptor)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let pointer_slots = prepared_pointer_slots(&regions.pointer_slots)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        let (selected_type, _, byte_offset) =
-            crate::structural_layout::resolve_structural_projection_path(
+        let (selected_type, _, byte_offset, leaf_indices) =
+            crate::structural_layout::runtime_projection(
                 regions.root,
                 regions.path,
                 structural_types,
             )?;
+        let region_root = regions.root;
+        let indices = super::scalar_sources::runtime_indices(
+            regions.selector_runs(leaf_indices),
+            function,
+            &super::scalar_sources::ScalarSources::from(&*live),
+            structural_types,
+        )?;
         let declaration = structural_types
             .get(selected_type)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
@@ -1043,10 +1083,10 @@ mod structural_case {
         // or a sum stored in a larger record addresses the outer region,
         // and the target row has to carry that size: selection no longer
         // walks the type to recover it.
-        let region_byte_size = if pointer_slots.is_empty() && regions.root == selected_type {
+        let region_byte_size = if pointer_slots.is_empty() && region_root == selected_type {
             layout.shape.byte_size
         } else {
-            crate::structural_layout::structural_shape(regions.root, structural_types)?.byte_size
+            crate::structural_layout::structural_shape(region_root, structural_types)?.byte_size
         };
         if byte_offset
             .checked_add(layout.shape.byte_size)
@@ -1069,6 +1109,13 @@ mod structural_case {
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            let structural_indices = super::binding_indices(
+                &case.structural_bindings,
+                function,
+                structural_types,
+                prepared,
+                live,
+            )?;
             let mut edge_live = live.clone();
             super::transfers::re_home_bound_references(
                 function,
@@ -1129,6 +1176,8 @@ mod structural_case {
                 target: case.target,
                 payloads,
                 structural_bindings: case.structural_bindings.clone(),
+                structural_indices,
+                work: Vec::new(),
                 cleanup_actions: case.cleanup_actions.clone(),
             });
         }
@@ -1137,8 +1186,10 @@ mod structural_case {
             .edges
             .extend(cases.iter().map(|case| case.psi_edge));
         Ok(TargetControlTerminator::StructuralCase {
+            psi_block: *psi_block,
             source: home,
             path: path.clone(),
+            indices,
             byte_offset,
             layout,
             pointer_slots,
@@ -1417,6 +1468,35 @@ mod terminator {
         Ok(())
     }
 
+    pub(crate) fn validate_external_completion_result(
+        boundary: BoundaryMachineId,
+        completion: semantic_vocabulary::BoundaryCompletion,
+        kind: semantic_vocabulary::ExternalCompletionKind,
+        result: &terminal_psi::BoundaryMachineResult,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> Result<(), LoweringError> {
+        if completion != semantic_vocabulary::BoundaryCompletion::External(kind) {
+            return Err(LoweringError::boundary_realization(
+                boundary,
+                "the terminal event differs from the declared completion contract",
+            ));
+        }
+        // The declaration retains Never (or another proved-empty type).
+        // Only its physical result lane is absent.
+        match terminal_semantics::inhabitation::external_result_is_erased(
+            completion,
+            result.structural(),
+            types,
+        ) {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(LoweringError::boundary_realization(
+                boundary,
+                "the declaration still has a normal return",
+            )),
+            Err(reason) => Err(LoweringError::boundary_realization(boundary, reason)),
+        }
+    }
+
     pub(crate) fn lower_terminator(
         operation: &AbstractOperation,
         function: &AbstractFunction,
@@ -1438,6 +1518,13 @@ mod terminator {
         let successor = |live: &mut LiveDefinitions,
                          edge: &abstract_operations::AbstractSuccessor|
          -> Result<TargetControlSuccessor, LoweringError> {
+            let structural_indices = super::binding_indices(
+                &edge.structural_bindings,
+                function,
+                structural_types,
+                prepared,
+                live,
+            )?;
             let destination = function
                 .block(edge.target)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
@@ -1453,6 +1540,8 @@ mod terminator {
                 target: edge.target,
                 bindings: edge.bindings.clone(),
                 structural_bindings: edge.structural_bindings.clone(),
+                structural_indices,
+                work: Vec::new(),
                 cleanup_actions: cleanup(live, &edge.cleanup_actions)?,
             })
         };
@@ -1470,20 +1559,37 @@ mod terminator {
                     .get(boundary)
                     .copied()
                     .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
-                if declaration.completion
-                    != semantic_vocabulary::BoundaryCompletion::External(*kind)
-                    || !declaration.result.is_unit()
-                    || declaration.scalar_parameters.len() != arguments.len()
-                    || declaration.structural_parameters.len() != structural_arguments.len()
-                {
-                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                validate_external_completion_result(
+                    *boundary,
+                    declaration.completion,
+                    *kind,
+                    &declaration.result,
+                    structural_types.catalog().as_slice(),
+                )?;
+                if declaration.scalar_parameters.len() != arguments.len() {
+                    return Err(LoweringError::boundary_realization(
+                        *boundary,
+                        "the scalar argument count differs from the declaration",
+                    ));
+                }
+                if declaration.structural_parameters.len() != structural_arguments.len() {
+                    return Err(LoweringError::boundary_realization(
+                        *boundary,
+                        "the structural argument count differs from the declaration",
+                    ));
                 }
                 let shapes = declaration
                     .scalar_parameters
                     .iter()
                     .map(|scalar_type| {
-                        crate::scalar_abi::fixed_native_scalar_shape(*scalar_type)
-                            .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))
+                        crate::scalar_abi::fixed_native_scalar_shape(*scalar_type).ok_or_else(
+                            || {
+                                LoweringError::boundary_realization(
+                                    *boundary,
+                                    "a scalar parameter has no fixed native representation",
+                                )
+                            },
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let signature = calling_conventions::CallSignature {
@@ -1521,7 +1627,7 @@ mod terminator {
                             foreign.boundary_entry_plan.clone(),
                             &signature,
                         )
-                        .map_err(LoweringError::AbiPlan)?
+                        .map_err(|reason| LoweringError::boundary_realization(*boundary, format!("the selected calling plan differs from the declared signature: {reason}")))?
                         .plan()
                         .call
                         .clone(),
@@ -1540,11 +1646,17 @@ mod terminator {
                     .map(|(position, ((source, placement), expected))| {
                         let source = super::scalar_sources::source(*source, function, live)?;
                         if source.scalar_type() != *expected {
-                            return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                            return Err(LoweringError::boundary_realization(
+                                *boundary,
+                                "a scalar argument differs from its declared type",
+                            ));
                         }
                         Ok(target_operations::TargetUnitScalarCallArgument {
                             parameter_index: u32::try_from(position).map_err(|_| {
-                                LoweringError::BoundaryRealizationMismatch(*boundary)
+                                LoweringError::boundary_realization(
+                                    *boundary,
+                                    "a scalar argument position exceeds the native parameter range",
+                                )
                             })?,
                             source,
                             placement: placement.clone(),
@@ -1701,6 +1813,14 @@ mod terminator {
                         cleanup_actions,
                     });
                 }
+                let matches_result =
+                    |structural_type, multiplicity| {
+                        structural_types.get(structural_type).is_some_and(|source| {
+                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                            result, source, multiplicity,
+                        )
+                    })
+                    };
                 if let Some(parameter) = function.structural_parameter(*source) {
                     let actual = prepared
                         .parameter(*source)
@@ -1710,8 +1830,7 @@ mod terminator {
                             LoweringError::unsupported_control_flow(function.machine)
                         })?;
                     if parameter.access != StructuralAccess::Owned
-                        || parameter.structural_type != result.structural_type
-                        || parameter.multiplicity != result.multiplicity
+                        || !matches_result(parameter.structural_type, parameter.multiplicity)
                         || !trivial_affine_locals.is_empty()
                         || actual.shape != placement.shape
                     {
@@ -1728,8 +1847,7 @@ mod terminator {
                     .structural_homes
                     .get(source)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if result.structural_type != home.structural_type()
-                    || result.multiplicity != home.multiplicity()
+                if !matches_result(home.structural_type(), home.multiplicity())
                     || prepared
                         .call_plan
                         .result
@@ -1827,6 +1945,13 @@ mod terminator {
                 }) {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
+                let structural_indices = super::binding_indices(
+                    structural_bindings,
+                    function,
+                    structural_types,
+                    prepared,
+                    live,
+                )?;
                 let destination = function
                     .block(*target)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
@@ -1845,6 +1970,8 @@ mod terminator {
                         target: *target,
                         bindings: bindings.clone(),
                         structural_bindings: structural_bindings.clone(),
+                        structural_indices,
+                        work: Vec::new(),
                         cleanup_actions,
                     },
                 })
@@ -1909,6 +2036,99 @@ mod terminator {
                 })
             }
             _ => Err(LoweringError::unsupported_control_flow(function.machine)),
+        }
+    }
+
+    #[cfg(test)]
+    mod external_completion_tests {
+        use super::*;
+        use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind, Proposition};
+        use terminal_psi::{
+            BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralTypeDeclaration,
+            StructuralTypeShape,
+        };
+
+        #[test]
+        fn external_completion_retains_its_exact_empty_logical_result() {
+            let boundary = BoundaryMachineId::new(13).unwrap();
+            let empty = StructuralTypeId::new(1).unwrap();
+            let inhabited = StructuralTypeId::new(2).unwrap();
+            let kind = ExternalCompletionKind::ProcessExit;
+            let completion = BoundaryCompletion::External(kind);
+            let types = [empty, inhabited].map(|id| StructuralTypeDeclaration {
+                id,
+                identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: if id == empty {
+                    vec![Proposition::Falsehood]
+                } else {
+                    Vec::new()
+                },
+            });
+            let result = |structural_type| {
+                BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                })
+            };
+            assert_eq!(
+                validate_external_completion_result(
+                    boundary,
+                    completion,
+                    kind,
+                    &result(empty),
+                    &types
+                ),
+                Ok(())
+            );
+            // Identical zero-byte geometry does not prove the other type empty.
+            assert!(
+                validate_external_completion_result(
+                    boundary,
+                    completion,
+                    kind,
+                    &result(inhabited),
+                    &types
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("not proved uninhabited")
+            );
+            assert!(
+                validate_external_completion_result(
+                    boundary,
+                    completion,
+                    kind,
+                    &BoundaryMachineResult::Unit,
+                    &types
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("logical result")
+            );
+            assert!(
+                validate_external_completion_result(
+                    boundary,
+                    BoundaryCompletion::NormalReturn,
+                    kind,
+                    &result(empty),
+                    &types
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("declared completion contract")
+            );
         }
     }
 }
@@ -2447,6 +2667,7 @@ use operations::lower_operation;
 use row::RowSite;
 use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
 use terminator::lower_terminator;
+pub(crate) use terminator::validate_external_completion_result;
 
 #[derive(Clone)]
 pub(crate) struct ReferenceEdgeStorage {
@@ -2476,7 +2697,7 @@ pub(crate) struct LiveDefinitions {
     block_views: BTreeSet<PlaceId>,
     address_joins: BTreeSet<PlaceId>,
     owned_arrivals: BTreeSet<PlaceId>,
-    lengths: BTreeMap<ValueId, PlaceId>,
+    lengths: BTreeMap<ValueId, terminal_psi::StructuralArgument>,
     trivial_affine_locals: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceStorage>,
     retired_reference_roots: BTreeSet<PlaceId>,
@@ -2573,8 +2794,20 @@ impl LiveDefinitions {
     }
 }
 
+// Arrival inference may rebuild a block. Attach owned source annotations only
+// after it settles, rather than cloning them on every visit to the fixed point.
+#[derive(Clone)]
+struct PendingControlBlock {
+    block: semantic_vocabulary::BlockId,
+    parameters: Vec<target_operations::TargetScalarBlockParameter>,
+    structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+    operations: Vec<target_operations::TargetUnitOperation>,
+    terminator: target_operations::TargetControlTerminator,
+}
+
 pub(crate) fn lower(
     function: &AbstractFunction,
+    optimized: &optimization_unit::PsiOptimizationFunction,
     target: NativeTarget,
     profile: Option<target::TargetProfile>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -3057,7 +3290,7 @@ pub(crate) fn lower(
                     provenance,
                 )?
             };
-            lowered[position] = Some(TargetControlBlock {
+            lowered[position] = Some(PendingControlBlock {
                 block: entries[position].block,
                 structural_parameters: entries[position].structural_parameters.clone(),
                 parameters: entries[position]
@@ -3106,10 +3339,77 @@ pub(crate) fn lower(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
-    let blocks = lowered
-        .into_iter()
-        .collect::<Option<Vec<_>>>()
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let mut blocks = Vec::with_capacity(lowered.len());
+    for pending in lowered {
+        let mut pending =
+            pending.ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        // Live arrivals can revisit a pending block. Stable source annotations
+        // are copied only once, when publishing the final target graph.
+        let source = optimized
+            .block(pending.block)
+            .ok_or(LoweringError::InstructionMetadata {
+                machine: function.machine,
+                block: pending.block,
+                reason: "instruction metadata has no source block",
+            })?;
+        let source_terminal = source
+            .nodes
+            .last()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let retain_work = |target: &mut Vec<optimization_unit::WorkSettlement>,
+                           identity,
+                           source: &optimization_unit::OptimizationEdge| {
+            if identity != source.psi_edge {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            *target = source.work.clone();
+            Ok(())
+        };
+        match &mut pending.terminator {
+            TargetControlTerminator::Jump { successor } => {
+                let [source] = source_terminal.successors.as_slice() else {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                };
+                retain_work(&mut successor.work, successor.psi_edge, source)?;
+            }
+            TargetControlTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                let [source_true, source_false] = source_terminal.successors.as_slice() else {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                };
+                retain_work(&mut when_true.work, when_true.psi_edge, source_true)?;
+                retain_work(&mut when_false.work, when_false.psi_edge, source_false)?;
+            }
+            TargetControlTerminator::StructuralCase { cases, .. } => {
+                if cases.len() != source_terminal.successors.len() {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                for (case, source) in cases.iter_mut().zip(&source_terminal.successors) {
+                    retain_work(&mut case.work, case.psi_edge, source)?;
+                }
+            }
+            _ => {}
+        }
+        blocks.push(TargetControlBlock {
+            block: pending.block,
+            parameters: pending.parameters,
+            structural_parameters: pending.structural_parameters,
+            operations: super::function_contract::instructions(
+                function.machine,
+                source,
+                pending.operations,
+            )?,
+            terminator: pending.terminator,
+            terminator_metadata: target_operations::TargetOperationMetadata {
+                work: source_terminal.work.clone(),
+                effect: source_terminal.effect,
+                ownership: source_terminal.ownership.clone(),
+            },
+        });
+    }
     let mut provenance = TerminalPsiProvenance::default();
     for block in block_provenance {
         provenance.operations.extend(block.operations);

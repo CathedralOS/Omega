@@ -466,6 +466,7 @@ pub(crate) mod domain {
                             .last()
                             .map(|name| name.source_span())
                             .unwrap_or_default(),
+                        plan: typed::domain::AccessPlanJudgment::Unevaluated,
                     })
                 })
                 .transpose()?,

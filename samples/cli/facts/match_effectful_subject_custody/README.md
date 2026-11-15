@@ -34,9 +34,6 @@ the arm took traps.
 | other machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `forward` passes the tokens to the top-level `apply` |
 | target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::exercise`; each checks its target tag (17 / 29) first |
 
-Pinned fixtures: `tests/omega/pass/facts/match_effectful_subject_custody_through_<place>_exit`
-and `tests/omega/fail/facts/match_effectful_subject_custody_through_<place>_rejected`.
-
 Each twin reads `slot.mark` after the match. The `true` arm transferred `slot`,
 so the read rejects with ``after `slot` was transferred or consumed``
 (``pair.slot`` in the field place).
@@ -55,11 +52,6 @@ same pair is judged in evaluation order: `held` is derived from the slot's loan.
 a roster row against an operand loan of the same statement in that order: the
 operand loan is the forming loan and the roster row its supplier, through the
 existing `supplier_preserves_loan` rule.
-
-The control
-[`tests/omega/fail/borrows/match_effectful_subject_fresh_overlap_rejected`](../../../../tests/omega/fail/borrows/match_effectful_subject_fresh_overlap_rejected/main.omg)
-forms a new token over `c` in an arm while the refilled slot still holds `c`.
-It still rejects, inline and with the subject hoisted.
 
 Later, native lowering refused every place with ``callee stored-reference
 effects are unresolved``. Inside `refill`, the old token is moved out of `slot`
@@ -86,10 +78,8 @@ so a read of the vacant leaf is still unknown.
 Evidence, 2026-11-01, host macOS AArch64: candidate compiler built from base
 `5445b5af611` plus the change above. `omega run --both` exits 0 with native and
 interpreter agreeing for all nine positives; `omega --check` rejects all nine
-twins with the fragment above. Evidence, 2026-11-03, host Linux x86-64: base `3e22616789c` plus the replay
-repair. `corpus_gate.py --both` builds all nine positives, native exit 0 with
-the interpreter agreeing; all nine twins reject with the fragment above.
-Windows native execution is not observed.
+twins with the fragment above. Evidence, 2026-11-03, host Linux x86-64: base
+`3e22616789c` plus the replay repair. Windows native execution is not observed.
 
 ## Open
 

@@ -13,7 +13,8 @@ use calling_conventions::{ConventionalSumLayout, ValuePlacement};
 use semantic_vocabulary::{BoundaryMachineId, EdgeId, OperationId, ScalarType, ServiceId, ValueId};
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, BoundaryScalarArgument,
-    CompilerBuiltinExecution, CompletionClaimSource, ProviderExecutionBinding,
+    CompilerBuiltinExecution, CompletionClaimSource, ExternalExecutionBinding,
+    NativeBindingExecution, ProviderExecutionBinding,
 };
 use terminal_psi::{
     CompletionReceipt, StructuralArgument, StructuralOperationResult, StructuralTypeDeclaration,
@@ -32,6 +33,7 @@ pub mod execution {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BoundaryExecutionRecord {
         AdmittedProvider(ProviderExecutionRecord),
+        NativeBinding(NativeBindingExecution),
         CompilerBuiltin(CompilerBuiltinExecution),
     }
 
@@ -43,6 +45,9 @@ pub mod execution {
                 }
                 BoundaryExecutionBinding::CompilerBuiltin(execution) => {
                     Self::CompilerBuiltin(execution)
+                }
+                BoundaryExecutionBinding::NativeBinding(execution) => {
+                    Self::NativeBinding(execution)
                 }
             }
         }
@@ -118,6 +123,29 @@ pub mod execution {
                 boundary_contract_report_fingerprint: binding
                     .boundary_contract_report_fingerprint(),
             }
+        }
+    }
+
+    /// Native leaves retain their own commitments rather than provider report
+    /// coordinates. Completion receipts continue to require ProviderExecutionRecord.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ExternalExecutionRecord {
+        Provider(ProviderExecutionRecord),
+        NativeBinding(NativeBindingExecution),
+    }
+
+    impl From<ExternalExecutionBinding> for ExternalExecutionRecord {
+        fn from(binding: ExternalExecutionBinding) -> Self {
+            match binding {
+                ExternalExecutionBinding::Provider(provider) => Self::Provider(provider.into()),
+                ExternalExecutionBinding::NativeBinding(native) => Self::NativeBinding(native),
+            }
+        }
+    }
+
+    impl From<ProviderExecutionRecord> for ExternalExecutionRecord {
+        fn from(record: ProviderExecutionRecord) -> Self {
+            Self::Provider(record)
         }
     }
 }
@@ -212,8 +240,8 @@ pub mod settlements {
 }
 
 pub use execution::{
-    BoundaryExecutionRecord, CompletionProviderCustodyBinding, ProviderExecutionRecord,
-    derive_completion_provider_custody,
+    BoundaryExecutionRecord, CompletionProviderCustodyBinding, ExternalExecutionRecord,
+    ProviderExecutionRecord, derive_completion_provider_custody,
 };
 pub use ports::PortEffectRecord;
 pub use settlements::{

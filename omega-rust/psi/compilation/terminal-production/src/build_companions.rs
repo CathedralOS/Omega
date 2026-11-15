@@ -71,6 +71,7 @@ pub(crate) fn produce(
     let mut companions = BuildCompanions::default();
     capture_declared_inputs(accepted, module, &mut companions)?;
     let mut shapes = NativeLocatorShapes::new(module)?;
+    let mut native_authors = None;
     let mut designated = 0;
     // Retain every actual host call; only activated calls count against the
     // Build's host authority. Readiness requests below account for installed slots.
@@ -131,6 +132,38 @@ pub(crate) fn produce(
             if protocol(SELECTION_PROTOCOL) {
                 designated += 1;
                 let row = binding(accepted, module, &call, &mut shapes)?;
+                if row.action == TerminalBuildBindingOperation::BindNative {
+                    let BuildSelectionRequest::Declaration(request) = &row.request else {
+                        return Err(refused(
+                            "a native Build binding lost its requirement request",
+                        ));
+                    };
+                    let author = native_authors
+                        .get_or_insert_with(|| {
+                            typed_trees::product_operand::ProductRequestAuthors::new(source)
+                        })
+                        .resolve(row.selecting_machine.ok_or_else(|| {
+                            refused("a native Build binding lost its selecting machine")
+                        })?)
+                        .map_err(refused)?;
+                    let root = match elaboration.module.entry {
+                        Some(terminal_psi::TargetMachineCallable::Machine(root)) => {
+                            elaboration.machines.get(root).copied()
+                        }
+                        _ => None,
+                    }
+                    .ok_or_else(|| refused("a native Build binding has no exact Build root"))?;
+                    let formation = typed_trees::product_operand::native_binding_formation(
+                        source,
+                        author,
+                        Some(root),
+                        Arc::clone(request),
+                    )
+                    .map_err(refused)?;
+                    if !companions.native_formations.contains(&formation) {
+                        companions.native_formations.push(formation);
+                    }
+                }
                 if let BuildSelectionRequest::Declaration(request) = &row.request
                     && !companions.declarations.contains(request)
                 {

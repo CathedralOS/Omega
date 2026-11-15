@@ -126,13 +126,28 @@ use super::{MachineId, PsiProvenance, TerminalPsiIdentity};
 /// block terminator owns what it executes before any edge is chosen: the
 /// discriminator a dispatch on `table.choices[index]` reads once, whichever
 /// case follows. Terminal Psi states that bound at the terminator, and its
-/// evidence seal names the block (`terminal_codec::EvidenceSite`), so no
+/// evidence seal names the block (`terminal_psi::ExecutionSite`), so no
 /// chosen edge may stand in for the shared read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AcceptedObligationOwner {
     Operation(semantic_vocabulary::OperationId),
     Edge(semantic_vocabulary::EdgeId),
     Terminator(semantic_vocabulary::BlockId),
+}
+
+impl From<terminal_psi::ExecutionSite> for AcceptedObligationOwner {
+    fn from(site: terminal_psi::ExecutionSite) -> Self {
+        match site {
+            terminal_psi::ExecutionSite::Operation(operation) => Self::Operation(operation),
+            terminal_psi::ExecutionSite::Block(block) => Self::Terminator(block),
+        }
+    }
+}
+
+impl From<semantic_vocabulary::OperationId> for AcceptedObligationOwner {
+    fn from(operation: semantic_vocabulary::OperationId) -> Self {
+        Self::Operation(operation)
+    }
 }
 
 impl From<PsiProvenance> for AcceptedObligationOwner {
@@ -169,10 +184,11 @@ impl super::PsiOptimizationUnit {
         owner: impl Into<AcceptedObligationOwner>,
         obligation: Option<ObligationId>,
     ) -> Option<&AcceptedObligationFact> {
-        let owner = owner.into();
-        self.accepted_obligation_facts.iter().find(|fact| {
-            fact.machine == machine && fact.owner == owner && Some(fact.obligation) == obligation
-        })
+        let key = (machine, owner.into(), obligation?);
+        self.accepted_obligation_facts
+            .binary_search_by_key(&key, |fact| (fact.machine, fact.owner, fact.obligation))
+            .ok()
+            .map(|position| &self.accepted_obligation_facts[position])
     }
 }
 

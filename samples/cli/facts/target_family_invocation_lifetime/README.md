@@ -57,11 +57,10 @@ Applicable requirements:
   and agree with Terminal. These alpha-renamed implementations do not establish
   the separate distinct-output/two-target acceptance of the owning task.
 
-See [invocation lifetime families](../../../../wiki/spec/language/generics.md#invocation-lifetime-families),
-[lifetimes](../../../../wiki/spec/language/lifetimes.md), and
-[multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
-The exact source twins and positives are pinned under
-`tests/omega/{pass,fail}/facts/target_family_invocation_lifetime`.
+See [invocation lifetime
+families](../../../../wiki/spec/language/generics.md#invocation-lifetime-families),
+[lifetimes](../../../../wiki/spec/language/lifetimes.md), and [multi-target
+compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
 
 At fixed optimized baseline `e4601e395b752c092042ef5b1ddbbe17bc22f749`, all nine
 ordinary-provider positives and the two-lifetime positive wrongly refuse;
@@ -71,15 +70,13 @@ sources keep their original producer identities and provide no execution
 credit for this migration. Current native/Terminal acceptance is recorded
 separately with its actual source, producer and host.
 
-Current progress is established by [focused run 41228657620](https://github.com/CathedralOS/Omega/actions/runs/41228657620)
-at source `e7ab78cfde9789da0edb6d141e09af553d0ca9e9`: local, field,
-parameter, match join, const name, nested machine, another machine and selected
+Current progress is established by [focused run
+41228657620](https://github.com/CathedralOS/Omega/actions/runs/41228657620) at
+source `e7ab78cfde9789da0edb6d141e09af553d0ca9e9`: local, field, parameter,
+match join, const name, nested machine, another machine and selected
 implementation all check and exit 0 through both Linux x86-64 native execution
 and Terminal, with agreement. The retained optimized compiler SHA-256 is
 `bdf58ae1044cc32f3a1d6ffb0a6bae992cf5796f57fb6716ebfa7236c27c6d58`.
-The [captured-body reject](../../../../tests/omega/fail/borrows/invocation_lifetime_captured_body_return/main.omg)
-keeps its item-result signature but returns captured storage; its authored
-body-origin diagnostic also matches.
 
 The two-lifetime case is established separately by
 [run 41234754042](https://github.com/CathedralOS/Omega/actions/runs/41234754042)

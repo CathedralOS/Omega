@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // An elementary cellular automaton (Wolfram Rule 90) rendered as a scrolling space-time
 // diagram -- each generation is one printed row, so the history builds downward. From a
 // single live cell in the centre, Rule 90 (next = left XOR right) draws the SIERPINSKI
@@ -78,7 +79,7 @@ requires self.cv >= 0 && self.cv <= 1
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Clock + Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
     main.line = "                                                                ";
     main.chars = " #";
@@ -214,18 +215,18 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         Console::write_line("done: 32 generations of Rule 90 rendered (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a cell value or index left its guarded range (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

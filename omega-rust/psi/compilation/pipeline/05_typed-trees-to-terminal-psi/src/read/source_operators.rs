@@ -93,7 +93,8 @@ impl Program<'_> {
     ) -> Checked<()> {
         let owner = self.symbols.get(machine).copied().unwrap_or_default();
         match &value.kind {
-            ExpressionKind::ByteSubslice { base, .. } | ExpressionKind::ArrayView { base, .. }
+            ExpressionKind::CollectionSubslice { base, .. }
+            | ExpressionKind::ArrayView { base, .. }
                 if matches!(
                     self.typed.expression_table.expression(expression),
                     ExpressionNode::Indexed(_)
@@ -102,7 +103,8 @@ impl Program<'_> {
                 let Some(ValueType::Record(record, Qualification::NONE, _)) = base.result else {
                     return Ok(());
                 };
-                let operands = self.byte_range_operator_operands(machine, record);
+                let [collection, count] = self.collection_index_operand_types(machine, record);
+                let operands = [collection, count, count];
                 self.complete_builtin_operator(machine, owner, expression, &operands)
             }
             _ => {

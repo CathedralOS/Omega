@@ -1,20 +1,19 @@
-//! In-crate replay coverage for the emitted-output initialized-data custody
-//! boundary. `EmittedImageOutput::validate_final_initialized_data_relocation_envelope`
-//! is the public route that proves final `.data` preserves every encoded byte
-//! except the exact eight-byte slots named by checked Absolute64 data
-//! relocations; until now it was reached only through image-emission's
-//! `final_image_validation`, and the compact-versus-strong evidence property
+//! Tests, inside the image crate, that final `.data` keeps every encoded byte
+//! except the slots its relocations name. The public check is
+//! `EmittedImageOutput::validate_final_initialized_data_relocation_envelope`:
+//! only the exact eight-byte slots named by checked Absolute64 data relocations
+//! may differ. Image emission's `final_image_validation` also reaches it, and
+//! the `output.rs` unit tests cover the compact-versus-strong evidence property
 //! named in the crate header (`compact_collision_cannot_substitute_strong_
-//! compiler_text_evidence`) lived only in the `output.rs` unit tests.
+//! compiler_text_evidence`).
 //!
-//! These tests pin the boundary inside the owning crate: a real relocation
-//! plan is applied by the x86-64 patcher, the placed executable/data
-//! inventories and the wrapped `EmittedImageOutput` replay the result, a byte
-//! changed outside a declared slot fails closed, malformed or overlapping
-//! data-slot declarations fail closed, text records stay out of data custody,
+//! The x86-64 patcher applies a real relocation plan, and the placed
+//! executable/data inventories and the wrapped `EmittedImageOutput` replay the
+//! result. A byte changed outside a declared slot is rejected, as are malformed
+//! or overlapping data-slot declarations; text records stay out of data custody,
 //! and a substituted strong digest cannot hide behind an identical compact
-//! report fingerprint. The writer-owned import-data extent — PE's `.rdata`
-//! IAT slots outside `.data` — replays through the same byte join on the
+//! report fingerprint. PE's import data (`.rdata` IAT slots outside `.data`),
+//! whose extent the writer owns, replays through the same byte comparison on the
 //! `final_import_data_bytes`/`import_data_regions` pair.
 
 mod common;

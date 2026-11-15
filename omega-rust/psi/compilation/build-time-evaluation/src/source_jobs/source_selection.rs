@@ -1,5 +1,5 @@
-//! Join captured-source selection consent to the actual invocation's retained
-//! source correspondence. Nothing here gives unowned declarations an owner.
+//! Match captured-source selection consent against the source correspondence
+//! this invocation retained. Nothing here gives unowned declarations an owner.
 //! One shared capture consent is borrowed; the sorted lookup is admission
 //! scratch over this module's real declarations, not a saved authority record.
 
@@ -198,6 +198,7 @@ mod tests {
         crate::evaluate_constant_initializers_with_source_consent(
             &mut admitted,
             compilation,
+            &[],
             None,
             Some(Arc::new(Captured(sources))),
             &mut accounting,

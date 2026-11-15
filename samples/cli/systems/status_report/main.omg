@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Conditional message construction in explicit capacity and live-length fields.
 // Expected exit: 70.
 // Expected output contains: ALERT temp
@@ -41,7 +42,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("status_report: builds an ALERT/ok status string in conditional arms");
     main.label = "temp";
     main.reading = 95;
@@ -71,18 +72,18 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: reading 95 built and verified the ALERT message (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: the concatenated message did not match (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

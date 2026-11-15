@@ -60,15 +60,12 @@ are private fixed storage.
 
 ## Independent frozen evidence
 
-`reference.py` constructs an admissible annulus set per anchor and intersects
-those sets with the window, independently of the Omega point-first scan. The
-first two exact circles also have independently calculated continuous
+The first two exact circles also have independently calculated continuous
 intersections (3,+/-4); the third selects (3,4). Constructed translation and
 zero-radius cases challenge coordinate and sign assumptions. The oracle was
 frozen before Omega execution in `data/oracle_manifest.json`, including input
 and expected-output hashes. Integer results use tolerance **0**. The continuous
-circle witness uses tolerance 1e-12. `validate.py` checks the frozen hashes and
-compares complete stdout, stderr and exit status without regenerating output.
+circle witness uses tolerance 1e-12.
 
 Fixtures cover exact unique, mirrored ambiguous, disjoint inconsistent,
 coincident degenerate, nonzero bounded ranges, translated coordinates, a window
@@ -91,28 +88,17 @@ omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega --target linux_x86_64 "$sample/main.omg"
 omega run --both "$sample/main.omg" < "$sample/data/unique.stdin"
-python3 -B "$sample/validate.py" "$sample/build/omega-program"
 # Reuse the corpus runner built from this exact compiler source.
-python3 -B "$sample/validate_terminal.py" /absolute/path/to/corpus_runner
 omega --check --target linux_x86_64 "$sample/intended_invalid/rejected.omg"
 ```
 
-The final command must exit nonzero and identify the unproved index bound.
-See `EVIDENCE.md` for actual compiler identity, artifact paths and exact commands
-from this candidate. Native support was exercised on Linux x86_64; the build
-also binds existing Windows x86_64 and macOS arm64 Console entry contracts,
-without claiming those hosts were tested. `reference.py` is an oracle authoring
-tool, not the application deliverable.
+The final command must exit nonzero and identify the unproved index bound. Native
+support was exercised on Linux x86_64; the build also binds existing Windows
+x86_64 and macOS arm64 Console entry contracts, without claiming those hosts were
+tested.
 
-The validator also reuses the frozen unique/error output for EOF without LF,
-CRLF, tabs, the full 41x41 search window and a blank input line. A separately
-frozen wide-band fixture admits all 121 points of an 11x11 window, testing
-multi-digit coordinates, residuals and counts and complete output ordering.
-`reference.py` reproduces both the original manifest and this wide-band oracle.
+A separately frozen wide-band fixture admits all 121 points of an 11x11
+window, testing multi-digit coordinates, residuals and counts and complete
+output ordering.
 
-`validate_terminal.py` uses the documented corpus gate with one verified runner
-and one compilation/execution at a time. It copies the four application source
-files unchanged into one uniquely owned temporary fixture, rebases only its
-Build dependency path to the same std package, and removes that fixture afterward.
-Its 28 cases compare full native and Terminal streams and exits. Outputs and
-per-case commands are retained under `build/terminal_validation/`.
+Outputs and per-case commands are retained under `build/terminal_validation/`.

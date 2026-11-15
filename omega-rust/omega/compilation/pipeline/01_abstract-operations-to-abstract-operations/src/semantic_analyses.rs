@@ -1022,8 +1022,13 @@ pub(crate) mod place_access_summaries {
                     AccessKind::Read,
                 );
             }
-            O::ElementViewRead { source, path, .. } => {
-                pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
+            O::ElementViewRead { source, .. } => {
+                pending.attribute(
+                    context,
+                    source.place,
+                    runtime_prefix(&source.path),
+                    AccessKind::Read,
+                );
             }
             O::ElementViewWrite { destination, .. } => {
                 pending.attribute(

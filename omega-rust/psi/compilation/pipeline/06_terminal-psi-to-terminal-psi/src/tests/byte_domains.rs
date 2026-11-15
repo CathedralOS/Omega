@@ -412,3 +412,28 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
         );
     }
 }
+
+#[test]
+fn byte_predicate_spelling_needs_its_exact_domain_call() {
+    const UNKNOWN: &str = "this call has no visible declaration in its source scope";
+    for source in [
+        "domain [u8]::Text requires missing_byte_predicate(self); machine build_entry() {}"
+            .to_owned(),
+        "domain [u8]::Text requires valid_utf8<u8>(self); machine build_entry() {}".to_owned(),
+        "domain u64::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
+        "machine build_entry(bytes: &[u8]) { let valid: bool = valid_utf8(bytes); }".to_owned(),
+    ] {
+        let reason = verdict(&source);
+        assert!(reason.starts_with(UNKNOWN), "{source}\n{reason}");
+    }
+
+    let shadowed = format!(
+        "machine valid_utf8(value: &[u8]) -> bool {{ false }}\n{}",
+        rejection("valid_utf8", "plain")
+    );
+    let reason = verdict(&shadowed);
+    assert!(
+        reason.starts_with("type byte view in a domain that is not a primitive byte predicate"),
+        "{shadowed}\n{reason}"
+    );
+}

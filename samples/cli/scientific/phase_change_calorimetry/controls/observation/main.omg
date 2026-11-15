@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected reject: cannot prove index `8` is within length 8.
 use calorimetry::input;
 use calorimetry::model;
@@ -6,7 +7,7 @@ use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use omega_language_std::Console;
 data Application { reader: Reader; parameters: [f64; 20]; observations: [f64; 8]; index: i32; count: i32; problem: Problem; time: f64; energy: f64; }
-machine Application::main(application: &mut Application) reaches Console crashes Trap {
+machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     application.index = 0;
     transition { _ -> read_parameters(application) }
     machine read_parameters(application: &mut Application) {
@@ -89,8 +90,8 @@ machine Application::main(application: &mut Application) reaches Console crashes
     machine increment(application: &mut Application) requires application.index >= 0 && application.index < 8 {
         application.index = application.index + 1; transition { _ -> next(application) }
     }
-    machine invalid(application: &mut Application) { Console::write_line("INVALID calorimetry input"); Console::exit_process(64); }
-    machine failed(application: &mut Application) { Console::write_line("FAILED calorimetry convergence or conservation"); Console::exit_process(65); }
+    machine invalid(application: &mut Application) { Console::write_line("INVALID calorimetry input"); ProcessExit::exit_process(64); }
+    machine failed(application: &mut Application) { Console::write_line("FAILED calorimetry convergence or conservation"); ProcessExit::exit_process(65); }
     machine done(application: &mut Application) { Console::write_line("status=ok"); }
 }
 machine valid_material(material: &Material) -> bool {
@@ -98,7 +99,7 @@ machine valid_material(material: &Material) -> bool {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console crashes Trap {
+machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
     block Application::main(&mut entry_storage);
 }

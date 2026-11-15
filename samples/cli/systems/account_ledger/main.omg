@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // account_ledger: event-sourced account simulation.
 //
 // Exercises: multi-field case payload dispatch (3 payload variants + 3 no-payload
@@ -279,7 +280,7 @@ machine Main::total(main: &mut Main) -> i32 in Wrapping {
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────
-machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Console {
+machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches ProcessExit + Console {
     transition tx {
         Transaction::Deposit { amount } -> check_frozen_dep(main, idx, amount)
         Transaction::Withdraw { amount } -> check_frozen_wd(main, idx, amount)
@@ -329,7 +330,7 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
         Console::write_line("FAIL: Transfer sub-state src idx != 0 -- probe arm (exit 91)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(91);
+        ProcessExit::exit_process(91);
     }
 
     machine xfer_check_to(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
@@ -344,7 +345,7 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
         Console::write_line("FAIL: Transfer payload field to != 3 -- probe arm (exit 92)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(92);
+        ProcessExit::exit_process(92);
     }
 
     machine xfer_check_amount(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
@@ -360,7 +361,7 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
         Console::write_line("FAIL: Transfer payload field amount != 40 -- historical miscompile tripwire (exit 93)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(93);
+        ProcessExit::exit_process(93);
     }
 
     machine xfer_do(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
@@ -384,7 +385,7 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
 }
 
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls. `apply` acknowledges `block` transitively (its failure
     // arms call `block console.read_line`), so each call site repeats it.
@@ -409,7 +410,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: raw acc[0].balance wrong -- expected 40 (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 
     machine raw_check_acc2(main: &mut Main) {
@@ -423,7 +424,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: raw acc[2].balance wrong -- expected 30 (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(72);
+        ProcessExit::exit_process(72);
     }
 
     machine raw_check_acc1(main: &mut Main) {
@@ -437,7 +438,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: raw acc[1].balance wrong -- expected 120 (exit 73)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(73);
+        ProcessExit::exit_process(73);
     }
 
     machine raw_check_acc3(main: &mut Main) {
@@ -451,7 +452,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: raw acc[3].balance wrong -- expected 40 (exit 74)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(74);
+        ProcessExit::exit_process(74);
     }
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
@@ -467,7 +468,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: balance_of(0) value-call read wrong -- expected 40 (exit 75)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(75);
+        ProcessExit::exit_process(75);
     }
 
     machine vcall_check_b2(main: &mut Main, b0: i32 in Wrapping) {
@@ -482,7 +483,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: balance_of(2) value-call read wrong -- expected 30 (exit 76)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(76);
+        ProcessExit::exit_process(76);
     }
 
     // Layer 3: two sequential value-call results combined in arithmetic.
@@ -501,7 +502,7 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: balance_of(0)+balance_of(2) checksum wrong -- expected 70 (exit 77)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(77);
+        ProcessExit::exit_process(77);
     }
 
     // Layer 4: total() value-call.
@@ -517,19 +518,19 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("FAIL: total() wrong -- expected 230 (exit 78)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(78);
+        ProcessExit::exit_process(78);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: all 4 balances + value-call checksum 70 + total 230 verified (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0
 // Expected output contains: zero float case rounds -1 and 1
 // A copy record whose first case carries f64 is zero-constructed as +0.0.
@@ -51,7 +52,7 @@ requires index >= 0 && index < 2
     application.slots[index].ready = true;
 }
 
-public machine Main::main(application: &mut Main) reaches Console
+public machine Main::main(application: &mut Main) reaches ProcessExit + Console
 invokes Console
 {
     arm(application, 0);
@@ -88,10 +89,10 @@ invokes Console
     }
     machine report(application: &mut Main) {
         Console::write_line("zero float case rounds -1 and 1");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine mismatch(application: &mut Main) {
         Console::write_line("zero float case mismatch");
-        Console::exit_process(2);
+        ProcessExit::exit_process(2);
     }
 }

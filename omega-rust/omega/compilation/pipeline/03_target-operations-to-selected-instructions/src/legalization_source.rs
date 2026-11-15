@@ -29,7 +29,7 @@ pub(crate) mod custody {
         Ok(())
     }
 }
-pub(crate) mod ordinary_roster {
+pub(crate) mod audit_roster {
     use super::TargetOperationPlan;
     use crate::LegalizationError as Error;
     use crate::LegalizationError;
@@ -74,16 +74,13 @@ pub(crate) mod scalar_graph {
     use target_operations::TargetOperationPlan;
     pub(crate) mod instruction {
         use super::{Error, TargetOperationPlan};
-        use crate::legalization::runtime_indices::{collection_view, projection};
+        use crate::legalization::runtime_indices::projection;
         use crate::structural_inputs::structural_reference_input::reference_source_geometry;
         use abstract_operations::AbstractOperation;
         use legalized_operations::{
             LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
         };
         use scalar_graph_input::aggregate_results::home_layout;
-        use scalar_graph_input::structural_fields::{
-            byte_index_operands, view_slot_index_operands,
-        };
         pub(crate) mod call_instructions {
             use super::super::{Error, TargetOperationPlan};
             use crate::LegalizationError;
@@ -224,33 +221,26 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_normalized_foreign_call(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
                 native: &TargetOperationPlan,
-                unit: &crate::native_geometry::NativeUnit<'_>,
                 operation: OperationId,
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::BoundaryCall { boundary, .. } = &node.operation else {
-                    unreachable!("dispatched project_normalized_foreign_call")
-                };
-                let Some(target_operations::TargetUnitOperation::NormalizedForeignCall {
+                let target_operations::TargetUnitOperation::NormalizedForeignCall {
                     psi_operation,
-                    boundary: row_boundary,
+                    boundary,
                     provider_execution,
                     binding,
                     scalar_arguments,
                     structural_arguments,
                     result,
                     descriptor_input,
-                }) = scalar_graph_input::normalized_foreign::row(
-                    native,
-                    optimized.machine,
-                    operation,
-                )?
+                } = targeted
                 else {
                     return Err(Error::custody());
                 };
-                if *psi_operation != operation || *row_boundary != *boundary {
+                if *psi_operation != operation {
                     return Err(Error::custody());
                 }
                 let callbacks =
@@ -268,8 +258,8 @@ pub(crate) mod scalar_graph {
                             .iter()
                             .map(|argument| {
                                 crate::legalization::runtime_indices::retained_operands(
-                                    &unit.accepted_obligation_facts,
-                                    optimized.machine,
+                                    facts,
+                                    machine,
                                     operation,
                                     &argument.indices,
                                 )
@@ -716,13 +706,10 @@ pub(crate) mod scalar_graph {
             use crate::LegalizationError;
             use crate::legalization::accepted_fact;
             use crate::legalization::scalar_graph_input;
-            use crate::structural_inputs::structural_reference_input::{
-                element_leaf_projection, primitive_store, storage_address_geometry,
-            };
+            use crate::structural_inputs::structural_reference_input::storage_address_geometry;
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
-            use scalar_graph_input::structural_case::structural_transport_layout;
-            use semantic_vocabulary::ScalarType;
+            use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
             macro_rules! o {
                 ($optimized:expr => $unit:expr => $operation:expr => $elements:expr) => {
@@ -732,67 +719,29 @@ pub(crate) mod scalar_graph {
                 };
             }
 
+            /// A tag test reads its source, path, tag geometry and selector
+            /// operands from the retained target row. Rejoining them to the
+            /// earlier body belongs to the independent correspondence audit.
             pub(crate) fn project_structural_case_membership(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                plan: &crate::native_geometry::NativePlan<'_>,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::StructuralCaseMembership {
+                let target_operations::TargetUnitOperation::StructuralCaseMembership {
                     psi_operation,
+                    result,
                     source,
                     path,
                     case,
-                    result,
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_structural_case_membership")
-                };
-                let target_operations::TargetUnitOperation::StructuralCaseMembership {
-                    source: stored_source,
-                    path: stored_path,
-                    case: stored_case,
                     case_tag,
                     tag_byte_offset,
-                    indices: stored_indices,
+                    indices,
                     pointer_slots,
-                    ..
                 } = targeted
                 else {
                     return Err(Error::custody());
                 };
                 if result.scalar_type != ScalarType::Boolean
-                    || stored_source != source
-                    || stored_path != path
-                    || stored_case != case
-                {
-                    return Err(Error::custody());
-                }
-                // Extent and obligation live on the runtime-index operand, not
-                // on the retained chase. A path with no runtime index has an
-                // empty operand list, so this does not walk the type.
-                let indices = if path.iter().any(|segment| {
-                    matches!(
-                        segment,
-                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-                    )
-                }) {
-                    let elements = scalar_graph_input::structural_case::membership_address(
-                        optimized, *source, path, plan,
-                    )?;
-                    o!(optimized => unit => *psi_operation => &elements)?
-                } else {
-                    Vec::new()
-                };
-                if stored_indices.len() != indices.len()
-                    || stored_indices
-                        .iter()
-                        .zip(&indices)
-                        .any(|(stored, resolved)| {
-                            stored.stride != resolved.stride
-                                || stored.operand.source_value() != resolved.operand.value
-                        })
                     || pointer_slots.iter().any(|slot| {
                         slot.scalar_descriptor
                             || slot.index_start > slot.index_end
@@ -809,169 +758,197 @@ pub(crate) mod scalar_graph {
                     case: *case,
                     case_tag: *case_tag,
                     tag_byte_offset: *tag_byte_offset,
-                    indices,
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
                     pointer_slots: pointer_slots.clone(),
                 })
             }
 
+            /// Every leaf copy (a moved field, a whole value, a transformed
+            /// value or an empty-run boundary release) keeps its result home,
+            /// source path, offset and selector operands on the target row.
             pub(crate) fn project_structural_leaf_copy(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                plan: &crate::native_geometry::NativePlan<'_>,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let owned_path;
-                let (psi_operation, result, source, path) = match &node.operation {
-                    AbstractOperation::StructuralLeafCopy {
-                        psi_operation,
-                        result,
-                        source,
-                        path,
-                    } => (*psi_operation, result, *source, path),
-                    AbstractOperation::MoveStructuralValue {
-                        psi_operation,
-                        result,
-                        source,
-                    }
-                    | AbstractOperation::TransformContent {
-                        psi_operation,
-                        result,
-                        source,
-                        ..
-                    } => {
-                        owned_path = source.path.clone().into();
-                        (*psi_operation, result, source.place, &owned_path)
-                    }
-                    AbstractOperation::BoundaryCall {
-                        psi_operation,
-                        boundary,
-                        arguments,
-                        structural_arguments,
-                        result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                        ..
-                    } => {
-                        let declaration = plan
-                            .boundary_machines
-                            .iter()
-                            .find(|row| row.id == *boundary)
-                            .ok_or(Error::custody())?;
-                        let contract = terminal_semantics::empty_run_release_contract(
-                            plan.geometry(),
-                            declaration,
-                        )
-                        .map_err(|_| Error::custody())?;
-                        let [source] = structural_arguments.as_slice() else {
-                            return Err(Error::custody());
-                        };
-                        if !arguments.is_empty()
-                            || source.access != terminal_psi::StructuralAccess::Owned
-                        {
-                            return Err(Error::custody());
-                        }
-                        let mut projection = source.path.clone();
-                        projection
-                            .push(terminal_psi::StructuralPathSegment::Field(contract.storage));
-                        owned_path = projection.into();
-                        (*psi_operation, result, source.place, &owned_path)
-                    }
-                    _ => return Err(Error::custody()),
-                };
-                let (byte_offset, shape, elements) = structural_transport_layout(
-                    optimized,
+                let target_operations::TargetUnitOperation::StructuralLeafCopy {
                     psi_operation,
+                    result_home,
                     source,
                     path,
-                    result,
-                    plan,
-                )?;
-                let indices = o!(optimized => unit => psi_operation => &elements)?;
+                    byte_offset,
+                    indices,
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                let Some((operation, result)) = result_home.operation_result() else {
+                    return Err(Error::custody());
+                };
+                if operation != *psi_operation {
+                    return Err(Error::custody());
+                }
                 Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
                     result: result.clone(),
-                    source,
+                    source: *source,
                     path: path.clone(),
-                    byte_offset,
-                    shape,
-                    indices,
+                    byte_offset: *byte_offset,
+                    shape: result_home.layout.shape(),
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
                 })
             }
 
-            pub(crate) fn project_borrowed_window(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                plan: &crate::native_geometry::NativePlan<'_>,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+            /// A field store keeps its window, offset, value type and selector
+            /// operands on the target row; its shape comes from the shared
+            /// type catalog, not from the value's earlier definition.
+            pub(crate) fn project_structural_field_store(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                types: &crate::native_geometry::NativeGeometry<'_>,
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                match (&node.operation, targeted) {
-                    (
-                        AbstractOperation::MoveStructuralField {
-                            psi_operation,
-                            result,
-                            source,
-                            ..
-                        },
-                        target_operations::TargetUnitOperation::StructuralLeafCopy {
-                            path,
-                            byte_offset,
-                            result_home,
-                            ..
-                        },
-                    ) => {
-                        let abstract_operations::StructuralCopyPath::Ordinary(selected) = path
-                        else {
-                            return Err(Error::custody());
-                        };
-                        Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
-                            result: result.clone(),
-                            source: source.place(),
-                            path: path.clone(),
-                            byte_offset: *byte_offset,
-                            shape: result_home.layout.shape(),
-                            indices: crate::legalization::runtime_indices::projection(
-                                optimized,
-                                unit,
-                                *psi_operation,
-                                source.structural_type(),
-                                selected,
-                                plan.geometry(),
-                            )?,
-                        })
+                let target_operations::TargetUnitOperation::StoreStructuralField {
+                    psi_operation,
+                    destination,
+                    path,
+                    field,
+                    value,
+                    value_type,
+                    byte_offset,
+                    indices,
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                Ok(LegalizedScalarInstructionKind::StoreStructuralField {
+                    destination: destination.clone(),
+                    path: path.clone(),
+                    field: *field,
+                    value: *value,
+                    byte_offset: *byte_offset,
+                    shape: crate::structural_inputs::shape(*value_type, types)
+                        .ok_or(Error::custody())?,
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
+                })
+            }
+
+            /// Length observations use the source, offset and selectors retained
+            /// by target lowering. The independent audit reconstructs the carrier
+            /// and geometry from the earlier program.
+            pub(crate) fn project_sequence_length(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                use target_operations::{
+                    TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
+                };
+
+                if let TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    psi_operation,
+                    source,
+                    field,
+                    indices,
+                    ..
+                } = targeted
+                {
+                    if *psi_operation != operation {
+                        return Err(Error::custody());
                     }
-                    (
-                        AbstractOperation::StoreStructuralField { psi_operation, .. },
-                        target_operations::TargetUnitOperation::StoreStructuralField {
-                            destination,
-                            path,
-                            field,
-                            value,
-                            byte_offset,
-                            ..
-                        },
-                    ) => {
-                        let value_type =
-                            scalar_graph_input::primitive_locals::read_root_type(optimized, *value)
-                                .ok_or(Error::custody())?;
-                        let shape = crate::structural_inputs::shape(value_type, plan.geometry())
-                            .ok_or(Error::custody())?;
-                        Ok(LegalizedScalarInstructionKind::StoreStructuralField {
-                            destination: destination.clone(),
-                            path: path.clone(),
+                    return Ok(
+                        LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                            source: source.clone(),
                             field: *field,
-                            value: *value,
-                            byte_offset: *byte_offset,
-                            shape,
-                            indices: crate::legalization::runtime_indices::projection(
-                                optimized,
-                                unit,
-                                *psi_operation,
-                                destination.structural_type(),
-                                path,
-                                plan.geometry(),
+                            indices: crate::legalization::runtime_indices::retained_operands(
+                                facts, machine, operation, indices,
                             )?,
-                        })
-                    }
-                    _ => Err(Error::custody()),
+                        },
+                    );
                 }
+                let TargetUnitOperation::ScalarDefinition {
+                    result_home,
+                    expression:
+                        TargetScalarExpression::Integer {
+                            scalar_type,
+                            expression,
+                        },
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                if result_home.defining_operation != operation
+                    || result_home.scalar_type != ScalarType::Integer(*scalar_type)
+                    || scalar_type.sign() != IntegerSign::Unsigned
+                    || scalar_type.bits() != Some(64)
+                {
+                    return Err(Error::custody());
+                }
+
+                let retained_indices =
+                    |indices: &[target_operations::TargetStructuralRuntimeIndex]| {
+                        crate::legalization::runtime_indices::retained_operands(
+                            facts, machine, operation, indices,
+                        )
+                    };
+                Ok(match expression {
+                    TargetIntegerExpression::Immediate {
+                        source_value,
+                        value: IntegerValue::Unsigned(value),
+                    } if *source_value == result_home.source_value
+                        && u64::try_from(*value).is_ok() =>
+                    {
+                        LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(*value))
+                    }
+                    TargetIntegerExpression::ByteSequenceLength {
+                        psi_operation,
+                        source_value,
+                        source,
+                        indices,
+                        length_byte_offset,
+                    } if *psi_operation == operation
+                        && *source_value == result_home.source_value
+                        && matches!(*length_byte_offset, 0 | 8) =>
+                    {
+                        LegalizedScalarInstructionKind::ByteSequenceLength {
+                            source: source.clone(),
+                            indices: retained_indices(indices)?,
+                            length_byte_offset: *length_byte_offset,
+                        }
+                    }
+                    TargetIntegerExpression::ElementViewLength {
+                        psi_operation,
+                        source_value,
+                        source,
+                        indices,
+                        length_byte_offset,
+                    } if *psi_operation == operation
+                        && *source_value == result_home.source_value
+                        && *length_byte_offset == 8 =>
+                    {
+                        LegalizedScalarInstructionKind::ElementViewLength {
+                            source: source.clone(),
+                            indices: retained_indices(indices)?,
+                            length_byte_offset: *length_byte_offset,
+                        }
+                    }
+                    _ => return Err(Error::custody()),
+                })
             }
 
             pub(crate) fn project_primitive_scalar_read(
@@ -1005,30 +982,38 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_write_only_primitive_store(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::WriteOnlyPrimitiveStore {
+                let target_operations::TargetUnitOperation::WriteOnlyPrimitiveStore {
                     psi_operation,
                     destination,
                     path,
-                    value,
+                    source,
+                    byte_offset,
+                    byte_size,
+                    indices,
                     ..
-                } = &node.operation
+                } = targeted
                 else {
-                    unreachable!("dispatched project_write_only_primitive_store")
+                    return Err(Error::custody());
                 };
-                let geometry =
-                    primitive_store(destination, path, value.scalar_type, unit.geometry())
-                        .ok_or(Error::custody())?;
                 Ok(LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                     destination: destination.clone(),
                     path: path.clone(),
-                    value: *value,
-                    byte_offset: geometry.byte_offset,
-                    byte_size: u8::try_from(geometry.byte_size).map_err(|_| Error::custody())?,
-                    indices: o!(optimized => unit => *psi_operation => &geometry.elements)?,
+                    value: abstract_operations::AbstractResult {
+                        value: source.source_value(),
+                        scalar_type: source.scalar_type(),
+                    },
+                    byte_offset: *byte_offset,
+                    byte_size: u8::try_from(*byte_size).map_err(|_| Error::custody())?,
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
                 })
             }
 
@@ -1087,45 +1072,77 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_subslice(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let (AbstractOperation::ByteSequenceSubslice {
-                    psi_operation,
-                    result,
-                    source,
-                    start,
-                    end,
-                    length,
-                    obligation,
-                }
-                | AbstractOperation::ElementViewSubslice {
-                    psi_operation,
-                    result,
-                    source,
-                    start,
-                    end,
-                    length,
-                    obligation,
-                }) = &node.operation
-                else {
+                use target_operations::{TargetByteView, TargetElementView, TargetUnitOperation};
+                let (result, psi_operation, place, source, indices, start, end, length, obligation) =
+                    match targeted {
+                        TargetUnitOperation::ByteSequenceSubslice {
+                            result,
+                            view:
+                                TargetByteView::Subslice {
+                                    psi_operation,
+                                    place,
+                                    source,
+                                    indices,
+                                    start,
+                                    end,
+                                    length,
+                                    obligation,
+                                },
+                        }
+                        | TargetUnitOperation::ElementViewSubslice {
+                            result,
+                            view:
+                                TargetElementView::Subslice {
+                                    psi_operation,
+                                    place,
+                                    source,
+                                    indices,
+                                    start,
+                                    end,
+                                    length,
+                                    obligation,
+                                },
+                        } => (
+                            result,
+                            *psi_operation,
+                            *place,
+                            source,
+                            indices,
+                            start.operand_value().ok_or(Error::custody())?,
+                            end.operand_value().ok_or(Error::custody())?,
+                            *length,
+                            *obligation,
+                        ),
+                        _ => return Err(Error::custody()),
+                    };
+                if place != result.place {
                     return Err(Error::custody());
-                };
-                let indices = view_indices(optimized, unit, *psi_operation, source)?;
-                let accepted_fact = accepted_fact(unit, optimized, *psi_operation, *obligation)?;
-                let kind = if matches!(
-                    node.operation,
-                    AbstractOperation::ElementViewSubslice { .. }
-                ) {
+                }
+                let indices = crate::legalization::runtime_indices::retained_operands(
+                    facts,
+                    machine,
+                    psi_operation,
+                    indices,
+                )?;
+                let accepted_fact = crate::legalization::obligations::retained_fact(
+                    facts,
+                    machine,
+                    psi_operation,
+                    obligation,
+                )?;
+                let kind = if matches!(targeted, TargetUnitOperation::ElementViewSubslice { .. }) {
                     LegalizedScalarInstructionKind::ElementViewSubslice {
                         result: result.clone(),
                         source: source.clone(),
                         indices,
-                        start: *start,
-                        end: *end,
-                        length: *length,
-                        obligation: *obligation,
+                        start,
+                        end,
+                        length,
+                        obligation,
                         accepted_fact,
                     }
                 } else {
@@ -1133,14 +1150,126 @@ pub(crate) mod scalar_graph {
                         result: result.clone(),
                         source: source.clone(),
                         indices,
-                        start: *start,
-                        end: *end,
-                        length: *length,
-                        obligation: *obligation,
+                        start,
+                        end,
+                        length,
+                        obligation,
                         accepted_fact,
                     }
                 };
                 Ok(kind)
+            }
+
+            pub(crate) fn project_established_view(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                use target_operations::{
+                    TargetElementView, TargetElementViewRegion, TargetUnitOperation,
+                };
+                let TargetUnitOperation::EstablishElementView {
+                    result,
+                    view:
+                        TargetElementView::Established {
+                            psi_operation,
+                            place,
+                            structural_type,
+                            source_argument,
+                            element,
+                            indices,
+                            region,
+                            ..
+                        },
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                if *place != result.place || *structural_type != result.structural_type {
+                    return Err(Error::custody());
+                }
+                // The source argument and endpoint identities belong to this
+                // view, alongside its physical backing recipe. Never recover
+                // them from the body that happened to produce the view.
+                let region = match region {
+                    TargetElementViewRegion::WholeCollection => {
+                        terminal_psi::ElementViewRegion::WholeCollection
+                    }
+                    TargetElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    } => terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length: *source_length,
+                        obligation: *obligation,
+                    },
+                    TargetElementViewRegion::RepresentationBytes {
+                        start,
+                        end,
+                        obligation,
+                    } => terminal_psi::ElementViewRegion::RepresentationBytes {
+                        start: start.operand_value().ok_or(Error::custody())?,
+                        end: end.operand_value().ok_or(Error::custody())?,
+                        obligation: *obligation,
+                    },
+                };
+                let accepted_fact = match region {
+                    terminal_psi::ElementViewRegion::WholeCollection => None,
+                    terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. }
+                    | terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => {
+                        Some(crate::legalization::obligations::retained_fact(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            obligation,
+                        )?)
+                    }
+                };
+                Ok(LegalizedScalarInstructionKind::EstablishElementView {
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts,
+                        machine,
+                        *psi_operation,
+                        indices,
+                    )?,
+                    result: result.clone(),
+                    destination: *place,
+                    source: source_argument.clone(),
+                    element: *element,
+                    region,
+                    accepted_fact,
+                })
+            }
+
+            /// The target row owns the replacement and each selector used to
+            /// reach its destination. Source correspondence is audited separately.
+            pub(crate) fn project_byte_view_store(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                let target_operations::TargetUnitOperation::StructuralByteViewFieldStore {
+                    psi_operation,
+                    destination,
+                    field,
+                    source,
+                    indices,
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                Ok(
+                    LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+                        destination: destination.clone(),
+                        field: *field,
+                        source: *source,
+                        indices: crate::legalization::runtime_indices::retained_operands(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            indices,
+                        )?,
+                    },
+                )
             }
 
             pub(crate) fn project_structural_byte_sequence_field_byte_store(
@@ -1182,42 +1311,42 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_structural_byte_sequence_field_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::StructuralByteSequenceFieldRead {
+                let target_operations::TargetUnitOperation::StructuralByteSequenceFieldRead {
                     psi_operation,
+                    source,
                     field,
+                    indices,
                     index,
                     length,
                     obligation,
                     ..
-                } = &node.operation
+                } = targeted
                 else {
-                    unreachable!("dispatched project_structural_byte_sequence_field_read")
+                    return Err(Error::custody());
                 };
-                let source = crate::legalization::scalar_graph_input::structural_fields::byte_read(
-                    optimized,
-                    &node.operation,
-                    unit.geometry(),
-                )
-                .ok_or(Error::custody())?;
                 Ok(
                     LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
-                        indices: scalar_graph_input::structural_fields::byte_index_operands(
-                            optimized,
-                            unit,
-                            *psi_operation,
-                            &source,
-                            *field,
-                        )?,
-                        source,
+                        source: source.clone(),
                         field: *field,
-                        index: *index,
+                        indices: crate::legalization::runtime_indices::retained_operands(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            indices,
+                        )?,
+                        index: index.source_value(),
                         length: *length,
                         obligation: *obligation,
-                        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+                        accepted_fact: crate::legalization::obligations::retained_fact(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            *obligation,
+                        )?,
                     },
                 )
             }
@@ -1258,55 +1387,76 @@ pub(crate) mod scalar_graph {
                 )
             }
 
-            pub(crate) fn project_byte_sequence_write(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+            /// Checked byte reads and writes carry their scalar operands and
+            /// bounds keys in target lowering. Source and backing
+            /// correspondence is checked by the independent audit.
+            pub(crate) fn project_byte_access(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ByteSequenceWrite {
-                    psi_operation,
-                    destination,
-                    index,
-                    value,
-                    length,
-                    obligation,
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_byte_sequence_write")
+                use target_operations::{
+                    TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
                 };
-                Ok(LegalizedScalarInstructionKind::ByteSequenceWrite {
-                    destination: *destination,
-                    index: *index,
-                    value: *value,
-                    length: *length,
-                    obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
-                })
-            }
 
-            pub(crate) fn project_byte_sequence_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ByteSequenceRead {
-                    psi_operation,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                    ..
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_byte_sequence_read")
+                let accepted = |obligation| {
+                    crate::legalization::obligations::retained_fact(
+                        facts, machine, operation, obligation,
+                    )
                 };
-                Ok(LegalizedScalarInstructionKind::ByteSequenceRead {
-                    source: *source,
-                    index: *index,
-                    length: *length,
-                    obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
-                })
+                match targeted {
+                    TargetUnitOperation::ScalarDefinition {
+                        result_home,
+                        expression:
+                            TargetScalarExpression::Integer {
+                                scalar_type,
+                                expression:
+                                    TargetIntegerExpression::ByteSequenceRead {
+                                        psi_operation,
+                                        source_value,
+                                        source,
+                                        index,
+                                        length,
+                                        obligation,
+                                        ..
+                                    },
+                            },
+                    } if *psi_operation == operation
+                        && result_home.defining_operation == operation
+                        && result_home.source_value == *source_value
+                        && result_home.scalar_type == ScalarType::Integer(*scalar_type)
+                        && scalar_type.sign() == IntegerSign::Unsigned
+                        && scalar_type.bits() == Some(8) =>
+                    {
+                        Ok(LegalizedScalarInstructionKind::ByteSequenceRead {
+                            source: *source,
+                            index: index.operand_value().ok_or(Error::custody())?,
+                            length: *length,
+                            obligation: *obligation,
+                            accepted_fact: accepted(*obligation)?,
+                        })
+                    }
+                    TargetUnitOperation::ByteSequenceWrite {
+                        psi_operation,
+                        destination,
+                        index,
+                        value,
+                        length,
+                        obligation,
+                        ..
+                    } if *psi_operation == operation => {
+                        Ok(LegalizedScalarInstructionKind::ByteSequenceWrite {
+                            destination: *destination,
+                            index: index.source_value(),
+                            value: value.source_value(),
+                            length: *length,
+                            obligation: *obligation,
+                            accepted_fact: accepted(*obligation)?,
+                        })
+                    }
+                    _ => Err(Error::custody()),
+                }
             }
 
             pub(crate) fn project_element_view_write(
@@ -1339,47 +1489,107 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_element_view_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ElementViewRead {
-                    psi_operation,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                    path,
-                    result,
-                    ..
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_element_view_read")
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<Option<LegalizedScalarInstructionKind>, LegalizationError> {
+                use target_operations::{
+                    TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
+                    TargetUnitOperation,
                 };
-                Ok(LegalizedScalarInstructionKind::ElementViewRead {
-                    source: *source,
-                    index: *index,
+                use terminal_psi::StructuralPathSegment;
+
+                let TargetUnitOperation::ScalarDefinition {
+                    result_home,
+                    expression,
+                } = targeted
+                else {
+                    return Ok(None);
+                };
+                let (owner, result, source, indices, index, length, obligation, path) =
+                    match expression {
+                        TargetScalarExpression::Integer {
+                            expression:
+                                TargetIntegerExpression::ElementViewRead {
+                                    psi_operation,
+                                    source_value,
+                                    source,
+                                    indices,
+                                    index,
+                                    length,
+                                    obligation,
+                                    path,
+                                    ..
+                                },
+                            ..
+                        }
+                        | TargetScalarExpression::Boolean(
+                            TargetBooleanExpression::ElementViewRead {
+                                psi_operation,
+                                source_value,
+                                source,
+                                indices,
+                                index,
+                                length,
+                                obligation,
+                                path,
+                                ..
+                            },
+                        )
+                        | TargetScalarExpression::IeeeFloatElementViewRead {
+                            psi_operation,
+                            source_value,
+                            source,
+                            indices,
+                            index,
+                            length,
+                            obligation,
+                            path,
+                            ..
+                        } => (
+                            psi_operation,
+                            source_value,
+                            source,
+                            indices,
+                            index,
+                            length,
+                            obligation,
+                            path,
+                        ),
+                        _ => return Ok(None),
+                    };
+                // A checked by-value read may choose a runtime element of the
+                // slice, but the scalar leaf inside that element is static.
+                if *owner != operation
+                    || result_home.defining_operation != operation
+                    || result_home.source_value != *result
+                    || result_home.scalar_type != expression.scalar_type()
+                    || !path.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                        )
+                    })
+                {
+                    return Err(Error::custody());
+                }
+                Ok(Some(LegalizedScalarInstructionKind::ElementViewRead {
+                    source: source.clone(),
+                    index: index.operand_value().ok_or(Error::custody())?,
                     length: *length,
                     obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+                    accepted_fact: crate::legalization::obligations::retained_fact(
+                        facts,
+                        machine,
+                        operation,
+                        *obligation,
+                    )?,
                     path: path.clone(),
-                    indices: {
-                        let element = scalar_graph_input::byte_views::element_type(
-                            optimized,
-                            *source,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        let (_, _, elements) = element_leaf_projection(
-                            element,
-                            path,
-                            result.scalar_type,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        o!(optimized => unit => *psi_operation => &elements)?
-                    },
-                })
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts, machine, operation, indices,
+                    )?,
+                }))
             }
 
             pub(crate) fn project_byte_sequence_concatenation(
@@ -1652,7 +1862,6 @@ pub(crate) mod scalar_graph {
         }
 
         use crate::LegalizationError;
-        use crate::legalization::accepted_fact;
         use crate::legalization::scalar_graph_input;
         use semantic_vocabulary::IntegerValue;
 
@@ -1718,17 +1927,59 @@ pub(crate) mod scalar_graph {
             home.layout.sum().cloned().ok_or(Error::custody())
         }
 
-        pub(crate) fn project<'a>(
+        pub(crate) use crate::legalization_instruction::project;
+
+        /// Reconstruct the expected execution only for the independent audit.
+        pub(crate) fn audit_project<'a>(
             node: &optimization_unit::OptimizationNode,
             optimized: &optimization_unit::PsiOptimizationFunction,
             native: &'a TargetOperationPlan,
             plan: &'a crate::native_geometry::NativePlan<'a>,
             unit: &'a crate::native_geometry::NativeUnit<'a>,
-            targeted: &target_operations::TargetUnitOperation,
+            instruction: &target_operations::TargetInstruction,
         ) -> Result<LegalizedScalarInstruction, LegalizationError> {
-            let (operation, result) =
-                scalar_graph_input::instruction(node).ok_or(Error::custody())?;
+            let source = instruction.source.as_ref().ok_or_else(|| {
+                Error::instruction_metadata(
+                    "ordinary target instruction has no retained source metadata",
+                )
+            })?;
+            let operation = source.operation;
+            let targeted = &instruction.kind;
             let kind = if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::StructuralByteSequenceFieldLength { .. }
+                    | target_operations::TargetUnitOperation::ScalarDefinition {
+                        expression: target_operations::TargetScalarExpression::Integer {
+                            expression: target_operations::TargetIntegerExpression::ByteSequenceLength { .. }
+                                | target_operations::TargetIntegerExpression::ElementViewLength { .. },
+                            ..
+                        },
+                        ..
+                    }
+            ) {
+                storage_instructions::project_sequence_length(
+                    optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::EstablishElementView { .. }
+            ) {
+                storage_instructions::project_established_view(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::ByteSequenceSubslice { .. }
+                    | target_operations::TargetUnitOperation::ElementViewSubslice { .. }
+            ) {
+                storage_instructions::project_subslice(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::EstablishReference { .. }
                     | target_operations::TargetUnitOperation::EstablishAccessReference { .. }
@@ -1745,11 +1996,31 @@ pub(crate) mod scalar_graph {
                 )?
             } else if matches!(
                 targeted,
+                target_operations::TargetUnitOperation::WriteOnlyPrimitiveStore { .. }
+            ) {
+                storage_instructions::project_write_only_primitive_store(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
                 target_operations::TargetUnitOperation::StructuralScalarFieldStore { .. }
             ) {
                 storage_instructions::project_structural_scalar_field_store(
                     optimized.machine,
                     &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::NormalizedForeignCall { .. }
+            ) {
+                call_instructions::project_normalized_foreign_call(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    native,
+                    operation,
                     targeted,
                 )?
             } else if matches!(
@@ -1764,9 +2035,63 @@ pub(crate) mod scalar_graph {
             } else if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::StructuralLeafCopy { .. }
-            ) && matches!(node.operation, AbstractOperation::BoundaryCall { .. })
-            {
-                storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?
+            ) {
+                storage_instructions::project_structural_leaf_copy(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::StoreStructuralField { .. }
+            ) {
+                storage_instructions::project_structural_field_store(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    plan.geometry(),
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::StructuralCaseMembership { .. }
+            ) {
+                storage_instructions::project_structural_case_membership(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::ByteSequenceWrite { .. }
+                    | target_operations::TargetUnitOperation::ScalarDefinition {
+                        expression: target_operations::TargetScalarExpression::Integer {
+                            expression: target_operations::TargetIntegerExpression::ByteSequenceRead { .. },
+                            ..
+                        },
+                        ..
+                    }
+            ) {
+                storage_instructions::project_byte_access(
+                    optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::StructuralByteSequenceFieldRead { .. }
+            ) {
+                storage_instructions::project_structural_byte_sequence_field_read(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::StructuralByteViewFieldStore { .. }
+            ) {
+                storage_instructions::project_byte_view_store(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
             } else if let target_operations::TargetUnitOperation::InstallStaticInterrupt {
                 boundary,
                 arguments,
@@ -1944,6 +2269,10 @@ pub(crate) mod scalar_graph {
                     indices,
                     operand: operand.map(|source| source.source_value()),
                 }
+            } else if let Some(read) = storage_instructions::project_element_view_read(
+                optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+            )? {
+                read
             } else {
                 match &node.operation {
                     AbstractOperation::RegisterAccess { service, event, .. } => {
@@ -1995,23 +2324,6 @@ pub(crate) mod scalar_graph {
                             field_byte_offset: access.field_byte_offset,
                             event: access.event,
                             outcome: access.outcome,
-                        }
-                    }
-                    AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
-                        let target_operations::TargetUnitOperation::StructuralByteSequenceFieldLength {
-                            source,
-                            field,
-                            ..
-                        } = targeted
-                        else {
-                            return Err(Error::custody());
-                        };
-                        LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
-                            indices: byte_index_operands(
-                                optimized, unit, operation, source, *field,
-                            )?,
-                            source: source.clone(),
-                            field: *field,
                         }
                     }
                     AbstractOperation::StructuralScalarFieldRead { .. } => {
@@ -2245,23 +2557,6 @@ pub(crate) mod scalar_graph {
                         destination: *destination,
                         value: *value,
                     },
-                    AbstractOperation::StructuralCaseMembership { .. } => {
-                        storage_instructions::project_structural_case_membership(
-                            node, optimized, plan, unit, targeted,
-                        )?
-                    }
-                    AbstractOperation::StructuralLeafCopy { .. }
-                    | AbstractOperation::MoveStructuralValue { .. }
-                    | AbstractOperation::TransformContent { .. } => {
-                        storage_instructions::project_structural_leaf_copy(
-                            node, optimized, plan, unit,
-                        )?
-                    }
-                    abstract_operations::move_or_store_structural_field_pattern!() => {
-                        storage_instructions::project_borrowed_window(
-                            node, optimized, plan, unit, targeted,
-                        )?
-                    }
                     AbstractOperation::EstablishTrivialAffineLocal {
                         place,
                         structural_type,
@@ -2361,18 +2656,6 @@ pub(crate) mod scalar_graph {
                     AbstractOperation::StorageAddress { .. } => {
                         storage_instructions::project_storage_address(node, optimized, unit)?
                     }
-                    AbstractOperation::BoundaryCall { .. }
-                        if scalar_graph_input::normalized_foreign::row(
-                            native,
-                            optimized.machine,
-                            operation,
-                        )?
-                        .is_some() =>
-                    {
-                        call_instructions::project_normalized_foreign_call(
-                            node, optimized, native, unit, operation,
-                        )?
-                    }
                     AbstractOperation::BoundaryCall {
                         boundary,
                         result,
@@ -2459,11 +2742,6 @@ pub(crate) mod scalar_graph {
                             node, optimized, native, operation,
                         )?
                     }
-                    AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
-                        storage_instructions::project_write_only_primitive_store(
-                            node, optimized, unit,
-                        )?
-                    }
                     AbstractOperation::EstablishByteSequenceLiteral {
                         place,
                         structural_type,
@@ -2474,17 +2752,9 @@ pub(crate) mod scalar_graph {
                         structural_type: structural_type.clone(),
                         bytes: bytes.clone(),
                     },
-                    AbstractOperation::ByteSequenceSubslice { .. } => {
-                        storage_instructions::project_subslice(node, optimized, unit)?
-                    }
                     AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
                         storage_instructions::project_structural_byte_sequence_field_byte_store(
                             node, optimized, unit, targeted,
-                        )?
-                    }
-                    AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
-                        storage_instructions::project_structural_byte_sequence_field_read(
-                            node, optimized, unit,
                         )?
                     }
                     AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
@@ -2502,33 +2772,6 @@ pub(crate) mod scalar_graph {
                             node, optimized, unit, targeted,
                         )?
                     }
-                    AbstractOperation::StructuralByteViewFieldStore { field, source, .. } => {
-                        let target_operations::TargetUnitOperation::StructuralByteViewFieldStore {
-                            destination,
-                            ..
-                        } = targeted
-                        else {
-                            return Err(Error::custody());
-                        };
-                        LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
-                            indices: view_slot_index_operands(
-                                optimized,
-                                unit,
-                                operation,
-                                destination,
-                                *field,
-                            )?,
-                            destination: destination.clone(),
-                            field: *field,
-                            source: *source,
-                        }
-                    }
-                    AbstractOperation::ByteSequenceWrite { .. } => {
-                        storage_instructions::project_byte_sequence_write(node, optimized, unit)?
-                    }
-                    AbstractOperation::ByteSequenceRead { .. } => {
-                        storage_instructions::project_byte_sequence_read(node, optimized, unit)?
-                    }
                     AbstractOperation::ByteSequencePredicate {
                         operand, predicate, ..
                     } => LegalizedScalarInstructionKind::ByteSequencePredicate {
@@ -2541,102 +2784,15 @@ pub(crate) mod scalar_graph {
                             right: right.clone(),
                         }
                     }
-                    AbstractOperation::ByteSequenceLength { source, .. } => {
-                        if let Some(length) = scalar_graph_input::element_views::fixed_byte_length(
-                            optimized,
-                            source,
-                            unit.geometry(),
-                        ) {
-                            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(
-                                u128::from(length),
-                            ))
-                        } else {
-                            let (geometry, carrier) =
-                            crate::legalization::scalar_graph_input::element_views::byte_length_geometry(
-                                optimized,
-                                source,
-                                unit.geometry(),
-                            )
-                            .ok_or(LegalizationError::custody())?;
-                            LegalizedScalarInstructionKind::ByteSequenceLength {
-                                source: source.clone(),
-                                indices: crate::legalization::runtime_indices::operands(
-                                    optimized,
-                                    unit,
-                                    node.operation
-                                        .psi_operation()
-                                        .ok_or(LegalizationError::custody())?,
-                                    &geometry.elements,
-                                )?,
-                                length_byte_offset: if matches!(
-                                    carrier,
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                ) {
-                                    8
-                                } else {
-                                    0
-                                },
-                            }
-                        }
-                    }
-                    AbstractOperation::ElementViewLength { source, .. } => {
-                        let geometry =
-                            crate::legalization::scalar_graph_input::element_views::length_geometry(
-                                optimized,
-                                source,
-                                unit.geometry(),
-                            )
-                            .ok_or(LegalizationError::custody())?;
-                        LegalizedScalarInstructionKind::ElementViewLength {
-                            source: source.clone(),
-                            indices: crate::legalization::runtime_indices::operands(
-                                optimized,
-                                unit,
-                                node.operation
-                                    .psi_operation()
-                                    .ok_or(LegalizationError::custody())?,
-                                &geometry.elements,
-                            )?,
-                            length_byte_offset: 8,
-                        }
-                    }
-                    AbstractOperation::ElementViewRead { .. } => {
-                        storage_instructions::project_element_view_read(node, optimized, unit)?
+                    // A folded byte length uses the same immediate row as
+                    // other scalar observations. The opcode only dispatches it.
+                    AbstractOperation::ByteSequenceLength { .. } => {
+                        storage_instructions::project_sequence_length(
+                            optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+                        )?
                     }
                     AbstractOperation::ElementViewWrite { .. } => {
                         storage_instructions::project_element_view_write(node, optimized, unit)?
-                    }
-                    AbstractOperation::ElementViewSubslice { .. } => {
-                        storage_instructions::project_subslice(node, optimized, unit)?
-                    }
-                    AbstractOperation::EstablishElementView {
-                        psi_operation,
-                        result,
-                        destination,
-                        source,
-                        element,
-                        region,
-                    } => {
-                        let accepted_fact = match region {
-                            terminal_psi::ElementViewRegion::WholeCollection => None,
-                            terminal_psi::ElementViewRegion::WholeRepresentation {
-                                obligation,
-                                ..
-                            }
-                            | terminal_psi::ElementViewRegion::RepresentationBytes {
-                                obligation,
-                                ..
-                            } => Some(accepted_fact(unit, optimized, *psi_operation, *obligation)?),
-                        };
-                        LegalizedScalarInstructionKind::EstablishElementView {
-                            indices: collection_view(optimized, unit, *psi_operation, source)?,
-                            result: result.clone(),
-                            destination: *destination,
-                            source: source.clone(),
-                            element: *element,
-                            region: *region,
-                            accepted_fact,
-                        }
                     }
                     AbstractOperation::BooleanNot { operand, .. } => {
                         LegalizedScalarInstructionKind::BooleanNot { operand: *operand }
@@ -2703,18 +2859,26 @@ pub(crate) mod scalar_graph {
                     _ => return Err(Error::custody()),
                 }
             };
-            Ok(LegalizedScalarInstruction {
-                operation,
-                result: result.map(|value| LegalizedValueDefinition {
-                    value,
-                    scalar_type: node.definitions[0].scalar_type,
-                    definition_site: node.definitions[0].site,
+            Ok(with_metadata(source, kind))
+        }
+
+        /// The instruction owns its already-retained execution and custody annotations.
+        pub(crate) fn with_metadata(
+            source: &target_operations::TargetInstructionSource,
+            kind: LegalizedScalarInstructionKind,
+        ) -> LegalizedScalarInstruction {
+            LegalizedScalarInstruction {
+                operation: source.operation,
+                result: source.result.map(|result| LegalizedValueDefinition {
+                    value: result.value,
+                    scalar_type: result.scalar_type,
+                    definition_site: result.site,
                 }),
                 kind,
-                work: node.work.clone(),
-                effect: node.effect,
-                ownership: node.ownership.clone(),
-            })
+                work: source.metadata.work.clone(),
+                effect: source.metadata.effect,
+                ownership: source.metadata.ownership.clone(),
+            }
         }
     }
     pub(crate) mod structural_case {
@@ -2734,6 +2898,7 @@ pub(crate) mod scalar_graph {
             targeted: &target_operations::TargetControlTerminator,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
             let AbstractOperation::StructuralCase {
+                psi_block,
                 source,
                 path,
                 cases,
@@ -2742,6 +2907,8 @@ pub(crate) mod scalar_graph {
                 return Err(Error::custody());
             };
             let target_operations::TargetControlTerminator::StructuralCase {
+                psi_block: stored_block,
+                indices: stored_indices,
                 source: stored_source,
                 path: stored_path,
                 byte_offset,
@@ -2753,13 +2920,12 @@ pub(crate) mod scalar_graph {
             else {
                 return Err(Error::custody());
             };
-            if stored_source.place() != *source || stored_path != path {
+            if stored_block != psi_block || stored_source.place() != *source || stored_path != path
+            {
                 return Err(Error::custody());
             }
             let byte_offset = *byte_offset;
-            if pointer_slots
-                .iter()
-                .any(|slot| slot.scalar_descriptor || slot.index_start != slot.index_end)
+            if pointer_slots.iter().any(|slot| slot.scalar_descriptor)
                 || byte_offset
                     .checked_add(layout.shape.byte_size)
                     .is_none_or(|end| end > *region_byte_size)
@@ -2767,6 +2933,12 @@ pub(crate) mod scalar_graph {
                 return Err(Error::custody());
             }
             let root_shape = stored_source.layout().shape();
+            let indices = crate::legalization::runtime_indices::retained_operands(
+                &unit.accepted_obligation_facts,
+                function.machine,
+                terminal_psi::ExecutionSite::Block(*psi_block),
+                stored_indices,
+            )?;
             let layout = layout.clone();
             let source = scalar_graph_input::structural_case::case_source(function, *source)?;
             if cases.len() != node.successors.len()
@@ -2835,6 +3007,8 @@ pub(crate) mod scalar_graph {
                 });
             }
             Ok(LegalizedScalarTerminator::StructuralCase {
+                psi_block: *psi_block,
+                indices,
                 source,
                 path: path.clone(),
                 root_shape,
@@ -2857,7 +3031,8 @@ pub(crate) mod scalar_graph {
             LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
             LegalizedScalarTerminator,
         };
-        pub(crate) fn project(
+        /// Source oracle for the independent correspondence audit only.
+        pub(crate) fn audit_project(
             node: &optimization_unit::OptimizationNode,
             function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             plan: &crate::native_geometry::NativePlan<'_>,
@@ -3258,14 +3433,13 @@ pub(crate) mod scalar_graph {
         if optimized.blocks.len() != target.graph.blocks.len() {
             return Err(Error::custody());
         }
-        let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
         let blocks = optimized
             .blocks
             .iter()
             .zip(&target.graph.blocks)
             .map(|(block, targeted)| {
                 *current_operation = None;
-                let (last, body) = block.nodes.split_last().ok_or(Error::custody())?;
+                let (_, body) = block.nodes.split_last().ok_or(Error::custody())?;
                 let rows = targeted
                     .operations
                     .split_at(
@@ -3274,7 +3448,7 @@ pub(crate) mod scalar_graph {
                             .iter()
                             .position(|row| {
                                 matches!(
-                                    row,
+                                    &row.kind,
                                     target_operations::TargetUnitOperation::CleanupCall { .. }
                                 )
                             })
@@ -3286,25 +3460,37 @@ pub(crate) mod scalar_graph {
                 }
                 let mut instructions = Vec::with_capacity(body.len());
                 for (node, row) in body.iter().zip(rows) {
-                    *current_operation =
-                        scalar_graph_input::instruction(node).map(|(operation, _)| operation);
-                    instructions.push(instruction::project(
+                    *current_operation = row.source.as_ref().map(|source| source.operation);
+                    instructions.push(instruction::audit_project(
                         node, optimized, native, plan, unit, row,
                     )?);
                 }
                 *current_operation = None;
+                let mut parameters = Vec::with_capacity(targeted.parameters.len());
+                for (position, parameter) in targeted.parameters.iter().enumerate() {
+                    parameters.push(optimization_unit::ValueDefinition {
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                            block: targeted.block,
+                            position: u32::try_from(position).map_err(|_| Error::custody())?,
+                        },
+                    });
+                }
                 Ok(LegalizedScalarBlock {
-                    id: block.id,
-                    parameters: block.parameters.clone(),
-                    structural_parameters: block.structural_parameters.clone(),
+                    id: targeted.block,
+                    parameters,
+                    structural_parameters: targeted.structural_parameters.clone(),
                     instructions,
-                    terminator: terminator::project(
-                        last,
-                        &function_inputs,
-                        plan,
-                        native,
-                        unit,
-                        &targeted.terminator,
+                    terminator: crate::legalization_control::project(
+                        target.machine,
+                        targeted,
+                        target
+                            .structural_contract
+                            .as_ref()
+                            .map(|contract| contract.parameters.as_slice())
+                            .unwrap_or(&[]),
+                        &unit.accepted_obligation_facts,
                     )?,
                 })
             })
@@ -3358,8 +3544,105 @@ pub(crate) fn derive_source_function_rosters(
     let mut rosters = SourceFunctionRosters {
         scalar_functions: Vec::new(),
     };
-    ordinary_roster::derive_remaining(&mut rosters, target, abstract_plan, unit)?;
+    audit_roster::derive_remaining(&mut rosters, target, abstract_plan, unit)?;
 
     Ok(rosters)
 }
 pub(crate) use custody::validate_source_custody;
+
+/// Ordinary legalization consumes only target execution and immutable judgments.
+pub(crate) fn derive_target_function_rosters(
+    target: &TargetOperationPlan,
+    evidence: crate::TargetSelectionEvidence<'_>,
+) -> Result<SourceFunctionRosters, LegalizationError> {
+    let geometries = crate::native_geometry::NativeGeometries::new(
+        target
+            .functions
+            .iter()
+            .map(|function| function.graph.structural_types.as_ref()),
+    )
+    .map_err(|_| LegalizationError::custody())?;
+    let mut scalar_functions = Vec::with_capacity(target.functions.len());
+    for function in &target.functions {
+        let geometry = geometries
+            .get(&function.graph.structural_types)
+            .ok_or_else(LegalizationError::custody)?;
+        let mut blocks = Vec::with_capacity(function.graph.blocks.len());
+        for block in &function.graph.blocks {
+            let mut instructions = Vec::with_capacity(block.operations.len());
+            for row in &block.operations {
+                if matches!(
+                    row.kind,
+                    target_operations::TargetUnitOperation::CleanupCall { .. }
+                ) {
+                    continue;
+                }
+                instructions.push(
+                    scalar_graph::instruction::project(
+                        function.machine,
+                        evidence.accepted_obligation_facts,
+                        target,
+                        geometry,
+                        row,
+                    )
+                    .map_err(|error| {
+                        error.attributed(
+                            function.machine,
+                            row.source.as_ref().map(|source| source.operation),
+                        )
+                    })?,
+                );
+            }
+            let parameters = block
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(position, parameter)| {
+                    Ok(optimization_unit::ValueDefinition {
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                            block: block.block,
+                            position: u32::try_from(position)
+                                .map_err(|_| LegalizationError::custody())?,
+                        },
+                    })
+                })
+                .collect::<Result<_, LegalizationError>>()?;
+            blocks.push(legalized_operations::LegalizedScalarBlock {
+                id: block.block,
+                parameters,
+                structural_parameters: block.structural_parameters.clone(),
+                instructions,
+                terminator: crate::legalization_control::project(
+                    function.machine,
+                    block,
+                    function
+                        .structural_contract
+                        .as_ref()
+                        .map(|contract| contract.parameters.as_slice())
+                        .unwrap_or(&[]),
+                    evidence.accepted_obligation_facts,
+                )?,
+            });
+        }
+        scalar_functions.push(legalized_operations::LegalizedScalarFunction {
+            machine: function.machine,
+            attachment: function.attachment,
+            nominal_cleanup_subject: function.nominal_cleanup_subject,
+            provenance: function.provenance.clone(),
+            call_plan: function.graph.call_plan.clone(),
+            parameters: scalar_graph::parameters(function)?,
+            structural: crate::legalization::scalar_graph_input::structural_contract(function)?,
+            entry_block: function.graph.entry,
+            blocks,
+            ownership_frontier_facts: evidence
+                .ownership_frontier_facts
+                .iter()
+                .filter(|fact| fact.machine == function.machine)
+                .cloned()
+                .collect(),
+        });
+    }
+    Ok(SourceFunctionRosters { scalar_functions })
+}

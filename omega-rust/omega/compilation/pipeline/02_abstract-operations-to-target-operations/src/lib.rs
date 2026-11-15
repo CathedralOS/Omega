@@ -58,7 +58,7 @@ pub use model::{
 };
 pub use optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
-    lower_optimized_to_target_operations,
+    capture_runtime_borrowed_storage_layouts, lower_optimized_to_target_operations,
 };
 pub(crate) mod boundary_settlements {
     use abstract_operations::{AbstractFunction, CompletionClaimSource};
@@ -233,6 +233,7 @@ pub(crate) mod function {
 
     pub(super) fn lower_function(
         function: &AbstractFunction,
+        optimized: &optimization_unit::PsiOptimizationFunction,
         target: NativeTarget,
         profile: Option<target::TargetProfile>,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -264,6 +265,7 @@ pub(crate) mod function {
         }
         super::control_flow::lower(
             function,
+            optimized,
             target,
             profile,
             functions,
@@ -430,24 +432,13 @@ pub(crate) mod optimized {
             settlements,
             installation,
         } = request;
-        let phase = OptimizationExecutionPhase::TargetOperations;
-        if !optimized.selections().for_phase(phase).is_empty() {
-            return Err(LoweringError::UnconsumedOptimizationPhase(phase));
-        }
-        lowering_facts
-            .require_lowering_context(optimized.plan(), target)
-            .map_err(LoweringError::ForeignLoweringFacts)?;
-        if lowering_facts.native_callbacks().psi() != optimized.plan().psi {
-            return Err(LoweringError::ForeignNativeCallbackCohort);
-        }
-        if lowering_facts.installed_interrupts().psi() != optimized.plan().psi {
-            return Err(LoweringError::ForeignInstalledInterruptCohort);
-        }
+        require_lowering_context(&optimized, &lowering_facts, target)?;
         let installed = installation
             .as_ref()
             .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
         let bindings =
-            super::provider_evidence::bind_provider_executions(optimized.plan(), settlements)?;
+            super::provider_evidence::bind_provider_executions(optimized.plan(), settlements)
+                .map_err(|error| error.with_boundary_context(optimized.plan()))?;
         let program =
             super::coordination::lower_to_target_operations_with_settlements_and_installation(
                 optimized.plan(),
@@ -457,7 +448,8 @@ pub(crate) mod optimized {
                 installed,
                 lowering_facts.native_callbacks().callbacks(),
                 Some(&lowering_facts),
-            )?;
+            )
+            .map_err(|error| error.with_boundary_context(optimized.plan()))?;
         Ok(ValidatedOptimizedTargetOperations {
             optimized,
             lowering_facts,
@@ -466,6 +458,46 @@ pub(crate) mod optimized {
             installed_entry_execution: None,
             provider_installation: installation.map(Box::new),
         })
+    }
+
+    /// The host bridge needs the admitted storage geometry before it can
+    /// borrow guest values. Its recipes depend on the plan's storage and
+    /// boundary declarations, independently of native body realization.
+    pub fn capture_runtime_borrowed_storage_layouts(
+        optimized: &OptimizedAbstractProgram,
+        lowering_facts: &AdmittedLoweringFacts,
+        target: NativeTarget,
+    ) -> Result<Vec<runtime_abi::NativeBorrowedStorageLayout>, LoweringError> {
+        require_lowering_context(optimized, lowering_facts, target)?;
+        let plan = optimized.plan();
+        let types = super::structural_type_lookup::StructuralTypeLookup::for_verified(
+            &plan.structural_types,
+            lowering_facts,
+        )
+        .map_err(LoweringError::NonDenseStructuralTypes)?;
+        Ok(super::borrowed_storage::capture(plan, &types))
+    }
+
+    fn require_lowering_context(
+        optimized: &OptimizedAbstractProgram,
+        lowering_facts: &AdmittedLoweringFacts,
+        target: NativeTarget,
+    ) -> Result<(), LoweringError> {
+        let phase = OptimizationExecutionPhase::TargetOperations;
+        if !optimized.selections().for_phase(phase).is_empty() {
+            return Err(LoweringError::UnconsumedOptimizationPhase(phase));
+        }
+        let plan = optimized.plan();
+        lowering_facts
+            .require_lowering_context(plan, target)
+            .map_err(LoweringError::ForeignLoweringFacts)?;
+        if lowering_facts.native_callbacks().psi() != plan.psi {
+            return Err(LoweringError::ForeignNativeCallbackCohort);
+        }
+        if lowering_facts.installed_interrupts().psi() != plan.psi {
+            return Err(LoweringError::ForeignInstalledInterruptCohort);
+        }
+        Ok(())
     }
 }
 
@@ -487,6 +519,9 @@ pub(crate) mod provider_evidence {
                     settlement.boundary,
                 ))?;
                 let execution = match settlement.execution {
+                    AdmittedBoundaryExecution::NativeBinding { execution, .. } => {
+                        target_operations::BoundaryExecutionBinding::NativeBinding(execution)
+                    }
                     AdmittedBoundaryExecution::Provider(provider_execution) => {
                         let provider_plan = target_operations::ProviderPlanReportIdentity::new(
                             provider_execution.provider_plan_report_identity(),

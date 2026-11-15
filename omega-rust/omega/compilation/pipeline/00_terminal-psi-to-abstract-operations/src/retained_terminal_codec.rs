@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI26`) for retained native
+  Compiler-private binary persistence (`OMGNTI31`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -244,6 +244,39 @@ mod admissions {
         }
     }
 
+    impl RecordValue for target::CanonicalFloatRealization {
+        fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+            let Self::CatalogIntrinsic { isa, controls } = self else {
+                return Err(
+                    output.error("unsupported float realization cannot be retained as executable")
+                );
+            };
+            match isa {
+                target::FloatIsaAdmission::Baseline => 0u8,
+                target::FloatIsaAdmission::X86AvxFma3 => 1u8,
+            }
+            .write(output)?;
+            match controls {
+                target::FloatControlObligation::CanonicalControls => 0u8,
+                target::FloatControlObligation::DirectedRoundingRestored => 1u8,
+            }
+            .write(output)
+        }
+        fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
+            let isa = match u8::read(input)? {
+                0 => target::FloatIsaAdmission::Baseline,
+                1 => target::FloatIsaAdmission::X86AvxFma3,
+                _ => return Err(input.error("unknown float ISA admission")),
+            };
+            let controls = match u8::read(input)? {
+                0 => target::FloatControlObligation::CanonicalControls,
+                1 => target::FloatControlObligation::DirectedRoundingRestored,
+                _ => return Err(input.error("unknown float control obligation")),
+            };
+            Ok(Self::CatalogIntrinsic { isa, controls })
+        }
+    }
+
     impl RecordValue for backend_plan::DirectBoundaryLeaf {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.validate_calling_custody()
@@ -255,13 +288,15 @@ mod admissions {
                 plan,
                 satisfied_requirement_identity,
                 execution,
+                target_realization,
             } = self;
             declaration_identity.write(output)?;
             callable_identity.write(output)?;
             satisfied_schema.write(output)?;
             plan.write(output)?;
             satisfied_requirement_identity.write(output)?;
-            execution.write(output)
+            execution.write(output)?;
+            target_realization.write(output)
         }
         fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
             input.record(|input| {
@@ -272,6 +307,7 @@ mod admissions {
                     plan: RecordValue::read(input)?,
                     satisfied_requirement_identity: RecordValue::read(input)?,
                     execution: RecordValue::read(input)?,
+                    target_realization: RecordValue::read(input)?,
                 };
                 value
                     .validate_calling_custody()
@@ -383,6 +419,7 @@ mod admissions {
                     methods: vec![ServiceMethod {
                         name: "call".into(),
                         requirement_identity: requirement,
+                        declared_type_signature: [43; 32],
                         ..Default::default()
                     }],
                 }),
@@ -1449,7 +1486,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI26";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI31";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1505,6 +1542,11 @@ mod tests {
             b"OMGNTI23",
             b"OMGNTI24",
             b"OMGNTI25",
+            b"OMGNTI26",
+            b"OMGNTI27",
+            b"OMGNTI28",
+            b"OMGNTI29",
+            b"OMGNTI30",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1528,7 +1570,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI27", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI32", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };
@@ -1575,6 +1617,7 @@ fn capture(
 ) -> Result<Vec<u8>, RecordError> {
     let TerminalNativeProposalRequest {
         evaluated_binding_identities,
+        native_bindings,
         direct_boundary_leaves,
         target_profile,
         boundaries,
@@ -1641,6 +1684,9 @@ fn capture(
         .identities()
         .write(&mut output)?;
     write_values(installation_assumptions, &mut output)?;
+    let retained = provider_admission::RetainedNativeBindings::retain(native_bindings)
+        .map_err(|reason| output.error(reason))?;
+    retained.write(&mut output)?;
     Ok(output.finish())
 }
 
@@ -1655,7 +1701,102 @@ records::record_fields!(IntrinsicPlanRecord {
     row_executions,
 });
 
+struct NativeBindingRecord {
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    binding: effects::provider_plan::EvaluatedNativeBinding,
+    schema: usize,
+}
+records::record_fields!(NativeBindingRecord {
+    boundary,
+    binding,
+    schema
+});
+
+impl RecordValue for effects::provider_plan::EvaluatedNativeBinding {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        match self {
+            Self::Import(value) => {
+                0u8.write(output)?;
+                value.write(output)
+            }
+            Self::Syscall(value) => {
+                1u8.write(output)?;
+                value.write(output)
+            }
+        }
+    }
+    fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
+        match u8::read(input)? {
+            0 => effects::provider_plan::EvaluatedForeignImport::read(input).map(Self::Import),
+            1 => effects::provider_plan::EvaluatedForeignSyscall::read(input).map(Self::Syscall),
+            _ => Err(input.error("unknown native binding kind")),
+        }
+    }
+}
+impl RecordValue for provider_admission::RetainedNativeBindings {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        self.identities.write(output)?;
+        let mut schemas = Vec::<&effects::provider_plan::ServiceSchema>::new();
+        let rows = self
+            .rows
+            .iter()
+            .map(|row| {
+                let schema = schemas
+                    .iter()
+                    .position(|schema| *schema == row.schema.as_ref())
+                    .unwrap_or_else(|| {
+                        schemas.push(&row.schema);
+                        schemas.len() - 1
+                    });
+                NativeBindingRecord {
+                    boundary: row.boundary,
+                    binding: row.binding.clone(),
+                    schema,
+                }
+            })
+            .collect::<Vec<_>>();
+        output.sequence(schemas.len())?;
+        for schema in schemas {
+            schema.write(output)?;
+        }
+        rows.write(output)
+    }
+    fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
+        let identities = Arc::new(terminal_psi::TerminalIdentityTable::read(input)?);
+        let old = input
+            .context
+            .binding_identities
+            .replace(Arc::clone(&identities));
+        let decoded = (|| {
+            let schemas = Vec::<effects::provider_plan::ServiceSchema>::read(input)?
+                .into_iter()
+                .map(Arc::new)
+                .collect::<Vec<_>>();
+            let rows = Vec::<NativeBindingRecord>::read(input)?
+                .into_iter()
+                .map(|row| {
+                    let schema = schemas
+                        .get(row.schema)
+                        .cloned()
+                        .ok_or_else(|| input.error("native binding has no retained schema"))?;
+                    Ok(provider_admission::RetainedNativeBinding {
+                        boundary: row.boundary,
+                        binding: row.binding,
+                        schema,
+                    })
+                })
+                .collect::<Result<Vec<_>, RecordError>>()?;
+            let retained = Self { identities, rows };
+            // Reconstruct receipt custody rather than accepting decoded locators.
+            Self::retain(&retained.inputs()).map_err(|reason| input.error(reason))
+        })();
+        input.context.binding_identities = old;
+        decoded
+    }
+}
+
 struct DerivationInputs {
+    native_bindings: provider_admission::RetainedNativeBindings,
     evaluated_binding_identities: Arc<terminal_psi::TerminalIdentityTable>,
     checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical_adapter_requested: bool,
@@ -1719,6 +1860,7 @@ impl DerivationInputs {
             accepted_permissions: RecordValue::read(input)?,
             accepted_identities: RecordValue::read(input)?,
             installation_assumptions: RecordValue::read(input)?,
+            native_bindings: RecordValue::read(input)?,
         })
     }
 }
@@ -1743,6 +1885,7 @@ pub fn recover_native_derivation_inputs(
         .finish()
         .map_err(|reason| error(reason.to_string()))?;
     let DerivationInputs {
+        native_bindings,
         evaluated_binding_identities,
         checked_entry,
         physical_adapter_requested,
@@ -1780,7 +1923,9 @@ pub fn recover_native_derivation_inputs(
     let entry_adapter_requested = entry
         .as_ref()
         .is_some_and(|entry| entry.physical_adapter_requested);
+    let native_inputs = native_bindings.inputs();
     let request = TerminalNativeProposalRequest {
+        native_bindings: &native_inputs,
         evaluated_binding_identities: &evaluated_binding_identities,
         direct_boundary_leaves: leaves.iter().collect(),
         target_profile: profile,

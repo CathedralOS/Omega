@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use design::model;
 
@@ -16,7 +17,7 @@ machine digit(value: i32 in Wrapping) reaches Console {
     machine invalid() { Console::write("?"); }
 }
 
-machine emit(request: &Request, allocation: &Allocation) reaches Console {
+machine emit(request: &Request, allocation: &Allocation) reaches ProcessExit + Console {
     Console::write_line("FEASIBLE: allocation (treatments A=0 B=1 C=2)");
     transition { _ -> scan_row(request, allocation, 0) }
     machine scan_row(request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {
@@ -100,5 +101,5 @@ machine emit(request: &Request, allocation: &Allocation) reaches Console {
         transition { _ -> matrix_scan_row(request, allocation, 0, true) }
     }
     machine complete() { Console::write_line("CERTIFIED: subject permutations; exact period balance; carryover cap; forbidden edge"); }
-    machine done() { Console::exit_process(70); }
+    machine done() { ProcessExit::exit_process(70); }
 }

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use physics::model;
@@ -28,7 +29,7 @@ invokes Console
     machine done() { }
 }
 
-public machine field(value: f64) reaches Console
+public machine field(value: f64) reaches ProcessExit + Console
 invokes Console
 {
     let scaled: f64 = value * 1000000.0;
@@ -45,12 +46,12 @@ invokes Console
         let converted: i64 = I64::from_f64(scaled);
         integer(converted as i64 in Saturating);
     }
-    machine invalid() { Console::write_line("ERROR numeric output range"); Console::exit_process(70); }
+    machine invalid() { Console::write_line("ERROR numeric output range"); ProcessExit::exit_process(70); }
 }
 
 public machine report(tick: u64, tree: &ReflectionTree)
 requires tick < 24
-reaches Console
+reaches ProcessExit + Console
 invokes Console
 {
     Console::write("W,");

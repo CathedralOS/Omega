@@ -254,10 +254,22 @@ impl ValidatedOptimizedNativePhysicalEvidenceScope {
 pub struct BoundaryTraitSettlement {
     occurrence: OptimizedBoundaryOccurrence,
     requirement_identity: String,
-    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    selected_supply: NativeSelectedSupply,
     target: NativeTarget,
     role: BoundaryTraitSettlementRole,
     identity: [u8; 32],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NativeSelectedSupply {
+    ProviderPlan(NativeSelectedProviderPlanDigest),
+    NativeBinding([u8; 32]),
+}
+
+impl From<NativeSelectedProviderPlanDigest> for NativeSelectedSupply {
+    fn from(plan: NativeSelectedProviderPlanDigest) -> Self {
+        Self::ProviderPlan(plan)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -281,8 +293,8 @@ pub(crate) enum BoundaryTraitSettlementRole {
         scalar_argument: Option<CompilerBuiltinScalarArgument>,
         result: CompilerBuiltinResult,
     },
-    AdmittedProvider {
-        execution: ProviderExecutionBinding,
+    External {
+        execution: target_operations::ExternalExecutionBinding,
         realization: NormalizedForeignCallBinding,
     },
     AdmittedProviderSettlement {
@@ -686,7 +698,7 @@ impl NativePhysicalEvidence {
 pub(crate) struct BoundaryTraitSettlementParts {
     pub occurrence: OptimizedBoundaryOccurrence,
     pub requirement_identity: String,
-    pub selected_plan_digest: NativeSelectedProviderPlanDigest,
+    pub selected_supply: NativeSelectedSupply,
     pub target: NativeTarget,
     pub role: BoundaryTraitSettlementRole,
     pub identity: [u8; 32],
@@ -697,7 +709,7 @@ impl From<BoundaryTraitSettlementParts> for BoundaryTraitSettlement {
         Self {
             occurrence: parts.occurrence,
             requirement_identity: parts.requirement_identity,
-            selected_plan_digest: parts.selected_plan_digest,
+            selected_supply: parts.selected_supply,
             target: parts.target,
             role: parts.role,
             identity: parts.identity,

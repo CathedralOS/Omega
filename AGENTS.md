@@ -21,6 +21,27 @@ only the internal compiler stage/representation. Keep internal paths and wire
 identifiers intact; do not export that stage label into help, reports or guides.
 For execution results, write "native/Psi agreement" or "Psi exit 0".
 
+**Words this file uses.** You will copy the vocabulary you read into what you
+write, so define a term the first time you use it in a report, and prefer the
+plain wording over the shorthand:
+- **Psi**: the portable, target-neutral form of a compiled program, and the
+  interpreter that runs it. **Terminal Psi** is the last such form before
+  machine code (internal name only; see public naming above).
+- **Lowered-form checker**: the compiler stage that checks a program's proofs,
+  ownership and contracts on its Terminal Psi. Its yes/no is the compiler's
+  only verdict.
+- **Fact**: something the compiler has proved about a value, such as
+  `x >= 0`, that later code can rely on.
+- **Positive / negative twin**: two test programs that differ in one input.
+  The positive must compile and run; the negative must be refused with a
+  specific error.
+- **Hosted target**: one of the four operating-system/CPU pairs Omega must
+  produce native programs for (listed below).
+- **Release gate**: one of the six areas that must all be finished before the
+  compiler ships (listed below).
+- **Lane**: the area prefix of a commit title, such as `psi:` or `docs:`
+  (see [commit naming](#commit-naming)).
+
 **The goal is a complete compiler that ships.** Follow `.agents/skills/advance/SKILL.md`
 (`/advance`) to execute work, `.agents/skills/coordinator-review/SKILL.md` to
 review candidate diffs, and [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)
@@ -56,6 +77,22 @@ internal jargon still fails. Each paragraph should build on the last, so a
 reader can stop at any level with a useful understanding. Comments start with
 the local reason and constraint, using the surrounding code's context. Keep
 small changes short rather than filling a template.
+
+Three faults make agent writing hard to read. Check every sentence for them:
+- **Hidden actor or action.** Make the thing that acts the subject and what it
+  does the verb. Not "a refusal is produced upon checker invocation" but "the
+  checker refuses the program".
+- **Vague or invented wording.** Use the words a person on this project would
+  say out loud. Avoid noun stacks ("loan restoration window obligation") and
+  coined labels ("the entry boundary"); name the function, file or behavior.
+- **Empty statements and buried points.** Put the point first and cut
+  sentences that say nothing. Not "nothing else depends on anything but the
+  result, so I'll report when it returns" but "I'll report when the test
+  finishes."
+
+To rewrite existing text in plain language, follow
+[plain-writing](.agents/skills/plain-writing/SKILL.md); its script checks that
+the rewrite kept every identifier and grew no longer.
 
 Check claims against the actual submitted or landed diff and observed behavior;
 inspect unclear code or examples instead of inventing a plausible benefit.
@@ -94,69 +131,76 @@ The same PRs carry one line saying what proved the change:
 
 ## Law of completion
 
-We are capable of taking an uncompilable sample through every necessary compiler
-layer to a compilable, executable, validated program landed on main. The agent
-owns that entire transformation, not just the first repair. Difficulty is a
-reason to investigate and persist, not to abandon the work or redefine done.
+When you take a program that does not compile, you own every fix it needs until
+it compiles, runs, and is merged to `main`, not just the first fix. If it is
+hard, investigate further; do not give up or change what "done" means.
 
-Follow the river to its end: carry the capability through every necessary
-compiler, library, and prerequisite repair in your isolated worktree. Do not
-divide work into stage-only tasks or wait for another session to finish missing
-functionality. A report describes a bug; it doesn't remove one. The work is
-done when the program runs.
+That includes fixes in other compiler stages, the bundled library, or anything
+else the program depends on, all made in your own worktree. Do not split the
+work into one task per stage, and do not wait for another session to supply a
+missing piece. Writing up a bug does not fix it. The work is done when the
+program runs.
 
-The spec is the answer key. Read the governing page in `wiki/spec/`, build
-what it says, and you will get it right the first time. Check what you
-changed, then land it; `main` is checked after every merge.
+The specification is the answer key. Read the page in `wiki/spec/` that covers
+the feature and build what it says. Test what you changed, then merge it;
+`main` is tested again after every merge.
 
-**Checked trees were removed.** The lowered-form checker's verdict is the
-only verdict of a compilation. Build what a program needs in the lowered-form
-checker (`TASKS.md`, **LOWERED-FORM-CHECKER**). A program it cannot judge is
-refused; never weaken the checker so it compiles.
+The compiler used to have a second checker that worked on the earlier,
+tree-shaped form of the program. That checker has been removed. The
+lowered-form checker is now the only one. If a program needs something that
+checker cannot yet judge, add it to that checker (`TASKS.md`,
+**LOWERED-FORM-CHECKER**). Until then the program is refused. Never weaken the
+checker to make a program compile.
 
 An open PR is unfinished work sitting in the way of everyone else's. If you
 are the one looking at it, it is yours: finish it or close it.
 
 ### Decision-making framing for compiler completion
 
-1. **Drive the six release gates by root-cause cluster, never 1-off wins:**
-   Choose work by the programs it makes work and fix the mechanism the spec
-   names, so every program sharing that cause works. Test the change and the
+1. **Fix shared causes, not single programs:** Pick work by how many programs
+   it makes work. When several programs fail for the same reason, fix the
+   mechanism the spec describes so all of them work. Test the change and the
    small area around it; do not go looking for more before landing.
-2. **Fail-closed semantics over permissive fallbacks:** Never make a positive
-   program pass by weakening a proof obligation, returning `true` when a
-   lookup/rebase returns `None`, or silently erasing an unresolved construct.
-   Treat [assumed bindings](wiki/spec/build/assumed_binding_contracts.md) as
-   unavailable when implementing or advising ordinary Omega code. Do not
-   introduce one to silence borrow/lifetime errors, bypass a proof or contract,
-   compensate for a compiler limitation, or make a test pass. Repair the
-   program, contract, proof machinery, or compiler. A request to make code compile
-   does not authorize crossing outside the checked model; exceptional use needs
-   a concrete requirement for that departure and the root's explicit acceptance.
-3. **Exact projected-path scoping:** Track facts, loans, and restoration
-   obligations at the exact projected place (`root.field` or case variant
-   payload), invalidating overlapping writes without discarding provably
-   disjoint sibling storage.
-4. **Full pipeline carry-through (Psi 05 `-> 06 -> publication -> Native`):**
-   Carry every semantic repair through the lowered-form checker, Terminal Psi
-   and native execution (`omega run --both`, exit 0).
+2. **When unsure, refuse:** If the compiler cannot prove something, it must
+   reject the program, never accept it. Never make a program pass by weakening
+   a proof requirement, by returning `true` when a lookup finds nothing
+   (`None`), or by silently dropping something the compiler did not
+   understand.
+   An [assumed binding](wiki/spec/build/assumed_binding_contracts.md) lets a
+   program skip a check by asserting that the check holds. Treat it as
+   unavailable in ordinary Omega code. Never add one to silence a borrow or
+   lifetime error, skip a proof or contract, work around a compiler
+   limitation, or make a test pass; fix the program, contract, proof machinery
+   or compiler instead. Being asked to "make it compile" does not permit one. A
+   genuine exception needs a concrete reason the program must go beyond what
+   the compiler can check, and explicit approval from the program's top-level
+   (root) package.
+3. **Track each field separately:** Record facts, borrows ("loans") and
+   values that must be put back at the exact field path they apply to, such as
+   `root.field` or one variant's payload. A write to `a.x` invalidates what is
+   known about `a.x` and about `a` as a whole, but not about a separate field
+   `a.y`.
+4. **Carry every fix all the way to machine code:** A fix to what a program
+   means must work in each later stage: the lowered-form checker, Terminal Psi,
+   and the native program. Prove it with `omega run --both`, which runs the
+   program in the Psi interpreter and natively and requires both to exit 0.
 5. **Board closure:** Delete completed bullets from `TASKS.md` outright (never
    rewrite into `"preserving / keeping / now passes"` history prose).
-6. **Fix the mechanism, not the case.** When a fix wants a second carrier,
-   case or per-place branch, that is the compiler telling you where its
-   mechanism is too narrow. That is the best kind of bug to find: one general
-   fix closes the whole family. Make it, in the same PR.
+6. **Generalize instead of adding special cases:** If your fix needs a second
+   copy of a data structure, an extra case, or a branch for one kind of
+   location, the existing mechanism is too narrow. Widen that mechanism so one
+   change fixes every program with the same cause, and do it in the same PR.
 
 ## The sample loop
 
-A language mechanism is one object carried through the compiler. It can travel
-through nine transport places: `local`, `field`, `parameter`, `call_result`,
-`match_join`, `const_name`, nested `machine` (`other_state/`), another
-`machine` (`other_machine/`), and a `Build`-selected target implementation
-(`target_body/`), on each of the four hosted targets,
-with a negative twin beside it. That matrix says what a capability means when
-it is complete; it is a design checklist, not a count of fixtures to produce,
-and not what one pull request has to run. A `TASKS.md` item names an
+A language feature should work wherever a value can appear (a local, a field,
+an argument, a return value, and so on) and on all four hosted targets, with a
+negative twin. The lowered-form checker gives every one of those places the
+same treatment: a fact belongs to a value, and a place only says which value it
+holds ([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md)).
+So there is no list of places to test one by one. A fix that works for one
+place but needs new code for another is the too-narrow mechanism rule 6 above
+describes. A `TASKS.md` item names an
 acceptance only when it ends in a deletion (the old surface or path is gone);
 otherwise its spec page and the running program decide when it is done.
 
@@ -167,12 +211,11 @@ the corpus under `tests/omega/` was deleted on the owner's ruling of 2026-11-13
 ([tests/README.md](tests/README.md) says how to recover a fixture from
 history), and nothing replaces it.
 
-A program a test reads lives beside that test, under
-`tests/fixtures/`. Its pinned diagnostic
-is a photograph of the object the compiler carries. Done means the compiler
-still holds that same object. Changing the fact, the bound, or the operation so
-a place passes is repainting that photograph: a different object, and a green
-check on it does not count.
+A program a test reads lives beside that test, under `tests/fixtures/`. The
+test pins the exact result the program must produce (its output or its
+error), which records what the program asks of the compiler. Do not make a test pass by changing the
+program: a different fact, a looser bound or a different operation turns it
+into a different test, and passing that one proves nothing about the original.
 
 ### No `.omg` file bloat
 
@@ -250,8 +293,8 @@ with `< /dev/null` on non-interactive `omega` invocations so
 background processes never hang on open stdin:
 
 ```bash
-# Build warm optimized development compiler in worktree target/:
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega < /dev/null
+# Let mbx place the worktree target so it can rebuild it after collection.
+CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega < /dev/null
 
 # Run the tests on the code you changed, then the small area around it:
 mbx test -p <crate> --test <test> < /dev/null
@@ -267,8 +310,9 @@ mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
-The only pre-merge check is `admission` (rules and formatting, about a
-minute); `main` is checked after every merge.
+The only pre-merge check is `admission` (rules, formatting and, when Rust or
+Cargo files changed, a type check of the merge tree; about two minutes);
+`main` is checked after every merge.
 
 Passing tests on the change and on the small area around it end pre-merge
 testing. A failure there is an investigation of that failure, never a wider
@@ -339,6 +383,11 @@ refuses a second build or test run while one is active.
 - Keep `TASKS.md` strictly as a remaining-work board: delete finished bullets
   in the same commit as the repair. A ratified decision may add its
   implementation item.
+- When a ruling or design decision changes how the compiler is built or how
+  work is judged, the same PR updates or deletes every instruction that
+  described the old way: this file, `.agents/skills/`, `TASKS.md` and the
+  READMEs agents read. Search for the old terms before landing. Two
+  instructions that disagree make agents pick one at random.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
@@ -401,8 +450,8 @@ reads the allowed lanes from this table:
 - **Isolated detached worktree pool (`.agents/worktree/worker-N`); never touch primary checkout; no local branches:**
   Claim an idle pool slot (`worker-1`, `worker-2`, …) via
   `cargo xtask worktree acquire <lane>-<topic>`, which resets an idle `worker-N`
-  checkout to `origin/main` in place so its fixed path and warm `target/` cache
-  stay 100% valid across tasks. In a cloud session the slot instead starts at
+  checkout to `origin/main` in place. Its fixed path lets later tasks reuse
+  build outputs retained by mbx. In a cloud session the slot instead starts at
   the commit its restored build was published for; rebase onto `origin/main`
   only when the task needs something newer. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: status unique
 use omega_language_std::Console;
@@ -11,7 +12,7 @@ use output::report;
 // These are squared-distance units, not radial error. Search is deterministic,
 // ordered by y then x, and retains no candidate storage or hidden truncation.
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 128];
     let mut problem: Problem;
     let observed: LineReadResult = block Console::read_line(&mut bytes);
@@ -89,11 +90,11 @@ machine Main::main(main: &mut Main) reaches Console {
             _ -> ambiguous()
         }
     }
-    machine inconsistent() { Console::write_line("status inconsistent"); Console::exit_process(0); }
-    machine degenerate_result() { Console::write_line("status degenerate"); Console::exit_process(0); }
-    machine unique() { Console::write_line("status unique"); Console::exit_process(0); }
-    machine ambiguous() { Console::write_line("status ambiguous"); Console::exit_process(0); }
-    machine invalid() { Console::write_line("error invalid input"); Console::exit_process(64); }
+    machine inconsistent() { Console::write_line("status inconsistent"); ProcessExit::exit_process(0); }
+    machine degenerate_result() { Console::write_line("status degenerate"); ProcessExit::exit_process(0); }
+    machine unique() { Console::write_line("status unique"); ProcessExit::exit_process(0); }
+    machine ambiguous() { Console::write_line("status ambiguous"); ProcessExit::exit_process(0); }
+    machine invalid() { Console::write_line("error invalid input"); ProcessExit::exit_process(64); }
 }
 
 machine residuals(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
@@ -115,7 +116,7 @@ reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

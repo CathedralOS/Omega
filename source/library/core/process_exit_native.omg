@@ -1,0 +1,7 @@
+// The compiler realizes only this primitive. Ordinary ProcessExit providers
+// retain checked bodies and call it under the canonical process-domain authority.
+public boundary machine ProcessExitPrimitive(return_code: i32) -> Never
+    satisfies ProcessExit::exit_process
+    reaches ProcessExit
+    crashes none
+    terminates;

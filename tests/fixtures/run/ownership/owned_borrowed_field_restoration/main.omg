@@ -1,0 +1,15 @@
+data Item { value: u32; }
+data Owner { item: Item; tag: u32; }
+machine consume(first: Item, second: Owner) { }
+machine main() crashes Trap {
+    let mut owner: Owner = Owner { item: Item { value: 3u32 }, tag: 11u32 };
+    let next: Item = Item { value: 7u32 };
+    let local: &mut Owner = &mut owner;
+    let old: Item = move local.item;
+    local.item = next;
+    transition old.value == 3u32 && owner.item.value == 7u32 && owner.tag == 11u32 {
+        true -> consume(old, owner)
+        false -> bad()
+    }
+    machine bad() { crash Trap; }
+}

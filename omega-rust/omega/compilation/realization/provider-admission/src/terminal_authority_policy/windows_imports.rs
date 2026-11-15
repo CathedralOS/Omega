@@ -1,21 +1,21 @@
-//! Classify reviewed Windows operations without relying on their authored names.
+//! Classifies reviewed Windows operations by behavior, not authored names.
 //!
-//! Error-state access, local handle representation and text conversion exercise
-//! no closed terminal class. File-information queries remain metadata queries;
-//! querying an I/O mode does not justify an empty row for every information
-//! class. Generic reads can consume console input and echo it to output; generic
-//! writes can produce console output. Their rows include those classes beside
-//! content access. The admitted calling plan remains part of every emitted key;
-//! storage custody remains separate.
+//! Error-state access, local handle representation and text conversion need
+//! no closed terminal class. File-information queries remain metadata
+//! queries; querying an I/O mode does not justify an empty row for every
+//! information class. Generic reads can consume console input and echo it;
+//! generic writes can produce console output. Their rows list those classes
+//! beside content access. Every emitted key includes the admitted calling plan;
+//! storage custody stays separate.
 //!
 //! The portable open cohort conservatively permits all six filesystem facets.
 //! Neither an attribute-only spelling nor its declared reach narrows CreateFileW
-//! here. DuplicateHandle may close its source, and CloseHandle accepts objects
+//! here. DuplicateHandle may close its source and CloseHandle accepts objects
 //! beyond files: both stay unclassified until checked argument/lifecycle
-//! evidence establishes a distinct constrained occurrence. Generic CRT reads
-//! and writes also remain unclassified: their descriptors can name consoles,
-//! and invalid arguments can dispatch an application-selected parameter handler.
-//! Neither a filesystem-only row nor a guessed handler union is justified.
+//! evidence shows a distinct constrained use. Generic CRT reads and writes also
+//! stay unclassified: their descriptors can name consoles, and invalid arguments
+//! can call an application-selected parameter handler. Neither a
+//! filesystem-only row nor a guessed handler union is justified.
 
 use std::sync::OnceLock;
 

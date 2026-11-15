@@ -1,9 +1,9 @@
 //! Carry Build's completed choices into application compilation.
 //!
-//! Provider choices must match their authored declaration requests before they
-//! become selection intent. Other policies still lack their producers and
-//! refuse requests for their own operations. An absent request needs no policy;
-//! an unimplemented one cannot disappear into an empty result.
+//! A provider choice must match its authored declaration request before it
+//! becomes selection intent. Service audit registrations also require a
+//! completed event at an exact authored occurrence. An unrequested policy
+//! needs no admission, and an unimplemented request cannot simply vanish.
 
 use language_semantics::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
@@ -58,57 +58,8 @@ pub mod assumed_bindings {
 }
 #[path = "product/native_bindings.rs"]
 pub mod native_bindings;
-pub mod product_declarations {
-    use crate::product::assumed_bindings::AssumedBindingContract;
-    use crate::product::test_groups::TestGroupRegistration;
-    use diagnostics::Diagnostic;
-    use language_semantics::declaration_selection::{
-        BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
-    };
-    use language_semantics::wire::WireCompatibilityDemand;
-    use std::sync::Arc;
-    use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ServiceAuditRegistration {
-        pub identity: String,
-        pub name: String,
-    }
-    pub struct AdmittedProductDeclarations {
-        pub service_audits: Vec<ServiceAuditRegistration>,
-        pub assumed_bindings: Vec<AssumedBindingContract>,
-        pub wire_demands: Vec<WireCompatibilityDemand>,
-        pub test_groups: Vec<TestGroupRegistration>,
-    }
-    pub fn admit(
-        _typed: &TypedTrees,
-        _activation: Option<SymbolHandle>,
-        declared: &[Arc<ProductDeclarationRequest>],
-        executed: &[ExecutedProductSelection],
-    ) -> Result<AdmittedProductDeclarations, Vec<Diagnostic>> {
-        if super::build_requests_any(
-            declared,
-            executed,
-            &[
-                BuildOperation::ServiceAudit,
-                BuildOperation::AssumedBindingContract,
-                BuildOperation::WireCompatibilityRequest,
-                BuildOperation::TestGroupRegistration,
-                BuildOperation::TestGroupService,
-            ],
-        ) {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: Build product declaration admission",
-            )]);
-        }
-        Ok(AdmittedProductDeclarations {
-            service_audits: Vec::new(),
-            assumed_bindings: Vec::new(),
-            wire_demands: Vec::new(),
-            test_groups: Vec::new(),
-        })
-    }
-}
+#[path = "product/product_declarations.rs"]
+pub mod product_declarations;
 pub mod product_policy {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
@@ -730,7 +681,7 @@ mod tests {
         );
         [
             native_bindings::collect(&typed, activation, declared, &[]).map(drop),
-            product_declarations::admit(&typed, activation, declared, executed).map(drop),
+            product_declarations::admit(&typed, activation, declared, executed, &[]).map(drop),
             product_policy::collect_behavior_exclusions(
                 &typed,
                 activation,
@@ -764,15 +715,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn an_authored_service_audit_requires_its_original_formation() {
+        assert_eq!(
+            refusals(&[request(BuildOperation::ServiceAudit)], &[]),
+            ["service audit lost its original Build formations"]
+        );
+    }
+
     /// The twins: each unimplemented operation is refused by its own admission,
     /// whether the Build only authored the request or also executed it.
     #[test]
     fn each_request_is_refused_by_the_admission_that_owns_its_operation() {
         for (operation, owner) in [
-            (
-                BuildOperation::ServiceAudit,
-                "Build product declaration admission",
-            ),
             (
                 BuildOperation::AssumedBindingContract,
                 "Build product declaration admission",

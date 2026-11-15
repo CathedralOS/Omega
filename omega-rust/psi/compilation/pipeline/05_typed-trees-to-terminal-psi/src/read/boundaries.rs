@@ -155,6 +155,104 @@ impl Program<'_> {
         {
             return Ok(Some((id, source.signature.clone())));
         }
+        if typed.symbols.sealed_intrinsic(target)
+            == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            let signature = self.numeric_primitive_signature(context, target)?;
+            let declaration = crate::declare::intrinsic_boundary_source(typed, target)
+                .map_err(|reason| services::unavailable(context, reason))?;
+            let intrinsic =
+                typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
+                    typed, target,
+                )
+                .ok_or_else(|| {
+                    services::unavailable(context, "numeric primitive lost its source declaration")
+                })?;
+            let kind = match intrinsic.kind {
+                typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::Operator => semantic_vocabulary::BoundaryRequirementKind::Operator,
+                typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::TopLevelRequirement => semantic_vocabulary::BoundaryRequirementKind::Machine,
+            };
+            let id = self.boundaries.rows.push(BoundarySource {
+                source: target,
+                kind,
+                owner: target,
+                signature: signature.clone(),
+                envelope: crate::reach::SourceEnvelope {
+                    service_reach: Vec::new(),
+                    invocations: Vec::new(),
+                    suspends: false,
+                    blocks: false,
+                    termination: terminal_psi::TerminalCallableTermination::Terminates {
+                        premises: Vec::new(),
+                    },
+                },
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                owning_service: None,
+                declaration,
+            });
+            self.admitted_declarations.include(target);
+            return Ok(Some((id, signature)));
+        }
+        if let Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(operation)) =
+            typed.symbols.sealed_intrinsic(target)
+        {
+            let machine = typed.machine_by_symbol(target).ok_or_else(|| {
+                services::unavailable(context, "hosted primitive lost its machine")
+            })?;
+            let (_, declared) = typed
+                .bodyless_declaration(target)
+                .map_err(|reason| services::unavailable(context, reason))?
+                .ok_or_else(|| {
+                    services::unavailable(context, "hosted primitive lost its bodyless declaration")
+                })?;
+            let mut requirements =
+                typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .filter_map(|edge| {
+                        typed_trees::machine::resolve_satisfied_declaration(typed, machine, edge)
+                    });
+            let requirement = requirements
+                .next()
+                .ok_or_else(|| {
+                    services::unavailable(context, "hosted primitive has no exact requirement")
+                })?
+                .symbol();
+            if requirements.next().is_some() || typed.trait_machine_signature(requirement).is_none_or(|(owner, required)| typed.symbols.sealed_member_intrinsic(owner.symbol, required.name.as_str()) != Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedRequirement(operation))) {
+                return Err(services::unavailable(context, "hosted primitive has no unique canonical requirement"));
+            }
+            let (canonical, signature) = self
+                .read_boundary_declaration(context, requirement)?
+                .ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "hosted primitive requirement has no declaration",
+                    )
+                })?;
+            let (actual, _) = self.declared_requirement_signature(context, &declared, &[])?;
+            if actual != signature {
+                return Err(services::unavailable(
+                    context,
+                    "hosted primitive contract differs from its canonical requirement",
+                ));
+            }
+            let mut source = self
+                .boundaries
+                .row(canonical)
+                .ok_or_else(|| {
+                    services::unavailable(context, "hosted primitive requirement lost its boundary")
+                })?
+                .clone();
+            source.source = target;
+            source.owner = target;
+            source.kind = semantic_vocabulary::BoundaryRequirementKind::Machine;
+            source.owning_service = None;
+            source.declaration = crate::declare::intrinsic_boundary_source(typed, target)
+                .map_err(|reason| services::unavailable(context, reason))?;
+            self.admitted_declarations.include(target);
+            let id = self.boundaries.rows.push(source);
+            return Ok(Some((id, signature)));
+        }
         let Some((owner, declared)) = typed.trait_machine_signature(target) else {
             return self.read_native_boundary_declaration(context, target);
         };

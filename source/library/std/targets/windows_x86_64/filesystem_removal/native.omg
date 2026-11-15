@@ -20,7 +20,7 @@ requires length > 0 && length <= 8190 && length % 2 == 0 && capacity == 8192
     buffer: &'scope [u16; 4096] in WindowsNativePath;
 }
 data WindowsNativeObjectAttributes<'scope>
-requires length == 48 && root != 0 && attributes == 4096 && security == 0 && quality == 0
+requires length == 48 && (root as -WindowsPrivateNonalertFileOrAbsent) != 0 && attributes == 4096 && security == 0 && quality == 0
 {
     length: u32;
     padding: u32;

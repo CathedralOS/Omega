@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Render 60 frames of a 64x64 diagonal color wash in a native 256x256
 // window, paced at 25 ms with an event pump between frames.
 // Persistent handles are explicit application-owned state; provider selection
@@ -27,7 +28,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes AppKit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost;
+        invokes AppKit invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost crashes none;
     machine window_destroy(window: Window, device: u64) -> bool
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
@@ -36,28 +37,28 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost;
+        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost crashes none;
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes WindowsGuiHost;
+        ProcessOutput + ProcessExit invokes WindowsGuiHost crashes none;
     machine pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost;
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost crashes none;
     machine is_window(window_state: &Window, window: u64) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost;
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost crashes none;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
@@ -66,7 +67,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost invokes MacosImageData invokes MacosImageObjects;
+        invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost invokes MacosImageData invokes MacosImageObjects crashes none;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
 // ranges and their increments are GUARD-PROVEN (the dominating-guard keystone:
@@ -223,7 +224,7 @@ machine Main::main(main: &mut Main) reaches
     }
     machine passed(main: &mut Main) {
         Console::write_line("PASS: 60 frames blitted (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main, window: Window) {
         let cleaned: bool = Gui::window_destroy(window, main.hdc);
@@ -231,7 +232,7 @@ machine Main::main(main: &mut Main) reaches
     }
     machine failed(main: &mut Main) {
         Console::write_line("FAIL: creation, rendering, or window closure before 60 frames (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 

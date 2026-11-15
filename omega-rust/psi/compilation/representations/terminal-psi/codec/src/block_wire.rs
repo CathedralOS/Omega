@@ -804,18 +804,30 @@ pub(crate) mod storage_operations {
 
     pub(crate) fn encode_element_view_read(
         writer: &mut Writer,
-        source: PlaceId,
+        source: terminal_psi::StructuralArgument,
         index: ValueId,
         length: ValueId,
         obligation: ObligationId,
         path: Vec<StructuralPathSegment>,
     ) -> Result<(), CodecError> {
+        use terminal_psi::StructuralAccess;
+        if source.access != StructuralAccess::SharedBorrow {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "element-view read requires shared observation access",
+            ));
+        }
         writer.u8(if path.is_empty() {
             operation_tags::ELEMENT_VIEW_READ
         } else {
             operation_tags::PROJECTED_ELEMENT_VIEW_READ
         });
-        writer.id(source);
+        // Nonzero place IDs keep the existing whole-descriptor encodings.
+        if source.path.is_empty() {
+            writer.id(source.place);
+        } else {
+            writer.u64(0);
+            super::super::structural_place_wire::encode_structural_arguments(writer, &[source])?;
+        }
         writer.id(index);
         writer.id(length);
         writer.id(obligation);
@@ -825,19 +837,39 @@ pub(crate) mod storage_operations {
         Ok(())
     }
 
-    pub(crate) fn decode_projected_element_view_read(
+    pub(crate) fn decode_element_view_read(
         reader: &mut Reader<'_>,
+        projected_element: bool,
     ) -> Result<OperationKind, CodecError> {
-        let source = reader.id("PlaceId")?;
+        use terminal_psi::{StructuralAccess, StructuralArgument};
+        let source = if let Some(place) = PlaceId::new(reader.u64()?) {
+            StructuralArgument::whole(place, StructuralAccess::SharedBorrow)
+        } else {
+            let sources = super::super::structural_place_wire::decode_structural_arguments(reader)?;
+            let [source]: [StructuralArgument; 1] = sources.try_into().map_err(|_| {
+                CodecError::MalformedStructuralFoundation("element-view read needs one descriptor")
+            })?;
+            if source.path.is_empty() || source.access != StructuralAccess::SharedBorrow {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "noncanonical projected element-view descriptor",
+                ));
+            }
+            source
+        };
         let index = reader.id("ValueId")?;
         let length = reader.id("ValueId")?;
         let obligation = reader.id("ObligationId")?;
-        let path = decode_structural_path(reader)?;
-        if path.is_empty() {
-            return Err(CodecError::MalformedStructuralFoundation(
-                "empty projected element view read path",
-            ));
-        }
+        let path = if projected_element {
+            let path = decode_structural_path(reader)?;
+            if path.is_empty() {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "empty projected element view read path",
+                ));
+            }
+            path
+        } else {
+            Vec::new()
+        };
         Ok(OperationKind::ElementViewRead {
             source,
             index,
@@ -1012,6 +1044,50 @@ pub(crate) mod terminator_wire {
 
     pub(crate) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, CodecError> {
         TerminatorRow::read(reader)
+    }
+}
+
+#[cfg(test)]
+mod element_view_tests {
+    use super::{Reader, Writer, decode_operation_kind, encode_operation_kind};
+    use semantic_vocabulary::{ObligationId, PlaceId, ValueId};
+    use terminal_psi::{
+        OperationKind, StructuralAccess, StructuralArgument, StructuralPathSegment,
+    };
+
+    #[test]
+    fn both_whole_descriptor_read_tags_keep_the_legacy_bytes() {
+        use super::super::structural_place_wire::encode_structural_path;
+        let source =
+            StructuralArgument::whole(PlaceId::new(1).unwrap(), StructuralAccess::SharedBorrow);
+        for (tag, path) in [
+            (81, vec![]),
+            (92, vec![StructuralPathSegment::FixedIndex(1)]),
+        ] {
+            let read = OperationKind::ElementViewRead {
+                source: source.clone(),
+                index: ValueId::new(2).unwrap(),
+                length: ValueId::new(3).unwrap(),
+                obligation: ObligationId::new(4).unwrap(),
+                path: path.clone(),
+            };
+            let mut legacy = Writer::default();
+            legacy.u8(tag);
+            for id in 1..=4 {
+                legacy.u64(id);
+            }
+            if !path.is_empty() {
+                encode_structural_path(&mut legacy, "element view read path", &path).unwrap();
+            }
+            let legacy = legacy.finish();
+            assert_eq!(
+                decode_operation_kind(&mut Reader::new(&legacy)).unwrap(),
+                read
+            );
+            let mut encoded = Writer::default();
+            encode_operation_kind(&mut encoded, read).unwrap();
+            assert_eq!(encoded.finish(), legacy);
+        }
     }
 }
 
@@ -1855,16 +1931,8 @@ operation_wire! {
                 terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             )?
         },
-        operation_tags::ELEMENT_VIEW_READ => OperationKind::ElementViewRead {
-            source: reader.id("PlaceId")?,
-            index: reader.id("ValueId")?,
-            length: reader.id("ValueId")?,
-            obligation: reader.id("ObligationId")?,
-            path: Vec::new(),
-        },
-        operation_tags::PROJECTED_ELEMENT_VIEW_READ => {
-            storage_operations::decode_projected_element_view_read(reader)?
-        },
+        operation_tags::ELEMENT_VIEW_READ => storage_operations::decode_element_view_read(reader, false)?,
+        operation_tags::PROJECTED_ELEMENT_VIEW_READ => storage_operations::decode_element_view_read(reader, true)?,
         operation_tags::REGISTER_ACCESS => call_operations::decode_register_access(reader, true)?,
         operation_tags::REGISTER_OBSERVATION => {
             call_operations::decode_register_access(reader, false)?

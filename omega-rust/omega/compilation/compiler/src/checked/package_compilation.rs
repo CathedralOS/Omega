@@ -347,7 +347,7 @@ impl CompilationSession {
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> Result<super::CheckedCompilation, CompileFailure> {
         let ((), selected) = self
-            .select_build_batch(vec![((), build.source)], frontier)
+            .select_build_batch(vec![((), build.source)], |_| None, frontier)
             .pop()
             .ok_or_else(|| vec![Diagnostic::error("package checking lost its selected root")])?;
         selected.finish_check().result
@@ -373,6 +373,7 @@ impl CompilationSession {
                 Some(&inputs),
                 std::slice::from_ref(&target),
                 &rollback,
+                None,
                 None,
             )?;
             let publication = &checked.terminal_publication;
@@ -418,7 +419,7 @@ impl CompilationSession {
                 .map(|(position, (owner, build))| ((position, owner), build.source))
                 .collect();
             let mut requests = Vec::new();
-            for (owner, selected) in self.select_build_batch(pending, None) {
+            for (owner, selected) in self.select_build_batch(pending, |_| None, None) {
                 let request = match selected.result {
                     Ok(selected) => selected
                         .into_checked_compilation()
@@ -475,9 +476,11 @@ impl CompilationSession {
             // execute them before the application report succeeds.
             let mut requests = Vec::new();
             let mut applications = Vec::new();
-            for ((owner, root, product, permissions, inputs), selected) in
-                self.select_build_batch(builds, None)
-            {
+            for ((owner, root, product, permissions, inputs), selected) in self.select_build_batch(
+                builds,
+                |(_, _, product, _, _)| product.inspection_name(),
+                None,
+            ) {
                 let position = applications.len();
                 let test_product = match &product {
                     crate::CompilationProduct::Native(request) => {

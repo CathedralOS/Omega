@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 2. Empty stdin is invalid; valid problems return 0.
 // Expected output contains: INVALID quantum input
 use omega_language_std::Console;
@@ -10,7 +11,7 @@ use domain::model;
 use domain::evolve;
 use domain::report;
 data Main { reader: Reader; problem: Problem; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let count: Number = block number(&mut main.reader);
     let spacing: Number = block number(&mut main.reader);
     let timestep: Number = block number(&mut main.reader);
@@ -51,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let stiffness: f64 = main.problem.timestep * (1.0 / (main.problem.spacing * main.problem.spacing) + magnitude);
         transition stiffness <= 1000.0 { true -> conditioning(main, row + 1, norm) false -> refused(main) }
     }
-    machine refused(main: &mut Main) { Console::write_line("REFUSED quantum conditioning"); Console::exit_process(3); }
+    machine refused(main: &mut Main) { Console::write_line("REFUSED quantum conditioning"); ProcessExit::exit_process(3); }
     machine normalize(main: &mut Main, row: i32, factor: f64) {
         transition row >= 0 && row < main.problem.cells && row < 32 { true -> normalized(main, row, factor) false -> prepare(main) }
     }
@@ -87,7 +88,7 @@ machine Main::main(main: &mut Main) reaches Console {
         step(&mut main.problem);
         transition { _ -> checkpoint(main, iteration + 1) }
     }
-    machine invalid(main: &mut Main) { Console::write_line("INVALID quantum input"); Console::exit_process(2); }
+    machine invalid(main: &mut Main) { Console::write_line("INVALID quantum input"); ProcessExit::exit_process(2); }
     machine done() {}
 }
 machine probability_norm(problem: &Problem) -> f64 {
@@ -118,7 +119,7 @@ machine energy(problem: &Problem) -> f64 {
 machine absolute(value: f64) -> f64 { transition value < 0.0 { true -> (0.0 - value) false -> (value) } }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

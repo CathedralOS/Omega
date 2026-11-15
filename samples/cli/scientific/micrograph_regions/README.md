@@ -66,8 +66,6 @@ SAMPLE=samples/cli/independent/micrograph_regions
 # To compile once and reuse the emitted executable for all native inputs:
 "$OMEGA" --build-dir "$SAMPLE/build/native" "$SAMPLE/main.omg"
 # Set NATIVE_EXE to the exact emitted executable named in that report.
-python3 "$SAMPLE/validate.py" --omega "$OMEGA" --mode native --native-executable "$NATIVE_EXE"
-python3 "$SAMPLE/validate.py" --omega "$OMEGA" --mode both
 ```
 
 Run one compiler execution at a time. `--mode both` compiles once with
@@ -77,10 +75,7 @@ stdout, stderr and exact exit, so agreement on termination alone does not pass.
 The checker and native/Terminal validation are separate requirements.
 
 `expected/frozen.json` freezes input and stdout SHA-256 identities before Omega
-execution. `reference.py` constructs an independent union-find oracle, differing
-from the application's queue traversal. It is an authoring/reference tool,
-not the delivered application and never invoked by `validate.py`. Do not
-regenerate expected files to resolve an application mismatch.
+execution. Do not regenerate expected files to resolve an application mismatch.
 
 The suite has 19 valid cases: exact synthetic grayscale images under both
 connectivities, touching lobes, an empty foreground, threshold ties at 128 and

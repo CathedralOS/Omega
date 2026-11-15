@@ -213,9 +213,7 @@ pub fn sealed_native_execution(
                 return Err("hosted intrinsic has no closed realization for this target".into());
             }
             match operation {
-                HostedOperation::ConsoleExitProcess | HostedOperation::ProcessExit => {
-                    Execution::HostedExitProcessI32
-                }
+                HostedOperation::ProcessExit => Execution::HostedExitProcessI32,
                 HostedOperation::ConsoleReadByte => Execution::HostedReadByte,
                 HostedOperation::ConsoleWriteByte => Execution::HostedWriteByteI32,
             }
@@ -301,21 +299,16 @@ mod sealed_execution_tests {
 
     #[test]
     fn selected_sealed_execution_preserves_exact_meaning_and_target() {
-        let exit = sealed_native_execution(
-            Meaning::Hosted(HostedOperation::ConsoleExitProcess),
-            "macos_arm64",
-        )
-        .unwrap();
+        let exit =
+            sealed_native_execution(Meaning::Hosted(HostedOperation::ProcessExit), "macos_arm64")
+                .unwrap();
         assert_eq!(exit, Execution::HostedExitProcessI32);
         assert_eq!(reconcile_sealed_execution(exit, Some(exit)).unwrap(), exit);
         assert!(reconcile_sealed_execution(exit, Some(Execution::HostedWriteByteI32)).is_err());
         assert_eq!(reconcile_sealed_execution(exit, None).unwrap(), exit);
         assert!(
-            sealed_native_execution(
-                Meaning::Hosted(HostedOperation::ConsoleExitProcess),
-                "uefi_x86_64"
-            )
-            .is_err()
+            sealed_native_execution(Meaning::Hosted(HostedOperation::ProcessExit), "uefi_x86_64")
+                .is_err()
         );
         assert!(
             sealed_native_execution(

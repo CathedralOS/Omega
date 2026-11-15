@@ -16,7 +16,7 @@ requires observed == current && observed == 7.0
 boundary trait FloatObservation {
     machine observe(item: &Ends) -> f64
     requires item.kept == 7.0
-    reaches;
+    reaches crashes none;
 }
 SelectedFloatObservation satisfies FloatObservation {
     machine observe(item: &Ends) -> f64

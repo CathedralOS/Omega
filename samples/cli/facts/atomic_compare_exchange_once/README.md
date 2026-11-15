@@ -30,10 +30,8 @@ and contention remain separate acceptance.
 | Other machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) |
 | Selected target body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) |
 
-Every twin changes only the first failure ordering from `Receive` to `Publish`.
-Failure cannot publish or exceed the success ordering. The matching pins are
-`tests/omega/{pass,fail}/facts/atomic_compare_exchange_once_through_<place>_{exit,rejected}`.
-Each positive has four hosted entry bindings and expects exit 0.
+Every twin changes only the first failure ordering from `Receive` to `Publish`. Failure
+cannot publish or exceed the success ordering.
 
 The match program runs both Boolean choices for success and mismatch. One arm
 writes an independently checked path marker, so always choosing one arm cannot

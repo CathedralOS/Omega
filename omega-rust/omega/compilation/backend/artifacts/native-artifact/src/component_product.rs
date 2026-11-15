@@ -77,6 +77,9 @@ impl NativeComponentProduct {
         {
             return Err("component image body belongs to another artifact or native target".into());
         }
+        let stack_bytes = demand
+            .ceiling_bytes()
+            .ok_or("component calls require a finite stack demand without hosted imports")?;
         let locator = target::NormalizedComponentLocator::for_image(
             runtime.target(),
             image.image().contents(),
@@ -88,7 +91,7 @@ impl NativeComponentProduct {
                 selected_provider_plans,
                 stack_demand: Some(StackDemandFacts {
                     entry: demand.entry(),
-                    ceiling_bytes: demand.ceiling_bytes(),
+                    ceiling_bytes: stack_bytes,
                     stack_alignment: demand.stack_alignment(),
                 }),
                 realization_identity: Some(*locator.identity_digest()),
@@ -105,7 +108,7 @@ impl NativeComponentProduct {
             authority,
             locator,
             provider_plan: *call.plan_digest(),
-            stack_bytes: demand.ceiling_bytes(),
+            stack_bytes,
             stack_alignment: demand.stack_alignment(),
         })
     }

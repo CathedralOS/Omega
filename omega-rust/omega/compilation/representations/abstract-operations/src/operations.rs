@@ -293,7 +293,7 @@ pub enum AbstractOperation {
     ElementViewRead {
         psi_operation: OperationId,
         result: AbstractResult,
-        source: PlaceId,
+        source: StructuralArgument,
         index: ValueId,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
@@ -621,6 +621,9 @@ pub enum AbstractOperation {
         when_false: AbstractSuccessor,
     },
     StructuralCase {
+        /// The checked pre-dispatch read, preserved when a CFG rewrite moves
+        /// this terminator into another block. This is not a successor edge.
+        psi_block: BlockId,
         source: PlaceId,
         path: Vec<StructuralPathSegment>,
         cases: Vec<AbstractStructuralCaseSuccessor>,
@@ -1006,7 +1009,6 @@ impl AbstractOperation {
             Self::EliminateEmpty { path, .. }
             | Self::StorageAddress { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
-            | Self::ElementViewRead { path, .. }
             | Self::ReleaseReference { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. }
@@ -1017,10 +1019,13 @@ impl AbstractOperation {
             | Self::StructuralByteSequenceFieldLength { path, .. }
             | Self::StructuralByteSequenceFieldRead { path, .. }
             | Self::MoveStructuralField { path, .. } => vec![path.as_slice()],
-            Self::ElementViewWrite {
-                destination, path, ..
+            Self::ElementViewRead { source, path, .. }
+            | Self::ElementViewWrite {
+                destination: source,
+                path,
+                ..
             } => {
-                vec![destination.path.as_slice(), path.as_slice()]
+                vec![source.path.as_slice(), path.as_slice()]
             }
             Self::MoveStructuralValue { source, .. }
             | Self::ReleaseActivationClaim { source, .. }

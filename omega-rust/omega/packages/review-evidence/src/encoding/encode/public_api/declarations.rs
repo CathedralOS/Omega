@@ -226,7 +226,9 @@ pub(in crate::encoding::encode) fn data_shape(
             Ok(())
         })
     })?;
-    encoder.sequence_field("members", &shape.members, encode_data_member)
+    encoder.sequence_field("members", &shape.members, |encoder, member| {
+        encode_data_member(encoder, member, shape.lifetime_parameter_count)
+    })
 }
 
 fn spelling(

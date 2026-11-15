@@ -623,7 +623,8 @@ pub(crate) mod descriptor_operands {
         self as geometry, ReferenceSourceGeometry,
     };
     use legalized_operations::LegalizedRuntimeIndexOperand;
-    use terminal_psi::{StructuralArgument, StructuralTypeShape};
+    use semantic_vocabulary::PlaceId;
+    use terminal_psi::{StructuralArgument, StructuralPathSegment, StructuralTypeShape};
 
     pub(crate) fn source_geometry(
         function: &crate::native_geometry::NativeFunction<'_>,
@@ -689,8 +690,15 @@ pub(crate) mod descriptor_operands {
         if let Some([backing, _]) = completed_view_words(function, builder, row, source, indices)? {
             return Ok(backing);
         }
-        let (pointer, leaf_index) =
-            stored_address(function, builder, row, source, indices, &geometry)?;
+        let (pointer, leaf_index) = stored_address(
+            function,
+            builder,
+            row,
+            source.place,
+            &source.path,
+            indices,
+            &geometry,
+        )?;
         let leaf_indices = &indices[leaf_index..];
         let address_width = if matches!(shape, StructuralTypeShape::FixedArray { .. }) {
             0
@@ -771,17 +779,18 @@ pub(crate) mod descriptor_operands {
         geometry::align(shape.byte_size, shape.alignment).filter(|stride| *stride != 0)
     }
 
-    fn stored_address(
+    pub(super) fn stored_address(
         function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
-        source: &StructuralArgument,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
         indices: &[LegalizedRuntimeIndexOperand],
         geometry: &ReferenceSourceGeometry,
     ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
-        let (pointer, pointer_slots) = if source.path.is_empty() {
+        let (pointer, pointer_slots) = if path.is_empty() {
             (
-                Some(place_pointer(builder, row, source.place, 0)?),
+                Some(place_pointer(builder, row, place, 0)?),
                 geometry.pointer_slots.as_slice(),
             )
         } else {
@@ -789,19 +798,19 @@ pub(crate) mod descriptor_operands {
                 function,
                 builder,
                 row,
-                source.place,
+                place,
                 geometry.byte_offset,
                 &geometry.pointer_slots,
             )?
         };
         let pointer = pointer.ok_or_else(invalid)?;
         let (pointer, leaf_index) =
-            cross_references(builder, row, source.place, pointer, indices, pointer_slots)?;
-        let leaf_indices = &indices[leaf_index..];
+            cross_references(builder, row, place, pointer, indices, pointer_slots)?;
+        let leaf_indices = indices.get(leaf_index..).ok_or_else(invalid)?;
         let pointer = scale(
             builder,
             row,
-            source.place,
+            place,
             geometry.byte_offset,
             pointer,
             leaf_indices,
@@ -831,7 +840,15 @@ pub(crate) mod descriptor_operands {
         {
             return Err(invalid());
         }
-        let (pointer, leaf) = stored_address(function, builder, row, source, indices, &geometry)?;
+        let (pointer, leaf) = stored_address(
+            function,
+            builder,
+            row,
+            source.place,
+            &source.path,
+            indices,
+            &geometry,
+        )?;
         let (pointer, displacement) = super::memory_pointer(
             builder,
             row,
@@ -1064,31 +1081,18 @@ pub(crate) mod leaf_copy {
         {
             return Err(invalid());
         }
-        let (root, pointer_slots) = projection_origin(
+        // A whole descriptor store writes its own header. Only explicit
+        // backing projections may load and follow the descriptor's pointer.
+        let (root, leaf_index) = super::descriptor_operands::stored_address(
             source,
             builder,
             row,
             destination.place(),
-            *byte_offset,
-            &geometry.pointer_slots,
-        )?;
-        let (root, leaf_index) = cross_references(
-            builder,
-            row,
-            destination.place(),
-            root.ok_or_else(invalid)?,
+            &projection.path,
             indices,
-            pointer_slots,
+            &geometry,
         )?;
         let indices = indices.get(leaf_index..).ok_or_else(invalid)?;
-        let root = scale(
-            builder,
-            row,
-            destination.place(),
-            *byte_offset,
-            root,
-            indices,
-        )?;
         let destination = CopyEnd {
             place: destination.place(),
             pointer: root,
@@ -3591,6 +3595,11 @@ pub(crate) mod structural_array {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
+        if crate::selection::structural_array_input::owned_sequence(source, row)
+            .ok_or_else(|| super::invalid())?
+        {
+            return owned_sequence(row, builder);
+        }
         let (element_shape, offsets) =
             crate::selection::structural_array_input::elements(source, row)
                 .ok_or_else(super::invalid)?;
@@ -3616,6 +3625,60 @@ pub(crate) mod structural_array {
             )?;
         }
         builder.transport.pointers.push((result.place, pointer));
+        Ok(())
+    }
+    /// An owned element sequence's roster sits in the image's read-only literal pool, which
+    /// legalization checked against the constant elements. The sequence itself is its
+    /// stored-length descriptor: the pool address, then the element count.
+    fn owned_sequence(
+        row: &LegalizedScalarInstruction,
+        builder: &mut Builder<'_>,
+    ) -> Result<(), SelectedInstructionError> {
+        use super::local_storage::{address, store};
+        let LegalizedScalarInstructionKind::EstablishStructuralArray {
+            result, elements, ..
+        } = &row.kind
+        else {
+            return Err(super::invalid());
+        };
+        if builder
+            .transport
+            .pointers
+            .iter()
+            .any(|(place, _)| *place == result.place)
+        {
+            return Err(super::invalid());
+        }
+        let count = u64::try_from(elements.len()).map_err(|_| super::invalid())?;
+        let slot = builder
+            .transport
+            .push_structural_local_slot(row.operation, result.place, 16, 8);
+        let backing = super::transport_register(builder, result.place, 0)?;
+        builder.emit(
+            selected_instructions::SelectedInstructionKind::ImageAddress {
+                reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
+                    operation: row.operation,
+                    place: result.place,
+                },
+            },
+            builder
+                .constraints
+                .keys
+                .byte_literal_image_address
+                .ok_or_else(|| super::invalid())?,
+            &[backing],
+            super::provenance(row),
+        )?;
+        store(builder, row, slot, 0, backing)?;
+        let length = super::transport_register(builder, result.place, 8)?;
+        builder.emit_materialize_i64(
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(count)),
+            length,
+            super::provenance(row),
+        )?;
+        store(builder, row, slot, 8, length)?;
+        let descriptor = address(builder, row, slot, 0, 16, true)?;
+        builder.transport.pointers.push((result.place, descriptor));
         Ok(())
     }
 }

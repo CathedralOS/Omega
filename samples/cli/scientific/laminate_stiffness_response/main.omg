@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Complete finite laminate workflow. Input selects one declared synthetic stack.
 // Expected exit: 0 (valid 0..4); singular 5 exits 3; invalid input exits 2.
 use omega_language_std::Console;
@@ -8,7 +9,7 @@ use mechanics::report;
 use mechanics::checks;
 use mechanics::fixtures;
 data Main { reporter: Reporter; model: Laminate; input: [u8; 4]; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let observed: LineReadResult = block Console::read_line(&mut main.input);
     transition observed {
         LineReadResult::LineComplete { count } -> input_count(main,count)
@@ -71,7 +72,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition accepted { true -> accepted_report(main) false -> numeric_failure(main) }
     }
     machine numeric_failure(main: &mut Main) {
-        Console::write_line("NUMERIC CHECK FAILED"); Console::exit_process(4);
+        Console::write_line("NUMERIC CHECK FAILED"); ProcessExit::exit_process(4);
     }
     machine accepted_report(main: &mut Main) {
         Console::write_line("LAMINATE micro-units v1");
@@ -107,14 +108,14 @@ machine Main::main(main: &mut Main) reaches Console {
         let next: u64 = layer_index+1;
         transition next < main.model.count && next <= 3 { true -> stress_report(main,next) false -> done(main) }
     }
-    machine singular(main: &mut Main) { Console::write_line("SINGULAR"); Console::exit_process(3); }
-    machine bad_input(main: &mut Main) { Console::write_line("INVALID INPUT"); Console::exit_process(2); }
-    machine bad_model(main: &mut Main) { Console::write_line("INVALID MODEL"); Console::exit_process(2); }
-    machine done(main: &mut Main) { Console::write_line("OK"); Console::exit_process(0); }
+    machine singular(main: &mut Main) { Console::write_line("SINGULAR"); ProcessExit::exit_process(3); }
+    machine bad_input(main: &mut Main) { Console::write_line("INVALID INPUT"); ProcessExit::exit_process(2); }
+    machine bad_model(main: &mut Main) { Console::write_line("INVALID MODEL"); ProcessExit::exit_process(2); }
+    machine done(main: &mut Main) { Console::write_line("OK"); ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

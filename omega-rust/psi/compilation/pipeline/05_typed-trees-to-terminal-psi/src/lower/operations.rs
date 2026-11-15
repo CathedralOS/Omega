@@ -163,12 +163,39 @@ impl Lowering<'_> {
             None => None,
         };
         match &expression.kind {
+            ExpressionKind::Atomic(operation) => match operation {
+                crate::body::AtomicOperation::Access {
+                    place,
+                    event,
+                    operands,
+                } => self.atomic_access(place, *event, operands, result, source),
+                crate::body::AtomicOperation::Fence(ordering) => {
+                    let operation = self.operation_identity(source);
+                    self.emit(
+                        operation,
+                        None,
+                        OperationKind::AtomicFence {
+                            ordering: *ordering,
+                        },
+                    )
+                    .map(Reached::Value)
+                }
+            },
             ExpressionKind::Integer(value) => {
                 let operation = self.operation_identity(source);
                 self.emit(
                     operation,
                     result,
                     OperationKind::IntegerConstant { value: *value },
+                )
+                .map(Reached::Value)
+            }
+            ExpressionKind::Float(value) => {
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    result,
+                    OperationKind::IeeeFloatConstant { value: *value },
                 )
                 .map(Reached::Value)
             }
@@ -241,10 +268,22 @@ impl Lowering<'_> {
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }
+            ExpressionKind::LayoutObservation { application } => {
+                let scalar_type = self.result_type(expression)?;
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    Some(scalar_type),
+                    OperationKind::ReadScalarApplication {
+                        application: *application,
+                    },
+                )
+                .map(Reached::Value)
+            }
             ExpressionKind::ByteElement { base, index } => {
                 self.read_byte_element(base, index, source)
             }
-            ExpressionKind::ByteSubslice { .. } | ExpressionKind::ArrayView { .. } => {
+            ExpressionKind::CollectionSubslice { .. } | ExpressionKind::ArrayView { .. } => {
                 Err(self.internal("a byte descriptor is used as a scalar"))
             }
             ExpressionKind::Payload { base, case, field } => {

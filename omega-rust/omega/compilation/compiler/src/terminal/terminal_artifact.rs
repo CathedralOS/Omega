@@ -65,57 +65,16 @@ impl<'a> TerminalProductionView<'a> {
 pub(crate) struct TerminalProductRequest<'a> {
     pub view: TerminalProductionView<'a>,
     pub selections: &'a OptimizationSelections,
-    pub use_kind: TerminalProductUse<'a>,
 }
-
-#[derive(Clone, Copy)]
-pub(crate) enum TerminalProductUse<'a> {
-    Declarations,
-    Inspection {
-        name: &'a str,
-        source: ProductCodeSource<'a>,
-    },
-}
-
-impl PartialEq for TerminalProductUse<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Declarations, Self::Declarations) => true,
-            (Self::Inspection { name: left, .. }, Self::Inspection { name: right, .. }) => {
-                left == right
-            }
-            _ => false,
-        }
-    }
-}
-impl Eq for TerminalProductUse<'_> {}
 
 impl<'a> TerminalProductRequest<'a> {
-    pub(crate) fn declarations(
+    pub(crate) fn new(
         selection: &'a mut SelectedProviderCustody,
         selections: &'a OptimizationSelections,
     ) -> Self {
         Self {
             view: TerminalProductionView::selection(selection),
             selections,
-            use_kind: TerminalProductUse::Declarations,
-        }
-    }
-
-    pub(crate) fn inspection(
-        selection: &'a mut SelectedProviderCustody,
-        name: &'a str,
-        selections: &'a OptimizationSelections,
-    ) -> Self {
-        let view = TerminalProductionView::selection(selection);
-        let source = ProductCodeSource {
-            publication: view.publication,
-            sources: view.sources,
-        };
-        Self {
-            view,
-            selections,
-            use_kind: TerminalProductUse::Inspection { name, source },
         }
     }
 }
@@ -157,9 +116,8 @@ struct PreparedTerminalProduct<'a> {
 
 impl PreparedTerminalProduct<'_> {
     fn shares_production(&self, other: &Self) -> bool {
-        self.request.use_kind == other.request.use_kind
-            && self.request.view.publication.optimizations().project_psi()
-                == other.request.view.publication.optimizations().project_psi()
+        self.request.view.publication.optimizations().project_psi()
+            == other.request.view.publication.optimizations().project_psi()
             && self.request.view.shares_source(&other.request.view)
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
@@ -216,16 +174,11 @@ fn produce_shared_terminal(
     timings: &mut CompileTimings,
 ) -> Result<Arc<source_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
     let mut observer = PsiStageTimings::new(timings);
-    match first.request.use_kind {
-        TerminalProductUse::Inspection { name, source } => {
-            source.inspect(name, first.request.selections, &mut observer)
-        }
-        TerminalProductUse::Declarations => ProductCodeSource {
-            publication: first.request.view.publication,
-            sources: first.request.view.sources,
-        }
-        .publish(first.request.selections, &mut observer),
+    ProductCodeSource {
+        publication: first.request.view.publication,
+        sources: first.request.view.sources,
     }
+    .publish(first.request.selections, &mut observer)
 }
 
 // Checking one selected target outside a batch: produce its accepted program
@@ -234,7 +187,7 @@ pub(crate) fn check_terminal_conditions(
     selection: &mut SelectedProviderCustody,
 ) -> Result<ProducedTerminalProduct, Vec<Diagnostic>> {
     let selections = selection.terminal_publication.optimizations().clone();
-    let produced = produce_retained_terminal_artifacts(vec![TerminalProductRequest::declarations(
+    let produced = produce_retained_terminal_artifacts(vec![TerminalProductRequest::new(
         selection,
         &selections,
     )])

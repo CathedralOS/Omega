@@ -15,12 +15,14 @@ has no place for them yet. A seal is therefore lost on any byte round trip and
 does not survive a stored artifact.
 */
 
+#[cfg(test)]
+use semantic_vocabulary::OperationId;
 use semantic_vocabulary::{
-    BlockId, MachineId, ObligationId, OperationId, PlaceId, Proposition, StructuralPlaceKind,
-    StructuralTypeId,
+    MachineId, ObligationId, PlaceId, Proposition, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_psi::{
-    CertificateEnvelope, CorrelatedAffineBranchWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    CertificateEnvelope, CorrelatedAffineBranchWitness, ExecutionSite, PrimitiveJudgment,
+    ProofNode, ProofRule,
 };
 
 use crate::CodecError;
@@ -134,20 +136,6 @@ impl EvidenceSeals {
     }
 }
 
-/// The execution site that consumes one sealed obligation: an operation, or
-/// the terminator of a block.
-///
-/// A terminator's storage use is proved at the terminator, before any edge is
-/// chosen: a dispatch on `table.choices[index]` reads the discriminator once,
-/// whichever case follows. Its owner is therefore the block, never one of its
-/// edges, matching the site the checker states the goal at
-/// (`terminal_check_tables::obligations::ExecutionSite`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum EvidenceSite {
-    Operation(OperationId),
-    Terminator(BlockId),
-}
-
 /// Why in-memory evidence cannot be attached to the requested module or scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvidenceSealValidationError {
@@ -158,14 +146,14 @@ pub enum EvidenceSealValidationError {
         machine: MachineId,
         obligation: ObligationId,
     },
-    /// No unique operation or terminator owns this seal's obligation.
+    /// No unique execution site owns this seal's obligation.
     UnownedSeal {
         machine: MachineId,
         obligation: ObligationId,
     },
     SealMismatch {
         machine: MachineId,
-        site: EvidenceSite,
+        site: ExecutionSite,
         obligation: ObligationId,
     },
 }
@@ -224,8 +212,8 @@ impl EvidenceSeals {
     }
 }
 
-struct OperationEvidenceGoal {
-    site: EvidenceSite,
+struct ExecutionEvidenceGoal {
+    site: ExecutionSite,
     obligation: ObligationId,
     proposition: Option<Proposition>,
 }
@@ -295,10 +283,8 @@ fn machine_place_types(
 
 struct MachineEvidenceGoals<'module> {
     machine: &'module terminal_psi::TerminalMachine,
-    /// Every execution site of the machine, sorted: its operations and the
-    /// terminator of each block.
-    sites: Vec<EvidenceSite>,
-    goals: Vec<OperationEvidenceGoal>,
+    sites: Vec<ExecutionSite>,
+    goals: Vec<ExecutionEvidenceGoal>,
 }
 
 impl<'module> MachineEvidenceGoals<'module> {
@@ -322,83 +308,88 @@ impl<'module> MachineEvidenceGoals<'module> {
         let mut sites = Vec::new();
         let mut goals = Vec::new();
         let mut places = None;
-        // Operations and terminators state runtime index goals the same way:
-        // one goal per index step of each storage projection they execute.
-        let executions = machine
-            .operations()
-            .map(|operation| {
-                (
-                    EvidenceSite::Operation(operation.id),
-                    Some(operation),
-                    operation.kind.structural_projections(),
-                )
-            })
-            .chain(machine.blocks.iter().map(|block| {
-                (
-                    EvidenceSite::Terminator(block.id),
-                    None,
-                    block.terminator.storage_uses(),
-                )
-            }));
-        for (site, operation, projections) in executions {
+        for operation in machine.operations() {
+            let site = ExecutionSite::Operation(operation.id);
             sites.push(site);
-            let Some(types) = &types else {
-                continue;
-            };
-            if let Some(Ok(Some((obligation, proposition)))) = operation
-                .map(|operation| terminal_semantics::operation_safety_goal(operation, types))
+            if let Some(types) = &types
+                && let Ok(Some((obligation, proposition))) =
+                    terminal_semantics::operation_safety_goal(operation, types)
             {
-                goals.push(OperationEvidenceGoal {
+                goals.push(ExecutionEvidenceGoal {
                     site,
                     obligation,
                     proposition: Some(proposition),
                 });
             }
-            for projection in projections {
-                let mut indices = projection
-                    .path
-                    .iter()
-                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
-                    .peekable();
-                if indices.peek().is_none() {
-                    continue;
-                }
-                let first = goals.len();
-                let places = places.get_or_insert_with(|| machine_place_types(machine));
-                let root = unique_by_id(places, projection.root, |(place, _)| *place)
-                    .and_then(|(_, ty)| *ty);
-                let valid = root.is_some_and(|root| {
-                    let indexed_types = indexed_types.get_or_insert_with(|| {
-                        let mut rows = structural_types.iter().collect::<Vec<_>>();
-                        rows.sort_unstable_by_key(|row| row.id);
-                        rows
-                    });
-                    terminal_semantics::visit_runtime_index_goals(
-                        structural_types.iter(),
-                        |id| unique_by_id(indexed_types, id, |row| row.id).copied(),
-                        root,
-                        projection.path,
-                        types,
-                        |obligation, proposition| {
-                            goals.push(OperationEvidenceGoal {
-                                site,
-                                obligation,
-                                proposition: Some(proposition),
-                            });
-                        },
-                    )
-                    .is_ok()
+        }
+        sites.extend(
+            machine
+                .blocks
+                .iter()
+                .map(|block| ExecutionSite::Block(block.id)),
+        );
+        // These reads execute at their owner's exact point. In particular a
+        // discriminator is read once before selecting any outgoing case edge.
+        let projections = machine
+            .operations()
+            .flat_map(|operation| {
+                operation
+                    .kind
+                    .structural_projections()
+                    .into_iter()
+                    .map(move |projection| (ExecutionSite::Operation(operation.id), projection))
+            })
+            .chain(machine.blocks.iter().flat_map(|block| {
+                block
+                    .terminator
+                    .storage_uses()
+                    .into_iter()
+                    .map(move |projection| (ExecutionSite::Block(block.id), projection))
+            }));
+        for (site, projection) in projections {
+            let mut indices = projection
+                .path
+                .iter()
+                .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+                .peekable();
+            if indices.peek().is_none() {
+                continue;
+            }
+            let first = goals.len();
+            let places = places.get_or_insert_with(|| machine_place_types(machine));
+            let root =
+                unique_by_id(places, projection.root, |(place, _)| *place).and_then(|(_, ty)| *ty);
+            let valid = root.zip(types.as_ref()).is_some_and(|(root, types)| {
+                let indexed_types = indexed_types.get_or_insert_with(|| {
+                    let mut rows = structural_types.iter().collect::<Vec<_>>();
+                    rows.sort_unstable_by_key(|row| row.id);
+                    rows
                 });
-                if !valid {
-                    // A malformed path cannot corroborate a seal or disappear
-                    // as a competing owner of the same obligation.
-                    goals.truncate(first);
-                    goals.extend(indices.map(|(_, obligation)| OperationEvidenceGoal {
-                        site,
-                        obligation,
-                        proposition: None,
-                    }));
-                }
+                terminal_semantics::visit_runtime_index_goals(
+                    structural_types.iter(),
+                    |id| unique_by_id(indexed_types, id, |row| row.id).copied(),
+                    root,
+                    projection.path,
+                    types,
+                    |obligation, proposition| {
+                        goals.push(ExecutionEvidenceGoal {
+                            site,
+                            obligation,
+                            proposition: Some(proposition),
+                        })
+                    },
+                )
+                .is_ok()
+            });
+            if !valid {
+                // A malformed path cannot corroborate a seal or disappear
+                // as a competing owner of the same obligation.
+                goals.truncate(first);
+                goals.extend(indices.map(|(_, obligation)| ExecutionEvidenceGoal {
+                    site,
+                    obligation,
+                    proposition: None,
+                }));
             }
         }
         sites.sort_unstable();
@@ -410,11 +401,11 @@ impl<'module> MachineEvidenceGoals<'module> {
         }
     }
 
-    fn names_one_site(&self, site: EvidenceSite) -> bool {
-        unique_by_id(&self.sites, site, |id| *id).is_some()
+    fn names_one_site(&self, site: ExecutionSite) -> bool {
+        unique_by_id(&self.sites, site, |site| *site).is_some()
     }
 
-    fn obligation(&self, obligation: ObligationId) -> Option<&OperationEvidenceGoal> {
+    fn obligation(&self, obligation: ObligationId) -> Option<&ExecutionEvidenceGoal> {
         unique_by_id(&self.goals, obligation, |row| row.obligation)
     }
 }
@@ -503,14 +494,15 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
     }
 
     /// Returns the original seal index and fingerprint, or absence when this
-    /// site has no seal for the obligation. The caller still accounts for every consumed
+    /// operation has no seal. The caller still accounts for every consumed
     /// seal, so a duplicate or otherwise unconsumed row cannot disappear.
     pub fn fingerprint(
         &self,
         machine: MachineId,
-        site: EvidenceSite,
+        site: impl Into<ExecutionSite>,
         obligation: ObligationId,
     ) -> Result<Option<(usize, [u8; 32])>, EvidenceSealValidationError> {
+        let site = site.into();
         let coordinate = (machine, obligation);
         let ordered = self.order.partition_point(|&position| {
             let seal = &self.seals[position];
@@ -530,7 +522,7 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
     fn validate_at(
         &self,
         position: usize,
-        site: EvidenceSite,
+        site: ExecutionSite,
     ) -> Result<[u8; 32], EvidenceSealValidationError> {
         let seal = &self.seals[position];
         let mismatch = || EvidenceSealValidationError::SealMismatch {
@@ -616,7 +608,8 @@ impl TableTerm for ProofNode {
             ProofRule::PredicateDenotation { premise } => {
                 premises.push(premise);
             }
-            ProofRule::ConjunctionIntroduction(children) => {
+            ProofRule::IeeeFloatOrderChain(children)
+            | ProofRule::ConjunctionIntroduction(children) => {
                 premises.extend(children.iter());
             }
             ProofRule::ConjunctionElimination { conjunction, .. } => {
@@ -762,6 +755,7 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
                 PrimitiveJudgment::ReflexiveEquality => 1,
                 PrimitiveJudgment::ClosedIntegerRelation => 2,
                 PrimitiveJudgment::IntegerCarrierBound => 3,
+                PrimitiveJudgment::ClosedIeeeFloatRelation => 4,
             });
         }
         ProofRule::SemanticAxiom { index: cited } => {
@@ -873,6 +867,10 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
         }
         ProofRule::IntegerPowerOfTwoOrder { .. } => {
             writer.u8(28);
+        }
+        ProofRule::IeeeFloatOrderChain(premises) => {
+            writer.u8(29);
+            writer.len("certificate children", premises.len())?;
         }
     }
     encode_proposition(writer, &node.conclusion)
@@ -1262,6 +1260,38 @@ mod tests {
             canonical_certificate_bytes(&assumption(0)).unwrap(),
             canonical_certificate_bytes(&axiom).unwrap()
         );
+    }
+
+    #[test]
+    fn ieee_chain_fingerprint_covers_each_premise_and_the_closed_judgment() {
+        let leaf = |index| ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::Assumption { index },
+        };
+        let proof = ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::IeeeFloatOrderChain(vec![leaf(0), leaf(1)]),
+        };
+        let original = canonical_certificate_bytes(&proof).unwrap();
+        for position in 0..2 {
+            let mut changed = proof.clone();
+            let ProofRule::IeeeFloatOrderChain(children) = &mut changed.rule else {
+                unreachable!()
+            };
+            children[position].rule = ProofRule::Assumption { index: 7 };
+            assert_ne!(canonical_certificate_bytes(&changed).unwrap(), original);
+        }
+        let mut reversed = proof.clone();
+        let ProofRule::IeeeFloatOrderChain(children) = &mut reversed.rule else {
+            unreachable!()
+        };
+        children.reverse();
+        assert_ne!(canonical_certificate_bytes(&reversed).unwrap(), original);
+        let mut closed = leaf(0);
+        closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIeeeFloatRelation);
+        let encoded = canonical_certificate_bytes(&closed).unwrap();
+        closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation);
+        assert_ne!(canonical_certificate_bytes(&closed).unwrap(), encoded);
     }
 
     #[test]
@@ -1697,7 +1727,7 @@ mod projection_tests {
     }
 
     #[test]
-    fn one_operation_owns_each_nested_array_bound() {
+    fn operations_and_terminators_own_each_nested_array_bound() {
         use semantic_vocabulary::{PlaceId, ScalarTerm, StructuralPlaceKind, StructuralTypeId};
         use terminal_psi::{
             ArrayExtent, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -1826,43 +1856,109 @@ mod projection_tests {
         for (position, seal) in seals.iter().enumerate() {
             assert_eq!(
                 validator
-                    .fingerprint(machine, EvidenceSite::Operation(operation), seal.obligation)
+                    .fingerprint(machine, operation, seal.obligation)
                     .unwrap(),
                 Some((position, seal.fingerprint))
             );
         }
 
-        // The same read as a dispatch discriminator: the block's terminator
-        // executes it before any case edge is chosen, so the block owns both
-        // bounds and no operation or edge can claim them.
+        // The same indexed path can be the shared discriminator read. It
+        // executes after the block's operations, before either case edge.
         let mut dispatch = module.clone();
-        let block = &mut dispatch.machines[0].blocks[0];
-        let OperationKind::PrimitiveScalarRead { source, path } =
-            block.operations.pop().unwrap().kind
+        let OperationKind::PrimitiveScalarRead { path, .. } =
+            &module.machines[0].blocks[0].operations[0].kind
         else {
             unreachable!()
         };
-        block.terminator = terminal_psi::Terminator::StructuralCase {
-            source,
-            path,
-            cases: vec![],
+        let source_block = dispatch.machines[0].blocks[0].id;
+        let cases = [1, 2].map(|raw| semantic_vocabulary::StructuralCaseId::new(raw).unwrap());
+        dispatch.structural_types[0].shape = StructuralTypeShape::Sum {
+            cases: cases
+                .iter()
+                .map(|case| terminal_psi::StructuralCaseDeclaration {
+                    id: *case,
+                    identity: TerminalIdentityIndex::ABSENT,
+                    fields: vec![],
+                })
+                .collect(),
         };
-        let site = EvidenceSite::Terminator(block.id);
+        dispatch.machines[0].blocks[0].operations.clear();
+        dispatch.machines[0].blocks[0].terminator = terminal_psi::Terminator::StructuralCase {
+            source: root,
+            path: path.clone(),
+            cases: cases
+                .iter()
+                .enumerate()
+                .map(
+                    |(position, case)| terminal_psi::StructuralCaseSuccessorEdge {
+                        edge: semantic_vocabulary::EdgeId::new(position as u64 + 1).unwrap(),
+                        target: semantic_vocabulary::BlockId::new(position as u64 + 2).unwrap(),
+                        case: *case,
+                        payload_fields: vec![],
+                        structural_arguments: vec![],
+                        cleanup_actions: vec![],
+                    },
+                )
+                .collect(),
+        };
+        for raw in [2, 3] {
+            let mut arm = crate::semantic_module::entry_tests::unit_machine(machine)
+                .blocks
+                .remove(0);
+            arm.id = semantic_vocabulary::BlockId::new(raw).unwrap();
+            arm.terminator = terminal_psi::Terminator::ReturnUnit {
+                edge: semantic_vocabulary::EdgeId::new(raw + 1).unwrap(),
+                cleanup_actions: vec![],
+            };
+            dispatch.machines[0].blocks.push(arm);
+        }
         let validator = EvidenceSealValidator::new(&dispatch, &seals);
-        assert!(validator.validate_all().is_ok());
+        validator.validate_all().unwrap();
         for (position, seal) in seals.iter().enumerate() {
             assert_eq!(
                 validator
-                    .fingerprint(machine, site, seal.obligation)
+                    .fingerprint(machine, ExecutionSite::Block(source_block), seal.obligation)
                     .unwrap(),
                 Some((position, seal.fingerprint))
             );
+            // Operation 1 and block 1 have the same number but distinct sites.
             assert!(matches!(
-                validator.fingerprint(machine, EvidenceSite::Operation(operation), seal.obligation),
-                Err(EvidenceSealValidationError::SealMismatch { site: claimed, .. })
-                    if claimed == EvidenceSite::Operation(operation)
+                validator.fingerprint(machine, operation, seal.obligation),
+                Err(EvidenceSealValidationError::SealMismatch { .. })
             ));
         }
+        let mut duplicate_owner = dispatch.clone();
+        duplicate_owner.machines[0].blocks[0].operations =
+            module.machines[0].blocks[0].operations.clone();
+        assert!(matches!(
+            EvidenceSealValidator::new(&duplicate_owner, &seals).validate_all(),
+            Err(EvidenceSealValidationError::UnownedSeal { .. })
+        ));
+        let mut changed_extent = dispatch.clone();
+        let StructuralTypeShape::FixedArray { length, .. } =
+            &mut changed_extent.structural_types[1].shape
+        else {
+            unreachable!()
+        };
+        *length = ArrayExtent::Literal(4);
+        assert!(matches!(
+            EvidenceSealValidator::new(&changed_extent, &seals).validate_all(),
+            Err(EvidenceSealValidationError::SealMismatch { .. })
+        ));
+        let mut changed_selector = dispatch.clone();
+        let terminal_psi::Terminator::StructuralCase { path, .. } =
+            &mut changed_selector.machines[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        path[1] = StructuralPathSegment::RuntimeIndex {
+            index: value(1),
+            obligation: obligation(2),
+        };
+        assert!(matches!(
+            EvidenceSealValidator::new(&changed_selector, &seals).validate_all(),
+            Err(EvidenceSealValidationError::SealMismatch { .. })
+        ));
 
         let mut narrower = module.clone();
         let StructuralTypeShape::FixedArray { length, .. } =
@@ -1916,7 +2012,7 @@ mod projection_tests {
             validator
                 .fingerprint(
                     machine_id(2),
-                    EvidenceSite::Operation(OperationId::new(23).unwrap()),
+                    OperationId::new(23).unwrap(),
                     ObligationId::new(2).unwrap()
                 )
                 .unwrap(),
@@ -1926,7 +2022,7 @@ mod projection_tests {
             validator
                 .fingerprint(
                     machine_id(1),
-                    EvidenceSite::Operation(OperationId::new(13).unwrap()),
+                    OperationId::new(13).unwrap(),
                     ObligationId::new(1).unwrap()
                 )
                 .unwrap(),
@@ -2020,7 +2116,7 @@ mod projection_tests {
         assert!(matches!(
             validator.fingerprint(
                 machine_id(1),
-                EvidenceSite::Operation(OperationId::new(13).unwrap()),
+                OperationId::new(13).unwrap(),
                 ObligationId::new(1).unwrap()
             ),
             Err(EvidenceSealValidationError::SealMismatch { .. })
@@ -2034,7 +2130,7 @@ mod projection_tests {
         assert!(matches!(
             validator.fingerprint(
                 machine_id(1),
-                EvidenceSite::Operation(OperationId::new(11).unwrap()),
+                OperationId::new(11).unwrap(),
                 ObligationId::new(1).unwrap()
             ),
             Err(EvidenceSealValidationError::SealMismatch { .. })

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Runtime input: g003g005g0011 LF (three 3-digit readings, units, model).
 // Empty stdin is a malformed record; nominal.txt has authored exit 0.
 // Expected exit: 2.
@@ -35,7 +36,7 @@ machine emit_positive(main: &mut Main, value: f64) reaches Console {
     Console::write_byte(10);
 }
 
-machine emit(main: &mut Main, value: f64) reaches Console {
+machine emit(main: &mut Main, value: f64) reaches ProcessExit + Console {
     transition value < 0.0 {
         true -> negative(main, value)
         false -> positive(main, value)
@@ -47,7 +48,7 @@ machine emit(main: &mut Main, value: f64) reaches Console {
     machine positive(main: &mut Main, value: f64) { emit_positive(main, value); }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let observed: LineReadResult = block Console::read_line(&mut main.input);
     transition observed {
         LineReadResult::LineComplete { count } -> length(main, count)
@@ -132,17 +133,17 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> rejected(main)
         }
     }
-    machine accepted(main: &mut Main) { Console::write_line("ACCEPT"); Console::exit_process(0); }
-    machine rejected(main: &mut Main) { Console::write_line("REJECT: guard_band"); Console::exit_process(1); }
-    machine malformed(main: &mut Main) { Console::write_line("INVALID: record"); Console::exit_process(2); }
-    machine negative(main: &mut Main) { Console::write_line("INVALID: negative_corrected_mass"); Console::exit_process(3); }
-    machine near_zero(main: &mut Main) { Console::write_line("INVALID: total_below_0.01_g"); Console::exit_process(4); }
-    machine bad_units(main: &mut Main) { Console::write_line("INVALID: inconsistent_or_unknown_units"); Console::exit_process(5); }
-    machine bad_model(main: &mut Main) { Console::write_line("INVALID: uncertainty_model"); Console::exit_process(6); }
+    machine accepted(main: &mut Main) { Console::write_line("ACCEPT"); ProcessExit::exit_process(0); }
+    machine rejected(main: &mut Main) { Console::write_line("REJECT: guard_band"); ProcessExit::exit_process(1); }
+    machine malformed(main: &mut Main) { Console::write_line("INVALID: record"); ProcessExit::exit_process(2); }
+    machine negative(main: &mut Main) { Console::write_line("INVALID: negative_corrected_mass"); ProcessExit::exit_process(3); }
+    machine near_zero(main: &mut Main) { Console::write_line("INVALID: total_below_0.01_g"); ProcessExit::exit_process(4); }
+    machine bad_units(main: &mut Main) { Console::write_line("INVALID: inconsistent_or_unknown_units"); ProcessExit::exit_process(5); }
+    machine bad_model(main: &mut Main) { Console::write_line("INVALID: uncertainty_model"); ProcessExit::exit_process(6); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

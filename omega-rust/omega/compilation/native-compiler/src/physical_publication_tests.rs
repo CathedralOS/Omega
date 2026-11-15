@@ -32,6 +32,9 @@ fn authorize_fixture(
 
 fn emit_body<'execution>(
     mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
+    inspect_target: impl FnOnce(
+        &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    ),
 ) -> (
     native_artifact::FragmentObjectProjection,
     terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders<'execution>,
@@ -60,6 +63,7 @@ fn emit_body<'execution>(
             panic!("constant target lowering: {error:?}")
         }
     });
+    inspect_target(&target);
     let projection =
         crate::pipeline::emit_target(target, &observation).unwrap_or_else(|error| match error {
             crate::pipeline::BodyEmissionError::Physical(error) => {
@@ -70,6 +74,55 @@ fn emit_body<'execution>(
             }
         });
     (projection, admitted.providers)
+}
+
+fn reject_changed_entry_literal(
+    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    entry: MachineId,
+) {
+    // Keep the compiled operation and result paired with their optimized
+    // source, and change just the value in a copy of the target plan.
+    let mut mismatched = target.target_operations().clone();
+    let function = mismatched
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == entry)
+        .expect("compiled entry has a target function");
+    let operation = OperationId::new(1).unwrap();
+    let value = function
+        .graph
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|instruction| match &mut instruction.kind {
+            target_operations::TargetUnitOperation::IntegerConstant {
+                psi_operation,
+                value,
+                ..
+            } if *psi_operation == operation => Some(value),
+            _ => None,
+        })
+        .expect("compiled entry retained its original literal");
+    assert_eq!(*value, IntegerValue::Unsigned(7));
+    *value = IntegerValue::Unsigned(8);
+
+    let optimized = target.optimized();
+    let error = target_operations_to_selected_instructions::verify_target_operation_plan_with_closed_module(
+        &mismatched,
+        optimized.plan(),
+        optimized.unit(),
+        target.boundary_origins(),
+        target.lowering_facts().installed_interrupts(),
+        target.lowering_facts().closed_module(),
+    )
+    .expect_err("a retained target literal must agree with the compiled source");
+    assert!(
+        matches!(error,
+            target_operations_to_selected_instructions::TargetOperationAuditError::SourceCustodyMismatch {
+                machine: Some(rejected_machine), ..
+            } if rejected_machine == entry),
+        "{error:?}"
+    );
 }
 
 fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
@@ -275,6 +328,7 @@ fn check_publication(through_boundary: bool) {
         entry,
         private_entry_ram: &[],
         providers: ProviderAdmissionRequest {
+            native_bindings: &Default::default(),
             profile,
             bootstrap_entry,
             program_provider_context: None,
@@ -300,7 +354,11 @@ fn check_publication(through_boundary: bool) {
         &admission,
     )
     .expect("canonical constant admits without provider authority");
-    let (projection, providers) = emit_body(admitted);
+    let (projection, providers) = emit_body(admitted, |target| {
+        if !through_boundary {
+            reject_changed_entry_literal(target, bootstrap_entry);
+        }
+    });
     let unrelated = constant_artifact(!through_boundary);
     assert!(
         projection
@@ -321,6 +379,8 @@ fn check_publication(through_boundary: bool) {
         },
     )
     .expect("publish actual emitted object");
+    image_emission::verify_retained_target_operations(&published.object)
+        .expect("independent target audit accepts the emitted object's retained source");
     let requested = native_artifact::RequestedNativeArtifact::emit_admitted(
         profile.native_target(),
         artifact,

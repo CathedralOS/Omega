@@ -4,134 +4,146 @@ Runs a whole build in order: prepare the inputs, run `build.omg` through
 [build-settings](../build-settings/README.md), call the compiler, and write the
 outputs. Package commands go through the same steps.
 
-Install/update/resume enter [package_commands.rs](src/package/package_commands.rs):
-open package transaction custody, admit the command, execute every requested
-target review, then return the complete roster for decisions and publication.
-An error leaves accepted files unchanged and releases the transaction on return.
-One caller-owned sponsored session spans all targets and automatic resume rounds;
-discard stays a package-file operation and does not compile source. Package
-management selects discovery/bound policy passes and admits exact reuse.
-[package_review.rs](src/package_review.rs) executes each admitted pass dependency-first:
-prepare Build, satisfy component demands, complete review, then return evidence
-to package policy. It retains suspended consumer Builds through cache-miss
-recovery. Install/update and read-only audit share this executor; optional cache
-publication occurs only after policy admits the completed review and cache write.
+Install, update and resume start in [package_commands.rs](src/package/package_commands.rs).
+It opens a package transaction, admits the command, runs every requested
+target review, and returns all targets for decisions and publication. On an error, accepted files stay unchanged and the transaction
+is released on return. One caller-owned sponsored session covers all targets
+and automatic resume rounds. Discard only edits package files. Package management chooses the discovery and bound policy
+passes and admits exact reuse.
+[package_review.rs](src/package/package_review.rs) runs each admitted pass,
+dependencies first: prepare Build, meet component demands, finish review,
+and return the evidence to package policy. It keeps suspended consumer Builds
+through cache-miss recovery. Install, update and read-only audit
+share this code; the optional cache write happens only after policy admits
+the finished review and the write.
 
-[package_inspection.rs](src/package_inspection.rs) owns the read-only audit
-lifecycle: open package custody, reserve one session, prepare the target roster,
-review each target, finish the report and dispose staging. An unavailable target
-remains in the report while later targets continue. Package management retains
-pinned resolution, policy comparison, bounded reporting and the final unchanged-file
-check; the application cannot publish an audit as package acceptance.
+[package_inspection.rs](src/package/package_inspection.rs) runs the read-only
+audit: open the package, reserve one session, list the targets, review each,
+finish the report and delete staging. An unavailable target stays in the
+report and later targets still run. Package management keeps pinned
+resolution, policy comparison, bounded reporting and the final unchanged-file
+check; the application cannot publish an audit as package
+acceptance.
 
-Start at [build.rs](src/build.rs). One typed `BuildRequest` selects a host,
-single explicit target or batch, and a check, retained Terminal, native or named
-Terminal inspection product. Terminal production retains its canonical artifact
-for interpretation, rollback comparison or explicit publication, without native
-realization. Inspection has one target context and uses a private workspace without
-native publication. The entrance
+Start at [build.rs](src/build.rs). One typed `BuildRequest` picks the host,
+one explicit target or a batch, and the product: a check, a retained
+Terminal artifact, a native program or a named Terminal inspection. Terminal
+production keeps its canonical artifact for interpretation, rollback
+comparison or explicit publication, with no native work. Inspection uses one
+target and a private workspace and publishes nothing native. `build`
 admits output directories, prepares the project, requests products through
-package admission and compiler facades, and publishes ordered outcomes. A target's directory
-refusal stays beside that target; it does not hide successful siblings. Checks
-use disposable workspaces and do not claim the requested product directory.
+package admission and the compiler's public interface, and publishes ordered
+results. A refused target directory is reported beside that target and
+does not hide successful siblings. Checks use throwaway
+workspaces and never claim the requested product directory.
 
-A Terminal consumer keeps the retained Build companion as well as the artifact.
-Its explicit entry receipt and provider selection reach the runtime separately
-from host provisions. A deployment tag alone selects target bodies, not the
-Build-selected program entry; omitting that receipt runs the artifact's default
-entry instead. Selecting the entry grants no backing storage or host authority.
+A Terminal consumer keeps the retained Build record as well as the artifact.
+Its explicit entry receipt and provider selection reach the runtime
+separately from host provisions. A deployment tag selects target
+bodies only, not the program entry Build chose; without the receipt, the
+artifact's default entry runs. Selecting the entry grants no backing storage
+or host authority.
 
-[products.rs](src/products.rs) translates package and standalone product demands.
-[project_compilation.rs](src/project_compilation.rs) shows ordinary package
-compilation: settle returned Builds, admit the target batch and prepare products, then reconcile
-package identities and dispose staging. Package management returns requests; it
-does not invoke this route. Its completion owner retains acquisition custody and
-one aggregate sponsor until every target returns. An inadmissible target remains
-an ordered refusal beside successful siblings. A failed staging close is reported.
-SDK callers use the same `build(BuildRequest)` entrance, including the
-`package_batch` counter probe. There is
-no separate prepared-project check/native/inspection API or static graph resolver.
+[products.rs](src/project/products.rs) translates package and standalone
+product demands. [project_compilation.rs](src/project/project_compilation.rs)
+shows ordinary package compilation: settle returned Builds, admit the target
+batch, prepare products, reconcile package identities and delete staging.
+Package management returns requests; it does not call this code. Its
+completion step holds the acquired packages and one shared sponsor until
+every target returns. An inadmissible target is an ordered refusal beside
+successful siblings. A failed staging close is reported. SDK callers use the same `build(BuildRequest)`
+function, including the `package_batch` counter probe. There is no separate
+prepared-project check/native/inspection API or static graph resolver.
 
-`package_batch --native-evidence --compare-single-targets --run` observes the
-ordinary package route before source preparation starts. With
-`OMEGA_PHASE_PROFILE=1`, it retains per-target Omega stage and emission counts,
-compares native bytes against independent single-target requests, and executes
-the host image and reloaded Terminal artifact. Its positional expected counts
-remain explicit assertions; independent comparison requests start after that
-measurement. These counters cover source completion, Product Terminal
-publication, Build execution and settled checking, not each numbered Psi stage
-or separate calling-policy publications.
+`package_batch --native-evidence --compare-single-targets --run` measures
+the ordinary package build from before source preparation starts. With
+`OMEGA_PHASE_PROFILE=1`, it records Omega stage and emission counts per
+target, compares the native bytes with separate single-target requests, and
+runs the host image and the reloaded Terminal artifact. Its positional expected
+counts are explicit assertions; comparison requests start after that
+measurement. The counters cover source completion,
+Product Terminal publication, Build execution and settled checking, not each
+numbered Psi stage or separate calling-policy publications.
 
-[source_resolution.rs](src/build_execution/source_resolution.rs) owns executed
-discovery for those consumers and package commands. Its
-[readiness scheduler](src/compile/build_execution/source_resolution_readiness.rs) keeps
-the suspended activation alive while acquiring the exact issued Build
-dependency, settling that dependency's own graph, and asking Psi for the named
-checked Terminal implementation. Installation checks the exact requirement and
-component closure before resuming. Normal return still joins every source
-request; early helper completion neither replaces that join nor replays Build.
-Source acquisition, pins, aliases and workspace selection remain package-owned.
+[source_resolution.rs](src/compile/build_execution/source_resolution.rs)
+discovers sources by running Build, for those consumers and for package
+commands. Its
+[readiness scheduler](src/compile/build_execution/source_resolution_readiness.rs)
+keeps the suspended Build alive while it fetches the exact requested Build
+dependency, settles that dependency's own graph, and asks Psi for
+the named checked Terminal implementation. Installation checks the exact
+requirement and its component closure before resuming. A normal return still
+waits for every source request; an early helper finish neither replaces that
+wait nor replays Build. Packages still own source acquisition,
+pins, aliases and workspace selection.
 
 The runnable [provider-readiness projects](../../../../samples/cli/probes/provider_readiness)
-exercise this route through ordinary CLI review and native/Terminal execution.
-The legacy source-only corpus route below cannot acquire a missing helper;
-its migration to executed project discovery remains open. Workspace observations
-retain the closed source graphs of helpers actually executed to compute their
-declarations. The final join reconciles those graphs independently of Product
-routing; it does not acquire an unselected member's pending Product requests.
-Package locks retain these catalog execution sources for pinned offline recovery
-and read-only audit, without adding Product imports.
+exercise this code through ordinary CLI review and native/Terminal
+execution. Workspace observations keep the closed source graphs of helpers
+that actually ran to compute their declarations. The final join
+reconciles those graphs separately from Product routing; it does not fetch an
+unselected member's pending Product requests. Package locks
+keep these catalog execution sources for pinned offline recovery and
+read-only audit, without adding Product imports.
 
-[source_compilation.rs](src/source_compilation.rs) owns embedded one-shot source
-requests used by standalone products and compiler diagnostics. Its
-`compile_sources`, `check_source` and `produce_source` stops all show the same
-sequence: prepare an opaque compiler invocation, execute its admitted Build
-through [build_execution.rs](src/build_execution.rs), and consume the exact
-return for completion. The compiler no longer starts or steps Build. An existing
-compiler session retains source/check reuse; these operations do not acquire
-packages or replace the project-level `BuildRequest` entrance.
+[source_compilation.rs](src/compile/source_compilation.rs) handles one-shot
+source requests from standalone products and compiler diagnostics. Its
+`compile_sources`, `check_source` and `produce_source` functions all follow
+the same steps: prepare an opaque compiler invocation, run its admitted Build
+through [build_execution.rs](src/compile/build_execution.rs), and finish
+from its exact return. The compiler no longer starts or steps
+Build. An existing compiler session reuses sources and checks; these
+functions do not fetch packages or replace the project-level `BuildRequest`.
 
-[package_compilation.rs](src/package_compilation.rs) owns the admitted package
-invocation. [build_execution.rs](src/build_execution.rs) advances dependency-first
-frontiers, joins generated dependency output, executes ready Builds, and waits for
-demanded independent components before advancing consumers. Ready roots complete
-together through the compiler's product facade. One explicit stack worker spans
-the invocation; nested compiler calls execute inline on that worker.
+[package_compilation.rs](src/package/package_compilation.rs) owns the
+admitted package invocation. [build_execution.rs](src/compile/build_execution.rs)
+works dependencies first: it collects generated dependency output, runs
+ready Builds, and waits for required independent components before moving
+on to consumers. Ready roots finish together through the
+compiler's product interface. One worker thread with an explicit stack runs
+the whole invocation; nested compiler calls run inline on it.
 
-[native_completion.rs](src/native_completion.rs) consumes source-free pending
-native products from both routes. It prepares native work, completes the root
-and component scalar demands through the shared Build evaluator, compiles that
-same preparation, and settles the report and runtime provisions. Failures retain
-the attempted evaluation accounting. Source admission precedes this transfer;
-native production has neither an interpreter dependency nor an evaluator callback.
-Check, Terminal, inspection and component-publication stops do not enter it.
+[native_completion.rs](src/compile/native_completion.rs) takes source-free pending
+native products from both paths. It prepares native
+work, settles the root and component scalar demands through the shared Build
+evaluator, compiles that same preparation, and settles the report and
+runtime provisions. A failure keeps the attempted evaluation's accounting.
+Source admission comes first; native production needs no interpreter and
+no evaluator callback. Check, Terminal, inspection and
+component-publication requests never reach it.
 
-The compiler returns an opaque `PackageBuild`: the application can inspect its
-package inputs, generated bundle and demanded package identities, and join
-component descriptions, but cannot extract its source continuation. Component
-executable custody stays in the compiler session. `prepare_package` prepares a
-root Build for diagnostic consumers. The corpus uses these same operations,
-not a test-only dependency scheduler.
+The compiler returns an opaque `PackageBuild`. The application can read its
+package inputs, generated bundle and required package identities, and join
+component descriptions, but cannot extract its source continuation. Component executables stay in the compiler session.
+`prepare_package` prepares a root Build for diagnostic callers.
 
-[publication.rs](src/publication.rs) publishes admitted products and is also used
-by execution. The CLI owns argument spelling, console output and process exits,
-not this lifecycle. Shared temporary directories belong to `platform-custody`.
+[publication.rs](src/project/publication.rs) publishes admitted products;
+execution uses it too. The CLI owns argument spelling, console output and
+process exit codes, not these steps. Shared temporary directories belong to
+`platform-custody`.
 
-Native requests name a retained or published destination. `omega run` uses the
-same preparation and compilation route, retaining its product for Terminal
-replay before publication consumes it. Private entry RAM belongs to that native
-request and reaches both package and standalone compilation. Execution owns
-input replay, native invocation and comparison, not a second project compiler.
+A native request names a retained or published destination. `omega run`
+uses the same preparation and compilation, keeping its product for Terminal
+replay before publication consumes it. Private entry RAM belongs to
+that native request and reaches both package and standalone compilation.
+Execution owns input replay, the native run and comparison, not a second
+project compiler.
 
-Source inspection uses this same lifecycle and returns the compiler's explicit
-inspection product, not a fabricated compilation report. CLI inspection only
-adapts the request and presents/adopts that artifact. Already-encoded artifact
-inspection remains independent of Build: it admits the supplied envelope and
-does not acquire sources or execute code.
+Explicit stage validator requests (`--validator <ExactName>`, `--every-validator`)
+travel in the build request and run in [`stage_validators`](src/project/stage_validators.rs)
+on each published target's retained product, before it is written out. The
+registered roster, in report order, is `TargetOperationCorrespondence` (the
+target-operation audit). Default compilation runs none.
 
-This is the project application owner, not another compiler pipeline. It depends
-on facades and product contracts, not intermediate source representations or
-stage crates. Ordinary and review dependency scheduling are now here.
-Completing Psi's facade and replacing the source Build evaluator with Terminal
-continuations remain explicit obligations of the
+Source inspection follows the same steps and returns the compiler's
+inspection product, not an invented compilation report. CLI inspection only
+adapts the request and shows or adopts that artifact. Inspecting an
+already-encoded artifact skips Build: it admits the supplied envelope and
+neither fetches sources nor runs code.
+
+This crate runs projects; it is not another compiler pipeline. It depends on
+public interfaces and product contracts, not on intermediate source forms or
+stage crates. Dependency scheduling for ordinary builds and reviews lives
+here. Finishing Psi's public interface and replacing the source Build
+evaluator with Terminal continuations remain open in the
 [ownership migration](../../../pipeline.md#build-and-compiler-ownership-migration).

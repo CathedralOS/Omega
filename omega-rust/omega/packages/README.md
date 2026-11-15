@@ -10,7 +10,7 @@
 | [build-output/](build-output/README.md) | Captured source/output trees and materialization |
 | [package-compilation/](package-compilation/README.md) | Source composition and compilation-input custody |
 
-These are independent sibling packages. The compiler consumes input contracts
-without depending on install/update orchestration. Package operations and
-review can consume compiler services. Shared process and filesystem primitives
-live in [../foundation/](../foundation/README.md).
+These packages are independent siblings. The compiler reads input contracts
+without depending on install/update logic; package operations and review
+may call compiler services. Shared process and filesystem helpers live in
+[../foundation/](../foundation/README.md).

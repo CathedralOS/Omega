@@ -33,8 +33,6 @@ Controls:
 - [Scalar parent tag](controls/scalar_parent_tag/main.omg), pinned as
   `opaque_inherited_result_scalar_parent_tag_exit`.
 
-The pinned copies are
-`tests/omega/{pass,fail}/facts/opaque_independent_inherited_result_through_local_*`.
-Before this fold the production carried all nine places; the eight others
-repeated the row's transport, and their twins all reported the same producer
-diagnostic as the checked-result twin.
+Before this fold the production carried all nine places; the eight others repeated
+the row's transport, and their twins all reported the same producer diagnostic as
+the checked-result twin.

@@ -17,3 +17,56 @@ machine construct_unrestricted_plan(schema: reflect::TypeSchema) -> AccessPlan {
 }
 
 machine return_plan(plan: AccessPlan) -> AccessPlan { plan }
+
+
+use omega::language::core::access::allow_readers;
+use omega::language::core::access::allow_writers;
+use omega::language::core::access::observe;
+use omega::language::core::AccessRegion;
+use omega::language::core::FieldAccess;
+use omega::language::core::Exposure;
+
+public data RuleCell { value: u32; }
+public trait PlanReader { machine read() -> u32; }
+
+machine describe_rule_cell() -> reflect::TypeSchema { reflect::schema<RuleCell>() }
+
+// Naming VecCell does not publish its private value field to this source file.
+machine inaccessible_cell_field() -> reflect::FieldInfo { reflect::field(VecCell::value) }
+
+machine describe_machine() -> reflect::CallableInfo { reflect::callable(return_plan) }
+machine describe_requirement() -> reflect::CallableInfo { reflect::callable(PlanReader::read) }
+
+// The repeated field restriction cannot restore a caller denied by an earlier
+// row. Descriptors remain ordinary data, including the public requirement.
+machine construct_observed_plan<'text>(
+    schema: reflect::TypeSchema<'text>,
+    machine_route: reflect::CallableInfo<'text>,
+    required_route: reflect::CallableInfo<'text>
+) -> AccessPlan<'text> {
+    let mut plan: AccessPlan<'text> = access::new_plan(
+        &schema, Issuance::Only { routes: [machine_route, required_route] }
+    );
+    access::allow_readers(&mut plan,
+        AccessRegion::Subject { schema: schema }, [machine_route, required_route]);
+    access::allow_readers(&mut plan,
+        AccessRegion::Field { field: reflect::field(RuleCell::value) }, [machine_route]);
+    access::allow_readers(&mut plan,
+        AccessRegion::Field { field: reflect::field(RuleCell::value) }, []);
+    access::allow_writers(&mut plan,
+        AccessRegion::Field { field: reflect::field(RuleCell::value) }, []);
+    access::observe(&mut plan, reflect::field(RuleCell::value),
+        FieldAccess::Stable { read: true, write: false, exposure: Exposure::Exported });
+    access::observe(&mut plan, reflect::field(RuleCell::value), FieldAccess::Inaccessible);
+    plan
+}
+
+// Transport supplied ordinary data through the same checked result owner. The
+// normalizer must authenticate its contents even though the record type is real.
+machine transport_observed_plan<'schema, 'text>(schema: reflect::TypeSchema<'schema>, plan: AccessPlan<'text>) -> AccessPlan<'text> { plan }
+
+
+data PlanLookalike<'text> { schema: reflect::TypeSchema<'text>; }
+machine construct_lookalike<'text>(schema: reflect::TypeSchema<'text>) -> PlanLookalike<'text> {
+    PlanLookalike { schema: schema }
+}

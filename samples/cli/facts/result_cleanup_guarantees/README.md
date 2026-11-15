@@ -62,9 +62,6 @@ This row establishes that completed result guarantees survive evaluation context
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects target ISA instructions (`x86_64` / `arm64`), generates calls to `make_token`, `read`, and `drop_token`, and manages register homes and temporary spill storage. Activation frame realization computes worst-case stack usage (WCSU), manages temporary lifetimes across nested calls, and ensures proper prologue and epilogue generation around nominal drop calls in compliance with the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Displacements for stack temporary allocations and basic blocks are encoded with short/near branch relaxation. Function call relocations to `make_token`, `read`, and `drop_token` resolve cleanly. Transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O executable binaries are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across all hosted targets.
 
-The row is pinned by `tests/omega/{pass,fail}/facts/result_cleanup_guarantees_through_*` fixtures; every positive records native exit 0.
-This row does not establish owned-input post-state transport or common Boolean result facts imported from a portable target-family head; those remain separate transport frontiers under `CML4` and `STATE-LOCAL-VALUE-FRONTIER`.
-
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

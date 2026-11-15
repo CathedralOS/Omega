@@ -198,6 +198,13 @@ pub(crate) mod contracts {
         pub parameter_order: Vec<crate::BoundaryParameterKind>,
         pub structural_parameters: Vec<crate::StructuralParameterDeclaration>,
         pub result: crate::TerminalMachineResult,
+        /// The public signature's declared lifetime membership: every input a
+        /// borrowed result leaf may borrow (lifetimes.md, "Returned views").
+        /// Both a selected call (through its public header) and a rigid call
+        /// (through the bodiless requirement) read their caller's loans from
+        /// this one account; a body's actual origins stay in `result`. It
+        /// grants no backing or loan. `None` leaves the frontier unpublished.
+        pub result_lifetimes: Option<Vec<crate::DeclaredResultLifetime>>,
         pub entry_claims: Vec<crate::EntryClaim>,
         // Omitted reach and crash clauses can leave requirements open;
         // an explicit empty clause promises none. Entries follow their own
@@ -274,6 +281,7 @@ pub(crate) mod contracts {
                 parameter_order: Vec::new(),
                 structural_parameters: Vec::new(),
                 result: crate::TerminalMachineResult::Unit,
+                result_lifetimes: None,
                 entry_claims: Vec::new(),
                 declared_service_reach: None,
                 declared_synchronous_entries: None,
@@ -736,14 +744,7 @@ pub(crate) mod values {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct FloatProjectionInputId(pub u32);
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct FloatProjectionContractIdentity {
-        pub format: u16,
-        pub operation: u8,
-        pub declaration: u8,
-        pub catalog_version: u16,
-        pub commitment: [u8; 32],
-    }
+    pub use numerics::float_projection::FloatProjectionContractIdentity;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum FloatMeaningProjectionOperation {

@@ -13,7 +13,6 @@ use typed_trees::expression::{
 };
 
 use super::authority::Access;
-use super::storage_path::names_storage;
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
@@ -270,6 +269,16 @@ impl<'t> Program<'t> {
                     ScalarType::Integer(integer),
                 )
             }
+            ExpressionNode::Integer(literal)
+                if literal.landing().is_none()
+                    && matches!(expected_scalar, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
+                    unreachable!("float destination selected this landing");
+                };
+                let value = self.anonymous_float(id, handle, format)?;
+                (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected_scalar)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -346,6 +355,16 @@ impl<'t> Program<'t> {
             {
                 let truth = self.static_truth(handle).unwrap_or_default();
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
+            }
+            ExpressionNode::Binary(_)
+                if self.wholly_anonymous(handle)
+                    && matches!(expected_scalar, Some(ScalarType::IeeeFloat(_))) =>
+            {
+                let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
+                    unreachable!("float destination selected this landing");
+                };
+                let value = self.anonymous_float(id, handle, format)?;
+                (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
                 let evaluated = self.anonymous_value(id, handle, expected_scalar)?;
@@ -539,11 +558,25 @@ impl<'t> Program<'t> {
                 };
             }
             ExpressionNode::ArrayLiteral(elements) => {
-                return self.array_literal(id, slots, *elements, expected, source);
+                let declared = typed
+                    .expression_table
+                    .constructed_value_type_reference(handle);
+                let array_type = if declared.is_valid() {
+                    Some(self.value_type(id, declared)?)
+                } else {
+                    expected
+                };
+                return self.array_literal(id, slots, *elements, array_type, source);
             }
-            ExpressionNode::Atomic(_) => return unserved("atomic"),
+            ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
-            ExpressionNode::Float(_) => return unserved("float literal"),
+            ExpressionNode::Float(literal) => {
+                let value = self.float_literal(id, literal, expected_scalar)?;
+                (
+                    ExpressionKind::Float(value),
+                    ScalarType::IeeeFloat(value.format()),
+                )
+            }
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
                 return self.indexed(id, slots, indexed, handle, expected, Access::Read);
@@ -666,10 +699,10 @@ impl<'t> Program<'t> {
         self.observed(id, value, expected)
     }
 
-    /// Value-position `match` over a sum with scalar arms. The subject must
-    /// name storage (a slot or a path beneath one), so observing it in the
-    /// dispatch and again in each arm's payload members evaluates nothing
-    /// twice. Each arm is a case pattern or the wildcard, which must be
+    /// A match retains one completed subject capture. Lowering evaluates a
+    /// computed subject once and keeps its owned storage through the selected
+    /// arm, just as a stored subject keeps its exact projected place. Each
+    /// arm is a case pattern or the wildcard, which must be
     /// last; an arm for a case an earlier arm selects can never run and is
     /// refused. Coverage is not decided here: lowering builds the
     /// terminator from the declaration's case table and reports a missing
@@ -687,9 +720,6 @@ impl<'t> Program<'t> {
         let Some(record) = self.opened(id, subject.result, Access::Read)? else {
             return self.scalar_match(id, slots, matched, subject, expected, source);
         };
-        if !names_storage(&subject) {
-            return Err(unserved("match on a subject that is not a place"));
-        }
         if !self
             .typed
             .expression_table
@@ -831,9 +861,9 @@ impl<'t> Program<'t> {
         Ok((arms, default, result))
     }
 
-    /// Each arm transfers one value of the destination's exact type,
-    /// including its regions. Qualification and rigid-value judgments remain
-    /// separate; a matching carrier alone does not erase those obligations.
+    /// Each returning arm transfers the destination's exact type, including
+    /// its domains and regions. Structural arrival parameters carry those
+    /// memberships into the match continuation.
     fn arm_value(
         &mut self,
         id: MachineId,
@@ -856,31 +886,14 @@ impl<'t> Program<'t> {
             return Ok(value);
         }
         let value_type = match value.result {
-            Some(
-                value_type @ (ValueType::Scalar(_, Qualification::NONE)
-                | ValueType::Record(_, Qualification::NONE, _)),
-            ) => value_type,
-            Some(value_type @ ValueType::Record(record, qualification, _)) => {
-                // These views carry their exact domain rows through each arm
-                // and the joined descriptor; their byte facts are checked there.
-                let shared_view = matches!(
-                    self.data_type(id, record)?.shape,
-                    crate::StorageShape::ByteSequence(carrier)
-                        if carrier.is_shared_readable_view()
-                );
-                let admitted = qualification.policy.is_none()
-                    && qualification.domains.members().all(|source| {
-                        self.byte_domains
-                            .iter()
-                            .filter(|row| row.source == source && row.carrier == record)
-                            .count()
-                            == 1
-                    });
-                if !shared_view || !admitted {
-                    return Err(unserved("match with a qualified result"));
-                }
+            // Every returning arm supplies the same arithmetic policy.
+            // Predicate-domain membership still needs its own arrival proof.
+            Some(value_type @ ValueType::Scalar(_, qualification))
+                if qualification.domains.is_empty() =>
+            {
                 value_type
             }
+            Some(value_type @ ValueType::Record(..)) => value_type,
             Some(ValueType::Scalar(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
@@ -1332,6 +1345,26 @@ pub(super) fn binary_selection(
             boolean
         }
         Operands::Ordering if integer(left_type) && left_type == right_type => boolean,
+        Operands::Arithmetic
+            if left_type.as_ieee_float().is_some()
+                && right_type.as_ieee_float().is_some()
+                && left_type != right_type =>
+        {
+            let name = |scalar| match scalar {
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32",
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
+                _ => unreachable!("the mismatch has two known float formats"),
+            };
+            return Err(reject(
+                id,
+                right_source,
+                format!(
+                    "float arithmetic operand types differ: {} and {}; this operation has no implicit format conversion",
+                    name(left_type),
+                    name(right_type),
+                ),
+            ));
+        }
         Operands::Arithmetic | Operands::Shift | Operands::Equality | Operands::Ordering => {
             return Err(typing("operand types"));
         }
@@ -1354,6 +1387,11 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
     left.result == right.result
         && match (&left.kind, &right.kind) {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
+            (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,
+            (
+                ExpressionKind::LayoutObservation { application: a },
+                ExpressionKind::LayoutObservation { application: b },
+            ) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (
                 ExpressionKind::MachineValue { contract: a, descriptor: a_selected },
@@ -1424,7 +1462,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ArrayView { base: a, access: aa, element: ae }, ExpressionKind::ArrayView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
-            (ExpressionKind::ByteSubslice { base: a, start: ast, end: ae }, ExpressionKind::ByteSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
+            (ExpressionKind::CollectionSubslice { base: a, start: ast, end: ae }, ExpressionKind::CollectionSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
                     && a.iter()
@@ -1514,13 +1552,16 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     }
             }
             (
-                ExpressionKind::SavedSubject(_)
+                ExpressionKind::Atomic(_)
+                | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
+                | ExpressionKind::Float(_)
+                | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::ByteSubslice { .. }
+            | ExpressionKind::CollectionSubslice { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)

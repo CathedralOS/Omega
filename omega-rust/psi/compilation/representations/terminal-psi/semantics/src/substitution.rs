@@ -28,6 +28,11 @@ pub fn substitute_proposition_values_with<'input>(
     substitutions: &dyn Fn(ValueId) -> Option<&'input ScalarTerm>,
 ) -> Proposition {
     match proposition {
+        Proposition::FloatMeaningEqual(clause) => {
+            Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
+                substitute_scalar_term_values_with(source, substitutions)
+            }))
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
@@ -142,6 +147,11 @@ pub fn substitute_proposition_structural_places_with<'input>(
     ) -> Option<&'input (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> Proposition {
     match proposition {
+        Proposition::FloatMeaningEqual(clause) => {
+            Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
+                substitute_scalar_term_places(source, substitutions)
+            }))
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
@@ -418,6 +428,47 @@ fn substitute_content_term_places<'input>(
                 .collect(),
         ),
     }
+}
+
+pub(crate) const SCALAR_EXPRESSION_DEPTH: usize = 64;
+pub(crate) const SCALAR_EXPRESSION_NODES: usize = 4096;
+
+pub(crate) fn substitute_bound_scalar_term(
+    term: &ScalarTerm,
+    arguments: &[(ValueId, ScalarTerm)],
+) -> Option<ScalarTerm> {
+    let argument = |id| {
+        let position = arguments
+            .binary_search_by_key(&id, |(value, _)| *value)
+            .ok()?;
+        Some(&arguments[position].1)
+    };
+    // Bound composition before cloning an argument at every occurrence.
+    // Arguments belong to the caller, so their own ValueIds are not bound
+    // again, even when they have the same number as a callee ValueId.
+    let mut remaining = SCALAR_EXPRESSION_NODES;
+    let mut pending = vec![(term, true, 0)];
+    while let Some((mut term, mut bind, depth)) = pending.pop() {
+        if depth > SCALAR_EXPRESSION_DEPTH {
+            return None;
+        }
+        remaining = remaining.checked_sub(1)?;
+        if let ScalarTerm::Value { id, scalar_type } = term
+            && bind
+        {
+            term = argument(*id)?;
+            if term.scalar_type() != *scalar_type {
+                return None;
+            }
+            bind = false;
+        }
+        pending.extend(
+            term.operands()
+                .into_iter()
+                .map(|term| (term, bind, depth + 1)),
+        );
+    }
+    Some(substitute_scalar_term_values_with(term, &argument))
 }
 
 pub(crate) fn substitute_scalar_term_values(

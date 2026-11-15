@@ -82,6 +82,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+    pub native_bindings: &'request crate::RetainedNativeBindings,
     pub native_callbacks: &'request [crate::NativeCallbackArgumentProposal],
     pub installed_interrupts: &'request [crate::InstalledInterruptNativeEntryProposal],
     pub callback_occurrences: &'request [backend_plan::TerminalCallbackOccurrenceProposal],
@@ -383,4 +384,8 @@ pub struct AdmittedBoundarySettlement<'execution> {
 pub enum AdmittedBoundaryExecution<'execution> {
     Provider(&'execution dyn installation_evidence::ProviderExecutionEvidence),
     CompilerBuiltin(super::SettledCompilerBuiltin),
+    NativeBinding {
+        execution: target_operations::NativeBindingExecution,
+        schema: effects::provider_plan::ServiceSchemaDigest,
+    },
 }

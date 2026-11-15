@@ -622,6 +622,22 @@ pub(super) fn decode_provider_execution(
     .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution)
 }
 
+pub(super) fn decode_external_execution(
+    cursor: &mut Cursor<'_>,
+) -> Result<target_operations::ExternalExecutionBinding, FixedViewCopyDecodeError> {
+    match cursor.byte()? {
+        0 => decode_provider_execution(cursor).map(Into::into),
+        1 => target_operations::NativeBindingExecution::from_commitments(
+            cursor.array::<32>()?,
+            cursor.array::<32>()?,
+            cursor.array::<32>()?,
+        )
+        .map(target_operations::ExternalExecutionBinding::NativeBinding)
+        .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution),
+        _ => Err(FixedViewCopyDecodeError::InvalidProviderExecution),
+    }
+}
+
 fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimSource) {
     push_encoded(bytes, source.claim.get().to_le_bytes());
     match &source.entry {

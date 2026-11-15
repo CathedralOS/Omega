@@ -35,7 +35,7 @@ invokes ProgramStorageEntry
 data KernelState dropped by drop_kernel_state { phase: u64; }
 
 public boundary trait CleanupAudit {
-    machine finish() reaches terminates;
+    machine finish() reaches terminates crashes none;
 }
 
 QuietAudit satisfies CleanupAudit {

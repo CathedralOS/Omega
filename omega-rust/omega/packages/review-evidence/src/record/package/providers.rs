@@ -6,9 +6,10 @@
 // folded back into `operation`. `PackageReviewProviderFamilyCoverage` records
 // closed coverage for an atomic boundary-operator family while closed
 // applications remain a separate evidence axis under
-// `boundary_application_realizations`. `PackageReviewBoundaryApplicationRealization`
-// keeps checked bodies and compiler intrinsics as disjoint variants so absent
-// fields are never mistaken for evidence supplied by another role.
+// `PackagePolicyBoundaryApplications::realizations` (`boundary_policy.rs`).
+// `PackagePolicyBoundaryRealization` keeps checked bodies and compiler
+// intrinsics as disjoint variants so absent fields are never mistaken for
+// evidence supplied by another role.
 
 use super::super::identity::PackageReviewNominalIdentity;
 use super::super::signatures::PackageReviewTypeIdentity;

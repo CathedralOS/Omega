@@ -7,13 +7,15 @@ use super::{Program, Region};
 use crate::body::{BorrowedReferent, Signature, StorageShape, ValueType};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_psi::{
-    BoundaryLifetimeDependency, DeclaredResultLifetime, StructuralAccess, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    BoundaryLifetimeDependency, BoundaryReferenceDestination, BoundaryReferenceOutput,
+    DeclaredResultLifetime, StructuralAccess, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 type Checked<T> = Result<T, &'static str>;
 
 type Member = (Region, Vec<StructuralPathSegment>, StructuralAccess);
+type Input = (Region, BoundaryLifetimeDependency);
 type Substitution = [(
     typed_trees::type_identity::LifetimeParameterIdentity,
     Region,
@@ -44,55 +46,9 @@ impl Program<'_> {
         if results.is_empty() {
             return Ok(Some(Vec::new()));
         }
-        let mut inputs = Vec::new();
-        let mut lane = 0_u32;
-        for (position, parameter) in signature.parameters.iter().enumerate() {
-            if !signature.is_place(position) {
-                continue;
-            }
-            if let Some(borrowed) = signature.borrowed(position)
-                && borrowed.referent == BorrowedReferent::Value
-            {
-                let [region] = self.region_tuple(borrowed.regions) else {
-                    return Err("borrowed formal has no single declared outer region");
-                };
-                let Some(region) = reader.region(*region, &[])? else {
-                    return Ok(None);
-                };
-                let access = match borrowed.access {
-                    language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
-                    language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
-                    language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
-                };
-                inputs.push((
-                    region,
-                    BoundaryLifetimeDependency::Referent {
-                        argument_index: lane,
-                        access,
-                    },
-                ));
-            }
-            let mut stored = Vec::new();
-            if !reader.value(*parameter, &[], &mut Vec::new(), &mut stored)? {
-                return Ok(None);
-            }
-            inputs.extend(stored.into_iter().map(|(region, path, access)| {
-                (
-                    region,
-                    BoundaryLifetimeDependency::Stored {
-                        argument_index: lane,
-                        path,
-                        access,
-                    },
-                )
-            }));
-            lane = lane
-                .checked_add(1)
-                .ok_or("reference input ordinal overflows")?;
-        }
-        // Sort once by source identity, then merge each result with its full
-        // input set. There is no input × output expansion in the product.
-        inputs.sort_unstable_by_key(|(region, _)| region_key(*region));
+        let Some(inputs) = reader.inputs(signature)? else {
+            return Ok(None);
+        };
         let mut groups: Vec<(Region, DeclaredResultLifetime)> = Vec::new();
         results.sort_unstable_by_key(|(region, _, _)| region_key(*region));
         for (region, path, _) in results {
@@ -132,6 +88,180 @@ impl Program<'_> {
         groups.sort_unstable();
         Ok(Some(groups))
     }
+
+    pub(crate) fn declared_reference_outputs(
+        &self,
+        machine: MachineId,
+        signature: &Signature,
+        types: &[StructuralTypeDeclaration],
+        parameters: &[StructuralParameterDeclaration],
+    ) -> Checked<Vec<BoundaryReferenceOutput>> {
+        use terminal_semantics::descriptor_lifetimes::descriptor_path;
+        use terminal_semantics::descriptor_results::DescriptorSlotKind;
+
+        let mut outputs = Vec::new();
+        for parameter in parameters {
+            for kind in [DescriptorSlotKind::References, DescriptorSlotKind::Views] {
+                let slots = kind
+                    .writable_slots(
+                        types,
+                        parameter.place,
+                        parameter.structural_type,
+                        parameter.access,
+                    )
+                    .ok_or("boundary parameter has an unresolved writable descriptor frontier")?;
+                for slot in slots {
+                    let path = descriptor_path(types, parameter.structural_type, &slot.path)
+                        .filter(|path| {
+                            path.iter().all(|segment| {
+                                matches!(
+                                    segment,
+                                    StructuralPathSegment::Field(_)
+                                        | StructuralPathSegment::Case(_)
+                                        | StructuralPathSegment::FixedIndex(_)
+                                )
+                            })
+                        })
+                        .ok_or("writable descriptor output has no exact storage path")?;
+                    outputs.push((parameter.position, path));
+                }
+            }
+        }
+        if outputs.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut reader = Frontier {
+            program: self,
+            machine,
+            types,
+            active: Vec::new(),
+        };
+        let inputs = reader
+            .inputs(signature)?
+            .ok_or("boundary output has an unresolved declared lifetime frontier")?;
+        let mut stored = inputs
+            .iter()
+            .filter_map(|(region, input)| match input {
+                BoundaryLifetimeDependency::Stored {
+                    argument_index,
+                    path,
+                    ..
+                } => Some(((*argument_index, path.as_slice()), *region)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        stored.sort_unstable_by_key(|(destination, _)| *destination);
+        let mut declared = Vec::with_capacity(outputs.len());
+        for (position, path) in outputs {
+            let family = declared_storage_path(&path);
+            let destination = (position, family.as_slice());
+            let first = stored.partition_point(|(key, _)| *key < destination);
+            let last = stored.partition_point(|(key, _)| *key <= destination);
+            let [(_, region)] = &stored[first..last] else {
+                return Err("writable descriptor has no unique declared lifetime");
+            };
+            let formal = parameters
+                .get(position as usize)
+                .filter(|formal| formal.position == position)
+                .ok_or("writable descriptor has no exact formal")?;
+            let access =
+                terminal_semantics::references::boundary_descriptor_access(types, formal, &path)
+                    .ok_or("writable descriptor has no declared access")?;
+            let key = region_key(*region);
+            let start = inputs.partition_point(|(other, _)| region_key(*other) < key);
+            let end = inputs.partition_point(|(other, _)| region_key(*other) <= key);
+            let dependencies =
+                boundary_output_dependencies(types, parameters, &inputs[start..end])?;
+            if dependencies.is_empty() {
+                return Err("writable descriptor has no readable lifetime anchor");
+            }
+            declared.push(BoundaryReferenceOutput {
+                destination: BoundaryReferenceDestination::Parameter(position),
+                path,
+                access,
+                dependencies,
+            });
+        }
+        declared.sort_unstable();
+        Ok(declared)
+    }
+}
+
+fn declared_storage_path(path: &[StructuralPathSegment]) -> Vec<StructuralPathSegment> {
+    path.iter()
+        .map(|segment| match segment {
+            StructuralPathSegment::FixedIndex(_) => StructuralPathSegment::AllElements,
+            segment => segment.clone(),
+        })
+        .collect()
+}
+
+fn boundary_output_dependencies(
+    types: &[StructuralTypeDeclaration],
+    parameters: &[StructuralParameterDeclaration],
+    inputs: &[Input],
+) -> Checked<Vec<BoundaryLifetimeDependency>> {
+    use terminal_semantics::descriptor_lifetimes::descriptor_path;
+    use terminal_semantics::descriptor_results::DescriptorSlotKind;
+
+    let mut dependencies = Vec::new();
+    for (_, input) in inputs {
+        let BoundaryLifetimeDependency::Stored {
+            argument_index,
+            path,
+            ..
+        } = input
+        else {
+            dependencies.push(input.clone());
+            continue;
+        };
+        let parameter = parameters
+            .get(*argument_index as usize)
+            .filter(|parameter| parameter.position == *argument_index)
+            .ok_or("boundary output lifetime anchor has no exact formal")?;
+        if parameter.access == StructuralAccess::WriteOnlyBorrow {
+            continue;
+        }
+        let mut add_dependency = |path: Vec<StructuralPathSegment>| -> Checked<()> {
+            let access =
+                terminal_semantics::references::boundary_descriptor_access(types, parameter, &path)
+                    .ok_or("boundary output lifetime anchor has no readable descriptor")?;
+            dependencies.push(BoundaryLifetimeDependency::Stored {
+                argument_index: *argument_index,
+                path,
+                access,
+            });
+            Ok(())
+        };
+        if !path.contains(&StructuralPathSegment::AllElements) {
+            add_dependency(path.clone())?;
+            continue;
+        }
+        // Expand a declared family only through the already checked finite
+        // slot inventory. A view with unresolved positions supplies no paths.
+        let mut found = false;
+        for kind in [DescriptorSlotKind::References, DescriptorSlotKind::Views] {
+            let slots = kind
+                .slots(types, parameter.place, parameter.structural_type)
+                .ok_or("boundary output lifetime anchor has no finite slot inventory")?;
+            for slot in slots {
+                let Some(leaf) = descriptor_path(types, parameter.structural_type, &slot.path)
+                else {
+                    continue;
+                };
+                if declared_storage_path(&leaf) == *path {
+                    add_dependency(leaf)?;
+                    found = true;
+                }
+            }
+        }
+        if !found {
+            return Err("boundary output lifetime family has no exact stored descriptor");
+        }
+    }
+    dependencies.sort_unstable();
+    dependencies.dedup();
+    Ok(dependencies)
 }
 
 fn region_key(region: Region) -> (u8, u64, u32, u32, usize) {
@@ -159,6 +289,59 @@ struct Frontier<'program, 'typed> {
 }
 
 impl Frontier<'_, '_> {
+    fn inputs(&mut self, signature: &Signature) -> Checked<Option<Vec<Input>>> {
+        let mut inputs = Vec::new();
+        let mut lane = 0_u32;
+        for (position, parameter) in signature.parameters.iter().enumerate() {
+            if !signature.is_place(position) {
+                continue;
+            }
+            if let Some(borrowed) = signature.borrowed(position)
+                && borrowed.referent == BorrowedReferent::Value
+            {
+                let [region] = self.program.region_tuple(borrowed.regions) else {
+                    return Err("borrowed formal has no single declared outer region");
+                };
+                let Some(region) = self.region(*region, &[])? else {
+                    return Ok(None);
+                };
+                let access = match borrowed.access {
+                    language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
+                    language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
+                    language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
+                };
+                inputs.push((
+                    region,
+                    BoundaryLifetimeDependency::Referent {
+                        argument_index: lane,
+                        access,
+                    },
+                ));
+            }
+            let mut stored = Vec::new();
+            if !self.value(*parameter, &[], &mut Vec::new(), &mut stored)? {
+                return Ok(None);
+            }
+            inputs.extend(stored.into_iter().map(|(region, path, access)| {
+                (
+                    region,
+                    BoundaryLifetimeDependency::Stored {
+                        argument_index: lane,
+                        path,
+                        access,
+                    },
+                )
+            }));
+            lane = lane
+                .checked_add(1)
+                .ok_or("reference input ordinal overflows")?;
+        }
+        // Sort once by source identity, then merge each result with its full
+        // input set. There is no input × output expansion in the product.
+        inputs.sort_unstable_by_key(|(region, _)| region_key(*region));
+        Ok(Some(inputs))
+    }
+
     fn region(&self, mut region: Region, substitution: &Substitution) -> Checked<Option<Region>> {
         for _ in 0..=substitution.len() {
             region = self.program.resolved(region);
@@ -280,7 +463,9 @@ impl Frontier<'_, '_> {
             );
         }
         let known = match &source.shape {
-            StorageShape::FixedArray { element, length } => {
+            StorageShape::FixedArray {
+                element, length, ..
+            } => {
                 if length.literal() == Some(0) {
                     true
                 } else {
@@ -290,7 +475,9 @@ impl Frontier<'_, '_> {
                     known
                 }
             }
-            StorageShape::ElementView { element, access } => {
+            StorageShape::ElementView {
+                element, access, ..
+            } => {
                 let mut elements = regions;
                 if let Some(access) = access {
                     let Some((region, nested)) = regions.split_first() else {

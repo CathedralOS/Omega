@@ -427,8 +427,8 @@ pub use crate as machine_code;
 pub use boundary::{
     BoundaryByteSequenceArgumentRecord, BoundaryExecutionRecord, BoundaryResultRecord,
     BoundaryScalarResultRecord, BoundarySettlementRecord, BoundaryStructuralResultRecord,
-    CompletionProviderCustodyBinding, PortEffectRecord, ProviderExecutionRecord,
-    derive_completion_provider_custody, execution, ports, settlements,
+    CompletionProviderCustodyBinding, ExternalExecutionRecord, PortEffectRecord,
+    ProviderExecutionRecord, derive_completion_provider_custody, execution, ports, settlements,
 };
 pub use calls::*;
 pub use control_flow::{

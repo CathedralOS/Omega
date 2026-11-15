@@ -5,7 +5,6 @@ normalization (`progress`), target-machine family telescopes, and append-only
 seeded continuation (`seeded_continuation`).
 */
 
-use crate::contracts::proof_facts::normalize_membership_selections;
 use crate::declarations::data::lower_data_definition;
 use crate::declarations::domain::lower_domain_definition;
 use crate::declarations::machine::{
@@ -605,8 +604,11 @@ pub(crate) mod seeded_continuation {
                     "source activation does not retain its paired source coordinates",
                 )]);
             }
+            // A selected continuation owns its typed program by now, so the
+            // projection narrows it in place. A base still shared with a
+            // retained source is copied here, once, and left unchanged.
             let mut typed = typed_trees::declaration_projection::project_source_declarations(
-                &self.typed,
+                Arc::unwrap_or_clone(self.typed),
                 &sources,
             );
             let selection = typed_trees::references::DeclarationSelection::from_program(&typed);
@@ -1749,8 +1751,6 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
-    normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
-    crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
     crate::runtime_callables::validate_pending_token_shapes(
         lowerer.source_trees,
         &lowerer.typed_trees,
@@ -1774,6 +1774,7 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
+        cohort.typed_type_references,
         &cast_destinations,
     )?;
     // A projected assignment can acquire its receiving type only after a
@@ -2114,7 +2115,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         data_implementation_applications: _,
         target_machine_families: _,
         deferred_refusals,
-        boundary_completion_declarations: _,
         evidence_forwardings: _,
         proof_output_calls,
         declaration_indexes: _,

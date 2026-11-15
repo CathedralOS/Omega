@@ -15,6 +15,7 @@ function-identity = { path = "../../../foundation/function-identity" }
 target = { path = "../../backend/target" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 abstract-operations = { path = "../abstract-operations" }
+optimization-unit = { path = "../abstract-operations/optimization-unit" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Compute the right-padding needed to align a message to a fixed column width,
 // from the message's carrier length (10 for "ALERT temp").
 //
@@ -33,7 +34,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("text_padding: computes right-padding to a 16-column width from carrier length");
     main.message = "ALERT temp";
     main.padding = 16 - (narrow_u64_to_i32_saturating(main.message.len) as i32 in Saturating);
@@ -44,13 +45,13 @@ machine Main::main(main: &mut Main) reaches Console {
     machine done(main: &mut Main) {
         Console::write_line("result: the padding count, 6 for this 10-char message (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.padding as i32);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(main.padding as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -10,9 +10,10 @@ it to the same prover and kernel as an authored requirement. Describing an
 arrival is inference, never evidence: the final discharge checks all calls,
 body operations and joins before anything can be accepted.
 
-Only facts about exact scalar actuals cross here. Unrelated caller values or
-storage cannot become callee identities. A written boundary stops caller
-inference, while its own declared facts can justify calls within its body.
+Only facts about exact actuals cross here. Scalar inputs and the current
+values of fields under structural inputs have names in the callee. A written
+boundary stops caller inference, while its own declared facts can justify calls
+within its body.
 */
 
 use semantic_vocabulary::{
@@ -121,14 +122,6 @@ fn describe_calls(
         inhabitation,
     )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
-    let declared = joins::prepare(
-        lowered,
-        id,
-        &mut tables,
-        &prepared.graph,
-        &prepared.context,
-        &elaboration.module.scalar_block_invariants,
-    )?;
     let mut references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
         id,
@@ -140,6 +133,18 @@ fn describe_calls(
         &prepared.types,
         &mut references,
     )?;
+    let declared = joins::prepare(
+        lowered,
+        id,
+        &mut tables,
+        &prepared.graph,
+        &prepared.context,
+        &elaboration.module.scalar_block_invariants,
+        &storage,
+        &mut references,
+        activity,
+    )?;
+
     let mut decided = (0..tables.obligations.len())
         .map(|_| None)
         .collect::<Vec<_>>();
@@ -179,18 +184,27 @@ fn describe_calls(
             .zip(&actuals)
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
             .collect();
-        let predicate = describe(
+        let known = known_at(&tables, &prepared.graph, &prepared.context, id, site.before)?;
+        let mut fields = storage.at_call(
+            &mut references,
             &tables,
-            &prepared.graph,
-            &prepared.context,
-            id,
-            site.before,
+            &call.actuals,
+            &target.structural_parameters,
+            call.site,
+            Construct::Invocation(site.invocation),
+        )?;
+        let predicate = describe(
+            &known,
             &crossing,
             &mut InputBindings {
                 actuals: &actuals,
                 target,
+                denotation: crate::known::TransportInputs::new(known.equations.len()),
+                known: &known,
+                context: &prepared.context,
+                fields: fields.observations(),
             },
-        )?;
+        );
         // What the caller derives of an integer actual without holding it
         // as a fact: the interval of a sum of bounded values, of a call's
         // result, of a cast. The helper's body may need exactly that
@@ -455,22 +469,14 @@ fn derived(
     Ok(found)
 }
 
-/// What machine `id` knows at `point` about the values that cross a contract
-/// boundary there, stated in the names of the other side. `crossing` pairs
-/// each such name with the value it takes here: a callee's formal with the
-/// actual at a call, or a machine's `result` with the value one return
-/// yields. `bindings` says which other values of this machine have a name
-/// on that side; a fact over any value that has none is left out, which only
-/// weakens the description.
-pub(crate) fn describe(
+/// The premises available before projecting a contract description.
+pub(crate) fn known_at(
     tables: &MachineTables,
     graph: &Graph,
     context: &semantic_vocabulary::PropositionContext,
     id: MachineId,
     point: ProgramPoint,
-    crossing: &[(ScalarTerm, ValueId)],
-    bindings: &mut dyn Bindings<Error = Unbound>,
-) -> Checked<Proposition> {
+) -> Checked<crate::known::Known> {
     let mut available = Vec::new();
     for (_, row) in tables.knowledge.iter() {
         if graph.dominates(row.available_from, point)? {
@@ -495,18 +501,33 @@ pub(crate) fn describe(
             assumptions.push((*proposition).clone());
         }
     }
-    let known = crate::known::Known::new(context, &assumptions, &axioms, &tables.values);
-    let equations: Vec<_> = known
-        .equations
-        .iter()
-        .map(|&index| &known.facts[index].proposition)
-        .collect();
-    let definitions: Vec<_> = equations
-        .iter()
-        .filter_map(|equation| match equation {
-            Proposition::Equal(ScalarTerm::Value { id, .. }, definition) => Some((*id, definition)),
-            _ => None,
-        })
+    Ok(crate::known::Known::new(
+        context,
+        &assumptions,
+        &axioms,
+        &tables.values,
+    ))
+}
+
+/// State the available facts using the names on the other side of a contract
+/// boundary. A fact over a value without a name there can only be forgotten.
+pub(crate) fn describe(
+    known: &crate::known::Known,
+    crossing: &[(ScalarTerm, ValueId)],
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Proposition {
+    let definitions: Vec<_> = known
+        .definitions
+        .values()
+        .flatten()
+        .filter_map(
+            |&index| match &known.facts[known.equations[index]].proposition {
+                Proposition::Equal(ScalarTerm::Value { id, .. }, definition) => {
+                    Some((*id, definition))
+                }
+                _ => None,
+            },
+        )
         .collect();
     let mut parts = Vec::new();
     for (name, here) in crossing {
@@ -540,7 +561,7 @@ pub(crate) fn describe(
             substitute(atom, &mut *bindings).ok()
         }));
     }
-    Ok(joins::connective(parts, true))
+    joins::connective(parts, true)
 }
 
 fn flatten<'a>(
@@ -557,12 +578,16 @@ fn flatten<'a>(
     }
 }
 
-struct InputBindings<'a> {
-    actuals: &'a [ValueId],
-    target: &'a TerminalMachine,
+struct InputBindings<'s, 'a> {
+    actuals: &'s [ValueId],
+    target: &'s TerminalMachine,
+    denotation: crate::known::TransportInputs,
+    known: &'s crate::known::Known,
+    context: &'s semantic_vocabulary::PropositionContext,
+    fields: crate::places::CallObservations<'s, 'a>,
 }
 
-impl Bindings for InputBindings<'_> {
+impl Bindings for InputBindings<'_, '_> {
     type Error = Unbound;
     fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
         self.actuals
@@ -571,7 +596,20 @@ impl Bindings for InputBindings<'_> {
             .and_then(|position| self.target.parameters.get(position))
             .filter(|formal| formal.scalar_type == scalar_type)
             .map(|formal| ScalarTerm::value(formal.id, scalar_type))
-            .ok_or(Unbound::Unproved("a caller value is not an actual input"))
+            .or_else(|| {
+                self.fields
+                    .formal_observation(value, scalar_type, |held, snapshot| {
+                        self.known.same_denotation(
+                            self.context,
+                            held,
+                            snapshot,
+                            &mut self.denotation,
+                        )
+                    })
+            })
+            .ok_or(Unbound::Unproved(
+                "a caller value is not read from an actual input",
+            ))
     }
     fn field(
         &mut self,

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::max_i32;
 use omega::language::core::min_i32;
 
@@ -38,7 +39,7 @@ requires self.x >= 0 && self.x <= 31
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     main.line = "                               ";
     main.chars = " -*#";
     main.x = 0;
@@ -134,19 +135,19 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
 
     machine finish(main: &mut Main) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(0);
     }
     machine not_found(main: &mut Main) {
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
     machine bad(main: &mut Main) {
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

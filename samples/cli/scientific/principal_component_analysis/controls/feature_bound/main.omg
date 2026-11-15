@@ -1,14 +1,15 @@
+use omega::language::core::ProcessExit;
 // Intended invalid: a fifth feature exceeds the four-feature storage contract.
 use omega_language_std::Console;
 data Invalid { features: [f64; 4]; }
-machine Invalid::main(main: &mut Invalid) reaches Console {
+machine Invalid::main(main: &mut Invalid) reaches ProcessExit + Console {
  main.features[4] = 1.0;
  Console::write_line("UNREACHABLE feature bound");
- Console::exit_process(0);
+ ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Invalid;
     Invalid::main(&mut entry_storage);
 }

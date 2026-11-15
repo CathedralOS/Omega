@@ -6,7 +6,7 @@ public data Observation [copy] { remaining: u64; remaining_steps: u64; }
 public boundary trait WorkSource {
     machine produce(value: u64) -> u64
     ensures result == value
-    reaches;
+    reaches crashes none;
 }
 SelectedWork satisfies WorkSource {
     machine produce(value: u64) -> u64

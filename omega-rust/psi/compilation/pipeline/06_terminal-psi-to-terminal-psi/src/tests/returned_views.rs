@@ -140,7 +140,9 @@ fn a_provider_view_permission_cannot_be_claimed_as_owned_storage() {
     assert!(
         matches!(crate::judge(Ok(changed)),
         Err(Refusal { reason: RefusalReason::ForeignIdentity, detail, .. })
-        if detail == "reborrow names a different immediate parent occurrence"),
+        if detail.starts_with(
+            "reborrow names a different immediate parent occurrence in machine `"
+        )),
         "a provider result cannot claim ownership of its payload"
     );
 }
@@ -411,15 +413,19 @@ fn a_dynamic_view_without_declared_logical_lifetimes_is_refused() {
         &elaborated.module.structural_types,
         &[],
     );
-    assert!(matches!(
-        terminal_semantics::reference_call_lifetimes(
-            &elaborated.module,
-            caller,
-            &operation,
-            &mut analysis,
-        ),
-        Err("returned dynamic view needs its declared lifetime contract")
-    ));
+    let refusal = match terminal_semantics::reference_call_lifetimes(
+        &elaborated.module,
+        caller,
+        &operation,
+        &mut analysis,
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("a dynamic view still needs its declared lifetime contract"),
+    };
+    assert_eq!(
+        refusal.detail(),
+        Some("returned dynamic view needs its declared lifetime contract")
+    );
 }
 
 #[test]

@@ -6,13 +6,18 @@ reference access capabilities.
 */
 
 mod boundary_results;
-mod selected_results;
+mod declared_results;
 pub(crate) use boundary_results::provider_lifetime_debts;
 pub use boundary_results::{
-    boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
+    boundary_descriptor_access, boundary_result_lifetimes, boundary_result_lifetimes_match,
+    boundary_result_slots, validate_declared_boundary_reference_outputs,
+    validate_provider_reference_outputs,
 };
-pub(crate) use selected_results::validate_result_lifetime_groups;
-pub use selected_results::{SelectedReferenceResult, selected_reference_result};
+pub(crate) use declared_results::validate_result_lifetime_groups;
+pub use declared_results::{
+    DeclaredReferenceResult, declared_lifetime_path_is_static, public_reference_result,
+    requirement_reference_result, selected_reference_result,
+};
 
 pub(crate) mod reference_completion {
 
@@ -270,6 +275,77 @@ pub(crate) mod reference_completion {
         original.ok_or("the view's original borrow cannot be identified")
     }
 
+    /// A shared reference whose arrivals each bring a different live loan
+    /// (`match choice { true -> incoming, _ -> incoming }` forms one loan per
+    /// arm) has no single parent loan at the join. It still borrows the
+    /// caller's storage when the arrival replay traces every arrival to the
+    /// same exact field of one borrowed input: that input is the lender of
+    /// each arm's loan. Arrivals from different inputs or local storage stay
+    /// refused, and so do exclusive references, whose reborrow must descend
+    /// from the one loan its arrival brought.
+    fn joined_incoming_loans(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+    ) -> Result<BorrowedLoanSource, &'static str> {
+        use crate::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
+        const UNRESOLVED: &str =
+            "reference descriptor has an unresolved surviving immediate loan occurrence";
+        let shared = machine
+            .structural_place_type(descriptor.root)
+            .and_then(|ty| {
+                let path = crate::descriptor_lifetimes::descriptor_path(
+                    &module.structural_types,
+                    ty,
+                    &descriptor.path,
+                )?;
+                crate::runtime_structural_path_tip(module.structural_types.iter(), ty, &path)
+            })
+            .is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )
+            });
+        if !shared {
+            return Err(UNRESOLVED);
+        }
+        let origins = analysis
+            .symbolic_source_origins(machine.id, at, descriptor)
+            .ok_or(UNRESOLVED)?;
+        let [
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, projection }),
+        ] = origins.as_slice()
+        else {
+            return Err("joined reference arms borrow from different lenders");
+        };
+        let parameter =
+            crate::exactly_one::exactly_one(machine.structural_parameters.iter(), |parameter| {
+                parameter.place == *source
+            })
+            .filter(|parameter| parameter.access != StructuralAccess::Owned)
+            .ok_or("joined reference arms borrow from different lenders")?;
+        let path = projection.original_descriptor_path().ok_or(UNRESOLVED)?;
+        if projection.window.is_some()
+            || projection
+                .enclosing_storage()
+                .is_none_or(|storage| storage.path != path)
+            || !crate::projection_stays_in_inline_storage(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                path,
+            )
+        {
+            return Err(UNRESOLVED);
+        }
+        Ok(BorrowedLoanSource::Incoming)
+    }
+
     /// Read the source from the descriptor's actual value and arrival flow.
     pub fn borrowed_loan_source<'a>(
         module: &terminal_psi::TerminalModule,
@@ -285,18 +361,54 @@ pub(crate) mod reference_completion {
         >,
     ) -> Result<BorrowedLoanSource, &'static str> {
         let mut parent = None;
+        // Loans that may still own the descriptor here, but not on every
+        // arrival: each arm of a join formed its own loan.
+        let mut joined = false;
         for (identity, lifetime) in candidates {
-            if !lifetime
+            // An input a provider-returned view keeps borrowed is retained for
+            // the result's use, but the provider lends the bytes: that
+            // lifetime authorizes no carrier anywhere and is never a view's
+            // immediate loan occurrence.
+            if lifetime
+                .authorized
+                .values()
+                .all(std::collections::BTreeSet::is_empty)
+            {
+                continue;
+            }
+            let authorized = lifetime
                 .authorized
                 .get(&at)
+                .is_some_and(|names| names.contains(descriptor));
+            if lifetime
+                .surviving
+                .get(&at)
                 .is_some_and(|names| names.contains(descriptor))
+                && !authorized
             {
+                if !lifetime.live.contains(&at) {
+                    return Err(
+                        "reference descriptor has an unresolved surviving immediate loan occurrence",
+                    );
+                }
+                joined = true;
+                continue;
+            }
+            if !authorized {
                 continue;
             }
             if parent.is_some_and(|previous| previous != identity) {
                 return Err("reference descriptor has ambiguous immediate loan occurrences");
             }
             parent = Some(identity);
+        }
+        if joined {
+            if parent.is_some() {
+                return Err(
+                    "reference descriptor has an unresolved surviving immediate loan occurrence",
+                );
+            }
+            return joined_incoming_loans(module, machine, analysis, at, descriptor);
         }
         if let Some(parent) = parent {
             return Ok(BorrowedLoanSource::Loan(parent));
@@ -483,23 +595,71 @@ pub(crate) mod reference_completion {
         }
     }
 
+    /// The storage one call input keeps borrowed after the call returns, and
+    /// for how long. `path` is the caller's storage path under the input's
+    /// place: the argument's own path, or the longer exact source a returned
+    /// reference's published origin binds (`grid.cells` for `pick(&mut grid,
+    /// i)` returning `&mut grid.cells[i].x`). The argument's own loan still
+    /// covers its whole place for the call; this narrower region is what
+    /// lifetimes.md, "Returned views", requires to "remain live for the
+    /// result's use".
+    pub struct RetainedCallLoan {
+        pub position: usize,
+        pub path: Vec<StructuralPathSegment>,
+        pub lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+    }
+
+    /// The exact retained region for a bound source beneath `argument`.
+    /// A loan row captures fields, cases and fixed indices exactly; a
+    /// runtime selector chosen inside the callee, a referent crossing or a
+    /// representation step stops the region at the storage enclosing it.
+    /// Stopping early only widens the retained region, never narrows it.
+    fn retained_call_path(
+        argument: &terminal_psi::StructuralArgument,
+        source: &[StructuralPathSegment],
+    ) -> Vec<StructuralPathSegment> {
+        let exact = source[argument.path.len()..]
+            .iter()
+            .take_while(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            .count();
+        source[..argument.path.len() + exact].to_vec()
+    }
+
     fn retain_call_lifetime(
-        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+        retained: &mut Vec<RetainedCallLoan>,
         position: usize,
+        path: Vec<StructuralPathSegment>,
         lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
-    ) -> Result<(), &'static str> {
-        let previous = retained
-            .get_mut(position)
-            .ok_or("returned borrow dependency has no input position")?;
-        if let Some(previous) = previous {
+    ) {
+        if let Some(previous) = retained
+            .iter_mut()
+            .find(|previous| previous.position == position && previous.path == path)
+        {
+            let previous = &mut previous.lifetime;
             previous.live.extend(lifetime.live);
+            for (at, names) in lifetime.demanded {
+                previous.demanded.entry(at).or_default().extend(names);
+            }
+            for (at, names) in lifetime.surviving {
+                previous.surviving.entry(at).or_default().extend(names);
+            }
             for (at, names) in lifetime.authorized {
                 previous.authorized.entry(at).or_default().extend(names);
             }
         } else {
-            *previous = Some(lifetime);
+            retained.push(RetainedCallLoan {
+                position,
+                path,
+                lifetime,
+            });
         }
-        Ok(())
     }
 
     fn retain_provider_inputs(
@@ -512,23 +672,23 @@ pub(crate) mod reference_completion {
             crate::descriptor_lifetimes::DescriptorPosition,
             crate::descriptor_lifetimes::DescriptorFlowStep,
         >,
-        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+        retained: &mut Vec<RetainedCallLoan>,
     ) -> Result<(), &'static str> {
         use crate::descriptor_results::DescriptorStoredOrigin;
         let parameters = module
             .invocation_structural_parameters(call.callee, call.required_contract)
             .ok_or("returned provider view has no retained input contract")?;
-        if parameters.len() != call.structural_arguments.len() || parameters.len() != retained.len()
-        {
+        if parameters.len() != call.structural_arguments.len() {
             return Err("returned provider view differs from its input contract");
         }
         for slot in slots {
-            if borrowed_descriptor_shape(module, result.structural_type, &slot.path).is_none() {
-                continue;
+            slot.visit(result.structural_type, &mut Vec::new(), &mut |path, containing_type, slot| {
+            if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+                return Ok(());
             }
             let descriptor = crate::descriptor_lifetimes::DescriptorLocation {
                 root: result.place,
-                path: slot.path.clone(),
+                path: path.to_vec(),
             };
             let mut pending = Vec::new();
             for origin in &slot.origins {
@@ -542,7 +702,7 @@ pub(crate) mod reference_completion {
                 }
             }
             if pending.is_empty() {
-                continue;
+                return Ok(());
             }
             let lifetime =
                 crate::descriptor_lifetimes::descriptor_location_lifetime(flow, at, &descriptor);
@@ -573,7 +733,7 @@ pub(crate) mod reference_completion {
                     }
                     DescriptorStoredOrigin::Invocation { .. }
                     | DescriptorStoredOrigin::AccessFormation { .. }
-                    | DescriptorStoredOrigin::Carried => {
+                    | DescriptorStoredOrigin::Carried { .. } => {
                         return Err(
                             "returned provider dependency needs its admitted retention resource",
                         );
@@ -618,15 +778,24 @@ pub(crate) mod reference_completion {
                 }
             }
             for position in inputs {
+                let argument = call
+                    .structural_arguments
+                    .get(position)
+                    .ok_or("returned provider dependency names no actual argument")?;
                 retain_call_lifetime(
                     retained,
                     position,
+                    argument.path.clone(),
                     crate::descriptor_lifetimes::DescriptorLifetime {
                         live: lifetime.live.clone(),
+                        demanded: lifetime.demanded.clone(),
+                        surviving: lifetime.surviving.clone(),
                         authorized: Default::default(),
                     },
-                )?;
+                );
             }
+            Ok::<(), &'static str>(())
+            })?;
         }
         Ok(())
     }
@@ -642,13 +811,17 @@ pub(crate) mod reference_completion {
         caller: &terminal_psi::TerminalMachine,
         operation: &terminal_psi::Operation,
         analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    ) -> Result<Vec<(usize, crate::descriptor_lifetimes::DescriptorLifetime)>, &'static str> {
+    ) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
+        let refuse = |detail| {
+            crate::descriptor_results::DescriptorGraphError::at_operation(
+                module, caller.id, operation, detail,
+            )
+        };
         use super::reference_origins::{
             ReferenceCallContract, ReferenceCallOrigin, bind_reference_call_results,
         };
         use crate::descriptor_lifetimes::{
-            DescriptorLocation, descriptor_location, descriptor_location_lifetime,
-            descriptor_location_type,
+            DescriptorLocation, descriptor_location, descriptor_location_lifetime, descriptor_path,
         };
 
         let Some(result) = operation.result.as_structural().filter(|result| {
@@ -668,11 +841,11 @@ pub(crate) mod reference_completion {
                 operation.kind,
                 terminal_psi::OperationKind::CallDynamic { .. }
             ) {
-                Err(if returns_reference {
+                Err(refuse(if returns_reference {
                     "returned dynamic reference needs its admitted completion resource"
                 } else {
                     "returned dynamic view needs its declared lifetime contract"
-                })
+                }))
             } else {
                 Ok(Vec::new())
             };
@@ -680,28 +853,31 @@ pub(crate) mod reference_completion {
         let (declared_parameters, slots, actual, public) = match call.callee {
             terminal_psi::TargetMachineCallable::Boundary(boundary) => {
                 if returns_reference {
-                    return Err(
+                    return Err(refuse(
                         "returned boundary reference needs its admitted completion resource",
-                    );
+                    ));
                 }
                 let declaration = module
                     .boundary_machine(boundary)
-                    .ok_or("returned boundary view has no exact declaration")?;
+                    .ok_or_else(|| refuse("returned boundary view has no exact declaration"))?;
                 let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result
                 else {
-                    return Err("returned view has no structural boundary result");
+                    return Err(refuse("returned view has no structural boundary result"));
                 };
                 if result.qualifications != expected.qualifications
                     || result.projected_qualifications != expected.projected_qualifications
                 {
-                    return Err("returned view differs from its boundary result contract");
+                    return Err(refuse(
+                        "returned view differs from its boundary result contract",
+                    ));
                 }
                 let slots = crate::boundary_result_slots(
                     &module.structural_types,
                     declaration,
                     crate::descriptor_results::DescriptorSlotKind::Views,
                     result,
-                )?;
+                )
+                .map_err(refuse)?;
                 (
                     declaration.structural_parameters.as_slice(),
                     slots,
@@ -712,48 +888,73 @@ pub(crate) mod reference_completion {
             terminal_psi::TargetMachineCallable::Machine(callee) => {
                 let callee = module
                     .machine(callee)
-                    .ok_or("returned reference call has no actual callee body")?;
-                let signature = callee
-                    .result
-                    .structural()
-                    .ok_or("returned reference call has no structural result contract")?;
+                    .ok_or_else(|| refuse("returned reference call has no actual callee body"))?;
+                let signature = callee.result.structural().ok_or_else(|| {
+                    refuse("returned reference call has no structural result contract")
+                })?;
                 if result.structural_type != signature.structural_type
                     || result.multiplicity != signature.multiplicity
                 {
-                    return Err("returned reference call changes its declared result carrier");
+                    return Err(refuse(
+                        "returned reference call changes its declared result carrier",
+                    ));
                 }
-                let slots = analysis.result_slots(callee.id).ok_or(
-                    "returned reference callee has no complete actual source correspondence",
-                )?;
-                let actual = if returns_reference {
-                    super::reference_origins::reference_result_sources(
-                        &module.structural_types,
-                        &callee.structural_parameters,
-                        signature,
-                        &slots,
-                    )?
+                // A rigid call reaches a bodiless requirement: its declared
+                // lifetimes are the only origins, and no body can narrow them.
+                // It binds through the same public account a selected call reads.
+                if let Some(requirement) =
+                    super::requirement_reference_result(module, callee.id).map_err(refuse)?
+                {
+                    (
+                        callee.structural_parameters.as_slice(),
+                        Vec::new(),
+                        Vec::new(),
+                        Some(requirement),
+                    )
                 } else {
-                    Vec::new()
-                };
-                if actual != signature.reference_sources {
-                    return Err("returned reference header differs from its actual body origins");
+                    let slots = analysis.result_slots(callee.id).ok_or_else(|| {
+                        // A dependency can fail before its return sources are
+                        // exported. Keep that flow's actual machine and site.
+                        analysis.flow(callee.id).err().unwrap_or_else(|| {
+                            refuse("returned reference callee has no complete actual source correspondence")
+                        })
+                    })?;
+                    let actual = if returns_reference {
+                        super::reference_origins::reference_result_sources(
+                            &module.structural_types,
+                            &callee.structural_parameters,
+                            signature,
+                            &slots,
+                        )
+                        .map_err(refuse)?
+                    } else {
+                        Vec::new()
+                    };
+                    if actual != signature.reference_sources {
+                        return Err(refuse(
+                            "returned reference header differs from its actual body origins",
+                        ));
+                    }
+                    let public = call
+                        .required_contract
+                        .filter(|_| returns_reference)
+                        .map(|required| {
+                            super::selected_reference_result(module, caller.id, callee.id, required)
+                        })
+                        .transpose()
+                        .map_err(refuse)?;
+                    if let Some(public) = &public {
+                        public
+                            .validate_actual_sources(&callee.structural_parameters, &actual)
+                            .map_err(refuse)?;
+                    }
+                    (
+                        callee.structural_parameters.as_slice(),
+                        slots,
+                        actual,
+                        public,
+                    )
                 }
-                let public = call
-                    .required_contract
-                    .filter(|_| returns_reference)
-                    .map(|required| {
-                        super::selected_reference_result(module, caller.id, callee.id, required)
-                    })
-                    .transpose()?;
-                if let Some(public) = &public {
-                    public.validate_actual_sources(&callee.structural_parameters, &actual)?;
-                }
-                (
-                    callee.structural_parameters.as_slice(),
-                    slots,
-                    actual,
-                    public,
-                )
             }
         };
         let parameters = public.as_ref().map_or(declared_parameters, |public| {
@@ -766,7 +967,8 @@ pub(crate) mod reference_completion {
                 module.structural_types.iter(),
                 public,
                 call.structural_arguments,
-            )?
+            )
+            .map_err(refuse)?
         } else {
             bind_reference_call_results(
                 module.structural_types.iter(),
@@ -775,7 +977,8 @@ pub(crate) mod reference_completion {
                     sources: &actual,
                 },
                 call.structural_arguments,
-            )?
+            )
+            .map_err(refuse)?
         };
         let mut positions = caller.blocks.iter().flat_map(|block| {
             block
@@ -789,57 +992,57 @@ pub(crate) mod reference_completion {
         });
         let (block, ordinal) = positions
             .next()
-            .ok_or("returned reference has no exact caller operation")?;
+            .ok_or_else(|| refuse("returned reference has no exact caller operation"))?;
         if positions.next().is_some() {
-            return Err("returned reference has ambiguous caller operation coordinates");
+            return Err(refuse(
+                "returned reference has ambiguous caller operation coordinates",
+            ));
         }
         let at = (
             block,
-            u32::try_from(ordinal).map_err(|_| "call ordinal overflows")?,
+            u32::try_from(ordinal).map_err(|_| refuse("call ordinal overflows"))?,
         );
-        let flow = analysis.flow(caller.id).map_err(|error| {
-            error
-                .detail()
-                .unwrap_or("returned reference caller has no complete descriptor flow")
-        })?;
-        let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
-            (0..parameters.len()).map(|_| None).collect();
+        let flow = analysis.flow(caller.id)?;
+        let mut retained = Vec::new();
         for (mapping_index, binding) in bindings.into_iter().enumerate() {
             let source_positions = if let Some(public) = &public {
                 use terminal_psi::ReferenceResultShape;
                 public
                     .reference_regions(&binding.path)
                     .map(|region| {
-                        let region = region?;
+                        let region = region.map_err(refuse)?;
                         let terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
                             argument_index,
                         } = region.origin
                         else {
-                            return Err(
+                            return Err(refuse(
                                 "selected reference input unexpectedly uses provider storage",
-                            );
+                            ));
                         };
-                        usize::try_from(argument_index)
-                            .map_err(|_| "selected reference input ordinal exceeds host positions")
+                        usize::try_from(argument_index).map_err(|_| {
+                            refuse("selected reference input ordinal exceeds host positions")
+                        })
                     })
                     .collect::<Result<Vec<_>, _>>()?
             } else {
                 actual
                     .get(mapping_index)
-                    .ok_or("returned reference binding lost its body mapping")?
+                    .ok_or_else(|| refuse("returned reference binding lost its body mapping"))?
                     .sources
                     .iter()
                     .map(|origin| {
-                        let formal = origin
-                            .parameter()
-                            .ok_or("returned reference has no formal input origin")?;
+                        let formal = origin.parameter().ok_or_else(|| {
+                            refuse("returned reference has no formal input origin")
+                        })?;
                         terminal_psi::structural_parameter_position(parameters, formal.place)
-                            .ok_or("returned reference names no formal input")
+                            .ok_or_else(|| refuse("returned reference names no formal input"))
                     })
                     .collect::<Result<Vec<_>, _>>()?
             };
             if source_positions.len() != binding.sources.len() {
-                return Err("returned reference binding differs from its exact source ordinals");
+                return Err(refuse(
+                    "returned reference binding differs from its exact source ordinals",
+                ));
             }
             let descriptor = descriptor_location(
                 &module.structural_types,
@@ -848,14 +1051,16 @@ pub(crate) mod reference_completion {
                 &binding.path,
                 None,
             )
-            .ok_or("returned reference has no exact result descriptor path")?;
+            .ok_or_else(|| refuse("returned reference has no exact result descriptor path"))?;
             for (position, bound) in source_positions.into_iter().zip(binding.sources) {
                 let ReferenceCallOrigin::Parameter {
                     source,
                     transfers_existing,
                 } = bound.origin
                 else {
-                    return Err("returned invocation reference needs its admitted resource");
+                    return Err(refuse(
+                        "returned invocation reference needs its admitted resource",
+                    ));
                 };
                 if transfers_existing {
                     // The existing descriptor flow transports that input
@@ -865,18 +1070,27 @@ pub(crate) mod reference_completion {
                 let argument = call
                     .structural_arguments
                     .get(position)
-                    .ok_or("returned reference input has no actual argument")?;
+                    .ok_or_else(|| refuse("returned reference input has no actual argument"))?;
                 if argument.access == StructuralAccess::Owned
                     || source.place != argument.place
                     || !source.path.starts_with(&argument.path)
                 {
-                    return Err("returned reference does not retain an actual input loan");
+                    return Err(refuse(
+                        "returned reference does not retain an actual input loan",
+                    ));
                 }
                 let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
                 if lifetime.live.contains(&at) {
-                    return Err("returned reference loan crosses its own call formation");
+                    return Err(refuse(
+                        "returned reference loan crosses its own call formation",
+                    ));
                 }
-                retain_call_lifetime(&mut retained, position, lifetime)?;
+                retain_call_lifetime(
+                    &mut retained,
+                    position,
+                    retained_call_path(argument, &source.path),
+                    lifetime,
+                );
             }
         }
         // A view leaf has no published header row: its origins are the
@@ -896,66 +1110,87 @@ pub(crate) mod reference_completion {
             )
         };
         for slot in &slots {
-            let leaf = descriptor_location_type(
-                &module.structural_types,
+            slot.visit(
                 result.structural_type,
-                &slot.path,
-            )
-            .and_then(|leaf| module.structural_type(leaf))
-            .ok_or("returned view slot has no typed result leaf")?;
-            if !is_view(&leaf.shape) {
-                continue;
-            }
-            let descriptor = DescriptorLocation {
-                root: result.place,
-                path: slot.path.clone(),
-            };
-            for origin in &slot.origins {
-                let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
-                    position,
-                    projection,
-                } = origin
-                else {
-                    continue;
-                };
-                // A formal that is itself a view hands back the descriptor
-                // it was given, or a window of it: that view's backing is
-                // the original one, not the argument's storage.
-                let formal = parameters
-                    .get(*position)
-                    .and_then(|formal| module.structural_type(formal.structural_type))
-                    .ok_or("returned view input has no typed formal")?;
-                if is_view(&formal.shape)
-                    || projection
-                        .path
-                        .contains(&terminal_psi::StructuralPathSegment::Referent)
-                {
-                    continue;
-                }
-                let argument = call
-                    .structural_arguments
-                    .get(*position)
-                    .ok_or("returned view input has no actual argument")?;
-                if argument.access == StructuralAccess::Owned {
-                    // An owned input moves into the callee, so a view it
-                    // returns is a descriptor the input carried, as when a
-                    // view passed by value comes back. The descriptor flow
-                    // transports that view's own loan; the call lends none.
-                    continue;
-                }
-                let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
-                if lifetime.live.contains(&at) {
-                    return Err("returned view loan crosses its own call formation");
-                }
-                retain_call_lifetime(&mut retained, *position, lifetime)?;
-            }
+                &mut Vec::new(),
+                &mut |path, containing_type, slot| {
+                    descriptor_path(&module.structural_types, containing_type, &slot.path)
+                        .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
+                    if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+                        return Ok(());
+                    }
+                    let descriptor = DescriptorLocation {
+                        root: result.place,
+                        path: path.to_vec(),
+                    };
+                    for origin in &slot.origins {
+                        let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
+                            position,
+                            projection,
+                        } = origin
+                        else {
+                            continue;
+                        };
+                        // A formal that is itself a view hands back the descriptor
+                        // it was given, or a window of it: that view's backing is
+                        // the original one, not the argument's storage.
+                        let formal = parameters
+                            .get(*position)
+                            .and_then(|formal| module.structural_type(formal.structural_type))
+                            .ok_or_else(|| refuse("returned view input has no typed formal"))?;
+                        if is_view(&formal.shape)
+                            || projection
+                                .path
+                                .contains(&terminal_psi::StructuralPathSegment::Referent)
+                        {
+                            continue;
+                        }
+                        let argument = call
+                            .structural_arguments
+                            .get(*position)
+                            .ok_or_else(|| refuse("returned view input has no actual argument"))?;
+                        if argument.access == StructuralAccess::Owned {
+                            // An owned input moves into the callee, so a view it
+                            // returns is a descriptor the input carried, as when a
+                            // view passed by value comes back. The descriptor flow
+                            // transports that view's own loan; the call lends none.
+                            continue;
+                        }
+                        let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+                        if lifetime.live.contains(&at) {
+                            return Err(refuse(
+                                "returned view loan crosses its own call formation",
+                            ));
+                        }
+                        retain_call_lifetime(
+                            &mut retained,
+                            *position,
+                            argument.path.clone(),
+                            lifetime,
+                        );
+                    }
+                    Ok::<(), crate::descriptor_results::DescriptorGraphError>(())
+                },
+            )?;
         }
-        retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)?;
-        Ok(retained
-            .into_iter()
-            .enumerate()
-            .filter_map(|(position, lifetime)| lifetime.map(|lifetime| (position, lifetime)))
-            .collect())
+        retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)
+            .map_err(refuse)?;
+        if retained
+            .iter()
+            .any(|loan| loan.position >= parameters.len())
+        {
+            return Err(refuse("returned borrow dependency has no input position"));
+        }
+        // Consumers walk the call's arguments in order: each input's own
+        // region first, then its narrower ones in path order.
+        retained.sort_by(|left, right| {
+            (left.position, left.path.len(), &left.path).cmp(&(
+                right.position,
+                right.path.len(),
+                &right.path,
+            ))
+        });
+        Ok(retained)
     }
 
     pub fn cleanup_disposes_reference(
@@ -1515,17 +1750,12 @@ pub(crate) mod reference_origins {
                     .module
                     .machine(*callee)
                     .ok_or("reference call has no callee")?;
-                let public = operation
-                    .required_contract
-                    .map(|required| {
-                        crate::selected_reference_result(
-                            self.module,
-                            caller.id,
-                            callee.id,
-                            required,
-                        )
-                    })
-                    .transpose()?;
+                let public = crate::public_reference_result(
+                    self.module,
+                    caller.id,
+                    callee.id,
+                    operation.required_contract,
+                )?;
                 let contract = public
                     .as_ref()
                     .map_or(&callee.contract, |public| public.contract());
@@ -2158,37 +2388,52 @@ pub(crate) mod reference_origins {
                 }
                 let mut sources = Vec::with_capacity(slot.origins.len());
                 for origin in &slot.origins {
-                    match origin {
+                    // A result known only within a declared input region,
+                    // such as a selected or rigid requirement call's, keeps
+                    // that whole region (lifetimes.md, "Returned views").
+                    // A result whose runtime element selector was stripped
+                    // keeps the exact storage after that element, with the
+                    // selector as `Element`, so the published origin names
+                    // only what the result can reach. Unresolved indirection or a
+                    // live runtime window has no static region to publish.
+                    let extent = match origin {
                         DescriptorStoredOrigin::Parameter { projection, .. }
                         | DescriptorStoredOrigin::IncomingContents { projection, .. }
-                            if !projection.exact
-                                || projection.indirect
-                                || projection.window.is_some() =>
+                            if projection.indirect || projection.window.is_some() =>
                         {
                             return Err(
-                                "reference result needs an exact retained input projection",
+                                "reference result needs a static retained input projection",
                             );
+                        }
+                        DescriptorStoredOrigin::Parameter { projection, .. }
+                        | DescriptorStoredOrigin::IncomingContents { projection, .. }
+                            if !projection.exact && projection.stripped_origin_path().is_none() =>
+                        {
+                            ReferenceOriginExtent::WithinRegion
                         }
                         DescriptorStoredOrigin::Parameter { .. }
                         | DescriptorStoredOrigin::IncomingSlot { .. }
-                        | DescriptorStoredOrigin::IncomingContents { .. } => {}
+                        | DescriptorStoredOrigin::IncomingContents { .. } => {
+                            ReferenceOriginExtent::Projected
+                        }
                         _ => {
                             return Err(
                                 "reference result backing needs its actual admitted producer",
                             );
                         }
-                    }
+                    };
                     let (position, mut path) =
                         descriptor_input_origin_path(types, parameters, origin)?;
                     if path.iter().any(|step| {
                         !matches!(
                             step,
-                            ReferenceOriginProjection::Exact(
-                                StructuralPathSegment::Field(_)
-                                    | StructuralPathSegment::Case(_)
-                                    | StructuralPathSegment::FixedIndex(_)
-                                    | StructuralPathSegment::Referent
-                            )
+                            ReferenceOriginProjection::Element
+                                | ReferenceOriginProjection::Exact(
+                                    StructuralPathSegment::Field(_)
+                                        | StructuralPathSegment::Case(_)
+                                        | StructuralPathSegment::FixedIndex(_)
+                                        | StructuralPathSegment::Referent
+                                )
                         )
                     }) {
                         return Err("reference result needs a static captured input path");
@@ -2235,13 +2480,16 @@ pub(crate) mod reference_origins {
                         );
                     }
                     // Check the whole path's access, not only its endpoint.
-                    // A mutable result cannot cross a shared ancestor.
+                    // A mutable result cannot cross a shared ancestor. Every
+                    // element of one array has the same access, so the first
+                    // element stands for an unknown one; an empty array has
+                    // no element and fails closed.
                     let exact = path
                         .iter()
                         .map(|step| match step {
                             ReferenceOriginProjection::Exact(segment) => segment.clone(),
                             ReferenceOriginProjection::Element => {
-                                unreachable!("checked static above")
+                                StructuralPathSegment::FixedIndex(0)
                             }
                         })
                         .collect::<Vec<_>>();
@@ -2258,7 +2506,7 @@ pub(crate) mod reference_origins {
                     let source = ReferenceOriginSource {
                         place: parameter.place,
                         path,
-                        extent: ReferenceOriginExtent::Projected,
+                        extent,
                         access,
                     };
                     sources.push(terminal_psi::StructuralReferenceOrigin::Parameter(source));
@@ -2338,6 +2586,10 @@ pub(crate) mod reference_origins {
             if projection.indirect {
                 return Err("dynamic returned view has unresolved indirect backing");
             }
+            if let Some(stripped) = projection.stripped_origin_path() {
+                path.extend(stripped);
+                return Ok(());
+            }
             for segment in &projection.path {
                 match segment {
                     StructuralPathSegment::FixedRange { .. } => break,
@@ -2366,7 +2618,7 @@ pub(crate) mod reference_origins {
             for step in steps {
                 match step {
                     DescriptorContentsStep::Address(segment) => exact.push(*segment),
-                    DescriptorContentsStep::AnyElement { element } => {
+                    DescriptorContentsStep::Element { element, .. } => {
                         let collection = descriptor_location_type(types, root, &exact)
                             .ok_or("returned view contents have no typed collection")?;
                         if super::collection_element_type(types.iter(), collection)
@@ -6026,6 +6278,68 @@ pub(crate) mod reference_views {
         ScalarRepresentationViewPair::classify(source, target)?.view(value)
     }
 
+    pub fn shared_byte_descriptor_storage_matches(
+        source: terminal_psi::ByteSequenceCarrier,
+        referent: terminal_psi::ByteSequenceCarrier,
+    ) -> bool {
+        use terminal_psi::ByteSequenceCarrier::BorrowedView;
+        source == (BorrowedView { access: None })
+            && referent
+                == (BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+    }
+
+    fn shared_byte_descriptor_reference_shapes(
+        source: &StructuralTypeShape,
+        referent: &StructuralTypeShape,
+        access: StructuralAccess,
+    ) -> bool {
+        access == StructuralAccess::SharedBorrow
+            && matches!((source, referent),
+                (StructuralTypeShape::ByteSequence(source), StructuralTypeShape::ByteSequence(referent))
+                    if shared_byte_descriptor_storage_matches(*source, *referent))
+    }
+
+    /// Match a shared borrow of an incoming mutable view's descriptor slot.
+    /// The original formal supplies the backing permission.
+    pub fn shared_direct_byte_descriptor_source(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        source: &terminal_psi::StructuralArgument,
+        reference: StructuralTypeId,
+    ) -> Option<bool> {
+        let StructuralTypeShape::Reference { access, referent } =
+            module.structural_type(reference)?.shape
+        else {
+            return None;
+        };
+        let target = module.structural_type(referent)?;
+        let direct_byte_view =
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None,
+            });
+        if !shared_byte_descriptor_reference_shapes(&direct_byte_view, &target.shape, access) {
+            return None;
+        }
+        let root = machine.structural_place_type(source.place)?;
+        let path =
+            reference_source_storage_path(module.structural_types.iter(), root, &source.path);
+        let actual =
+            crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)?;
+        if actual.shape != direct_byte_view {
+            return None;
+        }
+        Some(
+            source.access == access
+                && source.path.is_empty()
+                && crate::arrival_parameter(machine, source.place).is_some_and(|parameter| {
+                    parameter.structural_type == root
+                        && parameter.access == StructuralAccess::MutableBorrow
+                }),
+        )
+    }
+
     pub fn reference_source_compatible<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
         source: StructuralTypeId,
@@ -6040,6 +6354,11 @@ pub(crate) mod reference_views {
             return false;
         };
         if source == *referent {
+            return true;
+        }
+        if crate::structural_shape(types.clone(), *referent).is_some_and(|target| {
+            shared_byte_descriptor_reference_shapes(source_shape, target, *access)
+        }) {
             return true;
         }
         if matches!(

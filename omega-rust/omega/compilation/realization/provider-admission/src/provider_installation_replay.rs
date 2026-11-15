@@ -21,6 +21,30 @@ use terminal_psi::{
     StructuralPathQualification, StructuralPathSegment, TerminalModule,
 };
 
+fn external_completion_provider_result(
+    completion: semantic_vocabulary::BoundaryCompletion,
+    required: &terminal_psi::BoundaryMachineResult,
+    supplied: &terminal_psi::TerminalMachineResult,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    requirement: terminal_psi::TerminalIdentityIndex,
+    declaration: Option<terminal_psi::TerminalIdentityIndex>,
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+) -> Result<(), String> {
+    if !terminal_semantics::inhabitation::external_result_is_erased(
+        completion,
+        required.structural(),
+        types,
+    )? {
+        return Err("checked external-completion provider has a normal return contract".into());
+    }
+    if !required.accepts_provider_result(supplied, requirement, declaration, domains) {
+        return Err(
+            "checked external-completion provider changes the declared logical result".into(),
+        );
+    }
+    Ok(())
+}
+
 pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
     module: &terminal_psi::TerminalModule,
@@ -105,13 +129,31 @@ pub(super) fn replay_installed_provider_calls(
                     requirement_obligations: requirement_obligations.clone(),
                     frontier_lower_bound: frontier_lower_bound.clone(),
                 };
+                external_completion_provider_result(
+                    declaration.completion,
+                    &declaration.result,
+                    &candidate.result,
+                    &module.structural_types,
+                    declaration.identity,
+                    declaration
+                        .declaration
+                        .as_ref()
+                        .map(|callable| callable.source.semantic_declaration),
+                    &module.structural_domains,
+                )
+                .map_err(|reason| {
+                    ProviderInstallationError::ExternalCompletionResultMismatch {
+                        caller: caller.machine,
+                        invocation_site,
+                        boundary: *boundary,
+                        reason,
+                    }
+                })?;
                 if edges.next() != Some(&expected)
                     || edges.next().is_some()
                     || declaration.identity != provider.requirement_identity
                     || declaration.completion
                         != semantic_vocabulary::BoundaryCompletion::External(*kind)
-                    || !declaration.result.is_unit()
-                    || candidate.result != terminal_psi::TerminalMachineResult::Unit
                     || declaration.scalar_parameters.len() != arguments.len()
                     || declaration.structural_parameters.len() != structural_arguments.len()
                     || candidate.parameters.len() != arguments.len()
@@ -432,5 +474,163 @@ fn replays_result(
                     .all(|row| candidate.projected_qualifications.contains(row))
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod external_completion_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        BoundaryCompletion, ExternalCompletionKind, PlaceId, Proposition, StructuralTypeId,
+    };
+    use terminal_psi::{
+        BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralMultiplicity,
+        StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+        TerminalMachineResult,
+    };
+
+    #[test]
+    fn installed_external_provider_keeps_the_exact_empty_logical_result() {
+        let required_type = StructuralTypeId::new(1).unwrap();
+        let unrelated_type = StructuralTypeId::new(2).unwrap();
+        let types = [required_type, unrelated_type].map(|id| StructuralTypeDeclaration {
+            id,
+            identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            shape: StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
+            scalar_restriction: None,
+            requires: vec![Proposition::Falsehood],
+        });
+        let required = BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+            structural_type: required_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+        let supplied = |structural_type| {
+            TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            })
+        };
+        let completion = BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        assert_eq!(
+            external_completion_provider_result(
+                completion,
+                &required,
+                &supplied(required_type),
+                &types,
+                terminal_psi::TerminalIdentityIndex::ABSENT,
+                None,
+                &[],
+            ),
+            Ok(())
+        );
+        // Empty types with identical geometry keep distinct declaration custody.
+        let mut wrong_multiplicity = supplied(required_type);
+        let TerminalMachineResult::Structural(result) = &mut wrong_multiplicity else {
+            unreachable!()
+        };
+        result.multiplicity = StructuralMultiplicity::Unrestricted;
+        for candidate in [
+            supplied(unrelated_type),
+            TerminalMachineResult::Unit,
+            wrong_multiplicity,
+        ] {
+            assert!(
+                external_completion_provider_result(
+                    completion,
+                    &required,
+                    &candidate,
+                    &types,
+                    terminal_psi::TerminalIdentityIndex::ABSENT,
+                    None,
+                    &[]
+                )
+                .unwrap_err()
+                .contains("declared logical result")
+            );
+        }
+        assert!(
+            external_completion_provider_result(
+                BoundaryCompletion::NormalReturn,
+                &required,
+                &supplied(required_type),
+                &types,
+                terminal_psi::TerminalIdentityIndex::ABSENT,
+                None,
+                &[],
+            )
+            .unwrap_err()
+            .contains("normal return contract")
+        );
+        let requirement = terminal_psi::TerminalIdentityIndex(1);
+        let owner = terminal_psi::TerminalIdentityIndex(2);
+        let domain = terminal_psi::StructuralDomainDeclaration {
+            id: semantic_vocabulary::StructuralDomainId::new(1).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(3),
+            carrier: required_type,
+            required_memberships: Some(Vec::new()),
+            complete_predicate_theory: false,
+            predicate: None,
+            content_projection: None,
+            byte_predicate: None,
+            establishment_routes: Some(vec![
+                terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
+                    requirement_identity: requirement,
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(owner),
+                },
+            ]),
+        };
+        let mut refined = required.clone();
+        let BoundaryMachineResult::Structural(result) = &mut refined else {
+            unreachable!()
+        };
+        result.qualifications.push(domain.id);
+        let domains = [domain];
+        // The selected boundary may establish this result membership even
+        // when it is absent from the provider's ordinary direct-call result.
+        assert_eq!(
+            external_completion_provider_result(
+                completion,
+                &refined,
+                &supplied(required_type),
+                &types,
+                requirement,
+                Some(owner),
+                &domains,
+            ),
+            Ok(())
+        );
+        for (wrong_requirement, wrong_owner) in [
+            (terminal_psi::TerminalIdentityIndex(4), Some(owner)),
+            (requirement, Some(terminal_psi::TerminalIdentityIndex(4))),
+        ] {
+            assert!(
+                external_completion_provider_result(
+                    completion,
+                    &refined,
+                    &supplied(required_type),
+                    &types,
+                    wrong_requirement,
+                    wrong_owner,
+                    &domains,
+                )
+                .unwrap_err()
+                .contains("declared logical result")
+            );
+        }
     }
 }

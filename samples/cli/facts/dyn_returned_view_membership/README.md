@@ -2,14 +2,11 @@
 
 **Fact: A selected implementation returns one of its Utf8 inputs, and the returned view keeps the Utf8 membership its consumer requires.**
 
-Owning task: **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** in
-[TASKS.md](../../../../TASKS.md), the Omega realization and native execution
-requirement. Its acceptance runs `--filter traits/`, which includes
-`tests/omega/pass/traits/runtime_dyn_qualified_byte_result`, red at base on
-every target. Contract:
-[dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#call-and-forwarding-roles)
-(structured results keep the requirement's exact type and qualifications) and
-[byte views](../../../../wiki/spec/terminal-psi/byte_views.md).
+Owning task: **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** in [TASKS.md](../../../../TASKS.md),
+the Omega realization and native execution requirement. Contract: [dynamic
+dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#call-and-forwarding-roles)
+(structured results keep the requirement's exact type and qualifications) and [byte
+views](../../../../wiki/spec/terminal-psi/byte_views.md).
 
 `Payload::window` takes two `&[u8] in Utf8` views and returns one in `Utf8`.
 `First` returns its first input and `Second` its second. The caller passes the
@@ -41,12 +38,10 @@ only names the selectors as constants. It stays as selector-constant coverage;
 the row is filled in 8 of 9 places until a constant form can supply a view.
 
 Each twin removes only `in Utf8` from the requirement's result and from both
-implementations' results. Eight twins reject at `classify`
-(`cannot prove requires contract for call classify ... in [u8]::Utf8`); the
-selected-implementation twin rejects at `Selected::read`'s qualified local
-(`cannot prove initializer of bytes ... in domain [u8]::Utf8`). Positives are
-pinned as `tests/omega/pass/facts/dyn_returned_view_membership_through_<place>_exit`
-and twins as `tests/omega/fail/facts/dyn_returned_view_membership_through_<place>_rejected`.
+implementations' results. Eight twins reject at `classify` (`cannot prove requires contract
+for call classify ... in [u8]::Utf8`); the selected-implementation twin rejects at
+`Selected::read`'s qualified local (`cannot prove initializer of bytes ... in domain
+[u8]::Utf8`).
 
 ## Nearest row
 

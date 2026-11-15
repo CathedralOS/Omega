@@ -35,7 +35,8 @@ The [published source archive](https://github.com/CathedralOS/Omega/pull/1669#is
 
 Earlier macOS records at `b9060c9ca30d` and `8128744a9d77` remain historical observations, with their original source stamps.
 
-All nine positive/twin Main and Build files match their pins under `tests/omega/{pass,fail}/facts/may_write_named_state_through_<place>_*`. Each twin differs only in the Boolean passed to `relay`, and retains `cannot prove` as its diagnostic fragment. Every positive and root binds `ProgramEntry` for all four hosted targets and declares `Expected exit: 0`. There is no `std` dependency.
+Every positive and root binds `ProgramEntry` for all four hosted targets and
+declares `Expected exit: 0`. There is no `std` dependency.
 
 ```sh
 omega run --both samples/cli/facts/may_write_named_state/target_body/main.omg

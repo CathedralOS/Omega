@@ -23,17 +23,17 @@ disprove every route. A missing summary is unknown, and a possible route rejects
 The published contract remains intact. Evaluation does not gain permission to
 narrow an opaque declaration's contract.
 
-| Place | Positive | Reject twin | Pins |
-| --- | --- | --- | --- |
-| Local | [program](local/main.omg) | [zero divisor](invalid_local/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_local_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_local_rejected/main.omg) |
-| Field | [program](field/main.omg) | [zero divisor](invalid_field/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_field_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_field_rejected/main.omg) |
-| Parameter | [program](parameter/main.omg) | [zero divisor](invalid_parameter/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_parameter_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_parameter_rejected/main.omg) |
-| Call result | [program](call_result/main.omg) | [zero divisor](invalid_call_result/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_call_result_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_call_result_rejected/main.omg) |
-| Match join | [program](match_join/main.omg) | [zero divisor](invalid_match_join/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_match_join_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_match_join_rejected/main.omg) |
-| Constant name | [program](const_name/main.omg) | [zero divisor](invalid_const_name/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_const_name_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [zero divisor](invalid_other_state/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_other_state_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_other_state_rejected/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [zero divisor](invalid_other_machine/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_other_machine_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_other_machine_rejected/main.omg) |
-| Selected implementation | [program](target_body/main.omg) | [zero divisor](invalid_target_body/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_target_body_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_target_body_rejected/main.omg) |
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| Local | [program](local/main.omg) | [zero divisor](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [zero divisor](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [zero divisor](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [zero divisor](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [zero divisor](invalid_match_join/main.omg) |
+| Constant name | [program](const_name/main.omg) | [zero divisor](invalid_const_name/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [zero divisor](invalid_other_state/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [zero divisor](invalid_other_machine/main.omg) |
+| Selected implementation | [program](target_body/main.omg) | [zero divisor](invalid_target_body/main.omg) |
 
 Each positive must pass `omega run --both` at exit zero. Each twin must reject
 during source checking with ``constant expression `limit()` can crash with [Trap]``

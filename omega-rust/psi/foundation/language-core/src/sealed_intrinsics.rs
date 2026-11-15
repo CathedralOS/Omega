@@ -62,10 +62,10 @@ pub enum SealedIntrinsic {
     PlacedAccessorTemplate,
     /// std `console.omg`'s `ByteRead`, the result type of `Console::read_byte`.
     HostedByteRead,
-    /// The private Console process-exit primitive; Build supplies its target locator.
-    ConsoleExitPrimitive,
     /// A hosted console or process-exit requirement in bundled source.
     HostedRequirement(HostedOperation),
+    /// An exact compiler-owned primitive, separate from ordinary provider bodies.
+    HostedPrimitive(HostedOperation),
     /// A target's bundled realization of a hosted requirement.
     HostedRealization {
         operation: HostedOperation,
@@ -122,8 +122,6 @@ pub enum PlacementContent {
 /// The hosted operations the compiler realizes for every hosted target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HostedOperation {
-    /// std `Console::exit_process`.
-    ConsoleExitProcess,
     /// std `Console::write_byte`.
     ConsoleWriteByte,
     /// std `Console::read_byte`.
@@ -197,6 +195,7 @@ const CORE_FLOAT_OPERATIONS: &[u8] = bundled!("core/float_operations.omg");
 const CORE_EXTENT: &[u8] = bundled!("core/extent.omg");
 const CORE_PROGRAM_IMAGE: &[u8] = bundled!("core/program_image.omg");
 const CORE_PROCESS_EXIT: &[u8] = bundled!("core/process_exit.omg");
+const CORE_PROCESS_EXIT_NATIVE: &[u8] = bundled!("core/process_exit_native.omg");
 const STD_CONSOLE: &[u8] = bundled!("std/console.omg");
 
 const fn row(
@@ -212,36 +211,6 @@ const fn row(
         intrinsic,
     }
 }
-
-/*
-    ProcessExit retains its existing exact target realization custody. Console
-    uses ordinary checked providers and Build-owned locators instead of sealed
-    per-symbol forwarding declarations.
-*/
-macro_rules! process_exit_target_rows {
-    ($target:literal) => {
-        [row(
-            concat!("targets/", $target, "/process_exit_impl.omg"),
-            "ProcessExitNativeProvider::exit_process",
-            bundled!(concat!("std/targets/", $target, "/process_exit_impl.omg")),
-            SealedIntrinsic::HostedRealization {
-                operation: HostedOperation::ProcessExit,
-                target: $target,
-            },
-        )]
-    };
-}
-
-const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 1] = process_exit_target_rows!("linux_arm64");
-const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 1] = process_exit_target_rows!("linux_x86_64");
-const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 1] = process_exit_target_rows!("macos_arm64");
-const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 1] = process_exit_target_rows!("macos_x86_64");
-const HOSTED_REALIZATIONS: [&[SealedIntrinsicRow]; 4] = [
-    &HOSTED_LINUX_ARM64,
-    &HOSTED_LINUX_X86_64,
-    &HOSTED_MACOS_ARM64,
-    &HOSTED_MACOS_X86_64,
-];
 
 const fn member_row(
     file: &'static str,
@@ -288,7 +257,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "atomic.omg",
-        "Atomic::fence",
+        "fence",
         bundled!("core/atomic.omg"),
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence),
     ),
@@ -504,42 +473,6 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "console.omg",
-        "WindowsConsoleExit::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::ConsoleExitPrimitive,
-    ),
-    row(
-        "console.omg",
-        "LinuxX86ConsoleExit::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::ConsoleExitPrimitive,
-    ),
-    row(
-        "console.omg",
-        "LinuxArm64ConsoleExit::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::ConsoleExitPrimitive,
-    ),
-    row(
-        "console.omg",
-        "DarwinArm64ConsoleExit::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::ConsoleExitPrimitive,
-    ),
-    row(
-        "console.omg",
-        "DarwinX86ConsoleExit::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::ConsoleExitPrimitive,
-    ),
-    row(
-        "console.omg",
-        "Console::exit_process",
-        STD_CONSOLE,
-        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleExitProcess),
-    ),
-    row(
-        "console.omg",
         "Console::write_byte",
         STD_CONSOLE,
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleWriteByte),
@@ -549,6 +482,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "Console::read_byte",
         STD_CONSOLE,
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
+    ),
+    row(
+        "process_exit_native.omg",
+        "ProcessExitPrimitive",
+        CORE_PROCESS_EXIT_NATIVE,
+        SealedIntrinsic::HostedPrimitive(HostedOperation::ProcessExit),
     ),
     row(
         "process_exit.omg",
@@ -646,7 +585,6 @@ impl SealedIntrinsicCatalog {
     /// when no row matches every part of the site.
     pub fn classify(site: SealedDeclarationSite<'_>) -> Option<SealedIntrinsic> {
         ROWS.iter()
-            .chain(HOSTED_REALIZATIONS.into_iter().flatten())
             .find(|row| {
                 site.file == Path::new(row.file)
                     && row.declaration.matches(site.declaration)
@@ -654,6 +592,26 @@ impl SealedIntrinsicCatalog {
             })
             .map(|row| row.intrinsic)
     }
+}
+
+/// Exact source bytes whose canonical declarations own float operation contracts.
+/// A matching name outside these bytes grants no numeric primitive custody.
+pub fn float_operations_source() -> (&'static str, &'static [u8]) {
+    ("float_operations.omg", CORE_FLOAT_OPERATIONS)
+}
+
+/// Exact source coordinates for the hosted primitive and its public contract.
+/// Consumers still authenticate source custody and the complete signature.
+pub fn hosted_process_exit_sources() -> [(&'static str, &'static str, &'static [u8]); 3] {
+    [
+        (
+            "process_exit_native.omg",
+            "ProcessExitPrimitive",
+            CORE_PROCESS_EXIT_NATIVE,
+        ),
+        ("process_exit.omg", "ProcessExit", CORE_PROCESS_EXIT),
+        ("never.omg", "Never", bundled!("core/never.omg")),
+    ]
 }
 
 #[cfg(test)]
@@ -673,48 +631,26 @@ mod tests {
     }
 
     #[test]
-    fn console_exit_primitive_keeps_its_exact_source_custody() {
-        for declaration in [
-            "WindowsConsoleExit::exit_process",
-            "LinuxX86ConsoleExit::exit_process",
-            "LinuxArm64ConsoleExit::exit_process",
-            "DarwinArm64ConsoleExit::exit_process",
-            "DarwinX86ConsoleExit::exit_process",
-        ] {
+    fn private_console_adapters_have_no_hosted_catalog_identity() {
+        for member in ["read_byte", "write_byte", "exit_process"] {
+            let requirement = format!("ConsoleHost::{member}");
             assert_eq!(
-                SealedIntrinsicCatalog::classify(site("console.omg", declaration, STD_CONSOLE)),
-                Some(SealedIntrinsic::ConsoleExitPrimitive),
+                SealedIntrinsicCatalog::classify(site("console.omg", &requirement, STD_CONSOLE)),
+                None,
             );
-        }
-        let mut edited = STD_CONSOLE.to_vec();
-        edited.push(b'\n');
-        for site in [
-            site(
-                "console.omg",
-                "DarwinArm64ConsoleExit::exit_process",
-                &edited,
-            ),
-            site(
-                "other.omg",
-                "DarwinArm64ConsoleExit::exit_process",
-                STD_CONSOLE,
-            ),
-            site("console.omg", "DarwinArm64ConsoleExit::other", STD_CONSOLE),
-            site("console.omg", "ConsoleExit::exit_process", STD_CONSOLE),
-        ] {
-            assert_eq!(SealedIntrinsicCatalog::classify(site), None);
-        }
-        for declaration in [
-            "ConsoleNativeProvider::read_byte",
-            "ConsoleNativeProvider::write_byte",
-            "ConsoleNativeProvider::exit_process",
-        ] {
-            assert!(
-                !ROWS
-                    .iter()
-                    .chain(HOSTED_REALIZATIONS.into_iter().flatten())
-                    .any(|row| row.declaration.matches(declaration)),
-                "retired forwarding declarations have no sealed realization custody",
+            let mut edited = STD_CONSOLE.to_vec();
+            edited.push(b' ');
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("console.omg", &requirement, &edited)),
+                None,
+            );
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site(
+                    "copied/console.omg",
+                    &requirement,
+                    STD_CONSOLE
+                )),
+                None,
             );
         }
     }
@@ -751,27 +687,20 @@ mod tests {
         );
         // A lookalike file, an edited source, a nested member, or a bare
         // owner name supplies no custody.
-        let linux = bundled!("std/targets/linux_x86_64/process_exit_impl.omg");
-        assert_eq!(
-            SealedIntrinsicCatalog::classify(site(
-                "targets/linux_x86_64/process_exit_impl.omg",
-                "ProcessExitNativeProvider::exit_process",
-                linux
-            )),
-            Some(SealedIntrinsic::HostedRealization {
-                operation: HostedOperation::ProcessExit,
-                target: "linux_x86_64",
-            })
-        );
-        // One target's realization bytes never stand in for another target's file.
-        assert_eq!(
-            SealedIntrinsicCatalog::classify(site(
-                "targets/linux_arm64/process_exit_impl.omg",
-                "ProcessExitNativeProvider::exit_process",
-                linux
-            )),
-            None
-        );
+        // Canonical primitive bytes cannot revive a retired target path.
+        for file in [
+            "targets/linux_x86_64/process_exit_impl.omg",
+            "targets/linux_arm64/process_exit_impl.omg",
+        ] {
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site(
+                    file,
+                    "ProcessExitPrimitive",
+                    CORE_PROCESS_EXIT_NATIVE
+                )),
+                None
+            );
+        }
         assert_eq!(
             SealedIntrinsicCatalog::classify(site("tasks.omg", "TaskRuntime::start", CORE_TASK)),
             None

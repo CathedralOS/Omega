@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Nested method receivers through a plain-data intermediate. A `Dashboard` is a
 // plain record (no attached machine) holding two DISTINCT subsystem types, each
 // with its own machine; `main` reads them with `main.dash.engine.reading()` and
@@ -46,7 +47,7 @@ data Main {
     dash: Dashboard;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("nested_diagnostics: read engine + battery through nested receivers");
     main.dash.engine.rpm = 3000;
     main.dash.battery.percent = 85;
@@ -68,17 +69,17 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine nominal(main: &mut Main) {
         Console::write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
-        Console::exit_process(85);
+        ProcessExit::exit_process(85);
     }
 
     machine fault(main: &mut Main) {
         Console::write_line("reading mismatch -> fault (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

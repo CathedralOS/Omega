@@ -652,8 +652,13 @@ pub(crate) fn follow_the_lowered_form(
             // A byte read owes its index bound, as an indexed projection
             // does (byte_views.md, `ByteSequenceRead`).
             if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. }
+            | terminal_psi::OperationKind::StructuralByteSequenceFieldRead {
+                obligation, ..
+            }
             | terminal_psi::OperationKind::ByteSequenceWrite { obligation, .. }
-            | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. } =
+            | terminal_psi::OperationKind::ElementViewRead { obligation, .. }
+            | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. }
+            | terminal_psi::OperationKind::ElementViewSubslice { obligation, .. } =
                 &operation.kind
             {
                 minted.claim(

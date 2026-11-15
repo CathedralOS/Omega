@@ -1,4 +1,4 @@
-//! One generic body goes the whole way on the lowered form, from source:
+//! One generic body, read from source, works on the lowered form:
 //! it is checked once with its parameters rigid, and its certificates are
 //! decided again by the proof kernel, with no search, in each machine stage
 //! 04 generated from it. `wiki/drafts/designs/check_on_lowered_form.md`,
@@ -668,6 +668,57 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
     });
 }
 
+#[test]
+fn a_transition_into_a_copied_lexical_child_checks_the_original_body() {
+    let _guard = lock_fixture_compilation();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main = repository("tests/fixtures/run/generics/lexical_child_transition/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("lexical child: {:?}", failure.into_diagnostics()));
+            let artifact = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap()
+                .artifact;
+            let decoded =
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                    .expect("the copied child and its application can be read independently");
+            assert_eq!(decoded.semantic_module(), artifact.semantic_module());
+
+            let main = repository(
+                "tests/fixtures/fail/generics/lexical_child_transition_bad_guarantee/main.omg",
+            );
+            let expected = std::fs::read_to_string(main.with_file_name("expected.txt")).unwrap();
+            let failure = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("the parent's branch guard cannot prove the child's published guarantee");
+            let diagnostics = failure.into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains(expected.trim())
+                        && diagnostic.message.contains("child")
+                        && diagnostic.message.contains("result == 7")
+                }),
+                "{diagnostics:#?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}
+
 /// Actual Build preparation and the ordinary publication factory must retain
 /// both complete map tuples, rather than borrowing one body's capture.
 #[test]
@@ -704,23 +755,100 @@ fn the_default_product_publishes_generic_named_map_captures() {
                 captures[0].conformance_application.identity_encoding,
                 captures[1].conformance_application.identity_encoding
             );
-            let template = source.machine_by_symbol(captures[0].template).unwrap();
-            let commitments = accepted
-                .module()
-                .machines
-                .iter()
-                .filter_map(|machine| machine.declaration.as_ref()?.specialization.as_ref())
-                .filter(|specialization| {
-                    accepted
-                        .module()
-                        .identities
-                        .text(specialization.template_callable)
-                        == source.machine_callable_identity_text(template).as_deref()
-                })
-                .map(|specialization| specialization.commitment)
-                .collect::<Vec<_>>();
-            assert_eq!(commitments.len(), 2);
-            assert_ne!(commitments[0], commitments[1]);
+            let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(
+                &publication.artifact.to_bytes(),
+            )
+            .expect("published map captures reload independently");
+            let module = reloaded.semantic_module();
+            assert_eq!(module, accepted.module());
+            let retained = |capture: &typed_trees::CapturedMachineApplication| {
+                let machine = module
+                    .machine(accepted.machine_of(capture.instance).unwrap())
+                    .unwrap();
+                let specialization = machine
+                    .declaration
+                    .as_ref()
+                    .unwrap()
+                    .specialization
+                    .as_ref()
+                    .unwrap();
+                let application = machine.closed_reach_application.as_ref().unwrap();
+                assert!(application.parameter_kinds.is_empty());
+                assert!(application.telescope.is_empty());
+                let retained = application.capture.as_ref().unwrap();
+                assert_eq!(
+                    module.identities.text(retained.template_identity),
+                    Some(capture.normalized_template_identity.as_str()),
+                );
+                assert_eq!(retained.parameter_kinds, [0, 0]);
+                let arguments = retained
+                    .telescope
+                    .iter()
+                    .map(|parameter| match parameter {
+                        terminal_psi::ClosedReachParameter::Type { argument } => argument.as_str(),
+                        other => panic!("expected a captured type argument, got {other:?}"),
+                    })
+                    .collect::<Vec<_>>();
+                let expected = capture
+                    .conformance_application
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        source
+                            .type_identity_text(
+                                source.package_qualified_type_identity(argument.type_reference),
+                            )
+                            .unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(arguments, expected);
+                let expected_capture = specialization.capture.as_ref().unwrap();
+                assert_eq!(
+                    retained.template_identity,
+                    expected_capture.template_identity
+                );
+                assert_eq!(
+                    retained.template_commitment,
+                    expected_capture.template_commitment
+                );
+                assert_eq!(
+                    retained.specialization_commitment,
+                    expected_capture.specialization_commitment
+                );
+                assert_eq!(
+                    retained.specialization_commitment,
+                    specialization.commitment
+                );
+                (machine.id, retained)
+            };
+            let (first_owner, first_capture) = retained(captures[0]);
+            let (_, second_capture) = retained(captures[1]);
+            assert_ne!(
+                first_capture.specialization_commitment,
+                second_capture.specialization_commitment
+            );
+            // The declaration's capture is independent of the retained
+            // application. Dropping the application capture or transplanting
+            // the other real one must fail the same reader check.
+            for replacement in [None, Some(second_capture.clone())] {
+                let mut changed = module.clone();
+                changed
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == first_owner)
+                    .unwrap()
+                    .closed_reach_application
+                    .as_mut()
+                    .unwrap()
+                    .capture = replacement;
+                let bytes = terminal_codec::encode_module(&changed).unwrap();
+                assert_eq!(
+                    terminal_codec::decode_module(&bytes).unwrap_err(),
+                    terminal_codec::CodecError::MalformedStructuralFoundation(
+                        "closed reach capture differs from its independent checked declaration"
+                    )
+                );
+            }
             let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
             assert_eq!(
                 application

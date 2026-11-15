@@ -58,7 +58,6 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
     let borrowed = of_type(
         ExpressionKind::Borrow {
             access: ReferenceAccess::Mutable,
-            formation: ReferenceAccess::Mutable,
             place: Box::new(place(0, point())),
             home: None,
         },
@@ -68,23 +67,26 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
         slots: vec![point()],
         statements: vec![
             bind(0, point_of(unsigned(73), unsigned(97))),
-            Statement::Evaluate(Expression {
-                call_context: None,
-                kind: ExpressionKind::Call {
-                    required_contract: None,
-                    callee: id::<MachineId>(2).into(),
-                    arguments: vec![borrowed],
-                    designated: None,
+            Statement::Evaluate {
+                expression: Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Call {
+                        required_contract: None,
+                        callee: id::<MachineId>(2).into(),
+                        arguments: vec![borrowed],
+                        designated: None,
+                    },
+                    result: None,
+                    source: nowhere(),
                 },
-                result: None,
-                source: nowhere(),
-            }),
+                discards_result: false,
+            },
         ],
     });
     bodies.push(Body {
         slots: vec![point()],
         statements: vec![
-            Statement::Evaluate(read(place(0, point()), 0)),
+            Statement::discard(read(place(0, point()), 0)),
             Statement::Arm {
                 guard: None,
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),

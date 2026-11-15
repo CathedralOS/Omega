@@ -1236,6 +1236,17 @@ fn adapt(
     selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = ScalarExpressions::new(function);
+    let mut scalar_formals = function
+        .parameters
+        .iter()
+        .map(|parameter| parameter.value)
+        .collect::<Vec<_>>();
+    scalar_formals.sort_unstable();
+    let selector = |value| {
+        kernel::entry_selector(scalar_expressions.expression(value)?, |id| {
+            scalar_formals.binary_search(&id).is_ok()
+        })
+    };
     let mut graph = DescriptorMachine {
         id: function.machine,
         entry: (function.entry, 0),
@@ -1315,6 +1326,7 @@ fn adapt(
             return None;
         }
         graph.places.push(DescriptorPlace {
+            producer: None,
             place: parameter.place,
             definition: DescriptorDefinition::Parameter {
                 position,
@@ -1345,6 +1357,7 @@ fn adapt(
                 return None;
             }
             graph.places.push(DescriptorPlace {
+                producer: None,
                 place: parameter.place,
                 definition: DescriptorDefinition::Arrival {
                     access: parameter.access,
@@ -1367,6 +1380,7 @@ fn adapt(
                     return None;
                 }
                 graph.places.push(DescriptorPlace {
+                    producer: None,
                     place: place.id,
                     definition: if matches!(node.operation, O::EstablishByteSequenceLiteral { .. })
                     {
@@ -1389,12 +1403,14 @@ fn adapt(
                     return None;
                 }
                 graph.places.push(DescriptorPlace {
+                    producer: None,
                     place: result.place,
                     definition: DescriptorDefinition::Local,
                 });
             }
         }
     }
+    graph.places.sort_unstable_by_key(|row| row.place);
     let location = |root, path: &[StructuralPathSegment], field| {
         descriptor_location(types, root, *graph.place_types.get(&root)?, path, field)
     };
@@ -1505,6 +1521,13 @@ fn adapt(
             };
             if let Some(result) = result {
                 graph.payload_producers.insert(position, result.place);
+                let index = graph
+                    .places
+                    .binary_search_by_key(&result.place, |row| row.place)
+                    .ok()?;
+                if graph.places[index].producer.replace(position).is_some() {
+                    return None;
+                }
                 let destination = DescriptorLocation::whole(result.place);
                 step.definitions.push(destination.clone());
                 if !kernel::is_descriptor(types.iter(), result.structural_type)
@@ -1537,7 +1560,7 @@ fn adapt(
                         StructuralTypeShape::ElementView { element, .. } => {
                             query
                                 .steps
-                                .push(kernel::DescriptorContentsStep::AnyElement { element });
+                                .push(kernel::DescriptorContentsStep::any_element(element));
                         }
                         StructuralTypeShape::ByteSequence(_)
                             if kernel::is_descriptor(types.iter(), selected.id) =>
@@ -1647,6 +1670,11 @@ fn adapt(
                 graph.payload_invalidations.insert(position, payload_writes);
             }
             match operation {
+                O::ReleaseReference { source, path, .. } => {
+                    let source = location(*source, path, None)?;
+                    step.inputs = vec![source.clone()];
+                    step.definitions.push(source);
+                }
                 O::ByteSequenceLength { source, .. } | O::ElementViewLength { source, .. } => {
                     let query = kernel::descriptor_contents_query(
                         types,
@@ -1956,22 +1984,25 @@ fn adapt(
                     source,
                     ..
                 } => {
-                    if let Some(destination) = location(*destination, path, *field) {
-                        step.definitions.push(destination.clone());
-                        step.derivations
-                            .push((DescriptorLocation::whole(*source), destination));
-                    } else {
-                        graph.unresolved_contents_writes.insert(position);
-                        step.definitions.extend(slot_kind.overwritten_slots(
-                            types,
-                            *destination,
-                            *graph.place_types.get(destination)?,
+                    let root_type = *graph.place_types.get(destination)?;
+                    kernel::descriptor_leaf_store(
+                        kernel::DescriptorStoreFlow {
+                            position,
+                            transfers: &mut graph.contents_transfers,
+                            unresolved: &mut graph.unresolved_contents_writes,
+                        },
+                        &mut step,
+                        types,
+                        slot_kind,
+                        kernel::DescriptorContentsOperand {
+                            root: *destination,
+                            root_type,
                             path,
-                            *field,
-                        )?);
-                        step.may_escape = true;
-                    }
-                    step.inputs = vec![DescriptorLocation::whole(*source)];
+                            field: *field,
+                        },
+                        *source,
+                        selector,
+                    )?;
                 }
                 O::EstablishPrimitiveLocal { result, value, .. } => {
                     if let Some(value) = scalar_expressions.expression(value.value) {
@@ -2010,6 +2041,29 @@ fn adapt(
                                 .push((location(result.place, &path, None)?, value));
                         }
                     }
+                }
+                // An owned element sequence keeps its roster in read-only image storage,
+                // like a byte literal, so its descriptor originates at this construction.
+                // Target lowering refuses any construction whose roster has no constant
+                // pool bytes, so no other backing reaches native code under this origin.
+                O::EstablishStructuralArray { result, .. }
+                    if types.iter().any(|row| {
+                        row.id == result.structural_type
+                            && matches!(
+                                row.shape,
+                                StructuralTypeShape::ElementView { access: None, .. }
+                            )
+                    }) =>
+                {
+                    let destination = DescriptorLocation::whole(result.place);
+                    step.definitions.push(destination.clone());
+                    graph.originations.entry(position).or_default().push((
+                        destination,
+                        kernel::DescriptorCallOrigin::Literal {
+                            machine: function.machine,
+                            place: result.place,
+                        },
+                    ));
                 }
                 O::EstablishStructuralArray {
                     result, elements, ..
@@ -2166,6 +2220,7 @@ fn adapt(
                 }
                 O::CallStructural {
                     callee,
+                    arguments: scalar_actuals,
                     structural_arguments,
                     claim_transfers,
                     result: call_result,
@@ -2228,6 +2283,14 @@ fn adapt(
                         graph.calls.insert(
                             position,
                             DescriptorInvocation {
+                                scalar_arguments: kernel::descriptor_scalar_arguments(
+                                    callee
+                                        .parameters
+                                        .iter()
+                                        .map(|formal| (formal.value, formal.scalar_type)),
+                                    scalar_actuals,
+                                    selector,
+                                ),
                                 operation: node.operation.psi_operation()?,
                                 target: kernel::DescriptorInvocationTarget::Machine(callee.machine),
                                 arguments,
@@ -2446,6 +2509,7 @@ fn adapt(
                 source,
                 path,
                 cases,
+                ..
             } = operation
             {
                 let subject = location(*source, path, None)?;
@@ -2468,7 +2532,16 @@ fn adapt(
                     .collect::<Option<Vec<_>>>()?;
                 graph.case_successors.insert(position, predicates);
             }
-            step.authority_derivations = step.derivations.clone();
+            // Capturing a descriptor's slot forms a child loan; it does not
+            // transport the permission already stored in that slot.
+            if !matches!(
+                operation,
+                O::EstablishAccessReference { .. }
+                    | O::EstablishElementView { .. }
+                    | O::EstablishReference { .. }
+            ) {
+                step.authority_derivations = step.derivations.clone();
+            }
             if graph.normal_exits.contains(&position) {
                 for parameter in &function.structural_parameters {
                     if matches!(
@@ -2486,6 +2559,7 @@ fn adapt(
             if node.successors.is_empty() {
                 if index + 1 < block.nodes.len() {
                     step.successors.push(DescriptorFlowEdge {
+                        definitions: Vec::new(),
                         target: (block.id, position.1 + 1),
                         parameters: Vec::new(),
                         bindings: Vec::new(),
@@ -2572,6 +2646,7 @@ fn adapt(
                         .map(|parameter| DescriptorLocation::whole(parameter.place))
                         .collect::<Vec<_>>();
                     let mut bindings = Vec::new();
+                    let mut definitions = Vec::new();
                     for parameter in &target.structural_parameters {
                         let mut matching = edge
                             .structural_bindings
@@ -2600,6 +2675,12 @@ fn adapt(
                             )
                         };
                         step.inputs.push(source.observation());
+                        if parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity
+                                != terminal_psi::StructuralMultiplicity::Unrestricted
+                        {
+                            definitions.push(source.observation());
+                        }
                         bindings.push(DescriptorFlowBinding::new(
                             source,
                             DescriptorLocation::whole(parameter.place),
@@ -2608,6 +2689,7 @@ fn adapt(
                         )?);
                     }
                     step.successors.push(DescriptorFlowEdge {
+                        definitions,
                         target: (edge.target, 0),
                         parameters,
                         bindings,

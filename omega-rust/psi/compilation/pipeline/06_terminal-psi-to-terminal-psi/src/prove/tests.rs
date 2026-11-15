@@ -1,0 +1,178 @@
+use super::*;
+use semantic_vocabulary::{IntegerSign, OperationId};
+use terminal_check_tables::values::{ValueOrigin, ValueRow};
+
+#[test]
+fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
+    let mut activity = ProofSearchActivity::default();
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [dividend, divisor, first, second] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::MachineParameter { position: 1 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+        ValueOrigin::Operation(OperationId::new(2).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let expression =
+        ScalarTerm::exact_integer_remainder(integer, dividend, divisor.clone()).unwrap();
+    let zero = ScalarTerm::integer(integer, integer.zero()).unwrap();
+    let endpoint = IntegerValue::Unsigned(100);
+    let limit = ScalarTerm::integer(integer, endpoint).unwrap();
+    let assumptions = [
+        Proposition::LessThan(zero, divisor),
+        Proposition::LessOrEqual(second.clone(), limit.clone()),
+    ];
+    let axioms = [
+        Proposition::Equal(first, expression.clone()),
+        Proposition::Equal(second, expression.clone()),
+    ];
+
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+    let (literal, proof) = prover.side(&expression, Direction::Upper).unwrap();
+    assert_eq!(literal, endpoint);
+    let goal = Proposition::LessOrEqual(expression, limit);
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof.unwrap())
+        .unwrap();
+}
+
+#[test]
+fn ieee_order_search_uses_only_connected_ordered_premises() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue};
+    let mut activity = ProofSearchActivity::default();
+    let format = IeeeFloatFormat::Binary64;
+    let scalar = ScalarType::IeeeFloat(format);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let value = ScalarTerm::value(id, scalar);
+    let literal = |bits| ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(bits));
+    let relation = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+        kind,
+        format,
+        left,
+        right,
+    };
+    let premise = relation(
+        Kind::LessOrEqual,
+        value.clone(),
+        literal(0x3fd0_0000_0000_0000),
+    );
+    let goal = relation(
+        Kind::LessOrEqual,
+        value.clone(),
+        literal(0x3fe0_0000_0000_0000),
+    );
+    let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
+    let assumptions = [premise.clone()];
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&goal)
+        .unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    assert!(
+        Prover::new(&context, &[], &[], &values, &mut activity)
+            .prove(&goal)
+            .is_err()
+    );
+    let complement = relation(
+        Kind::NotLessThan,
+        literal(0x3fd0_0000_0000_0000),
+        value.clone(),
+    );
+    assert!(
+        Prover::new(&context, &[complement], &[], &values, &mut activity)
+            .prove(&goal)
+            .is_err()
+    );
+    let nan_bound = relation(
+        Kind::LessOrEqual,
+        value.clone(),
+        literal(0x7ff8_0000_0000_0042),
+    );
+    assert!(
+        Prover::new(&context, &[nan_bound], &[], &values, &mut activity)
+            .prove(&goal)
+            .is_err()
+    );
+    let negative_zero = literal(0x8000_0000_0000_0000);
+    let zero_bound = relation(Kind::LessOrEqual, value.clone(), literal(0));
+    let zero_goal = relation(Kind::LessOrEqual, value, negative_zero);
+    let assumptions = [zero_bound];
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&zero_goal)
+        .unwrap();
+    proof_admission::accept_certificate(&context, &zero_goal, &assumptions, &[], &proof).unwrap();
+}
+
+#[test]
+fn ieee_literal_and_copy_equations_reach_the_closed_kernel_judgment() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+    let mut activity = ProofSearchActivity::default();
+    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+        let scalar = ScalarType::IeeeFloat(format);
+        let mut values = IdTable::default();
+        let [value, copied] = [1, 2].map(|raw| {
+            let id = values.push(ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::Operation(OperationId::new(raw).unwrap()),
+                rigid: None,
+            });
+            ScalarTerm::value(id, scalar)
+        });
+        let [zero, quarter, half, nan] = match format {
+            IeeeFloatFormat::Binary32 => {
+                [0, 0x3e80_0000, 0x3f00_0000, 0x7fc0_0042].map(IeeeFloatValue::Binary32)
+            }
+            IeeeFloatFormat::Binary64 => [
+                0,
+                0x3fd0_0000_0000_0000,
+                0x3fe0_0000_0000_0000,
+                0x7ff8_0000_0000_0042,
+            ]
+            .map(IeeeFloatValue::Binary64),
+        }
+        .map(ScalarTerm::IeeeFloatLiteral);
+        let relation = |left, right| Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::LessOrEqual,
+            format,
+            left,
+            right,
+        };
+        let goal = Proposition::Conjunction(vec![
+            relation(zero, copied.clone()),
+            relation(copied.clone(), half),
+        ]);
+        let context = PropositionContext::from_value_types(
+            values.iter().map(|(id, row)| (id, row.scalar_type)),
+        )
+        .unwrap();
+        for (literal, expected) in [(quarter, true), (nan, false)] {
+            let axioms = [
+                Proposition::Equal(value.clone(), literal),
+                Proposition::Equal(copied.clone(), value.clone()),
+            ];
+            let result = Prover::new(&context, &[], &axioms, &values, &mut activity).prove(&goal);
+            assert_eq!(result.is_ok(), expected);
+            if let Ok(proof) = result {
+                let accepted =
+                    proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof)
+                        .unwrap();
+                assert_eq!(accepted.semantic_axioms.len(), 2);
+            }
+        }
+    }
+}

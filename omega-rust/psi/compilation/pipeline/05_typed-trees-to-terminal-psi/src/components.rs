@@ -32,26 +32,29 @@ use crate::{Unserved, refuse};
 #[path = "components_graph.rs"]
 mod graph;
 pub(crate) use graph::Components;
+#[path = "components_rankings.rs"]
+mod rankings;
 
 /// All call occurrences in body order, grouped by caller without one allocation
 /// per machine. Graph discovery and cycle admission borrow the same occurrences.
-struct CallGraph {
-    sites: Vec<CallSite>,
+struct CallGraph<'body> {
+    sites: Vec<CallSite<'body>>,
     offsets: Vec<usize>,
 }
 
-impl CallGraph {
-    fn calls(&self, machine: usize) -> &[CallSite] {
+impl CallGraph<'_> {
+    fn calls(&self, machine: usize) -> &[CallSite<'_>] {
         &self.sites[self.offsets[machine]..self.offsets[machine + 1]]
     }
 }
 
 /// One call in a body: its callee, and whether its result completes the
 /// caller.
-struct CallSite {
+struct CallSite<'body> {
     callee: MachineId,
     terminal: bool,
     required_contract: Option<semantic_vocabulary::ContractId>,
+    arguments: &'body [Expression],
 }
 
 pub(crate) fn index(machine: MachineId) -> usize {
@@ -66,7 +69,7 @@ pub(crate) fn discover(bodies: &IdTable<MachineId, Body>) -> Checked<Components>
     Ok(call_graph(bodies)?.1)
 }
 
-fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph, Components)> {
+fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph<'_>, Components)> {
     let count = bodies.len();
     let mut calls = CallGraph {
         sites: Vec::with_capacity(count),
@@ -95,9 +98,10 @@ fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph, Componen
 
 pub(crate) fn components(
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: &mut IdTable<MachineId, Signature>,
 ) -> Checked<Components> {
     let (calls, mut table) = call_graph(bodies)?;
+    rankings::carry(&calls, &table, signatures)?;
     let ranked = bodies
         .keys()
         .map(|machine| {
@@ -172,15 +176,18 @@ pub(crate) fn components(
     Ok(table)
 }
 
-fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
+fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'body>>) {
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. } | Statement::Evaluate(value) => expression(value, sites),
+            Statement::Bind { value, .. }
+            | Statement::Evaluate {
+                expression: value, ..
+            } => expression(value, false, sites),
             Statement::Store {
                 destination, value, ..
             } => {
-                expression(destination, sites);
-                expression(value, sites);
+                expression(destination, false, sites);
+                expression(value, false, sites);
             }
             // Declarations, erased terms and reference captures call nothing.
             Statement::Declare { .. }
@@ -192,7 +199,7 @@ fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
                 default,
                 ..
             } => {
-                expression(subject, sites);
+                expression(subject, false, sites);
                 for (_, arm, _) in arms {
                     target(arm, sites);
                 }
@@ -204,7 +211,7 @@ fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
                 guard, target: arm, ..
             } => {
                 if let Some(guard) = guard {
-                    expression(guard, sites);
+                    expression(guard, false, sites);
                 }
                 target(arm, sites);
             }
@@ -216,35 +223,25 @@ fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
 /// result as the machine's (`wiki/spec/language/machines.md`: "A machine
 /// call in a terminal `transition` arm forwards its normal result as the
 /// current invocation's result, with no continuation in that invocation.").
-fn target(target: &Target, sites: &mut Vec<CallSite>) {
+fn target<'body>(target: &'body Target, sites: &mut Vec<CallSite<'body>>) {
     match target {
         Target::Unit | Target::Crash(_) => {}
-        Target::Value(value) => match &value.kind {
-            ExpressionKind::Call {
-                callee,
-                required_contract,
-                arguments,
-                ..
-            } => {
-                call(callee, arguments, *required_contract, true, sites);
-            }
-            _ => expression(value, sites),
-        },
+        Target::Value(value) => expression(value, true, sites),
     }
 }
 
-fn call(
-    callee: &CallTarget,
-    arguments: &[Expression],
+fn call<'body>(
+    callee: &'body CallTarget,
+    arguments: &'body [Expression],
     required_contract: Option<semantic_vocabulary::ContractId>,
     terminal: bool,
-    sites: &mut Vec<CallSite>,
+    sites: &mut Vec<CallSite<'body>>,
 ) {
     if let Some(operand) = callee.operand() {
-        expression(operand, sites);
+        expression(operand, false, sites);
     }
     for argument in arguments {
-        expression(argument, sites);
+        expression(argument, false, sites);
     }
     // These components lower statically named tail transfers to local jumps.
     // A value call stays an invocation with its retained contract; selecting
@@ -254,14 +251,22 @@ fn call(
             callee: *callee,
             terminal,
             required_contract,
+            arguments,
         });
     }
 }
 
-fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
+fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<CallSite<'body>>) {
     match &value.kind {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
+                expression(operand, false, sites);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_)
@@ -279,27 +284,27 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
         | ExpressionKind::IsCase {
             subject: operand, ..
         }
-        | ExpressionKind::Borrow { place: operand, .. } => expression(operand, sites),
+        | ExpressionKind::Borrow { place: operand, .. } => expression(operand, false, sites),
         ExpressionKind::Array { elements } => {
             for element in elements {
-                expression(element, sites);
+                expression(element, false, sites);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
             {
-                expression(operand, sites);
+                expression(operand, false, sites);
             }
         }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
-            expression(base, sites);
-            expression(index, sites);
+            expression(base, false, sites);
+            expression(index, false, sites);
         }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
-                expression(operand, sites);
+                expression(operand, false, sites);
             }
         }
         ExpressionKind::Match {
@@ -308,18 +313,21 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             default,
             ..
         } => {
-            expression(subject, sites);
-            for (_, arm) in arms {
-                expression(arm, sites);
+            expression(subject, false, sites);
+            for (selector, arm) in arms {
+                if let crate::body::Selector::Value(pattern) = selector {
+                    expression(pattern, false, sites);
+                }
+                expression(arm, terminal, sites);
             }
             if let Some(arm) = default {
-                expression(arm, sites);
+                expression(arm, terminal, sites);
             }
         }
         ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
-            expression(left, sites);
-            expression(right, sites);
+            expression(left, false, sites);
+            expression(right, false, sites);
         }
         ExpressionKind::Call {
             callee,
@@ -327,7 +335,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             arguments,
             ..
         } => {
-            call(callee, arguments, *required_contract, false, sites);
+            call(callee, arguments, *required_contract, terminal, sites);
         }
     }
 }

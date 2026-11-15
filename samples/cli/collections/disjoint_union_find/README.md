@@ -15,12 +15,11 @@ representatives across all 64 elements and self-verifies:
 On agreement it prints `PASS` and exits `0`.
 
 An intended-invalid control in `controls/find_out_of_range` invokes
-`DisjointSet::find` with an out-of-range element (`64`, violating `element < 64`) and is
+`find` with an out-of-range element (`64`, violating `element < 64`) and is
 rejected at compile time.
 
 After ordinary package review on macOS arm64:
 
 ```sh
-python3 tools/sample_native_gate.py --cli build/dev-target/debug/omega --target macos_arm64 --filter collections/disjoint_union_find --jobs 1
 build/dev-target/debug/omega run --both samples/cli/collections/disjoint_union_find/main.omg < /dev/null
 ```

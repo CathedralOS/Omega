@@ -28,7 +28,7 @@ mod identity;
 #[path = "mixed_structural_scalar.rs"]
 mod mixed_structural_scalar;
 #[path = "provider_execution.rs"]
-mod provider_execution;
+pub(crate) mod provider_execution;
 #[cfg(test)]
 #[path = "native_artifact_tests.rs"]
 mod tests;
@@ -177,6 +177,8 @@ impl RequestedNativeArtifact {
         providers: AdmittedNativeProviders<'_>,
         boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let native_bindings = providers.native_bindings().clone();
+        let native_calling = providers.native_calling().to_vec();
         let terminal_authority_closure_review =
             providers.terminal_authority_closure_review().clone();
         let coverage = boundary_application_coverage.as_ref().ok_or_else(|| {
@@ -198,6 +200,8 @@ impl RequestedNativeArtifact {
                 *selected.identity_digest().as_bytes(),
             ),
             selected_provider_plans: NativeSelectedProviderPlan::project_selection(selected),
+            native_bindings,
+            native_calling,
             provider_executions: providers
                 .executions
                 .into_iter()
@@ -253,6 +257,8 @@ fn with_emitted_image<Image, EmittedImage>(
         selected_provider_closure_digest: parts.selected_provider_closure_digest,
         selected_provider_plans: parts.selected_provider_plans,
         provider_executions: parts.provider_executions,
+        native_bindings: parts.native_bindings,
+        native_calling: parts.native_calling,
         terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
         terminal_authority_permission_policy_identity: parts
             .terminal_authority_permission_policy_identity,
@@ -280,6 +286,8 @@ pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
+    pub native_bindings: provider_admission::RetainedNativeBindings,
+    pub native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub terminal_authority_permission_policy_identity:
         Option<TerminalAuthorityPermissionPolicyIdentity>,
@@ -299,6 +307,8 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
+    pub native_bindings: provider_admission::RetainedNativeBindings,
+    pub native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub terminal_authority_permission_policy_identity:
         Option<TerminalAuthorityPermissionPolicyIdentity>,
@@ -331,6 +341,8 @@ impl<Image> NativeArtifactEmissionParts<Image> {
                 selected_provider_closure_digest: self.selected_provider_closure_digest,
                 selected_provider_plans: self.selected_provider_plans,
                 provider_executions: self.provider_executions,
+                native_bindings: self.native_bindings,
+                native_calling: self.native_calling,
                 terminal_authority_policy_identity: self.terminal_authority_policy_identity,
                 terminal_authority_permission_policy_identity: self
                     .terminal_authority_permission_policy_identity,
@@ -417,6 +429,10 @@ impl<Image> NativeArtifactParts<Image> {
             foreign_call_custody_digest: foreign_call_custody_digest(foreign_calls),
             selected_provider_plans: &self.selected_provider_plans,
             provider_executions: &self.provider_executions,
+            native_supply_digest: native_supply_identity(
+                &self.native_bindings,
+                &self.native_calling,
+            ),
             terminal_authority_policy_identity: self.terminal_authority_policy_identity,
             terminal_authority_permission_policy_identity: self
                 .terminal_authority_permission_policy_identity,
@@ -484,6 +500,8 @@ impl<Image> NativeArtifactParts<Image> {
             final_image_symbol_digest,
             &self.selected_provider_plans,
             &self.provider_executions,
+            &self.native_bindings,
+            &self.native_calling,
             self.boundary_application_coverage.as_ref(),
         )
     }
@@ -512,6 +530,8 @@ impl NativeArtifact {
             *parts.image.final_image_symbol_digest().as_bytes(),
             &parts.selected_provider_plans,
             &parts.provider_executions,
+            &parts.native_bindings,
+            &parts.native_calling,
             parts.boundary_application_coverage.as_ref(),
         )
     }
@@ -587,6 +607,8 @@ impl NativeArtifact {
             self.parts.image.foreign_calls(),
             &self.parts.selected_provider_plans,
             &self.parts.provider_executions,
+            &self.parts.native_bindings,
+            &self.parts.native_calling,
         )
         .map_err(provider_execution::ProviderExecutionReplayError::direct_message)?;
         let final_image_symbol_digest = *self.parts.image.final_image_symbol_digest().as_bytes();
@@ -1082,4 +1104,19 @@ fn validate_ieee_float_fma_occurrences(
         );
     }
     Ok(())
+}
+
+fn native_supply_identity(
+    bindings: &provider_admission::RetainedNativeBindings,
+    calling: &[calling_conventions::BoundaryCallingApplication],
+) -> [u8; 32] {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-artifact.native-supply.v1\0",
+    );
+    digest.raw(&bindings.identity_digest());
+    digest.raw(&canonical_usize(calling.len()));
+    for application in calling {
+        digest.raw(&application.commitment);
+    }
+    digest.finish()
 }

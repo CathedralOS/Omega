@@ -34,7 +34,6 @@ The [root program](main.omg) retains explicit `Main` storage, its field read and
 `hits` write, with a [root reject](invalid/main.omg). Its entry helper performs
 the establishing write before calling the independent consuming machine. All
 positive projects declare exit 0 and bind all four hosted `ProgramEntry` slots.
-The row and its twins are pinned under `tests/omega/{pass,fail}/facts`.
 
 The [checked predicate helper production](predicate_helper/README.md) carries
 the same fact through all nine places when the default domain is an ordinary

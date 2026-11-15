@@ -14,6 +14,7 @@ impl CompilationSession {
     pub(super) fn select_build_batch<Owner>(
         &mut self,
         builds: Vec<(Owner, PreparedPackageBuild)>,
+        inspection_name: impl Fn(&Owner) -> Option<&str>,
         mut frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
@@ -23,9 +24,10 @@ impl CompilationSession {
         for (position, (owner, build)) in builds.into_iter().enumerate() {
             artifacts::compile_timings::counters::record_checked_compilation();
             if let Some(group) = groups.iter_mut().find(|group| {
-                group
-                    .first()
-                    .is_some_and(|(_, _, prior)| prior.same_product_source(&build))
+                group.first().is_some_and(|(_, prior_owner, prior)| {
+                    inspection_name(prior_owner) == inspection_name(&owner)
+                        && prior.same_product_source(&build)
+                })
             }) {
                 group.push((position, owner, build));
             } else {
@@ -61,6 +63,7 @@ impl CompilationSession {
                     Some(&inputs),
                     &calling_targets,
                     &rollback,
+                    inspection_name(&first_owner),
                     frontier.as_deref_mut(),
                 )
             });

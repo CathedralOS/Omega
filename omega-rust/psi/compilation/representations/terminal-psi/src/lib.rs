@@ -33,6 +33,7 @@ pub mod callable_values;
 pub use call_contexts::{CallAcknowledgement, CallFormation, CallOrigin, CallSite};
 #[macro_use]
 pub mod control_flow;
+pub use control_flow::ExecutionSite;
 pub mod identity;
 pub mod observation;
 #[macro_use]

@@ -63,6 +63,7 @@ fn terminal_product(
     // Product and services, and publishes the selected entry. Fixture-specific
     // semantic-role discovery supplies no alternative acceptance here.
     let mut outcomes = orchestration::build(orchestration::BuildRequest {
+        stage_validators: Default::default(),
         root_path: main.to_path_buf(),
         build_directory: Some(main.parent().unwrap().join("build/terminal")),
         targets: orchestration::BuildTargets::Single(

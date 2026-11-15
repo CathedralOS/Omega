@@ -225,12 +225,7 @@ impl Program<'_> {
                 ),
                 scope.clone(),
             )
-            .ok_or_else(|| {
-                services::unavailable(
-                    context,
-                    "selected calling schema has no complete normalized source projection",
-                )
-            })?;
+            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
             schema
                 .validate_correspondence()
                 .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
@@ -379,7 +374,10 @@ impl Program<'_> {
                             ));
                         }
                     };
-                    if !row.source_templates.contains(&source.symbol) {
+                    if !row
+                        .projections_in_context(typed, self.purpose)
+                        .any(|projection| projection.source == source.symbol)
+                    {
                         return Err(services::unavailable(
                             context,
                             "Calling ABI key does not retain its exact requirement source",

@@ -23,7 +23,7 @@ impl AffineTransformImport {
         binding: &NormalizedForeignCallBinding,
         application: Option<&BoundaryCallingApplication>,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        let Some((locator, _)) = binding.import() else {
+        let Some(locator) = binding.foreign_import_locator() else {
             return Ok(None);
         };
         if !cfg!(all(target_os = "macos", target_arch = "aarch64"))

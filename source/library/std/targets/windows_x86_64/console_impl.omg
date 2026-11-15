@@ -9,13 +9,13 @@ use omega::language::core::widen_u8_to_i32;
 // directly; their raw host dependencies belong to the realization inventory.
 boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
     machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console
     crashes none;
 
     // A console read waits for host input, so the import publishes `blocks`.
     machine read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console
     blocks
     crashes none;
@@ -37,7 +37,6 @@ boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
 // `crashes Trap` contract.
 machine windows_console_read_byte() -> ByteRead
 reaches Console
-invokes WindowsConsoleIo
 blocks
 crashes Trap
 {
@@ -63,7 +62,6 @@ crashes Trap
 // Descriptor 1 is stdout.
 machine windows_console_write_byte(byte: i32)
 reaches Console
-invokes WindowsConsoleIo
 {
     let mut cell: i32 = byte;
     let mode: i32 = WindowsConsoleIo::set_mode(1, 32768);
@@ -71,9 +69,11 @@ invokes WindowsConsoleIo
 }
 
 WindowsConsoleBytes satisfies ConsoleByteOperations {
-    ConsoleByteOperations::read_byte = windows_console_read_byte;
-    ConsoleByteOperations::write_byte = windows_console_write_byte;
-    machine exit_process(return_code: i32) reaches Console {
-        WindowsConsoleExit::exit_process(return_code);
+    machine read_byte() -> ByteRead
+    reaches Console blocks crashes Trap {
+        block windows_console_read_byte()
+    }
+    machine write_byte(byte: i32) reaches Console {
+        windows_console_write_byte(byte);
     }
 }

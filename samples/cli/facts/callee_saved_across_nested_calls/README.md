@@ -78,15 +78,6 @@ Host: macOS arm64 (`darwin`/`arm64`). Base revision: `964b471b6cbf3f10b718089af3
 | `sample_native_gate --facts --filter <nine>/invalid` | 9/9 intended-invalid controls match their authored rejection |
 | `corpus_gate --native --filter facts/callee_saved_across_nested_calls` | clean: 9 fixtures `{'built': 9}`, executed 9 `{'0': 9}` |
 
-Pinned fixtures: nine positives under
-`tests/omega/pass/facts/callee_saved_across_nested_calls_through_<place>_exit`
-(each with `main.omg`, `build.omg` binding all four hosted targets, and
-`expected_native_exit.txt` `0`), and nine reject twins under
-`tests/omega/fail/facts/callee_saved_across_nested_calls_unproved_<place>`
-(each with `expected.txt` `may overflow `u64``). Golden rows: the nine
-`rejected ... expected` rows in `tests/omega/corpus_outcomes.txt` and the nine
-`built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`.
-
 ### Pin re-verification (`9ff26a870215`, 2026-10-22)
 
 Producer: `factsr1-producer` `target/debug/omega` built at `9ff26a870215`,
@@ -96,7 +87,7 @@ macOS arm64. Commands and numbers:
 | --- | --- |
 | `omega run --both` on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
 | `omega --check <place>/invalid/main.omg` (9 twins) | 9/9 reject, exit 1, `may overflow `u64`` |
-| `omega --check tests/omega/fail/facts/callee_saved_across_nested_calls_unproved_<place>/main.omg` (9 fixture twins) | 9/9 reject, exit 1, `may overflow `u64`` |
+|  | 9/9 reject, exit 1, `may overflow `u64`` |
 
 Each of the nine pinned twins is byte-identical to its sample-side
 `<place>/invalid/main.omg`, and each pinned positive is byte-identical to

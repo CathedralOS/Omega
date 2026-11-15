@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Grid walk: a direction enum maps to a 2D step vector via a value-call whose
 // transition arms return STRUCT LITERALS (`Dir::E -> Vec2 { dx: 1, dy: 0 }`), and a
 // scripted sequence of moves accumulates a position. This showcases the natural
@@ -45,7 +46,7 @@ machine Main::step(main: &mut Main, d: Dir) {
     main.py = main.py + v.dy;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("grid_walk: an enum-dispatched walk (E,E,E,S,S) accumulating a 2D position");
     main.px = 0;
     main.py = 0;
@@ -65,12 +66,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("result: x*10+y, 32 for this walk (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.px as i32);
+        ProcessExit::exit_process(main.px as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

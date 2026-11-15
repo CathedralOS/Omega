@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega::language::core::DirectoryEnumeration;
 use omega::language::core::FilesystemContentRead;
 use omega::language::core::FilesystemContentWrite;
@@ -39,10 +40,10 @@ use omega_language_std::Console;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
 public boundary trait Clock {
-    machine sleep(milliseconds: u32) reaches ClockObservation + ExecutionDelay invokes DarwinClock;
+    machine sleep(milliseconds: u32) reaches ClockObservation + ExecutionDelay invokes DarwinClock crashes none;
 }
 public boundary trait Input {
-    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics;
+    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation invokes CoreGraphics crashes none;
 }
 public boundary trait Gui {
     machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
@@ -55,15 +56,15 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC invokes CoreGraphics invokes AppKit;
+        invokes ObjectiveC invokes CoreGraphics invokes AppKit crashes none;
     machine window_destroy(window: Window) reaches
         GlobalInputObservation + NativeCodeExecution + WindowManagement +
         SurfacePresentation + WindowEventObservation + WindowEventDispatch +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics;
-    machine get_dc(window_state: &Window, window: u64) -> u64 reaches;
+        ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics crashes none;
+    machine get_dc(window_state: &Window, window: u64) -> u64 reaches crashes none;
     machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
@@ -72,36 +73,36 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC invokes CoreGraphics invokes MacosImageData invokes MacosImageObjects;
+        invokes ObjectiveC invokes CoreGraphics invokes MacosImageData invokes MacosImageObjects crashes none;
     machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC;
-    machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32 reaches;
+        ProcessOutput + ProcessExit invokes ObjectiveC crashes none;
+    machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32 reaches crashes none;
     machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC;
+        ProcessOutput + ProcessExit invokes ObjectiveC crashes none;
     machine is_window(window_state: &Window, window: u64) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC;
+        ProcessOutput + ProcessExit invokes ObjectiveC crashes none;
     machine foreground_window(window_state: &Window) -> u64 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit invokes ObjectiveC;
+        ProcessOutput + ProcessExit invokes ObjectiveC crashes none;
 }
 ViewerGuiProvider satisfies Gui {
     machine window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
@@ -553,17 +554,17 @@ machine Main::main(main: &mut Main) reaches
     machine closed(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("viewer closed -- goodbye (exit 0)");
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine load_failed(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
     machine bad(main: &mut Main, window: Window) {
         Gui::window_destroy(window);
         Console::write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 

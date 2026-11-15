@@ -107,15 +107,23 @@ impl Qualification {
     }
 }
 
-/// The declared domains of one type, each by its declaration's symbol, kept
+/// One exact domain application. The declaration owns the family and its
+/// routes; the semantic coordinate distinguishes its carrier and indices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DomainInstance {
+    pub declaration: symbols::SymbolHandle,
+    pub identity: language_semantics::SemanticDomainId,
+}
+
+/// The declared domains of one type, each by its exact application, kept
 /// sorted so that equal sets are equal values. The set is held inline, as
-/// the two numbers of each symbol handle, which keeps a type `Copy` and lets
+/// the declaration handle and semantic coordinate, which keeps a type `Copy` and lets
 /// `Qualification::NONE` be matched as a pattern; a type naming more than
 /// `DomainSet::CAPACITY` declared domains is refused by the reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DomainSet {
     len: u8,
-    members: [(u32, u32); Self::CAPACITY],
+    members: [(u32, u32, u32); Self::CAPACITY],
 }
 
 /// A primitive byte domain actually used on this descriptor carrier. The
@@ -123,7 +131,7 @@ pub struct DomainSet {
 /// and predicate beside every place and callable header that carries it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SourceByteDomain {
-    pub source: symbols::SymbolHandle,
+    pub source: DomainInstance,
     pub carrier: StructuralTypeId,
     pub predicate: semantic_vocabulary::ByteSequencePredicate,
 }
@@ -132,24 +140,31 @@ impl DomainSet {
     pub const CAPACITY: usize = 4;
     pub const EMPTY: Self = Self {
         len: 0,
-        members: [(0, 0); Self::CAPACITY],
+        members: [(0, 0, 0); Self::CAPACITY],
     };
 
-    const fn key(domain: symbols::SymbolHandle) -> (u32, u32) {
-        (domain.arena_index(), domain.generation())
+    const fn key(domain: DomainInstance) -> (u32, u32, u32) {
+        (
+            domain.declaration.arena_index(),
+            domain.declaration.generation(),
+            domain.identity.0,
+        )
     }
 
-    pub fn members(&self) -> impl Iterator<Item = symbols::SymbolHandle> + '_ {
+    pub fn members(&self) -> impl Iterator<Item = DomainInstance> + '_ {
         self.members[..usize::from(self.len)]
             .iter()
-            .map(|(index, generation)| symbols::SymbolHandle::from_parts(*index, *generation))
+            .map(|(index, generation, identity)| DomainInstance {
+                declaration: symbols::SymbolHandle::from_parts(*index, *generation),
+                identity: language_semantics::SemanticDomainId(*identity),
+            })
     }
 
     pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    pub fn contains(&self, domain: symbols::SymbolHandle) -> bool {
+    pub fn contains(&self, domain: DomainInstance) -> bool {
         self.members[..usize::from(self.len)].contains(&Self::key(domain))
     }
 
@@ -160,7 +175,7 @@ impl DomainSet {
 
     /// This set with `domain` added: `None` when it is already a member or
     /// the set is full.
-    pub fn with(mut self, domain: symbols::SymbolHandle) -> Option<Self> {
+    pub fn with(mut self, domain: DomainInstance) -> Option<Self> {
         let count = usize::from(self.len);
         if self.contains(domain) || count == Self::CAPACITY {
             return None;
@@ -170,6 +185,18 @@ impl DomainSet {
         self.members.copy_within(position..count, position + 1);
         self.members[position] = key;
         self.len += 1;
+        Some(self)
+    }
+
+    /// This set with `domain` removed: `None` when it is not a member.
+    pub fn without(mut self, domain: DomainInstance) -> Option<Self> {
+        let count = usize::from(self.len);
+        let position = self.members[..count]
+            .iter()
+            .position(|member| *member == Self::key(domain))?;
+        self.members.copy_within(position + 1..count, position);
+        self.members[count - 1] = (0, 0, 0);
+        self.len -= 1;
         Some(self)
     }
 }
@@ -317,6 +344,13 @@ pub struct RecordType {
     /// whether the place is that case, before it states a goal
     /// (`terminal-psi-to-terminal-psi`).
     pub requires: Vec<Proposition>,
+    /// The record is `LayoutStorage<T, Policy>` storage: its bytes follow a
+    /// selected plan and a byte view can observe all of them, padding
+    /// included. Construction therefore zeroes the storage before storing
+    /// its fields, as `let x: T;` followed by field stores does, so no byte
+    /// is left without contents (constants.md: "Semantically unobservable
+    /// padding is emitted as zero").
+    pub authored_layout: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -337,16 +371,41 @@ pub enum StorageShape {
     // actual immutable backing must still be established by its producer.
     ElementView {
         element: StructuralTypeId,
+        qualification: Qualification,
         access: Option<terminal_psi::StructuralAccess>,
     },
     FixedArray {
         element: StructuralTypeId,
+        qualification: Qualification,
         length: terminal_psi::ArrayExtent,
     },
+    AtomicCell(semantic_vocabulary::AtomicCellType),
     PrimitiveScalar {
         scalar_type: ScalarType,
         policy: Option<Policy>,
     },
+}
+
+impl StorageShape {
+    /// Select the checked metadata read from the descriptor's storage type.
+    pub(crate) fn length_operation(
+        &self,
+    ) -> Option<fn(terminal_psi::StructuralArgument) -> terminal_psi::OperationKind> {
+        use terminal_psi::{ByteSequenceCarrier, OperationKind, StructuralAccess};
+
+        match self {
+            Self::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access:
+                    None | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            }) => Some(|source| OperationKind::ByteSequenceLength { source }),
+            Self::ElementView {
+                access:
+                    None | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                ..
+            } => Some(|source| OperationKind::ElementViewLength { source }),
+            _ => None,
+        }
+    }
 }
 
 impl RecordType {
@@ -845,8 +904,12 @@ pub enum Statement {
         value: Expression,
         source: SourceOrigin,
     },
-    /// Evaluate for effect and discard the result.
-    Evaluate(Expression),
+    /// Evaluate once for effect. The source marker permits discarding a normal
+    /// result; a checked non-returning evaluation produces no result to discard.
+    Evaluate {
+        expression: Expression,
+        discards_result: bool,
+    },
     /// `transition subject { S::A { .. } -> x  S::B -> y  _ -> z }` over a
     /// sum: the subject is observed once and exactly the selected arm runs
     /// (`wiki/spec/language/patterns.md`: "A dispatch evaluates its subject
@@ -873,6 +936,17 @@ pub enum Statement {
     },
 }
 
+impl Statement {
+    /// An intentional discard in a synthesized body, with the same custody
+    /// obligations as the source `_ =` marker.
+    pub fn discard(expression: Expression) -> Self {
+        Self::Evaluate {
+            expression,
+            discards_result: true,
+        }
+    }
+}
+
 /// What an arm completes the machine with.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Target {
@@ -897,10 +971,36 @@ pub struct Expression {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum AtomicOperation {
+    Access {
+        place: Box<Expression>,
+        event: terminal_psi::AtomicAccessEvent<usize>,
+        operands: Vec<Expression>,
+    },
+    Fence(terminal_psi::FenceOrdering),
+}
+
+impl AtomicOperation {
+    pub(crate) fn inputs(&self) -> impl Iterator<Item = &Expression> {
+        let (place, operands) = match self {
+            Self::Access {
+                place, operands, ..
+            } => (Some(place.as_ref()), operands.as_slice()),
+            Self::Fence(_) => (None, &[][..]),
+        };
+        place.into_iter().chain(operands)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionKind {
+    /// Operand indices refer to the event's source evaluation order.
+    Atomic(AtomicOperation),
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<typed_trees::expression::CompletedValueCapture>),
     Integer(IntegerValue),
+    /// Exact IEEE representation after one rounding at the landing boundary.
+    Float(semantic_vocabulary::IeeeFloatValue),
     Boolean(bool),
     /// A stored exact selection. Construction keeps code and its required
     /// contract; it evaluates no arguments and invokes no body.
@@ -917,6 +1017,10 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
+    /// A query of the selected target's exact layout for its subject.
+    LayoutObservation {
+        application: semantic_vocabulary::ScalarApplicationId,
+    },
     /// One byte of a borrowed byte view, read at `index`. The view is
     /// measured where the byte is read, and the read owes `index < length`
     /// against that measurement (byte_views.md, `ByteSequenceRead`). A byte
@@ -928,12 +1032,13 @@ pub enum ExpressionKind {
     },
     /// A new descriptor over the same shared backing. Missing endpoints
     /// mean zero and the captured descriptor's own length, respectively.
-    ByteSubslice {
+    CollectionSubslice {
         base: Box<Expression>,
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
-    /// An explicit borrow of a whole byte array. The descriptor borrows
+    /// An explicit borrow of a whole closed array, as a byte descriptor or
+    /// a typed element view. The descriptor borrows
     /// the selected backing; its formation owns a separate loan occurrence.
     ArrayView {
         base: Box<Expression>,
@@ -993,8 +1098,8 @@ pub enum ExpressionKind {
         subject: Box<Expression>,
         case: usize,
     },
-    /// Value-position `match` whose arms are scalar: the subject is
-    /// evaluated once, the selected arm's value is the result
+    /// Value-position `match`: evaluate the subject once and transfer the
+    /// selected scalar or owned result to its continuation or normal return
     /// (`wiki/spec/language/expressions.md`: "Value-position `match` |
     /// Subject once; first matching arm only.").
     ///
@@ -1035,13 +1140,15 @@ pub enum ExpressionKind {
     /// policy, so no operation is emitted and the operand keeps the
     /// operations its own type chose.
     Requalify(Box<Expression>),
-    /// `value as +D` for a domain with predicates: the scalar operand,
-    /// whose value is the result, and the predicates the cast proves of
-    /// it, each over the one value `ValueId(1)` (`read/predicates.rs`).
-    /// domains.md, "Domain-only casts": "Has predicates | Prove them for
-    /// this value." Lowering continues in a block whose parameter is the
-    /// result and whose invariant is the clauses, so the edge into it owes
-    /// them and everything after knows them.
+    /// `value as +D` for a domain with predicates: the operand, whose value
+    /// is the result, and the predicates the cast proves of it
+    /// (`read/predicates.rs`), each over the one value `ValueId(1)` for a
+    /// scalar, or over the one structural subject `self_place()` for an
+    /// array, a record or a reference. domains.md, "Domain-only casts":
+    /// "Has predicates | Prove them for this value." Lowering continues in
+    /// a block whose parameter is the result and whose invariant is the
+    /// clauses, so the edge into it owes them and everything after knows
+    /// them.
     Establish {
         operand: Box<Expression>,
         clauses: Vec<Proposition>,
@@ -1067,16 +1174,8 @@ pub enum ExpressionKind {
     /// here: lending it needs storage, so lowering gives it a home holding
     /// its current value first, and this is the text identity of that
     /// home's type, as `Statement::Declare` carries one.
-    ///
-    /// `access` is what the holder receives; `formation` is the loan the
-    /// program wrote. They differ only for `&mut place` given a `&T` formal
-    /// (`ReferenceAccess::forms`): the place is lent exclusively and its
-    /// holder observes through it, so the lowered-form checker judges that
-    /// formation against every overlapping live loan as the exclusive loan
-    /// it is.
     Borrow {
         access: language_core::ReferenceAccess,
-        formation: language_core::ReferenceAccess,
         place: Box<Expression>,
         home: Option<String>,
     },
@@ -1169,7 +1268,7 @@ pub enum Strict {
 
 #[cfg(test)]
 mod qualification_tests {
-    use super::{DomainSet, Policy, Qualification};
+    use super::{DomainInstance, DomainSet, Policy, Qualification};
     use symbols::SymbolHandle;
 
     /// Equal sets are equal values whatever order their members were added
@@ -1177,7 +1276,10 @@ mod qualification_tests {
     /// qualification as the declared domains.
     #[test]
     fn a_domain_set_is_one_value_per_set() {
-        let [km, positive] = [7, 3].map(SymbolHandle::from_arena_index);
+        let [km, positive] = [7, 3].map(|slot| DomainInstance {
+            declaration: SymbolHandle::from_arena_index(slot),
+            identity: language_semantics::SemanticDomainId(slot),
+        });
         let forward = DomainSet::EMPTY.with(km).unwrap().with(positive).unwrap();
         let backward = DomainSet::EMPTY.with(positive).unwrap().with(km).unwrap();
         assert_eq!(forward, backward);
@@ -1198,9 +1300,32 @@ mod qualification_tests {
         let mut full = DomainSet::EMPTY;
         for index in 0..DomainSet::CAPACITY as u32 {
             full = full
-                .with(SymbolHandle::from_arena_index(index + 20))
+                .with(DomainInstance {
+                    declaration: SymbolHandle::from_arena_index(index + 20),
+                    identity: language_semantics::SemanticDomainId(index + 20),
+                })
                 .unwrap();
         }
         assert!(full.with(km).is_none());
+        let other_application = DomainInstance {
+            identity: language_semantics::SemanticDomainId(71),
+            ..km
+        };
+        let applications = DomainSet::EMPTY
+            .with(km)
+            .unwrap()
+            .with(other_application)
+            .unwrap();
+        assert_eq!(
+            applications.members().count(),
+            2,
+            "a family does not merge different carrier/index applications"
+        );
+        assert!(
+            !DomainSet::EMPTY
+                .with(km)
+                .unwrap()
+                .contains(other_application)
+        );
     }
 }

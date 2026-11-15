@@ -1,0 +1,19 @@
+// Expected exit: 0
+// The selected implementation must produce the value checked at runtime.
+public boundary trait LookupService {
+    machine read() -> u32 reaches none crashes none;
+}
+public SelectedLookup satisfies LookupService {
+    machine read() -> u32 { 37u32 }
+}
+public data UnrelatedLookup {}
+
+machine main() reaches LookupService crashes Trap {
+    let observed: u32 = LookupService::read();
+    transition observed == 37u32 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

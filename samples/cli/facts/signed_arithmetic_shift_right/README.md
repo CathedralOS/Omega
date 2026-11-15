@@ -32,8 +32,6 @@ Each place has an `invalid/` twin that weakens the signed operand bound to `val 
 
 Check a twin with `omega --check samples/cli/facts/signed_arithmetic_shift_right/<place>/invalid/main.omg`.
 
-Each twin carries an authored `sample.json` intended-invalid identity (`"role": "intended-invalid"`, `"rejection_contains": [...]`) and a pinned `tests/omega/fail/facts/signed_arithmetic_shift_right_through_<place>_rejected` fixture.
-
 | Place | Reject Twin | Authored diagnostic fragment |
 | --- | --- | --- |
 | local | [invalid_local/main.omg](invalid_local/main.omg) | `cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0` |
@@ -48,7 +46,7 @@ Each twin carries an authored `sample.json` intended-invalid identity (`"role": 
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/signed_arithmetic_shift_right_through_*` fixtures — nine pass fixtures (each a byte-identical copy of its place program plus `expected_native_exit.txt` `0`) and nine fail fixtures (each a byte-identical copy of its place twin plus the pinned `expected.txt` fragment). The sample and the fixtures cannot drift apart.
+The sample and the fixtures cannot drift apart.
 
 ## Requirements and Evidence
 
@@ -72,7 +70,6 @@ The row is pinned by `tests/omega/{pass,fail}/facts/signed_arithmetic_shift_righ
 - Measured 2026-10-22 on macOS arm64 at `9d9ba4fb625` with the shared generation producer (`build/swarm/factsr1/producers/gen-9d9ba4fb625/omega`, sha256 `5a2fde4a3a91`): the root `main.omg` and all nine positive places run `omega run --both` — ten of ten report `native exit 0` and `interp exit: 0`; all nine `invalid/` twins reject with their authored fragment (`cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0`, and `from forward` at the other_machine place), nine of nine.
 - The eighteen pinned fixtures reproduce that behavior under the corpus gate (check leg `checked` with `check-target:macos_arm64`, native leg `built` with `exit:0`, both leg `built` with `exit:0 interpreter-exit:0 interpreter:agrees`).
 - Remaining open: signed arithmetic right shift interval reductions over non-constant dynamic bounds, and cross-carrier signed shift reduction proofs under `CONSERVATION-CONTRACT`.
-
 
 ## Build-owned target-body migration
 

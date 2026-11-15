@@ -1,10 +1,10 @@
-//! A call owes its caller two independent promises: its possible waits fit the
-//! caller's contract, and the source acknowledges each possibility. Markers
+//! A call owes its caller two separate promises: its possible waits fit the
+//! caller's contract, and the source acknowledges each one. Markers
 //! describe a call; they never turn a synchronous operation into a pause.
 //!
-//! Read canonical calls, not assertions in auxiliary invocation tables. A
-//! source tail call retains its interface on the jump which reuses its frame.
-//! Inferred contracts are the least fixed point of those same call envelopes.
+//! The check reads canonical calls, not side-table claims. A source tail
+//! call keeps its interface on the jump that reuses its frame. Inferred
+//! contracts are the least fixed point of those same call envelopes.
 
 use semantic_vocabulary::{
     CallableContractId, ContractId, InvocationSite, MachineId, TargetMachineCallable,

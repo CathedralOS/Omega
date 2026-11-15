@@ -310,6 +310,12 @@ impl Transport<'_> {
                 ScalarTerm::integer(self.integer_type(*scalar_type)?, *value).ok()?
             }
             ScalarTerm::Boolean(_) => term.clone(),
+            ScalarTerm::IeeeFloatLiteral(value) => {
+                (self.scalar_type(ScalarType::IeeeFloat(value.format()))?
+                    == ScalarType::IeeeFloat(value.format()))
+                .then_some(())?;
+                term.clone()
+            }
             ScalarTerm::ExactIntegerAdd {
                 scalar_type,
                 left,
@@ -383,6 +389,14 @@ impl Transport<'_> {
                 .collect::<Option<Vec<_>>>()
         };
         Some(match proposition {
+            Proposition::FloatMeaningEqual(clause) => Proposition::FloatMeaningEqual(
+                clause
+                    .map_sources::<&'static str>(|source| {
+                        self.term(source)
+                            .ok_or("float meaning source cannot be transported")
+                    })
+                    .ok()?,
+            ),
             Proposition::Truth | Proposition::Falsehood => proposition.clone(),
             Proposition::Equal(left, right) => {
                 Proposition::Equal(self.term(left)?, self.term(right)?)
@@ -392,6 +406,29 @@ impl Transport<'_> {
             }
             Proposition::LessOrEqual(left, right) => {
                 Proposition::LessOrEqual(self.term(left)?, self.term(right)?)
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left,
+                right,
+            } => {
+                let mut left = self.term(left)?;
+                let mut right = self.term(right)?;
+                if left.scalar_type() != ScalarType::IeeeFloat(*format)
+                    || right.scalar_type() != ScalarType::IeeeFloat(*format)
+                {
+                    return None;
+                }
+                if kind.is_symmetric() && left > right {
+                    std::mem::swap(&mut left, &mut right);
+                }
+                Proposition::ScalarIeeeFloatComparison {
+                    kind: *kind,
+                    format: *format,
+                    left,
+                    right,
+                }
             }
             Proposition::IntegerMathEqual(left, right) => {
                 Proposition::IntegerMathEqual(self.math(left)?, self.math(right)?)
@@ -456,6 +493,9 @@ impl Transport<'_> {
             },
             ProofRule::ConjunctionIntroduction(parts) => {
                 ProofRule::ConjunctionIntroduction(children(parts)?)
+            }
+            ProofRule::IeeeFloatOrderChain(parts) => {
+                ProofRule::IeeeFloatOrderChain(children(parts)?)
             }
             ProofRule::ConjunctionElimination {
                 conjunction,
@@ -1111,7 +1151,10 @@ impl Instantiation {
 fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -> bool {
     fn term<'p>(term: &'p ScalarTerm, out: &mut Vec<&'p ScalarTerm>) -> bool {
         match term {
-            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => {
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::IeeeFloatLiteral(_) => {
                 out.push(term);
                 true
             }
@@ -1120,6 +1163,7 @@ fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -
     }
     match proposition {
         Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::FloatMeaningEqual(clause) => clause.sources().all(|source| term(source, out)),
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => term(left, out) && term(right, out),
@@ -1988,5 +2032,162 @@ mod width_transport_tests {
             ValueId::new(1).unwrap(),
             ScalarTerm::integer(u64_type, IntegerValue::Unsigned(8)).unwrap()
         ));
+    }
+}
+
+#[cfg(test)]
+mod ieee_transport_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        IeeeFloatComparisonKind as Kind, IeeeFloatFormat as Format, IeeeFloatValue,
+    };
+
+    #[test]
+    fn carried_ieee_certificates_rename_actuals_without_changing_format_or_bits() {
+        for (format, literals) in [
+            (
+                Format::Binary32,
+                [
+                    IeeeFloatValue::Binary32(0x8000_0000),
+                    IeeeFloatValue::Binary32(0x7fc0_0042),
+                ],
+            ),
+            (
+                Format::Binary64,
+                [
+                    IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+                    IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042),
+                ],
+            ),
+        ] {
+            let scalar = ScalarType::IeeeFloat(format);
+            let transport = Transport {
+                scalar_type: &Some,
+                value: &|id, _| ValueId::new(3 - id.get()).map(Moved::Value),
+                assumption: &|index, _| Ok(Cited::Index(index)),
+                axiom: &Ok,
+            };
+            let [a, b] = [1, 2].map(|id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar));
+            for kind in [
+                Kind::Equal,
+                Kind::NotEqual,
+                Kind::LessThan,
+                Kind::LessOrEqual,
+                Kind::NotLessThan,
+                Kind::NotLessOrEqual,
+            ] {
+                let original = Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left: a.clone(),
+                    right: b.clone(),
+                };
+                let (left, right) = if kind.is_symmetric() {
+                    (a.clone(), b.clone())
+                } else {
+                    (b.clone(), a.clone())
+                };
+                let expected = Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left,
+                    right,
+                };
+                assert_eq!(transport.proposition(&original), Some(expected));
+            }
+            for bits in literals {
+                let term = ScalarTerm::IeeeFloatLiteral(bits);
+                assert_eq!(transport.term(&term), Some(term));
+            }
+            let ordered = Proposition::ScalarIeeeFloatComparison {
+                kind: Kind::LessOrEqual,
+                format,
+                left: a,
+                right: b,
+            };
+            let proof = ProofNode {
+                conclusion: ordered.clone(),
+                rule: ProofRule::IeeeFloatOrderChain(vec![ProofNode {
+                    conclusion: ordered,
+                    rule: ProofRule::Assumption { index: 0 },
+                }]),
+            };
+            let moved = transport.certificate(&proof).unwrap();
+            let ProofRule::IeeeFloatOrderChain(children) = &moved.rule else {
+                panic!("chain was lost")
+            };
+            let context = PropositionContext::from_value_types(
+                (1..=2).map(|id| (ValueId::new(id).unwrap(), scalar)),
+            )
+            .unwrap();
+            proof_admission::accept_certificate(
+                &context,
+                &moved.conclusion,
+                &[children[0].conclusion.clone()],
+                &[],
+                &moved,
+            )
+            .unwrap();
+            let changed_format = Transport {
+                scalar_type: &|_| Some(ScalarType::Boolean),
+                ..transport
+            };
+            assert!(changed_format.certificate(&proof).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod meaning_unification_tests {
+    use super::*;
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Meaning},
+    };
+    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+    use terminal_check_tables::values::{ValueOrigin, ValueRow};
+
+    #[test]
+    fn float_meaning_template_pairing_checks_the_whole_catalog_equation() {
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+        let mut tables = MachineTables::default();
+        for position in 0..3 {
+            tables.values.push(ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+        }
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar);
+        let equation = |name| {
+            let operation = FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                name,
+                &[Format, Meaning, Meaning],
+                Meaning,
+            )
+            .unwrap();
+            Proposition::FloatMeaningEqual(
+                FloatMeaningClause::result_equation(
+                    value(3),
+                    operation.contract_identity(),
+                    IeeeFloatFormat::Binary32,
+                    [value(1), value(2)],
+                )
+                .unwrap(),
+            )
+        };
+        let subtract = equation("subtract");
+        let mut instance = Instantiation {
+            owner: MachineId::new(7).unwrap(),
+            types: Vec::new(),
+            authored: 3,
+            bound: Vec::new(),
+        };
+        assert!(instance.unify(&tables, &subtract, &subtract));
+        assert!(
+            !instance.unify(&tables, &subtract, &equation("divide")),
+            "matching source values cannot replace the operation's full contract"
+        );
     }
 }

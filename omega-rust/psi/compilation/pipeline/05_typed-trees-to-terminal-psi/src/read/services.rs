@@ -811,9 +811,10 @@ struct Use<'a> {
 
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
     match statement {
-        Statement::Bind { value, .. } | Statement::Evaluate(value) => {
-            collect_expression(value, calls)
-        }
+        Statement::Bind { value, .. }
+        | Statement::Evaluate {
+            expression: value, ..
+        } => collect_expression(value, calls),
         Statement::Store {
             destination, value, ..
         } => {
@@ -914,7 +915,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
                 collect_expression(element, calls);
             }
         }
-        E::ByteSubslice { base, start, end } => {
+        E::CollectionSubslice { base, start, end } => {
             collect_expression(base, calls);
             if let Some(start) = start {
                 collect_expression(start, calls);
@@ -927,7 +928,14 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             collect_expression(base, calls);
             collect_expression(index, calls);
         }
+        E::Atomic(operation) => {
+            for operand in operation.inputs() {
+                collect_expression(operand, calls);
+            }
+        }
         E::SavedSubject(_)
+        | E::Float(_)
+        | E::LayoutObservation { .. }
         | E::ByteLiteral(_)
         | E::Integer(_)
         | E::Boolean(_)
@@ -1141,22 +1149,22 @@ impl<'t> Program<'t> {
     /// traits are not service identities." The typed trees keep one authored
     /// row per written clause, with no target for `reaches none`, so a
     /// clause is told from an omission by the row and never by an empty
-    /// set. A ceiling bound by an installation (`reaches <= Bound`) is an
-    /// abstract row, which no slice reads yet.
+    /// set. `reaches <= Bound` contributes its written upper bound while
+    /// checking source; the selected installation still owes its exact row.
     pub(super) fn reach_ceiling(
         &mut self,
         caller: MachineId,
         owner: symbols::SymbolHandle,
+        requirement: bool,
     ) -> Checked<crate::Ceiling> {
         let typed = self.typed;
-        let unserved = |what| refuse(caller, Construct::Machine, Unserved::Machine(what));
         let Some(owner) = crate::reach::authored_ceiling_owner(typed, caller, owner)? else {
             return Ok(crate::Ceiling::Inferred);
         };
         let mut named = Vec::new();
         for row in typed.authored_service_reach_rows_for(owner) {
-            if row.installation_bound {
-                return Err(unserved("service reach bound by an installation"));
+            if row.installation_bound && !requirement {
+                continue;
             }
             named.extend(row.targets.iter().map(|target| target.service));
         }

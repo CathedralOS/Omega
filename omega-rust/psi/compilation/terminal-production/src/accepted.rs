@@ -66,13 +66,39 @@ impl AcceptedTerminalSource {
                 "accepted forms lost their exact source correspondence",
             )]);
         }
-        Ok(Self {
+        let mut accepted = Self {
             source,
             closure,
             correspondence: prepared.source,
             publication,
             advisories,
-        })
+        };
+        accepted.retain_installation_reach()?;
+        Ok(accepted)
+    }
+
+    fn retain_installation_reach(&mut self) -> Result<(), Vec<Diagnostic>> {
+        let requirements = self.installation_reach_requirements();
+        let module = &mut self.closure.elaboration.module;
+        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
+            return Ok(());
+        };
+        if requirements.is_empty() {
+            return Ok(());
+        }
+        let reach = terminal_installation::SynchronousCallGraph::new(module, None)
+            .and_then(|graph| graph.service_reach_from(entry, &requirements, false))
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if reach.installation_dependencies.is_empty() {
+            return Ok(());
+        }
+        for boundary in &mut module.boundary_machines {
+            if requirements.binary_search(&boundary.id).is_ok() {
+                boundary.fixed_service_reach.clear();
+            }
+        }
+        module.root_service_reach = reach;
+        Ok(())
     }
 
     /// Preserve every emitted site of this exact typed call and source member.
@@ -280,6 +306,22 @@ impl AcceptedTerminalSource {
             .collect()
     }
 
+    /// Exact lowered boundary declarations whose source owns an installation bound.
+    pub fn installation_reach_requirements(&self) -> Vec<semantic_vocabulary::BoundaryMachineId> {
+        self.closure
+            .elaboration
+            .boundaries
+            .iter()
+            .filter_map(|(boundary, symbol)| {
+                let (owner, signature) = self.source.trait_machine_signature(*symbol)?;
+                (owner.is_boundary
+                    && signature.symbol == *symbol
+                    && signature.service_reach_is_installation_bound)
+                    .then_some(boundary)
+            })
+            .collect()
+    }
+
     /// The boundary requirements this accepted module declares, in the
     /// order the module declares them.
     ///
@@ -311,6 +353,41 @@ impl AcceptedTerminalSource {
         for (boundary, symbol) in elaboration.boundaries.iter() {
             if elaboration.module.boundary_machine(boundary).is_none() {
                 return Err(lost("omit a requirement the module was lowered from"));
+            }
+            let declaration = elaboration
+                .module
+                .boundary_machine(boundary)
+                .ok_or_else(|| lost("omit a retained boundary"))?;
+            if terminal_semantics::closed_conformances::hosted_primitive_requirement(
+                &elaboration.module,
+                declaration,
+            )
+            .map_err(lost)?
+            .is_some()
+            {
+                continue;
+            }
+            if declaration.declaration.as_ref().is_some_and(|checked| {
+                checked.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+            }) {
+                terminal_semantics::numeric_primitives::validate_boundary(
+                    &elaboration.module,
+                    declaration,
+                )
+                .map_err(|reason| {
+                    lost(&format!(
+                        "{reason}: {}",
+                        declaration
+                            .declaration
+                            .as_ref()
+                            .and_then(|checked| elaboration
+                                .module
+                                .identities
+                                .text(checked.source.semantic_declaration))
+                            .unwrap_or("missing declaration identity")
+                    ))
+                })?;
+                continue;
             }
             let (owner, requirement) = self
                 .source
@@ -463,6 +540,7 @@ impl AcceptedTerminalSource {
             ),
             declaration,
         )
+        .ok()
         .map(|projected| projected.declaration)
     }
 

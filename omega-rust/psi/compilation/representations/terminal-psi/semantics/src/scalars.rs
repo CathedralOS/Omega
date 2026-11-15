@@ -444,45 +444,29 @@ pub(crate) mod proof_bearing_scalar {
                     right: right.scalar_type(),
                 });
             }
-            let mathematical_left = integer_leaf_math_term(
-                left_type,
-                left,
-                |_| mismatch(),
-                OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
-            )?;
-            let mathematical_right = integer_leaf_math_term(
-                right_type,
-                right,
-                |_| mismatch(),
-                OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
-            )?;
+            let mathematical_left = integer_math_operand(left_type, left, |_| mismatch())?;
+            let mathematical_right = integer_math_operand(right_type, right, |_| mismatch())?;
             Ok([
                 (left_type, mathematical_left),
                 (right_type, mathematical_right),
             ])
         }
 
-        fn integer_leaf_math_term(
+        fn integer_math_operand(
             declared: IntegerType,
             term: &ScalarTerm,
             mismatch: impl FnOnce(ScalarType) -> OperationSemanticError,
-            unsupported: OperationSemanticError,
         ) -> Result<IntegerMathTerm, OperationSemanticError> {
             if term.scalar_type() != ScalarType::Integer(declared) {
                 return Err(mismatch(term.scalar_type()));
             }
-            match term {
-                ScalarTerm::Value { id, .. } => Ok(IntegerMathTerm::MathValue {
-                    source_type: declared,
-                    value: *id,
-                }),
-                ScalarTerm::Integer { value, .. } => {
-                    ScalarTerm::integer(declared, *value)
-                        .map_err(OperationSemanticError::InvalidProposition)?;
-                    Ok(IntegerMathTerm::literal(*value))
-                }
-                _ => Err(unsupported),
-            }
+            // A computed operand keeps its scalar policy in the existing
+            // embedding. Validate it before neutral/zero shortcuts can erase
+            // it from the final question; formation of every nested partial
+            // operation is still a separate obligation of the caller.
+            term.validate()
+                .map_err(OperationSemanticError::InvalidProposition)?;
+            IntegerMathTerm::embed(term.clone()).ok_or_else(|| mismatch(term.scalar_type()))
         }
 
         fn append_conjunct(proposition: Proposition, conjuncts: &mut Vec<Proposition>) {
@@ -536,24 +520,18 @@ pub(crate) mod proof_bearing_scalar {
         ) -> Result<Proposition, OperationSemanticError> {
             let known_value_type = concrete_integer(value_type)?;
             let count_proposition = exact_shift_count_proposition(value_type, count_type, count)?;
-            let mathematical_value = integer_leaf_math_term(
-                value_type,
-                value,
-                |actual| OperationSemanticError::ExactShiftLeftValueTypeMismatch {
+            let mathematical_value = integer_math_operand(value_type, value, |actual| {
+                OperationSemanticError::ExactShiftLeftValueTypeMismatch {
                     declared: value_type,
                     actual,
-                },
-                OperationSemanticError::ExactShiftLeftRequiresValueOrLiteralOperand,
-            )?;
-            let mathematical_count = integer_leaf_math_term(
-                count_type,
-                count,
-                |actual| OperationSemanticError::ExactShiftCountTypeMismatch {
+                }
+            })?;
+            let mathematical_count = integer_math_operand(count_type, count, |actual| {
+                OperationSemanticError::ExactShiftCountTypeMismatch {
                     declared: count_type,
                     actual,
-                },
-                OperationSemanticError::ExactShiftLeftRequiresValueOrLiteralCount,
-            )?;
+                }
+            })?;
             if count_proposition == Proposition::Falsehood {
                 return Ok(Proposition::Falsehood);
             }
@@ -1496,6 +1474,59 @@ pub(crate) mod proof_bearing_scalar {
         use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerValue};
 
         #[test]
+        fn computed_operands_keep_their_policy_and_validate_before_simplification() {
+            let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            let literal =
+                |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+            let value = ScalarTerm::value(ValueId::new(17).unwrap(), ScalarType::Integer(integer));
+            let factor = ScalarTerm::value(ValueId::new(18).unwrap(), ScalarType::Integer(integer));
+            let product =
+                ScalarTerm::exact_integer_multiply(integer, value.clone(), factor).unwrap();
+            let nested =
+                ScalarTerm::exact_integer_add(integer, product.clone(), literal(1)).unwrap();
+            let goal = |term: &ScalarTerm| {
+                CanonicalScalarGoal::for_term(term)
+                    .unwrap()
+                    .unwrap()
+                    .kernel_proposition()
+            };
+            let mut retained = false;
+            goal(&nested)
+                .unwrap()
+                .visit_scalar_terms(|term| retained |= term == &product);
+            assert!(
+                retained,
+                "the inner computation remains in the formation question"
+            );
+
+            let wrapped = ScalarTerm::wrapping_integer_add(integer, value, literal(1)).unwrap();
+            let nested =
+                ScalarTerm::exact_integer_subtract(integer, wrapped.clone(), literal(1)).unwrap();
+            let mut retained = false;
+            goal(&nested)
+                .unwrap()
+                .visit_scalar_terms(|term| retained |= term == &wrapped);
+            assert!(
+                retained,
+                "embedding must preserve the operand's wrapping policy"
+            );
+
+            let malformed = ScalarTerm::ExactIntegerMultiply {
+                scalar_type: integer,
+                left: Box::new(ScalarTerm::ExactIntegerAdd {
+                    scalar_type: integer,
+                    left: Box::new(ScalarTerm::Boolean(true)),
+                    right: Box::new(literal(1)),
+                }),
+                right: Box::new(literal(0)),
+            };
+            assert!(
+                goal(&malformed).is_err(),
+                "zero cannot hide malformed nested types"
+            );
+        }
+
+        #[test]
         fn terms_keep_their_own_formation_conditions() {
             let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
             let literal =
@@ -1799,12 +1830,14 @@ pub(crate) mod scalar_leaf_schema {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ScalarLeafResultShape {
         DeclaredInteger,
+        DeclaredFloat,
         Boolean,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ScalarLeafOperandShape {
         IntegerLiteral,
+        FloatLiteral,
         BooleanLiteral,
         UnaryBoolean,
         BinaryBoolean,
@@ -1818,6 +1851,7 @@ pub(crate) mod scalar_leaf_schema {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ScalarLeafDenotation {
         IntegerConstant,
+        FloatConstant,
         BooleanConstant,
         BooleanNot,
         BooleanEqual,
@@ -1947,7 +1981,10 @@ pub(crate) mod scalar_leaf_schema {
                 (ScalarLeafResultShape::Boolean, _) => {
                     ScalarLeafFactShape::BooleanResultEquationAndPolarityImplications
                 }
-                (ScalarLeafResultShape::DeclaredInteger, _) => ScalarLeafFactShape::ResultEquation,
+                (
+                    ScalarLeafResultShape::DeclaredInteger | ScalarLeafResultShape::DeclaredFloat,
+                    _,
+                ) => ScalarLeafFactShape::ResultEquation,
             },
             crash: ScalarLeafCrashPolicy::Never,
             work: ScalarLeafWorkPolicy::ConsumeOne,
@@ -2153,6 +2190,7 @@ pub(crate) mod scalar_leaf_semantics {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum ScalarLeafInputs {
         IntegerLiteral(IntegerValue),
+        FloatLiteral(semantic_vocabulary::IeeeFloatValue),
         BooleanLiteral(bool),
         Unary(ValueId),
         Binary(ValueId, ValueId),
@@ -2165,6 +2203,9 @@ pub(crate) mod scalar_leaf_semantics {
             }
             OperationKind::BooleanConstant { value } => {
                 Some(ScalarLeafInputs::BooleanLiteral(*value))
+            }
+            OperationKind::IeeeFloatConstant { value } => {
+                Some(ScalarLeafInputs::FloatLiteral(*value))
             }
             OperationKind::BooleanNot { operand }
             | OperationKind::IntegerBitwiseNot { operand }
@@ -2219,6 +2260,7 @@ pub(crate) mod scalar_leaf_semantics {
     ) -> Result<(), OperationSemanticError> {
         let valid = match shape {
             ScalarLeafResultShape::DeclaredInteger => matches!(actual, ScalarType::Integer(_)),
+            ScalarLeafResultShape::DeclaredFloat => matches!(actual, ScalarType::IeeeFloat(_)),
             ScalarLeafResultShape::Boolean => actual == ScalarType::Boolean,
         };
         valid
@@ -2241,6 +2283,9 @@ pub(crate) mod scalar_leaf_semantics {
         let valid = match (schema.operands, inputs) {
             (ScalarLeafOperandShape::IntegerLiteral, ScalarLeafInputs::IntegerLiteral(_))
             | (ScalarLeafOperandShape::BooleanLiteral, ScalarLeafInputs::BooleanLiteral(_)) => true,
+            (ScalarLeafOperandShape::FloatLiteral, ScalarLeafInputs::FloatLiteral(value)) => {
+                result_type == ScalarType::IeeeFloat(value.format())
+            }
             (ScalarLeafOperandShape::UnaryBoolean, ScalarLeafInputs::Unary(operand)) => {
                 type_of(operand)? == ScalarType::Boolean
             }
@@ -2301,6 +2346,9 @@ pub(crate) mod scalar_leaf_semantics {
             }
             (ScalarLeafDenotation::BooleanConstant, ScalarLeafInputs::BooleanLiteral(value)) => {
                 return Ok(ScalarTerm::boolean(value));
+            }
+            (ScalarLeafDenotation::FloatConstant, ScalarLeafInputs::FloatLiteral(value)) => {
+                return Ok(ScalarTerm::IeeeFloatLiteral(value));
             }
             (ScalarLeafDenotation::BooleanNot, ScalarLeafInputs::Unary(operand)) => {
                 ScalarTerm::boolean_not(term(operand)?)

@@ -43,6 +43,7 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) selected_provider_closure_digest: [u8; 32],
     pub(super) foreign_call_custody_digest: [u8; 32],
     pub(super) selected_provider_plans: &'a [NativeSelectedProviderPlan],
+    pub(super) native_supply_digest: [u8; 32],
     pub(super) provider_executions: &'a [NativeProviderExecution],
     pub(super) terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub(super) terminal_authority_permission_policy_identity:
@@ -163,6 +164,7 @@ pub(super) fn derive_native_artifact_identity(
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_region_binding);
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_footprint_binding);
     digest.raw(&fields.selected_provider_closure_digest);
+    digest.raw(&fields.native_supply_digest);
     digest.raw(&fields.foreign_call_custody_digest);
     digest.raw(&canonical_usize(fields.selected_provider_plans.len()));
     for plan in fields.selected_provider_plans {
@@ -234,6 +236,26 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         hash_call_site_owner(&mut digest, &call.owner);
         digest.raw(&canonical_usize(call.text_offset));
         digest.raw(&call.caller_live_bytes.to_le_bytes());
+        match call.provider_execution {
+            machine_code::ExternalExecutionRecord::Provider(provider) => {
+                digest.byte(0);
+                for coordinate in [
+                    provider.provider_plan_report_identity,
+                    provider.provider_execution_report_identity,
+                    provider.provider_execution_report_fingerprint,
+                    provider.normalized_root_report_identity,
+                    provider.boundary_contract_report_fingerprint,
+                ] {
+                    digest.raw(&coordinate.to_le_bytes());
+                }
+            }
+            machine_code::ExternalExecutionRecord::NativeBinding(native) => {
+                digest.byte(1);
+                digest.raw(&native.receipt());
+                digest.raw(&native.contract());
+                digest.raw(&native.calling());
+            }
+        }
         for control in [call.x86_floating_control, call.aarch64_floating_control] {
             hash_floating_control(&mut digest, control);
         }
@@ -241,12 +263,35 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             digest.raw(&[2]);
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
             digest.raw(&kernel.number.to_le_bytes());
-            digest.raw(&kernel.provider_plan_report_identity.to_le_bytes());
-            digest.raw(&kernel.provider_plan_commitment);
+            match kernel.execution {
+                target_operations::NormalizedForeignExecution::ProviderPlan {
+                    report,
+                    commitment,
+                } => {
+                    digest.byte(0);
+                    digest.raw(&report.to_le_bytes());
+                    digest.raw(&commitment);
+                }
+                target_operations::NormalizedForeignExecution::NativeBinding(receipt) => {
+                    digest.byte(1);
+                    digest.raw(&receipt);
+                }
+            }
             hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
             continue;
         }
         let contribution = match &call.binding.mechanism {
+            target_operations::NormalizedForeignCallMechanism::HostedImport {
+                locator,
+                receipt,
+                requirement_identity,
+            } => {
+                digest.byte(5);
+                digest.raw(&locator.identity_digest().as_bytes());
+                digest.raw(receipt);
+                hash_bytes(&mut digest, requirement_identity.as_bytes());
+                continue;
+            }
             target_operations::NormalizedForeignCallMechanism::Import {
                 locator,
                 same_stack_contribution,

@@ -1,0 +1,14 @@
+data Ticket { number: i32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine verify(ticket: &Ticket) -> i32 { ticket.number }
+machine retained<'a>(ticket: &'a Ticket) -> &'a Ticket { ticket }
+machine main() crashes Trap {
+    let issued: Ticket = Ticket { number: 4 };
+    let saved: &Ticket = &issued;
+    let forwarded: &Ticket = retained(saved);
+    let observed: i32 = verify(forwarded);
+    transition observed == 4 { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

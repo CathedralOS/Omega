@@ -1250,32 +1250,146 @@ pub mod product_operand {
         occurrence: source::SourceSpan,
         kind: ProductOperandKind,
     ) -> Option<symbols::SymbolHandle> {
-        let program = typed.product_declarations();
-        let candidates = product_candidates(program, kind)?;
-        let token_bound_machines = if kind == ProductOperandKind::BoundarySubject {
-            program
-                .machine_token_bindings()
-                .iter()
-                .filter(|binding| binding.is_boundary)
-                .map(|binding| binding.symbol)
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        program.symbols.find_build_subject_declaration_from_source(
-            path,
-            occurrence,
-            candidates,
-            &token_bound_machines,
-        )
+        ProductDeclarationLookup::new(typed, &[kind]).resolve(path, occurrence, kind)
+    }
+
+    /// Prepares one immutable declaration frontier for a batch of Build operands.
+    /// Access checks still use each operand's exact source occurrence.
+    pub struct ProductDeclarationLookup<'program> {
+        program: &'program TypedTrees,
+        declarations: ProductDeclarationIndex,
+    }
+
+    impl<'program> ProductDeclarationLookup<'program> {
+        pub fn new(typed: &'program TypedTrees, roles: &[ProductOperandKind]) -> Self {
+            let program = typed.product_declarations();
+            Self {
+                program,
+                declarations: program.build_product_declaration_index(roles),
+            }
+        }
+
+        pub fn resolve(
+            &self,
+            path: &str,
+            occurrence: source::SourceSpan,
+            kind: ProductOperandKind,
+        ) -> Option<SymbolHandle> {
+            let program = self.program;
+            let role = product_role_position(kind)?;
+            let occurrence = program.symbols.rejoin_product_occurrence(occurrence);
+            let declaration_path = path
+                .split_once("::")
+                .and_then(|(alias, remaining)| {
+                    program
+                        .symbols
+                        .product_dependency_target(occurrence, alias)
+                        .map(|_| remaining)
+                })
+                .unwrap_or(path);
+            let index = &self.declarations;
+            let rows = &index.roles[role];
+            let first = rows.partition_point(|row| row.path.as_ref() < declaration_path);
+            let last = rows.partition_point(|row| row.path.as_ref() <= declaration_path);
+            program.symbols.find_build_subject_declaration_from_source(
+                path,
+                occurrence,
+                rows[first..last]
+                    .iter()
+                    .map(|row| (row.symbol, row.is_public)),
+                if kind == ProductOperandKind::BoundarySubject {
+                    &index.token_bound_machines
+                } else {
+                    &[]
+                },
+            )
+        }
+    }
+
+    const PRODUCT_ROLES: [ProductOperandKind; 6] = [
+        ProductOperandKind::BoundarySubject,
+        ProductOperandKind::Provider,
+        ProductOperandKind::Requirement,
+        ProductOperandKind::TestRequirement,
+        ProductOperandKind::Data,
+        ProductOperandKind::Representation,
+    ];
+
+    fn product_role_position(role: ProductOperandKind) -> Option<usize> {
+        PRODUCT_ROLES
+            .iter()
+            .position(|candidate| *candidate == role)
+    }
+
+    struct ProductDeclarationName {
+        path: Box<str>,
+        symbol: SymbolHandle,
+        is_public: bool,
+    }
+
+    #[derive(Default)]
+    pub(crate) struct ProductDeclarationIndex {
+        roles: [Vec<ProductDeclarationName>; 6],
+        token_bound_machines: Vec<SymbolHandle>,
+    }
+
+    fn source_span_key(span: source::SourceSpan) -> (usize, usize, usize) {
+        (span.source_id.0, span.span.start, span.span.end)
+    }
+
+    impl TypedTrees {
+        fn build_product_declaration_index(
+            &self,
+            roles: &[ProductOperandKind],
+        ) -> ProductDeclarationIndex {
+            let mut index = ProductDeclarationIndex::default();
+            for (role_position, role) in PRODUCT_ROLES
+                .into_iter()
+                .enumerate()
+                .filter(|(_, role)| roles.contains(role))
+            {
+                let rows = &mut index.roles[role_position];
+                for (symbol, is_public) in product_candidates(self, role) {
+                    if !self.symbols.symbols().nodes().is_valid(symbol) {
+                        continue;
+                    }
+                    let name = self.symbols.name(symbol);
+                    let path = self.symbols.display_path(symbol, "::");
+                    rows.push(ProductDeclarationName {
+                        path: name.into(),
+                        symbol,
+                        is_public,
+                    });
+                    if path != name {
+                        rows.push(ProductDeclarationName {
+                            path: path.into(),
+                            symbol,
+                            is_public,
+                        });
+                    }
+                }
+                // Stable sorting retains the original representative of an
+                // operator family and every competing exact declaration.
+                rows.sort_by(|left, right| left.path.cmp(&right.path));
+            }
+            if roles.contains(&ProductOperandKind::BoundarySubject) {
+                index.token_bound_machines = self
+                    .machine_token_bindings()
+                    .iter()
+                    .filter(|binding| binding.is_boundary)
+                    .map(|binding| binding.symbol)
+                    .collect();
+            }
+            index
+        }
     }
 
     fn product_candidates(
         program: &TypedTrees,
         kind: ProductOperandKind,
-    ) -> Option<Vec<(SymbolHandle, bool)>> {
-        let candidates = match kind {
-            ProductOperandKind::WireCompatibilityFact => return None,
+    ) -> Vec<(SymbolHandle, bool)> {
+        match kind {
+            ProductOperandKind::WireCompatibilityFact => Vec::new(),
             ProductOperandKind::BoundarySubject => program
                 .traits()
                 .iter()
@@ -1341,8 +1455,7 @@ pub mod product_operand {
                 .iter()
                 .map(|definition| (definition.symbol, definition.is_public))
                 .collect(),
-        };
-        Some(candidates)
+        }
     }
 
     /// Resolve the source-owned semantic arrival signature without reading a
@@ -1488,18 +1601,69 @@ pub mod product_operand {
         typed: &TypedTrees,
         author: source::SourceSpan,
     ) -> Result<SymbolHandle, String> {
-        let author = typed.symbols.rejoin_product_occurrence(author);
-        let mut matching = typed
-            .machines()
-            .iter()
-            .filter(|machine| typed.symbols.symbol_source_span(machine.symbol) == Some(author));
-        let machine = matching
-            .next()
-            .ok_or("executed Build request has no authored selecting machine")?;
-        if matching.next().is_some() {
-            return Err("executed Build request has ambiguous authored machine custody".into());
+        ProductRequestAuthors::new(typed).resolve(author)
+    }
+
+    /// Retains exact authored-machine spans for one immutable source batch.
+    pub struct ProductRequestAuthors<'program> {
+        program: &'program TypedTrees,
+        authors: Vec<(source::SourceSpan, SymbolHandle)>,
+    }
+
+    /// Borrows the source that authored a batch while applications are formed
+    /// in the consuming program. Retained applications carry anchors instead.
+    pub struct ProductSourceLookups<'program> {
+        pub declarations: ProductDeclarationLookup<'program>,
+        pub authors: ProductRequestAuthors<'program>,
+    }
+
+    impl<'program> ProductSourceLookups<'program> {
+        pub fn new(program: &'program TypedTrees) -> Self {
+            Self {
+                declarations: ProductDeclarationLookup::new(
+                    program,
+                    &[
+                        ProductOperandKind::BoundarySubject,
+                        ProductOperandKind::Provider,
+                        ProductOperandKind::Data,
+                    ],
+                ),
+                authors: ProductRequestAuthors::new(program),
+            }
         }
-        Ok(machine.symbol)
+    }
+
+    impl<'program> ProductRequestAuthors<'program> {
+        pub fn new(program: &'program TypedTrees) -> Self {
+            let mut authors = program
+                .machines()
+                .iter()
+                .filter_map(|machine| {
+                    program
+                        .symbols
+                        .symbol_source_span(machine.symbol)
+                        .map(|span| (span, machine.symbol))
+                })
+                .collect::<Vec<_>>();
+            authors.sort_by_key(|(span, _)| source_span_key(*span));
+            Self { program, authors }
+        }
+
+        pub fn resolve(&self, author: source::SourceSpan) -> Result<SymbolHandle, String> {
+            let author = self.program.symbols.rejoin_product_occurrence(author);
+            let key = source_span_key(author);
+            let first = self
+                .authors
+                .partition_point(|(span, _)| source_span_key(*span) < key);
+            let last = self
+                .authors
+                .partition_point(|(span, _)| source_span_key(*span) <= key);
+            match &self.authors[first..last] {
+                [(_, symbol)] => Ok(*symbol),
+                [] => Err("executed Build request has no authored selecting machine".into()),
+                _ => Err("executed Build request has ambiguous authored machine custody".into()),
+            }
+        }
     }
 
     pub fn native_binding_formation(
@@ -1605,6 +1769,191 @@ pub mod product_operand {
                     .iter()
                     .zip(right.operands.iter())
                     .all(|(left, right)| self.same_product_operand_source(left, right))
+        }
+    }
+    #[cfg(test)]
+    mod declaration_lookup_tests {
+        use super::*;
+
+        fn workload(count: usize) -> (TypedTrees, Vec<(String, SymbolHandle)>) {
+            let mut builder = symbols::SymbolTableBuilder::new();
+            let root = builder.insert_root(
+                symbols::SymbolKind::Root,
+                symbols::SymbolNameRef::Static("root"),
+            );
+            let names = (0..count)
+                .map(|position| format!("Boundary{position}"))
+                .collect::<Vec<_>>();
+            let declarations = builder.insert_children(
+                root,
+                names.iter().map(|name| {
+                    (
+                        symbols::SymbolKind::Trait,
+                        symbols::SymbolNameRef::Borrowed(name),
+                    )
+                }),
+            );
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..TypedTrees::default()
+            };
+            let mut selected = Vec::new();
+            for (name, symbol) in names.into_iter().zip(declarations.handles()) {
+                program.tables.traits.append_to_span(
+                    &mut program.roots.traits,
+                    crate::trait_definition::TraitDefinition {
+                        symbol,
+                        is_boundary: true,
+                        ..Default::default()
+                    },
+                );
+                selected.push((name, symbol));
+            }
+            (program, selected)
+        }
+
+        #[test]
+        fn product_declaration_lookup_workload() {
+            for count in [8, 512] {
+                let started = std::time::Instant::now();
+                let (program, declarations) = workload(count);
+                let lookup =
+                    ProductDeclarationLookup::new(&program, &[ProductOperandKind::BoundarySubject]);
+                for position in 0..4096 {
+                    let (path, expected) = &declarations[position % count];
+                    assert_eq!(
+                        lookup.resolve(
+                            path,
+                            source::SourceSpan::default(),
+                            ProductOperandKind::BoundarySubject
+                        ),
+                        Some(*expected)
+                    );
+                }
+                eprintln!(
+                    "product lookups: declarations={count} requests=4096 elapsed={:?}",
+                    started.elapsed()
+                );
+            }
+        }
+
+        #[test]
+        fn product_declaration_names_follow_mutation_and_exact_rosters() {
+            let (mut program, declarations) = workload(2);
+            let occurrence = source::SourceSpan::default();
+            let lookup = |program: &TypedTrees, path| {
+                resolve_product_path(
+                    program,
+                    path,
+                    occurrence,
+                    ProductOperandKind::BoundarySubject,
+                )
+            };
+            assert_eq!(lookup(&program, "Boundary0"), Some(declarations[0].1));
+            let snapshot = program.clone();
+            let retained =
+                ProductDeclarationLookup::new(&snapshot, &[ProductOperandKind::BoundarySubject]);
+            program
+                .tables
+                .traits
+                .get_mut(program.roots.traits.start())
+                .is_boundary = false;
+            assert_eq!(lookup(&program, "Boundary0"), None);
+            assert_eq!(lookup(&snapshot, "Boundary0"), Some(declarations[0].1));
+            assert_eq!(
+                retained.resolve("Boundary0", occurrence, ProductOperandKind::BoundarySubject),
+                Some(declarations[0].1)
+            );
+            program
+                .tables
+                .traits
+                .get_mut(program.roots.traits.start())
+                .is_boundary = true;
+            program.symbols.rename(declarations[0].1, "Renamed");
+            assert_eq!(lookup(&program, "Boundary0"), None);
+            assert_eq!(lookup(&program, "Renamed"), Some(declarations[0].1));
+            let roots = program.roots.traits;
+            program.roots.traits = arena::HandleSpan::from_parts(roots.start(), 1);
+            assert_eq!(lookup(&program, "Boundary1"), None);
+            program.roots.traits = roots;
+            assert_eq!(lookup(&program, "Boundary1"), Some(declarations[1].1));
+            program.symbols.rename(declarations[1].1, "Renamed");
+            assert_eq!(
+                lookup(&program, "Renamed"),
+                None,
+                "competing exact declarations stay ambiguous"
+            );
+            let limits = compiler_storage::RecordLimits::default();
+            let restored: TypedTrees = compiler_storage::decode(
+                &compiler_storage::encode(&program, limits).unwrap(),
+                limits,
+            )
+            .unwrap();
+            assert_eq!(lookup(&restored, "Renamed"), None);
+            assert_eq!(
+                resolve_product_path(
+                    &restored,
+                    "Renamed",
+                    occurrence,
+                    ProductOperandKind::Provider
+                ),
+                None,
+                "the same spelling cannot supply a different role"
+            );
+        }
+
+        #[test]
+        fn product_declaration_authors_keep_exact_span_and_ambiguity() {
+            let span = source::SourceSpan::new(source::SourceId(1), source::Span::new(4, 9));
+            let mut builder = symbols::SymbolTableBuilder::new();
+            let root = builder.insert_root(
+                symbols::SymbolKind::Root,
+                symbols::SymbolNameRef::Static("root"),
+            );
+            let declarations = builder.insert_children(
+                root,
+                ["first", "second"].map(|value| {
+                    (
+                        symbols::SymbolKind::Machine,
+                        symbols::SymbolNameRef::OwnedSource {
+                            value,
+                            source_span: span,
+                        },
+                    )
+                }),
+            );
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..TypedTrees::default()
+            };
+            program.push_machine(crate::machine::Machine {
+                symbol: declarations.start(),
+                ..Default::default()
+            });
+            assert_eq!(
+                resolve_build_request_author(&program, span),
+                Ok(declarations.start())
+            );
+            let snapshot = program.clone();
+            program.push_machine(crate::machine::Machine {
+                symbol: declarations.handle_at(1),
+                ..Default::default()
+            });
+            assert!(
+                resolve_build_request_author(&program, span)
+                    .unwrap_err()
+                    .contains("ambiguous authored machine custody")
+            );
+            assert_eq!(
+                resolve_build_request_author(&snapshot, span),
+                Ok(declarations.start())
+            );
+            program.roots.machines = arena::HandleSpan::empty();
+            assert!(
+                resolve_build_request_author(&program, span)
+                    .unwrap_err()
+                    .contains("no authored selecting machine")
+            );
         }
     }
 }
@@ -3603,6 +3952,20 @@ pub mod trait_definition {
                     TypeIdentityRequest {
                         substitutions: &self.substitutions,
                         ..TypeIdentityRequest::ordinary(reference)
+                    },
+                    &self.substitution_scope_starts,
+                )
+            }
+
+            pub fn package_qualified_type_identity(
+                &self,
+                program: &TypedTrees,
+                reference: TypeReferenceHandle,
+            ) -> NormalizedTypeIdentity {
+                program.scoped_type_identity(
+                    TypeIdentityRequest {
+                        substitutions: &self.substitutions,
+                        ..TypeIdentityRequest::package_qualified(reference)
                     },
                     &self.substitution_scope_starts,
                 )

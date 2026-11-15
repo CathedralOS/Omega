@@ -72,9 +72,6 @@ arrival guard after another field write.
 
 ## Pins and qualification
 
-The nine positive/reject pairs are copied under
-`tests/omega/pass/facts/captured_storage_bounds_through_<place>_exit` and
-`tests/omega/fail/facts/captured_storage_bounds_through_<place>_rejected`.
 Positive fixtures declare exit 0 for both native and Terminal engines.
 
 The frozen local discovery candidate wrongly refuses on optimized exact

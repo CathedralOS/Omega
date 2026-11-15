@@ -199,6 +199,7 @@ fn derive<Layout: Borrow<NativeBorrowedStorageLayout>>(
         || result.is_some_and(|scalar| scalar != ScalarType::Integer(returned))
         || !binding.has_valid_entry_mechanism()
         || binding.provider_plan_report_identity() == 0
+            && binding.native_binding_receipt().is_none()
         || !binding
             .boundary_entry_plan
             .call
@@ -234,8 +235,9 @@ fn selected_descriptor(
         runtime_abi::descriptor_system_call(kernel.target, kernel.number)
     } else {
         binding
-            .import()
-            .and_then(|(locator, _)| runtime_abi::descriptor_import(locator))
+            .hosted_import()
+            .or_else(|| binding.import().map(|(locator, _)| locator))
+            .and_then(runtime_abi::descriptor_import)
     }
 }
 

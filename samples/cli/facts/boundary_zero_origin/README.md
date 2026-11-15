@@ -18,7 +18,9 @@ The compiler uses the boundary write owner's exact signature and runtime-receive
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) |
 
-All positive projects select the source provider and bind `ProgramEntry` for the four hosted targets. `omega run --both` on Linux x86-64 must report native and Terminal Psi exit `0`. Matching fixtures under `tests/omega/{pass,fail}/facts/boundary_zero_origin_through_*` preserve byte-identical sources and build declarations. No foreign host execution is claimed.
+All positive projects select the source provider and bind `ProgramEntry` for the
+four hosted targets. `omega run --both` on Linux x86-64 must report native and
+Terminal Psi exit `0`. No foreign host execution is claimed.
 
 1. **Establishment.** Fresh zero construction, a proved returned record or the receiving helper's explicit entry contract establishes the field equation. The changed-field twin cannot consume it.
 2. **Identity and lifetime.** The precondition observes the same live request field at invocation. It grants no post-call preservation through `&mut Request`; a focused stale post-call consumer rejects.

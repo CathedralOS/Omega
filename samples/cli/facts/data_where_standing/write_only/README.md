@@ -43,26 +43,22 @@ arms execute, and target selection has independent 17/29 implementation checks.
 | Other machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) | [reject](invalid_other_machine_window/main.omg) |
 | Selected implementation | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) | [reject](invalid_target_body_window/main.omg) |
 
-Each existing twin removes only `Counter`'s value predicate, retains its peer
-predicate, and must refuse the exact addition. Each place also has an
-`invalid_window/main.omg` twin: it keeps both predicates but omits the restoring
-store. That twin must reject when the helper returns. Since `70 + 61` fits i32, an
-arithmetic overflow error would not prove that restoration is checked. Additional controls reject an
-[insufficient replacement bound](controls/invalid_store/main.omg) and a
-[read through write-only authority](controls/forbidden_read/main.omg).
-The owner controls reject writes that violate an
-[enclosing record](controls/enclosing_owner_violation/main.omg), an
-[owner across an array element](controls/enclosing_array_violation/main.omg),
-an [outer independent bound](controls/outer_owner_violation/main.omg),
-or the [original owner behind a recast view](controls/recast_owner_violation/main.omg).
-The [direct-field control](controls/direct_field/main.omg) checks restoration
-when the bounded field is directly inside the record. The [relational window](controls/relational_window/main.omg)
-restores equality before return; its [reject twin](controls/relational_debt/main.omg)
-returns without restoring equality.
-The [predicate helper](controls/predicate_helper/main.omg) expresses both
-bounds through a checked Boolean call, preserving the same operation and oracle.
-Samples and exact corpus pins bind all four hosted `ProgramEntry` targets.
-Pins use `tests/omega/{pass,fail}/facts/data_where_standing_write_only_*`.
+Each existing twin removes only `Counter`'s value predicate, retains its peer predicate, and must
+refuse the exact addition. Each place also has an `invalid_window/main.omg` twin: it keeps both
+predicates but omits the restoring store. That twin must reject when the helper returns. Since `70 +
+61` fits i32, an arithmetic overflow error would not prove that restoration is checked. Additional
+controls reject an [insufficient replacement bound](controls/invalid_store/main.omg) and a [read
+through write-only authority](controls/forbidden_read/main.omg). The owner controls reject writes
+that violate an [enclosing record](controls/enclosing_owner_violation/main.omg), an [owner across an
+array element](controls/enclosing_array_violation/main.omg), an [outer independent
+bound](controls/outer_owner_violation/main.omg), or the [original owner behind a recast
+view](controls/recast_owner_violation/main.omg). The [direct-field
+control](controls/direct_field/main.omg) checks restoration when the bounded field is directly
+inside the record. The [relational window](controls/relational_window/main.omg) restores equality
+before return; its [reject twin](controls/relational_debt/main.omg) returns without restoring
+equality. The [predicate helper](controls/predicate_helper/main.omg) expresses both bounds through a
+checked Boolean call, preserving the same operation and oracle. Samples and exact corpus pins bind
+all four hosted `ProgramEntry` targets.
 
 ## Requirements and evidence
 

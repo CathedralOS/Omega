@@ -1833,7 +1833,8 @@ pub(crate) mod calls {
                     .get(&cleanup.cleanup_machine)
                     .copied()
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                if callee.attachment != Some(cleanup.structural_type)
+                if callee.machine == function.machine
+                    || callee.attachment != Some(cleanup.structural_type)
                     || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
                     || callee.result != AbstractFunctionResult::Unit
                     || !callee.parameters.is_empty()

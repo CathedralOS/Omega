@@ -8,13 +8,13 @@ data Box<Value> { value: Value; }
 data Holder<Value> { value: Payload in Tagged<Value>; }
 const INITIAL: Payload in Tagged<Word> = Payload { value: 29 };
 boundary trait Identity<Value> {
-    machine identity(value: Payload in Tagged<Value>) -> Payload in Tagged<Value> reaches;
-    machine compound(value: Payload in Tagged<Box<Value>>) -> Payload in Tagged<Box<Value>> reaches;
-    machine paired<Element>(value: Payload in Pair<Value, Element>) -> Payload in Pair<Value, Element> reaches;
+    machine identity(value: Payload in Tagged<Value>) -> Payload in Tagged<Value> reaches crashes none;
+    machine compound(value: Payload in Tagged<Box<Value>>) -> Payload in Tagged<Box<Value>> reaches crashes none;
+    machine paired<Element>(value: Payload in Pair<Value, Element>) -> Payload in Pair<Value, Element> reaches crashes none;
     machine stated(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
     reaches
     requires value in Tagged<Value>
-    ensures result in Tagged<Value>;
+    ensures result in Tagged<Value> crashes none;
 }
 Provider satisfies Identity<Word> {
     machine identity(value: Payload in Tagged<Word>) -> Payload in Tagged<Word> { value }

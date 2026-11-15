@@ -102,6 +102,19 @@ machine use(byte: u8) { }"
     );
 }
 
+#[test]
+fn a_typed_slice_read_needs_a_bound_on_its_own_descriptor() {
+    let source = |view: &str, index: u64| {
+        format!(
+            "machine build_entry(numbers: &[u32], peer: &[u32]) requires {view}.len > 0 {{ use(numbers[{index}]); }}
+             machine use(number: u32) {{ }}"
+        )
+    };
+    assert_eq!(verdict(&source("numbers", 0)), "accepted");
+    assert_eq!(verdict(&source("numbers", 1)), "rejected");
+    assert_eq!(verdict(&source("peer", 0)), "rejected");
+}
+
 /// The lowered form of an accepted read is the measurement of the view and
 /// then the read that names it, with nothing between.
 #[test]
@@ -137,11 +150,10 @@ machine use(byte: u8) { }",
     assert_eq!(found, [true]);
 }
 
-/// The forms this route does not lower yet are refused by name, with no
-/// verdict: an index of another width than the read's `u64`, a byte of a
-/// view that is itself stored in a field, and a store through a view.
+/// Byte indices use the length carrier's `u64`; another width still refuses
+/// before any indexing obligation is published.
 #[test]
-fn the_forms_not_lowered_are_refused_by_name() {
+fn a_byte_view_index_of_another_width_is_refused_by_name() {
     assert_eq!(
         verdict(
             "machine build_entry(path: &[u8], index: u8) requires path.len > 255 { use(path[index]); }
@@ -149,14 +161,149 @@ machine use(byte: u8) { }"
         ),
         "typing byte view index that is not a u64 while reading the body of `build_entry`"
     );
+}
+
+/// A record keeps the descriptor's own extent and backing. A sibling view's
+/// bound cannot authorize its bytes, even under the same enclosing record.
+#[test]
+fn stored_byte_reads_keep_their_field_extent_and_bounds() {
+    // A literal's exact extent survives storing its descriptor. The sibling
+    // literal has another extent and cannot justify reading past this field.
+    let literal = r#"
+data Holder<'held> { known: &'held [u8]; path: &'held [u8]; }
+machine build_entry() {
+    let holder: Holder = Holder { known: "AB", path: "%" };
+    use(holder.path[0]);
+}
+machine use(byte: u8) {}
+"#;
+    assert_eq!(verdict(literal), "accepted");
+    assert_eq!(verdict(&literal.replace("path[0]", "path[1]")), "rejected");
     assert_eq!(
-        verdict(
-            "data Holder<'held> { path: &'held [u8]; }
-machine build_entry<'held>(holder: &Holder<'held>) requires holder.path.len > 0 { use(holder.path[0]); }
-machine use(byte: u8) { }"
-        ),
-        "expression byte of a view stored in a field"
+        verdict(&literal.replace("path: \"%\"", "path: \"\"")),
+        "rejected"
     );
+
+    let source = r#"
+data Holder<'held> { known: &'held [u8]; path: &'held [u8]; }
+data Outer<'held> { holder: Holder<'held>; count: u32; }
+machine build_entry<'held>(outer: &Outer<'held>)
+requires outer.holder.path.len > 0
+{ use(outer.holder.path[0]); }
+machine use(byte: u8) {}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    for changed in [
+        source.replace("requires outer.holder.path.len > 0", ""),
+        source.replace(
+            "requires outer.holder.path.len > 0",
+            "requires outer.holder.known.len > 0",
+        ),
+        source.replace("path[0]", "path[1]"),
+    ] {
+        assert_eq!(verdict(&changed), "rejected", "{changed}");
+    }
+    let accepted = match judge_build(source).unwrap() {
+        RouteVerdict::Accepted(accepted) => *accepted,
+        other => panic!("{other:?}"),
+    };
+    let pairs = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| block.operations.windows(2))
+        .filter_map(|pair| match (&pair[0].kind, &pair[1].kind) {
+            (
+                OperationKind::StructuralByteSequenceFieldLength {
+                    source: measured,
+                    path: measured_path,
+                    field: measured_field,
+                },
+                OperationKind::StructuralByteSequenceFieldRead {
+                    source,
+                    path,
+                    field,
+                    length,
+                    ..
+                },
+            ) => Some(
+                measured == source
+                    && measured_path == path
+                    && measured_field == field
+                    && !path.is_empty()
+                    && pair[0]
+                        .result
+                        .scalar_ref()
+                        .is_some_and(|result| result.id == *length),
+            ),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(pairs, [true]);
+    accepted.publish_invocation().unwrap();
+}
+
+/// Receiving an edited program must rejoin its exact field and length;
+/// a valid bound on the original field cannot authenticate a sibling read.
+#[test]
+fn a_stored_byte_read_cannot_substitute_a_sibling_field() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        r#"
+data Holder<'held> { left: &'held [u8]; right: &'held [u8]; }
+machine build_entry<'held>(holder: &Holder<'held>)
+requires holder.left.len > 0 && holder.right.len > 0
+{ use(holder.left[0], holder.right[0]); }
+machine use(left: u8, right: u8) {}
+"#,
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    let mut changed = elaborate();
+    let fields = changed
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.operations())
+        .filter_map(|operation| match operation.kind {
+            OperationKind::StructuralByteSequenceFieldRead { field, .. } => Some(field),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 2);
+    assert_ne!(fields[0], fields[1]);
+    let read = changed
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::StructuralByteSequenceFieldRead { .. }
+            )
+        })
+        .unwrap();
+    let OperationKind::StructuralByteSequenceFieldRead { field, .. } = &mut read.kind else {
+        unreachable!()
+    };
+    *field = fields[1];
+    assert!(!matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))));
 }
 
 #[test]
@@ -336,6 +483,60 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
 }
 
 #[test]
+fn an_exclusive_array_view_lends_shared_access_after_its_cohort_ends() {
+    let source = |uses: &str| {
+        format!(
+            r#"
+            machine demand(bytes: &[u8]) requires bytes.len == 3 {{}}
+            machine use_byte(byte: u8) {{}}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                let view: &[u8] = &bytes[..];
+                {uses}
+                use_byte(bytes[0]);
+            }}
+        "#
+        )
+    };
+    for uses in [
+        "demand(view); demand(&mut bytes[..]);",
+        "demand(&bytes[..]); demand(view);",
+        "demand(view); let writable: &mut [u8] = &mut bytes[..]; demand(writable);",
+    ] {
+        assert_eq!(verdict(&source(uses)), "accepted", "{uses}");
+    }
+    let rejected = judge_build(&source("demand(&mut bytes[..]); demand(view);")).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. }
+            if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ExclusiveAndShared)),
+        "the written exclusive array formation overlaps the live shared view: {rejected:?}"
+    );
+    let immutable =
+        source("demand(view); demand(&mut bytes[..]);").replace("let mut bytes", "let bytes");
+    assert_eq!(
+        verdict(&immutable),
+        "expression mutable array view without exclusive backing access while reading the body of \
+         `build_entry`"
+    );
+    let shared_source = judge_build(
+        r#"
+        machine demand(bytes: &mut [u8]) requires bytes.len == 3 {}
+        machine build_entry() {
+            let mut bytes: [u8; 3] = [17, 42, 99];
+            demand(&bytes[..]);
+        }
+    "#,
+    )
+    .unwrap();
+    assert!(
+        matches!(shared_source, RouteVerdict::Rejected { ref violations, .. }
+            if violations.iter().any(|row| row.message().contains(
+                "the explicit array view lends only immutable access"))),
+        "a shared formation cannot grant exclusive access: {shared_source:?}"
+    );
+}
+
+#[test]
 fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
     for access in ["&", "&mut"] {
         let program = format!(
@@ -354,6 +555,52 @@ fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
         let wrong_length = program.replace("bytes.len == 3", "bytes.len == 4");
         assert!(verdict(&wrong_length).starts_with("rejected"));
     }
+}
+
+/// `&entries[..]` of noncopy records forms the same whole-collection
+/// element view a byte array does, so its length is the array's extent:
+/// `require_four` holds for four entries and is refused for three.
+#[test]
+fn typed_whole_array_views_keep_exact_length_and_their_backing() {
+    let program = r#"
+        data Entry { value: i32; }
+        machine require_four(length: u64) -> u64 requires length == 4 { length }
+        machine extent(entries: &[Entry; 4]) -> u64 {
+            let view: &[Entry] = &entries[..];
+            require_four(view.len)
+        }
+        machine build_entry() {
+            let entries: [Entry; 4] = [Entry { value: 7 }, Entry { value: 8 },
+                Entry { value: 9 }, Entry { value: 10 }];
+            use(extent(&entries));
+            use(extent(&entries));
+        }
+        machine use(extent: u64) {}
+    "#;
+    assert_eq!(verdict(program), "accepted", "{program}");
+    let short = program
+        .replace("[Entry; 4]", "[Entry; 3]")
+        .replace(", Entry { value: 10 }", "");
+    assert!(
+        verdict(&short).starts_with("rejected"),
+        "a three-entry view cannot satisfy require_four: {short}"
+    );
+    let partial = program.replace("&entries[..]", "&entries[1..]");
+    let refused = judge_build(&partial).unwrap();
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+            if !unproved.is_empty()
+                && unproved.iter().all(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "the three-entry window cannot meet the four-entry contract: {refused:?}"
+    );
+    let partial_with_its_extent = partial
+        .replace("require_four", "require_three")
+        .replace("length == 4", "length == 3");
+    assert_eq!(
+        verdict(&partial_with_its_extent),
+        "accepted",
+        "{partial_with_its_extent}"
+    );
 }
 
 #[test]
@@ -1015,4 +1262,37 @@ requires count > {minimum} && count <= items.len
             assert_eq!(verdict(&source), expected, "{source}");
         }
     }
+}
+
+#[test]
+fn loop_arrivals_prove_the_selected_views_own_extent() {
+    const SOURCE: &str = r#"
+machine build_entry(bytes: &[u8], other: &[u8], position: u64)
+requires position < bytes.len {
+    let byte: u8 = scan(bytes, other, position);
+}
+machine scan(bytes: &[u8], other: &[u8], position: u64) -> u8
+requires position < bytes.len {
+    transition { _ -> read(bytes, other, position) }
+    machine read(bytes: &[u8], other: &[u8], position: u64) -> u8
+    requires position < bytes.len {
+        transition position > 0 {
+            true -> scan(bytes, other, position - 1)
+            false -> bytes[position]
+        }
+    }
+}
+"#;
+    assert_eq!(verdict(SOURCE), "accepted");
+    let sibling = SOURCE.replacen(
+        "scan(bytes, other, position)",
+        "scan(other, bytes, position)",
+        1,
+    );
+    let refused = judge_build(&sibling).expect("the sibling-view program reaches checking");
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. } | ObligationKind::ArrivalInvariant { .. }))),
+        "the first view's bound cannot establish a bound on its sibling"
+    );
 }

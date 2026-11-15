@@ -71,7 +71,7 @@ pub(super) fn executes_internally(
     program: &TerminalProgram,
     provision: &native_artifact::TerminalRuntimeHostProvision,
 ) -> bool {
-    program.is_compiler_primitive(provision.boundary)
+    program.executes_boundary_internally(provision.boundary)
         || matches!(
             provision.realization,
             BoundarySettlementRealization::Builtin(BoundaryRealization::AccessorScalarAccess(_))
@@ -93,11 +93,6 @@ pub(super) fn admit_exact_foreign_call(
     if !binding.has_valid_entry_mechanism() {
         return Err(TerminalRuntimeError::InvalidProvision(
             "foreign call binding has no valid entry mechanism",
-        ));
-    }
-    if binding.provider_plan_report_identity() == 0 {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "foreign call binding identifies no provider-plan report",
         ));
     }
     if !binding
@@ -195,7 +190,7 @@ pub(super) fn matches_platform_c_symbol(
     darwin_install_names: &[&[u8]],
     windows_library: Option<&[u8]>,
 ) -> Result<bool, TerminalRuntimeError> {
-    let Some((locator, _)) = binding.import() else {
+    let Some(locator) = binding.foreign_import_locator() else {
         return Ok(false);
     };
     let target = locator.target();
@@ -463,10 +458,7 @@ pub(super) fn bind<'host>(
                 if !provisions.is_some_and(|provisions| {
                     provisions.matches_host_requirement(
                         declaration,
-                        binding
-                            .requirement_identity(provisions.selection_identities())
-                            .unwrap_or_default(),
-                        binding.provider_plan_report_identity(),
+                        binding,
                         &program.module().identities,
                     )
                 }) {

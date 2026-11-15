@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // The canonical std `Clock` provider: a `reaches Console + Clock`
 // multi-service ceiling, and `Clock::sleep(200)` blocks through the
 // selected provider.
@@ -6,7 +7,7 @@
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-machine entry_start() reaches Console + Clock {
+machine entry_start() reaches ProcessExit + Console + Clock {
     Clock::sleep(200);
-    Console::exit_process(70);
+    ProcessExit::exit_process(70);
 }

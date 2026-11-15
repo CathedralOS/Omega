@@ -5,7 +5,8 @@ required type is unavailable rather than reconstructed with the retired checker.
 */
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use symbols::{SymbolHandle, SymbolKind};
+use numerics::literals::FloatFormat;
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
     data::DataField,
@@ -13,6 +14,13 @@ use typed_trees::{
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
+
+pub(crate) fn float_literal_atom(format: FloatFormat) -> BuiltinTypeAtom {
+    match format {
+        FloatFormat::F32 => BuiltinTypeAtom::F32,
+        FloatFormat::F64 => BuiltinTypeAtom::F64,
+    }
+}
 
 pub(crate) fn exact_declared_field(
     program: &TypedTrees,
@@ -216,10 +224,10 @@ pub(crate) fn declared_callable_value_type(
                     landing.domain,
                 )
             }),
-            ExpressionNode::Boolean(_) => Some((
-                symbols::BuiltinTypeAtom::Bool,
-                numerics::arithmetic::ArithmeticDomain::Exact,
-            )),
+            ExpressionNode::Float(literal) => literal
+                .landing()
+                .map(|format| (float_literal_atom(format), ArithmeticDomain::Exact)),
+            ExpressionNode::Boolean(_) => Some((BuiltinTypeAtom::Bool, ArithmeticDomain::Exact)),
             _ => None,
         }
     } else {
@@ -271,7 +279,26 @@ pub(crate) fn declared_callable_value_type(
         .trait_machine_signature(owner)
         .map(|(_, signature)| signature);
     if states.is_none() && state.is_none() && signature.is_none() {
-        return Err(crate::unavailable_judgment("contract callable declaration"));
+        // A data declaration's own `requires` names its fields bare
+        // (`requires (root as -Handle) != 0`), each a value of the type the
+        // declaration gives it.
+        let Some(definition) = program.unique_data_definition_by_symbol(owner) else {
+            return Err(crate::unavailable_judgment("contract callable declaration"));
+        };
+        return declared_projection_type(program, target, |path| {
+            if path.static_application.is_valid() || path.reserved_result_of.is_valid() {
+                return Err(crate::unavailable_judgment("data clause value"));
+            }
+            let field = path
+                .resolved_symbol()
+                .and_then(|binder| program.data_field(definition, binder))
+                .ok_or_else(|| crate::unavailable_judgment("data clause field"))?;
+            program
+                .type_reference_table
+                .contains_type_reference(field.type_reference)
+                .then_some(field.type_reference)
+                .ok_or_else(|| crate::unavailable_judgment("data clause field declared type"))
+        });
     }
     declared_projection_type(program, target, |path| {
         if path.static_application.is_valid() {
@@ -401,7 +428,11 @@ fn declared_projection_type(
                                 member.selection.field_symbol(),
                             )?
                         }
-                        ExpressionNode::Indexed(_) => collection_element_type(program, reference)?,
+                        ExpressionNode::Indexed(indexed)
+                            if table.range_node(indexed.index).is_none() =>
+                        {
+                            collection_element_type(program, reference)?
+                        }
                         _ => {
                             return Err(crate::unavailable_judgment("assignment storage selector"));
                         }
@@ -943,6 +974,14 @@ pub(crate) fn defer_unbound_calls(
                     .map_err(Diagnostic::error)?;
                 continue;
             }
+            // `size_of<T>()` and `align_of<T>()` name no declaration by
+            // construction: typing recognized the compiler-known query and
+            // retained its operand, and Terminal Psi production reads that
+            // request as a layout observation. It is not a call awaiting a
+            // target.
+            if call.layout_query.is_some() {
+                continue;
+            }
             let receiver = if !call.receiver.is_valid() {
                 CallReceiver::Absent
             } else if let ExpressionNode::Name(path) =
@@ -1073,14 +1112,29 @@ pub(crate) fn defer_unbound_calls(
             let owners = typed_trees::references::collect_program_operand_owners(program);
             for (handle, request, bare) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
-                let before = in_declarations.len();
-                in_declarations.extend(
-                    owners
-                        .expression_owners(handle)
-                        .filter(|owner| owner.is_valid())
-                        .map(|owner| (owner, request, source_span, bare)),
-                );
-                if in_declarations.len() == before {
+                let mut owned = false;
+                for owner in owners
+                    .expression_owners(handle)
+                    .filter(|owner| owner.is_valid())
+                {
+                    owned = true;
+                    // This exact fact selects the byte predicate even though
+                    // lexical lookup found no ordinary callable for its name.
+                    if bare == symbols::UnresolvedName::NoVisibleDeclaration
+                        && program
+                            .domain_definition(owner)
+                            .and_then(|domain| {
+                                typed_trees::byte_predicates::byte_slice_domain_predicate(
+                                    program, domain,
+                                )
+                            })
+                            .is_some_and(|(predicate, _)| predicate == handle)
+                    {
+                        continue;
+                    }
+                    in_declarations.push((owner, request, source_span, bare));
+                }
+                if !owned {
                     return Err(Diagnostic::error(format!(
                         "no product route yet: an expression outside every declaration is one {}",
                         request.construct()
@@ -1362,6 +1416,7 @@ impl DeclaredExpressionTypes {
         }
         match table.expression(expression) {
             ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::Member(_)
@@ -2298,6 +2353,27 @@ mod tests {
             panic!("call expression")
         };
         node.target = typed_trees::name::Identifier::generated("address_of");
+        assert_eq!(
+            deferred(&program).unwrap(),
+            vec![(holder, DeferredRequest::UndeclaredCallName)]
+        );
+        // A layout query typing recognized is served by the compiler and
+        // records no row; the same spelling without that recognition is
+        // still a name that resolves to nothing.
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.target = typed_trees::name::Identifier::generated("size_of");
+        node.layout_query = Some(typed_trees::expression::DataLayoutQueryRequest {
+            kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
+            operand: Default::default(),
+            nonempty_view: ExpressionHandle::invalid(),
+        });
+        assert_eq!(deferred(&program).unwrap(), Vec::new());
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.layout_query = None;
         assert_eq!(
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]

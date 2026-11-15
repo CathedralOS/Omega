@@ -229,9 +229,22 @@ machine entry(first: bool) -> bool {
     else {
         unreachable!();
     };
-    // The same cleanup is valid on the false path, but would invalidate
-    // the view before inspect on the continuing path.
-    when_true.cleanup_actions = when_false.cleanup_actions.clone();
+    // Discarding the packet is valid on the false path, but would
+    // invalidate the view before inspect on the continuing path. The false
+    // edge also retires the unused view itself; that retirement is not
+    // copied, so the conflict tested is the packet's.
+    when_true.cleanup_actions = when_false
+        .cleanup_actions
+        .iter()
+        .filter(|action| {
+            matches!(
+                action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+            )
+        })
+        .cloned()
+        .collect();
+    assert!(!when_true.cleanup_actions.is_empty());
     let mut activity = crate::ProofSearchActivity::default();
     let mut scope = crate::prepare_replay(&mut input, &mut activity).unwrap();
     let (formed, domains, checking, _, _) = scope.checking();

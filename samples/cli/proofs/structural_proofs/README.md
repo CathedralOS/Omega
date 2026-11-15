@@ -12,7 +12,7 @@ omega --check samples/cli/proofs/structural_proofs/main.omg
 ```
 
 `build.omg` binds the hosted targets' `ProgramEntry` slots to the inert
-`Main::main`, so a target compile also produces a native artifact (compile
+static `main` machine, so a target compile also produces a native artifact (compile
 and code-size legs only; the empty entry's run behavior is unspecified):
 
 ```
@@ -35,5 +35,4 @@ add(length s, length(t))`), proven **in** `core/seq.omg` and machine-checked
 for every importer. nat.omg's `add_zero_right` and `add_succ_law` theorems
 remain package-private, and a package selecting a product may only cite
 another package's public machines, so the citation rung uses the public
-`seq.omg` theorem. Every theorem here is TRUE; the FALSE twins live in
-`tests/omega/fail/proofs/`.
+`seq.omg` theorem.

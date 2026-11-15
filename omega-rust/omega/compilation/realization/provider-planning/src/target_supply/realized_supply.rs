@@ -189,6 +189,16 @@ impl RealizedTargetSupply {
                 }
             }
         }
+        let primitive_schemas = crate::compiler_primitive_schemas(module)?;
+        let primitive_leaves =
+            crate::direct_compiler_primitive_leaves(module, &primitive_schemas, &input.target)
+                .map_err(|diagnostics| {
+                    diagnostics
+                        .into_iter()
+                        .map(|diagnostic| diagnostic.message)
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                })?;
         for leaf in &input.direct_boundary_leaves {
             leaf.validate_calling_custody()?;
             if leaf.plan.target != input.target {
@@ -197,7 +207,10 @@ impl RealizedTargetSupply {
             let mut matches = module.boundary_machines.iter().filter(|boundary| {
                 boundary.declaration.as_ref().is_some_and(|declaration| {
                     module.identities.text(
-                        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
+                        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
+                            || declaration.execution
+                                != terminal_psi::CheckedBoundaryExecution::Provider
+                        {
                             declaration.source.semantic_declaration
                         } else {
                             declaration.source.machine.identity()
@@ -210,6 +223,21 @@ impl RealizedTargetSupply {
             let (Some(boundary), None) = (matches.next(), matches.next()) else {
                 return Err("direct leaf has no unique checked boundary declaration".into());
             };
+            if boundary.declaration.as_ref().is_some_and(|declaration| {
+                matches!(
+                    declaration.execution,
+                    terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
+                        | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+                )
+            }) {
+                leaf.validate_bound_calling_custody(module)?;
+                if !primitive_leaves.contains(leaf) {
+                    return Err(
+                        "direct compiler primitive changes its canonical checked meaning".into(),
+                    );
+                }
+                continue;
+            }
             if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
                 leaf.validate_plain_execution(
                     module,
@@ -353,6 +381,27 @@ impl RealizedTargetSupply {
             terminal_authority_permission_identities: input
                 .terminal_authority_permission_identities,
         })
+    }
+
+    pub fn resolve_installation_reach(
+        mut self,
+        module: &TerminalModule,
+        installation_requirements: &[semantic_vocabulary::BoundaryMachineId],
+    ) -> Result<Self, String> {
+        let plans = super::source_choices::resolve_installation_reach(
+            module,
+            installation_requirements,
+            self.plans.as_ref().clone(),
+        )
+        .map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })?;
+        self.plans = Arc::new(plans);
+        Ok(self)
     }
 
     pub fn target(&self) -> Option<&str> {

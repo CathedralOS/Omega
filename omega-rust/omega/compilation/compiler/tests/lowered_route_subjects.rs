@@ -35,8 +35,8 @@ enum Expected {
     FallsBack,
 }
 
-/// Programs the route accepted when it lowered only the entry's calls. The
-/// other two programs from this sweep pin their precise rejection below.
+/// Programs the route accepted when it lowered only the entry's calls.
+/// Programs with precise diagnostic checks are pinned below.
 const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     (
         "tests/fixtures/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
@@ -59,19 +59,11 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
         Expected::Rejected,
     ),
     (
-        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_stale_capture",
-        Expected::FallsBack,
-    ),
-    (
         "tests/fixtures/fail/contracts/adapter_input_membership_is_not_result",
         Expected::FallsBack,
     ),
     (
         "tests/fixtures/fail/proofs/dyn_requirement_float_nonreflexive",
-        Expected::FallsBack,
-    ),
-    (
-        "tests/fixtures/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
         Expected::FallsBack,
     ),
     (
@@ -322,6 +314,96 @@ fn rule_violation(
     violation
 }
 
+fn unproved_subject_obligation(
+    frontier: &compiler::TypedFrontier,
+) -> terminal_psi_to_terminal_psi::UnprovedObligation {
+    let (_, verdict) = route_verdict(frontier);
+    let Ok(RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    }) = &verdict
+    else {
+        panic!("the route must reject an unproved obligation: {verdict:?}");
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty(),
+        "only the proof obligation should fail: {verdict:?}"
+    );
+    let [obligation] = unproved.as_slice() else {
+        panic!("exactly one proof obligation should fail: {unproved:?}");
+    };
+    obligation.clone()
+}
+
+#[test]
+fn arithmetic_contract_defects_keep_their_proof_refusals() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    // The constructor's remainder predicate reaches a proof obligation.
+    // The scalar prover cannot decide this comparison and refuses the value.
+    let fixture = "tests/fixtures/fail/arithmetic/integer_multiple_remainder_stale_capture";
+    let frontier = rejected_frontier(fixture);
+    let obligation = unproved_subject_obligation(&frontier);
+    assert!(matches!(
+        obligation.kind,
+        terminal_check_tables::obligations::ObligationKind::DataDomain { clause: 0, .. }
+    ));
+    assert_eq!(
+        obligation.cause,
+        terminal_check_tables::UnprovedCause::NoDerivation
+    );
+    assert_eq!(
+        obligation.detail,
+        "comparison term outside the scalar subset"
+    );
+    assert_eq!(
+        obligation.statement,
+        "cannot prove requires clause 1 of a data type in machine `invalid` state `entry` return value"
+    );
+    assert_authored_site(
+        &frontier,
+        obligation.site.authored_span(),
+        &format!("{fixture}/main.omg"),
+        "Even { value: cell.count }",
+        "Even { value: cell.count }",
+    );
+
+    // At u8 value 128 the wrapping product is zero while the result is 128.
+    let fixture = "tests/fixtures/fail/proofs/wrapping_zero_product_does_not_cancel_factor";
+    let frontier = rejected_frontier(fixture);
+    let obligation = unproved_subject_obligation(&frontier);
+    assert!(matches!(
+        obligation.kind,
+        terminal_check_tables::obligations::ObligationKind::NormalGuarantee { clause: 0, .. }
+    ));
+    assert_eq!(
+        obligation.cause,
+        terminal_check_tables::UnprovedCause::NoDerivation
+    );
+    assert_eq!(obligation.detail, "the bounds do not decide the comparison");
+    assert_eq!(
+        obligation.statement,
+        "cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0"
+    );
+    assert_authored_site(
+        &frontier,
+        obligation.site.authored_span(),
+        &format!("{fixture}/main.omg"),
+        "    value\n}",
+        "value",
+    );
+}
+
 #[test]
 fn a_defect_in_a_machine_the_entry_never_calls_is_never_accepted() {
     let _compilation = FIXTURE_COMPILATIONS
@@ -444,42 +526,44 @@ const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
     (
         "tests/fixtures/fail/arithmetic/fractional_integer_landing",
         "value",
-        "expression fractional anonymous value",
+        "expression fractional anonymous value while reading the body of `value`",
     ),
     (
         "tests/fixtures/fail/arithmetic/fractional_integer_operand",
         "value",
-        "expression fractional anonymous value",
+        "expression fractional anonymous value while reading the body of `value`",
     ),
     (
         "tests/fixtures/fail/arithmetic/anonymous_remainder_rejected",
         "run",
-        "expression anonymous operation without an exact meaning",
+        "expression anonymous operation without an exact meaning while reading the body of `run`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "returned",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the body of `returned`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "local",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the local binding of \
+         `local::entry::value` while reading the body of `local`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "field",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the local binding of \
+         `field::entry::held` while reading the body of `field`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "argument",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the body of `argument`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "half",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the body of `half`",
     ),
 ];
 
@@ -870,7 +954,7 @@ fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
     let declaration = |body: &str| {
         format!(
             "public boundary trait Probe {{
-            machine probe(value: u8) -> u8 ensures result == value reaches;
+            machine probe(value: u8) -> u8 ensures result == value reaches crashes none;
          }}
          machine supplied(value: u8) -> u8 satisfies Probe::probe {{ {body} }}"
         )

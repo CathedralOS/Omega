@@ -7,12 +7,10 @@
     "exact_inhibition.txt": "82819a27bb3ba81e61c9873a718c551e5bed836299d772aaed628ecd81c99e75",
     "noisy_activation.txt": "1b497106c4f188425edb18073f358307bc1cfc419f77eb4ca49205022b5d796d",
     "noisy_inhibition.txt": "1d5130c7c29f67432fa3cf75c42151a2a0b22682a7e8b4c0de8fe13dfc9d592f",
-    "oracle.json": "9ec778992f7f88bdf7282a3d245b52f6c3d901a4121162d7cc2fc9f757a96187",
-    "reference.py": "e015e7ef38612ad8f7917e71ed94942b1fa2f8bc4df4830a49b7c0eadd8555db"
+    "oracle.json": "9ec778992f7f88bdf7282a3d245b52f6c3d901a4121162d7cc2fc9f757a96187"
   },
   "utc": "2026-10-12T07:18:54.974949+00:00",
   "promoted_files": {
-    "validation/reference.py": "4c21a1dca944a8fab669788b05801dab83c31567523f2d008683ec18be10215a",
     "validation/oracle.json": "9ec778992f7f88bdf7282a3d245b52f6c3d901a4121162d7cc2fc9f757a96187",
     "data/exact_inhibition.txt": "82819a27bb3ba81e61c9873a718c551e5bed836299d772aaed628ecd81c99e75",
     "data/exact_activation.txt": "e6af97fb0260721b02ed3fd94e70bb8571a51a5668a82620375ce47bafbb0306",

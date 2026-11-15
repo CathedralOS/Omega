@@ -25,6 +25,9 @@ program of that form, and each rule here names its sentence:
   type, literal, call boundary or join attaches or drops one." So one
   carrier with two domain sets is always an error, whatever the checker can
   prove about the value.
+- `wiki/spec/language/generics.md`, "Static type equality": equal layout
+  or bytes do not identify different nominal types. A value of one declared
+  data type cannot supply a destination of another declared data type.
 - `wiki/spec/language/lifetimes.md`, "Returned views": "An explicit result
   lifetime relates its reference leaves to the corresponding input lifetime
   ... A signature does not authorize returning unrelated storage", and the
@@ -126,6 +129,40 @@ impl Program<'_> {
                 ),
             );
         }
+        let nominal = |value| {
+            let ValueType::Record(record, _, _) = value else {
+                return None;
+            };
+            if !matches!(
+                self.records.get(record)?.shape,
+                crate::StorageShape::Record(_)
+                    | crate::StorageShape::Sum(_)
+                    | crate::StorageShape::Opaque
+            ) {
+                return None;
+            }
+            let symbol = self.record_sources.get(record)?.declaration;
+            let declaration = self.typed.unique_data_definition_by_symbol(symbol)?;
+            if declaration.generic_instance.is_some() {
+                return None;
+            }
+            Some((symbol, self.typed.normalized_nominal_type_identity(symbol)?))
+        };
+        if let (Some((wanted, wanted_identity)), Some((carried, carried_identity))) =
+            (nominal(expected), nominal(found))
+            && wanted_identity != carried_identity
+        {
+            return reject(
+                id,
+                at,
+                format!(
+                    "{} expects the `{}` data type but got `{}`, and these are incompatible data types because their declarations differ",
+                    destination.named(),
+                    self.typed.symbols.display_path(wanted, "::"),
+                    self.typed.symbols.display_path(carried, "::"),
+                ),
+            );
+        }
         if expected.erased() == found.erased()
             && self.names_own_storage_as_declared_lifetime(id, expected, found)
         {
@@ -221,9 +258,29 @@ impl Program<'_> {
     }
 
     /// One declared domain as a diagnostic names it.
-    pub(super) fn domain_named(&self, domain: symbols::SymbolHandle) -> String {
-        match self.typed.domain_definition(domain) {
-            Some(definition) => format!("`{}`", definition.name.as_str()),
+    pub(super) fn domain_named(&self, domain: crate::body::DomainInstance) -> String {
+        match self.typed.domain_definition(domain.declaration) {
+            Some(definition) => {
+                match self
+                    .typed
+                    .domain_arguments_for_instance(domain.declaration, domain.identity)
+                {
+                    Some([]) => format!("`{}`", definition.name.as_str()),
+                    Some(arguments) => format!(
+                        "`{}` at ({})",
+                        definition.name.as_str(),
+                        arguments
+                            .iter()
+                            .map(|argument| self.typed.display_type_reference(*argument))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                    None => format!(
+                        "`{}` with an unavailable application",
+                        definition.name.as_str()
+                    ),
+                }
+            }
             None => "a domain with no declaration".to_owned(),
         }
     }

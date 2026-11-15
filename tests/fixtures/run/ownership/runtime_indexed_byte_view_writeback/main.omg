@@ -1,0 +1,21 @@
+data Settings<'storage> { identifier: &'storage [u8]; }
+
+machine replace_identifier<'storage>(settings: &mut [Settings<'storage>; 2], index: u64)
+requires index < 2
+{
+    settings[index].identifier = "omega";
+}
+
+machine main() crashes Trap {
+    let mut settings: [Settings; 2] = [
+        Settings { identifier: "before" },
+        Settings { identifier: "longer" }
+    ];
+    replace_identifier(&mut settings, 1);
+    transition settings[0].identifier.len == 6 && settings[1].identifier.len == 5 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

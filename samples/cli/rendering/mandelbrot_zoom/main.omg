@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Animated Mandelbrot zoom -- a real-time software-rendered fractal that zooms into
 // a seahorse-valley boundary point, redrawn in place via an ANSI cursor-home escape
 // and paced by Clock.sleep. Combines the per-pixel f64 renderer, the carrier
@@ -47,7 +48,7 @@ requires self.frame >= 0 && self.frame <= 12,
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Clock + Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
     main.palette = " .:-=+*#";
     main.row = "................................................";
@@ -144,18 +145,18 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         Console::write_line("PASS: 12 zoom frames rendered (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

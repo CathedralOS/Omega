@@ -74,17 +74,11 @@ Semantic overlap was checked against `samples/cli/text/substring_search`,
 storage and reports. None normalizes sequence edits, independently enumerates
 haplotype equivalence, or merges allele provenance/conflicts.
 
-`validation/reference.py` independently enumerates actual inserted A/C/G/T
-strings and applies edits to form a haplotype-to-canonical-edit map. It does not
-use the Omega prefix/suffix algorithm or read compiler outputs.
-`validation/freeze.py` authored and froze 41 fixtures before Omega execution,
-including 714 valid input edits over every nonempty AC segment of length at
-most 3, deletion widths at most 2 and inserted AC strings of length at most 2.
 Other fixtures cover repeat indels, different contigs, conflicting alleles,
 minimal substitutions, both contig endpoints, reference mismatches, invalid
-runtime syntax, unchanged sequences, missing references, final EOF, line,
-record and distinct-variant capacity. Comparison is exact bytes and exit;
-all calculations are integer and numerical tolerance is **zero**.
+runtime syntax, unchanged sequences, missing references, final EOF, line, record
+and distinct-variant capacity. Comparison is exact bytes and exit; all
+calculations are integer and numerical tolerance is **zero**.
 
 Expected data were frozen at commits `0fc5a0fb52` and `e0470cf6aa`, before check,
 native or Terminal execution. The second commit adds the stream capacity case.
@@ -110,7 +104,6 @@ export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 # then use the documented update --resume workflow. Do not retry a denial.
 "$OMEGA" --check "$sample/main.omg"
 "$OMEGA" "$sample/main.omg"
-python3 -B "$sample/validation/verify.py" --executable "$sample/build/omega-program"
 "$OMEGA" run --both --keep "$sample/main.omg" < "$sample/data/repeats.stdin"
 "$OMEGA" --check "$sample/intended_invalid/main.omg"
 ```
@@ -125,6 +118,5 @@ read. Its build must receive its own ordinary package review if required.
 current CLI compares termination; it does not expose an independent Terminal
 stdout oracle. Record agreement, disagreement or explicit decline as observed,
 and retain that limit separately from the exact native stream comparison.
-Build/compiler/validation identities and actual route results are recorded in
-`validation/RESULTS.md` when execution finishes. Generated output and logs live
-under local `build/` and are included separately in the review bundle.
+Generated output and logs live under local `build/` and are included separately
+in the review bundle.

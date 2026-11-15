@@ -3,7 +3,20 @@
 The same-format inclusive f64 fact `0.0 <= value && value <= 0.25`
 proves the wider requirement `0.0 <= value && value <= 0.5` at `admit(value)`.
 No conversion is inserted. The root witness and nine place witnesses use canonical
-`where`, `requires`, `ensures`, and established flow facts.
+`requires`, `ensures`, and established flow facts.
+
+The current [LOWERED-FORM-CHECKER](../../../../TASKS.md) qualification covers
+[`local/main.omg`](local/main.omg), unchanged, on `macos_arm64`: source
+`2daea63892d` runs with exit 0 in both Psi and native execution. Its narrower
+stored range survives the local read and proves `admit`'s wider input bound.
+The [retained positive](../../../../tests/fixtures/run/float/range_delivery/main.omg)
+and [negative](../../../../tests/fixtures/fail/float/range_delivery/main.omg)
+both give `probe` a complete `requires true` input contract; only the negative
+removes Reading's upper guarantee, and the checker rejects the call to `admit`
+for its missing `0.5` bound. The complete contract prevents `probe` from
+inferring a narrower input contract.
+The remaining places and older row-wide execution claims below were not
+requalified by this repair.
 
 Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`,
@@ -70,7 +83,6 @@ asymmetric joins, an unknown arm, write-only storage, and gated native entry.
 
 - **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and IEEE `f64` range delivery. The narrower inclusive IEEE `f64` interval premise (`value >= 0.0 && value <= 0.25`) satisfies the wider `requires` interval (`value >= 0.0 && value <= 0.5`) at `admit(value)` across all nine program places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), with exact agreement between Terminal Psi and native execution across hosted targets.
-- **Pinned fixtures:** positive places and reject twins under `tests/omega/{pass,fail}/facts/float_range_delivery_*`.
 - **Authority:** `wiki/spec/language/numeric_values.md` (bounds as propositions, same-format delivery, IEEE comparison), `dependent_values.md` (construction and exact contract substitution), `evaluation.md` (canonical atom eligibility), `expressions.md` (once-only evaluation and mutation), and `state_contracts.md` (all-predecessor joins and fact lifetime).
 
 Full 8-layer specification and lowering evidence:

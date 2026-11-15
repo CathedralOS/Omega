@@ -115,6 +115,16 @@ mod installed_provider_calls {
                 ..
             }) = boundary_calls.get(key).copied()
             {
+                let declaration = plan
+                    .boundary_machine(key.2)
+                    .ok_or(LoweringError::UnknownBoundarySettlement(key.2))?;
+                crate::control_flow::validate_external_completion_result(
+                    key.2,
+                    declaration.completion,
+                    *kind,
+                    &declaration.result,
+                    plan.structural_types.as_slice(),
+                )?;
                 if installed.result != terminal_psi::OperationResult::Unit
                     || installed.scalar_arguments != *arguments
                     || installed.structural_arguments != *structural_arguments
@@ -122,11 +132,6 @@ mod installed_provider_calls {
                     || !installed.completion_receipts.is_empty()
                     || installed.provider.boundary != key.2
                     || !plan.provider_candidates.contains(&installed.provider)
-                    || !plan.boundary_machine(key.2).is_some_and(|declaration| {
-                        declaration.result.is_unit()
-                            && declaration.completion
-                                == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                    })
                 {
                     return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
                         machine: key.0,
@@ -597,6 +602,12 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         &installed_by_call,
         &settlements_by_boundary,
     );
+    if plan.functions.len() != unit.functions.len() {
+        return Err(LoweringError::FunctionContract {
+            machine: plan.entry,
+            reason: "function metadata roster differs",
+        });
+    }
     let mut target_plan = TargetOperationPlan {
         borrowed_storage_layouts: super::borrowed_storage::capture(plan, &structural_types),
         psi: plan.psi,
@@ -610,9 +621,17 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         functions: plan
             .functions
             .iter()
-            .map(|function| {
+            .zip(&unit.functions)
+            .map(|(function, optimized)| {
+                if function.machine != optimized.machine {
+                    return Err(LoweringError::FunctionContract {
+                        machine: function.machine,
+                        reason: "function metadata identity differs",
+                    });
+                }
                 let mut lowered = lower_function(
                     function,
+                    optimized,
                     target,
                     profile,
                     &functions_by_machine,

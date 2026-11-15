@@ -257,14 +257,56 @@ machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
     );
 }
 
+/// Typing's error for a program that breaks a language rule.
+fn typing_error(text: &str) -> String {
+    boundary_calls::try_typed(text).unwrap_err().message
+}
+
+/// domains.md, "Operands": a builtin comparison takes unqualified operands
+/// only, the same in `requires` as in executable code. The twins differ only
+/// in the cast that removes the domain.
 #[test]
 fn a_bare_qualified_comparison_does_not_become_a_builtin_comparison() {
-    let refused = invocation(&consumer(7, "handle != 0")).unwrap_err();
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    let accepted = judge(invocation(&consumer(7, "(handle as -Classified) != 0"))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
     assert_eq!(
-        refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the \
-         signature of `consume` while reading the body of `entry`"
+        typing_error(&consumer(7, "handle != 0")),
+        "builtin operator `!=` takes unqualified operands only, but `handle` has type \
+         `i64 in Classified` and no operator `!=` is declared for it; remove the domain with a \
+         cast first, such as `(handle as -Classified)`"
+    );
+}
+
+#[test]
+fn a_bare_qualified_operand_in_executable_code_needs_its_cast() {
+    let source = |left, right| {
+        format!(
+            r#"
+{DOMAIN}
+machine farther(left: i64 in Classified, right: i64 in Classified) -> bool {{
+    {left} > {right}
+}}
+machine entry() -> bool {{ farther(issue(8), issue(7)) }}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(
+        "(left as -Classified)",
+        "(right as -Classified)",
+    )))
+    .unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    assert_eq!(
+        typing_error(&source("left", "(right as -Classified)")),
+        "builtin operator `>` takes unqualified operands only, but `left` has type \
+         `i64 in Classified` and no operator `>` is declared for it; remove the domain with a \
+         cast first, such as `(left as -Classified)`"
     );
 }
 
@@ -307,7 +349,7 @@ machine entry() -> i64 in Positive { 0 as +Positive }
 
 #[test]
 fn partial_removal_does_not_make_a_qualified_clause_operand_plain() {
-    let refused = invocation(&format!(
+    let refused = typing_error(&format!(
         r#"
 {DOMAIN}
 domain i64::Other;
@@ -318,13 +360,13 @@ machine entry(handle: i64 in Classified & Other) {{
     consume(handle);
 }}
 "#
-    ))
-    .unwrap_err();
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the \
-         signature of `consume` while reading the body of `entry`"
+    ));
+    assert!(
+        refused.starts_with(
+            "builtin operator `!=` takes unqualified operands only, but `handle as -Classified"
+        ) && refused.contains("has type `i64 in Other`")
+            && refused.ends_with("as -Other)`"),
+        "{refused}"
     );
 }
 
@@ -458,13 +500,11 @@ machine entry() -> i64 {{ observe(issue(7)) }}
         "{accepted:?}"
     );
 
-    let qualified =
-        invocation(&source("result == old(handle)", "handle as -Classified")).unwrap_err();
-    assert_eq!(qualified.reason, RefusalReason::Unsupported);
     assert_eq!(
-        qualified.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the \
-         signature of `observe` while reading the body of `entry`"
+        typing_error(&source("result == old(handle)", "handle as -Classified")),
+        "builtin operator `==` takes unqualified operands only, but `old(handle)` has type \
+         `i64 in Classified` and no operator `==` is declared for it; remove the domain with a \
+         cast first, such as `(old(handle) as -Classified)`"
     );
 
     let wrong_value = judge(invocation(&source(guarantee, "0"))).unwrap();
@@ -472,5 +512,208 @@ machine entry() -> i64 {{ observe(issue(7)) }}
         matches!(wrong_value, RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
         "{wrong_value:?}"
+    );
+}
+
+/// A domain's predicates over an array or record formal are that formal's
+/// entry clauses, exactly as `requires path[7] == 0` written on the machine
+/// would be: the body may use them, and a predicate that says something else
+/// proves nothing about the element it does not name.
+#[test]
+fn a_data_formal_in_a_predicated_domain_assumes_its_predicates() {
+    let terminated = |element: u32| {
+        format!(
+            r#"
+domain [u16; 8]::Terminated requires self[{element}] == 0;
+machine entry(path: &[u16; 8] in Terminated) -> u16
+ensures result == 0
+{{
+    path[7]
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&terminated(7))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let elsewhere = judge(invocation(&terminated(6))).unwrap();
+    assert!(
+        matches!(elsewhere, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{elsewhere:?}"
+    );
+
+    let ordered = judge(invocation(
+        r#"
+data Span { low: u32; high: u32; }
+domain Span::Ordered requires self.low <= self.high;
+machine entry(span: Span in Ordered) -> u32
+ensures result <= span.high
+{
+    span.low
+}
+"#,
+    ))
+    .unwrap();
+    assert!(matches!(ordered, RouteVerdict::Accepted(_)), "{ordered:?}");
+}
+
+/// A declared borrowed domain contributes its predicates again at normal
+/// handback, including when the incoming reference permits mutation.
+#[test]
+fn a_mutably_borrowed_data_formal_keeps_its_domain_at_handback() {
+    let source = r#"
+domain [u16; 8]::Terminated requires self[7] == 0;
+machine entry(path: &mut [u16; 8] in Terminated) -> u16 { path[7] }
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let invalid = source.replace("{ path[7] }", "{ path[7] = 1; path[7] }");
+    let refusal = invocation(&invalid).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        refusal
+            .detail
+            .contains("write inside a value whose domain has predicates"),
+        "{refusal:?}"
+    );
+}
+
+/// A record's own `requires` may remove a field's domain to compare it,
+/// exactly as a machine's clause does (domains.md, "Operands": a qualified
+/// operand "is cast first"). The cast's operand is the field, typed at the
+/// type the record declares for it, and the clause is the record's
+/// invariant: a reader of the field may rely on it.
+#[test]
+fn a_record_clause_casts_its_own_qualified_field() {
+    let source = |bound: i64| {
+        format!(
+            r#"
+domain i64::Handle requires self != -1;
+data Opened
+requires (root as -Handle) != {bound}
+{{
+    root: i64 in Handle;
+}}
+machine entry(opened: Opened) -> i64
+ensures result != 0
+{{
+    opened.root as -Handle
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let elsewhere = judge(invocation(&source(5))).unwrap();
+    assert!(
+        matches!(elsewhere, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{elsewhere:?}"
+    );
+}
+
+/// A field that is a shared reference carries the domain of what it lends:
+/// `buffer: &'s [u16; 4] in Terminated` owes `self.buffer[3] == 0`, a fact
+/// about the referent, read through one `Referent` step. A shared referent
+/// cannot change while it is lent, so the fact holds while the record does.
+#[test]
+fn a_record_clause_reads_through_a_stored_shared_reference() {
+    let source = |element: u32| {
+        format!(
+            r#"
+domain [u16; 4]::Terminated requires self[{element}] == 0;
+data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
+machine entry(named: &Named) -> u16
+ensures result == 0
+{{
+    named.buffer[3]
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(3))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let elsewhere = judge(invocation(&source(2))).unwrap();
+    assert!(
+        matches!(elsewhere, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{elsewhere:?}"
+    );
+}
+
+/// Building such a record establishes the domain on the lent array:
+/// `&text as +Terminated` lends `text` and owes `text[3] == 0` on the edge
+/// into the block the cast continues in (domains.md, "Domain-only casts":
+/// "Has predicates | Prove them for this value."). The array's last element
+/// decides it: 0 proves it, 5 leaves the establishment unproved.
+#[test]
+fn a_stored_referents_domain_is_established_by_its_proved_cast() {
+    let source = |last: u16| {
+        format!(
+            r#"
+domain [u16; 4]::Terminated requires self[3] == 0;
+data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
+machine last(named: &Named) -> u16 ensures result == 0 {{ named.buffer[3] }}
+machine entry() -> u16 {{
+    let text: [u16; 4] = [7, 8, 9, {last}];
+    let named: Named = Named {{ buffer: &text as +Terminated }};
+    last(&named)
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let unproved = judge(invocation(&source(5))).unwrap();
+    assert!(
+        matches!(unproved, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. }))),
+        "{unproved:?}"
+    );
+}
+
+/// The same cast on the array itself: `text as +Terminated` owes
+/// `text[3] == 0` on the edge into the block the cast continues in, and the
+/// formal in the domain then knows it.
+#[test]
+fn an_arrays_domain_is_established_by_its_proved_cast() {
+    let source = |last: u16| {
+        format!(
+            r#"
+domain [u16; 4]::Terminated requires self[3] == 0;
+machine last(text: [u16; 4] in Terminated) -> u16 ensures result == 0 {{
+    let plain: [u16; 4] = text as -Terminated;
+    plain[3]
+}}
+machine entry() -> u16 {{
+    let text: [u16; 4] = [7, 8, 9, {last}];
+    last(text as +Terminated)
+}}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let unproved = judge(invocation(&source(5))).unwrap();
+    assert!(
+        matches!(unproved, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. }))),
+        "{unproved:?}"
     );
 }

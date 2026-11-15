@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // EOF oracle for the generic sample harness. Supplied valid fixtures exit 0.
 // Expected exit: 64.
 // Expected output contains: ERROR input
@@ -7,7 +8,7 @@ use domain::paths;
 use domain::report;
 use omega_language_std::Console;
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut job: Job;
     let valid: bool = block load(&mut job);
     transition valid {
@@ -23,20 +24,20 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine success(main: &mut Main, job: &Job) {
         audit(job);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
         Console::write_line("ERROR input");
-        Console::exit_process(64);
+        ProcessExit::exit_process(64);
     }
     machine internal(main: &mut Main) {
         Console::write_line("ERROR internal bounds");
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

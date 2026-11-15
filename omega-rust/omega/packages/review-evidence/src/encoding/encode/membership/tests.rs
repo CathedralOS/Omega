@@ -275,3 +275,54 @@ fn only_a_malformed_identity_carries_an_excerpt() {
         "package policy membership: NestingLimitExceeded"
     );
 }
+
+/// Declaration binders are bounded by that declaration's own telescope;
+/// they never turn into live value regions or an embedded callable's scope.
+#[test]
+fn declared_type_regions_keep_their_own_bounded_scope() {
+    let region = "region(owner(schema),ordinal(0))";
+    let identities = [
+        format!("ref({},{})", nominal(), region),
+        format!("generic(name({}),{})", escaped(&nominal()), region),
+    ];
+    for identity in identities {
+        assert_eq!(
+            visitor(roomy(), true).declared_type_identity(&identity, 1),
+            Ok(())
+        );
+        assert_eq!(
+            visitor(roomy(), true).type_identity(&identity),
+            Err(Error::MalformedIdentity)
+        );
+        assert_eq!(
+            visitor(roomy(), true).declared_type_identity(&identity, 0),
+            Err(Error::MalformedIdentity)
+        );
+        let outside = identity.replace("ordinal(0)", "ordinal(1)");
+        assert_eq!(
+            visitor(roomy(), true).declared_type_identity(&outside, 1),
+            Err(Error::MalformedIdentity)
+        );
+        assert_eq!(
+            visitor(roomy(), false).declared_type_identity(&identity, 1),
+            Err(Error::UnknownPackage { package: owner() })
+        );
+        let value_type = identity.replace(&format!(",{region}"), "");
+        let nested_value = format!("named(name({}))", escaped(&callable(&value_type)));
+        assert_eq!(
+            visitor(roomy(), true).declared_type_identity(&nested_value, 1),
+            Ok(())
+        );
+        let nested = format!("named(name({}))", escaped(&callable(&identity)));
+        assert_eq!(
+            visitor(roomy(), true).declared_type_identity(&nested, 1),
+            Err(Error::MalformedIdentity)
+        );
+        let mut restored = visitor(roomy(), true);
+        assert_eq!(restored.declared_type_identity(&identity, 1), Ok(()));
+        assert_eq!(
+            restored.type_identity(&identity),
+            Err(Error::MalformedIdentity)
+        );
+    }
+}

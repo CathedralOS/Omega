@@ -5,9 +5,10 @@ for executable expressions and contract terms. Adding a domain owes its issuer
 and predicate checks. Removal keeps ownership and cannot erase access, cleanup
 or borrowed restoration obligations.
 
-Carrier casts start with an unqualified operand and perform the exact integer
-conversion before adding a policy. Trapping conversions, storage recasts and
-unserved anonymous operands refuse explicitly.
+Carrier casts start with an unqualified operand and perform an exact scalar
+conversion before adding a policy. Float widening uses the authenticated Core
+conversion whose entire input format is exactly representable in its result.
+Trapping conversions, storage recasts and unserved anonymous operands refuse.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -108,19 +109,37 @@ impl Program<'_> {
         if !target.qualification().domains.is_empty() {
             return unserved("carrier cast into a type that carries a declared domain");
         }
-        let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
-            (source_type.scalar(), target.scalar())
-        else {
-            return unserved("cast between carriers that are not integers");
-        };
         // The carrier first: the same carrier converts nothing, and any
         // other is the one exact conversion, whatever policy the cast then
         // adds ("`plain as i64 +Km` abbreviates `(plain as i64) as +Km`").
         // No policy makes it a truncation or a clamp: "`as` never calls
         // user code, rounds, saturates, traps".
-        let converted = if from == to {
+        let converted = if matches!(
+            (source_type.scalar(), target.scalar()),
+            (Some(from), Some(to)) if from == to
+        ) {
             operand
+        } else if matches!(
+            (source_type.scalar(), target.scalar()),
+            (
+                Some(ScalarType::IeeeFloat(
+                    semantic_vocabulary::IeeeFloatFormat::Binary32
+                )),
+                Some(ScalarType::IeeeFloat(
+                    semantic_vocabulary::IeeeFloatFormat::Binary64
+                ))
+            )
+        ) {
+            // Every binary32 value is exactly representable in binary64.
+            // Narrowing needs a representability proof; a rounding conversion
+            // alone cannot justify an exact carrier cast.
+            self.exact_numeric_conversion(id, operand, source)?
         } else {
+            let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
+                (source_type.scalar(), target.scalar())
+            else {
+                return unserved("cast whose exact carrier conversion is not supported");
+            };
             // counts_and_addresses.md: "neither arbitrary value-to-address
             // conversions nor the inverse ... follow from these queries".
             if from.is_address() || to.is_address() {
@@ -149,6 +168,60 @@ impl Program<'_> {
             source,
         })
     }
+
+    /// Cast formation establishes exactness before this call. Publication and
+    /// lowering retain the canonical operation's complete equation, source
+    /// identity and target controls, just as for an ordinary numeric call.
+    fn exact_numeric_conversion(
+        &mut self,
+        id: MachineId,
+        operand: Expression,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Expression(detail));
+        let meaning = NumericIntrinsic::Conversion {
+            source: NumericType::F32,
+            target: NumericType::F64,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+        };
+        let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)
+            .map_err(unavailable)?;
+        let target = self.typed.symbols
+            .find_top_level_by_name_and_kinds_from_source_matching(
+                &declaration,
+                &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
+                source.span().unwrap_or_default(),
+                |symbol| {
+                    self.typed.symbols.sealed_intrinsic(symbol)
+                        == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+                        && self.typed.numeric_intrinsic_execution(symbol) == Some(meaning)
+                },
+            ).ok_or_else(|| unavailable("exact carrier conversion has no canonical declaration"))?;
+        let boundary = self.boundary_declaration(id, target)?;
+        let signature = self
+            .boundaries
+            .signature(boundary)
+            .ok_or_else(|| unavailable("exact carrier conversion lost its signature"))?;
+        if signature.parameters.len() != 1
+            || operand.result != signature.parameters.first().copied()
+        {
+            return Err(unavailable(
+                "exact carrier conversion changes its operand format",
+            ));
+        }
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                callee: crate::body::CallTarget::Boundary { boundary },
+                required_contract: None,
+                arguments: vec![operand],
+                designated: None,
+            },
+            result: signature.result,
+            source,
+        })
+    }
 }
 
 impl Program<'_> {
@@ -174,9 +247,7 @@ impl Program<'_> {
         entry: language_core::cast_form::CastEntry,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        use language_core::cast_form::CastEntryKind;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        let mistyped = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
         // A cast typing deferred is a row on its machine, raised before any
         // body is read; an entry without its type here was never accounted.
         if !cast.result_type.is_valid() {
@@ -203,6 +274,45 @@ impl Program<'_> {
             None
         };
         let operand = self.expression(id, slots, cast.value, landing)?;
+        self.entry_applied(id, cast, entry, operand, result, source)
+    }
+
+    /// `&text as +D`, as `borrow_value` forms it: `lent` is the reference
+    /// to `text`, and the entry changes the domains it displays on its
+    /// referent to `after`, keeping its referent, lifetime and access mode
+    /// (domains.md, "Mutable views").
+    pub(super) fn reference_entry(
+        &mut self,
+        id: MachineId,
+        cast: &TableCastExpression,
+        entry: language_core::cast_form::CastEntry,
+        lent: Expression,
+        after: Qualification,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let Some(result) = lent.result.and_then(|formed| formed.qualified(after)) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("reference cast of a value that is not a reference"),
+            ));
+        };
+        self.entry_applied(id, cast, entry, lent, result, source)
+    }
+
+    /// What one entry does to an operand already read, `result` being the
+    /// type after it.
+    fn entry_applied(
+        &mut self,
+        id: MachineId,
+        cast: &TableCastExpression,
+        entry: language_core::cast_form::CastEntry,
+        operand: Expression,
+        result: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::cast_form::CastEntryKind;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let Some(operand_type) = operand.result else {
             return unserved("domain cast of a Unit value");
         };
@@ -221,9 +331,6 @@ impl Program<'_> {
         if let Some(domain) = domain {
             match entry.kind {
                 CastEntryKind::Add => {
-                    if cast.semantic_domain_symbol != domain {
-                        return mistyped("added domain that is not the one the entry selected");
-                    }
                     self.issue(id, domain, source)?;
                     // "Has predicates | Prove them for this value."
                     let (clauses, stated) = match (
@@ -245,7 +352,8 @@ impl Program<'_> {
                         (ValueType::Record(row, _, _), Some(_))
                             if self.is_view(id, row)?
                                 && typed_trees::byte_predicates::domain_byte_predicate(
-                                    self.typed, domain,
+                                    self.typed,
+                                    domain.declaration,
                                 )
                                 .is_some() =>
                         {
@@ -256,16 +364,28 @@ impl Program<'_> {
                             }
                             (Vec::new(), String::new())
                         }
-                        // No clause is stated of a value that is not a
-                        // scalar, so a domain with predicates is not
-                        // added to one unproved.
-                        _ if self
-                            .typed
-                            .domain_definition(domain)
-                            .is_none_or(super::authority::has_predicates) =>
+                        // An array or record, or a reference displaying a
+                        // domain on its referent (`&text as +Terminated`):
+                        // the clauses are stated over the plain value at one
+                        // structural subject, which lowering binds to the
+                        // cast's result (`record_cast_predicates`).
+                        (ValueType::Record(..), Some(domains))
+                            if super::authority::has_predicates(
+                                self.domain_theory(id, domain)?,
+                            ) =>
                         {
+                            self.record_cast_predicates(
+                                id,
+                                Qualification {
+                                    policy: None,
+                                    domains,
+                                },
+                                result,
+                            )?
+                        }
+                        _ if super::authority::has_predicates(self.domain_theory(id, domain)?) => {
                             return unserved(
-                                "cast that adds a domain with predicates to a value that is not a scalar",
+                                "cast that adds a domain with predicates to a value of a type parameter",
                             );
                         }
                         _ => (Vec::new(), String::new()),
@@ -306,7 +426,7 @@ impl Program<'_> {
         result: ValueType,
         cast: &TableCastExpression,
         entry: language_core::cast_form::CastEntry,
-    ) -> Checked<Option<symbols::SymbolHandle>> {
+    ) -> Checked<Option<crate::body::DomainInstance>> {
         use language_core::cast_form::CastEntryKind;
         let mistyped = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
         if operand.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
@@ -323,7 +443,10 @@ impl Program<'_> {
                 .typed
                 .domain_definition(cast.semantic_domain_symbol)
                 .is_some()
-                && !before.domains.contains(cast.semantic_domain_symbol)
+                && !before.domains.contains(crate::body::DomainInstance {
+                    declaration: cast.semantic_domain_symbol,
+                    identity: cast.semantic_domain_id,
+                })
             {
                 return Err(mistyped("kept domain that the operand does not carry"));
             }
@@ -351,11 +474,12 @@ impl Program<'_> {
                 "domain cast entry that does not change exactly the domain it names",
             ));
         }
-        if let Some(domain) = domain
-            && cast.semantic_domain_symbol != domain
-        {
+        if domain.is_some_and(|domain| {
+            domain.declaration != cast.semantic_domain_symbol
+                || domain.identity != cast.semantic_domain_id
+        }) {
             return Err(mistyped(
-                "domain cast entry that changes a different domain than it selects",
+                "changed domain application is not the one the entry selected",
             ));
         }
         Ok(domain)
@@ -367,14 +491,11 @@ impl Program<'_> {
     pub(super) fn domain_removal(
         &self,
         id: MachineId,
-        domain: symbols::SymbolHandle,
+        domain: crate::body::DomainInstance,
         operand: ValueType,
     ) -> Checked<()> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let definition = self
-            .typed
-            .domain_definition(domain)
-            .ok_or_else(|| unavailable("removal of a domain with no declaration"))?;
+        let definition = self.domain_theory(id, domain)?;
         if definition.access_policy.is_some() {
             return Err(unavailable(
                 "removal of a domain governed by an access policy",
@@ -417,8 +538,10 @@ impl Program<'_> {
     /// of the routes, or the cast is rejected. A requirement route
     /// authorizes "the invocation through that requirement and its selected
     /// implementation": the machine that declares that requirement's edge.
-    /// A policy states its issuers in its plan, which no pass evaluates
-    /// (`DomainIssuance::Planned`): nobody is shown to be one.
+    /// A policy states its issuers in its plan. Build-time evaluation runs
+    /// the plan of each demanded domain and records its routes, which this
+    /// reads as `DomainIssuance::Only`; a plan nobody has run
+    /// (`DomainIssuance::Planned`) shows nobody to be an issuer.
     ///
     /// Authorization proves no predicate ("Policy authorization cannot
     /// prove those predicates"): the cast owes the domain's predicates of
@@ -426,15 +549,13 @@ impl Program<'_> {
     fn issue(
         &mut self,
         id: MachineId,
-        domain: symbols::SymbolHandle,
+        domain: crate::body::DomainInstance,
         source: SourceOrigin,
     ) -> Checked<()> {
         use language_semantics::DomainEstablishmentRoute;
         use typed_trees::domain::DomainIssuance;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        let Some(definition) = self.typed.domain_definition(domain) else {
-            return unserved("cast that adds a domain with no declaration");
-        };
+        let definition = self.domain_theory(id, domain)?;
         match definition.issuance() {
             DomainIssuance::Unrestricted => {}
             DomainIssuance::Only(routes) => {

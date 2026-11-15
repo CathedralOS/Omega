@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 data Fraction [copy] { numerator: u64 in Wrapping; denominator: u64 in Wrapping; }
@@ -13,7 +14,7 @@ machine calculate(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
     }
 }
 data Main { }
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> finish(context, 7)
@@ -23,13 +24,13 @@ machine Main::main(context: &mut Main) reaches Console {
         let result: u64 in Wrapping = calculate(value > 70, value);
         transition result == value + 3 { true -> correct(context) false -> incorrect(context) }
     }
-    machine correct(context: &mut Main) { Console::exit_process(0); }
-    machine incorrect(context: &mut Main) { Console::exit_process(1);
+    machine correct(context: &mut Main) { ProcessExit::exit_process(0); }
+    machine incorrect(context: &mut Main) { ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

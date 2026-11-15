@@ -64,6 +64,7 @@ pub(crate) fn declare(
         .map(|machine| machine.id)
         .unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     let mut boundary_declarations = Vec::with_capacity(elaboration.module.boundary_machines.len());
+    let mut boundary_headers = Vec::with_capacity(elaboration.module.boundary_machines.len());
     for boundary in &elaboration.module.boundary_machines {
         let unavailable =
             |reason| refuse(context, Construct::Machine, Unserved::Declaration(reason));
@@ -109,6 +110,16 @@ pub(crate) fn declare(
         // A boundary contributes its declaration, never an executable body
         // or an invocation root. Actual call edges below activate only the
         // realization selected for this exact requirement.
+        if let Some(callable) = &boundary.declaration {
+            let symbol = *elaboration
+                .boundaries
+                .get(boundary.id)
+                .ok_or_else(|| unavailable("proof boundary lost its exact source association"))?;
+            boundary_headers.push(
+                boundary_header(typed, &elaboration.module, id, boundary, callable, symbol)
+                    .map_err(unavailable)?,
+            );
+        }
         boundary_declarations.push((boundary.id, id));
     }
     boundary_declarations.sort_unstable_by_key(|(boundary, _)| *boundary);
@@ -190,6 +201,7 @@ pub(crate) fn declare(
         let mut boundary_calls = Vec::new();
         let mut cleanup = Vec::new();
         let mut unavailable = None;
+        let mut invocation_refusal = None;
         for block in &machine.blocks {
             for operation in &block.operations {
                 if let Some(callee) = operation.kind.direct_callee() {
@@ -287,9 +299,23 @@ pub(crate) fn declare(
                 .as_ref()
                 .is_some_and(|reach| !reach.is_empty())
                 || !machine.published_service_ceiling.is_empty()
-                || machine.closed_reach_application.is_some()
+                || machine
+                    .closed_reach_application
+                    .as_ref()
+                    .is_some_and(|application| {
+                        !application.dependencies.is_empty()
+                            || !application.calls.is_empty()
+                            || !application.suspension_dependency.parameters.is_empty()
+                            || !application.blocking_dependency.parameters.is_empty()
+                            || !application.conditional_carry.is_empty()
+                            || application.parameters().any(|parameter| {
+                                matches!(parameter, terminal_psi::ClosedReachParameter::Machine(_))
+                            })
+                    })
             {
-                return Err("proof scope needs the complete service reach correspondence".into());
+                invocation_refusal.get_or_insert_with(|| {
+                    "proof scope needs the complete service reach correspondence".into()
+                });
             }
             let local_terminates =
                 terminal_semantics::control_graph::control_cycle_members(machine)
@@ -340,7 +366,10 @@ pub(crate) fn declare(
                 name,
                 custody,
                 effects: CompilerEvaluationEffects {
-                    services: Vec::new(),
+                    services: published_services(
+                        &elaboration.module,
+                        &machine.published_service_ceiling,
+                    )?,
                     may_suspend: saved.published_may_suspend,
                     may_block: saved.published_may_block,
                 },
@@ -348,7 +377,7 @@ pub(crate) fn declare(
                 entry_requires: !machine.contract.requires.is_empty()
                     || !machine.contract.source_checked_requires.is_empty(),
                 linear_carrier,
-                static_application: None,
+                invocation_refusal,
                 selections: selection_requests
                     .get(machine.id)
                     .ok_or("proof selection requests lost their emitted caller")?
@@ -395,6 +424,9 @@ pub(crate) fn declare(
             cleanup,
         });
     }
+    for header in boundary_headers {
+        scope.callable_headers.insert(header);
+    }
     scope.calls.index_machines();
     scope.plan.declarations = scope.plan.symbols.insert_many(
         declarations
@@ -433,6 +465,80 @@ pub(crate) fn declare(
     }
     elaboration.module.scalar_applications.proof_scope = scope;
     Ok(())
+}
+
+// A checked requirement is itself a source selection. Retain its custody
+// alongside the caller's, but leave execution to the installed provider.
+fn boundary_header(
+    typed: &TypedTrees,
+    module: &terminal_psi::TerminalModule,
+    declaration: ProofDeclarationId,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    callable: &terminal_psi::CheckedBoundaryCallable,
+    symbol: symbols::SymbolHandle,
+) -> Result<ProofCallableHeader, &'static str> {
+    let type_parameter_count = typed
+        .trait_machine_signature(symbol)
+        .map(|(_, signature)| signature.type_parameters.len())
+        .or_else(|| {
+            typed
+                .machine_by_symbol(symbol)
+                .map(|machine| typed.machine_type_parameters(machine).len())
+        })
+        .or_else(|| {
+            typed
+                .operator_definition_by_symbol(symbol)
+                .filter(|operator| operator.is_boundary && operator.symbol == symbol)
+                .map(|operator| typed.operator_type_parameters(operator).len())
+        })
+        .ok_or("proof boundary has no exact source parameter roster")?;
+    let evaluation = (|| {
+        Ok(CompilerEvaluationDeclaration {
+            name: typed.symbols.name(symbol).to_owned(),
+            custody: declaration_custody(typed, symbol),
+            effects: CompilerEvaluationEffects {
+                services: published_services(module, &boundary.published_service_ceiling)?,
+                may_suspend: callable.source.published_may_suspend,
+                may_block: callable.source.published_may_block,
+            },
+            local_terminates: boundary.unconditional_termination,
+            entry_requires: !boundary.requires.is_empty()
+                || !boundary.scalar_requires.is_empty()
+                || !boundary.scalar_domain_requirements.is_empty(),
+            linear_carrier: None,
+            invocation_refusal: Some(
+                "a checked boundary declaration has no body to evaluate".into(),
+            ),
+            selections: Ok(Vec::new()),
+        })
+    })();
+    Ok(ProofCallableHeader {
+        declaration,
+        callable: Ok(callable.source.callable),
+        package: typed.symbols.symbol_package_identity(symbol),
+        type_parameter_count,
+        compiler_evaluation: evaluation,
+        ..ProofCallableHeader::default()
+    })
+}
+
+fn published_services(
+    module: &terminal_psi::TerminalModule,
+    reach: &[semantic_vocabulary::ServiceId],
+) -> Result<Vec<String>, String> {
+    reach
+        .iter()
+        .map(|service| {
+            module
+                .services
+                .binary_search_by_key(service, |row| row.id)
+                .ok()
+                .and_then(|position| module.identities.text(module.services[position].identity))
+                .filter(|identity| !identity.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| "proof scope lost an exact published service".into())
+        })
+        .collect()
 }
 
 fn declaration_custody(typed: &TypedTrees, symbol: symbols::SymbolHandle) -> DeclarationCustody {

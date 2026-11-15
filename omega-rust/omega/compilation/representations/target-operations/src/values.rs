@@ -322,6 +322,8 @@ pub enum TargetElementView {
         region: TargetElementViewRegion,
         element_stride: u32,
         source: TargetStructuralArgumentSource,
+        /// Physical placement alone cannot recover the borrowed path or access.
+        source_argument: terminal_psi::StructuralArgument,
     },
     Subslice {
         psi_operation: OperationId,
@@ -381,8 +383,8 @@ pub enum TargetScalarExpression {
         format: semantic_vocabulary::IeeeFloatFormat,
         psi_operation: semantic_vocabulary::OperationId,
         source_value: semantic_vocabulary::ValueId,
-        source: semantic_vocabulary::PlaceId,
-        view: Box<TargetElementView>,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         index: Box<TargetIntegerExpression>,
         length: semantic_vocabulary::ValueId,
         obligation: semantic_vocabulary::ObligationId,
@@ -423,8 +425,8 @@ pub enum TargetBooleanExpression {
     ElementViewRead {
         psi_operation: OperationId,
         source_value: ValueId,
-        source: PlaceId,
-        view: Box<TargetElementView>,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         index: Box<TargetIntegerExpression>,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
@@ -506,8 +508,8 @@ pub enum TargetIntegerExpression {
     ElementViewRead {
         psi_operation: OperationId,
         source_value: ValueId,
-        source: PlaceId,
-        view: Box<TargetElementView>,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         index: Box<TargetIntegerExpression>,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
@@ -590,6 +592,21 @@ pub enum TargetIntegerExpression {
         left: Box<TargetIntegerExpression>,
         right: Option<Box<TargetIntegerExpression>>,
     },
+}
+
+impl TargetIntegerExpression {
+    /// An operand consumes an already-defined value, not a new arithmetic
+    /// recipe. These carriers retain its identity without an old-body lookup.
+    pub const fn operand_value(&self) -> Option<ValueId> {
+        match self {
+            Self::Immediate { source_value, .. } | Self::Parameter { source_value, .. } => {
+                Some(*source_value)
+            }
+            Self::ScalarHome(home) => Some(home.source_value),
+            Self::BlockParameter(parameter) => Some(parameter.value),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

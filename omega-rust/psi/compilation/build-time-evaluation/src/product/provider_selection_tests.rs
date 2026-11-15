@@ -1,4 +1,4 @@
-//! Recorded choices retain the source occurrence that authorized each operand.
+//! Recorded Product selections retain the source occurrence that authorized each operand.
 //! Parsing and typing produce the requests; these tests supply completed host
 //! events without executing another Build activation.
 
@@ -19,6 +19,7 @@ const PRELUDE: &str = r#"
 public data Build { marker: u64; }
 public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none crashes none;
+    machine select(activation: u64) reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
 }
 public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
@@ -74,6 +75,20 @@ struct Fixture {
 
 impl Fixture {
     fn new(build: &str, product: &str, dependency: Option<&str>) -> Self {
+        Self::for_operation(
+            build,
+            product,
+            dependency,
+            BuildOperation::ProviderSelection,
+        )
+    }
+
+    fn for_operation(
+        build: &str,
+        product: &str,
+        dependency: Option<&str>,
+        operation: BuildOperation,
+    ) -> Self {
         let mut sources = source::SourceMap::default();
         let mut syntax = None;
         let mut ids = Vec::new();
@@ -166,8 +181,7 @@ impl Fixture {
             .symbol;
         let mut occurrences =
             typed_trees::product_operand::collect_product_selection_occurrences(&typed);
-        occurrences
-            .retain(|occurrence| occurrence.request.operation == BuildOperation::ProviderSelection);
+        occurrences.retain(|occurrence| occurrence.request.operation == operation);
         occurrences.sort_by_key(|occurrence| occurrence.request.source_span.span.start);
         let mut declared: Vec<Arc<ProductDeclarationRequest>> = Vec::new();
         let mut authors = Vec::new();
@@ -220,6 +234,155 @@ impl Fixture {
             events,
         )
     }
+}
+
+#[test]
+fn a_runnable_product_batch_requires_a_named_implementation() {
+    let pass = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/pass/build/product_declaration_batch/main.omg"
+    ));
+    let fail = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/fail/build/product_declaration_batch/main.omg"
+    ));
+    let expected = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/fail/build/product_declaration_batch/expected.txt"
+    ))
+    .trim();
+    assert_eq!(
+        pass, fail,
+        "only the selected provider changes in the Build twin"
+    );
+    for (program, provider) in [(pass, "SelectedLookup"), (fail, "UnrelatedLookup")] {
+        // The harness supplies completed Build events. The kept Build files
+        // bind the same declarations for all four hosted targets in CLI runs.
+        let build = format!(
+            "machine build(builder: &mut Build) {{ Build::select_provider<LookupService, {provider}>(builder, linux_x86_64); }}"
+        );
+        let fixture = Fixture::new(&build, program, None);
+        let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
+        let selected = fixture.collect(&events);
+        if provider == "SelectedLookup" {
+            assert_eq!(selected.unwrap().len(), 1);
+        } else {
+            assert_eq!(selected.unwrap_err()[0].message, expected);
+        }
+    }
+}
+
+#[test]
+fn a_provider_batch_keeps_the_source_of_applied_type_arguments() {
+    use typed_trees::product_operand::{ProductApplicationDemand, ProductSourceLookups};
+
+    // The selected trait and implementation must apply to the same exact data
+    // type, even when both data declarations have the same empty storage.
+    let product = "public data Tag {} public data Other {}\n\
+        public boundary trait Service<T> { machine tick() reaches none crashes none; }\n\
+        public First<T> satisfies Service<T> { machine tick() reaches none crashes none {} }";
+    for actual in ["Tag", "Other"] {
+        let build = format!(
+            "machine build(builder: &mut Build) {{ Build::select_provider<Service<Tag>, First<{actual}>>(builder, linux_x86_64); }}"
+        );
+        let mut fixture = Fixture::new(&build, product, None);
+        let source = fixture.typed.clone();
+        let lookups = ProductSourceLookups::new(&source);
+        for (request, author) in fixture.declared.iter().zip(&fixture.authors) {
+            for (position, operand) in request.operands.iter().enumerate() {
+                typed_trees_to_typed_trees::prepare_product_operand_application(
+                    &mut fixture.typed,
+                    &lookups,
+                    operand,
+                    request.operation.product_operand_role(position).unwrap(),
+                    *author,
+                    None,
+                    ProductApplicationDemand::FormationOnly,
+                )
+                .unwrap();
+            }
+        }
+        let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
+        let selected = fixture.collect(&events);
+        if actual == "Tag" {
+            assert_eq!(selected.unwrap().len(), 1);
+        } else {
+            assert!(
+                selected.unwrap_err()[0]
+                    .message
+                    .contains("does not satisfy the selected application")
+            );
+        }
+    }
+}
+
+#[test]
+fn a_service_audit_needs_an_event_from_its_exact_author() {
+    let fixture = Fixture::for_operation(
+        r#"
+machine build(builder: &mut Build) { configure(builder); }
+machine configure(builder: &mut Build) { Build::audit_service<Unused>(builder); }
+machine unselected(builder: &mut Build) { Build::audit_service<Untaken>(builder); }
+"#,
+        "public boundary trait Unused {} public boundary trait Untaken {}",
+        None,
+        BuildOperation::ServiceAudit,
+    );
+    let [request, untaken] = fixture.declared.as_slice() else {
+        panic!("two valid authored audit requests");
+    };
+    assert_eq!(request.operands[0].path, "Unused");
+    assert_eq!(untaken.operands[0].path, "Untaken");
+    let formations = fixture
+        .declared
+        .iter()
+        .cloned()
+        .zip(fixture.authors.iter().copied())
+        .collect::<Vec<_>>();
+    let admit = |events: &[ExecutedProductSelection]| {
+        super::product_declarations::admit(
+            &fixture.typed,
+            Some(fixture.activation),
+            &fixture.declared,
+            events,
+            &formations,
+        )
+    };
+    assert!(admit(&[]).unwrap().service_audits.is_empty());
+
+    let mut event = ExecutedProductSelection {
+        static_environment: None,
+        target: None,
+        request: Arc::clone(request),
+        selecting_machine: fixture.typed.symbols.symbol_source_span(fixture.authors[0]),
+        composition: None,
+    };
+    let admitted = admit(&[event.clone(), event.clone()]).unwrap();
+    let [audit] = admitted.service_audits.as_slice() else {
+        panic!("only the executed registration survives and duplicates collapse");
+    };
+    let selected = audit
+        .declaration
+        .rejoin(
+            &fixture.typed.symbols,
+            fixture
+                .typed
+                .traits()
+                .iter()
+                .map(|declaration| declaration.symbol),
+        )
+        .unwrap();
+    assert_eq!(fixture.typed.symbols.name(selected), "Unused");
+
+    event.selecting_machine = fixture.typed.symbols.symbol_source_span(fixture.authors[1]);
+    let Err(errors) = admit(&[event]) else {
+        panic!("an event with a different valid author cannot register this audit");
+    };
+    assert_eq!(
+        errors[0].message,
+        "executed service audit has no matching source occurrence"
+    );
+    assert_eq!(errors[0].source_span, Some(request.source_span));
 }
 
 #[test]

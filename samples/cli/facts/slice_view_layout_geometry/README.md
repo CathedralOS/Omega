@@ -71,11 +71,6 @@ omega --check samples/cli/facts/slice_view_layout_geometry/<place>/invalid/main.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\swarm\w26\worktrees\w26-6\target\debug\omega.exe --filter cli/facts/slice_view_layout_geometry --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`exact arithmetic may overflow`).
 
@@ -83,43 +78,14 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 All 18 positive and reject places are pinned in the compiler corpus:
 - **Pass fixtures (`expected_native_exit.txt` = `0`):**
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_local_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_field_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_parameter_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_call_result_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_match_join_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_const_name_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_other_state_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_other_machine_exit/`
-  - `tests/omega/pass/facts/slice_view_layout_geometry_through_target_body_exit/`
 - **Fail fixtures (`expected.txt`):**
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_local_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_field_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_parameter_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_call_result_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_match_join_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_const_name_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_other_state_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_other_machine_rejected/`
-  - `tests/omega/fail/facts/slice_view_layout_geometry_through_target_body_rejected/`
-
 ### Recorded native evidence (macos_arm64)
-
-Measured on `macos_arm64` at revision `e73cff353a52` with the producer built
-from that revision (`opt_level 1`):
-
-```sh
-python3 tools/corpus_gate.py --native --filter pass/facts/slice_view_layout_geometry_through
-```
 
 Before the record, the gate reported all nine positives as `new fixture
 (built)`; the run reported `built 9`, `executed 9 (exit codes {'0': 9})`, 0
 rejected without their expected fragment and 0 fail fixtures that did not
-reject. The nine rows now read `built ... exit:0 @e73cff353a52` in
-`tests/omega/corpus_native_macos_arm64.txt`, spliced as a pure addition
-(+9 lines, 0 deletions, LOST 0 against `origin/main`). Root and all nine places
-pass `omega run --both`: ten applications, each `native exit 0` and
-`interp exit: 0`.
+reject. Root and all nine places pass `omega run --both`: ten applications,
+each `native exit 0` and `interp exit: 0`.
 
 The recorded 0 discriminates in both directions on this host. Replacing
 `size_of<&[u64]>()` with `size_of<u64>()` is refused statically with the
@@ -140,10 +106,6 @@ that did not reject, with no structural move (the only notes were two
 a different worker count). All ten applications still agree at that base
 (`native exit 0` / `interp exit: 0`), so the rows carry forward: the recorded
 revision is `e73cff353a52`, which is what the rows are stamped with.
-
-Remaining open on other hosts: `windows_x86_64` already carries 9 native rows
-for this fact, while `tests/omega/corpus_native_linux_x86_64.txt` carries 0 and
-needs a Linux x86-64 host; `linux_arm64` has no native golden in this checkout.
 
 ## Requirements and Evidence
 

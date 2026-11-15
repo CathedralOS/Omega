@@ -255,7 +255,7 @@ pub fn prepare_with_source_defaults(
                 continue;
             };
             let projection = projection::from_typed_application(context, scope.clone())
-                .ok_or_else(|| diagnostic("provider has no normalized source schema projection"))?;
+                .map_err(|error| vec![error])?;
             projection
                 .validate_correspondence()
                 .map_err(|error| vec![error])?;
@@ -349,7 +349,9 @@ pub fn prepare_with_source_defaults(
                 .iter()
                 .map(|(authority, row)| ProviderSupply {
                     authority: *authority,
-                    selection: row.source.clone(),
+                    selection: provider_planning::target_supply::SupplySelection::Checked(
+                        row.source.clone(),
+                    ),
                 })
                 .collect::<Vec<_>>();
             let selected = choose_supply(&supplies).map_err(|reason| {
@@ -361,10 +363,15 @@ pub fn prepare_with_source_defaults(
                         let category = match rows[0].authority {
                             SupplyAuthority::Build => "ConflictingOverrides",
                             SupplyAuthority::TargetDefault => "ConflictingDefaults",
+                            SupplyAuthority::NativeBinding => "ConflictingNativeBindings",
                         };
                         let providers = rows
                             .iter()
-                            .map(|row| row.selection.provider_type.authored_path.as_str())
+                            .map(|row| {
+                                row.checked().map_or("<native binding>", |selection| {
+                                    selection.provider_type.authored_path.as_str()
+                                })
+                            })
                             .collect::<Vec<_>>()
                             .join(", ");
                         format!("{category}: {providers}")

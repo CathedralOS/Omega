@@ -106,7 +106,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 && candidate.resolution.invocation_site == invocation_site
         });
     let import = match (
-        record.call.binding.symbolic_import(),
+        record.call.binding.import_locator(),
         fields.next(),
         fields.next(),
     ) {
@@ -239,7 +239,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         _ => return Err("external call import fields disagree with its entry mechanism"),
     };
     if record.call.binding != foreign.binding
-        || machine_code::ProviderExecutionRecord::from(record.call.provider_execution)
+        || machine_code::ExternalExecutionRecord::from(record.call.provider_execution)
             != foreign.provider_execution
         || record.call.structural_arguments.len() != structural_arguments.len()
         || !fragment_scalar_argument_custody_rejoin(
@@ -353,7 +353,7 @@ fn fragment_scalar_argument_custody_rejoin(
     let (Some(fragment), None) = (fragments.next(), fragments.next()) else {
         return false;
     };
-    if record.call.binding.system_call().is_some() {
+    if !record.call.binding.requires_floating_control_preservation() {
         if foreign.x86_floating_control.is_some()
             || foreign.aarch64_floating_control.is_some()
             || !foreign.callback_addresses.is_empty()

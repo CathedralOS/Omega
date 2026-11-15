@@ -147,6 +147,47 @@ fn landed_type(
     }
 }
 
+impl<'t> Program<'t> {
+    /// An application carries its prepared theory, not permission to replace
+    /// an unavailable one with the family's unapplied predicate.
+    pub(crate) fn domain_theory(
+        &self,
+        id: MachineId,
+        domain: crate::body::DomainInstance,
+    ) -> Checked<&'t typed_trees::domain::DomainDefinition> {
+        if self
+            .typed
+            .domain_application(domain.declaration, domain.identity)
+            .is_some_and(|application| !application.is_closed)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("domain family application with an open carrier or index"),
+            ));
+        }
+        if let Some(definition) = self
+            .typed
+            .domain_definition_for_instance(domain.declaration, domain.identity)
+        {
+            return Ok(definition);
+        }
+        let mut refusal = refuse(
+            id,
+            Construct::Machine,
+            Unserved::Type("domain application without its prepared theory"),
+        );
+        if let Some(application) = self
+            .typed
+            .domain_application(domain.declaration, domain.identity)
+            && let Some(Err(reason)) = &application.theory
+        {
+            refusal.detail = format!("domain application preparation: {reason}");
+        }
+        Err(refusal)
+    }
+}
+
 pub(super) struct AnonymousValue {
     pub value: IntegerValue,
     pub integer: IntegerType,
@@ -612,6 +653,9 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if let Some(atomic) = self.atomic_type(id, handle)? {
+            return Ok(atomic);
+        }
         if handle.is_valid()
             && let TypeReferenceNode::Callable { contract } =
                 self.typed.type_reference_table.type_reference(handle)
@@ -758,7 +802,7 @@ impl Program<'_> {
         let qualification = self.type_qualification(id, carrier, constraints)?;
         for domain in qualification.domains.members() {
             if !carrier.qualification().domains.contains(domain) {
-                self.declared_domain(id, domain, carrier)?;
+                self.declared_domain(id, domain, carrier, base_type)?;
             }
         }
         carrier.qualified(qualification).ok_or_else(|| {
@@ -808,10 +852,12 @@ impl Program<'_> {
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
                     self.named_domain(id, domain)?;
-                    if !domain.arguments.is_empty() {
-                        return unserved("constrained by a domain applied at arguments");
-                    }
-                    let Some(domains) = qualification.domains.with(domain.symbol) else {
+                    let instance = crate::body::DomainInstance {
+                        declaration: domain.symbol,
+                        identity: domain.semantic_id,
+                    };
+                    self.domain_theory(id, instance)?;
+                    let Some(domains) = qualification.domains.with(instance) else {
                         return unserved(
                             "constrained by one domain twice or by more than four declared domains",
                         );
@@ -938,15 +984,28 @@ impl Program<'_> {
     pub(super) fn declared_domain(
         &mut self,
         id: MachineId,
-        domain: symbols::SymbolHandle,
+        domain: crate::body::DomainInstance,
         carrier: ValueType,
+        carrier_type: TypeReferenceHandle,
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let typed = self.typed;
-        let Some(definition) = typed.domain_definition(domain) else {
-            return unserved("constrained by a domain with no declaration");
-        };
-        self.served(id, domain)?;
+        let definition = self.domain_theory(id, domain)?;
+        self.served(id, domain.declaration)?;
+        let declaration = typed.domain_definition(domain.declaration).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("domain application lost its declaring family"),
+            )
+        })?;
+        if typed
+            .domain_type_parameters(declaration)
+            .iter()
+            .any(|parameter| parameter.bounds != typed_trees::data::DataProperties::default())
+        {
+            return unserved("domain application needs its declared type bounds");
+        }
         if definition.alias.is_some() {
             return unserved("constrained by a domain alias");
         }
@@ -958,28 +1017,50 @@ impl Program<'_> {
         if definition.cleanup_selection.is_some() {
             return unserved("constrained by a domain that selects a cleanup machine");
         }
-        if typed_trees::domain::subject_membership_facts(typed, definition)
-            .any(|membership| membership.domain_symbol != domain)
-        {
+        if typed_trees::domain::subject_membership_facts(typed, definition).any(|membership| {
+            membership.domain_symbol != domain.declaration
+                || membership.semantic_domain != domain.identity
+        }) {
             return unserved("constrained by a domain that refines another domain");
         }
         let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
             return unserved("domain on a type parameter");
         };
-        if self.value_type(id, definition.target_type)? != plain {
-            return unserved("constrained by a domain declared on another carrier");
+        let subject = self.value_type(id, definition.target_type)?;
+        if subject != plain {
+            // `LayoutStorage<T, L> in T::D`: the laid value is T's value in
+            // L's geometry (plans.md, "Representation applications"), so T's
+            // domain qualifies it. Only a domain whose meaning is its access
+            // policy or routes is read here: a predicate over `self` would
+            // read T's fields through L's geometry, which nothing judges yet.
+            let laid = typed.layout_storage_arguments(carrier_type);
+            let Some(laid) = laid else {
+                return unserved("constrained by a domain declared on another carrier");
+            };
+            if self.value_type(id, laid.semantic_type)? != subject {
+                return unserved("constrained by a domain declared on another carrier");
+            }
+            if definition.predicate_presence != language_semantics::DomainPredicatePresence::Absent
+                || !definition.facts.is_empty()
+            {
+                return unserved("a predicate domain on laid layout storage");
+            }
         }
-        self.admitted_declarations.include(domain);
+        self.admitted_declarations.include(domain.declaration);
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
         // generic declaration alongside the instantiated use-site clauses.
-        if !super::bytes::primitive_byte_domain(typed, definition, id)
+        if typed_trees::byte_predicates::byte_slice_domain_predicate(typed, definition).is_none()
             && !self
                 .declared_domains
                 .iter()
-                .any(|(symbol, _)| *symbol == domain)
+                .any(|declared| declared.instance == domain)
         {
-            self.declared_domains.push((domain, plain));
+            self.declared_domains.push(super::DeclaredDomain {
+                instance: domain,
+                carrier: plain,
+                predicate: None,
+            });
         }
         Ok(())
     }
@@ -1112,6 +1193,95 @@ impl Program<'_> {
         }
     }
 
+    /// A wholly anonymous calculation has one exact rational value. Its float
+    /// destination rounds that completed value once, including when a division
+    /// introduced a fractional intermediate.
+    pub(super) fn anonymous_float(
+        &self,
+        id: MachineId,
+        expression: ExpressionHandle,
+        format: semantic_vocabulary::IeeeFloatFormat,
+    ) -> Checked<semantic_vocabulary::IeeeFloatValue> {
+        let evaluated = closed_numeric::evaluate_anonymous_value::<true>(
+            self.typed,
+            expression,
+            &[],
+            &mut |expression| {
+                closed_numeric::has_anonymous_operator_meaning(self.typed, expression)
+            },
+        )
+        .ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("anonymous operation without an exact meaning"),
+            )
+        })?;
+        Ok(round_float(
+            format,
+            numerics::bignum::ExactFloat::Finite(evaluated.value),
+        ))
+    }
+
+    /// A literal keeps its explicit format, or lands in its receiving format.
+    /// Decimal spelling is rounded directly by FloatSemantics; reading a binary32
+    /// literal through host binary64 first would round twice. Presented bits
+    /// (including NaN payloads and signed zero) are already landed and stay exact.
+    pub(super) fn float_literal(
+        &self,
+        id: MachineId,
+        literal: &numerics::literals::FloatLiteral,
+        expected: Option<ScalarType>,
+    ) -> Checked<semantic_vocabulary::IeeeFloatValue> {
+        use numerics::float_semantics::{FloatFormat, FloatSemantics};
+        use numerics::literals::FloatFormat as Landing;
+        use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+        let format = literal
+            .landing()
+            .or(match expected {
+                Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => Some(Landing::F32),
+                Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => Some(Landing::F64),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("anonymous float literal without an expected float type"),
+                )
+            })?;
+        if let Some((presented, bits)) = literal.presented_bits() {
+            return match presented {
+                Landing::F32 => u32::try_from(bits)
+                    .map(IeeeFloatValue::Binary32)
+                    .map_err(|_| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Expression("binary32 literal has excess representation bits"),
+                        )
+                    }),
+                Landing::F64 => Ok(IeeeFloatValue::Binary64(bits)),
+            };
+        }
+        let semantic_format = match format {
+            Landing::F32 => FloatFormat::BINARY32,
+            Landing::F64 => FloatFormat::BINARY64,
+        };
+        let value =
+            FloatSemantics::from_decimal(semantic_format, literal.text()).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("float literal has no exact numeric meaning"),
+                )
+            })?;
+        Ok(match format {
+            Landing::F32 => IeeeFloatValue::Binary32(value.to_f32().to_bits()),
+            Landing::F64 => IeeeFloatValue::Binary64(value.to_f64().to_bits()),
+        })
+    }
+
     /// An integer literal's value and type: the type stage 04 landed it in,
     /// or else the type its context expects. Both, when present, must agree.
     pub(super) fn literal(
@@ -1161,6 +1331,27 @@ impl Program<'_> {
             Some(value) if integer.admits(value) => Ok((value, integer)),
             Some(_) | None => unserved("integer literal outside its type"),
         }
+    }
+}
+
+/// Format is a semantic type, independent of the host's floating registers.
+fn round_float(
+    format: semantic_vocabulary::IeeeFloatFormat,
+    exact: numerics::bignum::ExactFloat,
+) -> semantic_vocabulary::IeeeFloatValue {
+    use numerics::float_semantics::{FloatFormat, FloatSemantics};
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+    match format {
+        IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(
+            FloatSemantics::round_exact(FloatFormat::BINARY32, exact)
+                .to_f32()
+                .to_bits(),
+        ),
+        IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(
+            FloatSemantics::round_exact(FloatFormat::BINARY64, exact)
+                .to_f64()
+                .to_bits(),
+        ),
     }
 }
 

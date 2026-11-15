@@ -15,6 +15,11 @@ pub use provider_admission::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    InstructionMetadata {
+        machine: MachineId,
+        block: semantic_vocabulary::BlockId,
+        reason: &'static str,
+    },
     FunctionContract {
         machine: MachineId,
         reason: &'static str,
@@ -109,6 +114,10 @@ pub enum LoweringError {
     MissingBoundarySettlement(BoundaryMachineId),
     UnusedBoundarySettlement(BoundaryMachineId),
     BoundaryRealizationMismatch(BoundaryMachineId),
+    BoundaryRealizationDetail {
+        boundary: BoundaryMachineId,
+        reason: String,
+    },
     InvalidClaimCompletionOnlyShape {
         machine: MachineId,
         operation: OperationId,
@@ -307,7 +316,7 @@ pub enum AccessViewInputTranslationError {
     InputIsNotDirectEntry,
     UnsupportedEntryFunctionShape(MachineId),
     SelectionRowMismatch,
-    AccessPlanIdentityMismatch,
+    PlacementIdentityMismatch,
     AccessPlanHasNoConcreteSize,
     TargetPointerShapeUnsupported,
     AbiPlan(PlanDiagnostic),
@@ -322,11 +331,44 @@ impl From<AccessViewInputTranslationError> for LoweringError {
     }
 }
 
-diagnostics::debug_display!(LoweringError);
+impl std::fmt::Display for LoweringError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BoundaryRealizationDetail { reason, .. } => formatter.write_str(reason),
+            other => write!(formatter, "{other:?}"),
+        }
+    }
+}
 
 impl std::error::Error for LoweringError {}
 
 impl LoweringError {
+    pub(crate) fn boundary_realization(
+        boundary: BoundaryMachineId,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::BoundaryRealizationDetail {
+            boundary,
+            reason: reason.into(),
+        }
+    }
+
+    pub(crate) fn with_boundary_context(
+        self,
+        plan: &abstract_operations::AbstractOperationPlan,
+    ) -> Self {
+        let (boundary, reason) = match self {
+            Self::BoundaryRealizationDetail { boundary, reason } => (boundary, reason),
+            other => return other,
+        };
+        let name = plan
+            .boundary_machine(boundary)
+            .and_then(|declaration| plan.identities.text(declaration.identity))
+            .map(language_semantics::type_identity::callable_display_path)
+            .unwrap_or_else(|| format!("boundary {}", boundary.get()).into());
+        Self::boundary_realization(boundary, format!("boundary `{name}`: {reason}"))
+    }
+
     #[track_caller]
     pub(crate) fn unsupported_control_flow(machine: MachineId) -> Self {
         Self::UnsupportedControlFlow {

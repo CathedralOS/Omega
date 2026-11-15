@@ -65,12 +65,20 @@ impl<'a> Storage<'a> {
             }
             let matches_type = match self.shape(&captured, concerns)? {
                 Shape::Typed(actual_type) => {
-                    actual_type == formal.structural_type
+                    terminal_semantics::borrowed_referent_presentation(
+                        self.types.iter(),
+                        actual_type,
+                        formal.structural_type,
+                    ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
                         || self.byte_array_presentation(actual, formal, concerns)?
                 }
                 Shape::Scalar(actual) => {
                     matches!(self.declaration(formal.structural_type, concerns)?.shape,
                     StructuralTypeShape::PrimitiveScalar(declared) if declared == actual)
+                }
+                Shape::Atomic(actual) => {
+                    self.declaration(formal.structural_type, concerns)?.shape
+                        == StructuralTypeShape::AtomicCell(actual)
                 }
                 Shape::View | Shape::Payload(_) => false,
             };

@@ -7,9 +7,10 @@ inspection snapshots (`inspection`) for `TypedTrees`.
 pub mod evidence {
     pub mod byte_predicates {
         use crate::TypedTrees;
+        use crate::domain::DomainDefinition;
         use crate::expression::ExpressionHandle;
         use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-        use symbols::SymbolHandle;
+        use symbols::{BuiltinTypeAtom, SymbolHandle, UnresolvedName};
 
         pub use language_semantics::byte_predicates::ByteSequencePredicate;
 
@@ -40,6 +41,8 @@ pub mod evidence {
                 || call.layout_query.is_some()
                 || call.native_code_layout.is_some()
                 || call.operational_acknowledgement != Default::default()
+                || program.expression_table.unresolved_name(expression)
+                    != UnresolvedName::NoVisibleDeclaration
             {
                 return None;
             }
@@ -59,6 +62,42 @@ pub mod evidence {
             domain_symbol: SymbolHandle,
         ) -> Option<ByteSequencePredicate> {
             let domain = program.domain_definition(domain_symbol)?;
+            domain_byte_predicate_fact(program, domain).map(|(_, predicate)| predicate)
+        }
+
+        /// The exact fact read by the byte-slice checker. Keep the authored
+        /// subject and call occurrence when an applied theory supplies the carrier.
+        pub fn byte_slice_domain_predicate(
+            program: &TypedTrees,
+            theory: &DomainDefinition,
+        ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
+            let types = &program.type_reference_table;
+            if !types.contains_type_reference(theory.target_type) {
+                return None;
+            }
+            let TypeReferenceNode::Slice { element_type } =
+                types.type_reference(theory.target_type)
+            else {
+                return None;
+            };
+            if !types.contains_type_reference(*element_type) {
+                return None;
+            }
+            let TypeReferenceNode::Named { symbol, .. } = types.type_reference(*element_type)
+            else {
+                return None;
+            };
+            if program.symbols.builtin_type_atom(*symbol) != Some(BuiltinTypeAtom::U8) {
+                return None;
+            }
+            let declaration = program.domain_definition(theory.symbol)?;
+            domain_byte_predicate_fact(program, declaration)
+        }
+
+        fn domain_byte_predicate_fact(
+            program: &TypedTrees,
+            domain: &DomainDefinition,
+        ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
             if !program
                 .symbols
                 .symbols()
@@ -77,7 +116,8 @@ pub mod evidence {
                 return None;
             };
             let (predicate, argument) = byte_predicate_call(program, *expression)?;
-            crate::domain::domain_subject_reference(program, domain, argument).then_some(predicate)
+            crate::domain::domain_subject_reference(program, domain, argument)
+                .then_some((*expression, predicate))
         }
 
         /// The exact primitive predicate of a declared byte-slice domain.
@@ -2542,9 +2582,11 @@ pub mod inspection {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             pub struct AppliedDomainSnapshot {
                 pub semantic_id: u32,
+                pub is_closed: bool,
+                pub preparation_refusal: Option<String>,
                 pub arguments: Vec<TypeReferenceSnapshot>,
-                pub target_type: TypeReferenceSnapshot,
-                pub facts: Vec<ProofFactSnapshot>,
+                pub target_type: Option<TypeReferenceSnapshot>,
+                pub facts: Option<Vec<ProofFactSnapshot>>,
                 pub cleanup_selection: Option<CleanupSelectionSnapshot>,
             }
 
@@ -2756,21 +2798,33 @@ pub mod inspection {
                         .iter()
                         .filter(|application| application.declaration == domain.symbol)
                         .map(|application| AppliedDomainSnapshot {
-                            semantic_id: application.theory.semantic_id.0,
+                            semantic_id: application.identity.0,
+                            is_closed: application.is_closed,
+                            preparation_refusal: application
+                                .theory
+                                .as_ref()
+                                .and_then(|theory| theory.as_ref().err())
+                                .cloned(),
                             arguments: application
                                 .arguments
                                 .iter()
                                 .map(|argument| type_reference_snapshot(program, *argument))
                                 .collect(),
-                            target_type: type_reference_snapshot(
-                                program,
-                                application.theory.target_type,
-                            ),
-                            facts: domain_fact_snapshots(program, &application.theory),
+                            target_type: application
+                                .theory
+                                .as_ref()
+                                .and_then(|theory| theory.as_ref().ok())
+                                .map(|theory| type_reference_snapshot(program, theory.target_type)),
+                            facts: application
+                                .theory
+                                .as_ref()
+                                .and_then(|theory| theory.as_ref().ok())
+                                .map(|theory| domain_fact_snapshots(program, theory)),
                             cleanup_selection: application
                                 .theory
-                                .cleanup_selection
                                 .as_ref()
+                                .and_then(|theory| theory.as_ref().ok())
+                                .and_then(|theory| theory.cleanup_selection.as_ref())
                                 .map(|selection| cleanup_selection_snapshot(program, selection)),
                         })
                         .collect(),

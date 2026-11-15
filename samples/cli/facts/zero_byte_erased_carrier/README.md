@@ -62,20 +62,12 @@ Every reject twin fails closed with:
 
 ## Pinned fixtures
 
-The row is measured by its fixtures under `tests/omega/`, not by the sample-side
-oracle file: the sample's `expected_native_exit.txt` scores only through
-`tools/corpus_gate.py`, which reads it directly. Each positive place is pinned
-as `tests/omega/pass/facts/zero_byte_erased_carrier_through_<place>_exit` and
-each reject twin as `tests/omega/fail/facts/zero_byte_erased_carrier_unproved_<place>`,
-where `<place>` is one of `local`, `field`, `parameter`, `call_result`,
-`match_join`, `const_name`, `other_state`, `other_machine`, `target_body`.
-
 Measured on `macos_arm64` at the recorded revision:
 
-| Leg | Command | Result |
-| --- | --- | --- |
-| check | `python3 tools/corpus_gate.py --filter zero_byte_erased_carrier` | 18 fixtures: 9 `checked`, 9 `rejected`; 0 rejected without their expected fragment, 0 fail fixtures did not reject |
-| native | `python3 tools/corpus_gate.py --native --filter pass/facts/zero_byte_erased_carrier` | 9 fixtures `built`; executed 9 with exit codes `{0: 9}` |
+| Leg | Result |
+| --- | --- |
+| check | 18 fixtures: 9 `checked`, 9 `rejected`; 0 rejected without their expected fragment, 0 fail fixtures did not reject |
+| native | 9 fixtures `built`; executed 9 with exit codes `{0: 9}` |
 
 ### Oracle discrimination
 

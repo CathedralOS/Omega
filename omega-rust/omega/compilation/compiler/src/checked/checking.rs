@@ -440,6 +440,7 @@ impl SourceCompilation {
     pub(super) fn select(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
+        inspection: Option<&str>,
         frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
         let spent = self.source.source_completion_accounting().clone();
@@ -451,6 +452,7 @@ impl SourceCompilation {
             self.target,
             self.inputs.as_ref(),
             &self.rollback,
+            inspection,
             frontier,
         ))
     }
@@ -469,6 +471,7 @@ impl SourceCompilation {
             self.inputs.as_ref(),
             self.target.as_slice(),
             &self.rollback,
+            None,
             None,
         )
     }
@@ -552,6 +555,7 @@ pub(super) fn select_completed_build(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
+    inspection: Option<&str>,
     frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
 ) -> SelectedCompileOutcome {
     let independent_components = prepared
@@ -564,6 +568,7 @@ pub(super) fn select_completed_build(
             package_inputs,
             selected_target_profile.as_slice(),
             rollback,
+            inspection,
             frontier,
         )
     }) {

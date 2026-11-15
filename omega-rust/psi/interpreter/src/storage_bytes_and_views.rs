@@ -509,6 +509,21 @@ pub(crate) mod byte_sequences {
                 Err(malformed())
             }
 
+            pub(crate) fn readable_byte_descriptor(
+                &self,
+                argument: &StructuralArgument,
+            ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError>
+            {
+                self.validate_descriptor_borrow(argument, StructuralAccess::SharedBorrow)?;
+                let selected = self.resolve_live_projection(
+                    argument.place,
+                    &argument.path,
+                    StructuralAccess::SharedBorrow,
+                )?;
+                let binding = self.byte_descriptor_binding(argument, &selected)?;
+                Ok((selected, binding))
+            }
+
             pub(crate) fn retained_byte_descriptor_binding(
                 &self,
                 argument: &StructuralArgument,
@@ -572,6 +587,21 @@ pub(crate) mod byte_sequences {
                     }
                     return Ok(Some(ByteDescriptorSource::Stored(binding.clone())));
                 }
+                // A whole-place reborrow can present the caller's backing with
+                // the callee's formal type. Its current-frame binding owns that
+                // presentation even when the stored home has the same address.
+                if argument.path.is_empty()
+                    && let Some(binding) = self.byte_sequence_values.get(&argument.place)
+                {
+                    return self
+                        .structural_values
+                        .get(&argument.place)
+                        .filter(|home| matches(binding, home))
+                        .map(|_| capture(binding))
+                        .map(ByteDescriptorSource::Stored)
+                        .map(Some)
+                        .ok_or(malformed());
+                }
                 if let Some(binding) = self.structural_byte_descriptors.get(
                     &crate::boundary::values::StructuralRuntimePlace::from(selected),
                 ) {
@@ -582,18 +612,6 @@ pub(crate) mod byte_sequences {
                     .ok_or(malformed())?;
                     return matches(binding, home)
                         .then(|| capture(binding))
-                        .map(ByteDescriptorSource::Stored)
-                        .map(Some)
-                        .ok_or(malformed());
-                }
-                if argument.path.is_empty()
-                    && let Some(binding) = self.byte_sequence_values.get(&argument.place)
-                {
-                    return self
-                        .structural_values
-                        .get(&argument.place)
-                        .filter(|home| matches(binding, home))
-                        .map(|_| capture(binding))
                         .map(ByteDescriptorSource::Stored)
                         .map(Some)
                         .ok_or(malformed());
@@ -693,15 +711,17 @@ pub(crate) mod byte_sequences {
                     }
                     ByteSequenceBinding::MutableArray {
                         array,
+                        array_type,
                         offset,
                         length,
                         ..
                     } => {
                         binding.validate_mutable_referent(self, selected)?;
-                        let backing_length = self.stored_byte_array_length(array)?;
-                        if offset
-                            .checked_add(*length)
-                            .is_none_or(|end| end as u128 > backing_length as u128)
+                        let extent =
+                            byte_arrays::byte_array_length(&self.structural_types(), *array_type)
+                                .ok_or(malformed())?;
+                        if self.stored_byte_array_length(array)? as u128 != u128::from(extent)
+                            || offset.checked_add(*length).is_none_or(|end| end > extent)
                         {
                             return Err(malformed());
                         }
@@ -1513,8 +1533,41 @@ pub(crate) mod byte_sequences {
                 }
                 match destination_field {
                     Some(destination_field) => {
+                        let types = self.structural_types();
+                        let selected = terminal_semantics::projected_field_declaration(
+                            types.values(),
+                            self.live_structural_type(*destination)?,
+                            path,
+                            destination_field.field,
+                        )
+                        .ok_or_else(malformed)?;
+                        let restored = if let Some(carrier) =
+                            terminal_semantics::inline_carrier_declaration(types.values(), selected)
+                        {
+                            // The resolved receiver still owns its physical field path.
+                            let mut hole = destination_field.parent.clone();
+                            if let Some(StructuralPathSegment::Case(case)) = path.last() {
+                                hole.path.push(StructuralPathSegment::Case(*case));
+                            }
+                            hole.path
+                                .push(StructuralPathSegment::Field(selected.identity));
+                            let mut frontier = self.live_affine_frontier.clone();
+                            self.restore_store_frontier(
+                                &mut frontier,
+                                *destination,
+                                path,
+                                &hole,
+                                carrier.id,
+                            )?;
+                            Some(frontier)
+                        } else {
+                            None
+                        };
                         self.structural_byte_sequence_fields
                             .insert(destination_field, view)?;
+                        if let Some(frontier) = restored {
+                            self.live_affine_frontier = frontier;
+                        }
                     }
                     None => {
                         let home = self.structural_value(*destination)?;
@@ -2542,7 +2595,8 @@ pub(crate) mod byte_sequences {
         use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
         use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ValueId};
         use terminal_psi::{
-            Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
+            Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+            StructuralMultiplicity,
         };
 
         use crate::boundary::errors::{TerminalInterpretError, malformed};
@@ -2791,44 +2845,34 @@ pub(crate) mod byte_sequences {
             pub(crate) fn byte_sequence_read(
                 &self,
                 source: PlaceId,
-                index: usize,
+                index: u64,
+                observed_length: u64,
             ) -> Result<u8, TerminalInterpretError> {
-                match self.byte_sequence_values.require(&source)? {
-                    ByteSequenceBinding::Immutable(view) => {
-                        view.get(index).copied().ok_or(malformed())
+                let source = StructuralArgument::whole(source, StructuralAccess::SharedBorrow);
+                let (selected, binding) = self.readable_byte_descriptor(&source)?;
+                if self.byte_descriptor_length(&binding, &selected)? != observed_length
+                    || index >= observed_length
+                {
+                    return Err(malformed());
+                }
+                let index = usize::try_from(index).map_err(|_| malformed())?;
+                match &binding {
+                    ByteSequenceBinding::MutableArray { array, offset, .. } => {
+                        let index = usize::try_from(*offset)
+                            .ok()
+                            .and_then(|offset| offset.checked_add(index))
+                            .ok_or(malformed())?;
+                        self.stored_byte_array_read(array, index)
                     }
-                    binding @ ByteSequenceBinding::Representation(_) => {
-                        self.byte_descriptor_length(binding, self.structural_value(source)?)?;
+                    ByteSequenceBinding::MutableField { .. }
+                    | ByteSequenceBinding::MutableOwner { .. } => self
+                        .exclusive_owner_bytes(&binding)?
+                        .0
+                        .get(index)
+                        .copied()
+                        .ok_or(malformed()),
+                    ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_) => {
                         binding.read_view(self)?.read(index)
-                    }
-                    ByteSequenceBinding::MutableArray { .. }
-                    | ByteSequenceBinding::MutableField { .. }
-                    | ByteSequenceBinding::MutableOwner { .. } => {
-                        let (storage, length) = self.mutable_byte_sequence_storage(source)?;
-                        if index as u128 >= u128::from(length) {
-                            return Err(malformed());
-                        }
-                        match storage {
-                            MutableByteSequenceStorage::Array { backing, offset } => {
-                                let index = usize::try_from(offset)
-                                    .ok()
-                                    .and_then(|offset| offset.checked_add(index))
-                                    .ok_or(malformed())?;
-                                self.stored_byte_array_read(&backing, index)
-                            }
-                            MutableByteSequenceStorage::Field(field) => self
-                                .structural_byte_sequence_fields
-                                .require(&field)?
-                                .immutable()?
-                                .get(index)
-                                .copied()
-                                .ok_or(malformed()),
-                            MutableByteSequenceStorage::Owned(home) => self
-                                .byte_owner_bytes(&home)?
-                                .get(index)
-                                .copied()
-                                .ok_or(malformed()),
-                        }
                     }
                 }
             }
@@ -3205,6 +3249,7 @@ pub(crate) mod element_views {
     use terminal_psi::StructuralAccess;
     use terminal_psi::StructuralMultiplicity;
     use terminal_psi::StructuralPathSegment;
+    use terminal_psi::StructuralTypeDeclaration;
     use terminal_psi::StructuralTypeShape;
 
     #[derive(Clone)]
@@ -3640,8 +3685,26 @@ pub(crate) mod element_views {
             self.access
         }
 
-        pub(crate) fn owned_multiplicity(&self) -> Option<StructuralMultiplicity> {
+        pub(crate) fn owned_multiplicity(
+            &self,
+            declaration: &StructuralTypeDeclaration,
+        ) -> Option<StructuralMultiplicity> {
             match self.access {
+                // Shared access is the immutable backing's read authority.
+                // The stored-length descriptor itself has the declared custody.
+                StructuralAccess::SharedBorrow
+                    if matches!(self.backing, ElementViewBacking::ImmutableSequence(_))
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ElementView { access: None, .. }
+                        ) =>
+                {
+                    let multiplicity = terminal_semantics::plain_affine::declared_multiplicity(
+                        declaration,
+                        StructuralAccess::Owned,
+                    );
+                    (multiplicity != StructuralMultiplicity::Linear).then_some(multiplicity)
+                }
                 StructuralAccess::SharedBorrow => Some(StructuralMultiplicity::Unrestricted),
                 StructuralAccess::MutableBorrow => Some(StructuralMultiplicity::Affine),
                 _ => None,
@@ -4829,10 +4892,13 @@ pub(crate) mod element_views {
             let result = operation.result.scalar().ok_or(malformed())?;
             let index = count(index, &self.values)?;
             let length = count(length, &self.values)?;
-            let view = crate::engine::custody::verified_structural_place(
-                &self.element_view_values,
-                *source,
+            self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
+            let value = self.resolve_live_projection(
+                source.place,
+                &source.path,
+                StructuralAccess::SharedBorrow,
             )?;
+            let view = self.element_view_argument(source, &value)?;
             if view.len() != length || index >= length {
                 return Err(malformed());
             }

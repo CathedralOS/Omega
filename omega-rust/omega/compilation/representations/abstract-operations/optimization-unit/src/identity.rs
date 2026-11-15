@@ -362,6 +362,61 @@ pub(crate) mod proposition_encoding {
                 encode_scalar_term(bytes, left);
                 encode_scalar_term(bytes, right);
             }
+            Proposition::FloatMeaningEqual(clause) => {
+                use semantic_vocabulary::{
+                    FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
+                };
+                bytes.u8(19);
+                bytes.slice(&clause.values, |bytes, value| match value {
+                    Value::Projection { source, contract } => {
+                        bytes.u8(0);
+                        encode_scalar_term(bytes, source);
+                        bytes.u16(contract.format);
+                        bytes.u8(contract.operation);
+                        bytes.u8(contract.declaration);
+                        bytes.u16(contract.catalog_version);
+                        bytes.bytes(&contract.commitment);
+                    }
+                    Value::Application {
+                        contract,
+                        format,
+                        operands,
+                    } => {
+                        bytes.u8(1);
+                        use numerics::float_semantics::FloatSemanticOperationIdentity as Operation;
+                        let (tag, carrier) = match contract.operation {
+                            Operation::Fixed(row) => {
+                                bytes.u8(0);
+                                bytes.u8(row);
+                                (0, None)
+                            }
+                            Operation::FromInteger(carrier) => (1, Some(carrier)),
+                            Operation::ToIntegerExact(carrier) => (2, Some(carrier)),
+                            Operation::ToIntegerSaturating(carrier) => (3, Some(carrier)),
+                        };
+                        if let Some(carrier) = carrier {
+                            bytes.u8(tag);
+                            bytes.boolean(carrier.is_signed());
+                            bytes.u64(carrier.width());
+                        }
+                        bytes.u16(contract.catalog_version);
+                        bytes.bytes(&contract.commitment);
+                        encode_float_format(bytes, *format);
+                        bytes.slice(operands, |bytes, operand| match operand {
+                            Operand::Format(format) => {
+                                bytes.u8(0);
+                                encode_float_format(bytes, *format);
+                            }
+                            Operand::Meaning(slot) => {
+                                bytes.u8(1);
+                                bytes.u32(slot.0);
+                            }
+                        });
+                    }
+                });
+                bytes.u32(clause.left.0);
+                bytes.u32(clause.right.0);
+            }
         }
     }
 
@@ -3852,11 +3907,13 @@ pub(crate) mod operation_encoding {
                     encode_successor(bytes, when_false);
                 }
                 O::StructuralCase {
+                    psi_block,
                     source,
                     path,
                     cases,
                 } => {
                     bytes.u8(48);
+                    bytes.id(*psi_block);
                     bytes.id(*source);
                     bytes.slice(path, encode_structural_path_segment);
                     bytes.len(cases.len());
@@ -4281,7 +4338,12 @@ pub(crate) mod operation_encoding {
                     bytes.u8(87);
                     bytes.id(*psi_operation);
                     encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
+                    if source.path.is_empty() {
+                        bytes.id(source.place);
+                    } else {
+                        bytes.u64(0);
+                        encode_structural_argument(bytes, source);
+                    }
                     bytes.id(*index);
                     bytes.id(*length);
                     bytes.id(*obligation);
@@ -5333,5 +5395,79 @@ mod width_identity_tests {
             assert_ne!(range_identity(first), range_identity(other));
         }
         assert!(semantic_vocabulary::ClosedIntegerType::try_from(first).is_err());
+    }
+}
+
+#[cfg(test)]
+mod float_meaning_identity_tests {
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Meaning},
+    };
+    use semantic_vocabulary::{
+        FloatMeaningClause, FloatMeaningClauseValue, IeeeFloatFormat, Proposition, ScalarTerm,
+        ScalarType, ValueId,
+    };
+
+    fn bytes(clause: FloatMeaningClause) -> Vec<u8> {
+        let mut bytes = super::unit_encoding::CanonicalBytes::collect();
+        super::proposition_encoding::encode_proposition(
+            &mut bytes,
+            &Proposition::FloatMeaningEqual(clause),
+        );
+        bytes.finish()
+    }
+
+    #[test]
+    fn float_meaning_identity_keeps_sources_catalogs_and_ordered_operands() {
+        let format = IeeeFloatFormat::Binary32;
+        let value =
+            |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::IeeeFloat(format));
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "subtract",
+            &[Format, Meaning, Meaning],
+            Meaning,
+        )
+        .unwrap();
+        let clause = FloatMeaningClause::result_equation(
+            value(3),
+            operation.contract_identity(),
+            format,
+            [value(1), value(2)],
+        )
+        .unwrap();
+        let original = bytes(clause.clone());
+        for position in 0..clause.values.len() {
+            let mut changed = clause.clone();
+            match &mut changed.values[position] {
+                FloatMeaningClauseValue::Projection { source, .. } => {
+                    *source = value(30);
+                    assert_ne!(original, bytes(changed.clone()));
+                    changed = clause.clone();
+                    let FloatMeaningClauseValue::Projection { contract, .. } =
+                        &mut changed.values[position]
+                    else {
+                        unreachable!()
+                    };
+                    contract.commitment[0] ^= 1;
+                }
+                FloatMeaningClauseValue::Application { contract, .. } => {
+                    contract.commitment[0] ^= 1;
+                    assert_ne!(original, bytes(changed.clone()));
+                    changed = clause.clone();
+                    let FloatMeaningClauseValue::Application { operands, .. } =
+                        &mut changed.values[position]
+                    else {
+                        unreachable!()
+                    };
+                    operands.swap(1, 2);
+                }
+            }
+            assert_ne!(original, bytes(changed));
+        }
+        let mut changed = clause;
+        std::mem::swap(&mut changed.left, &mut changed.right);
+        assert_ne!(original, bytes(changed));
     }
 }

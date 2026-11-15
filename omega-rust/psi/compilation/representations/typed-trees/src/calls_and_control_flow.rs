@@ -1796,7 +1796,7 @@ pub mod control_flow {
     pub mod statement {
         use crate::name::Identifier;
         use crate::remapped;
-        use arena::{Arena, Handle, HandleSpan};
+        use arena::{Handle, HandleSpan, RetainedArena as Arena};
         use source::SourceSpan;
         use symbols::SymbolHandle;
         pub(crate) mod assembly {

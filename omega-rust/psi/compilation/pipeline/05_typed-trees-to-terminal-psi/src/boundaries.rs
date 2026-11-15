@@ -162,10 +162,125 @@ impl BoundaryNamespace {
                         })
                 })
                 .collect();
+            let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
+            let execution = match reader.typed.symbols.sealed_intrinsic(source.source) {
+                Some(
+                    language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
+                ) => CheckedBoundaryExecution::NumericPrimitive,
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(
+                    operation,
+                )) => {
+                    let machine = reader
+                        .typed
+                        .machine_by_symbol(source.source)
+                        .ok_or_else(|| refusal("hosted primitive lost its declaration"))?;
+                    let requirement = reader
+                        .typed
+                        .machine_trait_conformances(machine)
+                        .iter()
+                        .find_map(|edge| {
+                            typed_trees::machine::resolve_satisfied_declaration(
+                                reader.typed,
+                                machine,
+                                edge,
+                            )
+                        })
+                        .ok_or_else(|| refusal("hosted primitive lost its requirement"))?
+                        .symbol();
+                    let requirement = self
+                        .rows
+                        .iter()
+                        .find_map(|(id, row)| (row.source == requirement).then_some(id))
+                        .ok_or_else(|| refusal("hosted primitive requirement was not published"))?;
+                    CheckedBoundaryExecution::HostedPrimitive {
+                        operation,
+                        requirement,
+                    }
+                }
+                _ => CheckedBoundaryExecution::Provider,
+            };
+            let checked =
+                if execution.compiler_owned() {
+                    let mut reach = Vec::new();
+                    for service in &envelope.service_reach {
+                        reach.push(
+                            services
+                                .identity(*service)
+                                .ok_or_else(|| refusal("boundary reach has no exact identity"))?,
+                        );
+                    }
+                    let mut entries = Vec::new();
+                    for entry in &envelope.invocations {
+                        if let terminal_psi::TerminalCallableInvocation::Service(service) = entry {
+                            entries.push(services.identity(*service).ok_or_else(|| {
+                                refusal("boundary invocation has no exact identity")
+                            })?);
+                        }
+                    }
+                    crate::declare::boundary(
+                        reader.typed,
+                        source.source,
+                        execution,
+                        &source.signature,
+                        crate::declare::Published {
+                            operational: [envelope.suspends, envelope.blocks],
+                            reach: &reach,
+                            entries: &entries,
+                        },
+                        &mut qualifications.identities,
+                    )
+                    .map_err(|error| refusal(&error.message))?
+                    .1
+                } else {
+                    let required = if reader
+                        .typed
+                        .trait_machine_signature(source.source)
+                        .is_some()
+                    {
+                        source.source
+                    } else {
+                        let mut declarations =
+                            reader.external_providers.rows.iter().filter(|row| {
+                                row.source == source.source && row.boundary == Some(id)
+                            });
+                        let (Some(declared), None) = (declarations.next(), declarations.next())
+                        else {
+                            return Err(refusal(
+                                "native boundary has no unique retained requirement association",
+                            ));
+                        };
+                        self.row(declared.requirement)
+                            .ok_or_else(|| refusal("native boundary lost its required source row"))?
+                            .source
+                    };
+                    let (owner, _) = reader
+                        .typed
+                        .trait_machine_signature(required)
+                        .ok_or_else(|| refusal("boundary lost its exact service declaration"))?;
+                    let service_declaration =
+                        crate::declare::service_declaration_commitment(reader.typed, owner)
+                            .map_err(|diagnostic| refusal(&diagnostic.message))?;
+                    CheckedBoundaryCallable {
+                        service_declaration,
+                        source: declaration,
+                        execution,
+                        method_arguments: source
+                            .declaration
+                            .method_arguments(&mut qualifications.identities),
+                    }
+                };
+            let reference_outputs = reader
+                .declared_reference_outputs(
+                    context,
+                    &source.signature,
+                    &module.structural_types,
+                    &header.structural_parameters,
+                )
+                .map_err(refusal)?;
             module.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
-                declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: source.declaration.method_arguments(&mut qualifications.identities) }),
-                numeric_intrinsic: None,
+                declaration: Some(checked),
+                numeric_intrinsic: if execution == CheckedBoundaryExecution::NumericPrimitive { reader.typed.numeric_intrinsic_execution(source.source) } else { None },
                 role: BoundaryDeclarationRole::Callable,
                 kind: source.kind,
                 completion: source.completion,
@@ -185,7 +300,7 @@ impl BoundaryNamespace {
                 scalar_domain_requirements,
                 scalar_requires: header.proof.requires,
                 scalar_ensures: header.proof.ensures.into_iter().map(|clause| clause.proposition).collect(),
-                reference_outputs: Vec::new(),
+                reference_outputs,
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 fixed_service_reach: envelope.service_reach.clone(),

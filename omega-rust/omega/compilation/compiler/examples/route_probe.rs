@@ -1,18 +1,15 @@
 //! Show one source program to the lowered-form checker ("the route") and
-//! print its verdict, without running the program's Build and without the
-//! old checker (Psi 05, validation's judgments, Psi 06).
+//! print its verdict, without running the program's Build.
 //!
-//! An ordinary compilation checks, lowers and executes the project's Build
-//! program before its product reaches the route, on stages that are being
-//! removed; when they are gone, `omega --check` stops at the Build until the
-//! route checks and publishes Build programs. This probe does not depend on
-//! any of that. It types the sources as a compilation does, binds the named
-//! machine to the target's `ProgramEntry` in the Build's place
+//! An ordinary compilation checks, lowers and runs the project's Build
+//! program before its product reaches the route. This probe skips that. It
+//! types the sources as a compilation does, binds the named machine to the
+//! target's `ProgramEntry` in the Build's place
 //! (`CompilationSession::typed_frontier_without_build`), stops at Psi 04's
 //! frozen typed trees, and runs `typed_trees_to_terminal_psi` and
-//! `terminal_psi_to_terminal_psi` on them. Nothing else a Build would select is present,
-//! so a program that needs its Build's providers or representations is judged
-//! without them.
+//! `terminal_psi_to_terminal_psi` on them. Nothing else a Build would select
+//! is present, so a program that needs its Build's providers or
+//! representations is judged without them.
 //!
 //! A program that imports another package needs the dependency edge its
 //! Build registers, stated here with `--dependency`. Most programs print and
@@ -35,8 +32,8 @@
 //! Without `--entry`, `main` is bound when the source declares it and a source
 //! without one is judged with no entry. `--target` defaults to `linux_x86_64`.
 //! Each `--dependency` is a Product edge of every listed source's directory.
-//! For each source one line per judged part (the entry closure first, then each generic
-//! check form), then `<path>\troute=<verdict>` where the verdict is
+//! For each source it prints one line per judged part (the entry closure first, then
+//! each generic check form), then `<path>\troute=<verdict>` where the verdict is
 //! `accepted`, `rejected`, `incomplete`, `not-supported` or `no-typed-trees`.
 //! An accepted part lists its advisory warnings and their notes beneath it.
 //! The exit code is 0 only when every source was accepted.

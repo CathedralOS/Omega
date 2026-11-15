@@ -6,9 +6,11 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+pub(crate) mod access_plan_values;
 mod build_activation;
 mod const_argument_jobs;
 mod constant_jobs;
+mod domain_access_plans;
 mod fixed_layouts;
 mod invocation;
 mod source_selection;
@@ -19,16 +21,18 @@ pub use constant_jobs::{
     evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent,
     validate_constant_evaluations,
 };
+pub use domain_access_plans::evaluate as evaluate_domain_access_plans;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
-    pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
+    /// Exact computation roots. An empty list never requests library-wide geometry.
+    pub entry_declarations: Vec<symbols::SymbolHandle>,
     pub provider_declarations: Vec<crate::product::provider_declarations::ProviderSelection>,
 }
 /// Evaluate the layout policies needed by the requested entry declarations.
-/// Unused open library applications remain deferred at their declarations.
+/// Unused applications remain deferred at their owning declarations.
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
@@ -92,9 +96,10 @@ pub struct PreparedBuildMachineEntry {
     source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
     accepted: Arc<terminal_production::AcceptedTerminalSource>,
     arguments: Vec<crate::BuildTimeValue>,
-    context_inputs: Vec<crate::BuildTimeValue>,
+    input_values: Vec<crate::BuildTimeValue>,
 }
 impl PreparedBuildMachineEntry {
+    /// The physical callee in the accepted invocation’s source.
     pub const fn symbol(&self) -> SymbolHandle {
         self.symbol
     }
@@ -141,8 +146,8 @@ impl PreparedBuildMachineEntry {
         meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
         let produced = self.produce_invocation()?;
-        let admitted = self.admit_invocation(&produced, target)?;
-        self.execute_invocation(&produced, &admitted, meter)
+        let (admitted, requirements) = self.admit_invocation(&produced, target)?;
+        self.execute_invocation(&produced, &admitted, requirements, target, meter)
     }
 
     /// Record the value and actual work/storage charges without treating local
@@ -153,12 +158,70 @@ impl PreparedBuildMachineEntry {
         accounting: &mut crate::SourceCompletionAccounting,
     ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
         let produced = Arc::new(self.produce_invocation()?);
-        let admitted = self.admit_invocation(&produced, target)?;
+        self.invoke_produced_recorded(produced, target, accounting)
+    }
+
+    /// Run a constant under each deployment that supplies its required
+    /// layout observations or authored storage layouts. Retain one receipt
+    /// per actual deployment. A computation with neither runs once portably.
+    pub fn invoke_recorded_in_targets(
+        &self,
+        targets: &[(&str, Option<&terminal_installation::LayoutTargetFacts>)],
+        accounting: &mut crate::SourceCompletionAccounting,
+    ) -> Result<Vec<crate::BuildTimeValue>, String> {
+        let produced = Arc::new(self.produce_invocation()?);
+        let module = produced.view().module();
+        if module.target_layout_applications.is_empty()
+            && module.scalar_applications.declarations().is_empty()
+        {
+            let target = crate::InvocationTarget {
+                name: None,
+                layout_target: None,
+                carrier_layout: None,
+                address_model: None,
+            };
+            return Ok(vec![
+                self.invoke_produced_recorded(produced, target, accounting)?
+                    .into_value(),
+            ]);
+        }
+        if targets.is_empty() {
+            return Err(
+                "the computation stores through an authored layout, and no deployment \
+                 that reaches it selects that layout"
+                    .into(),
+            );
+        }
+        targets
+            .iter()
+            .map(|(name, facts)| {
+                let facts = facts.ok_or_else(|| {
+                    format!("deployment `{name}` has no complete layout facts for the layout it stores through")
+                })?;
+                let target = crate::InvocationTarget {
+                    name: Some(name),
+                    layout_target: Some(facts),
+                    carrier_layout: None,
+                    address_model: None,
+                };
+                self.invoke_produced_recorded(Arc::clone(&produced), target, accounting)
+                    .map(crate::MeasuredEvaluation::into_value)
+            })
+            .collect()
+    }
+
+    fn invoke_produced_recorded(
+        &self,
+        produced: Arc<terminal_production::ProducedTerminalProgram>,
+        target: crate::InvocationTarget<'_>,
+        accounting: &mut crate::SourceCompletionAccounting,
+    ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
+        let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let account = crate::evaluation_accounting::pure_terminal_invocation_account()?;
         let mut meter = terminal_work::WorkMeter::with_invocation(account.clone(), None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
         let result = self
-            .execute_invocation(&produced, &admitted, &mut meter)
+            .execute_invocation(&produced, &admitted, requirements, target, &mut meter)
             .and_then(|value| {
                 let usage = account
                     .snapshot()
@@ -198,7 +261,13 @@ impl PreparedBuildMachineEntry {
         &self,
         produced: &terminal_production::ProducedTerminalProgram,
         target: crate::InvocationTarget<'_>,
-    ) -> Result<terminal_installation::AdmittedCompilerEvaluation, String> {
+    ) -> Result<
+        (
+            terminal_installation::AdmittedCompilerEvaluation,
+            terminal_interpreter::TerminalExecutionRequirements,
+        ),
+        String,
+    > {
         if target.name.is_none()
             && (target.layout_target.is_some()
                 || target.carrier_layout.is_some()
@@ -206,11 +275,11 @@ impl PreparedBuildMachineEntry {
         {
             return Err("target-independent evaluation cannot carry target observations".into());
         }
-        for value in &self.context_inputs {
-            let crate::BuildTimeValue::LayoutTarget(facts) = value else {
-                return Err("source invocation lost its issued context argument".into());
-            };
-            if target.name != Some(facts.profile.as_str()) || target.layout_target != Some(facts) {
+        for value in &self.input_values {
+            if let crate::BuildTimeValue::LayoutTarget(facts) = value
+                && (target.name != Some(facts.profile.as_str())
+                    || target.layout_target != Some(facts))
+            {
                 return Err(
                     "issued layout context differs from the actual invocation target".into(),
                 );
@@ -218,14 +287,19 @@ impl PreparedBuildMachineEntry {
         }
         use terminal_interpreter::TerminalProgram;
         let program = TerminalProgram::borrow(produced.view());
+        let unselected =
+            terminal_installation::admit_provider_execution_installation(produced.view(), &[], &[])
+                .map_err(|error| format!("source invocation provider admission: {error:?}"))?;
+        let layouts = Self::layout_supplies(produced, &unselected, target)?;
         let requirements = program
-            .execution_requirements(None)
+            .execution_requirements(layouts.as_ref())
             .map_err(|error| format!("source invocation demands: {error:?}"))?;
         if !requirements.imports.is_empty()
             || !requirements.missing_providers.is_empty()
             || !requirements.external_completions.is_empty()
-            || !requirements.scalar_applications.is_empty()
-            || !requirements.scalar_entry_conditions.is_empty()
+            || (target.layout_target.is_none()
+                && (!requirements.scalar_applications.is_empty()
+                    || !requirements.scalar_entry_conditions.is_empty()))
         {
             return Err("source invocation requires selected target, scalar or external authority that is not supplied".into());
         }
@@ -248,9 +322,6 @@ impl PreparedBuildMachineEntry {
         if headers.next().is_some() || !header.supplies_checked_body {
             return Err("source invocation has no unique accepted caller body".into());
         }
-        let providers =
-            terminal_installation::admit_provider_execution_installation(view, &[], &[])
-                .map_err(|error| format!("source invocation provider admission: {error:?}"))?;
         let requester = match (
             self.source.symbols.symbol_package_identity(self.requester),
             self.source.symbols.symbol_source_origin(self.requester),
@@ -274,7 +345,7 @@ impl PreparedBuildMachineEntry {
             view,
             target.name,
             root,
-            providers,
+            unselected,
             requester,
             self.authority.as_deref(),
             source_selection.as_ref().map(|selection| {
@@ -282,13 +353,58 @@ impl PreparedBuildMachineEntry {
             }),
         )?;
         admitted.require_invocation(view, target.name, selected)?;
-        Ok(admitted)
+        Ok((admitted, requirements))
+    }
+
+    /// A storage application with an authored layout has bytes only under one
+    /// deployment's admitted plan. Install that target's checked layouts so
+    /// the invocation runs with the geometry its target closure selected;
+    /// without layout facts the program keeps no layout supply and refuses
+    /// at its first layout demand.
+    fn layout_supplies(
+        produced: &terminal_production::ProducedTerminalProgram,
+        providers: &terminal_installation::AdmittedProviderSelections,
+        target: crate::InvocationTarget<'_>,
+    ) -> Result<Option<terminal_interpreter::TerminalRuntimeSupplies>, String> {
+        let view = produced.view();
+        let (Some(name), Some(facts)) = (target.name, target.layout_target) else {
+            return Ok(None);
+        };
+        if view.module().target_layout_applications.is_empty() {
+            return Ok(None);
+        }
+        let selected = terminal_installation::terminal_target_context(view, name);
+        let layouts = terminal_installation::admit_target_layouts(view, &selected, facts)
+            .map_err(|error| format!("source invocation target layouts: {error:?}"))?;
+        Self::runtime_supplies(view, providers, Some(&selected), Some(&layouts)).map(Some)
+    }
+
+    fn runtime_supplies(
+        view: terminal_codec::TerminalExecutionView<'_>,
+        providers: &terminal_installation::AdmittedProviderSelections,
+        selected: Option<&terminal_installation::TerminalTargetContext>,
+        layouts: Option<&terminal_installation::AdmittedTargetLayouts>,
+    ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
+        terminal_interpreter::TerminalProgram::borrow(view)
+            .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
+                x86_flags: None,
+                memory_ordering: None,
+                entry: None,
+                installation: Some(providers),
+                host_imports: &[],
+                target_machines: selected,
+                target_layouts: layouts,
+            })
+            .map_err(|error| format!("source invocation target supplies: {error:?}"))
     }
 
     fn execute_invocation(
         &self,
         produced: &terminal_production::ProducedTerminalProgram,
         admitted: &terminal_installation::AdmittedCompilerEvaluation,
+        requirements: terminal_interpreter::TerminalExecutionRequirements,
+        target: crate::InvocationTarget<'_>,
         meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
         use terminal_interpreter::{
@@ -301,16 +417,50 @@ impl PreparedBuildMachineEntry {
             .entry
             .ok_or("source invocation lost its emitted root")?;
         admitted.require_invocation(produced.view(), admitted.target(), selected)?;
-        let installation =
-            terminal_interpreter::TerminalRuntimeSupplies::from(admitted.providers());
-        let program = TerminalProgram::borrow(produced.view());
+        let view = produced.view();
+        let providers = admitted.providers();
+        let mut requested = requirements.scalar_applications;
+        requested.extend(requirements.scalar_entry_conditions);
+        requested.sort_unstable();
+        requested.dedup();
+        let scalars = if requested.is_empty() {
+            None
+        } else {
+            let name = target
+                .name
+                .ok_or("source scalar application has no deployment")?;
+            let targets = terminal_installation::terminal_target_context(view, name);
+            let declaration = view
+                .module()
+                .scalar_applications
+                .proof_scope
+                .callable_declaration(selected)
+                .ok_or("source scalar application has no exact invocation root")?;
+            Some(crate::complete_invocation_scalar_applications(
+                view,
+                target,
+                &targets,
+                providers,
+                declaration,
+                &requested,
+                meter,
+            )?)
+        };
+        let installation = if let Some(scalars) = &scalars {
+            let scope = scalars.primary();
+            Self::runtime_supplies(view, scope.providers(), scope.targets(), scope.layouts())?
+        } else {
+            Self::layout_supplies(produced, providers, target)?
+                .unwrap_or_else(|| terminal_interpreter::TerminalRuntimeSupplies::from(providers))
+        };
+        let program = TerminalProgram::borrow(view);
         let entry = program
             .entry()
             .map_err(|error| format!("source invocation entry: {error:?}"))?;
         if !entry.scalar_parameters.is_empty()
-            || entry.structural_parameters.len() != self.context_inputs.len()
+            || entry.structural_parameters.len() != self.input_values.len()
         {
-            return Err("source invocation retained unmatched compiler context parameters".into());
+            return Err("source invocation retained unmatched host input parameters".into());
         }
         let inputs = entry
             .structural_parameters
@@ -320,19 +470,29 @@ impl PreparedBuildMachineEntry {
                 let declaration = program
                     .module()
                     .structural_type(parameter.structural_type)
-                    .ok_or("issued context lost its canonical declaration")?;
-                if declaration.shape != terminal_psi::StructuralTypeShape::Opaque
-                    || parameter.access != terminal_psi::StructuralAccess::Owned
+                    .ok_or("source input lost its canonical declaration")?;
+                let issued = matches!(
+                    self.input_values[position],
+                    crate::BuildTimeValue::LayoutTarget(_)
+                );
+                if (issued
+                    && (declaration.shape != terminal_psi::StructuralTypeShape::Opaque
+                        || parameter.access != terminal_psi::StructuralAccess::Owned))
+                    || !matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::Owned
+                            | terminal_psi::StructuralAccess::SharedBorrow
+                    )
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || !parameter.additional_input_qualifications.is_empty()
                 {
-                    return Err("issued context changed its opaque input contract");
+                    return Err("source input changed its checked input contract");
                 }
                 let identity = u64::try_from(position)
                     .ok()
                     .and_then(|position| position.checked_add(1))
-                    .ok_or("issued context input identity exceeds its host namespace")?;
+                    .ok_or("source input identity exceeds its host namespace")?;
                 Ok(terminal_interpreter::TerminalStructuralValue::minted(
                     identity,
                     parameter.structural_type,
@@ -340,7 +500,23 @@ impl PreparedBuildMachineEntry {
                 ))
             })
             .collect::<Result<Vec<_>, &str>>()?;
-        let opaque_inputs = inputs.iter().zip(&self.context_inputs).collect::<Vec<_>>();
+        let contents = entry
+            .structural_parameters
+            .iter()
+            .zip(&self.input_values)
+            .enumerate()
+            .filter(|(_, (_, value))| !matches!(value, crate::BuildTimeValue::LayoutTarget(_)))
+            .map(|(position, (parameter, value))| {
+                crate::terminal_values::input_contents(
+                    &program,
+                    u32::try_from(position)
+                        .map_err(|_| "source input exceeds its argument namespace")?,
+                    parameter.structural_type,
+                    value,
+                )
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let opaque_inputs = inputs.iter().zip(&self.input_values).collect::<Vec<_>>();
         let result_type = entry
             .result
             .structural()
@@ -350,8 +526,10 @@ impl PreparedBuildMachineEntry {
             .instantiate(TerminalInstantiation {
                 account: account.as_ref(),
                 installation: Some(&installation),
+                scalar_admission: scalars.as_ref(),
                 structural_inputs: terminal_interpreter::TerminalStructuralInputs {
                     arguments: &inputs,
+                    contents: &contents,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -382,6 +560,10 @@ impl PreparedBuildMachineEntry {
         }
     }
 }
+fn invocation_error(reason: impl Into<String>) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(reason)]
+}
+
 impl PreparedBuildMachineProgram {
     pub fn prepare(
         typed: &TypedTrees,
@@ -419,7 +601,7 @@ impl PreparedBuildMachineProgram {
             SymbolHandle,
         )>,
         supplies: &[terminal_production::TerminalSourceSupply],
-    ) -> Result<PreparedBuildMachineEntry, String> {
+    ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
                 .source
@@ -427,13 +609,15 @@ impl PreparedBuildMachineProgram {
                 .symbol_provenance_source_span(requester)
                 .is_none()
         {
-            return Err("source job requires its actual requesting declaration".into());
+            return Err(invocation_error(
+                "source job requires its actual requesting declaration",
+            ));
         }
         let invocation::PreparedSourceInvocation {
             source,
             caller,
             call,
-            context_inputs,
+            input_values,
         } = invocation::prepare_value_invocation(
             &self.source,
             requester,
@@ -442,14 +626,14 @@ impl PreparedBuildMachineProgram {
             arguments,
             request_expression,
             selected,
-        )?;
+        )
+        .map_err(invocation_error)?;
         // The call's source reaches the checker the way every program does,
         // through typed preparation; there is no second way to freeze it.
         let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             source,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
-        )
-        .map_err(|errors| diagnostics::join_messages(&errors))?;
+        )?;
         let source = Arc::new(source);
         let accepted = terminal_production::AcceptedTerminalSource::judge(
             source,
@@ -467,20 +651,21 @@ impl PreparedBuildMachineProgram {
                 supplies,
             },
             terminal_codec::TerminalPublication::Invocation,
-        )
-        .map_err(|errors| diagnostics::join_messages(&errors))?;
+        )?;
         let entry = accepted
             .entry()
-            .ok_or("source invocation has no accepted entry")?;
+            .ok_or_else(|| invocation_error("source invocation has no accepted entry"))?;
         if accepted.closure().elaboration.machines.get(entry) != Some(&caller) {
-            return Err("source invocation accepted another caller".into());
+            return Err(invocation_error(
+                "source invocation accepted another caller",
+            ));
         }
         let actual_call = accepted
             .source()
             .expression_table
             .call_node(call)
             .cloned()
-            .ok_or("source invocation lost its accepted call")?;
+            .ok_or_else(|| invocation_error("source invocation lost its accepted call"))?;
         let physical = match declaration {
             typed_trees::callable_signature_shapes::CallableDeclaration::Machine(required) => {
                 let physical = accepted
@@ -491,16 +676,18 @@ impl PreparedBuildMachineProgram {
                             .source()
                             .machine_holding_state(actual_call.target_symbol)
                     })
-                    .ok_or("source invocation has no accepted concrete body")?;
+                    .ok_or_else(|| {
+                        invocation_error("source invocation has no accepted concrete body")
+                    })?;
                 if physical.symbol != required
                     && accepted
                         .source()
                         .machine_instantiation_path(physical.symbol, required)
                         .is_none()
                 {
-                    return Err(
-                        "source invocation changed its required concrete declaration".into(),
-                    );
+                    return Err(invocation_error(
+                        "source invocation changed its required concrete declaration",
+                    ));
                 }
                 physical.symbol
             }
@@ -521,14 +708,18 @@ impl PreparedBuildMachineProgram {
                     })
                     .unwrap_or(actual_call.target_symbol);
                 if actual_required != original {
-                    return Err("selected source invocation changed its public requirement".into());
+                    return Err(invocation_error(
+                        "selected source invocation changed its public requirement",
+                    ));
                 }
                 let mut sites = accepted.source_call_sites(caller, call);
-                let (canonical_caller, site) = sites
-                    .next()
-                    .ok_or("selected source invocation has no exact emitted call site")?;
+                let (canonical_caller, site) = sites.next().ok_or_else(|| {
+                    invocation_error("selected source invocation has no exact emitted call site")
+                })?;
                 if sites.next().is_some() {
-                    return Err("selected source invocation has multiple emitted call sites".into());
+                    return Err(invocation_error(
+                        "selected source invocation has multiple emitted call sites",
+                    ));
                 }
                 let module = &accepted.closure().elaboration.module;
                 let invocation = module
@@ -538,22 +729,34 @@ impl PreparedBuildMachineProgram {
                             .module_invocations()
                             .find(|invocation| invocation.site == site)
                     })
-                    .ok_or("selected source invocation lost its canonical operation")?;
-                let required_contract = invocation
-                    .inputs
-                    .required_contract
-                    .ok_or("selected source invocation lost its public contract")?;
+                    .ok_or_else(|| {
+                        invocation_error("selected source invocation lost its canonical operation")
+                    })?;
+                let required_contract = invocation.inputs.required_contract.ok_or_else(|| {
+                    invocation_error("selected source invocation lost its public contract")
+                })?;
                 let contract = module
                     .invocation_machine_contract(invocation.inputs.callee, Some(required_contract))
-                    .ok_or("selected source invocation has no exact public contract and body")?;
-                let applied = accepted.source().source_call_requirement_signature(
-                    caller,
-                    typed_trees::references::StaticArgumentCall::Expression(call, &actual_call),
-                )?;
+                    .ok_or_else(|| {
+                        invocation_error(
+                            "selected source invocation has no exact public contract and body",
+                        )
+                    })?;
+                let applied = accepted
+                    .source()
+                    .source_call_requirement_signature(
+                        caller,
+                        typed_trees::references::StaticArgumentCall::Expression(call, &actual_call),
+                    )
+                    .map_err(invocation_error)?;
                 let (owner, _) = accepted
                     .source()
                     .trait_machine_signature(applied.symbol)
-                    .ok_or("selected source invocation lost its public declaring trait")?;
+                    .ok_or_else(|| {
+                        invocation_error(
+                            "selected source invocation lost its public declaring trait",
+                        )
+                    })?;
                 let identity = accepted
                     .source()
                     .trait_requirement_callable_identity_text(owner, applied);
@@ -564,16 +767,18 @@ impl PreparedBuildMachineProgram {
                     != Some(identity.as_str())
                     || contract.selected_application.is_none()
                 {
-                    return Err(
-                        "selected source invocation changed its applied public signature".into(),
-                    );
+                    return Err(invocation_error(
+                        "selected source invocation changed its applied public signature",
+                    ));
                 }
                 *accepted
                     .closure()
                     .elaboration
                     .machines
                     .get(invocation.inputs.callee)
-                    .ok_or("selected source invocation lost its actual body source")?
+                    .ok_or_else(|| {
+                        invocation_error("selected source invocation lost its actual body source")
+                    })?
             }
         };
         Ok(PreparedBuildMachineEntry {
@@ -587,7 +792,7 @@ impl PreparedBuildMachineProgram {
             source_consent: self.source_consent.clone(),
             accepted: Arc::new(accepted),
             arguments: arguments.to_vec(),
-            context_inputs,
+            input_values,
         })
     }
 
@@ -667,6 +872,7 @@ impl PreparedBuildMachineProgram {
             None,
             &[],
         )
+        .map_err(|errors| diagnostics::join_messages(&errors))
     }
 
     pub fn entry(
@@ -675,6 +881,16 @@ impl PreparedBuildMachineProgram {
         symbol: SymbolHandle,
         arguments: &[crate::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, String> {
+        self.prepare_entry(requester, symbol, arguments)
+            .map_err(|errors| diagnostics::join_messages(&errors))
+    }
+
+    fn prepare_entry(
+        &self,
+        requester: SymbolHandle,
+        symbol: SymbolHandle,
+        arguments: &[crate::BuildTimeValue],
+    ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
                 .source
@@ -682,13 +898,14 @@ impl PreparedBuildMachineProgram {
                 .symbol_provenance_source_span(requester)
                 .is_none()
         {
-            return Err("source job requires its actual requesting declaration".into());
+            return Err(invocation_error(
+                "source job requires its actual requesting declaration",
+            ));
         }
-        let machine = self
-            .source
-            .machine_by_symbol(symbol)
-            .ok_or("no product route yet: source Build entry is unavailable")?;
-        let call = invocation::direct_call(&self.source, machine)?;
+        let machine = self.source.machine_by_symbol(symbol).ok_or_else(|| {
+            invocation_error("no product route yet: source Build entry is unavailable")
+        })?;
+        let call = invocation::direct_call(&self.source, machine).map_err(invocation_error)?;
         self.prepare_call(
             requester,
             typed_trees::callable_signature_shapes::CallableDeclaration::Machine(machine.symbol),
@@ -810,6 +1027,7 @@ impl PreparedBuildMachineProgram {
             Some((selection, selection_owner)),
             &[],
         )
+        .map_err(|errors| diagnostics::join_messages(&errors))
     }
 
     /// Invoke the selected implementation through its original requirement.
@@ -835,6 +1053,7 @@ impl PreparedBuildMachineProgram {
             None,
             &[supply],
         )
+        .map_err(|errors| diagnostics::join_messages(&errors))
     }
 }
 
@@ -912,6 +1131,40 @@ pub(crate) mod tests {
                 .expect("the existing reflection author package"),
         )
         .expect("resolve and type the actual core source and author")
+    }
+
+    #[test]
+    fn layout_schema_members_keep_their_applied_type_without_lifetime_bindings() {
+        // Every repeated schema field uses the same closed Optional<u64>.
+        // Its enclosing SchemaField has no lifetime arguments to apply.
+        let mut source = with_reflection(
+            "use omega::language::core::SchemaField;
+             machine retain_schema_member_type(field: SchemaField) {}",
+        );
+        let machine = source
+            .realized_machine_named("retain_schema_member_type")
+            .unwrap();
+        let [entry] = source.machine_states(machine) else {
+            panic!("one entry state");
+        };
+        let [field] = source.state_parameters(entry) else {
+            panic!("one schema field parameter");
+        };
+        let enclosing = field.type_reference;
+        let schema = source.closed_data_definition(enclosing).unwrap();
+        let identity = source
+            .data_members(schema)
+            .iter()
+            .filter_map(typed_trees::data::DataMember::as_field)
+            .find(|field| field.name.as_str() == "identity")
+            .unwrap()
+            .type_reference;
+        assert!(source.closed_data_definition(identity).is_some());
+
+        let applied = source
+            .instantiate_data_member_type(identity, enclosing)
+            .unwrap();
+        assert_eq!(applied, identity);
     }
 
     #[test]
@@ -1016,13 +1269,230 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn fixed_layout_policy_installs_the_retained_pairs_authored_geometry() {
-        // The kept program deliberately puts lo after hi. Evaluate that same
-        // policy and retain its geometry, rather than assigning default offsets.
+    fn an_empty_layout_scope_preserves_the_unrequested_application() {
+        // The same kept application must remain a real deferred request when
+        // no computation asks for its geometry; no successful plan is invented.
         let mut source = with_reflection(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
         )));
+        let entry = query_machine(&source, "main");
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        let scope = FixedLayoutTargetScope {
+            target: facts.profile.clone(),
+            facts: Some(facts),
+            entry_declarations: Vec::new(),
+            provider_declarations: Vec::new(),
+        };
+        let mut foreign = scope.clone();
+        foreign.facts.as_mut().unwrap().profile = "windows_x86_64".into();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let errors = evaluate_fixed_layout_applications(
+            &mut source,
+            &[foreign],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut accounting,
+        )
+        .expect_err("empty roots do not authenticate another target's facts");
+        assert!(
+            diagnostics::join_messages(&errors)
+                .contains("layout scope and immutable target facts disagree")
+        );
+        assert!(accounting.receipts().is_empty());
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &[scope],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut accounting,
+        )
+        .expect("an unused layout application needs no policy invocation");
+        assert!(source.plan_laid_layouts.is_empty());
+        assert!(source.plan_laid_target_layouts.is_empty());
+        assert!(accounting.receipts().is_empty());
+        assert!(source.deferred_refusals_of(entry).any(|row| {
+            row.request == typed_trees::deferred_refusals::DeferredRequest::LayoutPolicyStorage
+        }));
+    }
+
+    #[test]
+    fn a_layout_storage_constant_folds_one_snapshot_from_every_deployment() {
+        // `SAVED` is computed by storing through `LayoutStorage<Pair,
+        // PairLayout>`, so its bytes exist only under a selected plan. It runs
+        // once per deployment that reads it and keeps the one semantic value
+        // every target agrees on; with no deployment it has no layout at all.
+        let mut source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/const_name/main.omg"
+        )));
+        let entry = query_machine(&source, "main");
+        let scopes = ["linux_x86_64", "macos_arm64"].map(|target| FixedLayoutTargetScope {
+            target: target.into(),
+            facts: Some(layout_plans::LayoutTargetFacts {
+                profile: target.into(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
+                little_endian: true,
+            }),
+            entry_declarations: vec![entry],
+            provider_declarations: Vec::new(),
+        });
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &scopes,
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut accounting,
+        )
+        .unwrap();
+        // Source preparation keeps each initializer as an ordinary machine.
+        let initializers = source
+            .const_declarations()
+            .iter()
+            .filter(|constant| source.tables.machines.is_valid(constant.evaluation_entry))
+            .map(|constant| {
+                source
+                    .tables
+                    .machines
+                    .get(constant.evaluation_entry)
+                    .clone()
+            })
+            .filter(|machine| source.machine_by_symbol(machine.symbol).is_none())
+            .collect::<Vec<_>>();
+        for machine in initializers {
+            source.push_machine(machine);
+        }
+        let request = terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        let errors = crate::evaluate_constant_initializers_with_source_consent(
+            &mut source.clone(),
+            request,
+            &[],
+            None,
+            None,
+            &mut crate::SourceCompletionAccounting::default(),
+        )
+        .expect_err("a layout storage constant has no bytes without a deployment");
+        assert!(
+            diagnostics::join_messages(&errors).contains("no deployment that reaches it"),
+            "{}",
+            diagnostics::join_messages(&errors)
+        );
+        crate::evaluate_constant_initializers_with_source_consent(
+            &mut source,
+            request,
+            &scopes,
+            None,
+            None,
+            &mut accounting,
+        )
+        .unwrap();
+        crate::validate_constant_evaluations(&source, &accounting).unwrap();
+        let saved = source
+            .const_declarations()
+            .iter()
+            .find(|constant| source.symbols.name(constant.symbol) == "SAVED")
+            .expect("the program declares SAVED");
+        let value = typed_trees::canonical_const_declaration_value(&source, saved.symbol)
+            .and_then(|value| value.decode_encoding())
+            .expect("SAVED keeps its folded value");
+        let language_semantics::const_value::DecodedCanonicalConstValue::Record {
+            type_name,
+            fields,
+        } = value
+        else {
+            panic!("SAVED is the semantic Pair record, not its bytes: {value:?}");
+        };
+        assert_eq!(type_name, "Pair");
+        let integers = fields
+            .iter()
+            .map(|(name, value)| match value {
+                language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    value,
+                    ..
+                } => (name.as_str(), value.to_string()),
+                other => panic!("Pair holds integers: {other:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(integers, [("lo", "42".to_owned()), ("hi", "9".to_owned())]);
+        let initializer = source.tables.machines.get(saved.evaluation_entry).symbol;
+        let mut targets = accounting
+            .receipts()
+            .iter()
+            .filter_map(|record| match record {
+                crate::PureEvaluationRecord::Invocation(receipt)
+                    if receipt.requester() == saved.symbol && receipt.machine() == initializer =>
+                {
+                    receipt.admission().target().map(str::to_owned)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        targets.sort();
+        assert_eq!(targets, ["linux_x86_64", "macos_arm64"]);
+    }
+
+    #[test]
+    fn fixed_layout_policy_installs_the_retained_pairs_authored_geometry() {
+        // The kept program deliberately puts lo after hi. Evaluate that same
+        // policy and retain its geometry, rather than assigning default offsets.
+        verify_fixed_layout_geometry(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
+        )));
+    }
+
+    #[test]
+    fn fixed_layout_policy_keeps_the_retained_pair_in_a_record_field() {
+        verify_fixed_layout_geometry(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/field/main.omg"
+        )));
+    }
+
+    #[test]
+    fn fixed_layout_policy_reaches_the_retained_field_cast_refusal() {
+        let result = judge_fixed_layout_pair(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/invalid_field/main.omg"
+        )));
+        let Err(errors) = result else {
+            panic!("the retained cast of 41 to Delivered must fail");
+        };
+        let refusal = diagnostics::join_messages(&errors);
+        assert!(
+            refusal.contains(
+                "cannot prove the value of this cast is in the domain it adds in machine `make` state `entry`: domain `u64::Delivered` requires `self >= 42 && self <= 42`"
+            ),
+            "{refusal}"
+        );
+    }
+
+    fn judge_fixed_layout_pair(
+        authored: &str,
+    ) -> Result<terminal_production::AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+        let mut source = with_reflection(authored);
         let entry = query_machine(&source, "main");
         let pair = source
             .data_definitions()
@@ -1048,7 +1518,7 @@ pub(crate) mod tests {
         let scope = FixedLayoutTargetScope {
             target: facts.profile.clone(),
             facts: Some(facts.clone()),
-            entry_declarations: Some(vec![entry]),
+            entry_declarations: vec![entry],
             provider_declarations: Vec::new(),
         };
         let mut conflicting = scope.clone();
@@ -1099,7 +1569,7 @@ pub(crate) mod tests {
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
         )
         .unwrap();
-        let accepted = terminal_production::AcceptedTerminalSource::judge(
+        terminal_production::AcceptedTerminalSource::judge(
             Arc::new(prepared),
             terminal_production::TerminalSourceCompilation {
                 calling: None,
@@ -1114,7 +1584,10 @@ pub(crate) mod tests {
             },
             terminal_codec::TerminalPublication::Portable,
         )
-        .unwrap();
+    }
+
+    fn verify_fixed_layout_geometry(authored: &str) {
+        let accepted = judge_fixed_layout_pair(authored).unwrap();
         let module = accepted.module();
         let [application] = module.target_layout_applications.as_slice() else {
             panic!("the program retains its one actual layout application");
@@ -1203,6 +1676,120 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn generic_layout_policy_retains_its_declared_machine_and_publishes_its_plan() {
+        // The same closed layout plan must use the declared member in source
+        // metadata and its captured body in the actual invocation receipt.
+        let authored = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
+        ))
+        .replace(
+            "PairLayout satisfies FixedLayout<Pair>",
+            "public data OtherPair [copy] { lo: u64 in Delivered; hi: u64; }\nPairLayout<T> satisfies FixedLayout<T>",
+        );
+        let evaluated = |argument: &str| {
+            let mut source = with_reflection(&authored.replace(
+                "LayoutStorage<Pair, PairLayout>",
+                &format!("LayoutStorage<Pair, PairLayout<{argument}>>"),
+            ));
+            let root = query_machine(&source, "main");
+            let facts = layout_plans::LayoutTargetFacts {
+                profile: "linux_x86_64".into(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
+                little_endian: true,
+            };
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let result = evaluate_fixed_layout_applications(
+                &mut source,
+                &[FixedLayoutTargetScope {
+                    target: facts.profile.clone(),
+                    facts: Some(facts),
+                    entry_declarations: vec![root],
+                    provider_declarations: Vec::new(),
+                }],
+                None,
+                None,
+                source::DependencyScope::Product,
+                &mut accounting,
+            );
+            (source, root, accounting, result)
+        };
+
+        // Geometry alone cannot identify a policy's semantic argument.
+        let (wrong, _, accounting, refusal) = evaluated("OtherPair");
+        let refusal = diagnostics::join_messages(&refusal.unwrap_err());
+        assert!(
+            refusal.contains("selected layout policy belongs to another semantic type"),
+            "{refusal}"
+        );
+        assert!(accounting.receipts().is_empty());
+        assert!(wrong.plan_laid_layouts.is_empty());
+
+        let (source, root, accounting, result) = evaluated("Pair");
+        result.unwrap();
+        let [plan] = source.plan_laid_layouts.as_slice() else {
+            panic!("one exact layout for Pair");
+        };
+        let policy = source.conformance_by_symbol(plan.policy_symbol).unwrap();
+        let [member] = policy.rows.as_slice() else {
+            panic!("the authored plan member");
+        };
+        assert_eq!(plan.policy_plan_machine_symbol, member.realization_machine);
+        let [layout] = plan.target_layouts(&source) else {
+            panic!("one plan for the selected target");
+        };
+        assert_eq!(layout.machine, member.realization_machine);
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one physical policy invocation");
+        };
+        assert_ne!(receipt.machine(), member.realization_machine);
+        assert!(source.machine_by_symbol(receipt.machine()).is_none());
+        assert!(
+            receipt
+                .source()
+                .machine_instantiation_path(receipt.machine(), member.realization_machine)
+                .is_some()
+        );
+        accounting.validate_charges().unwrap();
+
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(prepared),
+            terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[root],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let module = accepted.module();
+        let [application] = module.target_layout_applications.as_slice() else {
+            panic!("the checked module retains the applied generic policy");
+        };
+        let record = module.native_layouts.record(application.record).unwrap();
+        let [layout] = module.native_layouts.realizations(record).unwrap() else {
+            panic!("one published native layout");
+        };
+        assert_eq!(layout.report.layout.size, Some(16));
+        assert_eq!(layout.report.layout.align, 8);
+        assert_eq!(layout.report.layout.offsets, Some(vec![8, 0]));
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+    }
+
+    #[test]
     fn the_library_c_layout_policy_keeps_its_existing_scalar_record() {
         // The bundled generic policy must compute the kept C-layout example's
         // real field placements. Its alias, operations and byte oracle stay
@@ -1235,7 +1822,7 @@ pub(crate) mod tests {
             &[FixedLayoutTargetScope {
                 target: facts.profile.clone(),
                 facts: Some(facts),
-                entry_declarations: Some(vec![entry]),
+                entry_declarations: vec![entry],
                 provider_declarations: Vec::new(),
             }],
             None,
@@ -3319,6 +3906,44 @@ pub(crate) mod tests {
             compiler_storage::encode(&accounting, compiler_storage::RecordLimits::default())
                 .expect_err("temporary callers cannot become portable cached evidence");
         assert!(error.to_string().contains("invocation-local"), "{error}");
+    }
+
+    #[test]
+    fn source_jobs_run_the_kept_ranked_control_loop() {
+        let fixture = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        ));
+        let ranked = fixture
+            .split_once("machine parity(")
+            .and_then(|(_, source)| source.split_once("data Packet"))
+            .map(|(tail, _)| format!("machine parity({tail}"))
+            .expect("the kept fixture declares parity before Packet");
+        let arguments = [BuildTimeValue::Int(3), BuildTimeValue::Bool(false)];
+
+        let trees = with_reflection(&ranked);
+        let parity = query_machine(&trees, "parity");
+        let entry = PreparedBuildMachineProgram::prepare(&trees, None)
+            .unwrap()
+            .entry(parity, parity, &arguments)
+            .expect("the original rank proves the local control cycle");
+        assert_eq!(
+            entry.invoke(target(), &mut terminal_work::WorkMeter::unbounded()),
+            Ok(BuildTimeValue::Bool(true)),
+        );
+
+        let trees = with_reflection(&ranked.replace("remaining - 1", "remaining"));
+        let parity = query_machine(&trees, "parity");
+        let Err(refusal) = PreparedBuildMachineProgram::prepare(&trees, None)
+            .unwrap()
+            .entry(parity, parity, &arguments)
+        else {
+            panic!("a nondecreasing local cycle must fail source checking");
+        };
+        assert!(
+            refusal.contains("removing strict rank edges leaves a control cycle"),
+            "{refusal}",
+        );
     }
 
     #[test]

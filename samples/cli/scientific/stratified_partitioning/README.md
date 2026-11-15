@@ -51,16 +51,15 @@ these audited assignments. Validation compares the entire report, not a banner.
 
 ## Independent oracles
 
-`reference.py` enumerates combinations of *present* group IDs, separately from
-the Omega mask search. `data/oracles.json` freezes 70 cases before the first Omega
-execution, including exact input/output SHA-256 values and integer tolerance 0.
-The fixture files contain all expected outputs; validation never regenerates them.
-The tiny cases exhaust every two-record layout over groups 1–2 and strata 1–3,
-plus every three-record binary-stratum layout with distinct groups. Other cases
-exercise mixed groups, missing group numbers, 16 records, 4/9 and 2/5 fractions,
-reversed order, identical repeats, CR/tab whitespace, EOF without a final newline,
-singleton strata, impossible exact balance,
-empty strata, one group, and 15 malformed runtime inputs.
+`data/oracles.json` freezes 70 cases before the first Omega execution, including
+exact input/output SHA-256 values and integer tolerance 0. The fixture files
+contain all expected outputs; validation never regenerates them. The tiny cases
+exhaust every two-record layout over groups 1–2 and strata 1–3, plus every
+three-record binary-stratum layout with distinct groups. Other cases exercise
+mixed groups, missing group numbers, 16 records, 4/9 and 2/5 fractions, reversed
+order, identical repeats, CR/tab whitespace, EOF without a final newline,
+singleton strata, impossible exact balance, empty strata, one group, and 15
+malformed runtime inputs.
 
 `data/supplemental-oracles.json` adds one high-bit variant, independently frozen
 before its own first execution. Fifteen records in group 1 and one in group 8,
@@ -98,15 +97,13 @@ SAMPLE=samples/cli/independent/stratified_partitioning
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" run --both --keep "$SAMPLE/main.omg" < "$SAMPLE/data/balanced.stdin"
-python3 "$SAMPLE/validate.py" --executable /absolute/path/to/published/executable
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/invalid/control.omg"
 ```
 
-`run --both` uses the current host and exercises native and Terminal interpretation where supported and
-must report any declined comparison accurately. The current CLI compares exit statuses;
-`validate.py` separately compares complete native output bytes. `run --target`
-produces target artifacts without executing them, so omit that flag for host runs. Host-specific Windows, Linux
-ARM64 and macOS ARM64 entry bindings are included, but only a tested host can
-claim runtime acceptance. Generated products and validation records belong in
-`build/`; they are not source dependencies. The handoff records actual binary,
-revision, commands, source hashes and observed outcomes.
+`run --both` uses the current host and exercises native and Terminal interpretation
+where supported and must report any declined comparison accurately. `run --target`
+produces target artifacts without executing them, so omit that flag for host runs.
+Host-specific Windows, Linux ARM64 and macOS ARM64 entry bindings are included, but
+only a tested host can claim runtime acceptance. Generated products and validation
+records belong in `build/`; they are not source dependencies. The handoff records
+actual binary, revision, commands, source hashes and observed outcomes.

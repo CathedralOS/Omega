@@ -8,11 +8,11 @@
 //! the way the program-entry receipt finds it on the product check's
 //! program.
 //!
-//! The default compile takes this path for the application: when the route
-//! accepts a compilation and its module publishes, the Terminal product is
-//! that artifact and its seals stay beside it for Omega 00. An executable
-//! child requests its calling declarations before publication and receives a
-//! new judgment over the same source and full roster.
+//! The default compile takes this path: when the checker accepts a compilation
+//! and its module publishes, the Terminal product is that artifact and its
+//! seals stay beside it for Omega 00. An executable child requests its calling
+//! declarations before publication and receives a new judgment over the same
+//! source and full roster.
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;
 
@@ -25,6 +25,106 @@ use terminal_work::WorkMeter;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[test]
+fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
+    use optimization_unit::{AcceptedObligationFact, AcceptedObligationOwner};
+
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let (publication, _, _, _) =
+        published_fixture("tests/fixtures/run/calls/indexed_case_discriminator");
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
+    )
+    .unwrap()
+    .into_optimization_artifact()
+    .into_optimization_input();
+    let (_, unit) =
+        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            terminal_work::WorkSchedule::CURRENT.identity(),
+        )
+        .unwrap()
+        .into_parts();
+    optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+        &unit,
+        &[],
+    )
+    .expect("the source's indexed dispatch has complete receiving evidence");
+    let (position, fact) = unit
+        .accepted_obligation_facts
+        .iter()
+        .enumerate()
+        .find(|(_, fact)| matches!(fact.owner, AcceptedObligationOwner::Terminator(_)))
+        .expect("the discriminator's bound owns the pre-branch read");
+    assert_ne!(fact.proof_bundle_fingerprint, [0; 32]);
+    let AcceptedObligationOwner::Terminator(block) = fact.owner else {
+        unreachable!()
+    };
+    let seal = publication
+        .seals
+        .seals
+        .iter()
+        .find(|seal| seal.machine == fact.machine && seal.obligation == fact.obligation)
+        .unwrap();
+    assert_eq!(fact.proof_bundle_fingerprint, seal.fingerprint);
+    for wrong_owner in [
+        AcceptedObligationOwner::Edge(semantic_vocabulary::EdgeId::new(block.get()).unwrap()),
+        AcceptedObligationOwner::from(semantic_vocabulary::OperationId::new(block.get()).unwrap()),
+    ] {
+        let mut changed = unit.clone();
+        changed.accepted_obligation_facts[position] = AcceptedObligationFact::new(
+            fact.psi,
+            fact.proof_bundle_fingerprint,
+            fact.machine,
+            wrong_owner,
+            fact.obligation,
+            fact.proposition.clone(),
+        );
+        changed
+            .accepted_obligation_facts
+            .sort_by_key(|fact| (fact.machine, fact.owner, fact.obligation));
+        changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+        assert!(matches!(
+            optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(&changed, &[]),
+            Err(optimization_unit_semantics::OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)
+        ), "a numerically equal operation or chosen edge cannot own the discriminator's read");
+    }
+
+    let bytes = terminal_codec::encode_module(publication.artifact.semantic_module()).unwrap();
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
+            .unwrap();
+    assert!(matches!(
+        execution
+            .resume(&mut WorkMeter::with_budget(10_000_000), &mut NoEffects)
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(_)
+    ));
+
+    let fixture = repo_root().join("tests/fixtures/fail/calls/indexed_case_discriminator");
+    let main = fixture.join("main.omg");
+    let diagnostics = std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("a bound of three cannot authorize reading a two-element array")
+            .into_diagnostics()
+        })
+        .expect("compiler worker")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    });
+    let expected = std::fs::read_to_string(fixture.join("expected.txt")).unwrap();
+    assert!(
+        format!("{diagnostics:?}").contains(expected.trim()),
+        "the bound-only twin must refuse the match's storage obligation: {diagnostics:?}",
+    );
+}
 
 struct NoEffects;
 

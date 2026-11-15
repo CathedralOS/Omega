@@ -49,12 +49,16 @@ fn kernel_call(profile: TargetProfile) -> image_emission::ObjectForeignCall {
                     target: profile,
                     number: 0,
                     requirement_identity: "Input::read".into(),
-                    provider_plan_report_identity: 7,
-                    provider_plan_commitment: [23; 32],
+                    execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                        report: 7,
+                        commitment: [23; 32],
+                    },
                 },
             ),
         },
-        provider_execution: machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 19).unwrap(),
+        provider_execution: machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 19)
+            .unwrap()
+            .into(),
         caller_live_bytes: 32,
         scalar_arguments: Vec::new(),
         callback_addresses: Vec::new(),
@@ -87,11 +91,33 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
                 unreachable!()
             };
             match mutation {
-                0 => kernel.provider_plan_commitment[0] ^= 1,
-                1 => kernel.provider_plan_report_identity += 1,
+                0 => {
+                    if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                        commitment,
+                        ..
+                    } = &mut kernel.execution
+                    {
+                        commitment[0] ^= 1;
+                    }
+                }
+                1 => {
+                    if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                        report,
+                        ..
+                    } = &mut kernel.execution
+                    {
+                        *report += 1;
+                    }
+                }
                 2 => kernel.requirement_identity = "Input::other".into(),
                 3 => kernel.number = -1,
-                _ => changed.provider_execution.provider_plan_report_identity += 1,
+                _ => {
+                    if let machine_code::ExternalExecutionRecord::Provider(provider) =
+                        &mut changed.provider_execution
+                    {
+                        provider.provider_plan_report_identity += 1;
+                    }
+                }
             }
             assert!(
                 validate(&changed).is_err(),
@@ -140,8 +166,23 @@ fn kernel_custody_identity_binds_target_number_requirement_and_provider() {
             0 => kernel.target = TargetProfile::LinuxArm64,
             1 => kernel.number = 211,
             2 => kernel.requirement_identity = "Input::other".into(),
-            3 => kernel.provider_plan_report_identity += 1,
-            _ => kernel.provider_plan_commitment[0] ^= 1,
+            3 => {
+                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    report, ..
+                } = &mut kernel.execution
+                {
+                    *report += 1;
+                }
+            }
+            _ => {
+                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    commitment,
+                    ..
+                } = &mut kernel.execution
+                {
+                    commitment[0] ^= 1;
+                }
+            }
         }
         assert_ne!(
             expected,
@@ -408,6 +449,7 @@ fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
         foreign_call_custody_digest: [fixture.foreign_stack_marker; 32],
         selected_provider_plans: &plans,
         provider_executions: &executions,
+        native_supply_digest: [0; 32],
         terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity::from_parts(
             1,
             [fixture.terminal_policy_marker; 32],

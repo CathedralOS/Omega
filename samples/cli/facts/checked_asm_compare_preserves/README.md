@@ -18,7 +18,8 @@ The impossible fallthrough explicitly requires `false`. This is an incoming-edge
 | other machine | [program](other_machine/main.omg) | [wrong preserved value](invalid_other_machine/main.omg) |
 | target body | [program](target_body/main.omg) | [wrong preserved value](invalid_target_body/main.omg) |
 
-The same sources are pinned as `tests/omega/{pass,fail}/facts/checked_asm_compare_preserves_through_*`. A reject changes only the taken label's register preservation contract, from 37 to 0. The comparison and all instructions stay unchanged.
+A reject changes only the taken label's register preservation contract, from 37
+to 0. The comparison and all instructions stay unchanged.
 
 ## Requirements and evidence
 
@@ -42,14 +43,12 @@ privileged effect settlement, supplied-environment interpretation, and the
 integration canaries remain requirements of the full parent task. Completed,
 reviewed repairs may be published through a normal squash-merged PR.
 
-
 The `saved_subject/` production in each of these same nine places preserves the
 same CMP/37 fact through a plain record. The final label authors the goal
 `match output { AsmSavedOutput { value } -> value == 37 }`; the enclosing
 machine still owes `result == 37`, and the original runtime oracle is retained.
 Each new reject twin changes only that match goal to 38. The original scalar
-production and reject twins remain controls. Both productions are pinned under
-`tests/omega/{pass,fail}/facts/`.
+production and reject twins remain controls.
 
 This exercises closed logical subject custody: the copied goal retains its own
 match definition, subject, nominal pattern head, and alias anchor. Declaration,
@@ -98,8 +97,6 @@ the stale postcondition. No caller guard establishes either assembly goal.
 | another machine | [program](other_machine/ambient_capture/main.omg) | [reject](other_machine/ambient_capture/invalid/main.omg) |
 | target body | [program](target_body/ambient_capture/main.omg) | [reject](target_body/ambient_capture/invalid/main.omg) |
 
-The sources are pinned as
-`tests/omega/{pass,fail}/facts/checked_asm_compare_preserves_ambient_capture_through_*`.
 The overlapping-write control is [written](local/ambient_capture/invalid_written/main.omg),
 pinned as `fail/asm/checked_asm_ambient_capture_written_rejected`.
 

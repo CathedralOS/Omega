@@ -1777,11 +1777,11 @@ pub(crate) mod parameter_use {
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-                    | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
-                    | LegalizedScalarInstructionKind::ElementViewRead { source, .. } => {
+                    | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
                         *source == place
                     }
                     LegalizedScalarInstructionKind::EstablishElementView { source, .. }
+                    | LegalizedScalarInstructionKind::ElementViewRead { source, .. }
                     | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => {
                         source.place == place
                     }
@@ -1919,7 +1919,8 @@ pub(crate) mod value_transport {
                     bind(when_true, &mut pending);
                     bind(when_false, &mut pending);
                 }
-                Terminator::StructuralCase { cases, .. } => {
+                Terminator::StructuralCase { cases, indices, .. } => {
+                    pending.extend(indices.iter().map(|index| index.operand.value));
                     pending.extend(
                         cases
                             .iter()

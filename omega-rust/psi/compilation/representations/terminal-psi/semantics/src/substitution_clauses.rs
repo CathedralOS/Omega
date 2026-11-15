@@ -45,6 +45,32 @@ pub trait ClauseBindings {
         case: StructuralCaseId,
     ) -> Result<bool, Self::Error>;
 
+    /// Resolve a case predicate, or retain its exact subject when only scalar
+    /// names are being changed within the same machine.
+    fn case_predicate(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<Proposition, Self::Error> {
+        self.case(root, path, case).map(|holds| {
+            if holds {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            }
+        })
+    }
+
+    /// Actual call imports must rejoin a projection to the current owner's
+    /// real scalar producer. Declaration-template bindings may explicitly keep
+    /// symbolic sources; an unspecified consumer cannot invent correspondence.
+    fn validate_float_meaning_source(&mut self, _source: &ScalarTerm) -> Result<(), Self::Error> {
+        Err(Self::Error::from(
+            "float meaning projection has no actual owner correspondence",
+        ))
+    }
+
     /// Declaration formation cannot skip a partial term because another
     /// branch already decides its enclosing condition. Ordinary substitution
     /// keeps its existing case-directed projection behavior.
@@ -80,6 +106,13 @@ pub fn substitute_clause<Error: From<&'static str>>(
     bindings: &mut dyn ClauseBindings<Error = Error>,
 ) -> Result<Proposition, Error> {
     Ok(match proposition {
+        Proposition::FloatMeaningEqual(clause) => {
+            let mapped = clause.map_sources(|source| substitute_clause_term(source, bindings))?;
+            for source in mapped.sources() {
+                bindings.validate_float_meaning_source(source)?;
+            }
+            Proposition::FloatMeaningEqual(mapped)
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         // An opaque proposition has no bindable scalar or storage name.
@@ -98,10 +131,16 @@ pub fn substitute_clause<Error: From<&'static str>>(
             substitute_clause_term(left, bindings)?,
             substitute_clause_term(right, bindings)?,
         ),
-        Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
-            bound_mathematical(left, bindings)?,
-            bound_mathematical(right, bindings)?,
-        ),
+        Proposition::IntegerMathEqual(left, right) => {
+            let mut left = bound_mathematical(left, bindings)?;
+            let mut right = bound_mathematical(right, bindings)?;
+            // Substituting a literal can change the canonical order of this
+            // symmetric relation; keep its operands ordered after binding.
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::IntegerMathEqual(left, right)
+        }
         Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
             bound_mathematical(left, bindings)?,
             bound_mathematical(right, bindings)?,
@@ -110,12 +149,34 @@ pub fn substitute_clause<Error: From<&'static str>>(
             bound_mathematical(left, bindings)?,
             bound_mathematical(right, bindings)?,
         ),
-        Proposition::StructuralCaseMembership { subject, case } => {
-            if bindings.case(subject.root(), subject.path(), *case)? {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
+        Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } => {
+            // A comparison keeps its IEEE predicate while names change. In
+            // particular, an ordered false result is not the opposite integer
+            // relation: either operand may be NaN.
+            let mut left = substitute_clause_term(left, bindings)?;
+            let mut right = substitute_clause_term(right, bindings)?;
+            if left.scalar_type() != ScalarType::IeeeFloat(*format)
+                || right.scalar_type() != ScalarType::IeeeFloat(*format)
+            {
+                return Err(Error::from("float clause substitution changes its format"));
             }
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind: *kind,
+                format: *format,
+                left,
+                right,
+            }
+        }
+        Proposition::StructuralCaseMembership { subject, case } => {
+            bindings.case_predicate(subject.root(), subject.path(), *case)?
         }
         Proposition::Implication {
             premise,
@@ -169,12 +230,21 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
                     root,
                     path,
                 } => bindings.field(version, root, &path, ScalarType::Boolean)?,
+                ScalarTerm::IeeeFloatField {
+                    version,
+                    root,
+                    path,
+                    format,
+                } => bindings.field(version, root, &path, ScalarType::IeeeFloat(format))?,
                 ScalarTerm::ViewExtent {
                     root,
                     path,
                     scalar_type,
                 } => bindings.extent(root, &path, scalar_type)?,
-                ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => term,
+                ScalarTerm::Application { .. }
+                | ScalarTerm::Integer { .. }
+                | ScalarTerm::Boolean(_)
+                | ScalarTerm::IeeeFloatLiteral(_) => term,
                 ScalarTerm::StructuralRead { .. } => {
                     return Err(Error::from(
                         "clause structural read is outside the scalar subset",
@@ -226,23 +296,60 @@ fn bound_mathematical<Error: From<&'static str>>(
         IntegerMathTerm::embed(term)
             .ok_or(Error::from("clause embeds a term that is not an integer"))
     };
-    match term {
-        IntegerMathTerm::IntegerLiteral(_) => Ok(term.clone()),
-        IntegerMathTerm::MathValue { source_type, value } => {
-            embedded(bindings.value(*value, ScalarType::Integer(*source_type))?)
-        }
-        IntegerMathTerm::Embed(scalar) => embedded(substitute_clause_term(scalar, bindings)?),
-        IntegerMathTerm::Add(..)
-        | IntegerMathTerm::Subtract(..)
-        | IntegerMathTerm::Multiply(..)
-        | IntegerMathTerm::ShiftLeft { .. } => {
-            let mut bound_term = term.clone();
-            for operand in bound_term.operands_mut() {
-                *operand = bound_mathematical(operand, bindings)?;
-            }
-            Ok(bound_term)
-        }
+    enum Pending {
+        Visit(IntegerMathTerm),
+        Complete(IntegerMathTerm, usize),
     }
+    let mut pending = vec![Pending::Visit(term.clone())];
+    let mut completed = Vec::new();
+    while let Some(step) = pending.pop() {
+        let resolved = match step {
+            Pending::Complete(mut term, count) => {
+                if completed.len() < count {
+                    return Err(Error::from("mathematical clause lost a resolved operand"));
+                }
+                for operand in term.operands_mut().into_iter().rev() {
+                    *operand = completed
+                        .pop()
+                        .ok_or(Error::from("mathematical clause lost a resolved operand"))?;
+                }
+                term
+            }
+            Pending::Visit(term) => match term {
+                IntegerMathTerm::IntegerLiteral(_) => term,
+                IntegerMathTerm::MathValue { source_type, value } => {
+                    embedded(bindings.value(value, ScalarType::Integer(source_type))?)?
+                }
+                IntegerMathTerm::Embed(scalar) => {
+                    embedded(substitute_clause_term(&scalar, bindings)?)?
+                }
+                mut term => {
+                    // Clone the tree once, then move every owned operand once.
+                    // Re-cloning each mathematical subtree grows with depth.
+                    let first = pending.len();
+                    let operands = term.operands_mut();
+                    let count = operands.len();
+                    for operand in operands.into_iter().rev() {
+                        pending.push(Pending::Visit(std::mem::replace(
+                            operand,
+                            IntegerMathTerm::literal(semantic_vocabulary::IntegerValue::Unsigned(
+                                0,
+                            )),
+                        )));
+                    }
+                    pending.insert(first, Pending::Complete(term, count));
+                    continue;
+                }
+            },
+        };
+        completed.push(resolved);
+    }
+    if completed.len() != 1 {
+        return Err(Error::from("mathematical clause did not produce one term"));
+    }
+    completed
+        .pop()
+        .ok_or(Error::from("mathematical clause did not produce one term"))
 }
 
 /// A conjunction (`conjunction`) or disjunction under substitution. The
@@ -294,6 +401,50 @@ fn connective<Error: From<&'static str>>(
 mod tests {
     use super::*;
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
+
+    #[test]
+    fn ieee_clauses_keep_the_predicate_and_exact_actuals() {
+        use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+        let format = IeeeFloatFormat::Binary32;
+        let value =
+            |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::IeeeFloat(format));
+        for kind in [
+            IeeeFloatComparisonKind::Equal,
+            IeeeFloatComparisonKind::NotEqual,
+            IeeeFloatComparisonKind::LessThan,
+            IeeeFloatComparisonKind::NotLessThan,
+            IeeeFloatComparisonKind::LessOrEqual,
+            IeeeFloatComparisonKind::NotLessOrEqual,
+        ] {
+            let original = Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left: value(1),
+                right: value(2),
+            };
+            let expected = if kind.is_symmetric() {
+                (value(1), value(2))
+            } else {
+                (value(2), value(1))
+            };
+            assert_eq!(
+                substitute_clause(&original, &mut Inputs).unwrap(),
+                Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left: expected.0,
+                    right: expected.1
+                }
+            );
+        }
+        for bits in [0x8000_0000, 0x7fc0_0042] {
+            let literal = ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(bits));
+            assert_eq!(
+                substitute_clause_term(&literal, &mut Inputs).unwrap(),
+                literal
+            );
+        }
+    }
 
     struct Inputs;
 
@@ -373,6 +524,53 @@ mod tests {
         assert_eq!(
             substitute_clause(&Proposition::LessThan(value(1), value(2)), &mut Inputs),
             Ok(Proposition::LessThan(value(2), value(1)))
+        );
+    }
+
+    #[test]
+    fn mathematical_substitution_preserves_operand_order_and_simultaneous_names() {
+        let integer = scalar_type().as_integer().unwrap();
+        let value = |raw| IntegerMathTerm::MathValue {
+            source_type: integer,
+            value: ValueId::new(raw).unwrap(),
+        };
+        let expression = |left, right| {
+            IntegerMathTerm::Subtract(
+                Box::new(value(left)),
+                Box::new(IntegerMathTerm::Embed(Box::new(
+                    ScalarTerm::ExactIntegerAdd {
+                        scalar_type: integer,
+                        left: Box::new(ScalarTerm::value(
+                            ValueId::new(right).unwrap(),
+                            scalar_type(),
+                        )),
+                        right: Box::new(ScalarTerm::Integer {
+                            scalar_type: integer,
+                            value: IntegerValue::Unsigned(1),
+                        }),
+                    },
+                ))),
+            )
+        };
+        let clause = Proposition::IntegerMathEqual(
+            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+            expression(1, 2),
+        );
+        clause.validate().unwrap();
+        assert_eq!(
+            substitute_clause(&clause, &mut Inputs),
+            Ok(Proposition::IntegerMathEqual(
+                IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                expression(2, 1)
+            ))
+        );
+        let foreign = Proposition::IntegerMathEqual(
+            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+            expression(1, 99),
+        );
+        assert_eq!(
+            substitute_clause(&foreign, &mut Inputs),
+            Err("unbound value")
         );
     }
 
@@ -520,5 +718,189 @@ mod tests {
             substitute_clause(&unbound, &mut Inputs),
             Err("unbound value")
         );
+    }
+}
+
+#[cfg(test)]
+mod meaning_template_tests {
+    use super::*;
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Meaning},
+    };
+    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat, StructuralFieldId};
+
+    fn equation(right: ScalarTerm) -> Proposition {
+        let f = IeeeFloatFormat::Binary32;
+        let scalar = ScalarType::IeeeFloat(f);
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar);
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "subtract",
+            &[Format, Meaning, Meaning],
+            Meaning,
+        )
+        .unwrap();
+        Proposition::FloatMeaningEqual(
+            FloatMeaningClause::result_equation(
+                value(3),
+                operation.contract_identity(),
+                f,
+                [value(1), right],
+            )
+            .unwrap(),
+        )
+    }
+
+    struct Actuals {
+        wrong_format: bool,
+        missing_result: bool,
+    }
+    impl ClauseBindings for Actuals {
+        type Error = &'static str;
+        fn value(&mut self, id: ValueId, scalar: ScalarType) -> Result<ScalarTerm, Self::Error> {
+            let actual = match id.get() {
+                1 => 2,
+                2 => 1,
+                3 if !self.missing_result => 30,
+                _ => return Err("unmapped formal/result"),
+            };
+            Ok(ScalarTerm::value(
+                ValueId::new(actual).unwrap(),
+                if self.wrong_format {
+                    ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)
+                } else {
+                    scalar
+                },
+            ))
+        }
+        fn field(
+            &mut self,
+            version: ContentPlaceVersion,
+            _: PlaceId,
+            path: &[CanonicalStructuralPathSegment],
+            scalar: ScalarType,
+        ) -> Result<ScalarTerm, Self::Error> {
+            let ScalarType::IeeeFloat(format) = scalar else {
+                return Err("not a float field");
+            };
+            Ok(ScalarTerm::IeeeFloatField {
+                version,
+                root: PlaceId::new(5).unwrap(),
+                path: path.to_vec(),
+                format,
+            })
+        }
+        fn case(
+            &mut self,
+            _: PlaceId,
+            _: &[CanonicalStructuralPathSegment],
+            _: StructuralCaseId,
+        ) -> Result<bool, Self::Error> {
+            Err("not a case")
+        }
+        fn validate_float_meaning_source(&mut self, _: &ScalarTerm) -> Result<(), Self::Error> {
+            // This test checks template substitution, not concrete projection admission.
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn float_meaning_templates_substitute_actuals_results_and_saved_field_versions() {
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar);
+        let original = equation(value(2));
+        let mapped = substitute_clause(
+            &original,
+            &mut Actuals {
+                wrong_format: false,
+                missing_result: false,
+            },
+        )
+        .unwrap();
+        let Proposition::FloatMeaningEqual(clause) = mapped else {
+            unreachable!()
+        };
+        let ids = clause
+            .sources()
+            .map(|source| match source {
+                ScalarTerm::Value { id, .. } => id.get(),
+                _ => panic!("an actual/result lost its scalar identity"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec![30, 2, 1]);
+        assert_eq!(clause.left, semantic_vocabulary::FloatMeaningSlot(0));
+        assert_eq!(clause.right, semantic_vocabulary::FloatMeaningSlot(3));
+        let semantic_vocabulary::FloatMeaningClauseValue::Application {
+            contract,
+            format,
+            operands,
+        } = &clause.values[3]
+        else {
+            panic!("semantic application was lost")
+        };
+        assert_eq!(*format, IeeeFloatFormat::Binary32);
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "subtract",
+            &[Format, Meaning, Meaning],
+            Meaning,
+        )
+        .unwrap();
+        assert_eq!(*contract, operation.contract_identity());
+        assert_eq!(
+            operands,
+            &vec![
+                semantic_vocabulary::FloatMeaningClauseOperand::Format(IeeeFloatFormat::Binary32),
+                semantic_vocabulary::FloatMeaningClauseOperand::Meaning(
+                    semantic_vocabulary::FloatMeaningSlot(1)
+                ),
+                semantic_vocabulary::FloatMeaningClauseOperand::Meaning(
+                    semantic_vocabulary::FloatMeaningSlot(2)
+                ),
+            ]
+        );
+        assert!(
+            substitute_clause(
+                &original,
+                &mut Actuals {
+                    wrong_format: true,
+                    missing_result: false
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            substitute_clause(
+                &original,
+                &mut Actuals {
+                    wrong_format: false,
+                    missing_result: true
+                }
+            )
+            .is_err()
+        );
+        for version in [ContentPlaceVersion::Current, ContentPlaceVersion::Entry] {
+            let field = ScalarTerm::IeeeFloatField {
+                version,
+                root: PlaceId::new(1).unwrap(),
+                path: vec![CanonicalStructuralPathSegment::Field(
+                    StructuralFieldId::new(7).unwrap(),
+                )],
+                format: IeeeFloatFormat::Binary32,
+            };
+            let mapped = substitute_clause(
+                &equation(field),
+                &mut Actuals {
+                    wrong_format: false,
+                    missing_result: false,
+                },
+            )
+            .unwrap();
+            let Proposition::FloatMeaningEqual(clause) = mapped else {
+                unreachable!()
+            };
+            assert!(clause.sources().any(|source| matches!(source, ScalarTerm::IeeeFloatField { version: actual, root, .. } if *actual==version && root.get()==5)));
+        }
     }
 }

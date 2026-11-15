@@ -1,7 +1,7 @@
-//! Ordinary call proofs for installed continuations. Their complete source
-//! environment was prepared in Psi 05; this stage reads only the canonical
-//! witness and asks the same discharge and kernel as every other call.
-//! A successful proof returns no executable closure or installation authority.
+//! Prove ordinary calls to installed continuations. Psi 05 prepared their
+//! complete source environment; this stage reads only the canonical witness
+//! and uses the same discharge and kernel as every other call. A successful
+//! proof returns no executable closure or installation authority.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::compilation::CallableArrivalWitness;
@@ -89,7 +89,14 @@ fn check_witness(
                 site,
                 cause,
                 detail: refused.detail.clone(),
-                statement: crate::describe::unproved(elaboration, machine, tables, row.kind, site),
+                statement: crate::describe::unproved(
+                    elaboration,
+                    machine,
+                    tables,
+                    obligation,
+                    row.kind,
+                    site,
+                ),
                 consumed: None,
             });
         }

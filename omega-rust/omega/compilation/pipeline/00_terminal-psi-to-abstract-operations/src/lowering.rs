@@ -1117,7 +1117,7 @@ mod machine {
                         Ok(AbstractOperation::ElementViewRead {
                             psi_operation: operation.id,
                             result: result.into(),
-                            source: *source,
+                            source: source.clone(),
                             index: *index,
                             length: *length,
                             obligation: *obligation,
@@ -1588,6 +1588,7 @@ mod machine {
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     operations.push(AbstractOperation::StructuralCase {
+                        psi_block: block.id,
                         source: *source,
                         path: path.clone(),
                         cases,

@@ -245,16 +245,39 @@ impl<'a> Storage<'a> {
                     producer: operation.id,
                     structural_type: result.structural_type,
                 })
-            || self.declaration(result.structural_type, concerns)?.shape
-                != StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(access),
-                })
         {
             return Err(self.foreign(
                 concerns,
                 "array view changes its descriptor type, access or ownership",
             ));
         }
+        // A `u8` array forms its borrowed byte descriptor; another element
+        // type forms an `ElementView` naming that exact element declaration
+        // (byte_views.md, "Collection view establishment"). Only the shared
+        // typed view has a source formation; a mutable one stays refused.
+        let typed = match self.declaration(result.structural_type, concerns)?.shape {
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(declared),
+            }) if declared == access => false,
+            StructuralTypeShape::ElementView {
+                element: declared,
+                access: Some(declared_access),
+            } if declared == element && declared_access == access => {
+                if access != StructuralAccess::SharedBorrow {
+                    return Err(self.unsupported(
+                        concerns,
+                        "a mutable typed array view without its exclusive element-view judgment",
+                    ));
+                }
+                true
+            }
+            _ => {
+                return Err(self.foreign(
+                    concerns,
+                    "array view changes its descriptor type, access or ownership",
+                ));
+            }
+        };
         let selected = terminal_semantics::runtime_structural_path_tip(
             self.types.iter(),
             self.root_type(source.place, concerns)?,
@@ -268,13 +291,31 @@ impl<'a> Storage<'a> {
         let actual = self
             .byte_array_backing(source, 0, concerns)?
             .ok_or_else(|| self.foreign(concerns, "array view lost its source declaration"))?;
-        let window = terminal_semantics::fixed_byte_storage_window(
-            self.types.iter(),
-            actual.structural_type,
-            &source.path,
-        )
+        let window = if typed {
+            // A typed view of a byte array would hide the byte descriptor
+            // the specification requires; an erased empty array has no
+            // backing to lend.
+            if terminal_semantics::fixed_byte_extent(self.types.iter(), selected.id).is_some() {
+                return Err(self.foreign(concerns, "a byte array forms a typed element view"));
+            }
+            terminal_semantics::fixed_collection_storage_window(
+                self.types.iter(),
+                actual.structural_type,
+                &source.path,
+            )
+            .filter(|window| window.backing_length != 0)
+        } else {
+            terminal_semantics::fixed_byte_storage_window(
+                self.types.iter(),
+                actual.structural_type,
+                &source.path,
+            )
+        }
         .ok_or_else(|| {
-            self.unsupported(concerns, "array view has no closed byte storage window")
+            self.unsupported(
+                concerns,
+                "array view has no closed whole-array storage window",
+            )
         })?;
         let (whole, projected) = StructuralPathQualification::select(
             &actual.qualifications,
@@ -338,7 +379,7 @@ impl<'a> Storage<'a> {
                     "a byte comparison of a view that is not read whole and shared",
                 ));
             }
-            self.readable_byte_view(operation, source.place)?;
+            self.readable_byte_view(operation, source.place, &source.path)?;
             let measured = after
                 .checked_sub(back)
                 .and_then(|position| operations.get(position))
@@ -411,9 +452,52 @@ impl<'a> Storage<'a> {
         Ok(true)
     }
 
-    pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
+    /// A field operation carries a local field ID beside its enclosing path.
+    /// Resolve that ID only in the selected carrier before using the ordinary
+    /// descriptor access and observation rules.
+    pub(super) fn byte_field_argument(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: semantic_vocabulary::StructuralFieldId,
+        concerns: Construct,
+    ) -> Checked<StructuralArgument> {
+        let carrier = self.stored_at(root, path, concerns)?;
+        let fields = match self.shape(&carrier, concerns)? {
+            Shape::Typed(owner) => self.declaration(owner, concerns)?.shape.record_fields(),
+            Shape::Payload(case) => Some(case.fields.as_slice()),
+            _ => None,
+        }
+        .ok_or_else(|| self.foreign(concerns, "a byte field has no record or payload carrier"))?;
+        let field = fields
+            .iter()
+            .find(|candidate| candidate.id == field)
+            .ok_or_else(|| {
+                self.foreign(
+                    concerns,
+                    "a byte field is not declared by its selected carrier",
+                )
+            })?;
+        if field.field_type.byte_sequence_carrier().is_none() {
+            return Err(self.foreign(concerns, "a byte field has another carrier"));
+        }
+        let mut path = path.to_vec();
+        path.push(StructuralPathSegment::Field(field.identity));
+        Ok(StructuralArgument {
+            place: root,
+            path,
+            access: StructuralAccess::SharedBorrow,
+        })
+    }
+
+    pub(super) fn readable_byte_view(
+        &self,
+        operation: &Operation,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Checked<()> {
         let concerns = Construct::Operation(operation.id);
-        let shape = self.byte_shape(root, &[], concerns)?;
+        let shape = self.byte_shape(root, path, concerns)?;
         let readable = matches!(
             shape,
             StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -422,7 +506,7 @@ impl<'a> Storage<'a> {
             })
         );
         if !readable
-            || !self.descriptor_access(root, &[], concerns, StructuralAccess::SharedBorrow)?
+            || !self.descriptor_access(root, path, concerns, StructuralAccess::SharedBorrow)?
         {
             return Err(self.unsupported(
                 concerns,
@@ -470,14 +554,16 @@ impl<'a> Storage<'a> {
         operation: &Operation,
     ) -> Checked<()> {
         use terminal_semantics::descriptor_results::DescriptorCallOrigin;
-        let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {
-            unreachable!()
+        let (source, typed) = match &operation.kind {
+            OperationKind::ByteSequenceSubslice { source, .. } => (source, false),
+            OperationKind::ElementViewSubslice { source, .. } => (source, true),
+            _ => unreachable!(),
         };
         let concerns = Construct::Operation(operation.id);
         let result = operation
             .result
             .as_structural()
-            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no descriptor result"))?;
+            .ok_or_else(|| self.foreign(concerns, "a subslice has no descriptor result"))?;
         if result.multiplicity != StructuralMultiplicity::Unrestricted
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -497,8 +583,25 @@ impl<'a> Storage<'a> {
         }
         let destination = &self.declaration(result.structural_type, concerns)?.shape;
         let selected = self.byte_shape(source.place, &source.path, concerns)?;
-        if !is_shared_bytes(&selected)
-            || !is_shared_bytes(destination)
+        let element = match selected {
+            StructuralTypeShape::ElementView { element, .. } if typed => Some(element),
+            _ => None,
+        };
+        let is_shared_descriptor = |shape: &StructuralTypeShape| {
+            if typed {
+                matches!(
+                    shape,
+                    StructuralTypeShape::ElementView {
+                        element: selected,
+                        access: Some(StructuralAccess::SharedBorrow),
+                    } if Some(*selected) == element
+                )
+            } else {
+                is_shared_bytes(shape)
+            }
+        };
+        if !is_shared_descriptor(&selected)
+            || !is_shared_descriptor(destination)
             || source.access != StructuralAccess::SharedBorrow
             || !self.descriptor_access(
                 source.place,
@@ -543,10 +646,10 @@ impl<'a> Storage<'a> {
         for origin in origins {
             let shared = match origin {
                 DescriptorCallOrigin::Argument { source, projection } => {
-                    let shared_ingress = matches!(
+                    if matches!(
                         self.root_kind(source, concerns)?,
                         StructuralPlaceKind::Parameter { .. }
-                    ) && is_shared_bytes(&self.byte_shape(
+                    ) && is_shared_descriptor(&self.byte_shape(
                         source,
                         &projection.path,
                         concerns,
@@ -555,31 +658,42 @@ impl<'a> Storage<'a> {
                         &projection.path,
                         concerns,
                         StructuralAccess::SharedBorrow,
-                    )?;
-                    if shared_ingress {
-                        true
+                    )? {
+                        continue;
+                    }
+                    let enclosing = projection.enclosing_storage().ok_or_else(|| {
+                        self.unsupported(concerns, "a shared subslice has no captured backing path")
+                    })?;
+                    let root = self.root_type(source, concerns)?;
+                    let fixed = if let Some(element) = element {
+                        let backing = terminal_semantics::runtime_structural_path_tip(
+                            self.types.iter(),
+                            root,
+                            &enclosing.path,
+                        );
+                        backing.is_some_and(|declaration| {
+                            matches!(declaration.shape, StructuralTypeShape::FixedArray {
+                                element: backing,
+                                length: terminal_psi::ArrayExtent::Literal(length),
+                            } if backing == element && length != 0)
+                        })
                     } else {
-                        let enclosing = projection.enclosing_storage().ok_or_else(|| {
-                            self.unsupported(
-                                concerns,
-                                "a shared subslice has no captured backing path",
-                            )
-                        })?;
                         terminal_semantics::fixed_byte_storage_window(
                             self.types.iter(),
-                            self.root_type(source, concerns)?,
+                            root,
                             &enclosing.path,
                         )
                         .is_some()
-                            && self.descriptor_access(
-                                source,
-                                &enclosing.path,
-                                concerns,
-                                StructuralAccess::SharedBorrow,
-                            )?
-                    }
+                    };
+                    fixed
+                        && self.descriptor_access(
+                            source,
+                            &enclosing.path,
+                            concerns,
+                            StructuralAccess::SharedBorrow,
+                        )?
                 }
-                DescriptorCallOrigin::Literal { machine, place } => self
+                DescriptorCallOrigin::Literal { machine, place } if !typed => self
                     .module
                     .machine(machine)
                     .and_then(|machine| machine.structural_place(place))
@@ -605,22 +719,28 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
-    pub(super) fn byte_subslice_goal(
+    pub(super) fn subslice_goal(
         &self,
         operation: &Operation,
         types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Proposition> {
-        let OperationKind::ByteSequenceSubslice {
-            source,
-            start,
-            end,
-            length,
-            ..
-        } = &operation.kind
-        else {
-            unreachable!()
+        let (source, start, end, length, typed) = match &operation.kind {
+            OperationKind::ByteSequenceSubslice {
+                source,
+                start,
+                end,
+                length,
+                ..
+            } => (source, *start, *end, *length, false),
+            OperationKind::ElementViewSubslice {
+                source,
+                start,
+                end,
+                length,
+                ..
+            } => (source, *start, *end, *length, true),
+            _ => unreachable!(),
         };
-        let (start, end, length) = (*start, *end, *length);
         let concerns = Construct::Operation(operation.id);
         let (block, after) = self
             .graph
@@ -629,8 +749,16 @@ impl<'a> Storage<'a> {
             .checked_sub(2)
             .and_then(|position| self.block(block).ok()?.operations.get(position))
             .is_some_and(|measurement| {
-                matches!(&measurement.kind,
-                OperationKind::ByteSequenceLength { source: measured } if measured == source)
+                let same_source = match (&measurement.kind, typed) {
+                    (OperationKind::ByteSequenceLength { source: measured }, false) => {
+                        measured == source
+                    }
+                    (OperationKind::ElementViewLength { source: measured }, true) => {
+                        terminal_semantics::same_descriptor_coordinate(measured, source)
+                    }
+                    _ => false,
+                };
+                same_source
                     && measurement
                         .result
                         .scalar_ref()
@@ -639,7 +767,7 @@ impl<'a> Storage<'a> {
         if !measured {
             return Err(self.unsupported(
                 concerns,
-                "a byte subslice whose length is not its view's measurement directly before it",
+                "a subslice whose length is not its view's measurement directly before it",
             ));
         }
         let count = count_type();
@@ -647,12 +775,12 @@ impl<'a> Storage<'a> {
             .iter()
             .any(|value| types.get(*value).copied() != Some(count))
         {
-            return Err(self.foreign(concerns, "a byte subslice endpoint or length is not a u64"));
+            return Err(self.foreign(concerns, "a subslice endpoint or length is not a u64"));
         }
         terminal_semantics::operation_safety_goal(operation, types)
             .map_err(crate::semantics_refusal(self.machine, operation.id))?
             .map(|(_, goal)| goal)
-            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no canonical bounds goal"))
+            .ok_or_else(|| self.foreign(concerns, "a subslice has no canonical bounds goal"))
     }
 
     /// The reaching-storage walk has already followed copies at their capture
@@ -665,77 +793,22 @@ impl<'a> Storage<'a> {
         trace: &super::Reaching,
     ) -> Checked<Option<Proposition>> {
         let concerns = Construct::Operation(measurement.id);
-        let producer = self.operation(producer, concerns)?;
-        if !self.graph.dominates(
-            ProgramPoint::AfterOperation(producer.id),
+        let Some(result) = measurement.result.scalar_ref() else {
+            return Err(self.foreign(concerns, "a length measurement has no scalar result"));
+        };
+        let Some(extent) = self.extent_contents(
+            producer,
             ProgramPoint::AfterOperation(measurement.id),
-        )? {
-            return Ok(None);
-        }
-        if matches!(producer.kind, OperationKind::ByteSequenceSubslice { .. })
-            && !self.current_extent(producer.id, trace)?
-            && self.repeated_extent(producer.id)?
-        {
-            return Ok(None);
-        }
-        if matches!(
-            producer.kind,
-            OperationKind::EstablishElementView { .. }
-                | OperationKind::EstablishMutableElementView { .. }
-        ) {
-            let Some(result) = measurement.result.scalar_ref() else {
-                return Err(self.foreign(concerns, "a length measurement has no scalar result"));
-            };
-            let Some(extent) = self.extent_contents(
-                producer.id,
-                ProgramPoint::AfterOperation(measurement.id),
-                result.scalar_type,
-                trace,
-            )?
-            else {
-                return Ok(None);
-            };
-            return Ok(Some(Proposition::Equal(
-                semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
-                extent,
-            )));
-        }
-        let mut read = measurement.clone();
-        let OperationKind::ByteSequenceLength { source } = &mut read.kind else {
+            result.scalar_type,
+            trace,
+        )?
+        else {
             return Ok(None);
         };
-        source.path.clear();
-        source.place = match &producer.kind {
-            OperationKind::ByteSequenceSubslice { .. } => {
-                producer
-                    .result
-                    .as_structural()
-                    .ok_or_else(|| self.foreign(concerns, "a reaching subslice has no result"))?
-                    .place
-            }
-            OperationKind::EstablishByteSequenceLiteral { destination, .. } => *destination,
-            _ => return Ok(None),
-        };
-        let observation = terminal_semantics::structural_effect_leaf_observation(&read)
-            .map_err(crate::semantics_refusal(self.machine, measurement.id))?;
-        let Some(observation) = observation else {
-            return Ok(None);
-        };
-        match &producer.kind {
-            OperationKind::EstablishByteSequenceLiteral { .. } => {
-                terminal_semantics::literal_length_equation(&observation, producer)
-            }
-            OperationKind::ByteSequenceSubslice { .. } => {
-                let produced = terminal_semantics::structural_effect_leaf_observation(producer)
-                    .map_err(crate::semantics_refusal(self.machine, producer.id))?;
-                let Some(produced) = produced else {
-                    return Ok(None);
-                };
-                terminal_semantics::subslice_length_equation(&observation, &produced)
-            }
-            _ => unreachable!(),
-        }
-        .map_err(crate::semantics_refusal(self.machine, measurement.id))
+        Ok(Some(Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+            extent,
+        )))
     }
 
     // An endpoint SSA name in a loop may now denote a later occurrence than
@@ -789,7 +862,14 @@ impl<'a> Storage<'a> {
                     self.array_view_formation(self.operation(producer, concerns)?)? as u128,
                 ),
             ),
-            OperationKind::ByteSequenceSubslice { start, end, .. } => {
+            // A sequence literal's descriptor holds exactly its elements. Only
+            // an element sequence has an extent leaf to ask about; a fixed
+            // array's length is its type's (`Held::extent_of`).
+            OperationKind::EstablishStructuralArray { elements } => {
+                ScalarTerm::integer(integer, IntegerValue::Unsigned(elements.len() as u128))
+            }
+            OperationKind::ByteSequenceSubslice { start, end, .. }
+            | OperationKind::ElementViewSubslice { start, end, .. } => {
                 if !self.current_extent(producer, trace)? && self.repeated_extent(producer)? {
                     return Ok(None);
                 }

@@ -1,4 +1,4 @@
-//! An installed continuation owes its calling shape before its body can be
+//! Check an installed continuation's calling shape before its body is
 //! judged. Keeping that judgment separate lets a known source mismatch reject
 //! even when the body contains a construct the lowering route does not serve.
 //! These checks introduce no storage, facts, effect permission or evidence.

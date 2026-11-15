@@ -14,7 +14,7 @@ requires index < 2 { choose(table, index) }
 machine inspect(cell: &Cell) -> u8 { cell.storage[0] }
 boundary trait Probe {
     machine get(table: &mut Table, index: u64) -> &mut Cell reaches
-    requires index < 2;
+    requires index < 2 crashes none;
 }
 Selected satisfies Probe {
     machine get(table: &mut Table, index: u64) -> &mut Cell

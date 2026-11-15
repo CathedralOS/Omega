@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0
 // Empty input exits normally; frozen nonempty streams and status-3 limits are in data/.
 use omega_language_std::Console;
@@ -10,7 +11,7 @@ data Main { input: [u8; 8]; }
 // Protocol: Eab LF or Dabcd LF. Digits 0..4 are F5 symbols; '_' is an erasure.
 // One bounded line is consumed per record, at most 2000 records. Oversized
 // lines stop with status 3 rather than interpreting their tail as a new frame.
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> next(main, 0) }
     machine next(main: &mut Main, records: i32) {
         transition records < 2000 {
@@ -87,9 +88,9 @@ machine Main::main(main: &mut Main) reaches Console {
     machine end(main: &mut Main, count: u64) {
         transition count == 0 { true -> done(main) false -> truncated(main) }
     }
-    machine truncated(main: &mut Main) { Console::write_line("M"); Console::exit_process(0); }
-    machine done(main: &mut Main) { Console::exit_process(0); }
-    machine limit(main: &mut Main) { Console::write_line("LIMIT"); Console::exit_process(3); }
+    machine truncated(main: &mut Main) { Console::write_line("M"); ProcessExit::exit_process(0); }
+    machine done(main: &mut Main) { ProcessExit::exit_process(0); }
+    machine limit(main: &mut Main) { Console::write_line("LIMIT"); ProcessExit::exit_process(3); }
 }
 machine symbol(byte: u8) -> i32 in Wrapping {
     transition { byte >= 48 && byte <= 52 -> ((widen_u8_to_i32(byte) as i32 in Wrapping) - 48)
@@ -104,7 +105,7 @@ machine syndromes(main: &mut Main, frame: &Frame) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

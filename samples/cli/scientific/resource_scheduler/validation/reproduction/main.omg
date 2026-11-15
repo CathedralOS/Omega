@@ -1,8 +1,9 @@
+use omega::language::core::ProcessExit;
 // Complete current-main reproduction: a guarded successor borrows a local
 // fixed byte array. The same source is required to print the actual bytes.
 use omega_language_std::Console;
 data Main { choice: i32; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let bytes: [u8; 4] = "TEST";
     transition main.choice {
         0 -> show(main, &bytes)
@@ -11,6 +12,6 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine show(main: &mut Main, bytes: &[u8; 4]) {
         Console::write_line(bytes);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
 }

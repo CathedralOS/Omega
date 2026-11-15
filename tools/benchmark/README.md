@@ -28,12 +28,15 @@ target. On another host, copy one and change the executable suffix and target.
 | `show <run-dir>` | A Markdown table of a validated run. |
 | `check <run-dir> <percent>` | Does the run establish a regression beyond this budget? |
 | `history <old-run> <new-run>` | How do the candidates of two separate runs compare? |
-| `profile <plan.json> <baseline\|candidate> <wpr\|perf-stat\|perf-record> <new-dir>` | Where does one checked execution spend its time? |
+| `profile <plan.json> <baseline\|candidate> <wpr\|perf-stat\|perf-record\|selected-bodies> <new-dir>` | Where does one checked execution spend its time? |
 | `progress [options]` | How fast is this commit's release compiler on this host? |
 | `scaling --omega <omega> [options]` | Does a bigger program make each machine cost more to check? |
 | `dominance-summary <graph-run-dir>` | Validate and summarize retained pairs from the private checker graph driver. |
 | `proof-plan <source\|prepare\|prove> <baseline> <candidate> <main.omg> <new-plan.json> [options]` | Prepare a portable comparison of the proof benchmark's source route or timed replay. |
 | `proof-square <new-directory> [--identity-build]` | Reconstruct the pinned square-sum workload and verify its source hashes. |
+| `selected-body-inputs <baseline-omega> <new-directory>` | Retain the original compiler and two unchanged Build continuation workloads. |
+| `selected-body-plan <profile-driver> <copied-main.omg> <target[,target]> <new-plan.json>` | Create its ordinary checked capture plan with explicit executable and targets. |
+| `selected-body-source-plan <baseline-omega> <copied-main.omg> <target[,target]> <new-plan.json>` | Retain the original CLI control and freeze its output oracle for an ordinary comparison. |
 
 Any command may start with `--address-space-gib N` to change the Linux
 address-space cap (default 64 GiB) every measured process runs under; records
@@ -41,34 +44,44 @@ name the value used.
 
 ## Proof preparation inputs
 
-The proof preparation helpers run inside this Rust executable on each hosted
-platform; they do not require PowerShell. Run them from the checkout root and
-pass the actual baseline and candidate executable paths, including `.exe` on
-Windows. `proof-plan` writes a normal plan for `compare`, which continues to
-own sample ordering, stdin closure, resource capture and correctness checks.
+The proof preparation helpers are part of this Rust executable on every
+platform and need no PowerShell. Run them from the checkout root and pass the
+real baseline and candidate executable paths, with `.exe` on Windows.
+`proof-plan` writes an ordinary plan for `compare`, which still handles sample
+ordering, closing stdin, resource capture and correctness checks.
 
 In `source` mode, pass `--target windows_x86_64`, `linux_x86_64`, `linux_arm64`
 or `macos_arm64`. Its oracle requires the route probe's single accepted part
-and final accepted verdict, with no warnings. It measures the source/Product
-route, not Build execution or native publication. `prepare` and `prove` instead
+and accepted final verdict, without warnings. It measures the
+source-to-product route, not Build execution or native publication. `prepare` and `prove` instead
 require `--repeats N --work-units N --checksum VALUE`, matching the replay's
-reported work and checksum. The chosen mode reaches the replay executable as
-an explicit argument. Both modes default to eight pairs after one warmup;
-`--pairs N` can change the pair count. Existing plans are never overwritten.
+reported work and checksum. The replay executable receives the chosen mode as
+an explicit argument. Both modes default to one warmup and eight pairs;
+`--pairs N` changes the pair count. Existing plans are never overwritten.
 
 `proof-square` reads commit `9b4898865ecd5789bea4def6c2da078192a4ab82`
 through Git and adds the exact literal qualifications used by the retained
-measurements. It verifies both resulting source hashes before creating the new
-directory. `--identity-build` additionally removes the pinned six optional
-optimization selections; it preserves the arithmetic and checksum. A shallow
+measurements. It checks both resulting source hashes before creating the new
+directory. `--identity-build` also removes the six pinned optional
+optimization selections, keeping the arithmetic and checksum. A shallow
 checkout missing the pinned commit must fetch it first. See the
 [proof preparation report](../../wiki/drafts/measurements/proof_preparation_2026_11_14.md)
 for the measured boundary, source distributions and reproduction commands.
 
+## Selected-body copy attribution
+
+The `selected-bodies` profile backend runs the kept opt-in capture driver
+through the same runner, oracle and resource capture as other profiles. Its
+private log and typed snapshots record real continuation copies, and the
+profile record hashes every snapshot. The ordinary compiler is not
+instrumented.
+See [the experiment instructions](selected-bodies/README.md) for the fixed source,
+portable input preparation, capture patch, replay, and measurement limits.
+
 ## Paired comparisons
 
-A plan fixes the commands, input closure, measurement boundary and correctness
-oracle before either executable runs. `compare` alternates the two executables
+A plan fixes the commands, inputs, what is timed and the expected output
+(the oracle) before either executable runs. `compare` alternates the two executables
 in AB/BA pairs, checks every sample against the oracle, and writes the result to
 a new directory:
 
@@ -77,10 +90,9 @@ target/debug/omega-bench compare plan.json build/performance/my-comparison
 ```
 
 The output directory must be new: remeasurement never overwrites a previous
-run. Keep builds and competing measurements outside the timed experiment. A run
-can name the same executable in both slots for an A/A instrument check; that
-validates the capture path, but a single A/A comparison does not calibrate
-every workload or establish noise limits.
+run. Never build or measure anything else during the timed experiment. A plan can
+name the same executable twice for an A/A check of the tool; that tests the capture path, but one A/A comparison does not calibrate
+every workload or set noise limits.
 
 Paths in a plan resolve as follows:
 
@@ -88,7 +100,7 @@ Paths in a plan resolve as follows:
 - Executables, `inputs`, and compiler `source` are relative to that directory.
 - The result directory is relative to the invoking shell's directory.
 
-A plan's `measurement.kind` selects one of three boundaries.
+A plan's `measurement.kind` selects one of three things to time.
 
 ### Compiler mode
 
@@ -100,24 +112,23 @@ fact with two retained compilers at `build/performance/baseline/omega.exe` and
 at those paths, or edit the plan to name your own.
 
 Compiler mode records each executable's `--version` output and SHA-256. `omega`
-reports no optimization level, so choosing release-built producers is the plan
-author's job: a debug compiler measures debug-compiler speed. Compiler mode
+does not report its optimization level, so the plan author must pick release
+compilers: a debug compiler measures debug-compiler speed. Compiler mode
 requires the measuring host's native target, never builds compilers and never
-accepts package decisions. The working checkout's revision is not treated as
-the producer's revision.
+accepts package decisions. The working checkout's revision is not taken as
+the compiler's revision.
 
 `measurement.library_root` selects the same toolchain library for both
-compilers through `OMEGA_LIBRARY_ROOT`, and that directory joins the hashed
-input closure, so a retained compiler's embedded development-library path
-cannot silently select a different checkout's library.
+compilers through `OMEGA_LIBRARY_ROOT`, and that directory is hashed with the
+inputs, so a kept compiler's built-in development-library path cannot
+silently pick up another checkout's library.
 
 A project that depends on packages needs an accepted lock for each compiler:
 settle it beforehand with `omega packages update`, accepting the pending
 decisions and running `omega packages update --resume` (see the
 [packages guide](../../wiki/language_guide/packages.md#install-and-update)).
-Locks are compiler-specific, so for two different compiler builds prepare two
-private copies of the same authored project and review each with its own
-producer. Set optional `measurement.candidate_source` to the second entry;
+Locks belong to one compiler, so for two different compiler builds prepare two
+private copies of the same project and review each with its own compiler. Set optional `measurement.candidate_source` to the second entry;
 baseline uses `source`. Both entry files must have identical bytes and appear in
 `inputs`, along with both accepted locks and every consumed library and
 dependency path.
@@ -125,26 +136,26 @@ dependency path.
 Each sample compiles into its own empty build directory with `--timings`,
 requires exactly one `published native output to <path>` line naming a file
 inside that directory, hashes the native image, and runs it against the exact
-authored exit/stdout/stderr oracle. Native verification is observed separately
-and does not enter the compile timer. `--timings` prints one human-readable
+authored exit/stdout/stderr oracle. The native check is measured separately
+and is not in the compile timer. `--timings` prints one human-readable
 `<ms> ms  <phase>` line per compiler phase on stderr; the runner keeps those as
-additional `stage_ms:<phase>` metrics, not as the primary measurement. Phase
+extra `stage_ms:<phase>` metrics, not as the primary measurement. Phase
 scopes are inclusive and may overlap, so do not sum nested rows.
-`require_identical_artifacts: true` additionally requires all warmup and
-measured images to have identical bytes. Set it to false for intentional
-code-generation changes; the native result oracle remains mandatory.
+`require_identical_artifacts: true` also requires every warmup and measured
+image to have identical bytes. Set it to false when code generation changes on
+purpose; the native result oracle is still required.
 
-Extra command arguments and environment overlays are retained in the plan.
-Compiler command arguments accept `--offline` and repeatable
-`--disable-optimization <ExactName>`, so optimizer-disable arguments can be
-supplied independently to the two compilers; other options are rejected so an
-extra source path or subcommand cannot silently replace the measured product.
+The plan keeps extra arguments and environment overlays. Compiler
+arguments accept `--offline` and repeatable
+`--disable-optimization <ExactName>`, so each compiler can disable its own
+optimizations; other options are rejected so an extra source path or subcommand
+cannot silently change what is measured.
 Full compiler logs are retained with each sample. The runner does not infer
 enabled optimization rules from source.
 
 Fresh output directories do **not** mean cold operating-system caches. Declared
-inputs and executables are hashed before and after each sample, outside timing,
-which itself warms the filesystem cache. These are repeated fresh-output builds.
+inputs and executables are hashed before and after each sample, outside the
+timer, and that hashing warms the filesystem cache. These are repeated fresh-output builds.
 
 ### Runtime process latency
 
@@ -171,16 +182,16 @@ optional environment overlays. There is no shell interpolation.
 }
 ```
 
-The exact byte oracle must consume the computed result: a clean exit from a
-program that discards its accumulator cannot establish arithmetic throughput.
-Arguments and stdin should supply representative runtime inputs; confirm the
-emitted code still performs the intended work, because the harness cannot
-establish that from a checksum alone. Empty stdin selects EOF, nonempty stdin is
-transferred as authored bytes, and line endings in output comparisons are exact.
+The expected output must depend on the computed result: a clean exit from a
+program that throws away its accumulator says nothing about arithmetic speed.
+Arguments and stdin should supply typical runtime inputs; confirm the
+generated code still does the intended work, because the harness cannot
+tell that from a checksum alone. Empty stdin means EOF, nonempty stdin is
+sent byte for byte, and output comparisons match line endings exactly.
 
 The process timer includes startup, output capture, waiting, and process-tree
 cleanup. This is command latency, **not isolated kernel execution time**. For
-short kernels, batch useful work within the child and check its final result,
+short kernels, batch useful work inside the child and check its final result,
 or use a timed region.
 
 ### Runtime timed regions
@@ -199,15 +210,15 @@ The plan fixes the expected work count and checksum:
 ```
 
 The primary metric is `reported_work_ns_per_unit`; the enclosing process wall
-time is retained separately. Zero time, zero work, an unexpected work count, an
-incorrect checksum, unknown schema or fields, or a region longer than the
-enclosing process observation refuses the sample. Setup and verification
-should sit outside the child's timer, and the checksum must depend on the timed
-computation. Child-reported time relies on that instrumentation being correct.
+time is retained separately. The runner refuses a sample with zero time, zero work, an unexpected work
+count, a wrong checksum, an unknown schema or field, or a region longer than
+its process. Setup and verification belong outside the child's timer,
+and the checksum must depend on the timed computation. Child-reported time is
+only as good as the child's timing code.
 
-The opt-in `benchmark-probe` fixture demonstrates this protocol with a
-runtime-sized wrapping-square sum, runtime seed, consumed accumulator, and Rust
-`black_box`. It is an instrument test, not an Omega generated-code benchmark:
+The opt-in `benchmark-probe` fixture shows this protocol with a
+wrapping-square sum sized and seeded at run time, a used accumulator, and Rust
+`black_box`. It tests the tool, not Omega-generated code:
 
 ```text
 mbx build -p omega-bench --features fixtures
@@ -217,58 +228,57 @@ target/debug/omega-bench compare tools/benchmark/plans/probe.windows.json build/
 ## Records and interpretation
 
 `journal.jsonl` records a start event, identities, every sample, and completion
-or failure. It is flushed to disk after each event. Each sample retains:
+or failure, flushed to disk after each event. Each sample retains:
 
 - Warmup/measured role, pair number, and actual baseline/candidate execution order.
 - Primary metric, executed arguments, process duration, exit, and stream hashes.
 - Complete stdout/stderr in its own directory, including failed oracle output.
 - Every compiler stage table, native image hash, byte count, and native observation.
 
-Warmups are checked and retained but excluded from comparison. Measured rounds
+Warmups are checked and kept but left out of the comparison. Measured rounds
 alternate AB then BA. `report.json` summarizes medians, ranges, median absolute
 deviations, paired absolute and percentage changes, and a deterministic
 4,000-resample paired percentile bootstrap interval for the median difference
-and percent change. Means and nearest-rank observed p95/p99 describe the actual
-samples; a small run does not estimate population tails. Resampling keeps the
-pair intact. Fewer than six pairs are explicitly labelled insufficient; six
-pairs are not a promise of adequate statistical power. An interval crossing
-zero is inconclusive. Even a separated interval describes this run, not every
-host or workload, and autocorrelation and drift can violate its assumptions.
+and percent change. Means and nearest-rank p95/p99 describe the samples;
+a small run does not estimate tails. Resampling keeps each pair together.
+Fewer than six pairs are labelled insufficient; six pairs do not guarantee
+enough statistical power. An interval crossing zero is inconclusive. Even a
+separated interval describes this run, not every host or workload,
+and autocorrelation and drift can break its assumptions.
 
 A timeout, incorrect output, compiler error, changed declared input or
 executable, or output overflow fails the run and leaves its journal; it does
-not produce a successful report. A crash or external interruption leaves a
-journal without a `complete` event, so consumers must require that event and
-its report digest before treating the report as completed evidence. No slow
-valid samples are discarded.
+not produce a successful report. A crash or outside interruption leaves a
+journal without a `complete` event, so readers must require that event and its
+report digest before trusting the report. Slow valid samples are never
+discarded.
 
 Input paths may be individual files or recursively hashed directories, and the
 result directory must be outside declared input directories. The plan,
 executable bytes, and declared file set are checked around each sample. These
-checks detect persistent changes, not transient edits restored between
-observations; an isolated worktree and immutable retained producers remain the
-working practice. Only declared inputs are covered; this is not automatic
-dependency discovery.
+catch lasting changes, not edits undone between observations, so still use an
+isolated worktree and unchanging kept compilers. Only declared
+inputs are covered; dependencies are not discovered automatically.
 
-Environment overlays are recorded. Other environment values are inherited and
-are not dumped, to avoid recording credentials. The journal records host OS,
+Environment overlays are recorded; other inherited values are not, so
+credentials stay out. The journal records host OS,
 architecture, available parallelism, the Windows processor identifier, a hashed
 host identifier and a whitelist of inherited performance settings. The runner
-does not isolate hardware contention, pin CPU frequency or affinity, or infer
-cache state; record relevant host conditions alongside the result.
+does not shield against other load, pin CPU frequency or affinity, or infer
+cache state; record relevant host conditions with the result.
 
 Processes use the shared `bounded-process` runner: a wall timeout, 1 MiB per
 captured stream, process-tree cleanup, 8 GiB process and aggregate memory
 ceilings, the Linux address-space ceiling, a 1 GiB file-size ceiling, a 1,024
-open-file ceiling, and a 64-process ceiling. Platform enforcement follows that
-library's contracts. These limits and capture overhead are part of the recorded
+open-file ceiling, and a 64-process ceiling. Each platform enforces these as that
+library documents. The limits and capture overhead are part of the recorded
 measurement environment.
 
 ### CPU, resident memory and faults
 
-Every captured process opts into the bounded runner's native observations.
-Resource metrics include their provider, scope, units and measured/unavailable
-status. A measured zero is retained; an unsupported metric never becomes zero.
+Every captured process turns on the bounded runner's resource observations.
+Each metric names its provider, scope, units and measured/unavailable status. A measured zero is kept; an unsupported metric never
+becomes zero.
 
 | Host | Provider and scope | Observations |
 | --- | --- | --- |
@@ -278,14 +288,14 @@ status. A measured zero is retained; an unsupported metric never becomes zero.
 
 Resident memory is not allocator-requested memory or Windows committed memory.
 Windows total faults are not labelled major faults. CPU cycles are not
-converted to time using an assumed frequency. Compiler and native verification
-resources remain separate. Stage times, phase counts and artifact bytes are
-compared as additional metrics. [Provider research](research.md) records the
-operating-system contract sources.
+converted to time with an assumed frequency. Compiler and native-check
+resources stay separate. Stage times, phase counts and artifact bytes are
+compared as extra metrics. [Provider research](research.md) cites the
+operating-system documentation for each provider.
 
 ## Suites, validation and regression checks
 
-The suite schema keeps each workload's denominator and failure separate:
+A suite keeps each workload's sample count and failure separate:
 
 ```json
 {"schema":"omega-performance-suite/1","plans":["compute.json","memory.json"]}
@@ -304,37 +314,33 @@ directory; `suite.json` and `summary.md` retain successful cases even when
 another fails. The [runtime suite](plans/runtime-suite.windows.json) runs the
 `omega-bench-workload` reference kernels (compute, indexed memory, indirect
 calls and allocation) with runtime units and seed and checked checksums. They
-are Rust reference kernels for the instrument, not evidence of Omega
-generated-code throughput; replace the commands with matched application
-binaries for product measurements.
+are Rust kernels that test the tool, not Omega-generated code; for product
+measurements, replace the commands with matching application binaries.
 
 `validate` requires a completed `/2` journal, the report digest, the ordered
 sample set, raw stream digests and oracles, compiler identities, and retained
 native artifact bytes, and recomputes the summary from those samples. `show`
-emits a Markdown table only after validation. This is consistency validation,
-not a signature or protection from an adversary rewriting the entire evidence
-set. Keep the whole run directory for validation; copying just a report is
-insufficient.
+prints a Markdown table only after validation passes. This checks consistency;
+it is no signature against someone rewriting the whole run.
+Keep the whole run directory for validation; a copied report is not enough.
 
 `check` applies the paired percentage interval to a finite, nonnegative budget.
 Exit 0 means the interval is within budget; 3 means it establishes a regression
 beyond budget; 2 means inconclusive or fewer than six pairs; 1 means invalid
-evidence or arguments. Treat 2 separately in automation. Additional metrics are
-reported, not substituted for the primary gate, and no timing samples are
+evidence or arguments. Treat 2 separately in automation. Extra metrics are
+reported but never replace the primary metric, and no timing samples are
 trimmed.
 
 `history` compares candidate observations from two separately completed runs.
 It requires the same identified host, inherited measurement settings, workload,
 arguments, oracle, and declared input bytes, and uses independent resampling:
-separate runs are never treated as interleaved pairs. Host drift and temporal
-correlation remain limitations; a fresh paired comparison is the regression
-decision tool.
+separate runs are never treated as interleaved pairs. Host drift and correlation over time
+still limit it; use a fresh paired comparison to decide on a regression.
 
 ## Profiles
 
-A profile is a separate, correctness-checked execution of one plan's baseline
-or candidate under an external profiler. Its duration never enters an
-uninstrumented timing comparison:
+A profile runs one plan's baseline or candidate separately under an external
+profiler and checks its output. Its duration never enters a timing comparison:
 
 ```text
 target/debug/omega-bench profile compiler-plan.json candidate wpr build/performance/cpu
@@ -350,17 +356,16 @@ Linux and `/usr/bin/perf` or `/bin/perf` with permitted events. `perf-stat`
 retains cycles, instructions, branches, misses and faults with runtime and
 multiplexing metadata; refused events remain unavailable. `perf-record` saves
 DWARF call stacks in `perf.data`. Open the retained traces in WPA or
-`perf report`. Raw artifacts and digests accompany `profile.json`. Capability
-refusal (exit 2, status `unavailable`) and execution or extraction failure
-(status `failed`) are explicit statuses with reasons. A forcibly interrupted
-process can leave `started`; that is incomplete.
+`perf report`. Raw artifacts and digests accompany `profile.json`. When the profiler
+is not usable (exit 2, status `unavailable`) or the run or extraction fails
+(status `failed`), the status says why. A forcibly interrupted run can leave
+`started`, which means incomplete.
 
 ## Progress records
 
 `omega-bench progress` records how fast one commit's release compiler is on
-this host, so a dashboard can chart speed over `main`'s history. It does not
-count how many programs compile; `cargo xtask sweep` does that. Run it from the
-checkout root:
+this host, so a dashboard can chart speed across `main`'s history. To count how
+many programs compile, use `cargo xtask sweep`. Run it from the checkout root:
 
 ```text
 target/debug/omega-bench progress --results <dir>
@@ -371,9 +376,9 @@ measures an existing release binary instead), then runs each workload of the
 frozen set `omega-progress-set/1` with stdin closed: one warmup, `--aa-runs`
 (default 3) alternating A/A pairs of the same binary, then `--runs` (default 5)
 measured runs. Each check gets a fresh `--build-dir`; the native workload's
-`build/` is removed before every run. The two std-dependent projects first get
-a fresh package review for this compiler, every pending decision accepted,
-untimed, and recorded under `preparations`. `--only <workload>` selects one
+`build/` is removed before every run. Untimed, the two std-dependent projects
+first get a fresh package review for this compiler with every pending decision
+accepted, recorded under `preparations`. `--only <workload>` selects one
 workload.
 
 | Workload | Command |
@@ -385,7 +390,7 @@ workload.
 | `native_run_both` | `omega run --both` on `samples/cli/arithmetic/wrapping_square_sum` |
 
 Changing a workload means bumping `BENCHMARK_SET` in `src/progress.rs`;
-records of different sets are not comparable.
+records from different sets cannot be compared.
 
 One JSON file per run, `<commit12>__<target>__<utc>.json`, schema
 `omega-progress-record/1`, followed by a one-line summary on stdout:
@@ -398,15 +403,15 @@ One JSON file per run, `<commit12>__<target>__<utc>.json`, schema
 | `summary[]` | Per workload over measured rows: `median_wall_s`, `median_cpu_s` (user+sys), `median_peak_rss_bytes`, `measured_range_pct` ((max-min)/median), `aa_spread_pct` (absolute difference of the A and B wall medians over their mean), `median_instructions_u`, `aa_instructions_spread_pct` (the same over instructions), the workload's first `load_average_start` and last `load_average_end`, and `all_ok`. |
 
 An A/A spread larger than the change you are charting means the host was too
-noisy to see it. When other workers share the VM, wall and CPU time swing by
-seconds while user-space instruction counts stay within a fraction of a
-percent, so chart `instructions_u` on Linux and use load averages to flag runs.
+noisy to show it. When other workers share the VM, wall and CPU time swing by
+seconds while user-space instruction counts move under one percent, so chart
+`instructions_u` on Linux and use load averages to flag noisy runs.
 The command exits 1 after writing the record when any run fails.
 
 ## Scaling check
 
-Most slowdowns found so far were a check that walks the whole program per
-question, which makes each machine cost more in a bigger program.
+Most slowdowns found so far came from a check that walks the whole program for
+each question, so each machine costs more in a bigger program.
 `omega-bench scaling` checks the one-line program plus N uncalled machines for
 each N in `--sizes` and fails when the cost per added unit in the last interval
 exceeds the first by more than `--max-ratio` (default 1.3). A linear compiler
@@ -432,8 +437,8 @@ Cost is `instructions:u` from `perf stat` on Linux and CPU time elsewhere, so
 run it on `omega-linux`. A change that removes a whole-program walk shows its
 ratio before and after; a change that adds one fails here.
 
-To find which walk is responsible, sample the largest size with samply on
-Linux and read the heaviest frames under the checking workers:
+To find the responsible walk, profile the largest size with samply on Linux
+and read the heaviest frames under the checking workers:
 
 ```text
 samply record --save-only -o scaling.json.gz -- target/release/omega --check <dir>/main.omg < /dev/null
@@ -441,7 +446,7 @@ samply record --save-only -o scaling.json.gz -- target/release/omega --check <di
 
 ## Checking the tool itself
 
-The process fixtures are behind the `fixtures` feature, and no CI job runs
+The process fixtures sit behind the `fixtures` feature and no CI job runs
 them, so run them when you change the tool:
 
 ```text
@@ -452,5 +457,5 @@ mbx clippy -p omega-bench --all-targets --features fixtures -- -D warnings
 They cover known output and checksums, compiler and native transport, pairing,
 warmup exclusion, overwrite refusal, input mutation, failed compilation, wrong
 exit or output, timeout, overflow, and incomplete-oracle rejection. The fake
-compiler fixture is labelled as such; a real compiler comparison is separate
-integration evidence.
+compiler fixture is labelled as fake; comparing real compilers is a separate
+integration test.

@@ -14,14 +14,10 @@ The recursive `cells_valid` predicate establishes the grid invariant;
 restore the same obligations before nested calls and returns. No value clamp
 substitutes for the original bounds.
 
-The render path also carries current byte facts through nested calls: reading
-the ASCII palette establishes the glyph fact, and a byte store preserves the
-current ASCII line's UTF-8 domain. Replacing the line or using a multibyte palette
-must not preserve that proof. The executable fixture
-`tests/omega/pass/borrows/runtime_nested_byte_field_capture_exit` checks both
-palette choices and neighboring bytes; its reject controls are
-`nested_byte_field_capture_breaks_utf8` and
-`nested_byte_field_capture_stale_carrier` under `tests/omega/fail/borrows`.
+The render path also carries current byte facts through nested calls: reading the
+ASCII palette establishes the glyph fact, and a byte store preserves the current
+ASCII line's UTF-8 domain. Replacing the line or using a multibyte palette must
+not preserve that proof.
 
 This customer demonstrates these original bounds through the complete checking,
 Terminal Psi and native route. It does not close the parent migration or claim

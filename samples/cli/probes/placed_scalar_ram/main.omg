@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 0. Expected streams are frozen from original-storage oracles.
 // Captured native and Terminal values must agree with expected_stdout.txt.
 use omega::language::core::Access;
@@ -285,7 +286,7 @@ machine ram_unit_write() -> u64 {
 
 use omega_language_std::Console;
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Main::number(main, ram_capture_only() as u64 in Wrapping);
     Main::number(main, ram_capture_helper() as u64 in Wrapping);
     Main::number(main, ram_capture_return() as u64 in Wrapping);
@@ -299,7 +300,7 @@ machine Main::main(main: &mut Main) reaches Console {
     Main::number(main, ram_forwarded() as u64 in Wrapping);
     Main::number(main, ram_state_access() as u64 in Wrapping);
     Main::number(main, ram_unit_write() as u64 in Wrapping);
-    Console::exit_process(0);
+    ProcessExit::exit_process(0);
 }
 machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
     Console::write_byte((((value / 1000) % 10) as i32) + 48);
@@ -310,7 +311,7 @@ machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

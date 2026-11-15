@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Count the primes up to 20 by trial division -- a real nested-loop computation:
 // the OUTER loop walks n = 2..20; for each n the INNER loop tries divisors
 // d = 2..n-1 and clears an `is_prime` flag on the first divisor found; primes are
@@ -25,7 +26,7 @@ requires
     is_prime: bool;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("prime_counter: counting primes up to 20 by trial division");
     main.n = 2;
     main.count = 0;
@@ -126,12 +127,12 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("result: the prime count, 8 for the primes below 21 (the exit code)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(main.count);
+        ProcessExit::exit_process(main.count);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

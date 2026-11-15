@@ -309,8 +309,8 @@ pub mod fixups {
 pub mod foreign {
     use super::*;
     use crate::{
-        CallbackAddressMaterialization, ForeignCallScalarArgumentRecord,
-        ForeignCallScalarResultRecord, ProviderExecutionRecord,
+        CallbackAddressMaterialization, ExternalExecutionRecord, ForeignCallScalarArgumentRecord,
+        ForeignCallScalarResultRecord,
     };
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -319,7 +319,7 @@ pub mod foreign {
         pub operation_ordinal: usize,
         pub offset: usize,
         pub locator: target::NormalizedForeignLocator,
-        pub provider_execution: ProviderExecutionRecord,
+        pub provider_execution: ExternalExecutionRecord,
         pub boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
         pub call_plan: calling_conventions::CallPlan,
         pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,

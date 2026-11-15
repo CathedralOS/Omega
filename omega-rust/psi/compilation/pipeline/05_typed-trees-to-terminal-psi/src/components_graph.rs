@@ -1,8 +1,8 @@
-//! Discover call components once, with storage proportional to machines and
-//! calls. Lowering borrows one ordered member span instead of retaining a copy
-//! for every member, and outcome inference walks the components callee-first,
-//! re-queuing a member's callers from the retained reverse calls. The separate
-//! emitted graphs keep their existing ownership.
+//! Find strongly connected call components once, with storage
+//! proportional to machines and calls. Lowering borrows one ordered member
+//! span instead of copying it per member, and outcome inference walks the
+//! components callee-first, re-queuing a member's callers from the retained
+//! reverse calls. The separate emitted graphs keep their existing ownership.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
@@ -23,7 +23,7 @@ pub(crate) struct Components {
     /// Every call site's caller, grouped by callee: the callers of machine
     /// index `m` are `callers[caller_offsets[m]..caller_offsets[m + 1]]`.
     caller_offsets: Vec<usize>,
-    callers: Vec<usize>,
+    callers: Vec<(usize, usize)>,
     #[cfg(test)]
     discovery_edge_visits: usize,
 }
@@ -50,15 +50,15 @@ impl Components {
             reverse_offsets[machine + 1] += reverse_offsets[machine];
         }
         let mut next_slot = reverse_offsets[..count].to_vec();
-        let mut reverse_calls = vec![0usize; calls.sites.len()];
+        let mut reverse_calls = vec![(0usize, 0usize); calls.sites.len()];
         for caller in 0..count {
-            for site in calls.calls(caller) {
+            for (position, site) in calls.calls(caller).iter().enumerate() {
                 #[cfg(test)]
                 {
                     discovery_edge_visits += 1;
                 }
                 let callee = index(site.callee);
-                reverse_calls[next_slot[callee]] = caller;
+                reverse_calls[next_slot[callee]] = (caller, calls.offsets[caller] + position);
                 next_slot[callee] += 1;
             }
         }
@@ -104,7 +104,7 @@ impl Components {
             pending.push(root);
             while let Some(machine) = pending.pop() {
                 size += 1;
-                for &caller in
+                for &(caller, _) in
                     &reverse_calls[reverse_offsets[machine]..reverse_offsets[machine + 1]]
                 {
                     #[cfg(test)]
@@ -196,7 +196,12 @@ impl Components {
 
     /// The machine index of every caller of machine index `callee`, in
     /// ascending order, once per call site.
-    pub(crate) fn callers(&self, callee: usize) -> &[usize] {
+    pub(crate) fn callers(&self, callee: usize) -> impl Iterator<Item = usize> + '_ {
+        self.call_sites(callee).iter().map(|(caller, _)| *caller)
+    }
+
+    /// The caller and retained call occurrence for every incoming edge.
+    pub(super) fn call_sites(&self, callee: usize) -> &[(usize, usize)] {
         &self.callers[self.caller_offsets[callee]..self.caller_offsets[callee + 1]]
     }
 
@@ -247,6 +252,7 @@ mod tests {
                 callee: machines[callee],
                 terminal: true,
                 required_contract: None,
+                arguments: &[],
             }));
             calls.offsets.push(calls.sites.len());
         }

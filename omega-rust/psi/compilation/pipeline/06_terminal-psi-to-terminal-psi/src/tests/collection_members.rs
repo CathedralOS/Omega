@@ -108,6 +108,39 @@ fn a_length_read_uses_the_exact_formals_entry_extent() {
 }
 
 #[test]
+fn a_stored_element_length_reads_its_exact_descriptor() {
+    for carrier in ["[Ticket]", "&[Ticket]"] {
+        let result = judged(&format!(
+            "data Ticket {{ number: u32; }}
+             machine entry(tickets: {carrier}) -> u64 requires tickets.len > 0 {{ tickets.len - 1 }}"
+        ));
+        let super::RouteVerdict::Accepted(accepted) = result else {
+            panic!("{carrier}: {result:?}");
+        };
+        let machine = &accepted.elaboration.module.machines[0];
+        let formal = &machine.structural_parameters[0];
+        assert!(machine.blocks.iter().flat_map(|block| &block.operations).any(|operation| {
+            matches!(&operation.kind, terminal_psi::OperationKind::ElementViewLength { source }
+                if source.place == formal.place && source.path.is_empty())
+        }), "{carrier}");
+    }
+}
+
+#[test]
+fn another_element_descriptors_extent_cannot_justify_this_length() {
+    let result = judged(
+        "data Ticket { number: u32; }
+         machine entry(left: &[Ticket], right: &[Ticket]) -> u64
+         requires left.len > 0 { right.len - 1 }",
+    );
+    assert!(
+        matches!(result, super::RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, super::ObligationKind::OperationSafety { .. }))),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn another_views_extent_cannot_justify_this_length() {
     let result = judged(
         "machine entry(left: &[u8], right: &[u8]) -> u64 requires left.len > 0 { right.len - 1 }",
@@ -486,7 +519,10 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
                 .iter()
                 .flat_map(|block| &block.operations)
                 .filter(|operation| {
-                    matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    matches!(
+                        operation.kind,
+                        OperationKind::StructuralByteSequenceFieldLength { .. }
+                    )
                 })
                 .count()
                 == 2
@@ -514,7 +550,10 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .operations
             .iter()
             .position(|operation| {
-                matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                matches!(
+                    operation.kind,
+                    OperationKind::StructuralByteSequenceFieldLength { .. }
+                )
             })
             .unwrap();
         let staged_call = entry.operations.split_off(initial_read + 1);
@@ -530,7 +569,10 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .iter()
             .position(|block| {
                 block.operations.iter().any(|operation| {
-                    matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    matches!(
+                        operation.kind,
+                        OperationKind::StructuralByteSequenceFieldLength { .. }
+                    )
                 })
             })
             .unwrap();
@@ -596,7 +638,12 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         let first = lowered.blocks[0]
             .operations
             .iter()
-            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceLength { .. }))
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::StructuralByteSequenceFieldLength { .. }
+                )
+            })
             .unwrap();
         let fresh = lowered
             .blocks
@@ -605,7 +652,12 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .unwrap()
             .operations
             .iter()
-            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceLength { .. }))
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::StructuralByteSequenceFieldLength { .. }
+                )
+            })
             .unwrap();
         assert!(
             storage
@@ -621,4 +673,96 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             !mutable
         );
     }
+}
+
+/// A ranked loop over an owned record sequence. The loop header's
+/// `requires position <= tickets.len` names its own parameter's length; each
+/// arrival must prove it of the sequence that edge actually passes. `next`
+/// is the recursive call, so the twins differ only in which sequence the
+/// backedge passes as `tickets`.
+fn ranked_sequence_loop(next: &str) -> String {
+    format!(
+        "data Ticket {{ number: u32; }}
+machine count(tickets: [Ticket], other: [Ticket], position: u64) -> u64
+terminates by (tickets.len - position) -> Nat::Descending
+requires position <= tickets.len
+{{
+    transition position < tickets.len {{
+        true -> {next}
+        false -> position
+    }}
+}}
+machine entry() -> u64 {{
+    let tickets: [Ticket] = [Ticket {{ number: 11u32 }}, Ticket {{ number: 12u32 }}];
+    let other: [Ticket] = [Ticket {{ number: 13u32 }}];
+    count(tickets, other, 0)
+}}"
+    )
+}
+
+fn judged_ranked(text: &str) -> terminal_check_tables::Checked<super::RouteVerdict> {
+    let program = super::rankings::typed_with_ranking_catalog(text);
+    let entry = super::boundary_calls::entry(&program);
+    super::judge(typed_trees_to_terminal_psi::elaborate_for(
+        &program,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    ))
+}
+
+#[test]
+fn a_loop_length_premise_follows_the_sequence_each_arrival_passes() {
+    let result =
+        judged_ranked(&ranked_sequence_loop("count(tickets, other, position + 1)")).unwrap();
+    let super::RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(2),
+                        ..
+                    }
+                )
+            )
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn a_rebound_sequence_cannot_inherit_the_loop_length_premise() {
+    // The guard measured `tickets`; the backedge passes `other` in its place.
+    // The arrivals then pass two different sequences, so the header knows no
+    // one length for its parameter and the requirement has no proof.
+    let result = judged_ranked(&ranked_sequence_loop("count(other, tickets, position + 1)"));
+    assert!(
+        matches!(
+            &result,
+            Err(refusal) if matches!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unproved(_)
+            ) && refusal.detail.contains("no reaching value identity")
+        ),
+        "{result:?}"
+    );
 }

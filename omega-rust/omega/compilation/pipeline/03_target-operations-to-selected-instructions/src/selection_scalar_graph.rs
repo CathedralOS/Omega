@@ -5147,13 +5147,11 @@ pub(crate) mod normalized_foreign {
                     });
             }
         }
-        let saved_controls =
-            call.binding
-                .same_stack_contribution()
-                .and(operation)
-                .map(|operation| LocalStorageSlotId::Boundary {
-                    operation: operation.operation,
-                });
+        let saved_controls = operation
+            .filter(|_| call.binding.requires_floating_control_preservation())
+            .map(|operation| LocalStorageSlotId::Boundary {
+                operation: operation.operation,
+            });
         let mut operands = Vec::new();
         for argument in &call.scalar_arguments {
             let value = argument.source.source_value();
@@ -5920,6 +5918,7 @@ pub(crate) mod process_exit {
             || !matches!(
                 binding.execution,
                 target_operations::BoundaryExecutionBinding::AdmittedProvider(_)
+                    | target_operations::BoundaryExecutionBinding::NativeBinding(_)
                     | target_operations::BoundaryExecutionBinding::CompilerBuiltin(
                         target_operations::CompilerBuiltinExecution::HostedExitProcessI32
                     )
@@ -5930,10 +5929,16 @@ pub(crate) mod process_exit {
         if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign) =
             &binding.realization
         {
-            let target_operations::BoundaryExecutionBinding::AdmittedProvider(provider_execution) =
-                binding.execution
-            else {
-                return Err(SelectedInstructionError::custody());
+            let provider_execution = match binding.execution {
+                target_operations::BoundaryExecutionBinding::AdmittedProvider(execution) => {
+                    target_operations::ExternalExecutionBinding::Provider(execution)
+                }
+                target_operations::BoundaryExecutionBinding::NativeBinding(execution) => {
+                    target_operations::ExternalExecutionBinding::NativeBinding(execution)
+                }
+                target_operations::BoundaryExecutionBinding::CompilerBuiltin(_) => {
+                    return Err(SelectedInstructionError::custody());
+                }
             };
             let call = legalized_operations::LegalizedNormalizedForeignCall {
                 boundary: *boundary,
@@ -6431,6 +6436,8 @@ pub(crate) mod structural_case {
         builder: &mut Builder<'_>,
     ) -> Result<SelectedTerminator, SelectedInstructionError> {
         let LegalizedScalarTerminator::StructuralCase {
+            psi_block,
+            indices,
             source: subject,
             root_shape,
             byte_offset,
@@ -6544,8 +6551,8 @@ pub(crate) mod structural_case {
                 }
             }
         }
-        if !pointer_slots.is_empty() {
-            let mut pointer = match dispatch_source {
+        if !pointer_slots.is_empty() || !indices.is_empty() {
+            let pointer = match dispatch_source {
                 selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
                     frame_address_pointer(
                         builder,
@@ -6559,19 +6566,23 @@ pub(crate) mod structural_case {
                     pointer
                 }
             };
-            for slot in pointer_slots {
-                if slot.scalar_descriptor || slot.index_start != slot.index_end {
-                    return Err(invalid());
-                }
-                pointer = super::structural::reference::load_pointer_word(
-                    builder,
-                    subject.place(),
-                    pointer,
-                    slot.byte_offset,
-                    SelectedMemoryAccessOrigin::Block(block.id),
-                    Default::default(),
-                )?;
-            }
+            let (pointer, leaf) = super::structural::runtime_address::cross_references_at_site(
+                builder,
+                Default::default(),
+                SelectedMemoryAccessOrigin::Block(*psi_block),
+                subject.place(),
+                pointer,
+                indices,
+                pointer_slots,
+            )?;
+            let pointer = super::structural::runtime_address::scale_at_site(
+                builder,
+                Default::default(),
+                subject.place(),
+                *byte_offset,
+                pointer,
+                indices.get(leaf..).ok_or_else(invalid)?,
+            )?;
             dispatch_source = selected_instructions::SelectedCaseDispatchSource::Borrowed {
                 place: subject.place(),
                 pointer,
@@ -6616,13 +6627,14 @@ pub(crate) mod structural_case {
             Default::default(),
         )?;
         let tag = register(builder, subject.place(), *byte_offset, 32, true)?;
-        memory(
+        super::structural::runtime_address::footprint_at_origin(
             builder,
-            block.id,
+            SelectedMemoryAccessOrigin::Block(*psi_block),
             subject.place(),
             *byte_offset,
             4,
-            SelectedMemoryAccessRole::ReadPlace,
+            indices,
+            super::structural::runtime_address::Written::None,
         )?;
         builder.emit(
             SelectedInstructionKind::Load32 {

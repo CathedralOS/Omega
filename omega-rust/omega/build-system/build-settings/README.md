@@ -5,235 +5,224 @@ program entry, provider choices and optimizations. It checks the program before
 running it, runs it in the Terminal interpreter, and hands the filled-in `Build`
 value back to [orchestration](../orchestration/README.md).
 
-[`build_evaluation.rs`](src/build_evaluation.rs) owns one complete Build activation:
-entry selection, pre-effect semantic admission, filesystem preparation, exact machine admission,
-restricted-request consent and normal-return settlement.
-`PreparedBuildEvaluation` retains that admission while the application advances
-one `TerminalBuildHost` activation and joins its dependency requests. Completion
-accepts only that invocation's normal return and produces `EvaluatedBuild`; the
-caller cannot skip consent or substitute another invocation's result.
+[`build_evaluation.rs`](src/build_evaluation.rs) runs one Build: it selects the
+entry, checks the program before any effect, prepares the filesystem, admits the
+machine, asks consent for restricted requests and settles the normal return. `PreparedBuildEvaluation` holds that admission
+while the application steps one `TerminalBuildHost` activation (one interpreter
+run) and joins its dependency requests. Completion accepts
+only that run's normal return and produces `EvaluatedBuild`, so the caller
+cannot skip consent or substitute another run's result.
 `admitted_build_program.rs` binds the selected machine to its prepared program;
 `execution` prepares it and settles its returned values.
+
 Without a consent guard, a nonempty restricted request returns
 `CompileFailure::BuildConsentRequired` before execution, configuration decoding
-or generated-source continuation. Checked and dependency Build outcomes retain
-those structured requests; package review attributes their canonical meaning
-to the exact occurrence and reports dependent findings unavailable. Private
-issued snapshot/staging work projects no restricted request and still executes
-normally. Current package audit/update commands supply only that private mode;
-this stop is also exercised by callers of the public compiler/Build API with
-non-private filesystem scopes. It does not add a live-host grant command or
-complete the separate recoverable Build-consent/resume workflow.
-A prior check may retain its successful Build language judgment for the bound
-review pass. Admission uses Psi's exact-input reuse, then freshly settles
-comparison execution, filesystem custody, restricted consent and execution;
-an unchanged language judgment cannot lend an earlier invocation's grants.
-To observe the distinction, set `OMEGA_REVIEW_TIMINGS=1` and run ordinary
+or generated sources continue. Checked and dependency Build outcomes keep those
+requests; package review attributes each to its exact occurrence and reports
+dependent findings unavailable. Private snapshot and staging work issues no
+restricted request. Package audit and update use only that private mode; public
+compiler/Build API callers with non-private filesystem scopes hit this stop.
+No live-host grant command or recoverable consent-and-resume workflow exists yet.
+
+A prior check may keep its Build language verdict for the bound review pass.
+Admission reuses Psi's result for the exact same input, then settles comparison
+execution, filesystem custody, restricted consent and execution afresh, so an
+unchanged verdict cannot lend an earlier run's grants. To see this, set `OMEGA_REVIEW_TIMINGS=1` and run
 `omega packages update --project <project> --target macos_arm64 --offline` on a
-disposable copy of `samples/cli/basics/print_number` with its relative std
-dependency preserved. An unchanged bound pass reports `settled_checks=0`;
-the operation still checks Build and Product. This is a macOS observation command,
-not a cross-host execution claim or a separate review mode.
-Without a physical `build.omg`, source assembly supplies an ordinary in-memory
-Build entry. It follows the same checking, Terminal activation, dependency join
-and freeze route, retaining the admitted source role and owner without inventing
-a named declaration or selecting an executable entry. An authored Build file
-must supply its own entry and project declaration.
-For every selected Build entry, semantic checking is mandatory even without package
-inputs; package declaration authority adds to that floor. Execution consumes the
-checker-transformed program and its operator facts, with no separate
-specialization pass after checking. Provider derivation and replay use the
+disposable copy of `samples/cli/basics/print_number`, keeping its relative std
+dependency. An unchanged bound pass reports `settled_checks=0` yet still checks
+Build and Product. This is a macOS observation, not a claim about other hosts.
+
+Without a `build.omg`, source assembly supplies an ordinary in-memory Build
+entry that takes the same route, keeping the admitted source role and owner; it
+invents no named declaration and selects no executable entry. An authored Build file must supply its own entry
+and project declaration.
+
+Every selected Build entry is checked, even without package inputs; package
+declaration authority adds to that minimum. Execution runs the program as the
+checker transformed it, with no later specialization pass. Provider derivation and replay use the
 explicit Build dependency context and admitted execution profile. Selected
-comparison facts follow their exact declaration provenance into the same
-pure/granted interpreter; runtime adapter dispatch and service grants do not.
-Missing comparison execution custody rejects before Build effects.
-[Deferred constants](src/admission/selected_constants.rs) are prepared and resumed
-by this same admission owner before checking its settled program. Selected dispatch
-supplies only the exact selected numeric identity; Psi performs evaluation and
-validates its source execution plans. The source continuation is consumed once,
-in order, against its original declaration selection and admitted target context.
-The preliminary check covers the selected Build source and its helpers;
-Product roots remain deferred until the activation returns and its requested
-sources join.
+comparison facts keep their declaration origin into the same pure or granted
+interpreter; runtime adapter dispatch and service grants do not.
+A Build missing comparison execution custody is refused before any effect.
+
+[Deferred constants](src/admission/selected_constants.rs) are prepared and
+resumed by this same admission code before it checks the settled program.
+Selected dispatch supplies only the exact selected numeric identity; Psi
+evaluates and validates its source execution plans. The source continuation is
+consumed once, in order, against its original declaration selection and
+admitted target context. The first check covers the selected Build source and
+its helpers; Product roots wait until the run returns and its requested sources
+join.
+
 [Compilation products](../../compilation/products/src/evaluated_build.rs)
-owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exported
-here for callers. Evaluation produces those records; consumers need not import
-the evaluator merely to retain its result.
+defines the `BuildConfig` and `ComputedBuildConfig` records, re-exported here.
+Consumers need not import the evaluator to keep its result.
 
 The [Build-value protocol](../../packages/package-compilation/src/build_execution/build_value.rs)
-owns exact vocabulary admission, initial Build facets and normalized settings,
-including optimization counters and application/privileged-service fields.
-One admission object follows initialization through decoding. The compiler
-retains the settings whole beside separately checked root/provider/trust rows;
-it does not reproduce the value protocol or reconstruct its fields.
+admits the vocabulary and defines the initial Build facets and normalized
+settings, including optimization counters and application and privileged-service
+fields. One admission object follows the value from initialization through
+decoding. The compiler keeps the settings whole beside the separately checked
+root, provider and trust rows and never rebuilds their fields.
 
-[`terminal_settings.rs`](src/terminal_settings.rs) projects the settings from a
-normally returned Terminal instance's original borrowed Build storage, then
-uses that same validator. It reads paths and selected cases from the instance's
-own catalog; the admitted initial value supplies only result-descriptor labels.
-Host facets and product capabilities are not copied into settings. The embedding
-must retain the matching admission and initial value with its activation; this
-projection does not independently admit an arbitrary Terminal artifact as Build.
-`terminal_entry_writeback` exercises complete source-produced Build execution,
-ordered binding effects and settings readback across work-budget pauses, using both
-retained and loaded artifacts. It also tests nested records, case payloads,
-byte views and invalid identifiers, loaders and duplicate optimization counts.
-Production Build preparation uses this Terminal activation through
-`activation/preparation.rs` and the Build scheduler. With no `build.omg`, source
-assembly admits an ordinary in-memory default and keeps Product roots deferred
-until its checked activation returns. Its private source selection preserves
-supplied role/owner and cannot name a new project or bind an executable entry.
-Remaining host operations, complete live-storage/result accounting and
-dependency/provider suspension retain migration work.
+[`settings.rs`](src/settings.rs) reads the settings out of the original borrowed
+Build storage of a Terminal instance that returned normally, then runs the same
+validator. It reads paths and selected cases from the instance's own catalog;
+the admitted initial value supplies only field labels. Host facets and
+product capabilities are not copied. The caller must keep the matching admission
+and initial value with the run; this code admits no Terminal artifact as a Build
+on its own.
+`terminal_entry_writeback` tests a complete Build from source: ordered binding
+effects and settings readback across work-budget pauses, with retained and
+loaded artifacts, plus nested records, case
+payloads, byte views, invalid identifiers, loaders and duplicate optimization
+counts. Production Build preparation drives this run through
+`activation/preparation.rs` and the Build scheduler. Still to migrate: the
+remaining host operations, full accounting of live storage and results, and
+suspending for dependencies and providers.
 
 `mbx run -p compiler --example default_build` exercises application, package and
-anonymous defaults, one execution per invocation, role/graph substitution refusal,
-and retained Product preparation after deleting live source. Its Product defines
-a trapping machine named `build` and its own `Build` type; neither can impersonate
-the selected default or the toolchain receiver.
-Terminal's existing work meter now accepts the exact invocation sponsor and
-charges it at the ordinary operation/edge sites. The Build integration witness
-uses a shared account across two activations: an exact budget completes both,
-one unit less refuses the second return without publishing settings or replaying
-effects. These are real work observations, not complete storage/result receipts.
+anonymous defaults, one execution per invocation, refusal to substitute a role
+or graph, and Product preparation after the live source is deleted. Its Product
+defines a trapping machine named `build` and its own `Build` type; neither can
+pose as the selected default or the toolchain receiver.
+The interpreter's work meter charges the sponsor (the account paying for this
+invocation) at each operation and edge. The Build integration test shares one
+account across two runs: an exact budget completes both, and one unit less
+refuses the second return without publishing settings or replaying effects.
+This measures real work, not full storage or result receipts.
 
-Filesystem preparation, retained captured-input views, observation identities and
-sealed-output settlement belong to
-[package compilation custody](../../packages/package-compilation/src/build_execution.rs).
-The evaluator captures the interpreter observations, validates the returned
-Build configuration, then asks that owner to settle outputs and select generated
-sources. It does not assemble durable filesystem evidence itself.
+[Package compilation custody](../../packages/package-compilation/src/build_execution.rs)
+owns filesystem preparation, retained views of captured inputs, observation
+identities and settling sealed outputs. The evaluator captures the interpreter's
+observations, validates the returned configuration, then asks that code to
+settle outputs and select generated sources.
 
-Authored root trust grants and executed exclusion receipts are checked by
-[realization trust](../../compilation/realization/trust-model/README.md).
-Component assumptions instead use the existing consumer acceptance/lock route;
-ordinary Build policy may only attenuate that accepted ceiling under
-[component acceptance](../../../../wiki/spec/build/component_publication.md#consumer-acceptance-and-build-attenuation).
-The source `Build::accept_component_assumption` approval call is removed:
-Build evaluation records no component approval. Each verified component's
+[Realization trust](../../compilation/realization/trust-model/README.md) checks
+authored root trust grants and the receipts of executed exclusions. Component
+assumptions instead go through the consumer's acceptance and lock file; an
+ordinary Build may only narrow that accepted limit, as
+[component acceptance](../../../../wiki/spec/build/component_publication.md#consumer-acceptance-and-build-attenuation)
+describes. The source call `Build::accept_component_assumption` is gone; Build
+evaluation records no component approval. Each verified component's
 assumptions become `component_assumption` rows of the root Product occurrence,
-and root admission compares them with the consuming project's lock.
-Build evaluation decodes wire demands; Psi
-checks their meaning before publishing the checked program. Package review reconstructs grants through
-the same trust owner without calling the Build evaluator.
+and root admission compares them with the consuming project's lock. Build
+evaluation decodes the wire demands; Psi checks their meaning before it
+publishes the checked program. Package review rebuilds grants through the same
+trust code without calling the Build evaluator.
 
-Target-declaration preparation, provider-selection decoding and settlement belong to
-[provider planning](../../compilation/realization/provider-planning/README.md), not this
-evaluator. The provider planner retains target-declaration custody and consumes
-it into exact typed defaults and origins. Build execution supplies executed
-selection receipts to that owner, and package review uses its replay. The integration
-tests here exercise that declaration-to-settlement boundary, including canonical
-host services and independent-component rejection.
+[Provider planning](../../compilation/realization/provider-planning/README.md),
+not this evaluator, prepares target declarations, decodes provider selections
+and settles them. It keeps the target declarations and turns them into exact
+typed defaults and origins. Build execution hands it receipts for the selections
+that ran; package review uses its replay. The integration tests here cover that
+path, including canonical host services and refusal of independent components.
 
 ## Source-stage ownership
 
-Source assembly is not an evaluator responsibility. Package compilation's
+The evaluator does not assemble sources. Package compilation's
 [source assembly](../../packages/package-compilation/src/source/source_assembly.rs)
-prepares file frontiers through Psi 00/01. Its
-[source import owner](../../packages/package-compilation/src/source/source_imports.rs)
-owns project roots, dependency-scope selection, generated-source collision
-checks, parsed-file ownership and exact import bindings. Its
-[toolchain library owner](../../packages/package-compilation/src/source/toolchain_library.rs)
+loads and parses the files through Psi 00/01. Its
+[source imports](../../packages/package-compilation/src/source/source_imports.rs)
+own project roots, dependency-scope selection, collision checks on generated
+sources, which package owns each parsed file, and exact import bindings. Its
+[toolchain library](../../packages/package-compilation/src/source/toolchain_library.rs)
 selects and validates the bundled sources.
-Psi 00 owns physical/in-memory loading, scoped load queues and ordered batch lexing; Psi 01 owns
-batch parsing into the caller's syntax arena. Their source, token and parsed-root
-records live in the existing `source`, `tokens` and `syntax-trees` packages.
-Build/Product scope, source coordinates, backing text and diagnostic order travel
-through those operations unchanged. The shared
+Psi 00 loads files from disk or memory through scoped queues and lexes batches
+in order; Psi 01 parses batches into the caller's syntax arena. Their
+source, token and parsed-root records live in the `source`, `tokens` and
+`syntax-trees` packages. Build/Product scope, source positions, backing text
+and diagnostic order pass through unchanged. The shared
 [Build declarations](../../packages/build-declarations/src/prelude.rs)
-own prelude content; package source preparation selects its injection and scoped
-aliases. Source assembly loads and parses the result. Entry-contract seed
-selection belongs to the package source owner; neither lexical nor grammar rules
-depend on build evaluation. `ProjectSourceSelection` retains exact Build/Product
-root scopes and rejoins the selected Build source after parsing. `SourceStorage`
-admits the package-root roster, while `admit_dependency_generated_sources` checks
-scope-qualified paths before source assembly loads any generated unit.
+hold the prelude; package source preparation decides where it is injected and
+its scoped aliases, and source assembly loads and parses the result. The package
+source code also selects the entry-contract seed; no lexical or grammar rule
+depends on build evaluation. `ProjectSourceSelection` keeps the exact Build and
+Product root scopes and rejoins the selected Build source after parsing.
+`SourceStorage` admits the list of package roots, and
+`admit_dependency_generated_sources` checks scope-qualified paths before source
+assembly loads any generated unit.
 
 ## Pure execution across target requests
 
-One `CompilationSession` retains completed output-free Pure Builds for exact
-checked programs, initial values, captured source and dependency custody.
-Ordinary `CompileRequest` calls use the per-invocation evaluation policy without
-an aggregate sponsor; they may reuse a completed result too. The optional
-sponsor's measurement identity and limits participate in matching, so an
-unsponsored result cannot satisfy a later limited account. No account or grant
-is retained. Each occurrence still performs semantic/authority admission before
-looking for a completed result, and every target row remains in that result.
-Generated-source and required-output activations remain on their existing path.
+One `CompilationSession` keeps each completed Pure Build that wrote no outputs,
+keyed by the exact checked program, initial value, captured source and
+dependency custody. Ordinary `CompileRequest` calls, which have no shared
+sponsor, may reuse a result too. The optional sponsor's identity and limits are part of the match, so a
+result computed without a sponsor cannot serve a later limited account. No
+account or grant is kept. Each occurrence still passes semantic and authority
+admission before it looks for a completed result, and every target row stays in
+that result. Builds that generate sources or require outputs are not reused.
 
 A sponsored cache hit pays its recorded logical work, BuildLog and result-custody
-cost to the current account before publication. Its recorded live demand must
-fit beside current reservations. Refusal changes no counters and does not
-execute Build again. The returned usage keeps the measured invocation counts
-but names current sponsor limits and peaks; the cached producer remains immutable.
-This follows [result caching](../../../../wiki/spec/language/evaluation.md#result-caching-and-published-evidence),
-so a warm result cannot bypass a ceiling a cold evaluation would exceed.
+cost to the current account before it is published. Its recorded live demand
+must fit beside current reservations. A refusal changes no counters and reruns
+nothing. The returned usage keeps the measured counts but reports
+the current sponsor's limits and peaks; the cached result never changes.
+This follows [result caching](../../../../wiki/spec/language/evaluation.md#result-caching-and-published-evidence):
+a cached result cannot exceed a limit a fresh evaluation would hit.
 
-Run `mbx run -p compiler --example build_session` from the repository root.
-This public compiler measurement requires two target products and one Build
-execution. It also requires a later one-unit work account to reject and a
-different source input to execute its own Build.
-This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a new
-language fact row or a foreign-host execution claim. The broader capability,
-including generated-source and target-row completion, remains open.
+`mbx run -p compiler --example build_session` (from the repository root) requires two target products from one Build execution, a later one-unit
+work account to be refused, and a different source input to run its own Build.
+This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a claim
+about other hosts. Generated sources and completing target rows remain open.
 
-Run `mbx run -p compiler --example build_charge` to challenge current accounting.
-Two target rows execute one pure Build while paying two logical charges; a
-fresh equal-policy account pays its own charge, and an account short by one
-work unit rejects the warm occurrence without executing it. This measures the
-Build workflow rather than adding another language transport fact.
+In `mbx run -p compiler --example build_charge`, two target rows run one pure Build and pay two logical charges; a fresh account
+with the same policy pays its own charge, and an account one work unit short
+refuses the cached occurrence without running it.
 
 ## Root-binding implementation boundary
 
 `Build::bind(builder, Target::Slot, Product::entry);` lowers into ordinary
-boundary prepare/commit calls. Psi retains its designated product operands as
-source-issued companion context bound to the artifact and exact call identities,
-not as another typed statement or runtime debug-name lookup. The host resolver
-does not resolve those operands through host imports; selected-target/product
-admission still owns that resolution.
+prepare and commit calls at the boundary. Psi keeps the product operands as
+source-issued context tied to the artifact and exact call, not as a typed
+statement or a run-time lookup by debug name. The host
+resolver does not resolve those operands through host imports; admission of
+the selected target and product still does.
 
-Binding follows execution through the original compiler-issued `&mut Build`
-cell. Same-package helpers (including imported local modules), reference aliases,
-and state transitions use ordinary loan checking. Uncalled helpers and untaken
-states contribute no bindings; binding a slot twice on an executed path rejects.
-Build.target remains immutable through every alias.
+Binding follows execution through the original `&mut Build` cell the compiler
+issued. Same-package helpers (including imported local modules), reference
+aliases and state transitions use ordinary loan checking. Uncalled helpers and
+unentered states add no bindings; binding a slot twice on a path that runs is
+refused. Build.target stays immutable through every alias.
 
-The interpreter returns executed lexical selections separately from host
-observations. Terminal's binding adapter authenticates the original receiver,
-issues an activation-local ticket and consumes it once at commit. This owner
-rejoins requests to the occurrence's source/package before target selection;
-requests are not target-admission evidence.
+The interpreter returns executed lexical selections apart from host
+observations. Its binding adapter authenticates the original
+receiver, issues a ticket valid for this run and consumes it once at commit.
+This code rejoins each request to its occurrence's source and package before
+target selection; a request is not evidence for target admission.
 
-Crash, physical-class and service exclusions use this same prepare/commit
-protocol. Checked Omega helpers encode evaluated enum values; the host neither
-reads source expressions nor guesses enum layout tags. The normal-return ledger
-retains the authored call and selecting machine. Final Product admission resolves
-service declarations and exact toolchain cases before applying the restrictions
-to each selected target closure. Formation sees every service operand; execution
-alone selects a restriction. Duplicate restrictions union, and an untaken branch
-does not impose one.
+Crash, physical-class and service exclusions use the same prepare and commit
+calls. Checked Omega helpers encode evaluated enum values; the host neither
+reads source expressions nor guesses enum layout tags. The record of the normal
+return keeps the authored call and the machine that selected it. Final Product
+admission resolves service declarations and exact toolchain cases, then applies
+the restrictions to each selected target's closure. Formation sees every
+service operand; only execution selects a restriction. Duplicate restrictions
+combine, and a branch not taken imposes none.
 
 `mbx nextest run -p compiler --test terminal_behavior_exclusions` checks computed
-helper values, original receiver/ticket custody, target-local refusal, exact
-service identity, physical classification, and native/reloaded-Terminal execution.
+helper values, receiver and ticket custody, per-target refusal, exact service
+identity, physical classification, and native and reloaded-Terminal execution.
 
-Foreign helpers are admitted lexically: each `Build::bind` occurrence resolves
-its implementation against the product machines of its own source package, so a
-helper can bind its own package's entry but never the caller's private
-declarations. The exact machine symbol survives into Terminal production and
-native entry settlement, so same-named machines across packages cannot capture
-the selected identity. Owner-selected restricted product-reference handoff to
-helpers (no `ProductEntryRef`-style description yet) and computed call-result
-receivers remain explicit implementation limits.
+Helpers from other packages are admitted lexically: each `Build::bind`
+occurrence resolves its implementation against the product machines of its own
+source package. A helper can bind its own package's entry but never the
+caller's private declarations. The exact machine symbol survives into Terminal
+production and native entry settlement, so machines with the same name in
+different packages cannot take over the selected identity. Two limits remain:
+handing an owner-chosen restricted product reference to a helper (no
+`ProductEntryRef`-style description yet), and receivers computed by a call.
 [Evaluated build work](../../../../wiki/spec/build/declarations.md#evaluated-build-work)
 defines the accepted language; the remaining restricted product-description and
 lexical selection handoff is tracked by `BUILD-PRODUCT-REFERENCES` in `TASKS.md`.
 
-Build-owned native imports use the same original-activation prepare/commit
-protocol in [terminal_bindings/native_bindings.rs](src/terminal_bindings/native_bindings.rs).
+Native imports owned by the Build use the same prepare and commit calls on the
+original run, in [native_bindings.rs](src/host/bindings/native_bindings.rs).
 The checked, owned `ForeignBinding` value is decoded through Psi's common core
-vocabulary; this host records inert requirement/target/locator intent and its
-actual accounting. It neither selects a provider nor calls the foreign code.
-Checked source formations travel beside their exact Terminal artifact before
-Build bodies are erased. Normal completion retains those formations, reached
-effects, code identity and observations for the package-output owner.
+vocabulary; this host records requirement, target and locator as inert intent,
+plus its accounting. It neither selects a provider nor calls the
+foreign code. Checked source formations travel beside their exact Terminal
+artifact before Build bodies are erased. Normal completion keeps those
+formations, reached effects, code identity and observations for package output.

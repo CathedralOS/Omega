@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Bounded stdin supplied-K flash at fixed temperature and pressure.
 // Expected exit: 64.
 // Expected output contains: INVALID fractions_or_K
@@ -6,7 +7,7 @@ use io::input;
 use io::report;
 use model::flash;
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let mut raw: io::input::Raw;
     let mut feed: io::input::Feed;
     let mut solution: model::flash::Solution;
@@ -28,20 +29,20 @@ machine Main::main(main: &mut Main) reaches Console {
             false -> verify(feed, solution)
         }
     }
-    machine ambiguous(feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(feed, solution); Console::exit_process(3); }
+    machine ambiguous(feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(feed, solution); ProcessExit::exit_process(3); }
     machine verify(feed: &io::input::Feed, solution: &model::flash::Solution) {
         transition model::flash::verify(feed, solution) {
             true -> done(feed, solution)
             false -> failed()
         }
     }
-    machine done(feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(feed, solution); Console::exit_process(0); }
-    machine failed() { Console::write_line("FAIL numerical_closure_or_composition"); Console::exit_process(65); }
-    machine invalid() { Console::write_line("INVALID fractions_or_K"); Console::exit_process(64); }
+    machine done(feed: &io::input::Feed, solution: &model::flash::Solution) { io::report::emit(feed, solution); ProcessExit::exit_process(0); }
+    machine failed() { Console::write_line("FAIL numerical_closure_or_composition"); ProcessExit::exit_process(65); }
+    machine invalid() { Console::write_line("INVALID fractions_or_K"); ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

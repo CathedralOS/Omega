@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Expected exit: 70.
 // Minimal miscompile probe: 5-arm case dispatch with payload variants first,
 // then no-payload variants. Tests that the no-payload Trigger arm (position 3)
@@ -39,7 +40,7 @@ machine Main::dispatch(main: &mut Main, event: AlarmEvent) {
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
     Main::dispatch(main, AlarmEvent::Trigger);
     Main::dispatch(main, AlarmEvent::Trigger);
@@ -52,18 +53,18 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::write_line("PASS: fire_count == 2 after two Trigger dispatches (exit 70)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        ProcessExit::exit_process(70);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: fire_count != 2 -- Trigger arm dropped or unreachable (exit 71)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

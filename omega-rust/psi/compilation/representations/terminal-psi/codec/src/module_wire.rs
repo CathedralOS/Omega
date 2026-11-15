@@ -1970,8 +1970,9 @@ pub(crate) mod access_view_plan_wire {
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
     use access_plans::{
-        AccessExposure, AccessPermissions, AccessPlanSnapshot, AtomicPermissions, BoundaryReach,
-        BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, ValidatedAccessPlan,
+        AccessExposure, AccessPermissions, AtomicPermissions, BoundaryReach,
+        BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, PlacementSnapshot,
+        ValidatedPlacement,
     };
     use layout_plans::{
         IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -2019,7 +2020,7 @@ pub(crate) mod access_view_plan_wire {
 
     pub(crate) fn encode_placement(
         writer: &mut Writer,
-        placement: &ValidatedAccessPlan,
+        placement: &ValidatedPlacement,
     ) -> Result<(), CodecError> {
         let snapshot = placement.snapshot();
         writer.u64(snapshot.layout.schema_report_fingerprint);
@@ -2131,7 +2132,7 @@ pub(crate) mod access_view_plan_wire {
 
     pub(crate) fn decode_placement(
         reader: &mut Reader<'_>,
-    ) -> Result<ValidatedAccessPlan, CodecError> {
+    ) -> Result<ValidatedPlacement, CodecError> {
         let schema_report_fingerprint = reader.u64()?;
         let size = decode_optional_u64(reader)?;
         let align = reader.u64()?;
@@ -2181,7 +2182,7 @@ pub(crate) mod access_view_plan_wire {
             BoundaryServiceReachId::from_normalized_identity(reader.u64()?)
                 .map_err(|error| CodecError::AccessPlan(error.to_string()))
         })?;
-        AccessPlanSnapshot {
+        PlacementSnapshot {
             layout: LayoutPlanReport {
                 schema_report_fingerprint,
                 entries,
@@ -2436,8 +2437,9 @@ pub(crate) mod access_view_wire {
 pub(crate) mod closed_conformance_wire {
 
     use super::super::wire_fields::{
-        Bytes, Commitment, Digest, Id, Index, LifetimeDependency, List, Nominal, Optional, Path,
-        ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum, wire_record,
+        Bytes, Commitment, DECLARED_LIFETIME_FAMILY, DeclaredLifetimeDependency, Digest, Id, Index,
+        List, Nominal, Optional, Path, ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum,
+        wire_record,
     };
     use super::callable_wire::Callable;
     use terminal_psi::{
@@ -2487,11 +2489,10 @@ pub(crate) mod closed_conformance_wire {
             callable: Callable,
             application_commitment: Optional<Digest>,
             method_arguments: List<ReachArgument>,
-            result_lifetimes: Optional<List<ResultLifetime>>,
         }
         ResultLifetime: DeclaredResultLifetime {
-            inputs: List<LifetimeDependency>,
-            results: List<Path>,
+            inputs: List<DeclaredLifetimeDependency>,
+            results: List<Path<DECLARED_LIFETIME_FAMILY>>,
         }
         Row: ClosedConformanceRow {
             requirement_declaration: Nominal,
@@ -3016,7 +3017,7 @@ pub(crate) mod float_meaning_wire {
         }
     }
 
-    struct Format;
+    pub(crate) struct Format;
     impl Field<IeeeFloatFormat> for Format {
         fn write(writer: &mut Writer, value: &IeeeFloatFormat) -> Result<(), CodecError> {
             encode_ieee_float_format(writer, *value);
@@ -3450,7 +3451,7 @@ pub(crate) mod proof_scope_wire {
                     writer.boolean(facts.local_terminates);
                     writer.boolean(facts.entry_requires);
                     target(writer, &facts.linear_carrier)?;
-                    target(writer, &facts.static_application)?;
+                    target(writer, &facts.invocation_refusal)?;
                     writer.boolean(facts.selections.is_ok());
                     match &facts.selections {
                         Ok(requests) => {
@@ -3690,7 +3691,7 @@ pub(crate) mod proof_scope_wire {
                         local_terminates: reader.boolean()?,
                         entry_requires: reader.boolean()?,
                         linear_carrier: read_target(reader)?,
-                        static_application: read_target(reader)?,
+                        invocation_refusal: read_target(reader)?,
                         selections: if reader.boolean()? {
                             Ok(decode_counted(reader, |reader| {
                                 Ok(semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {

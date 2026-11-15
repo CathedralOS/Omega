@@ -687,8 +687,10 @@ pub(crate) mod block_bindings {
                 }
                 let mut arrived = projected_value.unwrap_or_else(|| value.clone());
                 // An explicit structural cast (`value as +D`, `value as -D`)
-                // arrives in its destination's whole-value domains; the
-                // verified module already admitted the change and its issuer.
+                // arrives in its destination's whole-value domains, and a
+                // reference in the domains its destination displays on its
+                // referent; the verified module already admitted the change,
+                // its issuer and its proof.
                 if self
                     .program
                     .catalogs
@@ -701,6 +703,7 @@ pub(crate) mod block_bindings {
                     })
                 {
                     arrived.qualifications = parameter.qualifications.clone();
+                    arrived.projected_qualifications = parameter.projected_qualifications.clone();
                 }
                 resolved_arguments.push(arrived);
             }
@@ -1107,7 +1110,7 @@ pub(crate) mod completion {
             Ok(())
         }
 
-        fn retire_home_companions(&mut self, place: PlaceId) {
+        pub(crate) fn retire_home_companions(&mut self, place: PlaceId) {
             self.aggregate_argument_backings.remove(&place);
             self.byte_sequence_values.remove(&place);
             self.element_view_values.remove(&place);
@@ -1575,6 +1578,7 @@ pub(crate) mod structural_return {
     use crate::boundary::errors::malformed;
     use crate::engine::custody::verified_structural_place;
     use crate::storage::scalar_array::TerminalScalarArrayResult;
+    use terminal_semantics::normal_completion::structural_return_carrier_matches;
 
     impl TerminalExecution<'_> {
         pub(crate) fn settle_return_structural(
@@ -1831,15 +1835,45 @@ pub(crate) mod structural_return {
                             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
                             && matches!(byte_sequence, Some(ref binding) if binding.access() == StructuralAccess::MutableBorrow
                             && binding.validate_mutable_referent(self, &value).is_ok())));
+                let declaration = self.structural_declaration(signature.structural_type)?;
+                let carried_multiplicity = if borrowed_descriptor {
+                    StructuralMultiplicity::Unrestricted
+                } else if signature.multiplicity == StructuralMultiplicity::Unrestricted
+                    && structural_return_carrier_matches(
+                        &signature,
+                        declaration,
+                        StructuralMultiplicity::Affine,
+                    )
+                {
+                    // A freshly formed shared reference can transfer its
+                    // affine loan into a copyable result. Authenticate the
+                    // actual source's frontier before transferring it.
+                    let machine = self.program.machine(self.current_machine)?;
+                    let origin =
+                        terminal_semantics::structural_argument_source(machine, *source, 0)
+                            .ok_or(malformed())?;
+                    if origin.structural_type != declaration.id
+                        || !structural_return_carrier_matches(
+                            &signature,
+                            declaration,
+                            origin.multiplicity,
+                        )
+                    {
+                        return Err(malformed());
+                    }
+                    if origin.access == StructuralAccess::Owned {
+                        origin.multiplicity
+                    } else {
+                        signature.multiplicity
+                    }
+                } else {
+                    signature.multiplicity
+                };
                 let carried = crate::engine::custody::whole_value_frontier(
                     &self.structural_types(),
                     *source,
                     signature.structural_type,
-                    if borrowed_descriptor {
-                        StructuralMultiplicity::Unrestricted
-                    } else {
-                        signature.multiplicity
-                    },
+                    carried_multiplicity,
                     self.live_claim_paths_at(*source),
                     &|current| self.stored_case_at_discard(&self.structural_values, current),
                 )?;
@@ -2272,6 +2306,22 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched settle_structural_case")
         };
+        // Resolve each selector once at the common read, before a case chooses
+        // an edge. Use the same checked runtime projection as ordinary reads;
+        // the retained terminator and its obligation coordinates stay unchanged.
+        let mut selected_path;
+        let path = if path.iter().any(|segment| segment.runtime_index().is_some()) {
+            selected_path = path.clone();
+            self.select_runtime_projection(
+                *source,
+                self.live_structural_type(*source)?,
+                path,
+                &mut selected_path,
+            )?;
+            selected_path.as_slice()
+        } else {
+            path.as_slice()
+        };
         for (position, segment) in path.iter().enumerate() {
             if let StructuralPathSegment::Case(case) = segment
                 && self.observe_structural_case(*source, &path[..position])? != *case
@@ -2474,13 +2524,14 @@ impl TerminalExecution<'_> {
             )?;
             return Ok(TerminatorFlow::Continue);
         }
+        let requirement = declaration.external_completion_requirement();
         let demand = crate::engine::capabilities::TerminalExternalCompletionDemand {
-            boundary: *boundary,
+            boundary: requirement,
             kind: *kind,
         };
         if !self
             .external_bindings
-            .get(boundary)
+            .get(&requirement)
             .is_some_and(|admission| {
                 admission.answers(
                     self.program.identity.semantic(),
@@ -2517,7 +2568,7 @@ impl TerminalExecution<'_> {
             machine: self.current_machine,
             block: self.current,
             edge: *edge,
-            boundary: *boundary,
+            boundary: requirement,
             kind: *kind,
             return_code,
             frontier_lower_bound: frontier_lower_bound.clone(),

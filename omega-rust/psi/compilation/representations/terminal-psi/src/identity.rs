@@ -518,9 +518,8 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Callable values carry their complete structural contract and exact
-            // named code selection independently of executable scalar terms.
-            135
+            // Callable contracts and numeric clauses share this vocabulary.
+            137
         }
     }
 }

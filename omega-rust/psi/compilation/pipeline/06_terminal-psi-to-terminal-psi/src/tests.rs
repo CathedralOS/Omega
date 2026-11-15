@@ -27,6 +27,7 @@ mod applications;
 mod arithmetic_policies;
 mod array_lengths;
 mod arrays;
+mod atomic_wake;
 mod borrowed_restoration;
 mod boundary_calls;
 mod branch_warnings;
@@ -39,13 +40,16 @@ mod case_payloads;
 mod ceilings;
 mod collection_members;
 mod compiler_primitive_headers;
+mod connected_facts;
 mod contract_formation;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
+mod every_refusal;
 mod floats;
 mod guard_contradiction;
 mod handoffs;
+mod hosted_primitives;
 mod indexed_contracts;
 mod inferred_bounds;
 mod lifetime_elision;
@@ -59,6 +63,7 @@ mod operational_effects;
 mod owned_dispatch;
 mod owned_match_results;
 mod owned_records;
+mod parallel_checks;
 mod proof_scope;
 mod provider_supplies;
 mod published_no_return;
@@ -1378,6 +1383,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
@@ -1388,6 +1394,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Line"),
@@ -1594,7 +1601,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
         result: u32_type().into(),
         requires: Vec::new(),
         statements: vec![
-            Statement::Evaluate(transferred_when(1, 0)),
+            Statement::discard(transferred_when(1, 0)),
             returns(if read_again {
                 read(place(0, point()), 0)
             } else {
@@ -1639,6 +1646,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
 fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
         identity: "EmptyCase".into(),
@@ -2093,7 +2101,7 @@ fn a_read_after_construction_is_provably_the_constructed_operand() {
         requires: Vec::new(),
         statements: vec![
             bind(1, point_of(slot(0, u32_type()), unsigned(7))),
-            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            Statement::discard(call(2, vec![read(place(1, point()), 1)])),
             returns(call(2, vec![read(place(1, point()), 0)])),
         ],
     };
@@ -2194,7 +2202,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
         statements: vec![
             bind(0, point_of(unsigned(3), unsigned(7))),
             bind(1, place(0, point())),
-            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            Statement::discard(call(2, vec![read(place(1, point()), 1)])),
             bind(
                 2,
                 of_type(
@@ -2600,8 +2608,8 @@ fn a_stored_leaf_reads_as_the_stored_value_and_its_sibling_keeps_its_content() {
             bind(1, point_of(slot(0, u32_type()), unsigned(7))),
             bind(2, read(place(1, point()), 1)),
             store(1, &[1], unsigned(99)),
-            Statement::Evaluate(call(2, vec![slot(2, u32_type())])),
-            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            Statement::discard(call(2, vec![slot(2, u32_type())])),
+            Statement::discard(call(2, vec![read(place(1, point()), 1)])),
             returns(read(place(1, point()), 0)),
         ],
     };
@@ -3153,6 +3161,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     // `Gated { v } requires 1 <= v` beside `Point` and `Line`.
     let mut types = records();
     types.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Gated"),
@@ -3308,6 +3317,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::plain(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
@@ -3318,6 +3328,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Shape"),
@@ -3334,6 +3345,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Holder"),
@@ -3967,6 +3979,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let record = |spelled: &str, fields, requires| RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: spelled.to_owned(),
@@ -3996,6 +4009,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         )],
     ));
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("ByteRead"),
@@ -5523,6 +5537,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
     let mut records = constrained();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Both"),
@@ -5533,6 +5548,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Half"),
@@ -5543,6 +5559,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         identity: String::from("Limits"),
@@ -6097,7 +6114,7 @@ mod reuse {
         // machine 3's own hypotheses, which are the same propositions over
         // machine 3's own values; where it was found does not matter.
         let program = |third: u128| {
-            let invoke = |callee| Statement::Evaluate(call(callee, vec![unsigned(1), unsigned(2)]));
+            let invoke = |callee| Statement::discard(call(callee, vec![unsigned(1), unsigned(2)]));
             vec![
                 machine(Vec::new(), vec![invoke(2), invoke(3), returns(unsigned(0))]),
                 add(10),
@@ -6133,8 +6150,8 @@ mod reuse {
             ..machine(
                 vec![u32_type()],
                 vec![
-                    Statement::Evaluate(call(2, vec![slot(0, u32_type())])),
-                    Statement::Evaluate(call(2, vec![unsigned(7)])),
+                    Statement::discard(call(2, vec![slot(0, u32_type())])),
+                    Statement::discard(call(2, vec![unsigned(7)])),
                     returns(call(2, vec![unsigned(20)])),
                 ],
             )
@@ -6439,6 +6456,7 @@ mod generic_bodies {
         TerminalCompilation::Prepared(PreparedCompilation {
             arrivals: Vec::new(),
             closure: Ok(closure),
+            further: Vec::new(),
             forms: vec![GenericForms {
                 template,
                 name: "advance".to_owned(),

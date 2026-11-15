@@ -2,18 +2,18 @@
 //! group where each one stops.
 //!
 //! A full sweep checks every tracked `main.omg` under `samples/` and
-//! `tests/fixtures/` (about 9,000 programs, about an hour on one workstation).
+//! `tests/fixtures/` (about 9,000 programs, an hour on one workstation).
 //! Two smaller selections answer most questions in minutes:
 //!
 //! - `--quick` keeps every program outside `samples/cli/facts/` and, for each
-//!   fact, one positive program and one negative twin. A fact's places nearly
+//!   fact, one positive program and one negative twin. A fact's programs nearly
 //!   always stop at the same cause, so this shows every cause and its trend at
 //!   a fifth of the cost.
 //! - `--cause <text> --previous <sweep.tsv>` re-checks only the programs whose
 //!   cause in an earlier sweep contains `<text>`: did a fix land, and what
 //!   stops them now.
-//! - `--changed <rev> [--previous <sweep.tsv>]` checks the change's blast
-//!   zone since `<rev>`: programs whose own folder holds a changed file,
+//! - `--changed <rev> [--previous <sweep.tsv>]` checks what a change since
+//!   `<rev>` can affect: programs whose own folder holds a changed file,
 //!   programs whose path dependencies (followed to the end) hold a changed
 //!   `.omg` file, every program when the toolchain's `core` or `std` changed
 //!   (every check reads them), and, when the compiler

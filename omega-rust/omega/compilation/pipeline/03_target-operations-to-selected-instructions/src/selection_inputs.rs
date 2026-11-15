@@ -487,6 +487,7 @@ pub(crate) mod aggregate_result_input {
                                 | StructuralTypeShape::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                 )
+                                | StructuralTypeShape::ElementView { access: None, .. }
                         )
                 })
         }) {
@@ -885,9 +886,16 @@ pub(crate) mod aggregate_result_input {
             .iter()
             .find(|parameter| parameter.semantic.place == *place)?;
         let semantic = &parameter.semantic;
+        let structural_type = source
+            .geometry()
+            .declaration(semantic.structural_type)
+            .ok()?;
         if semantic.access != terminal_psi::StructuralAccess::Owned
-            || semantic.structural_type != declared.structural_type
-            || semantic.multiplicity != declared.multiplicity
+            || !terminal_semantics::normal_completion::structural_return_carrier_matches(
+                declared,
+                structural_type,
+                semantic.multiplicity,
+            )
         {
             return None;
         }
@@ -1141,7 +1149,12 @@ pub(crate) mod aggregate_result_input {
                 return None;
             }
         };
-        if structural_type != declared.structural_type || multiplicity != declared.multiplicity {
+        let structural_type = source.geometry().declaration(structural_type).ok()?;
+        if !terminal_semantics::normal_completion::structural_return_carrier_matches(
+            declared,
+            structural_type,
+            multiplicity,
+        ) {
             return None;
         }
         let placement = source.call_plan.result.as_ref()?;
@@ -4911,13 +4924,7 @@ pub(crate) mod storage_origin_input {
                     }]
                 }
             }
-            I::ElementViewRead { source, path, .. } => {
-                vec![StructuralArgument {
-                    place: *source,
-                    path: path.clone(),
-                    access: StructuralAccess::SharedBorrow,
-                }]
-            }
+            I::ElementViewRead { source, .. } => vec![source.clone()],
             I::StructuralByteSequenceFieldRead { source, field, .. } => {
                 vec![field_coordinate(geometry, source, Some(*field))?]
             }
@@ -5566,6 +5573,43 @@ pub(crate) mod structural_array_input {
     use calling_conventions::ValueShape;
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use terminal_psi::{StructuralAccess, StructuralTypeShape};
+
+    /// Whether this construction builds an owned element sequence (whose 16-byte
+    /// stored-length descriptor points at its literal-pool roster) rather than an inline
+    /// fixed array. `None` when the row is not a structural array construction.
+    pub(crate) fn owned_sequence(
+        source: &crate::native_geometry::NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+    ) -> Option<bool> {
+        let LegalizedScalarInstructionKind::EstablishStructuralArray {
+            result,
+            elements,
+            shape,
+        } = &row.kind
+        else {
+            return None;
+        };
+        let declaration = source
+            .geometry()
+            .iter()
+            .find(|entry| entry.id == result.structural_type)?;
+        let StructuralTypeShape::ElementView { access: None, .. } = declaration.shape else {
+            return Some(false);
+        };
+        let declared = crate::structural_inputs::structural_reference_input::shape(
+            result.structural_type,
+            source.geometry(),
+        )?;
+        (row.result.is_none()
+            && declared == *shape
+            && shape.byte_size == 16
+            && elements.iter().all(|argument| {
+                argument.access == StructuralAccess::Owned
+                    && argument.path.is_empty()
+                    && argument.place != result.place
+            }))
+        .then_some(true)
+    }
 
     pub(crate) fn elements(
         source: &crate::native_geometry::NativeFunction<'_>,

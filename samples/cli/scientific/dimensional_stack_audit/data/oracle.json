@@ -210,7 +210,6 @@
     }
   ],
   "oracle_inputs_sha256": {
-    "data/fixtures.json": "99a331c17ce809fd477c64fe595bd60d4106e58c301266397be2cbb32342c537",
-    "reference.py": "85e97090498d37008cdee544db362cf9580e6c1e2c4e9430135bf8bc2798a835"
+    "data/fixtures.json": "99a331c17ce809fd477c64fe595bd60d4106e58c301266397be2cbb32342c537"
   }
 }

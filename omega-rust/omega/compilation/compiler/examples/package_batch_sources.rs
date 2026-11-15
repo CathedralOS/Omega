@@ -1,8 +1,8 @@
-//! Measure mixed-source products from executed discovery, including preparation.
+//! Measures mixed-source products from executed discovery, including preparation.
 //!
-//! Actual Build execution supplies the source graph; package admission supplies
-//! Product plans. No fixture parser or second discovery pass is involved.
-//! Run alone because work counters are process-wide.
+//! Running the Build supplies the source graph; package admission supplies
+//! Product plans. No fixture parser or second discovery pass is used. Run
+//! alone: work counters are process-wide.
 
 use artifacts::compile_timings::counters;
 use compiler::{
@@ -48,7 +48,7 @@ fn measure() {
         let (mut requests, custody) = discover(
             &mut session,
             &mut completed,
-            &root.join("tests/fixtures/pass/effects/root_service_audit/main.omg"),
+            &root.join("tests/fixtures/pass/effects/root_service_audit/consumer/main.omg"),
             &[TargetProfile::host_if_supported().expect("Build host")],
             CompilationProduct::Check,
         );
@@ -95,7 +95,22 @@ fn measure() {
     }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--inspection-scalars")) {
         measure_inspection_scalars(&mut session, &mut completed, &root);
-        measure_inspection_roots(&mut session, &mut completed, &root);
+        measure_inspection_roots(
+            &mut session,
+            &mut completed,
+            &root.join("tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+            ["constant", "state_graph"],
+        );
+        session.close().expect("close batch resources");
+        return;
+    }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--inspection-roots")) {
+        measure_inspection_roots(
+            &mut session,
+            &mut completed,
+            &root.join("tests/fixtures/run/ownership/incoming_record_reference_return/main.omg"),
+            ["retained", "verify"],
+        );
         session.close().expect("close batch resources");
         return;
     }
@@ -576,7 +591,8 @@ fn measure_inspection_scalars(
 fn measure_inspection_roots(
     session: &mut BuildSession,
     completed: &mut Vec<CompletedBuild>,
-    root: &Path,
+    fixture: &Path,
+    [first, second]: [&str; 2],
 ) {
     let targets = [
         TargetProfile::WindowsX64,
@@ -586,15 +602,15 @@ fn measure_inspection_roots(
     let (mut requests, custody) = discover(
         session,
         completed,
-        &root.join("tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+        fixture,
         &targets,
-        CompilationProduct::Inspection("constant".to_owned()),
+        CompilationProduct::Inspection(first.to_owned()),
     );
-    requests[1].product = CompilationProduct::Inspection("state_graph".to_owned());
+    requests[1].product = CompilationProduct::Inspection(second.to_owned());
     let (mut missing_requests, missing_custody) = discover(
         session,
         completed,
-        &root.join("tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+        fixture,
         &[TargetProfile::LinuxArm64],
         CompilationProduct::Inspection("missing_inspection_name".to_owned()),
     );
@@ -607,14 +623,12 @@ fn measure_inspection_roots(
         Err(error) => error,
         Ok(_) => panic!("missing machine must reject at its original request position"),
     };
-    assert!(
-        error
-            .failure
-            .into_diagnostics()
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("MachineNotFound")
-                && diagnostic.message.contains("missing_inspection_name"))
-    );
+    assert!(error.failure.into_diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("no declaration has that source name")
+            && diagnostic.message.contains("missing_inspection_name")
+    }));
     let inspected = outputs
         .into_iter()
         .map(|output| {
@@ -634,11 +648,11 @@ fn measure_inspection_roots(
     );
     assert_eq!(counts.0, 0);
     assert_eq!(
-        counts.3, 3,
-        "two selected roots and one refused name attempt"
+        counts.3, 2,
+        "a missing source name never reaches publication"
     );
     println!(
-        "inspection_roots=3 missing_name=refused distinct_roots=2 terminal_productions=3 same_root_storage=true different_root_semantics=true"
+        "inspection_roots=3 missing_name=refused distinct_roots=2 terminal_productions=2 same_root_storage=true different_root_semantics=true"
     );
     drop((custody, missing_custody));
 }

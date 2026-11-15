@@ -26,6 +26,12 @@ pub fn settled_slot_schemas(
 ) -> Vec<SlotSchema> {
     let mut schemas = Vec::<SlotSchema>::new();
     for requirement in settled.requirements() {
+        if requirement.supply.checked().is_none() {
+            continue;
+        }
+        if requirement.supply.checked().is_none() {
+            continue;
+        }
         let slot = requirement.reached.slot;
         if schemas.iter().any(|schema| schema.slot == slot) {
             continue;
@@ -259,6 +265,12 @@ fn settle_execution(
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let next = selected_boundary_implementations(accepted.module(), &realization)?;
         if next == bindings {
+            let realization = realization
+                .resolve_installation_reach(
+                    accepted.module(),
+                    &accepted.installation_reach_requirements(),
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
             return SelectedExecution::from_realization(profile, realization);
         }
         if bindings

@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Format a number as text -- the reverse of parse_number, and the core of printing
 // numbers. The tens and ones digits are extracted with `/ 10` and `% 10`, turned
 // into their character codes by adding '0' (48), narrowed through the named
@@ -25,7 +26,7 @@ data Main {
     ones_byte: u8;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("format_number: rendering the number 25 into a text carrier digit by digit");
     main.buffer = "00";
     main.value = 25;
@@ -49,19 +50,19 @@ machine Main::main(main: &mut Main) reaches Console {
     machine ok(main: &mut Main) {
         Console::write_line("PASS: buffer matches '25' (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(70);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: formatted text mismatch (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

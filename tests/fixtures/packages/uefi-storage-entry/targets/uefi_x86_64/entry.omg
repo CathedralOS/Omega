@@ -36,7 +36,7 @@ public boundary trait UefiPhysicalEntry {
         reaches ExtentRootProvider + ProgramStorageEntry + PortIo + MachineControl
         invokes ExtentRootProvider
         invokes ProgramStorageEntry
-        requires addr::Bound == 18446744073709551616;
+        requires addr::Bound == 18446744073709551616 crashes none;
 }
 
 data UefiX86_64 { }

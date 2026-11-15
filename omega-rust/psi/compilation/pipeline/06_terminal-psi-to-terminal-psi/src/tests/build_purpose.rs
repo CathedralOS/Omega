@@ -28,8 +28,20 @@ fn frontier() -> typed_trees::TypedTrees {
 
 /// The same, for any pair of Product and Build texts.
 pub(super) fn frontier_of(product: &str, build: &str) -> typed_trees::TypedTrees {
+    frontier_with_core(product, build, &[])
+}
+
+/// Load the exact bundled declarations a focused source program imports.
+/// Their real toolchain origin and package-relative paths retain recognition;
+/// inserting a local declaration with the same spelling would not.
+pub(super) fn frontier_with_core(
+    product: &str,
+    build: &str,
+    core: &[(&str, &str, &str)],
+) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
+    let mut product_source = None;
     for (path, text, scope) in [
         ("package/main.omg", product, DependencyScope::Product),
         ("package/build.omg", build, DependencyScope::Build),
@@ -45,6 +57,9 @@ pub(super) fn frontier_of(product: &str, build: &str) -> typed_trees::TypedTrees
                 scope,
             )
             .source_id;
+        if scope == DependencyScope::Product {
+            product_source = Some(id);
+        }
         let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         match &mut syntax {
             None => {
@@ -56,9 +71,32 @@ pub(super) fn frontier_of(product: &str, build: &str) -> typed_trees::TypedTrees
             }
         }
     }
-    let mut request =
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+    let mut syntax = syntax.unwrap();
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
+    let mut bindings = Vec::with_capacity(core.len());
+    for &(file, declaration, text) in core {
+        let id = sources
+            .add_with_metadata(
+                root.join(file),
+                text.to_owned(),
+                root.clone(),
+                None,
+                source::SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).unwrap();
+        bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
+            product_source.unwrap(),
+            id,
+            &format!("omega::language::core::{declaration}"),
+            3,
+        ));
+    }
+    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
+    request.top_level_bindings = bindings;
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
@@ -128,7 +166,10 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
 }
 
 /// The checker's verdict on the Build program `build`, rooted at its
-/// `build_entry`, beside an empty Product.
+/// `build_entry`, beside an empty Product: the verdict on its closure.
+/// Every other verdict a program without generic machines or
+/// implementations gets is a further refusal of the same reading, which the
+/// closure's refusal already refuses the compilation for.
 pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
     let typed = frontier_of("machine product_entry() { }", build);
     let entry = symbol(&typed, "build_entry");
@@ -140,7 +181,13 @@ pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::Compilatio
         )
         .program,
     );
-    assert_eq!(verdicts.len(), 1);
+    assert!(
+        verdicts
+            .iter()
+            .skip(1)
+            .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
     verdicts.remove(0)
 }
 

@@ -48,8 +48,6 @@ late native code-layout metadata is unavailable to same-product semantic constan
 An unrelated refusal does not establish this boundary. The target twin evaluates
 the same ordinary query helper in that constant before its checked provider
 returns the result; it does not try to interpret an opaque selected requirement.
-All standard Main and Build files are mirrored under
-`tests/omega/{pass,fail}/facts/selected_native_code_layout_through_*`.
 
 Additional controls copy a complete `CodeRegion` beyond the helper that created
 its layout ([snapshot](controls/region_snapshot/main.omg)), reject that same

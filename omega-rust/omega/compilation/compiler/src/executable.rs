@@ -125,6 +125,7 @@ pub(super) fn prepare(
     )?;
     let native = native_compiler::TerminalNativeProposalRequest {
         evaluated_binding_identities: realization.evaluated_binding_identities(),
+        native_bindings: &[],
         direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
         target_profile: Some(profile),
         boundaries: native_compiler::BoundaryApplicationSettlement {

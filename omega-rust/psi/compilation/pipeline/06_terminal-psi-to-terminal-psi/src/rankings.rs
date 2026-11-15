@@ -722,7 +722,8 @@ impl Normalize<'_, '_> {
                             )?),
                         ))
                     }
-                    OperationKind::ByteSequenceLength { source } => {
+                    OperationKind::ByteSequenceLength { source }
+                    | OperationKind::ElementViewLength { source } => {
                         let mut source = source.clone();
                         if let Some((target, edge, _)) = substitution {
                             if before.0 != target

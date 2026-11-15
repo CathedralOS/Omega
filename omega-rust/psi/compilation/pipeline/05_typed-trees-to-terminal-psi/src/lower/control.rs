@@ -214,12 +214,33 @@ impl Lowering<'_> {
         Ok(())
     }
 
+    /// A return or tail arrival leaves every enclosing computed match.
+    /// Retain their real owner roots until the result/arguments are captured;
+    /// the ordinary affine partition disposes only the unmoved remainder.
+    fn selected_temporary_cleanup(&self) -> Vec<terminal_psi::TerminalAffineCleanupAction> {
+        let mut homes = Vec::new();
+        for home in self
+            .selected
+            .iter()
+            .rev()
+            .filter_map(|chosen| chosen.temporary())
+        {
+            if !homes.contains(&home) {
+                homes.push(home);
+            }
+        }
+        homes
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::RetireHome)
+            .collect()
+    }
+
     fn return_value(&mut self, value: ValueId, source: SourceOrigin) -> Checked<()> {
         let edge = self.edge(Destination::Return, source)?;
         self.terminate(Terminator::Return {
             edge,
             value,
-            cleanup_actions: Vec::new(),
+            cleanup_actions: self.selected_temporary_cleanup(),
         })?;
         self.guarantee(edge, source)
     }
@@ -250,7 +271,7 @@ impl Lowering<'_> {
             edge,
             source: source_root,
             returned_claims: Vec::new(),
-            cleanup_actions: Vec::new(),
+            cleanup_actions: self.selected_temporary_cleanup(),
         })?;
         if no_normal_value {
             Ok(())
@@ -263,7 +284,7 @@ impl Lowering<'_> {
         let edge = self.edge(Destination::Return, source)?;
         self.terminate(Terminator::ReturnUnit {
             edge,
-            cleanup_actions: Vec::new(),
+            cleanup_actions: self.selected_temporary_cleanup(),
         })?;
         self.guarantee(edge, source)
     }
@@ -293,7 +314,13 @@ impl Lowering<'_> {
                         Bound::Record(continuing!(self.bind_record(value)))
                     }
                     Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
-                        Bound::Scalar(continuing!(self.scalar(value)))
+                        let scalar = continuing!(self.scalar(value));
+                        match self.lender_homes.get(*slot).copied().flatten() {
+                            Some(home) => {
+                                Bound::Home(self.establish_home(scalar, home, value.source)?)
+                            }
+                            None => Bound::Scalar(scalar),
+                        }
                     }
                 };
                 *self.slot_mut(*slot)? = Some(bound);
@@ -348,8 +375,25 @@ impl Lowering<'_> {
                 }
                 Ok(Reached::Value(()))
             }
-            Statement::Evaluate(expression) => {
-                self.expression(expression).map(|reached| reached.map(drop))
+            Statement::Evaluate {
+                expression,
+                discards_result,
+            } => {
+                // effects.md: a proved non-returning call has no result to
+                // discard. Use the actual once-only evaluation, including its
+                // published contract, rather than predicting that from syntax
+                // or treating an inhabited result as disposable.
+                match self.expression(expression)? {
+                    Reached::Ended(origin) => Ok(Reached::Ended(origin)),
+                    Reached::Value(_) if expression.result.is_none() || *discards_result => {
+                        Ok(Reached::Value(()))
+                    }
+                    Reached::Value(_) => Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Statement("expression statement that discards its value"),
+                    )),
+                }
             }
             Statement::Arm {
                 guard: Some(guard),
@@ -420,38 +464,63 @@ impl Lowering<'_> {
         match target {
             Target::Unit => self.return_unit(source),
             Target::Crash(cause) => self.crash(*cause, source),
-            // A member's arguments are scalars, evaluated left to right like
-            // any call's, and the edge carries them.
-            Target::Value(expression) if let Some((member, arguments)) = self.loops(expression) => {
-                let (values, structural, cleanup) =
-                    match self.tail_arguments(member, arguments, expression.source)? {
-                        Reached::Value(arguments) => arguments,
-                        Reached::Ended(_) => return Ok(()),
-                    };
-                self.arrive(
-                    member,
-                    values,
-                    structural,
-                    cleanup,
-                    expression.source,
-                    Some(expression.call_context.unwrap_or_default()),
-                )
-            }
-            // An arm whose every path ends at a call that never returns is
-            // complete there.
-            Target::Value(expression) => {
-                let value = self.expression(expression);
-                match value? {
-                    Reached::Ended(_) => Ok(()),
-                    Reached::Value(Value::Scalar(value)) => {
-                        self.return_value(value, expression.source)
-                    }
-                    Reached::Value(Value::Record(root)) => {
-                        self.return_record(root, expression.source)
-                    }
-                    Reached::Value(Value::Unit) => self.return_unit(expression.source),
+            Target::Value(value) => self.complete_value(value),
+        }
+    }
+
+    fn complete_value(&mut self, expression: &Expression) -> Checked<()> {
+        if let ExpressionKind::Match {
+            capture,
+            subject,
+            arms,
+            default,
+        } = &expression.kind
+        {
+            // The selected arm completes this invocation. Reuse the ordinary
+            // match dispatch, then transfer/clean up that arm directly rather
+            // than create a continuation after its recursive call.
+            let bound = self.slots.clone();
+            self.dispatch_match(
+                subject,
+                arms,
+                default.as_deref(),
+                expression.source,
+                *capture,
+                |lowering, value, _temporary| {
+                    lowering.complete_value(value)?;
+                    lowering.slots.clone_from(&bound);
+                    Ok(())
+                },
+            )?;
+            return Ok(());
+        }
+        if let Some((member, arguments)) = self.loops(expression) {
+            let (values, structural, mut cleanup) =
+                match self.tail_arguments(member, arguments, expression.source)? {
+                    Reached::Value(arguments) => arguments,
+                    Reached::Ended(_) => return Ok(()),
+                };
+            for action in self.selected_temporary_cleanup() {
+                if !cleanup.contains(&action) {
+                    cleanup.push(action);
                 }
             }
+            return self.arrive(
+                member,
+                values,
+                structural,
+                cleanup,
+                expression.source,
+                Some(expression.call_context.unwrap_or_default()),
+            );
+        }
+        // An arm whose every path ends at a call that never returns is
+        // complete there. Other values use their ordinary return transfer.
+        match self.expression(expression)? {
+            Reached::Ended(_) => Ok(()),
+            Reached::Value(Value::Scalar(value)) => self.return_value(value, expression.source),
+            Reached::Value(Value::Record(root)) => self.return_record(root, expression.source),
+            Reached::Value(Value::Unit) => self.return_unit(expression.source),
         }
     }
 
@@ -563,8 +632,34 @@ impl Lowering<'_> {
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
     ) -> Evaluation<Value> {
+        let mut arrivals = Arrivals::default();
+        if let Reached::Ended(call) = self.dispatch_match(
+            subject,
+            arms,
+            default,
+            source,
+            capture,
+            |lowering, value, temporary| lowering.arm(value, &mut arrivals, temporary),
+        )? {
+            arrivals.ended = Some(call);
+        }
+        self.join(arrivals, result_type)
+    }
+
+    /// Evaluate the selector once and enter each authored arm with its exact
+    /// case/decision facts. The caller owns whether that arm joins a value or
+    /// completes the invocation; dispatch itself introduces no continuation.
+    fn dispatch_match(
+        &mut self,
+        subject: &Expression,
+        arms: &[(Selector, Expression)],
+        default: Option<&Expression>,
+        source: SourceOrigin,
+        capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
+        mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
+    ) -> Evaluation<()> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
-            return self.scalar_match(subject, subject_type, arms, default, result_type);
+            return self.scalar_match(subject, subject_type, arms, default, finish);
         }
         let cases = arms
             .iter()
@@ -582,56 +677,39 @@ impl Lowering<'_> {
             .map(|(_, value)| value)
             .zip(blocks)
             .chain(default.zip(rest));
-        let mut arrivals = Arrivals::default();
         for (value, (block, chosen)) in bodies {
-            // Each arm is entered only on the dispatch edges of its cases:
-            // an authored branch the checker asks whether any arrival can
-            // take (`MachineSources::branches`).
             self.authored_arm(block, decided_in, value.source, value.source);
             self.enter(block);
+            let temporary = chosen.temporary();
             self.selected.push(chosen);
-            let reached = self.arm(value, &mut arrivals);
+            let reached = finish(self, value, temporary);
             self.selected.pop();
             reached?;
         }
-        self.join(arrivals, result_type)
+        Ok(Reached::Value(()))
     }
 
-    /// Value-position `match` over a scalar: the subject's one value, then
-    /// for each value arm in authored order its equality test and a branch
-    /// to the arm's block or on to the next test; after the last test, the
-    /// default. Every arm block jumps to a join whose one parameter is the
-    /// result, as over a sum. patterns.md: a dispatch "evaluates its subject
-    /// once, tests alternatives in authored order, and executes only the
-    /// selected arm". Each branch edge carries its decision, so an arm is
-    /// checked knowing its test held and every earlier one failed.
+    /// Scalar patterns retain their authored order and decisions. A pattern
+    /// that ends control preserves any earlier completed arms through the
+    /// caller's ordinary value-arrival or invocation-completion owner.
     fn scalar_match(
         &mut self,
         subject: &Expression,
         subject_type: ScalarType,
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
-        result_type: ValueType,
-    ) -> Evaluation<Value> {
+        mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
+    ) -> Evaluation<()> {
         let Some(default) = default else {
             return Err(self.internal("a scalar match without a default arm"));
         };
         let tested = continuing!(self.scalar(subject));
-        let mut arrivals = Arrivals::default();
         let mut decided_in = None;
         for (selector, value) in arms {
             let Selector::Value(pattern) = selector else {
                 return Err(self.internal("a case pattern on a scalar subject"));
             };
-            let expected = match self.scalar(pattern)? {
-                Reached::Value(value) => value,
-                Reached::Ended(call) => {
-                    // Earlier arms may already arrive. Only the remaining tests
-                    // end here, so retain those arrivals rather than ending the match.
-                    arrivals.ended = Some(call);
-                    return self.join(arrivals, result_type);
-                }
-            };
+            let expected = continuing!(self.scalar(pattern));
             let Value::Scalar(condition) = self.strict(
                 Strict::Equal,
                 subject_type,
@@ -648,10 +726,6 @@ impl Lowering<'_> {
             let rest = self.block(SourceOrigin::Unpositioned(
                 Unpositioned::DispatchContinuation,
             ));
-            // The arm is entered only on its test's true edge, and the
-            // arms after it only on its false edge: each is an authored
-            // branch the checker asks whether any arrival can take
-            // (`MachineSources::branches`).
             self.authored_arm(arm, here, value.source, pattern.source);
             self.branch(
                 condition,
@@ -660,18 +734,16 @@ impl Lowering<'_> {
                 pattern.source,
             )?;
             self.enter(arm);
-            self.arm(value, &mut arrivals)?;
+            finish(self, value, None)?;
             self.enter(rest);
             decided_in = Some(here);
         }
-        // The default takes what every test turned away, on the last test's
-        // false edge.
         if let Some(decided_in) = decided_in {
             let block = self.current()?;
             self.authored_arm(block, decided_in, default.source, default.source);
         }
-        self.arm(default, &mut arrivals)?;
-        self.join(arrivals, result_type)
+        finish(self, default, None)?;
+        Ok(Reached::Value(()))
     }
 
     /// Records the authored arm whose first block is `block`, entered only
@@ -693,12 +765,18 @@ impl Lowering<'_> {
 
     /// One arm of a value-position `match`, lowered in the open block: its
     /// value and where it arrives from, or the call at which it ended.
-    fn arm(&mut self, value: &Expression, arrivals: &mut Arrivals) -> Checked<()> {
-        self.joining += 1;
-        let value = self.expression(value);
-        self.joining -= 1;
-        match value? {
+    fn arm(
+        &mut self,
+        value: &Expression,
+        arrivals: &mut Arrivals,
+        temporary: Option<PlaceId>,
+    ) -> Checked<()> {
+        let source = value.source;
+        match self.expression(value)? {
             Reached::Value(value) => {
+                if let Some(home) = temporary {
+                    self.retire_homes(&[home], source)?;
+                }
                 arrivals.values.push((self.current()?, self.here()?, value));
             }
             Reached::Ended(call) => arrivals.ended = Some(call),
@@ -777,10 +855,23 @@ impl Lowering<'_> {
             self.point = Some(point);
             let (scalars, structures) = match (&result, value) {
                 (Value::Scalar(_), Value::Scalar(value)) => (vec![value], Vec::new()),
-                (Value::Record(_), Value::Record(place)) => (
-                    Vec::new(),
-                    vec![StructuralArgument::whole(place, StructuralAccess::Owned)],
-                ),
+                (Value::Record(_), Value::Record(place)) => {
+                    let ValueType::Record(record, qualification, _) = result_type else {
+                        return Err(self.internal("a record join without a record type"));
+                    };
+                    let multiplicity = self.records.multiplicity(record, self.id)?;
+                    let place = self.join_arrival(
+                        place,
+                        record,
+                        qualification,
+                        multiplicity,
+                        SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
+                    )?;
+                    (
+                        Vec::new(),
+                        vec![StructuralArgument::whole(place, StructuralAccess::Owned)],
+                    )
+                }
                 _ => return Err(self.internal("a match arm does not supply its join's value lane")),
             };
             self.jump_with_structural(
@@ -929,11 +1020,8 @@ impl Lowering<'_> {
             };
             self.branch(decided, when_true, when_false, decision_source)?;
             self.enter(evaluate_right);
-            self.joining += 1;
-            let evaluated = self.scalar(operand);
-            self.joining -= 1;
             // A nonreturning operand ends only its continuing path.
-            let Reached::Value(value) = evaluated? else {
+            let Reached::Value(value) = self.scalar(operand)? else {
                 break;
             };
             let Some(next) = operands.next() else {

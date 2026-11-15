@@ -56,7 +56,6 @@ mutable access. Completed obligations cannot be queried through this runtime API
 - **Omega 00–09:** Build's observed byte chooses the source entry that reaches
   native realization and execution; a wrong selected entry traps.
 
-The row and its controls are pinned under `tests/omega/{pass,fail}/facts/required_output_path`.
-Matching-host execution outside Linux x86-64 remains unmeasured. Parent acceptance
-still includes default-source Build execution, remaining operations/accounting,
-opaque-provider reference carriers and staged dependency/provider preparation.
+Matching-host execution outside Linux x86-64 remains unmeasured. Parent acceptance still
+includes default-source Build execution, remaining operations/accounting, opaque-provider
+reference carriers and staged dependency/provider preparation.

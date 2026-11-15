@@ -1,7 +1,7 @@
-//! Compare the calling shape before constructing a callable's body or proof
-//! witness. Type correspondence remains the caller's operation: generic
-//! applications supply their exact binder substitutions, and closed bindings
-//! use resolved identities. Neither path needs to lower a type to compare it.
+//! Compare a callable's calling shape before building its body or proof
+//! witness. Matching the types stays the caller's job: generic applications
+//! supply their exact binder substitutions, and closed bindings use resolved
+//! identities. Neither needs to lower a type to compare it.
 
 use crate::signature::StateParameter;
 use crate::types::TypeReferenceHandle;
@@ -94,15 +94,15 @@ impl<'source> CallableDeclaration<'source> {
         }
     }
 
-    pub fn has_lifetime_parameters(
+    pub fn lifetime_parameters(
         self,
-        program: &crate::TypedTrees,
-    ) -> Result<bool, &'static str> {
+        program: &'source crate::TypedTrees,
+    ) -> Result<&'source [crate::name::Identifier], &'static str> {
         match self {
-            Self::Signature(signature) => Ok(!signature.lifetime_parameters.is_empty()),
+            Self::Signature(signature) => Ok(&signature.lifetime_parameters),
             Self::Machine(symbol) => program
                 .machine_by_symbol(symbol)
-                .map(|machine| !machine.lifetime_parameters.is_empty())
+                .map(|machine| machine.lifetime_parameters.as_slice())
                 .ok_or("callable declaration lost its exact machine"),
         }
     }
@@ -466,4 +466,335 @@ pub fn compare_callable_signature_shapes<Error>(
         mismatches.push(CallableShapeMismatch::ReturnType);
     }
     Ok(mismatches)
+}
+
+#[cfg(test)]
+mod invocation_lifetime_tests {
+    use super::CallableDeclaration;
+    use crate::type_identity::LifetimeParameterIdentity as Region;
+    use crate::{TypedTrees, machine::Machine, name::Identifier, types::TypeReferenceNode};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn invocation_inputs_rebind_exact_nested_regions_and_preserve_foreign_owners() {
+        let mut symbols = SymbolTableBuilder::default();
+        let source = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("source"));
+        let caller = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
+        let foreign = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("foreign"));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let telescope = vec![Identifier::from("items"), Identifier::from("bytes")];
+        program.push_machine(Machine {
+            symbol: source,
+            lifetime_parameters: telescope.clone(),
+            ..Default::default()
+        });
+        program.push_machine(Machine {
+            symbol: foreign,
+            lifetime_parameters: vec![Identifier::from("bytes")],
+            ..Default::default()
+        });
+        let caller = Machine {
+            symbol: caller,
+            lifetime_parameters: telescope,
+            ..Default::default()
+        };
+        program.push_machine(caller.clone());
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let inner = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from("bytes")),
+            });
+        let sequence = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice {
+                element_type: inner,
+            });
+        let outer = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: sequence,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from("items")),
+            });
+        for (reference, ordinal) in [(outer, 0), (inner, 1)] {
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, source)
+                .unwrap();
+            program
+                .type_reference_table
+                .retain_operand_lifetimes(
+                    reference,
+                    [Region {
+                        declaration: source,
+                        ordinal,
+                    }],
+                )
+                .unwrap();
+        }
+        for foreign_inner in [false, true] {
+            if foreign_inner {
+                program
+                    .type_reference_table
+                    .retain_operand_lifetimes(
+                        inner,
+                        [Region {
+                            declaration: foreign,
+                            ordinal: 0,
+                        }],
+                    )
+                    .unwrap();
+            }
+            let mut actual_caller = caller.clone();
+            let (copied, _) = program
+                .instantiate_invocation_signature(
+                    &[outer],
+                    unit,
+                    &[],
+                    CallableDeclaration::Machine(source),
+                    &mut actual_caller,
+                )
+                .unwrap();
+            let copied = copied[0];
+            assert_eq!(
+                program.type_reference_table.operand_lifetimes(copied),
+                &[Region {
+                    declaration: caller.symbol,
+                    ordinal: 0
+                }]
+            );
+            let TypeReferenceNode::Reference { referee, .. } =
+                program.type_reference_table.type_reference(copied)
+            else {
+                panic!("outer reference")
+            };
+            let TypeReferenceNode::Slice { element_type } =
+                program.type_reference_table.type_reference(*referee)
+            else {
+                panic!("nested slice")
+            };
+            assert_eq!(
+                program
+                    .type_reference_table
+                    .operand_lifetimes(*element_type),
+                &[Region {
+                    declaration: if foreign_inner {
+                        foreign
+                    } else {
+                        caller.symbol
+                    },
+                    ordinal: usize::from(!foreign_inner),
+                }]
+            );
+            assert_eq!(
+                program.type_reference_table.operand_lifetimes(outer),
+                &[Region {
+                    declaration: source,
+                    ordinal: 0
+                }]
+            );
+        }
+        let mut incomplete = caller.clone();
+        incomplete.lifetime_parameters.pop();
+        assert_eq!(
+            program
+                .instantiate_invocation_signature(
+                    &[outer],
+                    unit,
+                    &[],
+                    CallableDeclaration::Machine(source),
+                    &mut incomplete,
+                )
+                .unwrap_err(),
+            "generated caller has a different lifetime telescope"
+        );
+    }
+
+    #[test]
+    fn invocation_data_members_use_the_enclosing_application_region_order() {
+        let mut symbols = SymbolTableBuilder::default();
+        let data = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Envelope"));
+        let caller = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        program.push_data_definition(crate::data::DataDefinition {
+            symbol: data,
+            name: Identifier::from("Envelope"),
+            lifetime_parameters: vec![Identifier::from("stored"), Identifier::from("backing")],
+            ..Default::default()
+        });
+        program.push_machine(Machine {
+            symbol: caller,
+            lifetime_parameters: vec![Identifier::from("bytes"), Identifier::from("items")],
+            ..Default::default()
+        });
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let inner = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from("backing")),
+            });
+        let slice = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice {
+                element_type: inner,
+            });
+        let outer = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: slice,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from("stored")),
+            });
+        for (reference, ordinal) in [(outer, 0), (inner, 1)] {
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, data)
+                .unwrap();
+            program
+                .type_reference_table
+                .retain_operand_lifetimes(
+                    reference,
+                    [Region {
+                        declaration: data,
+                        ordinal,
+                    }],
+                )
+                .unwrap();
+        }
+        let application = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: data,
+                base_name: Identifier::from("Envelope"),
+                lifetime_arguments: vec![Identifier::from("items"), Identifier::from("bytes")],
+                arguments: Default::default(),
+            });
+        let actual = [
+            Region {
+                declaration: caller,
+                ordinal: 1,
+            },
+            Region {
+                declaration: caller,
+                ordinal: 0,
+            },
+        ];
+        program
+            .type_reference_table
+            .retain_operand_lifetime_owner(application, caller)
+            .unwrap();
+        program
+            .type_reference_table
+            .retain_operand_lifetimes(application, actual)
+            .unwrap();
+        let applied = program
+            .instantiate_data_member_type(outer, application)
+            .unwrap();
+        assert_eq!(
+            program.type_reference_table.operand_lifetimes(applied),
+            &actual[..1]
+        );
+        let TypeReferenceNode::Reference { referee, .. } = program.type_reference_node(applied)
+        else {
+            panic!("outer view")
+        };
+        let TypeReferenceNode::Slice { element_type } = program.type_reference_node(*referee)
+        else {
+            panic!("typed sequence")
+        };
+        assert_eq!(
+            program
+                .type_reference_table
+                .operand_lifetimes(*element_type),
+            &actual[1..]
+        );
+        assert_eq!(
+            program.type_reference_table.operand_lifetimes(outer),
+            &[Region {
+                declaration: data,
+                ordinal: 0,
+            }]
+        );
+    }
+
+    #[test]
+    fn invocation_elision_closes_the_input_tuple_before_relating_its_result() {
+        let mut symbols = SymbolTableBuilder::default();
+        let data = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Holder"));
+        let source = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("source"));
+        let caller = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        program.push_data_definition(crate::data::DataDefinition {
+            symbol: data,
+            name: Identifier::from("Holder"),
+            lifetime_parameters: vec![Identifier::from("storage")],
+            ..Default::default()
+        });
+        program.push_machine(Machine {
+            symbol: source,
+            ..Default::default()
+        });
+        let mut caller = Machine {
+            symbol: caller,
+            ..Default::default()
+        };
+        program.push_machine(caller.clone());
+        let nominal = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: data,
+                name: Identifier::from("Holder"),
+            });
+        let (inputs, result) = program
+            .instantiate_invocation_signature(
+                &[nominal],
+                nominal,
+                &[],
+                CallableDeclaration::Machine(source),
+                &mut caller,
+            )
+            .unwrap();
+        assert_eq!(caller.lifetime_parameters.len(), 1);
+        let expected = [Region {
+            declaration: caller.symbol,
+            ordinal: 0,
+        }];
+        for reference in [inputs[0], result] {
+            assert_eq!(
+                program.type_reference_table.operand_lifetimes(reference),
+                &expected
+            );
+            let TypeReferenceNode::Generic {
+                lifetime_arguments, ..
+            } = program.type_reference_node(reference)
+            else {
+                panic!("closed nominal input")
+            };
+            assert_eq!(lifetime_arguments, &caller.lifetime_parameters);
+        }
+        program
+            .type_reference_table
+            .retain_operand_lifetimes(inputs[0], [Region::default()])
+            .unwrap();
+        assert!(
+            program
+                .instantiate_data_member_type(nominal, inputs[0])
+                .is_err(),
+            "a retained incomplete elision cannot revive a data binder by spelling"
+        );
+    }
 }

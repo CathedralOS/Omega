@@ -90,6 +90,13 @@ pub struct NormalizedForeignCallBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedForeignCallMechanism {
+    /// Hosted calls use the receiving operating system stack, not a finite
+    /// claim about the opaque callee's demand.
+    HostedImport {
+        locator: target::NormalizedForeignLocator,
+        receipt: [u8; 32],
+        requirement_identity: String,
+    },
     Import {
         locator: target::NormalizedForeignLocator,
         same_stack_contribution: task_plans::AdmittedSameStackContribution,
@@ -125,7 +132,7 @@ impl NormalizedForeignCallMechanism {
                 same_stack_contribution,
                 ..
             } => Some(same_stack_contribution),
-            Self::SystemCall(_) => None,
+            Self::SystemCall(_) | Self::HostedImport { .. } => None,
         }
     }
 }
@@ -135,11 +142,55 @@ pub struct NormalizedSystemCallBinding {
     pub target: target::TargetProfile,
     pub number: i64,
     pub requirement_identity: String,
-    pub provider_plan_report_identity: u64,
-    pub provider_plan_commitment: [u8; 32],
+    pub execution: NormalizedForeignExecution,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizedForeignExecution {
+    ProviderPlan { report: u64, commitment: [u8; 32] },
+    NativeBinding([u8; 32]),
+}
+
+impl NormalizedForeignExecution {
+    pub fn is_complete(self) -> bool {
+        match self {
+            Self::ProviderPlan { report, commitment } => report != 0 && commitment != [0; 32],
+            Self::NativeBinding(receipt) => receipt != [0; 32],
+        }
+    }
+    pub const fn provider_report(self) -> Option<u64> {
+        match self {
+            Self::ProviderPlan { report, .. } => Some(report),
+            Self::NativeBinding(_) => None,
+        }
+    }
 }
 
 impl NormalizedForeignCallBinding {
+    /// Match the retained execution source. Admission separately authenticates
+    /// its full receipt, calling application and declared contract.
+    pub fn native_binding_receipt(&self) -> Option<[u8; 32]> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::HostedImport { receipt, .. } => Some(*receipt),
+            NormalizedForeignCallMechanism::SystemCall(binding) => match binding.execution {
+                NormalizedForeignExecution::NativeBinding(receipt) => Some(receipt),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub fn matches_execution(&self, execution: super::ExternalExecutionBinding) -> bool {
+        match execution {
+            super::ExternalExecutionBinding::Provider(provider) => match self.mechanism.same_stack_contribution() {
+                Some(contribution) => contribution.provider_plan_report_identity() == provider.provider_plan_report_identity().get(),
+                None => self.system_call().is_some_and(|binding| matches!(binding.execution,
+                    NormalizedForeignExecution::ProviderPlan { report, .. } if report == provider.provider_plan_report_identity().get())),
+            },
+            super::ExternalExecutionBinding::NativeBinding(native) => self.native_binding_receipt() == Some(native.receipt()),
+        }
+    }
+
     pub fn operand_placements(&self) -> ForeignCallOperands<'_> {
         use calling_conventions::{MachineRegister, ValueLocation, ValuePlacement, ValueShape};
         let dispatch = match &self.mechanism {
@@ -175,7 +226,8 @@ impl NormalizedForeignCallBinding {
 
     pub fn native_target(&self) -> Option<target::NativeTarget> {
         match &self.mechanism {
-            NormalizedForeignCallMechanism::Import { locator, .. } => {
+            NormalizedForeignCallMechanism::Import { locator, .. }
+            | NormalizedForeignCallMechanism::HostedImport { locator, .. } => {
                 Some(locator.target().native_target())
             }
             NormalizedForeignCallMechanism::Component { locator, .. } => {
@@ -195,6 +247,13 @@ impl NormalizedForeignCallBinding {
         &'identities self,
         identities: &'identities terminal_psi::TerminalIdentityTable,
     ) -> Option<&'identities str> {
+        if let NormalizedForeignCallMechanism::HostedImport {
+            requirement_identity,
+            ..
+        } = &self.mechanism
+        {
+            return Some(requirement_identity);
+        }
         match self.mechanism.same_stack_contribution() {
             Some(contribution) => identities.text(contribution.requirement_identity()),
             None => self
@@ -206,9 +265,9 @@ impl NormalizedForeignCallBinding {
     pub fn provider_plan_report_identity(&self) -> u64 {
         match self.mechanism.same_stack_contribution() {
             Some(contribution) => contribution.provider_plan_report_identity(),
-            None => self
-                .system_call()
-                .map_or(0, |binding| binding.provider_plan_report_identity),
+            None => self.system_call().map_or(0, |binding| {
+                binding.execution.provider_report().unwrap_or(0)
+            }),
         }
     }
 
@@ -235,6 +294,18 @@ impl NormalizedForeignCallBinding {
                             application_commitment,
                         )
             }
+            NormalizedForeignCallMechanism::HostedImport {
+                locator,
+                receipt,
+                requirement_identity,
+            } => {
+                *receipt != [0; 32]
+                    && !requirement_identity.is_empty()
+                    && locator.target().program_entry_slot().schema
+                        == target::ProgramEntrySchema::HostedApplication
+                    && call.policy == CallingPolicy::native_for_target(target)
+                    && call.entry_control == EntryControl::CallReturn
+            }
             NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::Table { .. } => {
                 call.policy == CallingPolicy::native_for_target(target)
@@ -254,7 +325,7 @@ impl NormalizedForeignCallBinding {
                 };
                 binding.number >= 0
                     && !binding.requirement_identity.is_empty()
-                    && binding.provider_plan_report_identity != 0
+                    && binding.execution.is_complete()
                     && calling_conventions::evaluate_call_plan(policy, &signature).as_ref()
                         == Ok(call)
             }
@@ -265,6 +336,7 @@ impl NormalizedForeignCallBinding {
         match &self.mechanism {
             NormalizedForeignCallMechanism::SystemCall(binding) => Some(binding),
             NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::HostedImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => None,
         }
@@ -282,6 +354,7 @@ impl NormalizedForeignCallBinding {
                 same_stack_contribution,
             } => Some((locator, same_stack_contribution)),
             NormalizedForeignCallMechanism::SystemCall(_)
+            | NormalizedForeignCallMechanism::HostedImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
             | NormalizedForeignCallMechanism::Table { .. } => None,
         }
@@ -310,12 +383,53 @@ impl NormalizedForeignCallBinding {
                 same_stack_contribution,
             )),
             NormalizedForeignCallMechanism::SystemCall(_)
+            | NormalizedForeignCallMechanism::HostedImport { .. }
             | NormalizedForeignCallMechanism::Table { .. } => None,
+        }
+    }
+
+    pub fn import_locator(&self) -> Option<target::NormalizedImportLocatorRef<'_>> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import { locator, .. }
+            | NormalizedForeignCallMechanism::HostedImport { locator, .. } => {
+                Some(target::NormalizedImportLocatorRef::Foreign(locator))
+            }
+            NormalizedForeignCallMechanism::Component { locator, .. } => {
+                Some(target::NormalizedImportLocatorRef::Component(locator))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn foreign_import_locator(&self) -> Option<&target::NormalizedForeignLocator> {
+        match self.import_locator()? {
+            target::NormalizedImportLocatorRef::Foreign(locator) => Some(locator),
+            target::NormalizedImportLocatorRef::Component(_) => None,
+        }
+    }
+
+    pub fn hosted_import(&self) -> Option<&target::NormalizedForeignLocator> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::HostedImport { locator, .. } => Some(locator),
+            _ => None,
         }
     }
 
     pub fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
         self.mechanism.same_stack_contribution()
+    }
+
+    /// On a normal return, user-space calls must preserve floating controls
+    /// regardless of the callee's stack bound. Callers decide whether the
+    /// invocation has a return continuation; direct syscalls need no envelope.
+    pub fn requires_floating_control_preservation(&self) -> bool {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::HostedImport { .. }
+            | NormalizedForeignCallMechanism::Component { .. }
+            | NormalizedForeignCallMechanism::Table { .. } => true,
+            NormalizedForeignCallMechanism::SystemCall(_) => false,
+        }
     }
 
     pub fn table_dispatch(&self) -> Option<(u32, bool)> {

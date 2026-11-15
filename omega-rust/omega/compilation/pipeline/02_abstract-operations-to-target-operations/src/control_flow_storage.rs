@@ -145,6 +145,15 @@ pub(crate) mod access_lifecycles {
         operations.push(TargetUnitOperation::AccessLifecycle {
             psi_operation: *psi_operation,
             boundary: *boundary,
+            indices: operands
+                .arguments()
+                .map(|argument| {
+                    super::scalar_sources::projection_indices(function, types, live, argument)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect(),
             operands,
             result_home,
         });
@@ -918,6 +927,7 @@ pub(crate) mod borrowed_windows {
             path: path.clone(),
             field: *field,
             value: value.place,
+            value_type,
             byte_offset,
             indices,
         });
@@ -1294,7 +1304,10 @@ pub(crate) mod byte_write {
                 _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
             };
         if source == destination
-            || live.lengths.get(length) != Some(source)
+            || !live
+                .lengths
+                .get(length)
+                .is_some_and(|observed| observed.place == *source && observed.path.is_empty())
             || !(function.arrival_parameter(*source).is_some() || live.views.contains_key(source))
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1629,7 +1642,10 @@ pub(crate) mod byte_write {
         else {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         };
-        if live.lengths.get(length) != Some(destination)
+        if !live
+            .lengths
+            .get(length)
+            .is_some_and(|observed| observed.place == *destination && observed.path.is_empty())
             || !(prepared.parameter(*destination).is_some()
                 || live.block_views.contains(destination)
                 || live.views.contains_key(destination)
@@ -2318,7 +2334,7 @@ pub(crate) mod observations {
                 source,
             } => {
                 if source.path.is_empty() {
-                    live.lengths.insert(result.value, source.place);
+                    live.lengths.insert(result.value, source.clone());
                 }
                 let expression =
                     removed_scalar_expression(&mut values, function.machine, result.value)?;
@@ -2329,9 +2345,7 @@ pub(crate) mod observations {
                 result,
                 source,
             } => {
-                if source.path.is_empty() {
-                    live.lengths.insert(result.value, source.place);
-                }
+                live.lengths.insert(result.value, source.clone());
                 let expression =
                     removed_scalar_expression(&mut values, function.machine, result.value)?;
                 (*psi_operation, result.value, result.scalar_type, expression)
@@ -2352,7 +2366,6 @@ pub(crate) mod observations {
                     operation,
                     function,
                     structural_types,
-                    &prepared.parameters,
                     live.element_view_backings(),
                     &values,
                     &live.lengths,
@@ -3386,6 +3399,19 @@ pub(crate) mod records {
             {
                 Vec::new()
             }
+            // An owned sequence's elements live in the read-only literal pool, so its
+            // descriptor stays valid after the creating machine returns. Only a roster of
+            // constant scalar records has pool bytes; anything else is refused here.
+            (StructuralTypeShape::ElementView { access: None, .. }, None)
+                if target_operations::constant_element_roster(
+                    function.blocks.iter().flat_map(|block| &block.operations),
+                    operation,
+                    &**types,
+                )
+                .is_some() =>
+            {
+                Vec::new()
+            }
             _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
         if declarations.len() != fields.len() || live.structural_homes.contains_key(&result.place) {
@@ -3395,7 +3421,8 @@ pub(crate) mod records {
         let mut relocations = Vec::new();
         let mut moved_leaves = BTreeSet::new();
         let element_type = match shape {
-            StructuralTypeShape::FixedArray { element, .. } => {
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element, .. } => {
                 Some(StructuralFieldType::Structural(*element))
             }
             _ => None,

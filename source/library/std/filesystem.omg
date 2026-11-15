@@ -29,7 +29,7 @@ public data ErrorKind [copy] {
     case WriteZero;
 }
 
-machine ErrorKind::reconstruct(error_kind: &ErrorKind) -> ErrorKind {
+machine error_kind_reconstruct(error_kind: &ErrorKind) -> ErrorKind {
     transition error_kind {
         ErrorKind::Other -> ErrorKind::Other
         ErrorKind::NotFound -> ErrorKind::NotFound
@@ -120,7 +120,7 @@ public data Permissions [copy] {
     case Posix(mode: u32);
 }
 
-public machine Permissions::readonly(permissions: &Permissions) -> bool {
+public machine permissions_readonly(permissions: &Permissions) -> bool {
     transition permissions {
         Permissions::Default -> false
         Permissions::Readonly { value } -> (value)
@@ -128,7 +128,7 @@ public machine Permissions::readonly(permissions: &Permissions) -> bool {
     }
 }
 
-public machine Permissions::set_readonly(permissions: &mut Permissions, readonly: bool) {
+public machine permissions_set_readonly(permissions: &mut Permissions, readonly: bool) {
     transition permissions {
         Permissions::Posix { mode } -> posix(permissions, mode, readonly)
         _ -> portable(permissions, readonly)
@@ -197,67 +197,64 @@ public data Metadata [copy] {
     changed_secs: i64;
 }
 
-public machine Metadata::is_file(metadata: &Metadata) -> bool {
+public machine metadata_is_file(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::File -> true _ -> false }
 }
-public machine Metadata::is_dir(metadata: &Metadata) -> bool {
+public machine metadata_is_dir(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Directory -> true _ -> false }
 }
-public machine Metadata::is_symlink(metadata: &Metadata) -> bool {
+public machine metadata_is_symlink(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Symlink -> true _ -> false }
 }
 
-public machine Metadata::is_char_device(metadata: &Metadata) -> bool {
+public machine metadata_is_char_device(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::CharacterDevice -> true _ -> false }
 }
-public machine Metadata::is_block_device(metadata: &Metadata) -> bool {
+public machine metadata_is_block_device(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::BlockDevice -> true _ -> false }
 }
-public machine Metadata::is_fifo(metadata: &Metadata) -> bool {
+public machine metadata_is_fifo(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Fifo -> true _ -> false }
 }
-public machine Metadata::is_socket(metadata: &Metadata) -> bool {
+public machine metadata_is_socket(metadata: &Metadata) -> bool {
     transition metadata.kind { FileKind::Socket -> true _ -> false }
 }
 
-public machine Metadata::readonly(metadata: &Metadata) -> bool {
-    Permissions::readonly(&metadata.permissions)
+public machine metadata_readonly(metadata: &Metadata) -> bool {
+    permissions_readonly(&metadata.permissions)
 }
 
-public machine Metadata::permissions(metadata: &Metadata) -> Permissions {
+public machine metadata_permissions(metadata: &Metadata) -> Permissions {
     metadata.permissions
 }
 
-public machine Metadata::nlink(metadata: &Metadata) -> u64 {
+public machine metadata_nlink(metadata: &Metadata) -> u64 {
     metadata.nlink
 }
 
-public machine Metadata::posix(metadata: &Metadata) -> PosixMetadataResult {
+public machine metadata_posix(metadata: &Metadata) -> PosixMetadataResult {
     metadata.posix
 }
 
-public machine Metadata::changed(metadata: &Metadata) -> i64 {
+public machine metadata_changed(metadata: &Metadata) -> i64 {
     metadata.changed_secs
 }
 
-public machine Metadata::modified(metadata: &Metadata) -> i64 {
+public machine metadata_modified(metadata: &Metadata) -> i64 {
     metadata.modified_secs
 }
 
-public machine Metadata::accessed(metadata: &Metadata) -> i64 {
+public machine metadata_accessed(metadata: &Metadata) -> i64 {
     metadata.accessed_secs
 }
 
-public machine Metadata::created(metadata: &Metadata) -> TimestampResult {
+public machine metadata_created(metadata: &Metadata) -> TimestampResult {
     metadata.creation_time
 }
 public data MetadataResult {
     case Error(kind: ErrorKind);
     case Ok(meta: Metadata);
 }
-
-
-public data Filesystem {}
 
 // Default selection belongs to the portable slot. Each target contributes its
 // complete implementation without importing another OS family's adapter.
@@ -555,370 +552,3 @@ public boundary trait FilesystemService {
     crashes none;
 }
 
-public machine Filesystem::create(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::create(path)
-}
-
-public machine Filesystem::create_new(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::create_new(path)
-}
-
-public machine Filesystem::open(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::open(path)
-}
-
-public machine Filesystem::append(filesystem: &mut Filesystem, path: &[u8] in Path) -> OpenResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::append(path)
-}
-
-public machine Filesystem::read(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64) -> IoResult
-blocks
-reaches FilesystemContentRead
-invokes FilesystemService
-{
-    block FilesystemService::read(file, buffer, count)
-}
-
-public machine Filesystem::write(filesystem: &mut Filesystem, file: File, bytes: &[u8]) -> IoResult
-blocks
-reaches FilesystemContentWrite
-invokes FilesystemService
-{
-    block FilesystemService::write(file, bytes)
-}
-
-public machine Filesystem::close(filesystem: &mut Filesystem, file: File) -> UnitResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::close(file)
-}
-
-public machine Filesystem::write_all(filesystem: &mut Filesystem, path: &[u8] in Path, bytes: &[u8]) -> UnitResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::write_all(path, bytes)
-}
-
-public machine Filesystem::read_all(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::read_all(path, buffer, count)
-}
-
-public machine Filesystem::copy(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::copy(from, to, buffer, cap)
-}
-
-public machine Filesystem::exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> bool
-blocks
-reaches FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::exists(path)
-}
-
-public machine Filesystem::try_exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> ExistsResult
-blocks
-reaches FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::try_exists(path)
-}
-
-public machine Filesystem::metadata_path(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
-blocks
-reaches FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::metadata_path(path)
-}
-
-public machine Filesystem::symlink_metadata(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
-blocks
-reaches FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::symlink_metadata(path)
-}
-
-public machine Filesystem::remove(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::remove(path)
-}
-
-public machine Filesystem::create_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::create_dir(path)
-}
-
-public machine Filesystem::remove_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::remove_dir(path)
-}
-
-public machine Filesystem::create_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::create_dir_all(path)
-}
-
-public machine Filesystem::read_dir_is_empty(filesystem: &mut Filesystem, path: &[u8] in Path) -> EmptyResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::read_dir_is_empty(path)
-}
-
-public machine Filesystem::set_permissions(filesystem: &mut Filesystem, path: &[u8] in Path, perms: Permissions) -> UnitResult
-blocks
-reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-invokes FilesystemService
-{
-    block FilesystemService::set_permissions(path, perms)
-}
-
-public machine Filesystem::symlink(filesystem: &mut Filesystem, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::symlink(target, link)
-}
-
-public machine Filesystem::read_link(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
-blocks
-reaches FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::read_link(path, buffer, count)
-}
-
-public machine Filesystem::set_file_permissions(filesystem: &mut Filesystem, file: File, perms: Permissions) -> UnitResult
-blocks
-reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-invokes FilesystemService
-{
-    block FilesystemService::set_file_permissions(file, perms)
-}
-
-public machine Filesystem::rename(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::rename(from, to)
-}
-
-public machine Filesystem::set_len(filesystem: &mut Filesystem, file: File, length: i64) -> UnitResult
-blocks
-reaches FilesystemContentWrite + FilesystemMetadataMutation
-invokes FilesystemService
-{
-    block FilesystemService::set_len(file, length)
-}
-
-public machine Filesystem::sync(filesystem: &mut Filesystem, file: File) -> UnitResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::sync(file)
-}
-
-public machine Filesystem::sync_data(filesystem: &mut Filesystem, file: File) -> UnitResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::sync_data(file)
-}
-
-public machine Filesystem::try_clone(filesystem: &mut Filesystem, file: File) -> OpenResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::try_clone(file)
-}
-
-public machine Filesystem::set_owner(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
-blocks
-reaches FilesystemMetadataMutation
-invokes FilesystemService
-{
-    block FilesystemService::set_owner(path, uid, gid)
-}
-
-public machine Filesystem::set_owner_no_follow(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
-blocks
-reaches FilesystemMetadataMutation
-invokes FilesystemService
-{
-    block FilesystemService::set_owner_no_follow(path, uid, gid)
-}
-
-public machine Filesystem::set_file_owner(filesystem: &mut Filesystem, file: File, uid: i32, gid: i32) -> UnitResult
-blocks
-reaches FilesystemMetadataMutation
-invokes FilesystemService
-{
-    block FilesystemService::set_file_owner(file, uid, gid)
-}
-
-public machine Filesystem::metadata(filesystem: &mut Filesystem, file: File) -> MetadataResult
-blocks
-reaches FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::metadata(file)
-}
-
-public machine Filesystem::open_with(filesystem: &mut Filesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::open_with(path, options)
-}
-
-public machine Filesystem::read_dir_count(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-invokes FilesystemService
-{
-    block FilesystemService::read_dir_count(path)
-}
-
-public machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::read_dir_nth(path, n)
-}
-
-public machine Filesystem::remove_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::remove_dir_all(path)
-}
-
-public machine Filesystem::read_at(filesystem: &mut Filesystem, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
-blocks
-reaches FilesystemContentRead
-invokes FilesystemService
-{
-    block FilesystemService::read_at(file, buffer, count, offset)
-}
-
-public machine Filesystem::write_at(filesystem: &mut Filesystem, file: File, bytes: &[u8], offset: i64) -> IoResult
-blocks
-reaches FilesystemContentWrite
-invokes FilesystemService
-{
-    block FilesystemService::write_at(file, bytes, offset)
-}
-
-public machine Filesystem::hard_link(filesystem: &mut Filesystem, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
-blocks
-reaches FilesystemNamespaceMutation
-invokes FilesystemService
-{
-    block FilesystemService::hard_link(original, link)
-}
-
-public machine Filesystem::set_times(filesystem: &mut Filesystem, file: File, accessed: i64, modified: i64) -> UnitResult
-blocks
-reaches FilesystemMetadataMutation
-invokes FilesystemService
-{
-    block FilesystemService::set_times(file, accessed, modified)
-}
-
-public machine Filesystem::canonicalize(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
-blocks
-reaches FilesystemMetadataQuery
-invokes FilesystemService
-{
-    block FilesystemService::canonicalize(path, buffer)
-}
-
-public machine Filesystem::lock(filesystem: &mut Filesystem, file: File) -> UnitResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::lock(file)
-}
-
-public machine Filesystem::lock_shared(filesystem: &mut Filesystem, file: File) -> UnitResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::lock_shared(file)
-}
-
-public machine Filesystem::try_lock(filesystem: &mut Filesystem, file: File) -> TryLockResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::try_lock(file)
-}
-
-public machine Filesystem::try_lock_shared(filesystem: &mut Filesystem, file: File) -> TryLockResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::try_lock_shared(file)
-}
-
-public machine Filesystem::unlock(filesystem: &mut Filesystem, file: File) -> UnitResult
-blocks
-
-invokes FilesystemService
-{
-    block FilesystemService::unlock(file)
-}

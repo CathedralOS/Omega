@@ -471,7 +471,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                         Some(storage_qualifications(module, machine, *source, path)?)
                     }
                     OperationKind::ElementViewRead { source, path, .. } => {
-                        let root = machine.structural_place_type(*source).ok_or(
+                        let root = machine.structural_place_type(source.place).ok_or(
                             ScalarQualificationError::MalformedStructuralFoundation(
                                 "scalar element view lost its declared root",
                             ),
@@ -479,7 +479,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                         let view = crate::runtime_structural_path_tip(
                             module.structural_types.iter(),
                             root,
-                            path,
+                            &source.path,
                         )
                         .ok_or(
                             ScalarQualificationError::MalformedStructuralFoundation(
@@ -497,7 +497,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                                 );
                             }
                         };
-                        Some(primitive_qualifications(module, element))
+                        Some(storage_type_qualifications(module, element, path)?)
                     }
                     _ => None,
                 };
@@ -818,6 +818,14 @@ fn storage_qualifications(
             "scalar storage has no declared root",
         ),
     )?;
+    storage_type_qualifications(module, root, path)
+}
+
+fn storage_type_qualifications(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Result<ScalarQualificationSetId, ScalarQualificationError> {
     if let Some(field) = crate::runtime_structural_field(module.structural_types.iter(), root, path)
     {
         return Ok(field_qualifications(module, field.id));
@@ -1538,7 +1546,7 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
     Ok(())
 }
 
-fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
+pub(crate) fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
     actual == expected
         || reordered_predicate(actual) == reordered_predicate(expected)
         || matches!(actual, Proposition::Conjunction(children)

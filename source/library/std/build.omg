@@ -1,5 +1,6 @@
 use omega::language::core::DllImport;
 use omega::language::core::ForeignBinding;
+use omega::language::core::ProcessExit;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
@@ -10,6 +11,7 @@ machine build(builder: &mut Build) {
     configure_posix_filesystem(builder);
     configure_posix_filesystem_darwin(builder);
     configure_console(builder);
+    configure_process_exit(builder);
     configure_windows_gui(builder);
     configure_macos_gui(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
@@ -649,19 +651,16 @@ machine configure_console(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
-    Build::bind<WindowsConsoleExit::exit_process>(builder, windows_x86_64,
-        ForeignBinding::DllImport { import: DllImport::PeByName {
-            library: "kernel32.dll", export: "ExitProcess"
-        } });
+
     Build::select_provider<Console, WindowsConsole>(builder, windows_x86_64);
     Build::select_provider<Console, LinuxX86Console>(builder, linux_x86_64);
     Build::bind<LinuxX86ConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
     Build::bind<LinuxX86ConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
-    Build::bind<LinuxX86ConsoleExit::exit_process>(builder, linux_x86_64, ForeignBinding::Syscall { number: 60 });
+
     Build::select_provider<Console, LinuxArm64Console>(builder, linux_arm64);
     Build::bind<LinuxArm64ConsoleIo::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
     Build::bind<LinuxArm64ConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
-    Build::bind<LinuxArm64ConsoleExit::exit_process>(builder, linux_arm64, ForeignBinding::Syscall { number: 93 });
+
     Build::select_provider<Console, DarwinArm64Console>(builder, macos_arm64);
     Build::bind<DarwinArm64ConsoleIo::read>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -671,10 +670,7 @@ machine configure_console(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
         } });
-    Build::bind<DarwinArm64ConsoleExit::exit_process>(builder, macos_arm64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
-        } });
+
     Build::select_provider<Console, DarwinX86Console>(builder, macos_x86_64);
     Build::bind<DarwinX86ConsoleIo::read>(builder, macos_x86_64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -684,10 +680,7 @@ machine configure_console(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
         } });
-    Build::bind<DarwinX86ConsoleExit::exit_process>(builder, macos_x86_64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
-        } });
+
 }
 
 // Win32 GUI leaves: window and message pumps on user32, device-context and
@@ -746,7 +739,6 @@ machine configure_windows_gui(builder: &mut Build) {
             library: "gdi32.dll", export: "StretchDIBits"
         } });
 }
-
 
 machine configure_macos_gui(builder: &mut Build) {
     Build::bind<AppKit::load>(builder, macos_arm64,
@@ -819,4 +811,14 @@ machine configure_macos_image(builder: &mut Build) {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGImageCreate"
         } });
+}
+
+// Select the checked no-return wrapper. Its authenticated core primitive owns
+// full-process completion; selecting it grants no exit authority.
+machine configure_process_exit(builder: &mut Build) {
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, windows_x86_64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_x86_64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_arm64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, macos_arm64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, macos_x86_64);
 }

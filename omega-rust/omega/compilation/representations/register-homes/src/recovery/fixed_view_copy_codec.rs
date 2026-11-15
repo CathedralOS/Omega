@@ -1,10 +1,12 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 101), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 103), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
-payload. Runtime selectors retain their fixed bounds and exact proof keys;
-empty-place elimination remains distinct from authored crashes and normal returns.
+payload. Native-binding receipts and hosted imports remain distinct from finite
+provider stack contributions. Runtime selectors retain their fixed bounds and
+exact proof keys; empty-place elimination remains distinct from authored crashes
+and normal returns.
 
 The evidence always names the fixed intervals, split requirements and segment
 homes used by recovery. Older artifacts with optional legacy evidence reject
@@ -52,9 +54,9 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-// Version 101 combines required segment-home evidence with opaque callable
-// carriers and exact descriptor references. Earlier layouts are refused.
-pub(super) const VERSION: u32 = 101;
+// Both callable carriers and the numeric/descriptor payloads below require this layout.
+// Earlier versions reject before decoding.
+pub(super) const VERSION: u32 = 104;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v61\0";
 

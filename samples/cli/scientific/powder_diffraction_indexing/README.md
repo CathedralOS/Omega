@@ -39,18 +39,15 @@ Run with the normal product route (activate the documented toolchain first):
 ```sh
 omega packages update --project samples/cli/independent/powder_diffraction_indexing --target linux_x86_64
 omega run samples/cli/independent/powder_diffraction_indexing/main.omg < samples/cli/independent/powder_diffraction_indexing/input.txt
-python3 samples/cli/independent/powder_diffraction_indexing/validation/validate.py --omega /absolute/path/to/omega --route all
 ```
 
-Complete any generated exact package decisions through ordinary review/resume.
-The validator compiles its auxiliary observer from the same producer's retained
+Complete any generated exact package decisions through ordinary review/resume. The
+validator compiles its auxiliary observer from the same producer's retained
 libraries, publishes the actual admitted native product, captures native and
 canonical Terminal numerical output, and compares both with immutable independent
 70-digit expectations within 1e-7. Its per-case wall clock and explicit sponsor
 work bound execution. Source-invalid reflection rank 8 must reject before runtime.
 `validation/oracle.json` and its input hashes were frozen before Omega execution.
-`validation/freeze_reference.py` uses signed enumeration and combinations,
-independent of the application's canonical-triple and bitmask enumeration.
 
 Scientific references: the IUCr dictionary gives [Bragg's law](https://dictionary.iucr.org/Bragg%27s_law)
 and the P/I/F [integral reflection conditions](https://dictionary.iucr.org/Reflection_conditions).

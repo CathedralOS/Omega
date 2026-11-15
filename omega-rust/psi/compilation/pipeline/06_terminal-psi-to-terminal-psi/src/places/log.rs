@@ -220,6 +220,15 @@ fn zero_constant(operation: &Operation, scalar_type: ScalarType) -> Option<Value
         OperationKind::IntegerConstant { value } => {
             matches!(value, IntegerValue::Signed(0) | IntegerValue::Unsigned(0))
         }
+        OperationKind::IeeeFloatConstant { value } => {
+            // A zeroed storage representation is positive zero. IEEE equality
+            // would also accept negative zero, which has different stored bits.
+            matches!(
+                value,
+                semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                    | semantic_vocabulary::IeeeFloatValue::Binary64(0)
+            ) && scalar_type == ScalarType::IeeeFloat(value.format())
+        }
         _ => false,
     };
     (zero && result.scalar_type == scalar_type).then_some(result.id)
@@ -294,6 +303,65 @@ impl<'a> Storage<'a> {
             return Ok(rows);
         }
         match &operation.kind {
+            OperationKind::AtomicAccess {
+                place,
+                path,
+                event,
+                resident_obligation,
+            } => {
+                let leaf = self.stored_at(*place, path, concerns)?;
+                let Shape::Atomic(cell) = self.shape(&leaf, concerns)? else {
+                    return Err(self.foreign(
+                        concerns,
+                        "atomic event does not name dedicated atomic storage",
+                    ));
+                };
+                if !cell.is_supported() || cell.bounds().is_some() || resident_obligation.is_some()
+                {
+                    return Err(self.unsupported(
+                        concerns,
+                        "atomic resident requires its checked establishment obligation",
+                    ));
+                }
+                if !event.ordering_is_legal() {
+                    return Err(self.foreign(concerns, "atomic event has an illegal ordering"));
+                }
+                if event
+                    .operands()
+                    .iter()
+                    .any(|operand| value_types.get(*operand) != Some(&cell.scalar_type()))
+                {
+                    return Err(
+                        self.foreign(concerns, "atomic operand differs from its resident type")
+                    );
+                }
+                match operation.result {
+                    terminal_psi::OperationResult::Scalar(result)
+                        if event.observes_resident()
+                            && result.scalar_type == cell.scalar_type() => {}
+                    terminal_psi::OperationResult::Unit if !event.observes_resident() => {}
+                    _ => return Err(self.foreign(concerns, "atomic result differs from its event")),
+                }
+                if matches!(
+                    event,
+                    terminal_psi::AtomicAccessEvent::CompareExchangeOnce { .. }
+                ) {
+                    return Err(self.unsupported(concerns, "single-attempt atomic outcome custody"));
+                }
+                if !matches!(
+                    event,
+                    terminal_psi::AtomicAccessEvent::Load { .. }
+                        | terminal_psi::AtomicAccessEvent::Store { .. }
+                ) && !matches!(cell.scalar_type(), ScalarType::Integer(_))
+                {
+                    return Err(
+                        self.foreign(concerns, "atomic update requires an integer resident")
+                    );
+                }
+                if event.modifies_resident() {
+                    rows.push((leaf, Stored::Established));
+                }
+            }
             OperationKind::EstablishStructuralLocal {} => {
                 rows.push((fresh()?, Stored::Vacated));
             }
@@ -467,7 +535,8 @@ impl<'a> Storage<'a> {
                     Stored::Moved(self.stored_at(*source, &[], concerns)?),
                 ));
             }
-            OperationKind::ByteSequenceSubslice { .. } => {
+            OperationKind::ByteSequenceSubslice { .. }
+            | OperationKind::ElementViewSubslice { .. } => {
                 self.shared_subslice(references, operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
@@ -492,14 +561,21 @@ impl<'a> Storage<'a> {
             }
             // A comparison observes both views and stores nothing.
             OperationKind::ByteSequenceEqual { .. } => self.compared_byte_views(operation)?,
+            // A fence orders observations without replacing any stored value.
+            OperationKind::AtomicFence { .. } => {}
             // The operations that only observe storage.
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }
+            | OperationKind::ElementViewLength { .. }
             | OperationKind::ByteSequenceRead { .. }
+            | OperationKind::ElementViewRead { .. }
+            | OperationKind::StructuralByteSequenceFieldLength { .. }
+            | OperationKind::StructuralByteSequenceFieldRead { .. }
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. }
-            | OperationKind::SelectMachine { .. } => {}
+            | OperationKind::SelectMachine { .. }
+            | OperationKind::ReadScalarApplication { .. } => {}
             kind if kind.module_invocation().is_some()
                 || kind.callable_invocation().is_some()
                 || matches!(kind, OperationKind::BoundaryCall { .. }) =>
@@ -565,6 +641,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<()> {
         let (case, fields) = match &self.declaration(structural_type, concerns)?.shape {
+            StructuralTypeShape::AtomicCell(_) => return Ok(()),
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 found.push((at.clone(), *scalar_type));
                 return Ok(());
@@ -600,6 +677,7 @@ impl<'a> Storage<'a> {
                 StructuralFieldType::Structural(nested) => {
                     self.zero_scalars(nested, at, found, concerns)?;
                 }
+                StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => {}
                 // The empty shared view has no scalar leaf.
                 ref stored if super::is_stored_view(stored) => {}
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
@@ -664,5 +742,48 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod zero_constant_tests {
+    use super::*;
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+    use terminal_psi::{OperationResult, ValueDeclaration};
+
+    #[test]
+    fn zero_field_identity_requires_positive_bits_and_the_actual_format() {
+        let operation = |value, scalar_type| {
+            Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Scalar(ValueDeclaration {
+                    id: ValueId::new(1).unwrap(),
+                    scalar_type,
+                    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                }),
+                OperationKind::IeeeFloatConstant { value },
+            )
+        };
+        for value in [IeeeFloatValue::Binary32(0), IeeeFloatValue::Binary64(0)] {
+            let scalar = ScalarType::IeeeFloat(value.format());
+            assert_eq!(
+                zero_constant(&operation(value, scalar), scalar),
+                ValueId::new(1)
+            );
+            let wrong = ScalarType::IeeeFloat(match value.format() {
+                IeeeFloatFormat::Binary32 => IeeeFloatFormat::Binary64,
+                IeeeFloatFormat::Binary64 => IeeeFloatFormat::Binary32,
+            });
+            assert_eq!(zero_constant(&operation(value, wrong), wrong), None);
+        }
+        for value in [
+            IeeeFloatValue::Binary32(0x8000_0000),
+            IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+            IeeeFloatValue::Binary32(0x7fc0_0000),
+            IeeeFloatValue::Binary64(0x7ff8_0000_0000_0000),
+        ] {
+            let scalar = ScalarType::IeeeFloat(value.format());
+            assert_eq!(zero_constant(&operation(value, scalar), scalar), None);
+        }
     }
 }

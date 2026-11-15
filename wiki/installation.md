@@ -139,14 +139,14 @@ machine build(builder: &mut Build) {
 `main.omg`:
 
 ```omega
-use omega_language_std::console;
+use omega::language::core::ProcessExit;
 
 data Main { }
 
 machine Main::main(context: &mut Main)
-reaches Console
+reaches ProcessExit
 {
-    Console::exit_process(42);
+    ProcessExit::exit_process(42);
 }
 ```
 

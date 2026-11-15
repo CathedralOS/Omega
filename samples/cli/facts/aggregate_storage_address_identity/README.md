@@ -34,8 +34,6 @@ requires exactly one ordinary storage reference and no static arguments`.
 
 An additional `controls/exclusive_reference` control holds `&mut value` live
 across the shared address operand. It must still reject the overlapping loan.
-The row and that control are registered under
-`tests/omega/{pass,fail}/facts/aggregate_storage_address_identity_*`.
 
 Reproduce one positive and its control:
 

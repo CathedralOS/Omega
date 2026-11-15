@@ -50,7 +50,6 @@ target/debug/omega run --both samples/cli/facts/predicate_array_copy/const_name/
 target/debug/omega run --both samples/cli/facts/predicate_array_copy/other_state/main.omg
 target/debug/omega run --both samples/cli/facts/predicate_array_copy/other_machine/main.omg
 target/debug/omega run --both samples/cli/facts/predicate_array_copy/target_body/main.omg
-python3 tools/corpus_gate.py --filter facts/predicate_array_copy
 ```
 
 Run a place with `omega run --both --keep <place>/main.omg`, then independently
@@ -89,12 +88,9 @@ verification:
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/predicate_array_copy_through_*`
-fixtures: nine pass fixtures (checked, and built with `exit:0` plus Terminal
-agreement on this host) and nine reject twins (rejected with their authored
-fragments). The nine pass fixtures are byte-identical copies of their place
-programs, and the nine fail fixtures are byte-identical copies of their twins,
-so sample and fixture cannot drift apart.
+The nine pass fixtures are byte-identical copies of their place programs, and the
+nine fail fixtures are byte-identical copies of their twins, so sample and fixture
+cannot drift apart.
 
 ## Requirements and Evidence
 
@@ -112,13 +108,6 @@ so sample and fixture cannot drift apart.
 | Omega 00–02 | Hosted Build bindings select the entry; fixed-array geometry and qualified aggregate argument/result placement remain ordinary plans. |
 | Omega 03–06 | Native array copies, calls and state transfers preserve payloads and independent storage; the exact addition is realized in u16. |
 | Omega 07–09 and emission | The host image executes with exit 0 and agrees with Terminal execution; this does not establish native execution on an unavailable host. |
-
-The regression fixtures mirror this row under
-`tests/omega/{pass,fail}/facts/predicate_array_copy_through_*`.
-Additional controls under `tests/omega/{pass,fail}/domains/copied_array_domain_*`
-challenge source mutation and issuer provenance. These programs establish only
-the copy/predicate mechanism, not the complete Windows filesystem provider or
-its owner-deferred Windows native acceptance.
 
 ## Build-owned target-body migration
 

@@ -26,12 +26,10 @@ public boundary trait Console {
     machine write_line(text: &[u8])
     reaches
         Console
-    invokes WindowsConsoleIo
     crashes none;
     machine write(text: &[u8])
     reaches
         Console
-    invokes WindowsConsoleIo
     crashes none;
     // Fill the existing writable extent without resizing it. Preserve every
     // byte, including CR and the terminating LF; callers interpret the prefix.
@@ -40,7 +38,6 @@ public boundary trait Console {
     machine read_line(out_line: &mut [u8]) -> LineReadResult
     reaches
         Console
-    invokes WindowsConsoleIo
     blocks
     crashes Trap;
     // Byte-level stdin/stdout (the settled universal console surface):
@@ -52,15 +49,9 @@ public boundary trait Console {
     machine read_byte() -> ByteRead
     reaches
         Console
-    invokes WindowsConsoleIo
     blocks
     crashes Trap;
     machine write_byte(byte: i32)
-    reaches
-        Console
-    invokes WindowsConsoleIo
-    crashes none;
-    machine exit_process(return_code: i32)
     reaches
         Console
     crashes none;
@@ -69,91 +60,59 @@ public boundary trait Console {
 // Text adapters take an exact ordinary implementation of these byte operations.
 trait ConsoleByteOperations {
     machine read_byte() -> ByteRead
-    reaches Console invokes WindowsConsoleIo blocks crashes Trap;
+    reaches Console blocks crashes Trap;
     machine write_byte(byte: i32)
-    reaches Console invokes WindowsConsoleIo crashes none;
-    machine exit_process(return_code: i32)
     reaches Console crashes none;
 }
 
 // Shared checked POSIX adaptation depends on an explicit ordinary raw map.
 trait PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none;
-}
-
-// This exact private primitive ends the process domain; Build owns its locator.
-boundary trait WindowsConsoleExit: Calling<WindowsX64ScalarCalling> {
-    machine exit_process(return_code: i32)
-    reaches Console crashes none suspends false blocks false;
 }
 
 // Raw count/status ABI for linux_x86_64; read/write move one byte through a cell.
 boundary trait LinuxX86ConsoleIo: Calling<LinuxX86ByteViewCalling> {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none;
-}
-
-// This exact private primitive ends the process domain; Build owns its locator.
-boundary trait LinuxX86ConsoleExit: Calling<LinuxX86ByteViewCalling> {
-    machine exit_process(return_code: i32)
-    reaches Console crashes none suspends false blocks false;
 }
 
 // Raw count/status ABI for linux_arm64; read/write move one byte through a cell.
 boundary trait LinuxArm64ConsoleIo: Calling<LinuxArm64ByteViewCalling> {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none;
-}
-
-// This exact private primitive ends the process domain; Build owns its locator.
-boundary trait LinuxArm64ConsoleExit: Calling<LinuxArm64ByteViewCalling> {
-    machine exit_process(return_code: i32)
-    reaches Console crashes none suspends false blocks false;
 }
 
 // Raw count/status ABI for macos_arm64; read/write move one byte through a cell.
 boundary trait DarwinArm64ConsoleIo: Calling<DarwinArm64ByteViewCalling> {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none;
-}
-
-// This exact private primitive ends the process domain; Build owns its locator.
-boundary trait DarwinArm64ConsoleExit: Calling<DarwinArm64ByteViewCalling> {
-    machine exit_process(return_code: i32)
-    reaches Console crashes none suspends false blocks false;
 }
 
 // Raw count/status ABI for macos_x86_64; read/write move one byte through a cell.
 boundary trait DarwinX86ConsoleIo: Calling<SystemVByteViewCalling> {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none;
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none;
-}
-
-// This exact private primitive ends the process domain; Build owns its locator.
-boundary trait DarwinX86ConsoleExit: Calling<SystemVByteViewCalling> {
-    machine exit_process(return_code: i32)
-    reaches Console crashes none suspends false blocks false;
 }
 
 public WindowsConsole satisfies Console {
@@ -174,9 +133,7 @@ public WindowsConsole satisfies Console {
     machine write_byte(byte: i32) reaches Console {
         WindowsConsoleBytes::write_byte(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        WindowsConsoleBytes::exit_process(return_code);
-    }
+
 }
 
 public LinuxX86Console satisfies Console {
@@ -197,9 +154,7 @@ public LinuxX86Console satisfies Console {
     machine write_byte(byte: i32) reaches Console {
         LinuxX86ConsoleBytes::write_byte(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        LinuxX86ConsoleBytes::exit_process(return_code);
-    }
+
 }
 
 public LinuxArm64Console satisfies Console {
@@ -220,9 +175,7 @@ public LinuxArm64Console satisfies Console {
     machine write_byte(byte: i32) reaches Console {
         LinuxArm64ConsoleBytes::write_byte(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        LinuxArm64ConsoleBytes::exit_process(return_code);
-    }
+
 }
 
 public DarwinArm64Console satisfies Console {
@@ -243,9 +196,7 @@ public DarwinArm64Console satisfies Console {
     machine write_byte(byte: i32) reaches Console {
         DarwinArm64ConsoleBytes::write_byte(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        DarwinArm64ConsoleBytes::exit_process(return_code);
-    }
+
 }
 
 public DarwinX86Console satisfies Console {
@@ -266,19 +217,17 @@ public DarwinX86Console satisfies Console {
     machine write_byte(byte: i32) reaches Console {
         DarwinX86ConsoleBytes::write_byte(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        DarwinX86ConsoleBytes::exit_process(return_code);
-    }
+
 }
 
 LinuxX86ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block LinuxX86ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         LinuxX86ConsoleIo::write(descriptor, buffer, count)
     }
@@ -292,19 +241,17 @@ LinuxX86ConsoleBytes satisfies ConsoleByteOperations {
     machine write_byte(byte: i32) reaches Console {
         posix_console_write_byte<LinuxX86ConsoleRaw>(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        LinuxX86ConsoleExit::exit_process(return_code);
-    }
+
 }
 
 LinuxArm64ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block LinuxArm64ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         LinuxArm64ConsoleIo::write(descriptor, buffer, count)
     }
@@ -318,19 +265,17 @@ LinuxArm64ConsoleBytes satisfies ConsoleByteOperations {
     machine write_byte(byte: i32) reaches Console {
         posix_console_write_byte<LinuxArm64ConsoleRaw>(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        LinuxArm64ConsoleExit::exit_process(return_code);
-    }
+
 }
 
 DarwinArm64ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block DarwinArm64ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         DarwinArm64ConsoleIo::write(descriptor, buffer, count)
     }
@@ -344,19 +289,17 @@ DarwinArm64ConsoleBytes satisfies ConsoleByteOperations {
     machine write_byte(byte: i32) reaches Console {
         posix_console_write_byte<DarwinArm64ConsoleRaw>(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        DarwinArm64ConsoleExit::exit_process(return_code);
-    }
+
 }
 
 DarwinX86ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 0 && count <= 4
     reaches Console blocks crashes none {
         block DarwinX86ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
-    requires count <= 4
+    requires descriptor == 1 && count <= 4
     reaches Console crashes none {
         DarwinX86ConsoleIo::write(descriptor, buffer, count)
     }
@@ -370,9 +313,7 @@ DarwinX86ConsoleBytes satisfies ConsoleByteOperations {
     machine write_byte(byte: i32) reaches Console {
         posix_console_write_byte<DarwinX86ConsoleRaw>(byte);
     }
-    machine exit_process(return_code: i32) reaches Console {
-        DarwinX86ConsoleExit::exit_process(return_code);
-    }
+
 }
 
 // Interpret the actual signed read result once for all POSIX byte providers.

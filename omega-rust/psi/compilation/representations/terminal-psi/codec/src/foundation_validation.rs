@@ -175,21 +175,16 @@ pub(crate) mod call_foundations {
         }
     }
 
-    fn boolean_actual(
+    fn scalar_actual(
         value: ValueId,
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
-    ) -> Option<bool> {
-        if sources.scalar_type(value) != Some(ScalarType::Boolean) {
-            return None;
-        }
-        match terminal_semantics::scalar_constant_value(value, |value| {
+    ) -> Option<(ScalarType, IntegerValue)> {
+        let expected = sources.scalar_type(value)?;
+        let known = terminal_semantics::scalar_constant_value(value, |value| {
             scalar_index.constant_origin(value)
-        })? {
-            (ScalarType::Boolean, IntegerValue::Unsigned(0)) => Some(false),
-            (ScalarType::Boolean, IntegerValue::Unsigned(1)) => Some(true),
-            _ => None,
-        }
+        })?;
+        (known.0 == expected).then_some(known)
     }
 
     fn published_postcondition_is_false(
@@ -199,7 +194,9 @@ pub(crate) mod call_foundations {
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Result<bool, CodecError> {
-        use terminal_semantics::inhabitation::{boolean_value_with, predicates_are_false_with};
+        use terminal_semantics::inhabitation::{
+            known_scalar_value_with, predicates_are_false_with,
+        };
 
         if contract.parameters.len() != arguments.len()
             || contract.erased_scalar_formals.len() != erased_arguments.len()
@@ -210,29 +207,25 @@ pub(crate) mod call_foundations {
         // Looking a callee result/foreign ID up directly in the caller's
         // constant index would let coincident numeric IDs invent a promise.
         // Bind once, then borrow each retained clause without copying trees.
-        let mut booleans = Vec::with_capacity(arguments.len() + erased_arguments.len());
+        let mut known_actuals = Vec::with_capacity(arguments.len() + erased_arguments.len());
         for (formal, actual) in contract.parameters.iter().zip(arguments) {
             if sources.scalar_type(*actual) != Some(formal.scalar_type) {
                 return malformed("no-normal invocation has no exact scalar argument source");
             }
-            let known = (formal.scalar_type == ScalarType::Boolean)
-                .then(|| boolean_actual(*actual, scalar_index, sources))
-                .flatten();
-            booleans.push((formal.id, known));
+            let known = scalar_actual(*actual, scalar_index, sources);
+            known_actuals.push((formal.id, known));
         }
         for (formal, actual) in contract.erased_scalar_formals.iter().zip(erased_arguments) {
             if actual.scalar_type() != formal.scalar_type {
                 return malformed("no-normal invocation erased argument has the wrong carrier");
             }
-            let known = (formal.scalar_type == ScalarType::Boolean)
-                .then(|| {
-                    boolean_value_with(actual, |value| boolean_actual(value, scalar_index, sources))
-                })
-                .flatten();
-            booleans.push((formal.id, known));
+            let known = known_scalar_value_with(actual, |value| {
+                scalar_actual(value, scalar_index, sources)
+            });
+            known_actuals.push((formal.id, known));
         }
-        booleans.sort_unstable_by_key(|(formal, _)| *formal);
-        if booleans.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        known_actuals.sort_unstable_by_key(|(formal, _)| *formal);
+        if known_actuals.windows(2).any(|pair| pair[0].0 == pair[1].0) {
             return malformed("no-normal invocation repeats a scalar formal identity");
         }
         Ok(contract.ensures.iter().any(|clause| {
@@ -244,10 +237,10 @@ pub(crate) mod call_foundations {
                 {
                     None
                 } else {
-                    booleans
+                    known_actuals
                         .binary_search_by_key(&value, |(formal, _)| *formal)
                         .ok()
-                        .and_then(|index| booleans[index].1)
+                        .and_then(|index| known_actuals[index].1)
                 }
             })
         }))
@@ -843,6 +836,7 @@ pub(crate) mod call_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         block: &Block,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
         let Terminator::ExternalCompletion {
             boundary,
@@ -860,7 +854,14 @@ pub(crate) mod call_foundations {
         };
         if declaration.role != BoundaryDeclarationRole::Callable
             || declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
-            || declaration.result != BoundaryMachineResult::Unit
+            || !match &declaration.result {
+                BoundaryMachineResult::Unit => true,
+                BoundaryMachineResult::Structural(result) => {
+                    inhabitation.status(result.structural_type)
+                        == terminal_semantics::inhabitation::Status::ProvedEmpty
+                }
+                BoundaryMachineResult::Scalar(_) => false,
+            }
             || declaration.scalar_parameters.len() != 1
             || !matches!(declaration.scalar_parameters.first(),
                 Some(semantic_vocabulary::ScalarType::Integer(integer))
@@ -2532,6 +2533,24 @@ pub(crate) mod declaration_foundations {
                 return malformed("installation reach requirement identity must be nonempty");
             }
             require_known_services(module, &dependency.upper_bound)?;
+            let mut boundaries = module
+                .boundary_machines
+                .iter()
+                .filter(|boundary| boundary.identity == dependency.requirement_identity);
+            let Some(boundary) = boundaries.next().filter(|_| boundaries.next().is_none()) else {
+                return malformed(
+                    "installation reach dependency has no exact boundary declaration",
+                );
+            };
+            let mut reach = boundary.fixed_service_reach.clone();
+            reach.extend(dependency.upper_bound.iter().copied());
+            reach.sort_unstable();
+            reach.dedup();
+            if reach != boundary.published_service_ceiling {
+                return malformed(
+                    "installation reach dependency differs from its exact published bound",
+                );
+            }
         }
         Ok(())
     }
@@ -2565,7 +2584,13 @@ pub(crate) mod declaration_foundations {
         validate_structural_parameters(module, &boundary.structural_parameters)?;
         terminal_semantics::validate_boundary_reference_regions(&module.structural_types, boundary)
             .map_err(CodecError::MalformedStructuralFoundation)?;
-        super::reference_outputs::validate(module, boundary)?;
+        terminal_semantics::boundary_result_lifetimes(&module.structural_types, boundary)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        terminal_semantics::references::validate_declared_boundary_reference_outputs(
+            &module.structural_types,
+            boundary,
+        )
+        .map_err(CodecError::MalformedStructuralFoundation)?;
         super::scalar_observations::boundary(module, boundary)?;
         if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
             if !has_structural_type(module, result.structural_type) {
@@ -3446,14 +3471,15 @@ pub(crate) mod machine_foundations {
         validate_entry_claims(module, machine)?;
         validate_loan_completions(module, machine)?;
         for block in &machine.blocks {
+            let mut previous = None;
             for operation in &block.operations {
-                validate_operation_foundation(module, machine, operation, transfers).map_err(
-                    |error| {
+                validate_operation_foundation(module, machine, operation, transfers, previous)
+                    .map_err(|error| {
                         super::operation_foundation_error(
                             module, machine, block.id, operation, error,
                         )
-                    },
-                )?;
+                    })?;
+                previous = Some(operation);
             }
         }
         for invocation in machine.module_invocations() {
@@ -3464,10 +3490,15 @@ pub(crate) mod machine_foundations {
             )?;
         }
         validate_operation_result_places(machine)?;
-        let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
+        let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         for block in &machine.blocks {
-            super::call_foundations::validate_external_completion(module, machine, block)?;
+            super::call_foundations::validate_external_completion(
+                module,
+                machine,
+                block,
+                inhabitation,
+            )?;
             super::call_foundations::validate_no_normal_invocation(
                 module,
                 block,
@@ -3475,6 +3506,9 @@ pub(crate) mod machine_foundations {
                 &scalar_index,
                 &return_sources,
             )?;
+            return_sources
+                .validate_whole_discards(&block.terminator, |ty| module.structural_type(ty))
+                .map_err(CodecError::MalformedStructuralFoundation)?;
             validate_partial_affine_discards(module, machine, block)?;
         }
         Ok(())
@@ -4654,156 +4688,6 @@ pub(crate) mod proof_scope {
         }
     }
 }
-pub(crate) mod reference_outputs {
-
-    use super::{CodecError, TerminalModule, malformed};
-    use terminal_psi::{
-        BoundaryLifetimeDependency, BoundaryMachineDeclaration, BoundaryReferenceDestination,
-        StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
-    };
-    use terminal_semantics::descriptor_results::{
-        descriptor_value_access, provider_outputs_cover_writable_slots,
-    };
-
-    pub(crate) fn validate(
-        module: &TerminalModule,
-        boundary: &BoundaryMachineDeclaration,
-    ) -> Result<(), CodecError> {
-        terminal_semantics::boundary_result_lifetimes(&module.structural_types, boundary)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
-        if !provider_outputs_cover_writable_slots(&module.structural_types, boundary) {
-            return malformed("boundary reference parameter contract has incomplete leaf coverage");
-        }
-        let parameter = |position: u32| {
-            boundary
-                .structural_parameters
-                .get(position as usize)
-                .filter(|parameter| parameter.position == position)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "boundary reference contract names an absent parameter",
-                ))
-        };
-        let mut destinations = std::collections::BTreeSet::new();
-        for output in &boundary.reference_outputs {
-            if !destinations.insert((output.destination, output.path.clone())) {
-                return malformed("boundary reference contract repeats an output destination");
-            }
-            let (root, multiplicity) = match output.destination {
-                BoundaryReferenceDestination::Parameter(position) => {
-                    let parameter = parameter(position)?;
-                    if !matches!(
-                        parameter.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                    ) {
-                        return malformed(
-                            "boundary reference output has no writable parameter storage",
-                        );
-                    }
-                    (parameter.structural_type, parameter.multiplicity)
-                }
-            };
-            validate_leaf(
-                module,
-                root,
-                multiplicity,
-                &output.path,
-                output.access,
-                false,
-            )?;
-            if output.dependencies.is_empty() {
-                return malformed("boundary reference output has no lifetime anchor");
-            }
-            let mut dependencies = std::collections::BTreeSet::new();
-            for dependency in &output.dependencies {
-                if !dependencies.insert(dependency) {
-                    return malformed("boundary reference output repeats a lifetime anchor");
-                }
-                match dependency {
-                    BoundaryLifetimeDependency::Referent {
-                        argument_index,
-                        access,
-                    } => {
-                        let parameter = parameter(*argument_index)?;
-                        if *access == StructuralAccess::Owned || parameter.access != *access {
-                            return malformed(
-                                "boundary reference lifetime anchor differs from formal access",
-                            );
-                        }
-                    }
-                    BoundaryLifetimeDependency::Stored {
-                        argument_index,
-                        path,
-                        access,
-                    } => {
-                        let parameter = parameter(*argument_index)?;
-                        if parameter.access == StructuralAccess::WriteOnlyBorrow {
-                            return malformed(
-                                "boundary reference lifetime anchor reads write-only storage",
-                            );
-                        }
-                        validate_leaf(
-                            module,
-                            parameter.structural_type,
-                            parameter.multiplicity,
-                            path,
-                            *access,
-                            parameter.access == StructuralAccess::SharedBorrow,
-                        )?;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn validate_leaf(
-        module: &TerminalModule,
-        root: semantic_vocabulary::StructuralTypeId,
-        multiplicity: StructuralMultiplicity,
-        path: &[StructuralPathSegment],
-        access: StructuralAccess,
-        shared_storage: bool,
-    ) -> Result<(), CodecError> {
-        if path.iter().any(|segment| {
-            !matches!(
-                segment,
-                StructuralPathSegment::Field(_)
-                    | StructuralPathSegment::Case(_)
-                    | StructuralPathSegment::FixedIndex(_)
-            )
-        }) {
-            return malformed("boundary reference contract has a nonstorage projection");
-        }
-        let selected = terminal_semantics::runtime_structural_path_tip(
-            module.structural_types.iter(),
-            root,
-            path,
-        )
-        .ok_or(CodecError::MalformedStructuralFoundation(
-            "boundary reference contract has an invalid storage path",
-        ))?;
-        let declared = match selected.shape {
-            StructuralTypeShape::Reference { access, .. } => Some(access),
-            _ => descriptor_value_access(module.structural_types.iter(), selected.id, multiplicity),
-        };
-        let declared = if shared_storage {
-            match declared {
-                Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow) => {
-                    Some(StructuralAccess::SharedBorrow)
-                }
-                _ => None,
-            }
-        } else {
-            declared
-        };
-        if access == StructuralAccess::Owned || declared != Some(access) {
-            return malformed(
-                "boundary reference contract endpoint has different access or is not a descriptor",
-            );
-        }
-        Ok(())
-    }
-}
 pub(crate) mod scalar_applications {
 
     use crate::codec_error::{CodecError, malformed};
@@ -4960,6 +4844,33 @@ pub(crate) mod scalar_applications {
         for condition in conditions.predicates() {
             validate_subject(module, &condition.subject)?;
         }
+        let pending = scope
+            .pending_evaluation_conditions
+            .iter()
+            .map(|(_, owner)| *owner)
+            .collect::<std::collections::BTreeSet<_>>();
+        for machine in &module.machines {
+            for (_, expected) in module
+                .layout_call_conditions(machine)
+                .map_err(CodecError::MalformedStructuralFoundation)?
+            {
+                let ScalarConditionSubject::Declaration(owner) = expected.subject else {
+                    return malformed("layout call condition has no exact declaration owner");
+                };
+                if !pending.contains(&owner)
+                    || conditions
+                        .predicates()
+                        .iter()
+                        .filter(|condition| **condition == expected)
+                        .count()
+                        != 1
+                {
+                    return malformed(
+                        "layout call requirement lost its exact pending target condition",
+                    );
+                }
+            }
+        }
         for observation in conditions.observations() {
             match observation {
                 ScalarRangeObservation::Missing => {
@@ -5073,6 +4984,110 @@ pub(crate) mod scalar_applications {
             ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
             TerminalIdentityIndex,
         };
+
+        #[test]
+        fn ground_layout_call_replays_its_exact_pending_condition() {
+            use semantic_vocabulary::{
+                IntegerType, IntegerValue, ObligationId, OperationId, Proposition, ScalarTerm,
+                ValueId,
+            };
+            use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+
+            let caller = MachineId::new(1).unwrap();
+            let callee = MachineId::new(2).unwrap();
+            let evaluator = MachineId::new(3).unwrap();
+            let mut module = TerminalModule::for_entry(caller);
+            module.identities = identity_table(5);
+            for (position, id) in [(1, caller), (2, callee)] {
+                let mut body = unit_machine(id);
+                let declaration = body.declaration.as_mut().unwrap();
+                declaration.semantic_declaration = TerminalIdentityIndex(3);
+                declaration.callable = TerminalIdentityIndex(4);
+                declaration.result_type = TerminalIdentityIndex(5);
+                module
+                    .scalar_applications
+                    .proof_scope
+                    .declarations
+                    .insert(ProofScopeDeclaration::Callable(declaration.clone()));
+                module.scalar_applications.proof_scope.callables.insert(
+                    ProofCallableAssociation::Callable {
+                        declaration: ProofDeclarationId(position),
+                        callable: TargetMachineCallable::Machine(id),
+                    },
+                );
+                module.machines.push(body);
+            }
+            let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let scalar_type = ScalarType::Integer(integer);
+            let mut body = unit_machine(evaluator);
+            body.contract.result = terminal_psi::TerminalMachineResult::Scalar(ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type,
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            });
+            module.machines.push(body);
+            let application = module
+                .scalar_applications
+                .insert(ScalarApplication::Evaluate {
+                    entry: TargetMachineCallable::Machine(evaluator),
+                    scalar_type,
+                })
+                .unwrap();
+            let at_least = |minimum| {
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(minimum)).unwrap(),
+                    ScalarTerm::Application {
+                        application,
+                        scalar_type,
+                    },
+                )
+            };
+            module.machines[1].contract.requires.push(at_least(8));
+            module.machines[0].blocks[0]
+                .operations
+                .push(Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Unit,
+                    OperationKind::CallUnit {
+                        callee,
+                        arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: vec![ObligationId::new(1).unwrap()],
+                        crash_continuations: Vec::new(),
+                    },
+                ));
+
+            let refusal = |module: &TerminalModule| {
+                assert!(matches!(
+                    validate(module),
+                    Err(CodecError::MalformedStructuralFoundation(
+                        "layout call requirement lost its exact pending target condition"
+                    ))
+                ));
+            };
+            refusal(&module);
+            let [(_, condition)] = module
+                .layout_call_conditions(&module.machines[0])
+                .unwrap()
+                .try_into()
+                .unwrap();
+            module
+                .scalar_applications
+                .conditions
+                .insert_predicate(condition);
+            refusal(&module);
+            module
+                .scalar_applications
+                .proof_scope
+                .pending_evaluation_conditions
+                .insert(ProofDeclarationId(1));
+            validate(&module).unwrap();
+            module.machines[1].contract.requires[0] = at_least(17);
+            refusal(&module);
+        }
 
         #[test]
         fn proof_scope_refuses_swapped_same_nominal_callable_descriptions() {
@@ -5488,6 +5503,8 @@ pub(crate) mod scalar_fields {
     }
 
     pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
+        // The shared scalar qualification check already compares each read
+        // with its complete field or primitive array element declaration.
         for row in &module.scalar_qualifications.fields {
             let mut matching = fields(module).filter(|field| field.id == row.field);
             let first = matching
@@ -5541,33 +5558,6 @@ pub(crate) mod scalar_fields {
                         }
                     }
                     _ => {}
-                }
-                let Some(result) = operation
-                    .result
-                    .scalar_ref()
-                    .filter(|row| !row.qualifications.is_empty())
-                else {
-                    continue;
-                };
-                let field = match &operation.kind {
-                    OperationKind::ScalarStructuralField { field, .. }
-                    | OperationKind::BooleanStructuralField { field, .. } => Some(*field),
-                    OperationKind::PrimitiveScalarRead { source, path } => {
-                        storage_field(module, machine, *source, path)?
-                    }
-                    _ => continue,
-                }
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "qualified scalar read lost its exact field declaration",
-                ))?;
-                let supplied = required(module, field)?;
-                if domains(module, result.qualifications)?
-                    .iter()
-                    .any(|domain| !supplied.contains(domain))
-                {
-                    return malformed(
-                        "scalar field read introduces membership absent from its declaration",
-                    );
                 }
             }
         }
@@ -5852,6 +5842,9 @@ pub(crate) mod scalar_observations {
                             );
                         }
                     }
+                }
+                Proposition::FloatMeaningEqual(clause) => {
+                    scalars.extend(clause.sources().map(|source| (source, false)));
                 }
                 Proposition::Equal(a, b)
                 | Proposition::LessThan(a, b)
@@ -6404,12 +6397,14 @@ pub(crate) mod storage_foundations {
     }
     pub(crate) mod element_views {
         use super::*;
+        use semantic_vocabulary::ValueId;
+        use terminal_psi::StructuralArgument;
         use terminal_semantics::descriptor_results::{
             DescriptorAnalysis, ElementPayloadMemberships, element_payload_memberships,
             terminal_graph_from,
         };
         use terminal_semantics::{
-            collection_backing, collection_view_descriptor, element_view_leaf_scalar,
+            collection_backing, collection_view_descriptor, element_view_read_scalar,
         };
 
         fn element_view_result_place(
@@ -6541,12 +6536,31 @@ pub(crate) mod storage_foundations {
             Ok(())
         }
 
+        fn is_element_view_measurement(
+            previous: Option<&Operation>,
+            source: &StructuralArgument,
+            length: ValueId,
+        ) -> bool {
+            previous.is_some_and(|measurement| {
+                measurement
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == length)
+                    && matches!(
+                        &measurement.kind,
+                        OperationKind::ElementViewLength { source: observed }
+                            if terminal_semantics::same_descriptor_coordinate(observed, source)
+                    )
+            })
+        }
+
         pub(crate) fn validate_element_view_subslice(
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            previous: Option<&Operation>,
         ) -> Result<(), CodecError> {
-            let OperationKind::ElementViewSubslice { source, .. } = &operation.kind else {
+            let OperationKind::ElementViewSubslice { source, length, .. } = &operation.kind else {
                 unreachable!("dispatched validate_element_view_subslice")
             };
             let Some(result) = operation.result.structural() else {
@@ -6591,6 +6605,11 @@ pub(crate) mod storage_foundations {
                     "element subslice must preserve its selected descriptor and access",
                 );
             }
+            if !is_element_view_measurement(previous, source, *length) {
+                return malformed(
+                    "element-view subslice length does not measure its exact descriptor",
+                );
+            }
             validate_element_memberships(module, machine, operation)?;
             Ok(())
         }
@@ -6627,13 +6646,27 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            previous: Option<&Operation>,
         ) -> Result<(), CodecError> {
-            let OperationKind::ElementViewRead { source, path, .. } = &operation.kind else {
+            let OperationKind::ElementViewRead {
+                source,
+                path,
+                length,
+                ..
+            } = &operation.kind
+            else {
                 unreachable!("dispatched validate_element_view_read")
             };
-            let Some(source_type) = place_structural_type(machine, *source) else {
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return malformed("element-view read requires shared observation access");
+            }
+            let Some(root) = place_structural_type(machine, source.place) else {
                 return malformed("element-view read has an undeclared source place");
             };
+            let source_type = validate_structural_path(module, root, &source.path)?;
+            if !is_element_view_measurement(previous, source, *length) {
+                return malformed("element-view read length does not measure its exact descriptor");
+            }
             let Some(element) = module.structural_types.iter().find_map(|row| {
                 match (row.id == source_type, &row.shape) {
                     (true, StructuralTypeShape::ElementView { element, .. }) => Some(*element),
@@ -6642,9 +6675,11 @@ pub(crate) mod storage_foundations {
             }) else {
                 return malformed("element-view read requires an element-view source");
             };
-            let Some(expected) = element_view_leaf_scalar(&module.structural_types, element, path)
+            let Some(expected) = element_view_read_scalar(&module.structural_types, element, path)
             else {
-                return malformed("element-view read requires a scalar element leaf");
+                return malformed(
+                    "element-view read requires a static scalar leaf of a copyable element",
+                );
             };
             if operation
                 .result
@@ -8159,12 +8194,20 @@ pub(crate) mod storage_foundations {
                 )
                 .map_err(CodecError::MalformedStructuralFoundation)?
             }
-            None => reference_source_projection_compatible(
-                module.structural_types.iter(),
-                source_type,
-                source_path,
+            None => terminal_semantics::shared_direct_byte_descriptor_source(
+                module,
+                machine,
+                source,
                 result.structural_type,
-            ),
+            )
+            .unwrap_or_else(|| {
+                reference_source_projection_compatible(
+                    module.structural_types.iter(),
+                    source_type,
+                    source_path,
+                    result.structural_type,
+                )
+            }),
         };
         let ancestors_preserved = *access == StructuralAccess::SharedBorrow
             || declared_memberships(machine, source.place).is_some_and(|(whole, projected)| {
@@ -8447,11 +8490,14 @@ pub(crate) mod storage_foundations {
                 "reference release requires an owned descriptor path and Unit result",
             );
         }
-        let leaf_type = validate_structural_path(module, source_type, path)?;
-        if !module.structural_types.iter().any(|row| {
-            row.id == leaf_type && matches!(row.shape, StructuralTypeShape::Reference { .. })
-        }) {
-            return malformed("reference release requires a reference carrier");
+        if terminal_semantics::inline_descriptor_type(
+            module.structural_types.iter(),
+            source_type,
+            path,
+        )
+        .is_none()
+        {
+            return malformed("reference release requires a borrowed descriptor");
         }
         Ok(())
     }
@@ -11685,6 +11731,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     for candidate in &module.provider_candidates {
         declaration_foundations::validate_provider_candidate(module, candidate)?;
     }
+    terminal_semantics::references::validate_provider_reference_outputs(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     for row in &module.provider_instance_requirements {
         if std::iter::once(row.template)
             .chain(
@@ -12114,6 +12162,7 @@ fn validate_operation_foundation(
     machine: &TerminalMachine,
     operation: &Operation,
     transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
+    previous: Option<&Operation>,
 ) -> Result<(), CodecError> {
     if let OperationKind::SelectMachine { descriptor } = operation.kind {
         let selected = module.callables.descriptor(descriptor).ok_or(
@@ -12271,10 +12320,12 @@ fn validate_operation_foundation(
             storage_foundations::validate_element_view_length(module, machine, operation)?
         }
         OperationKind::ElementViewRead { .. } => {
-            storage_foundations::validate_element_view_read(module, machine, operation)?
+            storage_foundations::validate_element_view_read(module, machine, operation, previous)?
         }
         OperationKind::ElementViewSubslice { .. } => {
-            storage_foundations::validate_element_view_subslice(module, machine, operation)?
+            storage_foundations::validate_element_view_subslice(
+                module, machine, operation, previous,
+            )?
         }
         OperationKind::ByteSequenceWrite { .. } => {
             if operation.result != OperationResult::Unit {

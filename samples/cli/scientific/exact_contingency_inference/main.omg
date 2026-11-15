@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::tables;
@@ -7,7 +8,7 @@ use controls::runtime_oracle;
 
 data Main { input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
 // One bounded record: 17 ASCII digits followed by LF, or exact-length EOF.
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(&mut main.input);
     transition read {
         LineReadResult::LineComplete { count } -> command(main, count)
@@ -67,17 +68,17 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine success(main: &mut Main, result: Inference) {
         report(&result);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
-    machine malformed(main: &mut Main) { Console::write_line("ERROR malformed_record"); Console::exit_process(64); }
-    machine margins(main: &mut Main) { Console::write_line("ERROR invalid_margins_or_mask"); Console::exit_process(65); }
-    machine impossible(main: &mut Main) { Console::write_line("ERROR impossible_support"); Console::exit_process(66); }
-    machine observation(main: &mut Main) { Console::write_line("ERROR invalid_observation"); Console::exit_process(67); }
-    machine invariant(main: &mut Main) { Console::write_line("ERROR arithmetic_invariant"); Console::exit_process(70); }
+    machine malformed(main: &mut Main) { Console::write_line("ERROR malformed_record"); ProcessExit::exit_process(64); }
+    machine margins(main: &mut Main) { Console::write_line("ERROR invalid_margins_or_mask"); ProcessExit::exit_process(65); }
+    machine impossible(main: &mut Main) { Console::write_line("ERROR impossible_support"); ProcessExit::exit_process(66); }
+    machine observation(main: &mut Main) { Console::write_line("ERROR invalid_observation"); ProcessExit::exit_process(67); }
+    machine invariant(main: &mut Main) { Console::write_line("ERROR arithmetic_invariant"); ProcessExit::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

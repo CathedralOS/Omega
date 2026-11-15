@@ -304,6 +304,37 @@ pub fn prepare_provider_execution_inputs(
             }
         }
     }
+    let schemas = provider_planning::compiler_primitive_schemas(module).map_err(refuse)?;
+    let primitives = provider_planning::direct_compiler_primitive_leaves(
+        module,
+        &schemas,
+        profile.target_name(),
+    )?;
+    let policy = native_compiler::current_terminal_authority_policy();
+    for leaf in primitives {
+        let backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
+        else {
+            return Err(refuse(
+                "core primitive lost its exact native execution".into(),
+            ));
+        };
+        let permitted = policy.classify(execution).map_err(|reason| {
+            refuse(format!(
+                "core primitive has no physical authority classification: {reason:?}"
+            ))
+        })?;
+        for row in &leaf.plan.rows {
+            let requirement = leaf.plan.identities.text(row.declared_requirement_identity);
+            let permission = effects::ServiceTerminalAuthorityPermission::new(
+                leaf.plan.schema_identity_digest(),
+                identities.intern(requirement),
+                permitted.clone(),
+            );
+            if !permissions.contains(&permission) {
+                permissions.push(permission);
+            }
+        }
+    }
     Ok(TargetSupplyExecutionInputs {
         calling_applications,
         external_bindings,

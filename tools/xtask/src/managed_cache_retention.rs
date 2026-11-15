@@ -1,7 +1,7 @@
 //! Retain completed managed-session builds between compilation and measurement.
 //!
-//! mbx rejects collection policy in workspace `.mbx.toml`. Managed setup instead
-//! appends this checkout's shared worker pool to global `target.keep`, leaving
+//! mbx refuses collection policy in workspace `.mbx.toml`, so managed setup
+//! adds this checkout's shared worker pool to global `target.keep`, leaving
 //! operator overrides and the rest of collection policy intact.
 
 use std::ffi::{OsStr, OsString};

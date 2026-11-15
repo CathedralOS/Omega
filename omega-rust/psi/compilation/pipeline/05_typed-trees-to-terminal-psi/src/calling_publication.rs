@@ -19,6 +19,9 @@ use crate::{Elaboration, read::services};
 pub(crate) struct PreparedCallingStorage {
     pub(crate) id: CallingSignatureId,
     pub(crate) storage: CallingAbiStorage,
+    pub(crate) formals: Vec<semantic_vocabulary::CallingGenericFormal>,
+    pub(crate) default_eligible: bool,
+    pub(crate) physical_owner: semantic_vocabulary::CallingDeclarationOwner,
 }
 
 pub(crate) fn publish(
@@ -228,12 +231,6 @@ pub(crate) fn publish(
                 .ok_or_else(|| {
                     services::unavailable(context, "calling ABI lost its canonical storage")
                 })?;
-            // Prepared source errors remain failures of this selected source
-            // question; none becomes an empty telescope or default owner.
-            source
-                .physical_owner
-                .as_ref()
-                .map_err(|reason| services::unavailable(context, reason.clone()))?;
             declarations.push(CallingAbiDeclaration {
                 id: source.id,
                 requirement_identity: identities.intern(&source.requirement_identity),
@@ -247,9 +244,9 @@ pub(crate) fn publish(
                         identity: identities.intern(&operand.identity),
                     })
                     .collect(),
-                formals: source.formals.clone(),
-                default_eligible: source.default_eligible,
-                physical_owner: source.physical_owner.clone(),
+                formals: prepared.formals.clone(),
+                default_eligible: prepared.default_eligible,
+                physical_owner: Ok(prepared.physical_owner),
                 storage: Ok(prepared.storage.clone()),
             });
         }

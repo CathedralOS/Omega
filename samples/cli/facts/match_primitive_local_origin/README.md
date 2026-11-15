@@ -49,8 +49,6 @@ target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/con
 target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/other_state/main.omg
 target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/other_machine/main.omg
 target/debug/omega run --both samples/cli/facts/match_primitive_local_origin/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/match_primitive_local_origin
-python3 tools/corpus_gate.py --filter facts/match_primitive_local_origin
 ```
 
 ### The oracle discriminates
@@ -84,11 +82,8 @@ Compile-time verification fails closed with:
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/match_primitive_local_origin_through_*`
-fixtures; every positive records native exit 0 and Terminal agreement, and every
-twin records its rejection with the expected fragment. The nine pass fixtures
-are byte-identical copies of their place programs, and the nine fail fixtures
-are byte-identical copies of their twins, so sample and fixture cannot drift.
+The nine pass fixtures are byte-identical copies of their place programs, and the nine fail
+fixtures are byte-identical copies of their twins, so sample and fixture cannot drift.
 
 ## Requirements and Evidence
 

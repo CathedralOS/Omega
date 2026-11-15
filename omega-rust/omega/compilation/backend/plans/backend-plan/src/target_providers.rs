@@ -88,9 +88,18 @@ pub fn selected_checked_adapter_header<'module>(
 pub struct SelectedCheckedInvocationRow<'plan, 'module> {
     pub plan: &'plan effects::provider_plan::ProviderPlan,
     pub row: &'plan effects::provider_plan::ProviderPlanRow,
-    pub headers: Vec<&'module terminal_psi::ProofCallableHeader>,
+    pub candidates: Vec<SelectedCheckedInvocationCandidate<'module>>,
 }
 
+/// The exact selected application and the callable header authenticated
+/// against that candidate.
+pub struct SelectedCheckedInvocationCandidate<'module> {
+    pub conformance: &'module terminal_psi::ProviderCandidateConformance,
+    pub header: &'module terminal_psi::ProofCallableHeader,
+}
+
+/// Rows follow the input plan and binding order. Only checked adapters
+/// contribute rows.
 pub fn selected_checked_invocation_rows<'plan, 'module>(
     plans: &'plan [ProviderPlan],
     module: &'module terminal_psi::TerminalModule,
@@ -110,7 +119,7 @@ pub fn selected_checked_invocation_rows<'plan, 'module>(
             return Err("checked adapter differs from its retained package identity".into());
         }
         let target = selected_plan_target(plan)?;
-        let mut headers = Vec::new();
+        let mut candidates = Vec::with_capacity(selected.candidates.len());
         for candidate in selected.candidates {
             let callable = terminal_psi::TargetMachineCallable::Machine(candidate.candidate);
             let declaration = scope.callable_declaration(callable).ok_or_else(|| {
@@ -141,12 +150,15 @@ pub fn selected_checked_invocation_rows<'plan, 'module>(
             {
                 return Err("checked invocation candidate header differs from its selected body, package or target".into());
             }
-            headers.push(header);
+            candidates.push(SelectedCheckedInvocationCandidate {
+                conformance: candidate,
+                header,
+            });
         }
         rows.push(SelectedCheckedInvocationRow {
             plan,
             row: selected.row,
-            headers,
+            candidates,
         });
     }
     Ok(rows)
@@ -976,10 +988,19 @@ mod tests {
         let plans = [selected];
         let rows = selected_checked_invocation_rows(&plans, &module).unwrap();
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].headers.len(), 2);
+        assert_eq!(rows[0].candidates.len(), 2);
+        let closed = &rows[0].candidates[1];
         assert_eq!(
-            rows[0].headers[1].declaration,
+            closed.header.declaration,
             terminal_psi::ProofDeclarationId(2)
+        );
+        assert!(std::ptr::eq(
+            closed.conformance,
+            &module.provider_candidates[1]
+        ));
+        assert_eq!(
+            closed.header.callable,
+            Ok(closed.conformance.candidate_identity)
         );
         crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
             &plans, &module,

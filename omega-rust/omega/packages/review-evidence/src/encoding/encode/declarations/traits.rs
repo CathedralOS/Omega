@@ -3,7 +3,7 @@
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use super::super::values::identity::encode_nominal;
-use super::data::encode_type_identity;
+use super::encode_type_identity;
 use crate::record::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};
 
 pub(crate) fn encode_trait_parent(

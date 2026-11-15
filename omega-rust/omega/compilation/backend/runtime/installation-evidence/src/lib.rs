@@ -123,7 +123,7 @@ pub trait StackDemandEvidence {
     fn psi(&self) -> terminal_psi::TerminalPsiIdentity;
     fn architecture(&self) -> target::Architecture;
     fn entry(&self) -> semantic_vocabulary::MachineId;
-    fn ceiling_bytes(&self) -> u64;
+    fn ceiling_bytes(&self) -> Option<u64>;
     fn stack_alignment(&self) -> u32;
     fn contributing_machines(&self) -> &BTreeSet<semantic_vocabulary::MachineId>;
     fn admitted_stack_contribution_report_identities(&self) -> BTreeSet<u64>;

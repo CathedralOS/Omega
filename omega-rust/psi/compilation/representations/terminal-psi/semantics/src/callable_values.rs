@@ -508,9 +508,7 @@ impl CallableValueProgram<'_> {
                     .location(caller, invocation.position, &prior)
                     .or_else(|| direct(&prior).then(|| prior.clone()));
                 if match (left, right) {
-                    (Some(left), Some(right)) => {
-                        crate::descriptor_lifetimes::descriptor_locations_may_overlap(&left, &right)
-                    }
+                    (Some(left), Some(right)) => left.overlaps(&right),
                     _ => true,
                 } {
                     if matches!(
@@ -862,9 +860,7 @@ impl CallableValueProgram<'_> {
                 {
                     return Err("callable storage arrival has no exact actual binding");
                 }
-                let overlaps = |other: &DescriptorLocation| {
-                    crate::descriptor_lifetimes::descriptor_locations_may_overlap(other, &arrival)
-                };
+                let overlaps = |other: &DescriptorLocation| other.overlaps(&arrival);
                 let writes = flow
                     .scalar_payload_writes
                     .get(producer)

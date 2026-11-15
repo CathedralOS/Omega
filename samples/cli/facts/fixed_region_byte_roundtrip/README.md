@@ -51,7 +51,6 @@ joined end no longer names one region and it rejects with `recast source window
 endpoint is not statically exact`. All five positives agree at native/Terminal
 exit 0 on Mac ARM64 with the producer built from `2669e12a2d9` plus this repair.
 
-All nine places now have positives and reject twins pinned under
-`tests/omega/{pass,fail}/facts/`. Other-host execution beyond the observations
-above, and the broader layout decoding and representation-family acceptance
-under **LIBRARY-REPRESENTATION-FAMILIES**, remain open.
+Other-host execution beyond the observations above, and the broader layout
+decoding and representation-family acceptance under
+**LIBRARY-REPRESENTATION-FAMILIES**, remain open.

@@ -11,8 +11,6 @@ omega run --both samples/cli/memory/declaration_predicate_calls/main.omg
 Expected exit: 0 in both native and Terminal execution. The program exercises
 lexically selected mathematical helpers, policy-preserving integer arithmetic,
 captured fields, generic carriers, byte predicates and post-call observations.
-Its invalid controls under `tests/omega/fail/proofs/declaration_predicate_*`
-reject false qualifications, stale observations and shadowed embedding names.
 
 Compiler `10291dff356` did not select the compiler-owned embedding function in
 declaration predicates: their call resolver selected only ordinary machines,

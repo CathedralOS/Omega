@@ -73,26 +73,7 @@ omega --check samples/cli/facts/readonly_byte_pool_relocation_bound/<place>/inva
 
 All 18 positive and reject places are pinned in the compiler corpus:
 - **Pass fixtures (`expected_native_exit.txt` = `0`):**
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_local_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_field_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_call_result_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_match_join_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_const_name_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit/`
-  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit/`
 - **Fail fixtures (`expected.txt`):**
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_local_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_field_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_parameter_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_call_result_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_match_join_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_const_name_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_other_state_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_other_machine_rejected/`
-  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected/`
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `READONLY-BYTE-POOL-RELOCATION` / `BYTE-VIEW-BOUND-DISCHARGE` (`TASKS.md`)
@@ -111,7 +92,6 @@ All 18 positive and reject places are pinned in the compiler corpus:
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/readonly_byte_pool_relocation_bound`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract` or `may overflow `u64``).
 - Discrimination: changing expected return value from 0 to 1 causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
 - What remains open: mutable byte slice relocation bounds, variable-length subslice slicing bounds propagation, and wide UTF-8 character decode relocation bounds.
 

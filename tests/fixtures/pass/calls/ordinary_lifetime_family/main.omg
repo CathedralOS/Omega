@@ -1,0 +1,14 @@
+// The returned text stays live through a lifetime-bound call and overload.
+use kit;
+
+machine main() crashes Trap {
+    let value: kit::Message = kit::roundtrip(kit::make());
+    let first: u32 = kit::pick(value);
+    let second: u64 = kit::pick(3u64);
+    transition first == 98u32 && second == 64u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

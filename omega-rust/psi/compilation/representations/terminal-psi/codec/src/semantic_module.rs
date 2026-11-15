@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 273`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 277`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1000,6 +1000,11 @@ pub(crate) mod canonical_order {
         while let Some(step) = pending.pop() {
             match step {
                 Step::Validate(proposition) => match proposition {
+                    Proposition::FloatMeaningEqual(clause) => {
+                        clause
+                            .validate()
+                            .map_err(CodecError::MalformedStructuralFoundation)?;
+                    }
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                     Proposition::Equal(left, right) => {
                         if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)?
@@ -4262,6 +4267,38 @@ mod routed_scalar_tests {
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
         );
+        let mut missing = module.clone();
+        missing.machines[0].closed_reach_application = None;
+        assert_eq!(
+            decode_module(&encode_raw(&missing).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "checked specialization has no retained application",
+            ))
+        );
+        let mut another_template = module.clone();
+        another_template.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .template_identity = TerminalIdentityIndex(2);
+        assert_eq!(
+            decode_module(&encode_raw(&another_template).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed reach application differs from its checked template identity",
+            ))
+        );
+        let mut another_specialization = module.clone();
+        another_specialization.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .specialization_commitment = [8; 32];
+        assert_eq!(
+            decode_module(&encode_raw(&another_specialization).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed reach application differs from its checked declaration commitment",
+            ))
+        );
         {
             use language_semantics::{
                 ScopedPermissionClaimIdentity, ScopedPermissionEventSource, SuspensionValueOrigin,
@@ -4711,7 +4748,31 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // routes with exact callable/service/provider/entry schemas, sealed native
 // meanings and declared boundary result lifetimes. The independent marker 272
 // layouts do not encode this combined schema and are refused before decoding.
-pub(crate) const FORMAT_MARKER: u16 = 273;
+// Marker 274 adds authenticated hosted-primitive requirement links to the
+// machine contract layout retained by marker 273. A 273 artifact has no such
+// execution link and cannot be read as this declaration grammar.
+// Marker 273 moves a public requirement's declared result lifetime groups
+// from each static method tuple onto the machine contract both selected and
+// rigid calls read. A 272 artifact keeps them on the method tuple instead.
+// Marker 271 retains boundary logical result lifetimes independently of spatial regions.
+// Marker 270 removes executable target-family catalogs and portable family heads.
+// Marker 269 retains complete primitive scalar storage types and predicate
+// establishment completions. Earlier catalogs cannot express either judgment.
+// Marker 268 retains the declared public result lifetime groups separately from body origins.
+// Marker 267 lets the existing record-invariant wrapper retain any record
+// storage shape. Earlier packed-only tag17 bytes cannot supply that nested shape.
+// Marker 266 retains the integer carrier in float semantic conversion identities.
+// A finite catalog ordinal from an earlier artifact cannot express that identity.
+// Marker 265 distinguishes entry field observations from current observations.
+// A 264 artifact cannot be read as that schema. Marker 264 retains each selected
+// call's public contract and closed application
+// separately from its executable body. Marker 263 operational ceilings and call
+// acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
+// numeric and finite-family identities remain part of the same format.
+// Marker 272 retains each structural value's explicit qualification changes
+// (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
+// row a qualified structural parameter could have arrived through.
+pub(crate) const FORMAT_MARKER: u16 = 277;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5767,7 +5828,7 @@ mod format_marker_tests {
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker.
         for legacy in [
-            250u16, 251, 252, 256, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272,
+            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

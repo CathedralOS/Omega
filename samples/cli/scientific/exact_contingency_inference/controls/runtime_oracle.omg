@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Numeric execution control frozen from the independent Cartesian oracle before execution.
 // The real application remains stdin-driven; this opcode also checks Terminal's calculations,
 // since the shipped --both route compares termination rather than stdout.
@@ -12,7 +13,7 @@ machine snapshot(model: &Model, expected: &Inference) -> bool {
     actual.probability_tail == expected.probability_tail && actual.association_tail == expected.association_tail &&
     actual.ties == expected.ties
 }
-public machine frozen_numerical_control() reaches Console
+public machine frozen_numerical_control() reaches ProcessExit + Console
 invokes Console
 {
     transition { _ -> case_0() }
@@ -79,6 +80,6 @@ invokes Console
             false -> failed()
         }
     }
-    machine passed() { Console::write_line("PASS frozen_numerical_control"); Console::exit_process(0); }
-    machine failed() { Console::write_line("FAIL frozen_numerical_control"); Console::exit_process(71); }
+    machine passed() { Console::write_line("PASS frozen_numerical_control"); ProcessExit::exit_process(0); }
+    machine failed() { Console::write_line("FAIL frozen_numerical_control"); ProcessExit::exit_process(71); }
 }

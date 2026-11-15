@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // Build and verify a greeting in an explicit fixed-capacity owner.
 // Qualification preserves the storage array's exact 32-byte extent; used names the live prefix.
 // Expected exit: 70.
@@ -41,7 +42,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("text_greeting: builds Hello, Ada! in an explicit text buffer");
     main.name = "Ada";
     copy(&mut main.greeting.storage, "Hello, ", 0);
@@ -58,19 +59,19 @@ machine Main::main(main: &mut Main) reaches Console {
     machine ok(main: &mut Main) {
         Console::write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(70);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(70);
     }
     machine mismatch(main: &mut Main) {
         Console::write_line("FAIL: the concatenated greeting did not match (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(71);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

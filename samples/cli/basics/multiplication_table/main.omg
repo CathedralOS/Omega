@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // A 9x9 multiplication table -- the first sample that produces FORMATTED NUMERIC OUTPUT.
 // Every other sample renders glyphs or animation frames; this one converts computed
 // numbers to text (itoa: a two-digit field, space-padded) and lays them out in an aligned
@@ -31,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("multiplication_table: the 9x9 times table, space-padded numeric text");
     main.line = "                            ";
     main.i = 1;
@@ -98,19 +99,19 @@ machine Main::main(main: &mut Main) reaches Console {
     machine finish(main: &mut Main) {
         Console::write_line("PASS: 9 rows rendered (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

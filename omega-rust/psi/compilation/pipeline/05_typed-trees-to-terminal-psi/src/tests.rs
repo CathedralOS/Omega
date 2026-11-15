@@ -115,7 +115,7 @@ fn emitted_calls_have_behavior_before_any_judgment() {
     bodies.push(Body {
         slots: Vec::new(),
         statements: vec![
-            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::discard(call(2, Vec::new(), None)),
             Statement::Arm {
                 guard: None,
                 target: Target::Unit,
@@ -556,8 +556,8 @@ fn every_call_owes_one_requirement_per_callee_requires_clause() {
     let body = Body {
         slots: scalars(vec![u32_type()]),
         statements: vec![
-            Statement::Evaluate(call(2, vec![slot(0, u32_type())], None)),
-            Statement::Evaluate(call(2, vec![slot(0, u32_type())], None)),
+            Statement::discard(call(2, vec![slot(0, u32_type())], None)),
+            Statement::discard(call(2, vec![slot(0, u32_type())], None)),
         ],
     };
     let callee = Signature {
@@ -771,8 +771,9 @@ fn a_value_machine_that_falls_off_its_end_is_refused() {
     .unwrap_err();
     assert_eq!(
         refusal.reason,
-        terminal_check_tables::RefusalReason::Unsupported
+        terminal_check_tables::RefusalReason::Violation
     );
+    assert_eq!(refusal.detail, "value machine can fall off its end");
 }
 
 fn boolean_slot(slot: usize) -> Expression {
@@ -1349,7 +1350,7 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
                 slot: 0,
                 value: call(2, vec![first, later.clone()], Some(u32_type())),
             },
-            Statement::Evaluate(later),
+            Statement::discard(later),
         ],
     };
     let lowered = try_lower(
@@ -1536,7 +1537,7 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
     let body = Body {
         slots: scalars(vec![u32_type(), u32_type(), u32_type()]),
         statements: vec![
-            Statement::Evaluate(call_f),
+            Statement::discard(call_f),
             Statement::Witness {
                 slot: 1,
                 term: integer(0),
@@ -1545,7 +1546,7 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
                 slot: 2,
                 value: sum,
             },
-            Statement::Evaluate(call_g),
+            Statement::discard(call_g),
         ],
     };
     let lowered = try_lower(
@@ -1586,7 +1587,7 @@ fn statements_after_a_call_that_may_return_are_lowered() {
     let body = Body {
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![
-            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::discard(call(2, Vec::new(), None)),
             Statement::Bind {
                 slot: 1,
                 value: strict(Strict::Add, slot(0, u32_type()), integer(1), u32_type()),
@@ -1622,7 +1623,7 @@ fn an_erased_binding_after_a_call_that_never_returns_is_not_reported() {
     let body = Body {
         slots: scalars(vec![u32_type()]),
         statements: vec![
-            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::discard(call(2, Vec::new(), None)),
             Statement::Witness {
                 slot: 0,
                 term: integer(0),
@@ -1658,7 +1659,7 @@ fn designated_operands_on_a_machine_call_are_refused() {
         try_lower(
             Body {
                 slots: Vec::new(),
-                statements: vec![Statement::Evaluate(statement)],
+                statements: vec![Statement::discard(statement)],
             },
             vec![signature(Vec::new(), None), signature(Vec::new(), None)],
             vec![returns_normally(), returns_normally()],
@@ -1746,7 +1747,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     // machine 1 calls 2; 2 is `{ crash Trap; }`.
     let caller = Body {
         slots: Vec::new(),
-        statements: vec![Statement::Evaluate(call(2, Vec::new(), None))],
+        statements: vec![Statement::discard(call(2, Vec::new(), None))],
     };
     let crashing = Body {
         slots: Vec::new(),
@@ -1845,7 +1846,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     };
     let quiet = || Vec::new();
     let crashing = || vec![crash_arm(None, CrashCause::Trap)];
-    let calls = || vec![Statement::Evaluate(call(2, Vec::new(), None))];
+    let calls = || vec![Statement::discard(call(2, Vec::new(), None))];
 
     assert_eq!(run(quiet(), quiet()).unwrap(), returns_normally());
     assert_eq!(run(calls(), quiet()).unwrap(), returns_normally());
@@ -1967,7 +1968,7 @@ fn settle_both(
         let statements = steps
             .iter()
             .map(|step| match *step {
-                Step::Call(callee) => Statement::Evaluate(call(callee, Vec::new(), None)),
+                Step::Call(callee) => Statement::discard(call(callee, Vec::new(), None)),
                 Step::Tail(callee) => Statement::Arm {
                     guard: Some(yes()),
                     target: Target::Value(call(callee, Vec::new(), None)),
@@ -1975,7 +1976,7 @@ fn settle_both(
                 },
                 Step::Return(callee) => returns(call(callee, Vec::new(), None)),
                 Step::Crash(guarded, cause) => crash_arm(guarded.then(yes), cause),
-                Step::Refuse => Statement::Evaluate(expression(
+                Step::Refuse => Statement::discard(expression(
                     ExpressionKind::Call {
                         callee: crate::body::CallTarget::Boundary { boundary: id(1) },
                         arguments: Vec::new(),
@@ -2283,6 +2284,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
             field(2, "y", ValueType::Scalar(u32_type(), Qualification::NONE)),
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records.push(RecordType {
         owns_linear_claim: false,
@@ -2293,6 +2295,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
             field(4, "to", point()),
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records
 }
@@ -2974,6 +2977,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
             },
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     let envelope = ValueType::record(id(3));
     let endpoint = |field| member(member(place(0, envelope), 0, line()), field, point());
@@ -3351,6 +3355,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records.push(RecordType {
         owns_linear_claim: false,
@@ -3367,6 +3372,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
             case(4, "Empty", Vec::new()),
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records
 }
@@ -4166,7 +4172,7 @@ mod loops;
 
 #[test]
 fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_order() {
-    // machine 1() -> u32 { match g() { 0 -> 10, 1 -> 20, _ -> 30 } }
+    // Bind the match so each arm arrives at its value join.
     let matched = expression(
         ExpressionKind::Match {
             capture: None,
@@ -4181,8 +4187,14 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
     );
     let (machine, tables) = lower(
         Body {
-            slots: Vec::new(),
-            statements: vec![returns(matched)],
+            slots: scalars(vec![u32_type()]),
+            statements: vec![
+                Statement::Bind {
+                    slot: 0,
+                    value: matched,
+                },
+                returns(slot(0, u32_type())),
+            ],
         },
         vec![
             signature(Vec::new(), Some(u32_type())),

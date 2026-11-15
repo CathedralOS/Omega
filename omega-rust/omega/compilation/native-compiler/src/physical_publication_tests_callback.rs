@@ -431,6 +431,7 @@ fn check_callback_publication(retain_body_source: bool) {
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
         providers: ProviderAdmissionRequest {
+            native_bindings: &Default::default(),
             profile: target::TargetProfile::WindowsX64,
             bootstrap_entry: MachineId::new(1).unwrap(),
             program_provider_context: None,
@@ -467,11 +468,12 @@ fn check_callback_publication(retain_body_source: bool) {
     .expect("prepare real callback occurrence closure");
     let admitted = admit_prepared_native_realization(input, artifact, &request)
         .expect("admit callback registrar with exact selected foreign contract");
-    let (root, providers) = super::emit_body(admitted);
+    let (root, providers) = super::emit_body(admitted, |_| {});
     let program_context = Arc::clone(providers.program_provider_context());
     let body_request = NativeAdmissionRequest {
         entry: TargetMachineCallable::Machine(MachineId::new(2).unwrap()),
         providers: ProviderAdmissionRequest {
+            native_bindings: &Default::default(),
             program_provider_context: Some(&program_context),
             ..request.providers
         },
@@ -487,7 +489,7 @@ fn check_callback_publication(retain_body_source: bool) {
     .expect("prepare callback body under the same retained program");
     let admitted = admit_prepared_native_realization(input, artifact, &body_request)
         .expect("admit actual callback body");
-    let (body, _) = super::emit_body(admitted);
+    let (body, _) = super::emit_body(admitted, |_| {});
     let body = if retain_body_source {
         body.with_semantic_source(artifact.retain_code(), coverage.clone())
             .unwrap()

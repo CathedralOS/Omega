@@ -14,10 +14,6 @@ The public command needs the selected host's package review on a fresh checkout.
 Inspect and decide that review before resuming `omega packages update`; the test harness
 does not grant acceptance to this sample.
 
-```sh
-python3 tools/corpus_gate.py --both --filter collections/runtime_shared_array_polynomial_exit
-```
-
 This runs the byte-identical body under repository fixture admission. At
 `e56af86474b` on macOS ARM64, native and checked-interpreter execution both exit
 70 and match the three stdout lines. Public package acceptance remains a

@@ -2,8 +2,8 @@
 Canonical identity construction for `LegalizedOperationPlan` and its subordinate representations.
 
 We compute collision-resistant SHA-256 identity digests (`LegalizedOperationPlanIdentity`) over
-the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v80\0` and
-`ordinary-scalar-graph.v41\0`). Every optional field uses a tagged `0` / `1 + payload` frame
+the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v81\0` and
+`ordinary-scalar-graph.v42\0`). Every optional field uses a tagged `0` / `1 + payload` frame
 (`encode_option`) so an absent row and an empty payload never share bytes.
 */
 
@@ -28,7 +28,7 @@ pub use normalized_foreign::{
     encode_call_binding, encode_locator, encode_machine_function_identity,
     encode_native_callback_argument,
 };
-pub use structural::encode_provider_execution;
+pub use structural::{encode_external_execution, encode_provider_execution};
 pub use structural_types::{encode_authored_field_storage, encode_structural_place};
 
 use crate::{LegalizedOperationPlan, LegalizedOperationPlanIdentity, LegalizedStructuralContract};
@@ -47,7 +47,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v80\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v81\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -59,7 +59,7 @@ pub fn legalized_operation_plan_identity(
         bytes.extend_from_slice(name);
     });
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
-    bytes.extend_from_slice(b"ordinary-scalar-graph.v41\0");
+    bytes.extend_from_slice(b"ordinary-scalar-graph.v42\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
     for function in &plan.scalar_functions {

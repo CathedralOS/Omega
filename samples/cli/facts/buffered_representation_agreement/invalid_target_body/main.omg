@@ -145,7 +145,7 @@ data DeliveredResult<'buffer> {
 }
 boundary trait AnswerDelivery {
     machine carry<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> DeliveredResult<'buffer> reaches terminates
-    ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result.answer, incoming);
+    ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result.answer, incoming) crashes none;
 }
 FirstDelivery satisfies AnswerDelivery {
     machine carry<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> DeliveredResult<'buffer>

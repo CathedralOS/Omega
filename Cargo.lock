@@ -46,6 +46,7 @@ dependencies = [
  "diagnostics",
  "installation-evidence",
  "language-core",
+ "language-semantics",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
@@ -67,6 +68,7 @@ dependencies = [
  "compiler-storage",
  "extents",
  "language-core",
+ "language-semantics",
  "layout-plans",
  "optimization",
  "semantic-vocabulary",
@@ -114,12 +116,15 @@ dependencies = [
  "diagnostics",
  "effects",
  "function-identity",
+ "language-core",
+ "language-semantics",
  "optimization-core",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -722,6 +727,7 @@ dependencies = [
  "machine-emission",
  "object-file",
  "optimization-core",
+ "optimization-unit",
  "optimization-unit-semantics",
  "program-entry-plan",
  "provider-admission",
@@ -1136,6 +1142,7 @@ dependencies = [
  "optimization-core",
  "platform-custody",
  "program-entry-plan",
+ "provider-admission",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -1183,6 +1190,7 @@ dependencies = [
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
+ "target-operations",
  "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
@@ -1347,6 +1355,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "language-core",
+ "numerics",
  "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",
@@ -1793,6 +1802,9 @@ dependencies = [
 name = "review-evidence"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
+ "build-settings",
+ "build-time-evaluation",
  "calling-conventions",
  "diagnostics",
  "effects",
@@ -2295,6 +2307,7 @@ dependencies = [
  "function-identity",
  "installation-evidence",
  "language-core",
+ "optimization-unit",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -2506,10 +2519,14 @@ name = "terminal-psi-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "execution-admission",
  "language-core",
  "language-semantics",
+ "mimalloc",
+ "numerics",
  "optimization",
  "proof-admission",
+ "rayon",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -2560,12 +2577,14 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "extents",
+ "language-core",
  "language-semantics",
  "layout-plans",
  "numerics",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
+ "source",
  "terminal-psi",
 ]
 
@@ -2679,6 +2698,7 @@ name = "typed-trees-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "diagnostics",
  "language-core",
  "language-semantics",
  "numerics",

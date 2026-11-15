@@ -43,15 +43,13 @@ branch inside the consumer is only the runtime oracle, after arrival is proved.
 | another machine | [program](other_machine/main.omg) | [wrong edge](invalid_other_machine/main.omg) | explicit forwarding call |
 | another target body | [program](target_body/main.omg) | [wrong edge](invalid_target_body/main.omg) | selected forwarding body |
 
-Each twin changes only the fallthrough label's own requirement from counter 0
-to counter 1, in both ordinary ISA implementations. The instruction sequence, bound, consuming
-operation and runtime oracle are unchanged. The nine places and twins are pinned
-as `tests/omega/{pass,fail}/facts/checked_asm_countdown_through_*`.
-The positive fixtures also request all four hosted target interpretations from
-one unchanged retained Terminal artifact using `expected_terminal_targets.txt`.
-The target-body pin additionally requests the existing `compiled-application`
-cohort mode, so each installation receives its own actual admitted ProgramEntry
-root rather than the artifact-only default entry; the semantic artifact remains
+Each twin changes only the fallthrough label's own requirement from counter 0 to counter 1, in
+both ordinary ISA implementations. The instruction sequence, bound, consuming operation and
+runtime oracle are unchanged. The positive fixtures also request all four hosted target
+interpretations from one unchanged retained Terminal artifact using
+`expected_terminal_targets.txt`. The target-body pin additionally requests the existing
+`compiled-application` cohort mode, so each installation receives its own actual admitted
+ProgramEntry root rather than the artifact-only default entry; the semantic artifact remains
 unchanged across that cohort.
 
 ## Baseline and evidence

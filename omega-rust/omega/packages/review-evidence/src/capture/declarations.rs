@@ -1,7 +1,7 @@
-//! Declaration facts are read from the source the package judgment accepted.
-//! This projection does not infer behavior from syntax: callable behavior is
-//! read separately from the retained module, and an unserved declaration form
-//! prevents a complete review instead of disappearing from its inventory.
+//! Reads declaration facts for review from the source the package judgment
+//! accepted. It infers no behavior from syntax: callable behavior is read
+//! separately from the retained module, and an unhandled declaration form makes
+//! the review incomplete instead of vanishing from its inventory.
 
 use super::PackageReviewInput;
 use crate::record::{
@@ -9,7 +9,8 @@ use crate::record::{
     PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewContractOperatorMeaning, PackageReviewDataField, PackageReviewDataKind,
     PackageReviewDataMember, PackageReviewDataProperties, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
+    PackageReviewNominalOwner, PackageReviewSemanticDependencyExposure,
+    PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -19,6 +20,16 @@ use typed_trees::data::{DataField, DataMember};
 use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
+
+/// Names in a reviewed clause come from its retained declaration, never from
+/// their spelling. Domain predicates and callable clauses share this projection.
+#[derive(Clone, Copy)]
+pub(super) struct ContractScope<'a> {
+    pub owner: SymbolHandle,
+    pub subject: Option<(SymbolHandle, TypeReferenceHandle)>,
+    pub parameters: &'a [typed_trees::signature::StateParameter],
+    pub result: Option<TypeReferenceHandle>,
+}
 
 pub(super) fn unavailable(what: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
@@ -96,14 +107,51 @@ impl<'a> PackageReviewInput<'a> {
         &self,
         reference: TypeReferenceHandle,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+        self.type_identity_with_lifetimes(reference, None)
+    }
+
+    fn type_identity_with_lifetimes(
+        &self,
+        reference: TypeReferenceHandle,
+        lifetime_scope: Option<(
+            SymbolHandle,
+            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+        )>,
+    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         if !reference.is_valid() {
             return Err(unavailable("an absent declared type"));
         }
-        self.require_type_dependencies(reference)?;
+        self.require_type_dependencies(
+            reference,
+            PackageReviewSemanticDependencyExposure::PublicInterface,
+        )?;
+        self.exact_signature_type_identity(reference, lifetime_scope)
+    }
+
+    pub(super) fn type_identity_for_private_contract(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+        self.require_type_dependencies(
+            reference,
+            PackageReviewSemanticDependencyExposure::PrivateImplementation,
+        )?;
+        self.exact_signature_type_identity(reference, None)
+    }
+
+    fn exact_signature_type_identity(
+        &self,
+        reference: TypeReferenceHandle,
+        lifetime_scope: Option<(
+            SymbolHandle,
+            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+        )>,
+    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         let canonical = self
             .typed()
             .exact_owner_type_identity(typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
                 type_reference: reference,
+                lifetime_scope,
                 binders: &[],
                 substitutions: &[],
                 exact_toolchain_sources: self.compilation().sources().exact_toolchain_sources(),
@@ -117,6 +165,7 @@ impl<'a> PackageReviewInput<'a> {
     fn require_type_dependencies(
         &self,
         reference: TypeReferenceHandle,
+        exposure: PackageReviewSemanticDependencyExposure,
     ) -> Result<(), Vec<Diagnostic>> {
         let package = self
             .compilation()
@@ -139,7 +188,7 @@ impl<'a> PackageReviewInput<'a> {
                         "an imported public type's semantic dependency contract",
                     ));
                 }
-                Some(_) => {
+                Some(_) if exposure == PackageReviewSemanticDependencyExposure::PublicInterface => {
                     let retained = self
                         .typed()
                         .data_definition_by_symbol(symbol)
@@ -154,7 +203,7 @@ impl<'a> PackageReviewInput<'a> {
                         ));
                     }
                 }
-                None => {
+                _ => {
                     self.nominal(symbol)?;
                 }
             }
@@ -162,12 +211,20 @@ impl<'a> PackageReviewInput<'a> {
         Ok(())
     }
 
-    fn field(&self, field: &DataField) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
+    fn field(
+        &self,
+        field: &DataField,
+        lifetimes: (
+            SymbolHandle,
+            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+        ),
+    ) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
         Ok(PackageReviewDataField {
             identity: field.identity,
             name: field.name.as_str().to_owned(),
             relevance: field.relevance,
-            type_identity: self.type_identity(field.type_reference)?,
+            type_identity: self
+                .type_identity_with_lifetimes(field.type_reference, Some(lifetimes))?,
         })
     }
 
@@ -185,8 +242,11 @@ impl<'a> PackageReviewInput<'a> {
             if !self.owns(definition.symbol, package)? {
                 continue;
             }
+            // Lifetime binders are retained by this declaration's exact
+            // owner and count; field type identities name the ordinals in
+            // that scope. Other generic and cleanup contracts
+            // still need a complete projection before they can be reviewed.
             if !definition.type_parameters.is_empty()
-                || !definition.lifetime_parameters.is_empty()
                 || !definition.conformance_bounds.is_empty()
                 || definition.quotient.is_some()
                 || definition.cleanup_selection.is_some()
@@ -196,10 +256,23 @@ impl<'a> PackageReviewInput<'a> {
                     "this data declaration's complete generic or cleanup signature",
                 ));
             }
+            let lifetimes = (0..definition.lifetime_parameters.len())
+                .map(|ordinal| {
+                    (
+                        typed_trees::type_identity::LifetimeParameterIdentity {
+                            declaration: definition.symbol,
+                            ordinal,
+                        },
+                        ordinal,
+                    )
+                })
+                .collect::<Vec<_>>();
             let mut members = Vec::new();
             for member in self.typed().data_members(definition) {
                 members.push(match member {
-                    DataMember::Field(field) => PackageReviewDataMember::Field(self.field(field)?),
+                    DataMember::Field(field) => PackageReviewDataMember::Field(
+                        self.field(field, (definition.symbol, &lifetimes))?,
+                    ),
                     DataMember::Variant(variant) => {
                         let mut retired = variant.retired_payload_identities.clone();
                         retired.sort_unstable();
@@ -211,7 +284,7 @@ impl<'a> PackageReviewInput<'a> {
                                 .typed()
                                 .data_payload_fields(variant)
                                 .iter()
-                                .map(|field| self.field(field))
+                                .map(|field| self.field(field, (definition.symbol, &lifetimes)))
                                 .collect::<Result<_, _>>()?,
                             retired_payload_identities: retired,
                         }
@@ -311,13 +384,31 @@ impl<'a> PackageReviewInput<'a> {
         Ok(rows)
     }
 
+    pub(super) fn expression(
+        &self,
+        expression: ExpressionHandle,
+        domain: &DomainDefinition,
+        depth: usize,
+    ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+        self.scoped_expression(
+            expression,
+            ContractScope {
+                owner: domain.symbol,
+                subject: Some((domain.subject_symbol, domain.target_type)),
+                parameters: &[],
+                result: None,
+            },
+            depth,
+        )
+    }
+
     /// Selection and operand identity decide a spelled operator's meaning.
     /// The ledger need not contain a row for a fixed builtin connective, and
     /// absence of a row cannot itself turn an unresolved operator into one.
     fn builtin_operator(
         &self,
         expression: ExpressionHandle,
-        domain: &DomainDefinition,
+        scope: ContractScope<'_>,
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
         let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
@@ -332,12 +423,12 @@ impl<'a> PackageReviewInput<'a> {
         let spelling = typed_trees::operator::binary_operator_spelling(binary.operator)
             .ok_or_else(|| unavailable("an unserved contract operator family"))?;
         let operands = [
-            self.operand_type(binary.left, domain)?,
-            self.operand_type(binary.right, domain)?,
+            self.operand_type(binary.left, scope)?,
+            self.operand_type(binary.right, scope)?,
         ];
         if typed_trees::operator::has_builtin_spelled_expression_meaning(
             typed,
-            domain.symbol,
+            scope.owner,
             expression,
             spelling,
             &operands,
@@ -353,7 +444,7 @@ impl<'a> PackageReviewInput<'a> {
     fn operand_type(
         &self,
         expression: ExpressionHandle,
-        domain: &DomainDefinition,
+        scope: ContractScope<'_>,
     ) -> Result<Option<TypeReferenceHandle>, Vec<Diagnostic>> {
         let typed = self.typed();
         let table = &typed.expression_table;
@@ -362,8 +453,25 @@ impl<'a> PackageReviewInput<'a> {
             return Ok(Some(retained));
         }
         let (atom, policy) = match table.expression(expression) {
-            ExpressionNode::Name(name) if name.symbol == domain.subject_symbol => {
-                return Ok(Some(domain.target_type));
+            ExpressionNode::Name(name) => {
+                if let Some((symbol, value_type)) = scope.subject
+                    && symbol.is_valid()
+                    && name.symbol == symbol
+                {
+                    return Ok(Some(value_type));
+                }
+                if let Some(parameter) = scope.parameters.iter().find(|p| p.symbol == name.symbol) {
+                    return Ok(Some(parameter.type_reference));
+                }
+                if name.reserved_result_of == scope.owner
+                    && scope.owner.is_valid()
+                    && let Some(result) = scope.result
+                {
+                    return Ok(Some(result));
+                }
+                return Err(unavailable(
+                    "a contract name outside its declaration's scope",
+                ));
             }
             ExpressionNode::Integer(literal) => {
                 let Some(landing) = literal.landing() else {
@@ -392,10 +500,10 @@ impl<'a> PackageReviewInput<'a> {
         Ok(Some(reference))
     }
 
-    pub(super) fn expression(
+    pub(super) fn scoped_expression(
         &self,
         expression: ExpressionHandle,
-        domain: &DomainDefinition,
+        scope: ContractScope<'_>,
         depth: usize,
     ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
         use PackageReviewContractBinaryOperator as Output;
@@ -411,13 +519,34 @@ impl<'a> PackageReviewInput<'a> {
         Ok(match self.typed().expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Expression::Boolean(*value),
             ExpressionNode::Integer(value) => Expression::Integer(value.to_string()),
-            ExpressionNode::Name(name)
-                if name.symbol == domain.subject_symbol && domain.subject_symbol.is_valid() =>
-            {
-                Expression::DomainSubject
+            ExpressionNode::Name(name) => {
+                if scope
+                    .subject
+                    .is_some_and(|(symbol, _)| symbol.is_valid() && name.symbol == symbol)
+                {
+                    Expression::DomainSubject
+                } else if let Some(position) = scope
+                    .parameters
+                    .iter()
+                    .position(|p| p.symbol == name.symbol)
+                {
+                    Expression::Parameter(
+                        u32::try_from(position)
+                            .map_err(|_| unavailable("a contract parameter ordinal"))?,
+                    )
+                } else if scope.result.is_some()
+                    && scope.owner.is_valid()
+                    && name.reserved_result_of == scope.owner
+                {
+                    Expression::Result
+                } else {
+                    return Err(unavailable(
+                        "a contract name outside its declaration's scope",
+                    ));
+                }
             }
             ExpressionNode::Binary(binary) => {
-                self.builtin_operator(expression, domain)?;
+                self.builtin_operator(expression, scope)?;
                 let operator = match binary.operator {
                     BinaryOperator::Add => Output::Add,
                     BinaryOperator::And => Output::And,
@@ -447,8 +576,8 @@ impl<'a> PackageReviewInput<'a> {
                 Expression::Binary {
                     meaning: PackageReviewContractOperatorMeaning::Builtin,
                     operator,
-                    left: Box::new(self.expression(binary.left, domain, depth + 1)?),
-                    right: Box::new(self.expression(binary.right, domain, depth + 1)?),
+                    left: Box::new(self.scoped_expression(binary.left, scope, depth + 1)?),
+                    right: Box::new(self.scoped_expression(binary.right, scope, depth + 1)?),
                 }
             }
             _ => return Err(unavailable("this contract expression form")),

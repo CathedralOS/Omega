@@ -1,10 +1,10 @@
 //! Tests the validators consumed by compiler and runtime access paths.
 
 use crate::{
-    AccessExposure, AccessFieldEntry, AccessFieldKey, AccessFields, AccessPlan, AtomicCapability,
+    AccessExposure, AccessFieldEntry, AccessFieldKey, AccessFields, AtomicCapability,
     BoundaryReach, BoundaryServiceReachId, ExternalCapability, ExternalRead, ExternalReadBehavior,
     FieldAccess, PeerWritability, ResourceProfile, ResourceRegion, StableCapability, TransferRule,
-    ValidatedAccessFields, ValidatedAccessPlan, validate_access_fields, validate_access_plan,
+    ValidatedAccessFields, ValidatedPlacement, validate_access_fields, validate_placement,
 };
 use extents::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
 use layout_plans::test_support::layout_field_entry;
@@ -131,14 +131,10 @@ fn uart_access_fields() -> ValidatedAccessFields {
     validate_access_fields(plan, &layout).expect("UART plan")
 }
 
-fn uart_access_plan() -> ValidatedAccessPlan {
+fn uart_access_plan() -> ValidatedPlacement {
     let layout = uart_layout();
-    validate_access_plan(AccessPlan {
-        access: uart_access_source(&layout),
-        layout,
-        reach: uart_reach(),
-    })
-    .expect("UART access plan")
+    let placement_fields = uart_access_source(&layout);
+    validate_placement(layout, placement_fields, uart_reach()).expect("UART access plan")
 }
 
 fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, extents::ExtentDiagnostic>) -> T {
@@ -212,15 +208,15 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
 
 mod field_regions {
     use crate::{
-        AccessExposure, AccessFields, AccessOperation, AccessPlan, AtomicCapability,
-        BorrowPolarity, BoundaryReach, ExternalCapability, FieldAccess, PeerWritability,
-        ResourceProfile, ResourceRegion, StableCapability, ValidatedAccessPlan,
-        validate_access_plan, validate_access_resources, validate_resource_profile,
+        AccessExposure, AccessFields, AccessOperation, AtomicCapability, BorrowPolarity,
+        BoundaryReach, ExternalCapability, FieldAccess, PeerWritability, ResourceProfile,
+        ResourceRegion, StableCapability, ValidatedPlacement, validate_access_resources,
+        validate_placement, validate_resource_profile,
     };
     use layout_plans::LayoutPlacementReport;
     use layout_plans::test_support::{layout_field_entry, layout_report};
 
-    fn page_plan(read: bool, write: bool, byte_length: u64) -> ValidatedAccessPlan {
+    fn page_plan(read: bool, write: bool, byte_length: u64) -> ValidatedPlacement {
         region_plan(FieldAccess::Region {
             byte_length,
             byte_alignment: 8,
@@ -235,7 +231,7 @@ mod field_regions {
         })
     }
 
-    fn region_plan(demand: FieldAccess) -> ValidatedAccessPlan {
+    fn region_plan(demand: FieldAccess) -> ValidatedPlacement {
         let layout = layout_report(
             vec![layout_field_entry(
                 "words",
@@ -248,12 +244,8 @@ mod field_regions {
         let mut access = AccessFields::inaccessible(&layout).expect("schema slots");
         let key = access.key_at(0).expect("one field");
         access.set(key, demand).expect("exact field key");
-        validate_access_plan(AccessPlan {
-            layout,
-            access,
-            reach: BoundaryReach::default(),
-        })
-        .expect("structural page region")
+        validate_placement(layout, access, BoundaryReach::default())
+            .expect("structural page region")
     }
 
     #[test]
@@ -660,11 +652,8 @@ mod field_regions {
                 },
             ] {
                 access.set(access.key_at(1).unwrap(), other).unwrap();
-                let result = validate_access_plan(AccessPlan {
-                    layout: layout.clone(),
-                    access: access.clone(),
-                    reach: BoundaryReach::default(),
-                });
+                let result =
+                    validate_placement(layout.clone(), access.clone(), BoundaryReach::default());
                 assert_eq!(result.is_ok(), other_offset == 16, "{result:?}");
                 if let Err(error) = result {
                     assert!(error.0.contains("overlaps"), "{error}");
@@ -676,13 +665,13 @@ mod field_regions {
 
 mod initialization_resources {
     use crate::{
-        AccessExposure, AccessFields, AccessPlan, AtomicCapability, BoundaryReach,
-        ExternalCapability, PeerWritability, ResourceProfile, ResourceRegion, StableCapability,
-        ValidatedAccessPlan, validate_access_plan, validate_access_resources,
-        validate_initialization_resources, validate_resource_profile,
+        AccessExposure, AccessFields, AtomicCapability, BoundaryReach, ExternalCapability,
+        PeerWritability, ResourceProfile, ResourceRegion, StableCapability, ValidatedPlacement,
+        validate_access_resources, validate_initialization_resources, validate_placement,
+        validate_resource_profile,
     };
 
-    fn plan(expose_read: bool) -> ValidatedAccessPlan {
+    fn plan(expose_read: bool) -> ValidatedPlacement {
         let layout = super::uart_layout();
         let access = if expose_read {
             super::access_plan(
@@ -695,12 +684,7 @@ mod initialization_resources {
         } else {
             AccessFields::inaccessible(&layout).expect("inaccessible access")
         };
-        validate_access_plan(AccessPlan {
-            layout,
-            access,
-            reach: super::uart_reach(),
-        })
-        .expect("placement")
+        validate_placement(layout, access, super::uart_reach()).expect("placement")
     }
 
     fn region(offset: u64, length: u64, stable: StableCapability) -> ResourceRegion {
@@ -815,12 +799,8 @@ mod initialization_resources {
             align: 8,
         };
         let access = AccessFields::inaccessible(&layout).expect("zero-footprint fields");
-        let zero_sized = validate_access_plan(AccessPlan {
-            layout,
-            access,
-            reach: BoundaryReach::default(),
-        })
-        .expect("zero-footprint placement");
+        let zero_sized = validate_placement(layout, access, BoundaryReach::default())
+            .expect("zero-footprint placement");
         assert!(
             crate::validate_run_relocation_resources(&zero_sized, u64::MAX, 4096, &empty, &empty)
                 .expect("logical count does not enumerate zero-sized cells")
@@ -1037,9 +1017,9 @@ mod plan_validation {
     use crate::plan_policy::access_fields_validation::validate_entry_geometry;
     use crate::{
         AccessExposure, AccessFieldEntry, AccessFieldKey, AccessFields, AccessOperation,
-        AccessPlan, AtomicPermissions, BorrowPolarity, BoundaryReach, BoundaryServiceReachId,
-        ExternalRead, FieldAccess, LogicalFieldFragment, ObservationModel, RelativeEffectFootprint,
-        validate_access_fields, validate_access_plan,
+        AtomicPermissions, BorrowPolarity, BoundaryReach, BoundaryServiceReachId, ExternalRead,
+        FieldAccess, LogicalFieldFragment, ObservationModel, RelativeEffectFootprint,
+        validate_access_fields, validate_placement,
     };
     use layout_plans::test_support::{layout_field_entry, layout_report};
     use layout_plans::{
@@ -1251,11 +1231,11 @@ mod plan_validation {
         };
 
         let commitment = |access: FieldAccess| {
-            validate_access_plan(AccessPlan {
-                access: access_plan(&layout, &[("word", access)]),
-                layout: layout.clone(),
-                reach: BoundaryReach::default(),
-            })
+            validate_placement(
+                layout.clone(),
+                access_plan(&layout, &[("word", access)]),
+                BoundaryReach::default(),
+            )
             .expect("interpretation test placement")
             .content_interpretation()
             .commitment()
@@ -1283,19 +1263,19 @@ mod plan_validation {
     fn placement_identity_owns_normalized_reach() {
         let layout = uart_layout();
         let access = uart_access_source(&layout);
-        let uart = validate_access_plan(AccessPlan {
-            layout: layout.clone(),
-            access: access.clone(),
-            reach: BoundaryReach::from_services([reach(), reach()]),
-        })
+        let uart = validate_placement(
+            layout.clone(),
+            access.clone(),
+            BoundaryReach::from_services([reach(), reach()]),
+        )
         .expect("UART placement");
         let alternate_reach =
             BoundaryServiceReachId::from_normalized_identity(8).expect("alternate reach");
-        let alternate = validate_access_plan(AccessPlan {
+        let alternate = validate_placement(
             layout,
             access,
-            reach: BoundaryReach::from_services([alternate_reach]),
-        })
+            BoundaryReach::from_services([alternate_reach]),
+        )
         .expect("alternate placement reach");
         assert_eq!(
             uart.reach().services().len(),
@@ -1678,11 +1658,11 @@ mod resource_profiles {
         uart_extent_with_root, uart_layout, uart_reach, uart_resource_profile_data,
     };
     use crate::{
-        AccessExposure, AccessPlan, AtomicCapability, AtomicPermissions, AtomicTransferRule,
-        BoundaryReach, BoundaryServiceReachId, EffectiveSupplyKind, ExternalCapability,
-        ExternalRead, ExternalReadBehavior, FieldAccess, PeerWritability, ResourceProfile,
-        ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, StableCapability,
-        TransferRule, validate_access_plan, validate_access_resources, validate_resource_profile,
+        AccessExposure, AtomicCapability, AtomicPermissions, AtomicTransferRule, BoundaryReach,
+        BoundaryServiceReachId, EffectiveSupplyKind, ExternalCapability, ExternalRead,
+        ExternalReadBehavior, FieldAccess, PeerWritability, ResourceProfile, ResourceProfileGrant,
+        ResourceProfileReceiptId, ResourceRegion, StableCapability, TransferRule,
+        validate_access_resources, validate_placement, validate_resource_profile,
     };
     use layout_plans::test_support::layout_field_entry;
     use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
@@ -1894,25 +1874,25 @@ mod resource_profiles {
             "canonical field order reports the first width mismatch: {error}"
         );
 
-        let stable_demand = validate_access_plan(AccessPlan {
-            layout: uart_layout(),
-            access: access_plan(
+        let stable_demand = validate_placement(
+            uart_layout(),
+            access_plan(
                 &uart_layout(),
                 &[(
                     "status",
                     super::stable_word32_read(AccessExposure::Exported),
                 )],
             ),
-            reach: uart_reach(),
-        })
+            uart_reach(),
+        )
         .expect("stable demand");
         let error = validate_access_resources(&stable_demand, &read_only_external)
             .expect_err("external supply cannot satisfy Stable demand");
         assert!(error.0.contains("requests Stable"));
 
-        let destructive_demand = validate_access_plan(AccessPlan {
-            layout: uart_layout(),
-            access: access_plan(
+        let destructive_demand = validate_placement(
+            uart_layout(),
+            access_plan(
                 &uart_layout(),
                 &[(
                     "status",
@@ -1924,8 +1904,8 @@ mod resource_profiles {
                     },
                 )],
             ),
-            reach: uart_reach(),
-        })
+            uart_reach(),
+        )
         .expect("destructive external demand");
         let error = validate_access_resources(&destructive_demand, &read_only_external)
             .expect_err("repeatable reads cannot satisfy destructive observation");
@@ -1944,26 +1924,24 @@ mod resource_profiles {
             size: Some(4),
             align: 4,
         };
-        let atomic_demand = validate_access_plan(AccessPlan {
-            access: access_plan(
-                &atomic_layout,
-                &[(
-                    "head",
-                    FieldAccess::Atomic {
-                        transfer_width_bits: 32,
-                        operations: AtomicPermissions {
-                            load: true,
-                            fetch_add: true,
-                            ..AtomicPermissions::default()
-                        },
-                        exposure: AccessExposure::Exported,
+        let placement_fields = access_plan(
+            &atomic_layout,
+            &[(
+                "head",
+                FieldAccess::Atomic {
+                    transfer_width_bits: 32,
+                    operations: AtomicPermissions {
+                        load: true,
+                        fetch_add: true,
+                        ..AtomicPermissions::default()
                     },
-                )],
-            ),
-            layout: atomic_layout,
-            reach: BoundaryReach::default(),
-        })
-        .expect("atomic demand");
+                    exposure: AccessExposure::Exported,
+                },
+            )],
+        );
+        let atomic_demand =
+            validate_placement(atomic_layout, placement_fields, BoundaryReach::default())
+                .expect("atomic demand");
         let load_only = validate_resource_profile(
             ResourceProfile {
                 regions: vec![ResourceRegion {
@@ -2010,23 +1988,20 @@ mod resource_profiles {
             size: Some(4),
             align: 4,
         };
-        let placement = validate_access_plan(AccessPlan {
-            access: access_plan(
-                &layout,
-                &[(
-                    "word",
-                    FieldAccess::External {
-                        transfer_width_bits: 32,
-                        read: ExternalRead::Read,
-                        write: false,
-                        exposure: AccessExposure::Exported,
-                    },
-                )],
-            ),
-            layout,
-            reach: BoundaryReach::default(),
-        })
-        .expect("subrange placement");
+        let placement_fields = access_plan(
+            &layout,
+            &[(
+                "word",
+                FieldAccess::External {
+                    transfer_width_bits: 32,
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: AccessExposure::Exported,
+                },
+            )],
+        );
+        let placement = validate_placement(layout, placement_fields, BoundaryReach::default())
+            .expect("subrange placement");
         let extent = uart_extent(0x4000, 16);
         let profile = ResourceProfileGrant::from_admitted_provider(
             ResourceProfileReceiptId::from_normalized_identity(41).expect("profile receipt"),
@@ -2142,33 +2117,34 @@ mod resource_profiles {
             size: Some(8),
             align: 2,
         };
-        let conflicting = validate_access_plan(AccessPlan {
-            access: access_plan(
-                &conflicting_layout,
-                &[
-                    (
-                        "left",
-                        FieldAccess::External {
-                            transfer_width_bits: 32,
-                            read: ExternalRead::Read,
-                            write: false,
-                            exposure: AccessExposure::Exported,
-                        },
-                    ),
-                    (
-                        "right",
-                        FieldAccess::External {
-                            transfer_width_bits: 32,
-                            read: ExternalRead::Read,
-                            write: false,
-                            exposure: AccessExposure::Exported,
-                        },
-                    ),
-                ],
-            ),
-            layout: conflicting_layout,
-            reach: BoundaryReach::default(),
-        })
+        let placement_fields = access_plan(
+            &conflicting_layout,
+            &[
+                (
+                    "left",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                ),
+                (
+                    "right",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                ),
+            ],
+        );
+        let conflicting = validate_placement(
+            conflicting_layout,
+            placement_fields,
+            BoundaryReach::default(),
+        )
         .expect("relative geometry is structurally valid");
         let profile = validate_resource_profile(
             ResourceProfile {
@@ -2203,23 +2179,20 @@ mod resource_profiles {
             size: Some(4),
             align: 1,
         };
-        let placement = validate_access_plan(AccessPlan {
-            access: access_plan(
-                &layout,
-                &[(
-                    "word",
-                    FieldAccess::External {
-                        transfer_width_bits: 32,
-                        read: ExternalRead::Read,
-                        write: false,
-                        exposure: AccessExposure::Exported,
-                    },
-                )],
-            ),
-            layout,
-            reach: BoundaryReach::default(),
-        })
-        .expect("single-field placement");
+        let placement_fields = access_plan(
+            &layout,
+            &[(
+                "word",
+                FieldAccess::External {
+                    transfer_width_bits: 32,
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: AccessExposure::Exported,
+                },
+            )],
+        );
+        let placement = validate_placement(layout, placement_fields, BoundaryReach::default())
+            .expect("single-field placement");
         let extent = uart_extent(0x1002, 4);
         let loan = extent.loan(0, 4).expect("misaligned loan");
         let resources = ResourceProfileGrant::from_admitted_provider(

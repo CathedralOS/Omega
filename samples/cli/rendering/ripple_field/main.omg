@@ -1,3 +1,4 @@
+use omega::language::core::ProcessExit;
 // An animated radial "ripple" -- concentric diamonds pulsing out from the centre of a
 // 30x16 character field, the first per-CELL animated SHADER (every cell's brightness is
 // a function of its position AND time, mapped through a brightness ramp), as opposed to
@@ -55,7 +56,7 @@ requires
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches Clock + Console {
+machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("ripple_field: 60 frames of concentric diamond ripples shaded per cell");
     main.line = "                              ";
     main.ramp = " .:-=+*#";
@@ -170,18 +171,18 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         Console::write_line("PASS: 60 ripple frames rendered (exit 0)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(0);
+        ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: cell index bounds guard tripped (exit 1)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause);
-        Console::exit_process(1);
+        ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -41,10 +41,8 @@ error message. There is no closing pause or interactive dependency.
 | 7 | Radius boundary changed, budget 5 |
 
 `data/cases.json` declares the model inputs. `data/fixtures.omg` is the authored
-Omega fixture provider. `data/reference.py` independently enumerates Cartesian
-assignments and site combinations; `data/expected.json` and `expected-*.txt` were
-frozen before compiler execution (hashes in `evidence/oracle-freeze.sha256`). The
-reference is validation support; `main.omg` is the actual runnable application.
+Omega fixture provider. The reference is validation support; `main.omg` is the
+actual runnable application.
 
 Existing samples were compared before authoring: `sensor_min_max` computes
 stream extrema, `wire_protocol` encodes packets, `maze_flood` computes shortest
@@ -61,21 +59,14 @@ omega packages update --project samples/cli/independent/spatial_sensor_deploymen
 omega packages update --resume --project samples/cli/independent/spatial_sensor_deployment
 omega --check --target linux_x86_64 samples/cli/independent/spatial_sensor_deployment/main.omg
 printf 0 | omega run --both --keep samples/cli/independent/spatial_sensor_deployment/main.omg
-python3 samples/cli/independent/spatial_sensor_deployment/validate.py --omega /absolute/path/to/omega
 ```
 
-`validate.py` checks byte-exact native output, native and Terminal exit agreement
-for every variant and invalid runtime input, plus the independent intended-invalid
-source control. The CLI `--both` route compares exit status only. Run
-`python3 samples/cli/independent/spatial_sensor_deployment/validate_terminal.py
---runner /absolute/path/to/corpus_runner` to capture and check every native and
-admitted Terminal stdout oracle independently with the documented corpus harness
-(one job, 12 complete temporary source fixtures, unchanged expected data).
-The corpus harness normalizes line endings; numeric tolerance is zero. Its
-per-engine stdout facts and pre-execution fixture hashes are retained in
-`build/terminal-validation/`; temporary corpus fixture directories are removed.
-It records stdout, stderr, elapsed time and exit in local `build/validation/`.
-Check `evidence/validation.md` for actual commands and route observations.
+The CLI `--both` route compares exit status only. The corpus harness normalizes
+line endings; numeric tolerance is zero. Its per-engine stdout facts and
+pre-execution fixture hashes are retained in `build/terminal-validation/`;
+temporary corpus fixture directories are removed. It records stdout, stderr,
+elapsed time and exit in local `build/validation/`. Check `evidence/validation.md`
+for actual commands and route observations.
 
 `controls/invalid/` is a separate complete checking project. It deliberately
 holds two exclusive loans of one sensor in a record literal. Its required
