@@ -1,0 +1,87 @@
+name: Branch cleanup
+
+# Deletes stale branches left behind by pull requests that were merged or
+# closed before "Automatically delete head branches" was turned on. Cloud agent
+# sessions cannot delete refs (their git proxy refuses deletions), so the
+# deletion runs here with this workflow's own token. It runs only when started
+# by hand, and by default it only reports: uncheck dry_run to delete.
+#
+# tools/branch_cleanup.py holds the rules. A branch is deleted only when it is
+# not protected, has no open pull request (drafts included), its newest commit
+# is older than min_age_hours, and either its merged or closed pull request's
+# last head is still its tip, or its tip is already in main's history. Branches
+# with unmerged commits and no pull request are only reported unless
+# include_unmerged_no_pr is checked. Each deletion is lease-guarded, so a branch
+# that moved after the scan survives.
+#
+# Protected branches (PROTECTED and PROTECTED_PREFIXES in the script):
+#   main               the default branch (whatever the API reports is also kept)
+#   work/claims        claims registry branch for `cargo xtask claims`
+#   gh-pages           conventional Pages branch; pages.yml deploys from Actions
+#   gh-readonly-queue/ GitHub merge-queue branches
+#   any branch a tracked file on main links to by github.com URL (for example
+#   the evidence/ branch cited in samples/cli/facts/c_layout_scalar_record)
+# warm-build.yml publishes to ghcr.io and post-merge-check.yml reads main only;
+# neither uses another branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only report what would be deleted
+        type: boolean
+        default: true
+      min_age_hours:
+        description: Keep branches whose newest commit is younger than this
+        type: number
+        default: 48
+      max_delete:
+        description: Delete at most this many branches in one run (oldest first)
+        type: number
+        default: 2000
+      include_unmerged_no_pr:
+        description: Also delete branches with unmerged commits and no pull request
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      MIN_AGE_HOURS: ${{ inputs.min_age_hours }}
+      MAX_DELETE: ${{ inputs.max_delete }}
+      INCLUDE_UNMERGED: ${{ inputs.include_unmerged_no_pr }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          # Full history of every branch, without file contents, so ancestry
+          # checks against main are exact. Credentials stay for the deletion push.
+          fetch-depth: 0
+          filter: blob:none
+      - name: Classify branches and delete when asked
+        run: |
+          args=(--git-dir . --min-age-hours "$MIN_AGE_HOURS" --max-delete "$MAX_DELETE"
+                --out "$RUNNER_TEMP/branch-cleanup")
+          if [ "$INCLUDE_UNMERGED" = true ]; then args+=(--include-unmerged-no-pr); fi
+          if [ "$DRY_RUN" != true ]; then args+=(--delete); fi
+          status=0
+          python3 tools/branch_cleanup.py "${args[@]}" || status=$?
+          cat "$RUNNER_TEMP/branch-cleanup/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: branch-cleanup-${{ github.run_id }}
+          path: ${{ runner.temp }}/branch-cleanup
