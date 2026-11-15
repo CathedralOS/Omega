@@ -49,13 +49,13 @@ accepted on it.
 
 use semantic_vocabulary::{
     BlockId, CrashCause, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition,
-    PsiSemanticId, ScalarType, StructuralTypeId, ValueId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
-    Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
+    Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
     BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
@@ -256,8 +256,8 @@ struct Minted<'a> {
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
-    /// The same for each invocation row.
-    invocations: Vec<bool>,
+    /// The exact invocation row and claim state, sorted by source site once.
+    invocations: Vec<(InvocationSite, InvocationId, bool)>,
 }
 
 impl Minted<'_> {
@@ -359,14 +359,22 @@ impl Minted<'_> {
         before: ProgramPoint,
         concerns: Construct,
     ) -> Checked<()> {
-        let mut rows = self
-            .tables
+        let position = self
             .invocations
-            .iter()
-            .filter(|(_, row)| row.site == site);
-        let (Some((invocation, row)), None) = (rows.next(), rows.next()) else {
-            return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
-        };
+            .binary_search_by_key(&site, |(site, _, _)| *site)
+            .map_err(|_| {
+                self.foreign(concerns, "a call does not have exactly one invocation row")
+            })?;
+        let (_, invocation, claimed) = self.invocations[position];
+        if claimed {
+            return Err(self.foreign(concerns, "two constructs claim the same invocation row"));
+        }
+        let row = terminal_check_tables::row(
+            &self.tables.invocations,
+            invocation,
+            self.machine,
+            Construct::Invocation(invocation),
+        )?;
         let concerns = Construct::Invocation(invocation);
         if row.callee != Callee::Declared(inputs.callee)
             || row.required_contract != inputs.required_contract
@@ -446,9 +454,7 @@ impl Minted<'_> {
                 before,
             )?;
         }
-        if let Some(claimed) = self.invocations.get_mut(index(invocation.get())) {
-            *claimed = true;
-        }
+        self.invocations[position].2 = true;
         Ok(())
     }
 }
@@ -473,6 +479,20 @@ pub(crate) fn follow_the_lowered_form(
                 detail,
             )
         })?;
+    let mut invocations = tables
+        .invocations
+        .iter()
+        .map(|(invocation, row)| (row.site, invocation, false))
+        .collect::<Vec<_>>();
+    invocations.sort_unstable_by_key(|(site, _, _)| *site);
+    if let Some(repeated) = invocations.windows(2).find(|rows| rows[0].0 == rows[1].0) {
+        return Err(refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Invocation(repeated[1].1),
+            "a call does not have exactly one invocation row",
+        ));
+    }
     let mut minted = Minted {
         machine: id,
         module,
@@ -487,7 +507,7 @@ pub(crate) fn follow_the_lowered_form(
         })?,
         tables,
         obligations: vec![false; tables.obligations.len()],
-        invocations: vec![false; tables.invocations.len()],
+        invocations,
     };
 
     // The whole-module prepass already reconstructed this family's exact
@@ -807,11 +827,14 @@ pub(crate) fn follow_the_lowered_form(
     // An invocation row is where a callee's `ensures` becomes knowledge
     // after a call, so one that restates no call would be a premise nothing
     // established.
-    for ((invocation, row), claimed) in tables.invocations.iter().zip(&minted.invocations) {
-        if *claimed {
-            continue;
-        }
-        let concerns = Construct::Invocation(invocation);
+    if let Some((_, invocation, _)) = minted
+        .invocations
+        .iter()
+        .filter(|(_, _, claimed)| !claimed)
+        .min_by_key(|(_, invocation, _)| *invocation)
+    {
+        let concerns = Construct::Invocation(*invocation);
+        let row = terminal_check_tables::row(&tables.invocations, *invocation, id, concerns)?;
         return Err(match row.callee {
             Callee::Selected { .. } => refusal(
                 RefusalReason::Unsupported,

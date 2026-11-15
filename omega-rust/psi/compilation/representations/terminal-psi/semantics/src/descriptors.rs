@@ -12317,15 +12317,36 @@ pub mod descriptor_results {
                 assert_eq!(owners.len(), 4);
                 assert!(owners.windows(2).all(|rows| rows[0] < rows[1]));
                 assert!(graph.operation_call(position).is_none());
+                assert!(
+                    graph
+                        .invocation(
+                            position,
+                            DescriptorInvocationOwner::Cleanup {
+                                edge: EdgeId::new(1).unwrap(),
+                                action_ordinal: 1,
+                            }
+                        )
+                        .is_none()
+                );
                 // One normal exit cannot secretly select two cleanup edges.
                 assert!(graph.validate_invocation_owners().is_none());
                 graph.calls.get_mut(&position).unwrap().retain(|call| {
                     matches!(call.owner, DescriptorInvocationOwner::Cleanup { edge, .. } if edge == EdgeId::new(1).unwrap())
                 });
                 assert!(graph.validate_invocation_owners().is_some());
+                let second = graph.calls_at(position)[1].owner;
                 let calls = graph.calls.get_mut(&position).unwrap();
                 calls[1].owner = calls[0].owner;
+                let duplicate = calls[0].owner;
+                assert!(graph.invocation(position, duplicate).is_none());
                 assert!(graph.validate_invocation_owners().is_none());
+                let calls = graph.calls.get_mut(&position).unwrap();
+                calls[1].owner = second;
+                calls.swap(0, 1);
+                assert!(
+                    graph.validate_invocation_owners().is_none(),
+                    "an unsorted raw roster cannot enter prepared replay"
+                );
             }
 
             #[test]
@@ -17035,12 +17056,10 @@ pub mod descriptor_results {
             &self,
             position: DescriptorPosition,
         ) -> Option<&DescriptorInvocation> {
-            let mut calls = self
-                .calls_at(position)
-                .iter()
-                .filter(|call| matches!(call.owner, DescriptorInvocationOwner::Operation(_)));
-            let call = calls.next()?;
-            calls.next().is_none().then_some(call)
+            let [call] = self.calls_at(position) else {
+                return None;
+            };
+            matches!(call.owner, DescriptorInvocationOwner::Operation(_)).then_some(call)
         }
 
         pub fn invocation(
@@ -17048,12 +17067,20 @@ pub mod descriptor_results {
             position: DescriptorPosition,
             owner: DescriptorInvocationOwner,
         ) -> Option<&DescriptorInvocation> {
-            let mut calls = self
-                .calls_at(position)
-                .iter()
-                .filter(|call| call.owner == owner);
-            let call = calls.next()?;
-            calls.next().is_none().then_some(call)
+            // Prepared replay validates the entire owner roster once before
+            // publishing any state. Query its sorted rows without rewalking
+            // every action, and retain local duplicate refusal for raw users.
+            let calls = self.calls_at(position);
+            let index = calls.binary_search_by_key(&owner, |call| call.owner).ok()?;
+            if index
+                .checked_sub(1)
+                .and_then(|previous| calls.get(previous))
+                .is_some_and(|call| call.owner == owner)
+                || calls.get(index + 1).is_some_and(|call| call.owner == owner)
+            {
+                return None;
+            }
+            Some(&calls[index])
         }
 
         pub fn insert_call(
