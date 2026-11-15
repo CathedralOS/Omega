@@ -1035,7 +1035,11 @@ fn a_value_name_nothing_declares_is_rejected() {
              machine main() {{ let seen: u64 = measured(); }}\n"
         )
     };
-    assert_eq!(verdicts("body_local_name", &body("kept")), ["accepted"]);
+    let positive = judged("body_local_name", &body("kept"));
+    assert!(
+        matches!(positive.as_slice(), [Ok(RouteVerdict::Accepted(_))]),
+        "{positive:?}"
+    );
     // A field is selected through a value, never by its bare name
     // (`modules.md`). Its unrelated declaration cannot turn this source error
     // into an unsupported selection.
@@ -1045,12 +1049,12 @@ fn a_value_name_nothing_declares_is_rejected() {
             &format!("data Gauge {{ level: u64; }}\n{}", body("level"))
         ),
         "this expression has no visible value declaration in its source scope: an unknown name is an \
-         error wherever it appears at `level`"
+         error wherever it appears while reading the signature of `measured` at `level`"
     );
     assert_eq!(
         the_violation("body_unknown_name", &body("nowhere_value")),
         "this expression has no visible value declaration in its source scope: an unknown name is an \
-         error wherever it appears at `nowhere_value`"
+         error wherever it appears while reading the signature of `measured` at `nowhere_value`"
     );
     // A constant's initializer is evaluated before the checker sees the
     // program, whether or not `main` reads it, and its evaluation stops at

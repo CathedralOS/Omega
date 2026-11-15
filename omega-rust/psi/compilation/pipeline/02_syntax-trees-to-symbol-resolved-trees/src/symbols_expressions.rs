@@ -238,11 +238,32 @@ mod references {
                 &mut call.machine_arguments,
             );
         }
+        retain_unresolved_call(
+            symbols,
+            machine,
+            parameters,
+            expression_table,
+            call,
+            target_symbol,
+            expression,
+        );
+    }
+
+    /// Signature clauses and bodies retain the same occurrence-level lookup evidence.
+    pub(in crate::symbols) fn retain_unresolved_call(
+        symbols: &SymbolTable,
+        machine: &MachineScope<'_>,
+        parameters: &[StateParameter],
+        expression_table: &mut ExpressionTable,
+        call: &TableCallExpression,
+        target_symbol: SymbolHandle,
+        expression: ExpressionHandle,
+    ) {
         let unresolved_name = if target_symbol.is_valid() {
             Default::default()
-        } else if !receiver.is_valid() {
+        } else if !call.receiver.is_valid() {
             unresolved_call_name(symbols, machine, parameters, &[], &call.target)
-        } else if let ExpressionNode::Name(path) = expression_table.expression(receiver) {
+        } else if let ExpressionNode::Name(path) = expression_table.expression(call.receiver) {
             unresolved_call_name(
                 symbols,
                 machine,
@@ -269,14 +290,11 @@ mod references {
         if lexical_value_head(machine, parameters, head.as_str(), !receiver.is_empty()).is_valid() {
             return Default::default();
         }
-        let mut members = Vec::with_capacity(receiver.len() + 1);
-        members.extend_from_slice(receiver);
-        members.push(target.clone());
-        super::super::scoped_paths::unresolved_scoped_name(
+        super::super::scoped_paths::unresolved_scoped_call_name(
             symbols,
             machine.symbol,
-            SymbolHandle::invalid(),
-            &members,
+            receiver,
+            target,
         )
     }
 
@@ -1438,7 +1456,7 @@ pub(crate) use references::reject_unqualified_case_values;
 pub(super) use references::{
     NameRole, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
     assign_struct_literal_symbols, lexical_value_head, normalize_qualified_case_value,
-    unresolved_call_name,
+    retain_unresolved_call, unresolved_call_name,
 };
 pub(super) use traversal::{
     assign_expression_span_symbols, assign_expression_table_symbols,

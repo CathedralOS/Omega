@@ -131,6 +131,11 @@ fn unresolved_names_keep_their_occurrences_scope_instead_of_a_global_leaf() {
         "machine caller() requires false { ghost(); } machine unrelated(ghost: u32) {}",
     )]);
     assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
+    let program = typed(&[(
+        "client.omg",
+        "machine caller() requires ghost() {} machine unrelated(ghost: u32) {}",
+    )]);
+    assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
 }
 
 #[test]
