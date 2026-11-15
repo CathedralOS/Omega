@@ -199,8 +199,13 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
         .unwrap()
         .requires
         .clear();
-    let error = terminal_codec::ClosedTerminalModule::new(inhabited)
-        .expect_err("an inhabited result cannot justify external completion");
+    let encoded = terminal_codec::ClosedTerminalModule::new(inhabited)
+        .expect("trusted encoding does not repeat receiving verification");
+    let error =
+        match terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()) {
+            Err(error) => error,
+            Ok(_) => panic!("an inhabited result cannot justify external completion"),
+        };
     assert!(
         format!("{error:?}").contains("canonical process-exit signature"),
         "{error:?}",
