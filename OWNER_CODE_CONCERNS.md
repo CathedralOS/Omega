@@ -73,13 +73,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### The Console fixture cannot emit its Windows imports with an admitted stack
-- Category: knowledge crossing a boundary
-- Where: [Windows Console imports](source/library/std/build.omg#L675), [native import stack admission](omega-rust/omega/compilation/realization/provider-admission/src/native_bindings.rs#L234)
-- Saw: The unchanged Console fixture requests its authored Windows entry and provider. From macOS arm64, `omega run --both --keep --target windows_x86_64` exits 200 with “foreign import needs admitted demand on a fixed or freestanding stack” on both the typed-slice neighbor `3a2064f458c` and the Console candidate `99317a6e1fe`. The Console candidate emits Linux x86-64 and Linux arm64 and reopens their Psi artifacts.
-- Cost: The Windows route stops when the existing import owner checks demand. Preserve the selected Windows Console bindings and carry their admitted call stack through target settlement. The fixture has no Windows image or execution receipt from these runs.
-- Reported: 2026-11-15, Codex, while cross-emitting the unchanged Console fixture.
-
 ### Fixture review stops even when a project has no dangerous service
 - Category: fake gates
 - Where: [fixture discovery call](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L709), [service discovery](omega-rust/omega/compilation/compiler/tests/support/dangerous_service_acceptance.rs#L47)
