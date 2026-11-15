@@ -22,7 +22,7 @@ requires self.g >= 0 && self.g <= 16,
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
     main.cells = 0x8000; // single live cell in the centre (bit 15)
     main.g = 0;
@@ -87,5 +87,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

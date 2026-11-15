@@ -40,22 +40,22 @@ machine delta(d: Dir) -> Vec2 {
 }
 
 // Apply one move: read the step vector into a local, fold it into the position.
-machine Main::step(main: &mut Main, d: Dir) {
+machine step(main: &mut Main, d: Dir) {
     let v: Vec2 = delta(d);
     main.px = main.px + v.dx;
     main.py = main.py + v.dy;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("grid_walk: an enum-dispatched walk (E,E,E,S,S) accumulating a 2D position");
     main.px = 0;
     main.py = 0;
 
-    Main::step(main, Dir::E);
-    Main::step(main, Dir::E);
-    Main::step(main, Dir::E);
-    Main::step(main, Dir::S);
-    Main::step(main, Dir::S);
+    step(main, Dir::E);
+    step(main, Dir::E);
+    step(main, Dir::E);
+    step(main, Dir::S);
+    step(main, Dir::S);
 
     transition {
         _ -> block report(main)
@@ -73,5 +73,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

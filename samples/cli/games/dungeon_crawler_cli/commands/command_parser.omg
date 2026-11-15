@@ -6,21 +6,21 @@ data CommandParser {
     lookup: RoomLookup;
 }
 
-machine CommandParser::resolve_navigation(
+machine resolve_navigation(
     command_parser: &mut CommandParser,
     level: Level,
     cell: CellId,
     line: &[u8] in Utf8
     ) -> Navigation {
-    let choice: NavigationChoice = CommandParser::resolve_command(line);
+    let choice: NavigationChoice = resolve_command(line);
 
     transition choice == NavigationChoice::Invalid {
-        true -> CommandParser::resolve_exit(command_parser, level, cell, line)
-        false -> CommandParser::navigation(choice, CellId::Empty)
+        true -> resolve_exit(command_parser, level, cell, line)
+        false -> navigation(choice, CellId::Empty)
     }
 }
 
-machine CommandParser::resolve_command(line: &[u8] in Utf8) -> NavigationChoice {
+machine resolve_command(line: &[u8] in Utf8) -> NavigationChoice {
     transition {
         line == "quit" -> NavigationChoice::Quit
         line == "exit" -> NavigationChoice::Quit
@@ -39,32 +39,32 @@ machine CommandParser::resolve_command(line: &[u8] in Utf8) -> NavigationChoice 
     }
 }
 
-machine CommandParser::resolve_exit(
+machine resolve_exit(
     command_parser: &mut CommandParser,
     level: Level,
     cell: CellId,
     line: &[u8] in Utf8
     ) -> Navigation {
     transition {
-        cell == CellId::R00 && line == "north" -> CommandParser::navigation(NavigationChoice::Move, CellId::R01)
-        cell == CellId::R01 && line == "south" -> CommandParser::navigation(NavigationChoice::Move, CellId::R00)
-        cell == CellId::R01 && line == "north" -> CommandParser::navigation(NavigationChoice::Move, CellId::R02)
-        cell == CellId::R01 && line == "east" -> CommandParser::navigation(NavigationChoice::Move, CellId::R05)
-        cell == CellId::R02 && line == "south" -> CommandParser::navigation(NavigationChoice::Move, CellId::R01)
-        cell == CellId::R02 && line == "north" -> CommandParser::navigation(NavigationChoice::Move, CellId::R03)
-        cell == CellId::R02 && line == "west" -> CommandParser::navigation(NavigationChoice::Move, CellId::R06)
-        cell == CellId::R03 && line == "south" -> CommandParser::navigation(NavigationChoice::Move, CellId::R02)
-        cell == CellId::R03 && line == "north" -> CommandParser::navigation(NavigationChoice::Move, CellId::R04)
-        cell == CellId::R03 && line == "east" -> CommandParser::navigation(NavigationChoice::Move, CellId::R07)
-        cell == CellId::R04 && line == "south" -> CommandParser::navigation(NavigationChoice::Move, CellId::R03)
-        cell == CellId::R05 && line == "west" -> CommandParser::navigation(NavigationChoice::Move, CellId::R01)
-        cell == CellId::R06 && line == "east" -> CommandParser::navigation(NavigationChoice::Move, CellId::R02)
-        cell == CellId::R07 && line == "west" -> CommandParser::navigation(NavigationChoice::Move, CellId::R03)
-        _ -> CommandParser::invalid_navigation(command_parser)
+        cell == CellId::R00 && line == "north" -> navigation(NavigationChoice::Move, CellId::R01)
+        cell == CellId::R01 && line == "south" -> navigation(NavigationChoice::Move, CellId::R00)
+        cell == CellId::R01 && line == "north" -> navigation(NavigationChoice::Move, CellId::R02)
+        cell == CellId::R01 && line == "east" -> navigation(NavigationChoice::Move, CellId::R05)
+        cell == CellId::R02 && line == "south" -> navigation(NavigationChoice::Move, CellId::R01)
+        cell == CellId::R02 && line == "north" -> navigation(NavigationChoice::Move, CellId::R03)
+        cell == CellId::R02 && line == "west" -> navigation(NavigationChoice::Move, CellId::R06)
+        cell == CellId::R03 && line == "south" -> navigation(NavigationChoice::Move, CellId::R02)
+        cell == CellId::R03 && line == "north" -> navigation(NavigationChoice::Move, CellId::R04)
+        cell == CellId::R03 && line == "east" -> navigation(NavigationChoice::Move, CellId::R07)
+        cell == CellId::R04 && line == "south" -> navigation(NavigationChoice::Move, CellId::R03)
+        cell == CellId::R05 && line == "west" -> navigation(NavigationChoice::Move, CellId::R01)
+        cell == CellId::R06 && line == "east" -> navigation(NavigationChoice::Move, CellId::R02)
+        cell == CellId::R07 && line == "west" -> navigation(NavigationChoice::Move, CellId::R03)
+        _ -> invalid_navigation(command_parser)
     }
 }
 
-machine CommandParser::find_exit(
+machine find_exit(
     command_parser: &mut CommandParser,
     room: Room,
     command: &[u8] in Utf8
@@ -72,12 +72,12 @@ machine CommandParser::find_exit(
     let exits: &[Exit] = &room.exits[..];
 
     transition room.exit_count > 0 {
-        true -> CommandParser::find_exit_at(command_parser, exits, room.exit_count, command, 0)
-        false -> CommandParser::invalid_navigation(command_parser)
+        true -> find_exit_at(command_parser, exits, room.exit_count, command, 0)
+        false -> invalid_navigation(command_parser)
     }
 }
 
-machine CommandParser::find_exit_at(
+machine find_exit_at(
     command_parser: &mut CommandParser,
     exits: &[Exit],
     exit_count: u64 in Wrapping,
@@ -86,7 +86,7 @@ machine CommandParser::find_exit_at(
     ) -> Navigation {
     transition index < exits.len {
         true -> inspect_exit(command_parser, exits, exit_count, command, index)
-        false -> CommandParser::invalid_navigation(command_parser)
+        false -> invalid_navigation(command_parser)
     }
 
 
@@ -97,25 +97,25 @@ machine CommandParser::find_exit_at(
         command: &[u8] in Utf8,
         index: u64 in Wrapping
     ) -> Navigation {
-        let found: bool = CommandParser::direction_matches(exits[index].direction, command);
+        let found: bool = direction_matches(exits[index].direction, command);
         let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < exit_count && next_index < exits.len;
 
         transition {
-            found -> CommandParser::navigation(NavigationChoice::Move, exits[index].destination)
-            has_next -> CommandParser::find_exit_at(command_parser, exits, exit_count, command, next_index)
-            _ -> CommandParser::invalid_navigation(command_parser)
+            found -> navigation(NavigationChoice::Move, exits[index].destination)
+            has_next -> find_exit_at(command_parser, exits, exit_count, command, next_index)
+            _ -> invalid_navigation(command_parser)
         }
     }
 }
 
-machine CommandParser::invalid_navigation(command_parser: &mut CommandParser) -> Navigation {
+machine invalid_navigation(command_parser: &mut CommandParser) -> Navigation {
     transition {
-        _ -> CommandParser::navigation(NavigationChoice::Invalid, CellId::Empty)
+        _ -> navigation(NavigationChoice::Invalid, CellId::Empty)
     }
 }
 
-machine CommandParser::direction_matches(direction: Direction,
+machine direction_matches(direction: Direction,
     command: &[u8] in Utf8) -> bool {
     transition {
         direction == Direction::North && command == "north" -> true
@@ -126,7 +126,7 @@ machine CommandParser::direction_matches(direction: Direction,
     }
 }
 
-machine CommandParser::navigation(choice: NavigationChoice,
+machine navigation(choice: NavigationChoice,
     destination: CellId) -> Navigation {
     Navigation { choice: choice, destination: destination }
 }

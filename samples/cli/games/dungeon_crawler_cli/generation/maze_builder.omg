@@ -17,14 +17,14 @@ data MazeBuilder {
     rng: Random;
 }
 
-machine MazeBuilder::build(
+machine build(
     maze_builder: &mut MazeBuilder,
     seed: u64 in Wrapping,
     level: &mut Level
 ) {
     let mut random: RandomState;
-    Random::seed(seed, &mut random);
-    MazeBuilder::clear_level(maze_builder, level);
+    seed(seed, &mut random);
+    clear_level(maze_builder, level);
 
     level.start_cell = CellId::R00;
     level.room_count = 0;
@@ -32,8 +32,8 @@ machine MazeBuilder::build(
 
     // The crawl begins at the bottom of the dungeon, in the bottomless dark
     // room near the dungeon heart; the maze climbs outward toward the surface.
-    MazeBuilder::carve_room(maze_builder, level, &mut random, CellId::R00, 9, 0);
-    MazeBuilder::force_quiet_room(maze_builder, level, CellId::R00);
+    carve_room(maze_builder, level, &mut random, CellId::R00, 9, 0);
+    force_quiet_room(maze_builder, level, CellId::R00);
     transition {
         _ -> build_main_hall_1(maze_builder, level, &mut random)
     }
@@ -44,7 +44,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        MazeBuilder::build_segment(maze_builder, level, random, CellId::R00, CellId::R01, 1, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R00, CellId::R01, 1, 0, Direction::North);
 
         transition {
             _ -> maybe_side_room_1(maze_builder, level, random)
@@ -56,7 +56,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        transition MazeBuilder::should_carve(maze_builder, random, 2) {
+        transition should_carve(maze_builder, random, 2) {
             true -> build_side_room_1(maze_builder, level, random)
             false -> build_main_hall_2(maze_builder, level, random)
         }
@@ -67,7 +67,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        MazeBuilder::build_segment(maze_builder, level, random, CellId::R01, CellId::R05, 2, 10, Direction::East);
+        build_segment(maze_builder, level, random, CellId::R01, CellId::R05, 2, 10, Direction::East);
 
         transition {
             _ -> build_main_hall_2(maze_builder, level, random)
@@ -79,7 +79,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        MazeBuilder::build_segment(maze_builder, level, random, CellId::R01, CellId::R02, 2, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R01, CellId::R02, 2, 0, Direction::North);
 
         transition {
             _ -> maybe_side_room_2(maze_builder, level, random)
@@ -91,7 +91,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        transition MazeBuilder::should_carve(maze_builder, random, 3) {
+        transition should_carve(maze_builder, random, 3) {
             true -> build_side_room_2(maze_builder, level, random)
             false -> build_main_hall_3(maze_builder, level, random)
         }
@@ -102,7 +102,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        MazeBuilder::build_segment(maze_builder, level, random, CellId::R02, CellId::R06, 3, 11, Direction::West);
+        build_segment(maze_builder, level, random, CellId::R02, CellId::R06, 3, 11, Direction::West);
 
         transition {
             _ -> build_main_hall_3(maze_builder, level, random)
@@ -114,7 +114,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        MazeBuilder::build_segment(maze_builder, level, random, CellId::R02, CellId::R03, 3, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R02, CellId::R03, 3, 0, Direction::North);
 
         transition {
             _ -> maybe_side_room_3(maze_builder, level, random)
@@ -126,7 +126,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        transition MazeBuilder::should_carve(maze_builder, random, 4) {
+        transition should_carve(maze_builder, random, 4) {
             true -> build_side_room_3(maze_builder, level, random)
             false -> build_main_hall_4(maze_builder, level, random)
         }
@@ -137,7 +137,7 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        MazeBuilder::build_segment(maze_builder, level, random, CellId::R03, CellId::R07, 4, 12, Direction::East);
+        build_segment(maze_builder, level, random, CellId::R03, CellId::R07, 4, 12, Direction::East);
 
         transition {
             _ -> build_main_hall_4(maze_builder, level, random)
@@ -149,13 +149,13 @@ machine MazeBuilder::build(
         level: &mut Level,
         random: &mut RandomState
     ) {
-        MazeBuilder::build_segment(maze_builder, level, random, CellId::R03, CellId::R04, 4, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R03, CellId::R04, 4, 0, Direction::North);
         level.room_count = 8;
         level.deepest_depth = max_u32(level.deepest_depth as u32, 4) as u32 in Wrapping;
     }
 }
 
-machine MazeBuilder::build_segment(
+machine build_segment(
     maze_builder: &mut MazeBuilder,
     level: &mut Level,
     random: &mut RandomState,
@@ -165,43 +165,43 @@ machine MazeBuilder::build_segment(
     branch_id: u32 in Wrapping,
     direction: Direction
 ) {
-    MazeBuilder::carve_room(maze_builder, level, random, target, depth, branch_id);
-    MazeBuilder::connect(maze_builder, level, from, target, direction);
+    carve_room(maze_builder, level, random, target, depth, branch_id);
+    connect(maze_builder, level, from, target, direction);
 }
 
-machine MazeBuilder::force_quiet_room(
+machine force_quiet_room(
     maze_builder: &mut MazeBuilder,
     level: &mut Level,
     cell: CellId
 ) {
-    let room: &mut Room = Level::room_mut(level, cell);
-    MazeBuilder::clear_event(maze_builder, &mut room.event);
+    let room: &mut Room = room_mut(level, cell);
+    clear_event(maze_builder, &mut room.event);
 }
 
-machine MazeBuilder::clear_level(
+machine clear_level(
     maze_builder: &mut MazeBuilder,
     level: &mut Level
 ) {
     let rooms: &mut [Room] = &mut level.rooms[..];
-    MazeBuilder::clear_room(maze_builder, &mut rooms[0], CellId::R00);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[1], CellId::R01);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[2], CellId::R02);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[3], CellId::R03);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[4], CellId::R04);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[5], CellId::R05);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[6], CellId::R06);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[7], CellId::R07);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[8], CellId::R08);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[9], CellId::R09);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[10], CellId::R10);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[11], CellId::R11);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[12], CellId::R12);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[13], CellId::R13);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[14], CellId::R14);
-    MazeBuilder::clear_room(maze_builder, &mut rooms[15], CellId::R15);
+    clear_room(maze_builder, &mut rooms[0], CellId::R00);
+    clear_room(maze_builder, &mut rooms[1], CellId::R01);
+    clear_room(maze_builder, &mut rooms[2], CellId::R02);
+    clear_room(maze_builder, &mut rooms[3], CellId::R03);
+    clear_room(maze_builder, &mut rooms[4], CellId::R04);
+    clear_room(maze_builder, &mut rooms[5], CellId::R05);
+    clear_room(maze_builder, &mut rooms[6], CellId::R06);
+    clear_room(maze_builder, &mut rooms[7], CellId::R07);
+    clear_room(maze_builder, &mut rooms[8], CellId::R08);
+    clear_room(maze_builder, &mut rooms[9], CellId::R09);
+    clear_room(maze_builder, &mut rooms[10], CellId::R10);
+    clear_room(maze_builder, &mut rooms[11], CellId::R11);
+    clear_room(maze_builder, &mut rooms[12], CellId::R12);
+    clear_room(maze_builder, &mut rooms[13], CellId::R13);
+    clear_room(maze_builder, &mut rooms[14], CellId::R14);
+    clear_room(maze_builder, &mut rooms[15], CellId::R15);
 }
 
-machine MazeBuilder::clear_room(
+machine clear_room(
     maze_builder: &mut MazeBuilder,
     room: &mut Room,
     cell: CellId
@@ -209,36 +209,36 @@ machine MazeBuilder::clear_room(
     room.cell = cell;
     room.depth = 0;
     room.branch = 0;
-    RoomLabel::set(&mut room.label, "");
-    RoomDescription::set(&mut room.description, "");
+    room_label_set(&mut room.label, "");
+    room_description_set(&mut room.description, "");
     room.exit_count = 0;
     room.discovered = false;
-    MazeBuilder::clear_exits(maze_builder, room);
-    MazeBuilder::clear_event(maze_builder, &mut room.event);
+    clear_exits(maze_builder, room);
+    clear_event(maze_builder, &mut room.event);
 }
 
-machine MazeBuilder::clear_exits(
+machine clear_exits(
     maze_builder: &mut MazeBuilder,
     room: &mut Room
 ) {
     let exits: &mut [Exit] = &mut room.exits[..];
-    exits[0] = MazeBuilder::blank_exit();
-    exits[1] = MazeBuilder::blank_exit();
-    exits[2] = MazeBuilder::blank_exit();
-    exits[3] = MazeBuilder::blank_exit();
+    exits[0] = blank_exit();
+    exits[1] = blank_exit();
+    exits[2] = blank_exit();
+    exits[3] = blank_exit();
 }
 
-machine MazeBuilder::clear_event(
+machine clear_event(
     maze_builder: &mut MazeBuilder,
     event: &mut RoomEvent
 ) {
     event.kind = RoomEventKind::Nothing;
-    event.enemy = MazeBuilder::empty_enemy();
-    event.reward = MazeBuilder::empty_reward();
+    event.enemy = empty_enemy();
+    event.reward = maze_builder_empty_reward();
     event.consumed = true;
 }
 
-machine MazeBuilder::blank_exit() -> Exit {
+machine blank_exit() -> Exit {
     Exit {
         command: ExitCommand { used: 0 },
         direction: Direction::North,
@@ -246,10 +246,10 @@ machine MazeBuilder::blank_exit() -> Exit {
     }
 }
 
-machine MazeBuilder::empty_enemy() -> Enemy {
+machine empty_enemy() -> Enemy {
     let mut enemy: Enemy;
     enemy.kind = EnemyKind::Bat;
-    EnemyName::set(&mut enemy.name, "");
+    enemy_name_set(&mut enemy.name, "");
     enemy.max_health = 1;
     enemy.health = 1;
     enemy.attack = 1;
@@ -262,7 +262,7 @@ machine MazeBuilder::empty_enemy() -> Enemy {
     }
 }
 
-machine MazeBuilder::empty_reward() -> Reward {
+machine maze_builder_empty_reward() -> Reward {
     Reward {
         kind: RewardKind::None,
         gold: 0,
@@ -270,20 +270,20 @@ machine MazeBuilder::empty_reward() -> Reward {
     }
 }
 
-machine MazeBuilder::should_carve(
+machine should_carve(
     maze_builder: &mut MazeBuilder,
     random: &mut RandomState,
     depth: u32 in Wrapping
     ) -> bool {
     let chance: u32 in Wrapping = max_u32(15, (80 - depth * 6) as u32) as u32 in Wrapping;
-    let rolled: bool = Random::chance(&mut maze_builder.rng, random, chance, 100);
+    let rolled: bool = chance(&mut maze_builder.rng, random, chance, 100);
 
     transition {
         _ -> rolled
     }
 }
 
-machine MazeBuilder::carve_room(
+machine carve_room(
     maze_builder: &mut MazeBuilder,
     level: &mut Level,
     random: &mut RandomState,
@@ -294,36 +294,36 @@ machine MazeBuilder::carve_room(
     // `room` borrows all of `level` until its last use, so the start cell is
     // read before it forms.
     let start_cell: CellId = level.start_cell;
-    let room: &mut Room = Level::room_mut(level, cell);
-    let index: u64 = MazeBuilder::cell_index(cell); // <= 15 by cell_index's ensures
+    let room: &mut Room = room_mut(level, cell);
+    let index: u64 = cell_index(cell); // <= 15 by cell_index's ensures
     room.cell = cell;
     room.depth = depth;
     room.branch = branch_id;
-    RoomLabel::set(&mut room.label, MazeBuilder::room_label(cell));
-    RoomDescription::set(&mut room.description, MazeBuilder::room_description(depth, branch_id));
+    room_label_set(&mut room.label, room_label(cell));
+    room_description_set(&mut room.description, room_description(depth, branch_id));
     room.exit_count = 0;
     room.discovered = cell == start_cell;
-    RoomEvents::roll_event(&mut maze_builder.events, depth, random, &mut room.event);
+    roll_event(&mut maze_builder.events, depth, random, &mut room.event);
     level.room_count = max_u64(level.room_count, index + 1);
     level.deepest_depth = max_u32(level.deepest_depth as u32, depth as u32) as u32 in Wrapping;
 }
 
-machine MazeBuilder::connect(
+machine connect(
     maze_builder: &mut MazeBuilder,
     level: &mut Level,
     from: CellId,
     to: CellId,
     direction: Direction
 ) {
-    let from_room: &mut Room = Level::room_mut(level, from);
-    Room::append_exit(from_room, MazeBuilder::direction_command(direction), direction, to);
+    let from_room: &mut Room = room_mut(level, from);
+    append_exit(from_room, direction_command(direction), direction, to);
 
-    let back_direction: Direction = MazeBuilder::opposite(direction);
-    let to_room: &mut Room = Level::room_mut(level, to);
-    Room::append_exit(to_room, MazeBuilder::direction_command(back_direction), back_direction, from);
+    let back_direction: Direction = opposite(direction);
+    let to_room: &mut Room = room_mut(level, to);
+    append_exit(to_room, direction_command(back_direction), back_direction, from);
 }
 
-machine MazeBuilder::next_unused_cell(level: Level) -> CellId {
+machine next_unused_cell(level: Level) -> CellId {
     transition {
         level.room_count == 1 -> CellId::R01
         level.room_count == 2 -> CellId::R02
@@ -343,7 +343,7 @@ machine MazeBuilder::next_unused_cell(level: Level) -> CellId {
     }
 }
 
-machine MazeBuilder::cell_index(cell: CellId) -> u64
+machine cell_index(cell: CellId) -> u64
 ensures
     result <= 15
 {
@@ -367,7 +367,7 @@ ensures
     }
 }
 
-machine MazeBuilder::room_label(cell: CellId) -> &[u8] in Ascii
+machine room_label(cell: CellId) -> &[u8] in Ascii
 ensures result.len <= 16
 {
     transition {
@@ -376,7 +376,7 @@ ensures result.len <= 16
     }
 }
 
-machine MazeBuilder::room_description(depth: u32 in Wrapping,
+machine room_description(depth: u32 in Wrapping,
     branch_id: u32 in Wrapping) -> &[u8] in Ascii
 ensures result.len <= 64
 {
@@ -389,7 +389,7 @@ ensures result.len <= 64
     }
 }
 
-machine MazeBuilder::direction_command(direction: Direction) -> &[u8] in Ascii
+machine direction_command(direction: Direction) -> &[u8] in Ascii
 ensures result.len <= 8
 {
     transition {
@@ -400,7 +400,7 @@ ensures result.len <= 8
     }
 }
 
-machine MazeBuilder::opposite(direction: Direction) -> Direction {
+machine opposite(direction: Direction) -> Direction {
     transition {
         direction == Direction::North -> Direction::South
         direction == Direction::South -> Direction::North

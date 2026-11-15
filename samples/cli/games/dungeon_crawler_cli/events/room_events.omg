@@ -11,18 +11,18 @@ data RoomEvents {
     rng: Random;
 }
 
-machine RoomEvents::roll_event(
+machine roll_event(
     room_events: &mut RoomEvents,
     depth: u32 in Wrapping,
     random: &mut RandomState,
     event: &mut RoomEvent
 ) {
-    let roll: u32 in Wrapping = Random::range(&mut room_events.rng, random, 100) as u32 in Wrapping;
-    RoomEvents::apply_event(room_events, depth, random, event, roll);
+    let roll: u32 in Wrapping = range(&mut room_events.rng, random, 100) as u32 in Wrapping;
+    apply_event(room_events, depth, random, event, roll);
 
 }
 
-machine RoomEvents::event_action(roll: u32 in Wrapping) -> RoomEventAction {
+machine event_action(roll: u32 in Wrapping) -> RoomEventAction {
     let is_quiet: bool = roll < 20;
     let is_fountain: bool = roll < 30;
     let is_reward: bool = roll < 60;
@@ -35,14 +35,14 @@ machine RoomEvents::event_action(roll: u32 in Wrapping) -> RoomEventAction {
     }
 }
 
-machine RoomEvents::apply_event(
+machine apply_event(
     room_events: &mut RoomEvents,
     depth: u32 in Wrapping,
     random: &mut RandomState,
     event: &mut RoomEvent,
     roll: u32 in Wrapping
 ) {
-    transition RoomEvents::event_action(roll) {
+    transition event_action(roll) {
         RoomEventAction::Quiet -> no_event(event)
         RoomEventAction::Fountain -> fountain(event)
         RoomEventAction::Reward -> reward_event(room_events, depth, random, event, roll)
@@ -83,7 +83,7 @@ machine RoomEvents::apply_event(
     ) {
         event.kind = RoomEventKind::Treasure;
         event.consumed = false;
-        RewardTables::roll_room_treasure(&mut room_events.rewards, depth, random, &mut event.reward);
+        roll_room_treasure(&mut room_events.rewards, depth, random, &mut event.reward);
     }
 
     machine gold_cache(
@@ -94,7 +94,7 @@ machine RoomEvents::apply_event(
     ) {
         event.kind = RoomEventKind::GoldCache;
         event.consumed = false;
-        RewardTables::roll_gold_cache(&mut room_events.rewards, depth, random, &mut event.reward);
+        roll_gold_cache(&mut room_events.rewards, depth, random, &mut event.reward);
     }
 
     machine enemy(
@@ -105,6 +105,6 @@ machine RoomEvents::apply_event(
     ) {
         event.kind = RoomEventKind::Enemy;
         event.consumed = false;
-        EnemyTables::roll_enemy(&mut room_events.enemies, depth, random, &mut event.enemy);
+        roll_enemy(&mut room_events.enemies, depth, random, &mut event.enemy);
     }
 }

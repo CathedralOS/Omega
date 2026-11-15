@@ -52,7 +52,7 @@ data Main {
 }
 
 // Dispatch needs the alarm, not an application context or console authority.
-machine Alarm::dispatch(alarm: &mut Alarm, event: AlarmEvent) {
+machine dispatch(alarm: &mut Alarm, event: AlarmEvent) {
     transition event {
         AlarmEvent::Set { hour, minute } -> do_set(alarm, hour, minute)
         AlarmEvent::Snooze { minutes } -> do_snooze(alarm, minutes)
@@ -87,17 +87,17 @@ machine Alarm::dispatch(alarm: &mut Alarm, event: AlarmEvent) {
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
     let mut alarm: Alarm;
-    Alarm::dispatch(&mut alarm, AlarmEvent::Set { hour: 6, minute: 30 });
-    Alarm::dispatch(&mut alarm, AlarmEvent::Snooze { minutes: 5 });
-    Alarm::dispatch(&mut alarm, AlarmEvent::Snooze { minutes: 5 });
-    Alarm::dispatch(&mut alarm, AlarmEvent::Trigger);
-    Alarm::dispatch(&mut alarm, AlarmEvent::Dismiss);
-    Alarm::dispatch(&mut alarm, AlarmEvent::Set { hour: 7, minute: 0 });
-    Alarm::dispatch(&mut alarm, AlarmEvent::Trigger);
-    Alarm::dispatch(&mut alarm, AlarmEvent::Cancel);
+    dispatch(&mut alarm, AlarmEvent::Set { hour: 6, minute: 30 });
+    dispatch(&mut alarm, AlarmEvent::Snooze { minutes: 5 });
+    dispatch(&mut alarm, AlarmEvent::Snooze { minutes: 5 });
+    dispatch(&mut alarm, AlarmEvent::Trigger);
+    dispatch(&mut alarm, AlarmEvent::Dismiss);
+    dispatch(&mut alarm, AlarmEvent::Set { hour: 7, minute: 0 });
+    dispatch(&mut alarm, AlarmEvent::Trigger);
+    dispatch(&mut alarm, AlarmEvent::Cancel);
 
     // fire_count == 2, active == 0, hour == 7, minute == 0
     // Verification: fire_count * 35 == 70
@@ -173,5 +173,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

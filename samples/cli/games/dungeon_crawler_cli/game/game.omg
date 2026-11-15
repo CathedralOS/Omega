@@ -16,18 +16,18 @@ data Game {
     pause: [u8; 256];
 }
 
-machine Game::initialize(
+machine game_initialize(
     game: &mut Game,
     seed: u64 in Wrapping
 )
 {
-    Dungeon::initialize(&mut game.dungeon, seed);
-    TextBuffer::set(&mut game.output, "");
+    dungeon_initialize(&mut game.dungeon, seed);
+    text_buffer_set(&mut game.output, "");
 }
 
-machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
+machine run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     Console::write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
-    GameView::render_title();
+    render_title();
 
     transition {
         _ -> block enter_room(game)
@@ -36,9 +36,9 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
 
     machine enter_room(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
-        Dungeon::enter_room(cell);
-        TextBuffer::set(&mut game.output, "");
-        GameView::render_room(&mut game.view, game.dungeon.level,
+        dungeon_enter_room(cell);
+        text_buffer_set(&mut game.output, "");
+        render_room(&mut game.view, game.dungeon.level,
             game.dungeon.current_cell,
             game.dungeon.treasure_taken,
             game.dungeon.gold_taken,
@@ -46,7 +46,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
             game.dungeon.enemy_defeated,
             &mut game.output
         );
-        GameView::render_commands();
+        render_commands();
 
         transition {
             _ -> block prompt(game)
@@ -61,7 +61,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine read_command(game: &mut Game) {
-        GameView::render_prompt();
+        render_prompt();
         transition block Console::read_line(&mut game.input) {
             LineReadResult::LineComplete { count } -> block received_command(game, count)
             LineReadResult::EndOfInput { count } -> block received_command(game, count)
@@ -155,7 +155,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine look(game: &mut Game) {
-        GameView::render_look(
+        render_look(
             &mut game.view,
             game.dungeon.level,
             game.dungeon.current_cell,
@@ -172,13 +172,13 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine exits(game: &mut Game) {
-        GameView::render_exits(
+        render_exits(
             &mut game.view,
             game.dungeon.level,
             game.dungeon.current_cell,
             &mut game.output
         );
-        GameView::render_commands();
+        render_commands();
 
         transition {
             _ -> block prompt(game)
@@ -186,7 +186,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine inventory(game: &mut Game) {
-        GameView::render_inventory(&mut game.view, game.dungeon.player, &mut game.output);
+        render_inventory(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
             _ -> block prompt(game)
@@ -194,7 +194,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine character(game: &mut Game) {
-        GameView::render_character(&mut game.view, game.dungeon.player, &mut game.output);
+        render_character(&mut game.view, game.dungeon.player, &mut game.output);
 
         transition {
             _ -> block prompt(game)
@@ -203,8 +203,8 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
 
     machine use_event(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
-        Dungeon::use_event(&mut game.dungeon, cell, &mut game.output);
-        GameView::render_line(&game.output);
+        dungeon_use_event(&mut game.dungeon, cell, &mut game.output);
+        render_line(&game.output);
 
         transition {
             _ -> block prompt(game)
@@ -213,8 +213,8 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
 
     machine fight(game: &mut Game) {
         let cell: CellId = game.dungeon.current_cell;
-        Dungeon::fight(&mut game.dungeon, cell, &mut game.output);
-        GameView::render_line(&game.output);
+        dungeon_fight(&mut game.dungeon, cell, &mut game.output);
+        render_line(&game.output);
 
         transition game.dungeon.player.health == 0 {
             true -> block game_over(game)
@@ -225,7 +225,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     machine attempt_move(game: &mut Game) {
         let destination: CellId = game.dungeon.navigation.destination;
 
-        transition Dungeon::can_travel_to(destination) {
+        transition can_travel_to(destination) {
             true -> block move_player(game)
             false -> block blocked_by_enemy(game)
         }
@@ -233,7 +233,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
 
     machine move_player(game: &mut Game) {
         let destination: CellId = game.dungeon.navigation.destination;
-        Dungeon::move_to(&mut game.dungeon, destination);
+        move_to(&mut game.dungeon, destination);
 
         transition {
             _ -> block enter_room(game)
@@ -241,7 +241,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r00(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R00);
+        move_to(&mut game.dungeon, CellId::R00);
 
         transition {
             _ -> block enter_room(game)
@@ -249,7 +249,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r01(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R01);
+        move_to(&mut game.dungeon, CellId::R01);
 
         transition {
             _ -> block enter_room(game)
@@ -257,7 +257,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r02(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R02);
+        move_to(&mut game.dungeon, CellId::R02);
 
         transition {
             _ -> block enter_room(game)
@@ -265,7 +265,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r03(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R03);
+        move_to(&mut game.dungeon, CellId::R03);
 
         transition {
             _ -> block enter_room(game)
@@ -273,7 +273,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r04(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R04);
+        move_to(&mut game.dungeon, CellId::R04);
 
         transition {
             _ -> block enter_room(game)
@@ -281,7 +281,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r05(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R05);
+        move_to(&mut game.dungeon, CellId::R05);
 
         transition {
             _ -> block enter_room(game)
@@ -289,7 +289,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r06(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R06);
+        move_to(&mut game.dungeon, CellId::R06);
 
         transition {
             _ -> block enter_room(game)
@@ -297,7 +297,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine move_r07(game: &mut Game) {
-        Dungeon::move_to(&mut game.dungeon, CellId::R07);
+        move_to(&mut game.dungeon, CellId::R07);
 
         transition {
             _ -> block enter_room(game)
@@ -305,8 +305,8 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine blocked_by_enemy(game: &mut Game) {
-        TextBuffer::set(&mut game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back.");
-        GameView::render_line(&game.output);
+        text_buffer_set(&mut game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back.");
+        render_line(&game.output);
 
         transition {
             _ -> block prompt(game)
@@ -314,7 +314,7 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine invalid_command(game: &mut Game) {
-        GameView::render_invalid_command();
+        render_invalid_command();
 
         transition {
             _ -> block prompt(game)
@@ -322,8 +322,8 @@ machine Game::run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     }
 
     machine game_over(game: &mut Game) {
-        Dungeon::game_over(&mut game.dungeon);
-        GameView::render_game_over();
+        dungeon_game_over(&mut game.dungeon);
+        render_game_over();
 
         transition {
             _ -> block finished(game)

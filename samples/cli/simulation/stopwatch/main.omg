@@ -43,15 +43,15 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
-    Main::send(main, Command::Tick { n: 10 });
-    Main::send(main, Command::Split);
-    Main::send(main, Command::Tick { n: 20 });
-    Main::send(main, Command::Lap);
-    Main::send(main, Command::Tick { n: 15 });
-    Main::send(main, Command::Tick { n: 25 });
-    Main::send(main, Command::Split);
+    send(main, Command::Tick { n: 10 });
+    send(main, Command::Split);
+    send(main, Command::Tick { n: 20 });
+    send(main, Command::Lap);
+    send(main, Command::Tick { n: 15 });
+    send(main, Command::Tick { n: 25 });
+    send(main, Command::Split);
 
     // total==70, split==40, lap==30, elapsed==40.
     transition main.watch.total == 70 {
@@ -113,7 +113,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 }
 
 // Apply a command to the stopwatch.
-machine Main::send(main: &mut Main, cmd: Command) {
+machine send(main: &mut Main, cmd: Command) {
     transition cmd {
         Command::Tick { n } -> do_tick(main, n)
         Command::Lap -> do_lap(main)
@@ -141,5 +141,5 @@ machine Main::send(main: &mut Main, cmd: Command) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

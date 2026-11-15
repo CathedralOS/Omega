@@ -36,14 +36,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("score_tracker: replays score/bonus/reset events for two players");
-    Main::apply(main, Event::Score { player: 0, points: 30 });
-    Main::apply(main, Event::Score { player: 1, points: 20 });
-    Main::apply(main, Event::Bonus { player: 0 });
-    Main::apply(main, Event::Score { player: 1, points: 10 });
-    Main::apply(main, Event::Reset { player: 1 });
-    Main::apply(main, Event::Score { player: 1, points: 10 });
+    apply(main, Event::Score { player: 0, points: 30 });
+    apply(main, Event::Score { player: 1, points: 20 });
+    apply(main, Event::Bonus { player: 0 });
+    apply(main, Event::Score { player: 1, points: 10 });
+    apply(main, Event::Reset { player: 1 });
+    apply(main, Event::Score { player: 1, points: 10 });
 
     // player[0] = 60, player[1] = 10, total = 70
     main.tracker.total = main.scores[0] + main.scores[1];
@@ -69,7 +69,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 }
 
 // Apply one event to the scores array.
-machine Main::apply(main: &mut Main, event: Event) {
+machine apply(main: &mut Main, event: Event) {
     transition event {
         Event::Score { player, points } -> add_score(main, player, points)
         Event::Bonus { player } -> double_score(main, player)
@@ -129,5 +129,5 @@ machine Main::apply(main: &mut Main, event: Event) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

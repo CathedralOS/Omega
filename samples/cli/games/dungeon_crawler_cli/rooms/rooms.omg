@@ -32,7 +32,7 @@ requires self.room_count <= 16
 // Appending an exit is the room's own business. Keeping it here rather than on
 // MazeBuilder is what lets a caller hold `&mut Room` and still append: a
 // builder-owned appender would need the builder receiver at the same time.
-machine Room::append_exit(
+machine append_exit(
     room: &mut Room,
     command: &[u8] in Ascii,
     direction: Direction,
@@ -56,7 +56,7 @@ requires command.len <= 8
     )
     requires command.len <= 8
     {
-        ExitCommand::set(&mut room.exits[0].command, command);
+        exit_command_set(&mut room.exits[0].command, command);
         room.exits[0].direction = direction;
         room.exits[0].destination = destination;
         room.exit_count = 1;
@@ -70,7 +70,7 @@ requires command.len <= 8
     )
     requires command.len <= 8
     {
-        ExitCommand::set(&mut room.exits[1].command, command);
+        exit_command_set(&mut room.exits[1].command, command);
         room.exits[1].direction = direction;
         room.exits[1].destination = destination;
         room.exit_count = 2;
@@ -84,7 +84,7 @@ requires command.len <= 8
     )
     requires command.len <= 8
     {
-        ExitCommand::set(&mut room.exits[2].command, command);
+        exit_command_set(&mut room.exits[2].command, command);
         room.exits[2].direction = direction;
         room.exits[2].destination = destination;
         room.exit_count = 3;
@@ -98,7 +98,7 @@ requires command.len <= 8
     )
     requires command.len <= 8
     {
-        ExitCommand::set(&mut room.exits[3].command, command);
+        exit_command_set(&mut room.exits[3].command, command);
         room.exits[3].direction = direction;
         room.exits[3].destination = destination;
         room.exit_count = 4;
@@ -108,7 +108,7 @@ requires command.len <= 8
 // The level owns its rooms, so it hands out the borrow. A builder-owned
 // lookup would tie every `&mut Room` to the builder receiver and block the
 // builder calls the caller still needs while that room is live.
-machine Level::room_mut(level: &mut Level, cell: CellId) -> &mut Room {
+machine room_mut(level: &mut Level, cell: CellId) -> &mut Room {
     let slots: &mut [Room] = &mut level.rooms[..];
 
     transition cell {

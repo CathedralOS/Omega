@@ -10,8 +10,8 @@ data Main {
     game: Game;
 }
 
-machine Main::main(main: &mut Main) {
-    Game::initialize(&mut main.game, 7);
+machine main(main: &mut Main) {
+    game_initialize(&mut main.game, 7);
 
     transition {
         _ -> block running(main)
@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) {
 
 
     machine running(main: &mut Main) {
-        block Game::run_game_loop(&mut main.game);
+        block run_game_loop(&mut main.game);
 
         transition {
             _ -> shutdown(main)
@@ -33,5 +33,5 @@ machine Main::main(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

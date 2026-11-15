@@ -23,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
     main.hero.hp = 30;
     main.hero.attack = 7;
@@ -65,5 +65,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

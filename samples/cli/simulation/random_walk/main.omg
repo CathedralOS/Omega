@@ -44,7 +44,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("random_walk: a pseudo-random walker wanders a 24x12 grid leaving a trail");
     main.px = 12;
     main.py = 6;
@@ -202,5 +202,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

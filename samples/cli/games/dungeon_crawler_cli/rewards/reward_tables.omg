@@ -8,35 +8,35 @@ data RewardTables {
     rng: Random;
 }
 
-machine RewardTables::roll_room_treasure(
+machine roll_room_treasure(
     reward_tables: &mut RewardTables,
     depth: u32 in Wrapping,
     random: &mut RandomState,
     reward: &mut Reward
 ) {
     reward.kind = RewardKind::GoldAndItem;
-    reward.gold = 20 + depth * 8 + (Random::range(&mut reward_tables.rng, random, 15) as u32 in Wrapping);
-    reward.item = RewardTables::roll_item(reward_tables, depth, random);
+    reward.gold = 20 + depth * 8 + (range(&mut reward_tables.rng, random, 15) as u32 in Wrapping);
+    reward.item = roll_item(reward_tables, depth, random);
 }
 
-machine RewardTables::roll_gold_cache(
+machine roll_gold_cache(
     reward_tables: &mut RewardTables,
     depth: u32 in Wrapping,
     random: &mut RandomState,
     reward: &mut Reward
 ) {
     reward.kind = RewardKind::Gold;
-    reward.gold = 8 + depth * 5 + (Random::range(&mut reward_tables.rng, random, 12) as u32 in Wrapping);
+    reward.gold = 8 + depth * 5 + (range(&mut reward_tables.rng, random, 12) as u32 in Wrapping);
     reward.item = ItemKind::RustedDagger;
 }
 
-machine RewardTables::roll_enemy_reward(
+machine roll_enemy_reward(
     reward_tables: &mut RewardTables,
     enemy: Enemy,
     random: &mut RandomState,
     reward: &mut Reward
 ) {
-    transition Random::chance(&mut reward_tables.rng, random, 1, 4) {
+    transition chance(&mut reward_tables.rng, random, 1, 4) {
         true -> enemy_item(reward_tables, enemy, random, reward)
         false -> enemy_gold(reward_tables, enemy, random, reward)
     }
@@ -49,8 +49,8 @@ machine RewardTables::roll_enemy_reward(
         reward: &mut Reward
     ) {
         reward.kind = RewardKind::GoldAndItem;
-        reward.gold = 1 + enemy.depth + (Random::range(&mut reward_tables.rng, random, 5) as u32 in Wrapping);
-        reward.item = RewardTables::roll_item(reward_tables, enemy.depth, random);
+        reward.gold = 1 + enemy.depth + (range(&mut reward_tables.rng, random, 5) as u32 in Wrapping);
+        reward.item = roll_item(reward_tables, enemy.depth, random);
     }
 
     machine enemy_gold(
@@ -60,17 +60,17 @@ machine RewardTables::roll_enemy_reward(
         reward: &mut Reward
     ) {
         reward.kind = RewardKind::Gold;
-        reward.gold = 2 + enemy.depth * 2 + (Random::range(&mut reward_tables.rng, random, 6) as u32 in Wrapping);
+        reward.gold = 2 + enemy.depth * 2 + (range(&mut reward_tables.rng, random, 6) as u32 in Wrapping);
         reward.item = ItemKind::RustedDagger;
     }
 }
 
-machine RewardTables::roll_item(
+machine roll_item(
     reward_tables: &mut RewardTables,
     depth: u32 in Wrapping,
     random: &mut RandomState
     ) -> ItemKind {
-    let roll: u32 in Wrapping = Random::range(&mut reward_tables.rng, random, 100) as u32 in Wrapping;
+    let roll: u32 in Wrapping = range(&mut reward_tables.rng, random, 100) as u32 in Wrapping;
 
     let is_early_dagger: bool = depth <= 2 && roll < 50;
     let is_early_buckler: bool = depth <= 3 && roll < 75;

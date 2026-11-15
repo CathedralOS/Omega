@@ -50,14 +50,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
-    Main::send(main, Command::GoTo { floor: 2 });
-    Main::send(main, Command::OpenDoor);
-    Main::send(main, Command::CloseDoor);
-    Main::send(main, Command::GoTo { floor: 0 });
-    Main::send(main, Command::GoTo { floor: 1 });
-    Main::send(main, Command::OpenDoor);
+    send(main, Command::GoTo { floor: 2 });
+    send(main, Command::OpenDoor);
+    send(main, Command::CloseDoor);
+    send(main, Command::GoTo { floor: 0 });
+    send(main, Command::GoTo { floor: 1 });
+    send(main, Command::OpenDoor);
 
     // floor==1, moves==3, door_open==1 -> exit 70.
     transition main.lift.floor == 1 {
@@ -109,7 +109,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 }
 
 // Dispatch a command to the elevator.
-machine Main::send(main: &mut Main, cmd: Command) {
+machine send(main: &mut Main, cmd: Command) {
     transition cmd {
         Command::GoTo { floor } -> handle_goto(main, floor)
         Command::OpenDoor -> handle_open(main)
@@ -145,5 +145,5 @@ machine Main::send(main: &mut Main, cmd: Command) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
