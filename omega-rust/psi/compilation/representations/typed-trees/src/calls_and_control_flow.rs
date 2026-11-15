@@ -2726,6 +2726,12 @@ pub mod control_flow {
         }
 
         impl StatementTable {
+            pub(crate) fn finish_output_page(&mut self) {
+                // Calls can acquire source applications after body completion;
+                // keep that rewrite separate without splitting their children.
+                self.statements.finish_append_page();
+            }
+
             pub fn insert_transition_patterns(
                 &mut self,
                 patterns: impl IntoIterator<Item = TransitionPattern>,

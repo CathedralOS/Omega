@@ -1055,6 +1055,7 @@ pub(crate) mod machine {
         machine: &resolved::machine::Machine,
         typed_machine: &mut typed::machine::Machine,
     ) -> Result<(), Diagnostic> {
+        lowerer.typed_trees.begin_declaration_output();
         let exposure = lowerer
             .type_reference_exposure
             .map(|_| AuthoredDeclarationSelectionExposure::PrivateImplementation);
