@@ -19,7 +19,7 @@ machine lookup_symbol(alphabet: &[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
     }
     machine compare(alphabet: &[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
     requires idx < 5 {
-        transition alphabet[idx] == (target as u8) {
+        transition alphabet[idx] == (target as -HuffmanSymbol) {
             true -> idx
             _ -> check(alphabet, target, idx + 1)
         }
@@ -36,7 +36,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     main.alphabet[2] = 67;
     main.alphabet[3] = 68;
     main.alphabet[4] = 82;
-    let slot: u64 = lookup_symbol(&main.alphabet, 90);
+    let slot: u64 = lookup_symbol(&main.alphabet, 90 as +HuffmanSymbol);
     ProcessExit::exit_process(slot as i32);
 }
 

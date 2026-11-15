@@ -18,9 +18,12 @@ Encodes the fixed 16-byte input `"ABRACADABRAABAAA"` over the 5-symbol alphabet
 6. Self-verifies frequencies, code lengths, total bit count, packed bytes, and the
    16-byte decoded round-trip against hand-computed constants, then prints `PASS`.
 
-`../invalid_huffman_codec/` is the companion intended-invalid control: attempting to look up and
-emit `'Z'` (`90`), a symbol absent from `u8::HuffmanSymbol`, is rejected by
-`omega --check` with `cannot prove requires contract for call lookup_symbol from Main::main: 90 in u8::HuffmanSymbol`.
+`../invalid_huffman_codec/` is the companion intended-invalid control. It casts
+`'Z'` (`90`), a symbol absent from `u8::HuffmanSymbol`, into the domain with
+`90 as +HuffmanSymbol` to look it up, and the compiler must refuse that cast with
+`cannot prove the value of this cast is in the domain it adds`. A literal gains a
+domain only through such a cast, so the cast is where the old call-contract
+refusal now lands.
 
 After completing the sample's package review, run from the repository root:
 
