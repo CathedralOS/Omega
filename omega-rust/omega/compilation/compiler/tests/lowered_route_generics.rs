@@ -652,6 +652,57 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
     });
 }
 
+#[test]
+fn a_transition_into_a_copied_lexical_child_checks_the_original_body() {
+    let _guard = lock_fixture_compilation();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main = repository("tests/fixtures/run/generics/lexical_child_transition/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("lexical child: {:?}", failure.into_diagnostics()));
+            let artifact = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap()
+                .artifact;
+            let decoded =
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                    .expect("the copied child and its application can be read independently");
+            assert_eq!(decoded.semantic_module(), artifact.semantic_module());
+
+            let main = repository(
+                "tests/fixtures/fail/generics/lexical_child_transition_bad_guarantee/main.omg",
+            );
+            let expected = std::fs::read_to_string(main.with_file_name("expected.txt")).unwrap();
+            let failure = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("the parent's branch guard cannot prove the child's published guarantee");
+            let diagnostics = failure.into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains(expected.trim())
+                        && diagnostic.message.contains("child")
+                        && diagnostic.message.contains("result == 7")
+                }),
+                "{diagnostics:#?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}
+
 /// Actual Build preparation and the ordinary publication factory must retain
 /// both complete map tuples, rather than borrowing one body's capture.
 #[test]

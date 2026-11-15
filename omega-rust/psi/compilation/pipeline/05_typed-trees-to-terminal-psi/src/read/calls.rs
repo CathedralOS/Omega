@@ -327,6 +327,9 @@ impl<'t> Program<'t> {
     /// one state the symbol is. `None` for anything else, including a state
     /// of a machine with several.
     fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+        if !self.typed.symbols.symbols().nodes().is_valid(symbol) {
+            return None;
+        }
         match self.typed.symbols.get(symbol).kind {
             SymbolKind::Machine => Some(symbol),
             SymbolKind::State => {
@@ -507,6 +510,17 @@ impl<'t> Program<'t> {
                 .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?,
         };
         let names_target = |symbol: SymbolHandle| symbol == target || generated == Some(symbol);
+        let selects_target = |symbol| {
+            names_target(symbol)
+                || self.entered_machine(symbol).is_some_and(|selected| {
+                    self.entered_machine(target) == Some(selected)
+                        // The retained application maps the execution entry
+                        // to its exact template entry. The ledger can name
+                        // that entry by its machine, as in a transition.
+                        || generated.and_then(|template| self.entered_machine(template))
+                            == Some(selected)
+                })
+        };
         if let Some(occurrence) = selection {
             let Some(selected) = self.typed.authored_declaration_selections().get(occurrence)
             else {
@@ -517,12 +531,7 @@ impl<'t> Program<'t> {
                 // entry state, and so does the call; a call of the machine
                 // being read records the two differently.
                 AuthoredDeclarationSelectionTarget::Resolved(resolved)
-                    if names_target(resolved.selected_symbol())
-                        || self
-                            .entered_machine(resolved.selected_symbol())
-                            .is_some_and(|selected| {
-                                Some(selected) == self.entered_machine(target)
-                            }) => {}
+                    if selects_target(resolved.selected_symbol()) => {}
                 AuthoredDeclarationSelectionTarget::Resolved(_) => {
                     return unserved("selection resolved to another declaration");
                 }
@@ -1921,7 +1930,10 @@ impl<'t> Program<'t> {
         }
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let callee = self.machine(target)?;
+        let callee = match self.inherited_type_arguments(id, target) {
+            Some(arguments) => self.application(target, arguments)?,
+            None => self.machine(target)?,
+        };
         self.call_of(
             id,
             slots,
@@ -1930,6 +1942,43 @@ impl<'t> Program<'t> {
             source,
             expected,
         )
+    }
+
+    /// A direct entry into a lexical child carries the caller's own
+    /// telescope even when the call has no explicit static application.
+    /// Read the child's signature at those same rigid types. The existing
+    /// application owner also requests the child's independent body check.
+    fn inherited_type_arguments(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Option<Vec<crate::body::ValueType>> {
+        if !self.rigid || id.get() != 1 {
+            return None;
+        }
+        let caller = *self.symbols.get(id)?;
+        let mut enclosing = self.typed.symbols.get(target).parent;
+        while enclosing.is_valid() && enclosing != caller {
+            enclosing = self.typed.symbols.get(enclosing).parent;
+        }
+        if enclosing != caller {
+            return None;
+        }
+        let machine = self.typed.machine_by_symbol(target)?;
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty() || !machine.conformance_bounds.is_empty() {
+            return None;
+        }
+        parameters
+            .iter()
+            .map(|parameter| {
+                self.scope.iter().find_map(|(binder, value)| {
+                    (*binder == parameter.symbol
+                        && matches!(value, crate::body::ValueType::Rigid(_)))
+                    .then_some(*value)
+                })
+            })
+            .collect()
     }
 
     /// Resolve the same exact entry identity for direct and selected calls.
@@ -2874,7 +2923,10 @@ mod tests {
 
     #[test]
     fn copied_call_bindings_keep_their_exact_authored_state() {
-        use language_semantics::declaration_selection::ResolvedAuthoredCallBinding;
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+            ResolvedAuthoredCallBinding,
+        };
         use symbols::{SymbolNameRef, SymbolTableBuilder};
         use typed_trees::{MachineSpecialization, machine::Machine, state::State};
         let mut builder = SymbolTableBuilder::default();
@@ -2938,6 +2990,28 @@ mod tests {
             original: source_state,
         };
         let id = MachineId::new(1).unwrap();
+        let mut selection = |symbol| {
+            typed
+                .record_resolved_authored_declaration_selection_once(
+                    source::SourceSpan::default(),
+                    AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                    AuthoredDeclarationSelectionKind::Call,
+                    symbol,
+                )
+                .unwrap()
+        };
+        let ledger_names_machine = selection(source);
+        let ledger_names_unrelated_entry = selection(foreign_state);
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, Some(ledger_names_machine), None)
+                .is_ok()
+        );
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, Some(ledger_names_unrelated_entry), None)
+                .is_err()
+        );
         assert!(
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
@@ -2996,6 +3070,11 @@ mod tests {
         typed
             .machine_specializations
             .edit(|rows| rows[0].states = Default::default());
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, Some(ledger_names_machine), None)
+                .is_err()
+        );
         assert!(
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
