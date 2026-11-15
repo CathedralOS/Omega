@@ -215,9 +215,9 @@ const fn row(
 }
 
 /*
-    Each hosted target bundles one console and one process-exit realization
-    file in std. The rows name the target so a provider plan for one target
-    can never take custody through another target's realization.
+    These retained console rows name their target, so one target cannot
+    take custody through another target's realization. ProcessExit uses its
+    separate Core primitive; ordinary Std wrappers have no sealed rows.
 */
 macro_rules! hosted_target_rows {
     ($target:literal) => {
@@ -249,23 +249,14 @@ macro_rules! hosted_target_rows {
                     target: $target,
                 },
             ),
-            row(
-                concat!("targets/", $target, "/process_exit_impl.omg"),
-                "ProcessExitNativeProvider::exit_process",
-                bundled!(concat!("std/targets/", $target, "/process_exit_impl.omg")),
-                SealedIntrinsic::HostedRealization {
-                    operation: HostedOperation::ProcessExit,
-                    target: $target,
-                },
-            ),
         ]
     };
 }
 
-const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_arm64");
-const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_x86_64");
-const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_arm64");
-const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_x86_64");
+const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 3] = hosted_target_rows!("linux_arm64");
+const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 3] = hosted_target_rows!("linux_x86_64");
+const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 3] = hosted_target_rows!("macos_arm64");
+const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 3] = hosted_target_rows!("macos_x86_64");
 const HOSTED_REALIZATIONS: [&[SealedIntrinsicRow]; 4] = [
     &HOSTED_LINUX_ARM64,
     &HOSTED_LINUX_X86_64,

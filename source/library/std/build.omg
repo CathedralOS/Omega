@@ -1,8 +1,10 @@
 use omega::language::core::DllImport;
 use omega::language::core::ForeignBinding;
+use omega::language::core::ProcessExit;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
+    configure_process_exit(builder);
     configure_macos_image(builder);
     configure_time_host(builder);
     configure_windows_filesystem(builder);
@@ -73,6 +75,15 @@ machine build(builder: &mut Build) {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPop"
         }
     });
+}
+
+// Every hosted target selects the checked wrapper. Its core primitive is
+// settled independently; selecting the wrapper grants no process-exit authority.
+machine configure_process_exit(builder: &mut Build) {
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, windows_x86_64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_x86_64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_arm64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, macos_arm64);
 }
 
 // Package-local raw supply follows the checked provider closure. Applications

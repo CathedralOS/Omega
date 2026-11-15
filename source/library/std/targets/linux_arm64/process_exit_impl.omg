@@ -1,7 +1,0 @@
-// linux_arm64 selects the ordinary checked ProcessExit wrapper. The exact
-// core primitive owns irreducible transfer; this package owns no native leaf.
-use omega::language::core::ProcessExit;
-
-linux_arm64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
-    ProcessExitNativeProvider::select_provider<ProcessExit, NativeProcessExit>(defaults);
-}
