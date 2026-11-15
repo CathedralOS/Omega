@@ -240,11 +240,34 @@ impl<'t> Program<'t> {
             outcomes: Vec::with_capacity(self.subject_machines.len()),
             result_contracts: Vec::with_capacity(self.subject_machines.len()),
         };
+        let mut complete_subject = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
+            *complete_subject.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local subject without a machine"),
+                )
+            })? = true;
+        }
+        for (id, &symbol) in self.symbols.iter() {
             if boundary.get(id) == Some(&true) {
                 continue;
             }
-            let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let complete = complete_subject.get(id) == Some(&true);
+            let outcome_subject = match &self.outcome_subjects {
+                Some(subjects) if !complete => typed_trees::source_subjects::contains(
+                    self.typed,
+                    symbol,
+                    subjects,
+                    self.purpose,
+                )
+                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Declaration(reason)))?,
+                _ => complete,
+            };
+            if !outcome_subject {
+                continue;
+            }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
@@ -256,7 +279,7 @@ impl<'t> Program<'t> {
                 && crate::template_of(self.typed, symbol).is_none()
             {
                 local.outcomes.push(id);
-                if !machine.is_public {
+                if complete && !machine.is_public {
                     local.result_contracts.push(id);
                 }
             }
