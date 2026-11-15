@@ -613,7 +613,7 @@ pub mod declaration_index {
                     self.tables.machine_states.revision(),
                     self.tables.state_parameters.revision(),
                     self.tables.machine_owned_data.revision(),
-                    self.statement_table.revision(),
+                    self.statement_table.declaration_revision(),
                     self.tables.propositions.revision(),
                     self.roots.machines,
                     self.roots.propositions,
