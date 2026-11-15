@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Hosted native acceptance can stop in the standard library independently of the program being checked. Trace the conjunction of array-index bounds and preserve each index guard and its invalid control when repairing the proof path. Other targets were unmeasured.
 - Reported: 2026-11-14, Codex, while validating native execution of suffixed arithmetic
 
-### Stage 05 refusal tests expect diagnostics without their declaration context
-- Category: tests that pin the bug
-- Where: [requirement body test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calls_visibility_tests.rs#L274), [demanded signature test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L672)
-- Saw: On macOS arm64 at clean base `a70ae5ad39e56fd0b94f412321050e7b5c891361`, the Stage 05 unit suite fails these two exact-message assertions. The actual refusal adds the body of `Raw::read` or the signature of `holder` to the original reason.
-- Cost: The unit suite stays red while dropping coverage for declaration context. Pin the reason and the correct contextual owner for both refusals.
-- Reported: 2026-11-14, Codex, while validating suffixed operation selection
-
 ### The target-body reachability policy has no compiler caller
 - Category: zombie machinery
 - Where: [target_bodies.rs](omega-rust/omega/compilation/realization/provider-selection/src/bodies/target_bodies.rs#L14), [typed direct-call inventory](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L90)
