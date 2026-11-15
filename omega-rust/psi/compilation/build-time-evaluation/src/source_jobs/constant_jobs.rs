@@ -131,8 +131,8 @@ pub fn validate_constant_evaluations(
         return Err("constant receipt has changed expression input storage".into());
     }
     let original_uses = original_source.map(|source| named_uses(source, &wanted));
-    // Cloning shares the immutable arenas. Reuse one comparison owner rather
-    // than constructing a whole-program clone for each constant.
+    // Reuse one comparison program for all constants so its owned tables are
+    // copied once for this validation.
     let mut comparison = program.clone();
     for constant in program.const_declarations() {
         let index =

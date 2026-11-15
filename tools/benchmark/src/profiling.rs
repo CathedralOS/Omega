@@ -11,6 +11,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[path = "../selected-bodies/snapshot_limits.rs"]
+mod snapshot_limits;
+
 struct OwnedWpr {
     instance: String,
     directory: PathBuf,
@@ -51,8 +54,13 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     if !matches!(role, "baseline" | "candidate") {
         return Err("profile role must be baseline or candidate".into());
     }
-    if !matches!(backend, "wpr" | "perf-stat" | "perf-record") {
-        return Err("profile backend must be wpr, perf-stat or perf-record".into());
+    if !matches!(
+        backend,
+        "wpr" | "perf-stat" | "perf-record" | "selected-bodies"
+    ) {
+        return Err(
+            "profile backend must be wpr, perf-stat, perf-record or selected-bodies".into(),
+        );
     }
     let (mut plan, path, plan_sha256) = experiment::prepare_plan(plan_path)?;
     let directory_parent = directory
@@ -148,6 +156,19 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     } else {
         &mut plan.candidate
     };
+    if backend == "selected-bodies" {
+        let configuration = command
+            .environment
+            .entry(snapshot_limits::ENVIRONMENT.into())
+            .or_insert_with(|| snapshot_limits::DEFAULT.into())
+            .clone();
+        let [bytes, allocation, elements, depth] = snapshot_limits::parse(&configuration)?;
+        result["snapshot_limits"] = json!({"configuration":configuration,"bytes":bytes,"allocation":allocation,"elements":elements,"depth":depth});
+        command.environment.insert(
+            "OMEGA_SELECTED_BODY_PROFILE".into(),
+            directory.join("typed").display().to_string(),
+        );
+    }
     if matches!(backend, "perf-stat" | "perf-record") {
         let profiler = find_perf().ok_or("perf was not found at /usr/bin/perf or /bin/perf")?;
         result["profiler_sha256"] = json!(process::file_digest(&profiler)?);
@@ -232,6 +253,22 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     }
     let extracted = (|| -> Result<(), String> {
         match backend {
+            "selected-bodies" => {
+                let path = directory.join("typed/profile.log");
+                result["clone_log_sha256"] = json!(process::file_digest(&path)?);
+                result["clone_log"] = json!("typed/profile.log");
+                let mut paths = std::fs::read_dir(directory.join("typed"))
+                    .map_err(|error| error.to_string())?
+                    .map(|entry| entry.map(|entry| entry.path()))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| error.to_string())?;
+                paths.retain(|path| path.extension().is_some_and(|extension| extension == "bin"));
+                paths.sort();
+                let snapshots = paths.into_iter().map(|path| {
+                    Ok(json!({"file":path.file_name().and_then(|name| name.to_str()).ok_or("snapshot name is not UTF-8")?,"bytes":std::fs::metadata(&path).map_err(|error|error.to_string())?.len(),"sha256":process::file_digest(&path)?}))
+                }).collect::<Result<Vec<_>,String>>()?;
+                result["snapshots"] = json!(snapshots);
+            }
             "perf-stat" => {
                 let bytes = std::fs::read(directory.join("counters.jsonl"))
                     .map_err(|error| error.to_string())?;

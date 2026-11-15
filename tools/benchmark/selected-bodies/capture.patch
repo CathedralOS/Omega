@@ -1,0 +1,241 @@
+diff --git a/omega-rust/omega/compilation/compiler/Cargo.toml b/omega-rust/omega/compilation/compiler/Cargo.toml
+index 00f1cb8650c0d..37791ccc58c2f 100644
+--- a/omega-rust/omega/compilation/compiler/Cargo.toml
++++ b/omega-rust/omega/compilation/compiler/Cargo.toml
+@@ -58,6 +58,7 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
+ optimization-core = { path = "../../foundation/optimization-core" }
+ 
+ [dev-dependencies]
++selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ typed-trees-to-terminal-psi = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
+ terminal-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
+ abstract-operations = { path = "../representations/abstract-operations" }
+diff --git a/omega-rust/omega/compilation/compiler/examples/selected_bodies_profile.rs b/omega-rust/omega/compilation/compiler/examples/selected_bodies_profile.rs
+new file mode 100644
+index 0000000000000..25ee9d81bc497
+--- /dev/null
++++ b/omega-rust/omega/compilation/compiler/examples/selected_bodies_profile.rs
+@@ -0,0 +1 @@
++include!("../../../../../tools/benchmark/selected-bodies/driver.rs");
+diff --git a/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/Cargo.toml b/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/Cargo.toml
+index b34badf2b551e..26d32482ac7d9 100644
+--- a/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/Cargo.toml
++++ b/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/Cargo.toml
+@@ -10,6 +10,7 @@ name = "symbol_resolved_trees_to_typed_trees"
+ path = "src/lib.rs"
+ 
+ [dependencies]
++selected-body-allocation-trace = { path = "../../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ compiler-storage = { path = "../../../foundation/compiler-storage" }
+ arena = { path = "../../../foundation/arena" }
+ diagnostics = { path = "../../../foundation/diagnostics" }
+@@ -22,6 +23,9 @@ symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
+ typed-trees = { path = "../../representations/typed-trees" }
+ 
+ [dev-dependencies]
++serde_json = "1.0"
++sha2 = "0.10.9"
++mimalloc = { version = "0.1", default-features = false }
+ semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
+ source-files-to-tokens = { path = "../00_source-files-to-tokens" }
+ tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
+diff --git a/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/examples/selected_bodies_replay.rs b/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/examples/selected_bodies_replay.rs
+new file mode 100644
+index 0000000000000..79f5b4ea0aecb
+--- /dev/null
++++ b/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/examples/selected_bodies_replay.rs
+@@ -0,0 +1 @@
++include!("../../../../../../tools/benchmark/selected-bodies/replay.rs");
+diff --git a/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs b/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs
+index b1edcc4329a19..1efe5f1592ba4 100644
+--- a/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs
++++ b/omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs
+@@ -563,7 +563,8 @@ pub(crate) mod seeded_continuation {
+                 )]);
+             }
+             self.resolved = successor;
+-            Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
++            typed_trees::selected_body_profile::make_mut(&mut self.typed, "activation").symbols =
++                self.resolved.symbols.clone();
+             Ok(self)
+         }
+ 
+@@ -722,11 +723,11 @@ pub(crate) mod seeded_continuation {
+         }
+ 
+         pub fn typed_mut(&mut self) -> &mut TypedTrees {
+-            Arc::make_mut(&mut self.typed)
++            typed_trees::selected_body_profile::make_mut(&mut self.typed, "typed-mut")
+         }
+ 
+         pub fn into_typed(self) -> TypedTrees {
+-            Arc::unwrap_or_clone(self.typed)
++            typed_trees::selected_body_profile::unwrap_or_clone(self.typed, "into-typed")
+         }
+     }
+ 
+@@ -765,7 +766,8 @@ pub(crate) mod seeded_continuation {
+         if let Err(error) = super::validate_resolved_semantics_in(&source, &cohort) {
+             return Err(SeededContinuationError::Lowering(error));
+         }
+-        let mut candidate = Arc::unwrap_or_clone(retained.typed);
++        let mut candidate =
++            typed_trees::selected_body_profile::unwrap_or_clone(retained.typed, "extension");
+         if let Err(error) = join_resolved_semantics(&source, &resolved_base, &mut candidate) {
+             return Err(SeededContinuationError::Lowering(error));
+         }
+@@ -844,7 +846,8 @@ pub(crate) mod seeded_continuation {
+         }
+         let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
+         super::validate_resolved_semantics_in(&source, &cohort)?;
+-        let mut candidate = Arc::unwrap_or_clone(retained.typed);
++        let mut candidate =
++            typed_trees::selected_body_profile::unwrap_or_clone(retained.typed, "body-completion");
+         join_resolved_semantics(&source, &predecessor, &mut candidate)?;
+         let mut lowerer = Lowerer {
+             typed_trees: candidate,
+diff --git a/omega-rust/psi/compilation/representations/typed-trees/Cargo.toml b/omega-rust/psi/compilation/representations/typed-trees/Cargo.toml
+index 027520f6145ec..ea3a229249b3f 100644
+--- a/omega-rust/psi/compilation/representations/typed-trees/Cargo.toml
++++ b/omega-rust/psi/compilation/representations/typed-trees/Cargo.toml
+@@ -9,6 +9,7 @@ name = "typed_trees"
+ path = "src/lib.rs"
+ 
+ [dependencies]
++selected-body-allocation-trace = { path = "../../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ compiler-storage = { path = "../../../foundation/compiler-storage" }
+ sha2 = "0.10.9"
+ access-plans = { path = "../../../foundation/access-plans" }
+diff --git a/omega-rust/psi/compilation/representations/typed-trees/src/declaration_projection.rs b/omega-rust/psi/compilation/representations/typed-trees/src/declaration_projection.rs
+index 328a2eb3dbbb8..2663e508ddbb9 100644
+--- a/omega-rust/psi/compilation/representations/typed-trees/src/declaration_projection.rs
++++ b/omega-rust/psi/compilation/representations/typed-trees/src/declaration_projection.rs
+@@ -180,7 +180,7 @@ fn project_declarations(
+     retain_reference: impl Fn(SymbolHandle) -> bool,
+     declaration_children: &[(SymbolHandle, SymbolHandle)],
+ ) -> TypedTrees {
+-    let mut program = original.clone();
++    let mut program = crate::selected_body_profile::clone_owned(original, "declaration-projection");
+     program.identity = Default::default();
+ 
+     let mut synthesized = SymbolMembership::default();
+diff --git a/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs b/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
+index 610ba2307a8bc..7fe04b5947d44 100644
+--- a/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
++++ b/omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
+@@ -42,6 +42,9 @@ without re-running type inference or inspecting surface syntax.
+   - `values.rs`: typed expressions (`Expression`), constant integers, and table copy routines.
+ */
+ 
++#[path = "../../../../../../tools/benchmark/selected-bodies/capture.rs"]
++pub mod selected_body_profile;
++
+ pub mod boundary_values {
+     use crate::types::TypeReferenceHandle;
+ 
+diff --git a/omega-rust/psi/compilation/source-compiler/Cargo.toml b/omega-rust/psi/compilation/source-compiler/Cargo.toml
+index 2ef818520bb91..59939cb0df5bb 100644
+--- a/omega-rust/psi/compilation/source-compiler/Cargo.toml
++++ b/omega-rust/psi/compilation/source-compiler/Cargo.toml
+@@ -5,6 +5,7 @@ license.workspace = true
+ version.workspace = true
+ 
+ [dependencies]
++selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ compiler-storage = { path = "../../foundation/compiler-storage" }
+ source-files-to-tokens = { path = "../pipeline/00_source-files-to-tokens" }
+ tokens-to-syntax-trees = { path = "../pipeline/01_tokens-to-syntax-trees" }
+diff --git a/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs b/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs
+index 43026f26d7f9b..dafde74f5c40e 100644
+--- a/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs
++++ b/omega-rust/psi/compilation/source-compiler/src/source_compilation.rs
+@@ -804,9 +804,12 @@ impl SourceCompilationRequest {
+         if let Some(activation) = &activation {
+             activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
+         }
+-        let retained_program = activation
+-            .as_ref()
+-            .map(|activation| activation.typing.typed().clone());
++        let retained_program = activation.as_ref().map(|activation| {
++            typed_trees::selected_body_profile::clone_owned(
++                activation.typing.typed(),
++                "retained-program",
++            )
++        });
+         let retained_declaration_syntax = activation
+             .as_ref()
+             .map(|activation| Arc::clone(&activation.declaration_syntax));
+@@ -932,6 +935,15 @@ impl SourceContinuation {
+         ),
+         Vec<Diagnostic>,
+     > {
++        let _profile_context = selected_body_allocation_trace::context("complete-selected");
++        if selected_body_allocation_trace::directory().is_some() {
++            selected_body_allocation_trace::log(format_args!(
++                "SELECTED_BODY_CALL kind=selected machines={} pending={} selected_sources={}",
++                input.typing.typed().machines().len(),
++                input.pending_bodies.pending_machines().count(),
++                sources.selected_files().count()
++            ));
++        }
+         let mut typing = input.typing.clone();
+         let pending_bodies = input
+             .pending_bodies
+@@ -953,6 +965,13 @@ impl SourceContinuation {
+                         .is_some_and(|span| sources.source_is_selected(span.source_id))
+                 })
+                 .collect::<Vec<_>>();
++            if selected_body_allocation_trace::directory().is_some() {
++                selected_body_allocation_trace::log(format_args!(
++                    "SELECTED_BODY_BATCH kind=selected selected={} machines={}",
++                    selected.len(),
++                    typing.typed().machines().len()
++                ));
++            }
+             if selected.is_empty() {
+                 break;
+             }
+@@ -1157,9 +1176,17 @@ fn complete_authored_bodies(
+     ),
+     Vec<Diagnostic>,
+ > {
++    let _profile_context = selected_body_allocation_trace::context("complete-authored");
+     loop {
+         pending_bodies = pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
+         let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
++        if selected_body_allocation_trace::directory().is_some() {
++            selected_body_allocation_trace::log(format_args!(
++                "SELECTED_BODY_BATCH kind=authored selected={} machines={}",
++                selected.len(),
++                typing.typed().machines().len()
++            ));
++        }
+         if selected.is_empty() {
+             break;
+         }
+diff --git a/omega-rust/psi/foundation/arena/Cargo.toml b/omega-rust/psi/foundation/arena/Cargo.toml
+index 5c9db3910ff6c..14aaf47853e84 100644
+--- a/omega-rust/psi/foundation/arena/Cargo.toml
++++ b/omega-rust/psi/foundation/arena/Cargo.toml
+@@ -9,5 +9,6 @@ name = "arena"
+ path = "src/lib.rs"
+ 
+ [dependencies]
++selected-body-allocation-trace = { path = "../../../../tools/benchmark/selected-bodies/allocation-trace" }
+ compiler-storage = { path = "../compiler-storage" }
+ arc-swap = "1.7"
+diff --git a/omega-rust/psi/foundation/arena/src/arena.rs b/omega-rust/psi/foundation/arena/src/arena.rs
+index 58b9fdc08a17b..5268fc453cbda 100644
+--- a/omega-rust/psi/foundation/arena/src/arena.rs
++++ b/omega-rust/psi/foundation/arena/src/arena.rs
+@@ -690,6 +690,10 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Arena<T> {
+ 
+ impl<T: Clone> Clone for Arena<T> {
+     fn clone(&self) -> Self {
++        selected_body_allocation_trace::record_arena_clone(
++            self.items.len() + 1,
++            std::mem::size_of::<T>(),
++        );
+         Self {
+             dummy: self.dummy.clone(),
+             items: self.items.clone(),
