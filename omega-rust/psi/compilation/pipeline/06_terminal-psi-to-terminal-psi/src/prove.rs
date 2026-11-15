@@ -990,7 +990,45 @@ impl<'a> Prover<'a> {
         } else {
             return None;
         };
-        Some(ex_falso(false_relation, goal))
+        Some(ex_falso(self.at_literals(false_relation)?, goal))
+    }
+
+    /// `relation` restated so that both its endpoints are plain literals.
+    ///
+    /// `refute` chains through any endpoint that has a value, and a closed
+    /// term such as `(21 <<% 1) >>% 1` has one, but the kernel's denotation
+    /// calls a relation `Falsehood` only between plain literals
+    /// (`closed_integer_relation`). Chained as it stood, `T < T` reached
+    /// `ex_falso` undecided and the kernel refused the certificate
+    /// (`RuleConclusionMismatch("predicate denotation")`), which blocked
+    /// programs whose untaken arm calls a crashing state. Each closed endpoint
+    /// gains one closed step to its value, as `literal_endpoint` does, so the
+    /// relation becomes `21 < 21`, which the kernel does decide.
+    fn at_literals(&self, relation: ProofNode) -> Option<ProofNode> {
+        let (_, left, right) = order(&relation.conclusion)?;
+        let (left, right) = (left.clone(), right.clone());
+        let plain = |term: &ScalarTerm| {
+            let (integer, value) = term.integer_value()?;
+            ScalarTerm::integer(integer, value).ok()
+        };
+        let mut relation = relation;
+        if !matches!(left, ScalarTerm::Integer { .. }) {
+            let value = plain(&left)?;
+            relation = chain(
+                self.closed(Proposition::LessOrEqual(value, left))?,
+                relation,
+            )
+            .ok()?;
+        }
+        if !matches!(right, ScalarTerm::Integer { .. }) {
+            let value = plain(&right)?;
+            relation = chain(
+                relation,
+                self.closed(Proposition::LessOrEqual(right, value))?,
+            )
+            .ok()?;
+        }
+        Some(relation)
     }
 
     /// `premise => conclusion`: the kernel adds the premise as the next

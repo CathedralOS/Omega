@@ -154,6 +154,21 @@ fn in_scope(
     inside
 }
 
+/// An inferred predicate may also name an integer operation result whose
+/// definition dominates the join, such as a call result. Every path to the
+/// join passes it, so it is one value on every arrival and at the join, and
+/// fact_validity.md requires only that a premise "dominate its use". Without
+/// it a guard over a call result could not cross the join `&&` lowers to:
+/// `let s = f(x); transition s >= 100 && s <= 200` left the predicate
+/// `Truth`, and `s - 100` on the taken edge was refused. A result defined in
+/// one arm does not dominate the join and stays out.
+///
+/// Only integers are admitted, because they carry the bounds a guard
+/// establishes. A dominating Boolean result adds no bound, only another
+/// alternative per arrival: `left == right && count == 2` over byte views
+/// then left a predicate whose case split exhausted the prover's bounded
+/// disjunction search (`byte_view_elements.rs`). Leaving a value out only
+/// weakens the predicate.
 fn available_value(
     lowered: &TerminalMachine,
     tables: &MachineTables,
@@ -161,21 +176,27 @@ fn available_value(
     block: BlockId,
     value: ValueId,
 ) -> bool {
-    match tables.values.get(value).map(|row| row.origin) {
-        Some(ValueOrigin::MachineParameter { .. }) => true,
-        Some(ValueOrigin::StorageContent { place, after: None }) => {
+    let dominates = |point: ProgramPoint| {
+        dominating_bindings.is_some_and(|graph| {
+            graph
+                .dominates(point, ProgramPoint::BlockEntry(block))
+                .is_ok_and(|dominates| dominates)
+        })
+    };
+    match tables
+        .values
+        .get(value)
+        .map(|row| (row.origin, row.scalar_type))
+    {
+        Some((ValueOrigin::MachineParameter { .. }, _)) => true,
+        Some((ValueOrigin::StorageContent { place, after: None }, _)) => {
             crate::places::input_content(lowered, tables, place)
         }
-        Some(ValueOrigin::BlockParameter { block: owner, .. }) => {
-            owner == block
-                || dominating_bindings.is_some_and(|graph| {
-                    graph
-                        .dominates(
-                            ProgramPoint::BlockEntry(owner),
-                            ProgramPoint::BlockEntry(block),
-                        )
-                        .is_ok_and(|dominates| dominates)
-                })
+        Some((ValueOrigin::BlockParameter { block: owner, .. }, _)) => {
+            owner == block || dominates(ProgramPoint::BlockEntry(owner))
+        }
+        Some((ValueOrigin::Operation(operation), ScalarType::Integer(_))) => {
+            dominates(ProgramPoint::AfterOperation(operation))
         }
         _ => false,
     }
