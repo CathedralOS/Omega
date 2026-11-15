@@ -64,8 +64,8 @@ machine build_entry() {{
     )
 }
 
-const NOT_IN_DOMAIN: &str = "a byte view is stored into a field of a byte domain, and the \
-                             bytes it shows are not in that domain";
+const NOT_IN_DOMAIN: &str = "a byte transfer's source does not establish its primitive \
+                             byte-domain qualifications";
 
 #[test]
 fn valid_text_is_stored_and_invalid_bytes_are_rejected() {
@@ -164,12 +164,17 @@ machine build_entry() {
         .iter()
         .map(terminal_psi::UnoptimizedMachineBehavior::capture)
         .collect();
-    assert_eq!(
-        terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
-            .expect_err("the receiving boundary must rejoin actual primitive bytes"),
-        terminal_codec::CodecError::MalformedStructuralFoundation(
-            "value transfer does not establish its byte domains"
-        )
+    let refused = terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+        .expect_err("the receiving boundary must rejoin actual primitive bytes");
+    assert!(
+        matches!(
+            refused,
+            terminal_codec::CodecError::MalformedOperationFoundation {
+                reason: "value transfer does not establish its byte domains",
+                ..
+            }
+        ),
+        "the corrupted transfer must fail its byte-domain establishment: {refused:?}"
     );
     accepted.publish().unwrap();
 
@@ -253,7 +258,7 @@ data Rejection { reason: &[u8] in Text; }
         "{declarations}machine copy(from: &Rejection, into: &mut Rejection) {{ into.reason = from.reason; }}\n\
          machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(&a, &mut b); }}"
     );
-    assert_ne!(verdict(&copied), "accepted");
+    assert_eq!(verdict(&copied), "accepted");
     // Removing a qualification does not erase the earlier establishment's
     // obligation to justify that qualification for these exact bytes.
     let laundered = r#"

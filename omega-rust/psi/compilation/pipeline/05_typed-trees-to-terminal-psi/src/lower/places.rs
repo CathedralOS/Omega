@@ -1893,7 +1893,7 @@ impl<'a> Lowering<'a> {
                 root,
                 Vec::new(),
                 self.exact_root(root)?,
-                ValueType::record(record),
+                value_type,
                 Some(root),
             )
         } else {

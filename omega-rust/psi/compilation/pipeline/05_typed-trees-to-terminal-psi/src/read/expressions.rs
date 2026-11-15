@@ -625,7 +625,28 @@ impl<'t> Program<'t> {
                 value_type @ (ValueType::Scalar(_, Qualification::NONE)
                 | ValueType::Record(_, Qualification::NONE, _)),
             ) => value_type,
-            Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
+            Some(value_type @ ValueType::Record(record, qualification, _)) => {
+                // These views carry their exact domain rows through each arm
+                // and the joined descriptor; their byte facts are checked there.
+                let shared_view = matches!(
+                    self.data_type(id, record)?.shape,
+                    crate::StorageShape::ByteSequence(carrier)
+                        if carrier.is_shared_readable_view()
+                );
+                let admitted = qualification.policy.is_none()
+                    && qualification.domains.members().all(|source| {
+                        self.byte_domains
+                            .iter()
+                            .filter(|row| row.source == source && row.carrier == record)
+                            .count()
+                            == 1
+                    });
+                if !shared_view || !admitted {
+                    return Err(unserved("match with a qualified result"));
+                }
+                value_type
+            }
+            Some(ValueType::Scalar(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
             Some(ValueType::Rigid(_)) => {
