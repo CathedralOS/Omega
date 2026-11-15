@@ -144,11 +144,13 @@ fn reachable_value_body_falloff_is_a_language_violation() {
              machine main() {{ let received: u32 = produce(); }}"
         );
         let verdicts = program(&source);
-        let [Ok(RouteVerdict::FallBack(refusal))] = verdicts.as_slice() else {
-            panic!("the reachable body end must be refused: {verdicts:?}");
+        let [Ok(RouteVerdict::Rejected { violations, .. })] = verdicts.as_slice() else {
+            panic!("the reachable body end must be rejected: {verdicts:?}");
         };
-        assert_eq!(refusal.reason, RefusalReason::Violation, "{refusal:?}");
-        assert_eq!(refusal.detail, "value machine can fall off its end");
+        let [violation] = violations.as_slice() else {
+            panic!("the body end must identify its language rule: {violations:?}");
+        };
+        assert_eq!(violation.statement, "value machine can fall off its end");
     }
 
     accepted(
