@@ -1510,8 +1510,11 @@ pub(crate) mod control_flow {
                                     semantic.place == *expected_source
                                 && semantic.access == terminal_psi::StructuralAccess::Owned
                                 && optimized.result.structural().is_some_and(|result| {
-                                    result.structural_type == semantic.structural_type
-                                        && result.multiplicity == semantic.multiplicity
+                                    plan.geometry().declaration(semantic.structural_type).is_ok_and(|source| {
+                                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                                            result, source, semantic.multiplicity,
+                                        )
+                                    })
                                 })
                                 }) && parameter.place == *expected_source
                                     && graph

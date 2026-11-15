@@ -1575,6 +1575,7 @@ pub(crate) mod structural_return {
     use crate::boundary::errors::malformed;
     use crate::engine::custody::verified_structural_place;
     use crate::storage::scalar_array::TerminalScalarArrayResult;
+    use terminal_semantics::normal_completion::structural_return_carrier_matches;
 
     impl TerminalExecution<'_> {
         pub(crate) fn settle_return_structural(
@@ -1831,15 +1832,45 @@ pub(crate) mod structural_return {
                             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
                             && matches!(byte_sequence, Some(ref binding) if binding.access() == StructuralAccess::MutableBorrow
                             && binding.validate_mutable_referent(self, &value).is_ok())));
+                let declaration = self.structural_declaration(signature.structural_type)?;
+                let carried_multiplicity = if borrowed_descriptor {
+                    StructuralMultiplicity::Unrestricted
+                } else if signature.multiplicity == StructuralMultiplicity::Unrestricted
+                    && structural_return_carrier_matches(
+                        &signature,
+                        declaration,
+                        StructuralMultiplicity::Affine,
+                    )
+                {
+                    // A freshly formed shared reference can transfer its
+                    // affine loan into a copyable result. Authenticate the
+                    // actual source's frontier before transferring it.
+                    let machine = self.program.machine(self.current_machine)?;
+                    let origin =
+                        terminal_semantics::structural_argument_source(machine, *source, 0)
+                            .ok_or(malformed())?;
+                    if origin.structural_type != declaration.id
+                        || !structural_return_carrier_matches(
+                            &signature,
+                            declaration,
+                            origin.multiplicity,
+                        )
+                    {
+                        return Err(malformed());
+                    }
+                    if origin.access == StructuralAccess::Owned {
+                        origin.multiplicity
+                    } else {
+                        signature.multiplicity
+                    }
+                } else {
+                    signature.multiplicity
+                };
                 let carried = crate::engine::custody::whole_value_frontier(
                     &self.structural_types(),
                     *source,
                     signature.structural_type,
-                    if borrowed_descriptor {
-                        StructuralMultiplicity::Unrestricted
-                    } else {
-                        signature.multiplicity
-                    },
+                    carried_multiplicity,
                     self.live_claim_paths_at(*source),
                     &|current| self.stored_case_at_discard(&self.structural_values, current),
                 )?;

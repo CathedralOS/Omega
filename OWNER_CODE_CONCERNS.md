@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Source-name Psi inspection always refuses before selecting the machine
+- Category: the documents disagree
+- Where: [source inspection route](omega-rust/omega/compilation/compiler/src/terminal/product_code.rs#L31), [documented command](wiki/spec/build/command_line.md#L24)
+- Saw: On macOS arm64 at `7f1259f6fab`, `omega psi inspect --machine retained --output retained-inspected.txt main.omg` on the incoming record reference fixture exits 1 with `no product route yet: named inspection requires its own accepted source selection`. The source inspection method always returns that error after checker removal in `cea9cdcde46`. Its parent selected the named declaration for publication.
+- Cost: The advertised source-machine command cannot produce a Psi artifact for an accepted machine. Route the exact requested declaration through the current accepted source selection and publication owners.
+- Reported: 2026-11-15, Codex, while tracing a native structural return
+
 ### Typed size and alignment queries are refused as unresolved calls
 - Category: knowledge crossing a boundary
 - Where: [layout query typing](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1999), [deferred call formation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L711), [layout observation consumer](omega-rust/psi/compilation/terminal-installation/src/scalar_applications.rs#L2597), [kept C scalar record](samples/cli/facts/c_layout_scalar_record/local/main.omg#L31)
@@ -93,13 +100,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `domain Ticket::Stamped access StampAccess;` selects an ordinary `AccessPolicy` implementation whose `plan(schema: TypeSchema)` returns `access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })`. Casting `ticket as +Stamped` inside `stamp` is refused before the plan is requested. A twin replacing only the listed callable with `unrelated`, an empty `Only` list, and an explicit `Unrestricted` choice get the same refusal. The existing direct-route positive executes in native and Psi. Its wrong-issuer twin is refused for the actual issuer mismatch.
 - Cost: only the policy application is retained. The source frontier has no executable demand for it. Psi 05 treats the selection as unresolved and publishes an empty record issuer set. The legacy Rust access plan models layout, field modes, and reach. The source plan contains a semantic schema, an explicit issuer choice, and independent reader and writer lists. Carrying only a decoded issuer list beside that plan would split the policy's authority. Request the exact applied policy through the existing checked selected-call evaluator once for the demanded domain. Authenticate the whole semantic plan, including schema, regions and callable declaration/application/revision, under the existing access-plan owner before joining it to layout. Supply the canonical issuer judgment and read/write checks from that single result. Reject unresolved plans, preserve explicit empty versus unrestricted issuance, and keep the Build seal's supplied root separate from source issuance.
 - Reported: 2026-11-15, Codex, on clean `2ea0edea00f` macOS arm64 while evaluating a record-domain access plan. The bundled `IssuedBy<reflect::callable(stamp)>` variant is refused earlier at the domain signature because the application expression is unevaluated.
-
-### Native lowering refuses to return an incoming record reference
-- Category: knowledge crossing a boundary
-- Where: [target return lowering](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow.rs#L1793)
-- Saw: A machine with `machine retained<'a>(ticket: &'a Ticket) -> &'a Ticket { ticket }` passes source checking, then the product refuses with `UnsupportedControlFlow` when its caller uses the result. The same return of a qualified record reference reaches exactly the same target refusal after persistent domain membership is retained. Reproduced on macOS arm64 with the numbered-record CLI `434bc0964dbd948b` and with the qualification candidate `c474455614035e3a`. Both variants reach the structural-home return check, which compares the home type, multiplicity, ABI shape and remaining local cleanup.
-- Cost: A caller cannot use a reference returned from an ordinary checked call even when it directly forwards an incoming borrow. Carry that exact accepted origin through the existing target return and ABI correspondence, with the original lifetime and permission.
-- Reported: 2026-11-15, Codex, while checking persistent qualified references.
 
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing

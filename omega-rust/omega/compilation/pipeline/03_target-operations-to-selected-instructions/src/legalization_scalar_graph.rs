@@ -2976,8 +2976,15 @@ pub(crate) mod control {
                         }
                     }
                     };
-                if structural_type != declared.structural_type
-                    || multiplicity != declared.multiplicity
+                if !structural_types
+                    .declaration(structural_type)
+                    .is_ok_and(|source| {
+                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                            declared,
+                            source,
+                            multiplicity,
+                        )
+                    })
                     || !trivial_affine_locals.is_empty()
                     || !super::aggregate_results::cleanup(
                         function_inputs,
