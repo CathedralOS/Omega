@@ -41,10 +41,7 @@ fn assert_psi_runs(name: &str, source: &str) {
         String::from_utf8_lossy(&output.stderr),
     );
     assert!(output.status.success(), "{report}");
-    assert!(
-        report.lines().any(|line| line == "terminal exit 0"),
-        "{report}",
-    );
+    assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
 }
 
 #[test]

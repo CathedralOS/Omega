@@ -164,10 +164,7 @@ impl std::fmt::Display for RunError {
                 write!(formatter, "cannot prepare run standard input: {error}")
             }
             Self::ReferenceOutput(error) => {
-                write!(
-                    formatter,
-                    "cannot retain Terminal reference output: {error}"
-                )
+                write!(formatter, "cannot retain Psi run output: {error}")
             }
             Self::Compilation(diagnostics) => {
                 write!(formatter, "native compile FAILED:")?;

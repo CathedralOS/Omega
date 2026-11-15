@@ -23,7 +23,7 @@ to stderr (which may itself be the broken pipe) and exit 200 so a truncated
 stream never masquerades as a clean program exit.
 
 When `--engine psi` fails to compile, no native compilation was requested,
-so we prefix the diagnostics with `terminal compile FAILED:`. Native and
+so we prefix the diagnostics with `Psi compile FAILED:`. Native and
 `--both` runs print `RunError` directly so sample-gate harnesses match the
 established native failure wording.
 
@@ -80,7 +80,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         Err(error) => {
             match (&error, selection) {
                 (RunError::Compilation(diagnostics), ExecutionSelection::Terminal) => {
-                    eprintln!("terminal compile FAILED:");
+                    eprintln!("Psi compile FAILED:");
                     for diagnostic in diagnostics {
                         eprintln!("  {diagnostic}");
                     }
@@ -162,11 +162,11 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
     let observation = match outcome {
         TerminalOutcome::Completed(observation) => observation,
         TerminalOutcome::Unavailable(reason) => {
-            eprintln!("terminal: UNAVAILABLE ({reason})");
+            eprintln!("Psi: UNAVAILABLE ({reason})");
             return 200;
         }
         TerminalOutcome::Failed(reason) => {
-            eprintln!("Terminal execution FAILED: {reason}");
+            eprintln!("Psi execution FAILED: {reason}");
             return 200;
         }
     };
@@ -174,31 +174,31 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
     print_private_entry_ram(&observation.private_entry_ram);
     match observation.status {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
-            eprintln!("terminal exit 0");
+            eprintln!("Psi exit 0");
             0
         }
         TerminalExecutionStatus::ExternalCompletion(completion) => {
-            eprintln!("terminal exit {}", completion.return_code);
+            eprintln!("Psi exit {}", completion.return_code);
             completion.return_code
         }
         TerminalExecutionStatus::Crashed(crash) => {
-            eprintln!("terminal crash: {:?}", crash.cause);
+            eprintln!("Psi crash: {:?}", crash.cause);
             203
         }
         TerminalExecutionStatus::Complete(result) => {
-            eprintln!("terminal: program entry returned a non-process result: {result:?}");
+            eprintln!("Psi: program entry returned a non-process result: {result:?}");
             200
         }
         TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
-            eprintln!("psi: {exhaustion}; raise --psi-work-budget to permit more work");
+            eprintln!("Psi: {exhaustion}; raise --psi-work-budget to permit more work");
             200
         }
         TerminalExecutionStatus::AwaitingEffect(site) => {
-            eprintln!("terminal: execution awaits host readiness at {site:?}");
+            eprintln!("Psi: execution awaits host readiness at {site:?}");
             200
         }
         TerminalExecutionStatus::HostComputationPending(site) => {
-            eprintln!("terminal: execution has an unfinished host computation at {site:?}");
+            eprintln!("Psi: execution has an unfinished host computation at {site:?}");
             200
         }
     }
