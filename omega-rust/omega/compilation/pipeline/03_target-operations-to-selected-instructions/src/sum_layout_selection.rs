@@ -736,6 +736,293 @@ fn retained_scalar_store_geometry_is_checked_against_its_source() {
 }
 
 #[test]
+fn retained_view_inputs_project_without_bodies_and_keep_independent_custody() {
+    use target_operations::{
+        TargetByteView, TargetElementView, TargetElementViewRegion, TargetIntegerExpression,
+    };
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut scalar = reference_type(1, names.intern("Word"), ty(1));
+    scalar.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(u64_type()));
+    let mut array = scalar.clone();
+    array.id = ty(2);
+    array.identity = names.intern("Words");
+    array.shape = StructuralTypeShape::FixedArray {
+        element: ty(1),
+        length: terminal_psi::ArrayExtent::Literal(4),
+    };
+    let mut view_type = scalar.clone();
+    view_type.id = ty(3);
+    view_type.identity = names.intern("WordsView");
+    view_type.shape = StructuralTypeShape::ElementView {
+        element: ty(1),
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    let source = terminal_psi::StructuralArgument {
+        place: place(1),
+        access: StructuralAccess::SharedBorrow,
+        path: Vec::new(),
+    };
+    let result = structural_result(place(2), ty(3));
+    let operation = AbstractOperation::EstablishElementView {
+        psi_operation: op(1),
+        result: result.clone(),
+        destination: result.place,
+        source: source.clone(),
+        element: ty(1),
+        region: terminal_psi::ElementViewRegion::WholeCollection,
+    };
+    let function = function_with_body(
+        vec![parameter(ty(2))],
+        vec![entry(
+            1,
+            vec![
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![scalar, array, view_type], function);
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let row = TargetUnitOperation::EstablishElementView {
+        result: result.clone(),
+        view: TargetElementView::Established {
+            psi_operation: op(1),
+            place: result.place,
+            structural_type: result.structural_type,
+            element: ty(1),
+            root_structural_type: ty(2),
+            source_byte_offset: 0,
+            indices: Vec::new(),
+            extent: target_operations::TargetViewExtent::Fixed(4),
+            region: TargetElementViewRegion::WholeCollection,
+            element_stride: 8,
+            source: target_operations::TargetStructuralArgumentSource::Placement(
+                target.functions[0].graph.parameters[0].placement.clone(),
+            ),
+            source_argument: source.clone(),
+        },
+    };
+    target.functions[0].graph.blocks[0]
+        .operations
+        .push(target_operations::TargetInstruction {
+            source: None,
+            kind: row.clone(),
+        });
+    let project_view = |row: &TargetUnitOperation| {
+        crate::legalization_source::scalar_graph::instruction::storage_instructions::project_established_view(machine(), &[], row)
+    };
+    let lowered = project_view(&row).unwrap();
+    let legalized_operations::LegalizedScalarInstructionKind::EstablishElementView {
+        source: actual_source,
+        result: actual_result,
+        ..
+    } = lowered
+    else {
+        panic!("view");
+    };
+    assert_eq!(
+        (actual_source, actual_result),
+        (source.clone(), result.clone())
+    );
+
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut source_inputs.available(block_id(1)),
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("view source and physical backing match the independent source");
+    for mutation in 0..3 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::EstablishElementView {
+            view: TargetElementView::Established {
+                source_argument, ..
+            },
+            ..
+        } = &mut forged
+        else {
+            panic!("view");
+        };
+        match mutation {
+            0 => source_argument.place = place(9),
+            1 => source_argument.access = StructuralAccess::MutableBorrow,
+            _ => source_argument
+                .path
+                .push(StructuralPathSegment::FixedIndex(1)),
+        }
+        assert!(audit(&forged).is_err(), "forged source argument {mutation}");
+    }
+
+    let start = ValueId::new(7).unwrap();
+    let end = ValueId::new(8).unwrap();
+    let obligation = semantic_vocabulary::ObligationId::new(1).unwrap();
+    let fact = optimization_unit::AcceptedObligationFact::new(
+        plan.psi,
+        [6; 32],
+        machine(),
+        optimization_unit::PsiProvenance::Operation(op(1)),
+        obligation,
+        vec![7],
+    );
+    let immediate = || {
+        Box::new(TargetIntegerExpression::Immediate {
+            source_value: start,
+            value: IntegerValue::Unsigned(0),
+        })
+    };
+    let home = || {
+        Box::new(TargetIntegerExpression::ScalarHome(
+            target_operations::TargetUnitScalarHomeRequirement {
+                defining_operation: op(2),
+                source_value: end,
+                scalar_type: ScalarType::Integer(u64_type()),
+                shape: calling_conventions::ValueShape::integer(8, 8),
+            },
+        ))
+    };
+    for byte in [false, true] {
+        let row = if byte {
+            TargetUnitOperation::ByteSequenceSubslice {
+                result: result.clone(),
+                view: TargetByteView::Subslice {
+                    psi_operation: op(1),
+                    place: result.place,
+                    source: source.clone(),
+                    indices: Vec::new(),
+                    start: immediate(),
+                    end: home(),
+                    length: ValueId::new(9).unwrap(),
+                    obligation,
+                },
+            }
+        } else {
+            TargetUnitOperation::ElementViewSubslice {
+                result: result.clone(),
+                view: TargetElementView::Subslice {
+                    psi_operation: op(1),
+                    place: result.place,
+                    source: source.clone(),
+                    indices: Vec::new(),
+                    start: Box::new(TargetIntegerExpression::Parameter {
+                        source_value: start,
+                        parameter_index: 0,
+                        location: target_operations::ScalarParameterLocation::Register(
+                            calling_conventions::MachineRegister::X86Rdi,
+                        ),
+                    }),
+                    end: Box::new(TargetIntegerExpression::BlockParameter(
+                        target_operations::TargetScalarBlockValue {
+                            block: block_id(1),
+                            value: end,
+                            scalar_type: ScalarType::Integer(u64_type()),
+                        },
+                    )),
+                    length: ValueId::new(9).unwrap(),
+                    obligation,
+                },
+            }
+        };
+        let project = |machine,
+                       facts: &[optimization_unit::AcceptedObligationFact],
+                       row: &TargetUnitOperation| {
+            crate::legalization_source::scalar_graph::instruction::storage_instructions::project_subslice(machine, facts, row)
+        };
+        let lowered = project(machine(), std::slice::from_ref(&fact), &row).unwrap();
+        match lowered {
+            legalized_operations::LegalizedScalarInstructionKind::ByteSequenceSubslice {
+                start: actual_start,
+                end: actual_end,
+                accepted_fact,
+                ..
+            } if byte => assert_eq!(
+                (actual_start, actual_end, accepted_fact),
+                (start, end, fact.identity)
+            ),
+            legalized_operations::LegalizedScalarInstructionKind::ElementViewSubslice {
+                start: actual_start,
+                end: actual_end,
+                accepted_fact,
+                ..
+            } if !byte => assert_eq!(
+                (actual_start, actual_end, accepted_fact),
+                (start, end, fact.identity)
+            ),
+            _ => panic!("subslice kind changed"),
+        }
+        assert!(project(machine(), &[], &row).is_err());
+        assert!(
+            project(
+                MachineId::new(2).unwrap(),
+                std::slice::from_ref(&fact),
+                &row
+            )
+            .is_err()
+        );
+        let mut unsupported = row;
+        let (TargetUnitOperation::ByteSequenceSubslice {
+            view: TargetByteView::Subslice { start, .. },
+            ..
+        }
+        | TargetUnitOperation::ElementViewSubslice {
+            view: TargetElementView::Subslice { start, .. },
+            ..
+        }) = &mut unsupported
+        else {
+            panic!("subslice");
+        };
+        **start = TargetIntegerExpression::BitwiseNot {
+            psi_operation: op(3),
+            operand: immediate(),
+        };
+        assert!(
+            project(machine(), std::slice::from_ref(&fact), &unsupported).is_err(),
+            "a recipe is not a materialized endpoint"
+        );
+    }
+    let mut bytes = row;
+    let TargetUnitOperation::EstablishElementView {
+        view: TargetElementView::Established { region, .. },
+        ..
+    } = &mut bytes
+    else {
+        panic!("view");
+    };
+    *region = TargetElementViewRegion::RepresentationBytes {
+        start: immediate(),
+        end: home(),
+        obligation,
+    };
+    let lowered = crate::legalization_source::scalar_graph::instruction::storage_instructions::project_established_view(machine(), std::slice::from_ref(&fact), &bytes).unwrap();
+    assert!(
+        matches!(lowered, legalized_operations::LegalizedScalarInstructionKind::EstablishElementView { region: terminal_psi::ElementViewRegion::RepresentationBytes { start: actual_start, end: actual_end, .. }, accepted_fact: Some(identity), .. } if actual_start == start && actual_end == end && identity == fact.identity)
+    );
+    assert!(project_view(&bytes).is_err());
+}
+
+#[test]
 fn retained_reference_selectors_project_without_bodies_and_audit_exact_geometry() {
     let mut names = TerminalIdentityTableBuilder::default();
     let mut cell = reference_type(1, names.intern("Cell"), ty(1));
