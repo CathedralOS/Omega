@@ -8454,7 +8454,7 @@ pub(crate) mod storage_foundations {
         else {
             return malformed("descriptor-table validator received another operation");
         };
-        let writes = *action == terminal_psi::GlobalDescriptorTableOperation::Store;
+        let writes = action.writes_operand();
         let access_matches = if writes {
             matches!(
                 source.access,

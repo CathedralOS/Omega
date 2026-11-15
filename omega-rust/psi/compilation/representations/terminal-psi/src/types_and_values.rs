@@ -2154,11 +2154,11 @@ pub mod values {
                     Self::EstablishByteSequenceConcatenation { left, right, .. }
                     | Self::ByteSequenceEqual { left, right } => {
                         for operand in [left, right] {
-                            push(argument_projection(operand.argument()).into(), Some(Read));
+                            push(operand.storage_projection().into(), Some(Read));
                         }
                     }
                     Self::ByteSequencePredicate { operand, .. } => {
-                        push(argument_projection(operand.argument()).into(), Some(Read));
+                        push(operand.storage_projection().into(), Some(Read));
                     }
                     Self::ReleaseActivationClaim { source, .. }
                     | Self::SplitActivationClaim { source, .. } => {
@@ -2175,8 +2175,19 @@ pub mod values {
                             projected_transfer_operation(source),
                         );
                     }
-                    Self::GlobalDescriptorTable { source, .. }
-                    | Self::ElementViewLength { source }
+                    Self::GlobalDescriptorTable {
+                        operation, source, ..
+                    } => {
+                        push(
+                            argument_projection(source).into(),
+                            Some(if operation.writes_operand() {
+                                Write
+                            } else {
+                                Read
+                            }),
+                        );
+                    }
+                    Self::ElementViewLength { source }
                     | Self::ByteSequenceLength { source }
                     | Self::ByteSequenceSubslice { source, .. }
                     | Self::ElementViewSubslice { source, .. } => {
@@ -2276,11 +2287,8 @@ pub mod values {
                     Self::AtomicAccess {
                         place, path, event, ..
                     } => {
-                        let operation = match event {
-                            crate::AtomicAccessEvent::Load { .. } => Read,
-                            crate::AtomicAccessEvent::Store { .. } => Write,
-                            _ => CompoundMutation,
-                        };
+                        let operation =
+                            access_plans::AccessOperation::Atomic(event.access_operation());
                         push(
                             OperationProjection {
                                 root: *place,
@@ -2643,7 +2651,10 @@ pub mod values {
             #[test]
             fn storage_uses_keep_field_effects_separate_from_descriptor_transport() {
                 use crate::{AtomicAccessEvent, MemoryOrdering, StructuralStorageUse};
-                use access_plans::AccessOperation::{CompoundMutation, Read, Take, Write};
+                use access_plans::{
+                    AccessOperation::{Atomic, Read, Take, Write},
+                    AtomicAccessOperation,
+                };
                 let field = StructuralFieldId::new(7).unwrap();
                 let read = OperationKind::StructuralByteSequenceFieldLength {
                     source: place(1),
@@ -2689,23 +2700,23 @@ pub mod values {
                 for (event, expected) in [
                     (
                         AtomicAccessEvent::Load {
-                            ordering: MemoryOrdering::NoOrdering,
+                            ordering: MemoryOrdering::Receive,
                         },
-                        Read,
+                        AtomicAccessOperation::Load(MemoryOrdering::Receive),
                     ),
                     (
                         AtomicAccessEvent::Store {
                             value: ValueId::new(1).unwrap(),
-                            ordering: MemoryOrdering::NoOrdering,
+                            ordering: MemoryOrdering::Publish,
                         },
-                        Write,
+                        AtomicAccessOperation::Store(MemoryOrdering::Publish),
                     ),
                     (
                         AtomicAccessEvent::Swap {
                             value: ValueId::new(1).unwrap(),
-                            ordering: MemoryOrdering::NoOrdering,
+                            ordering: MemoryOrdering::GlobalOrder,
                         },
-                        CompoundMutation,
+                        AtomicAccessOperation::Swap(MemoryOrdering::GlobalOrder),
                     ),
                 ] {
                     let access = OperationKind::AtomicAccess {
@@ -2714,7 +2725,43 @@ pub mod values {
                         event,
                         resident_obligation: None,
                     };
-                    assert_eq!(access.storage_uses()[0].1, Some(expected));
+                    assert_eq!(access.storage_uses()[0].1, Some(Atomic(expected)));
+                }
+                use crate::control_flow::ByteSequenceOperand;
+                let bytes = ByteSequenceOperand::Field {
+                    source: StructuralArgument {
+                        place: place(1),
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    field,
+                    length: ValueId::new(1).unwrap(),
+                };
+                let equal = OperationKind::ByteSequenceEqual {
+                    left: bytes.clone(),
+                    right: bytes,
+                };
+                for (operand, operation) in equal.storage_uses() {
+                    let StructuralStorageUse::Projection(projection) = operand else {
+                        panic!("both byte fields retain projections")
+                    };
+                    assert_eq!(projection.field, Some(field));
+                    assert_eq!(operation, Some(Read));
+                }
+                for (action, expected) in [
+                    (crate::GlobalDescriptorTableOperation::Store, Write),
+                    (crate::GlobalDescriptorTableOperation::Load, Read),
+                ] {
+                    let operation = OperationKind::GlobalDescriptorTable {
+                        service: semantic_vocabulary::ServiceId::new(1).unwrap(),
+                        operation: action,
+                        source: StructuralArgument {
+                            place: place(1),
+                            path: Vec::new(),
+                            access: StructuralAccess::MutableBorrow,
+                        },
+                    };
+                    assert_eq!(operation.storage_uses()[0].1, Some(expected));
                 }
                 let whole = OperationKind::MoveStructuralField {
                     source: place(1),
