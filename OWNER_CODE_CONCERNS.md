@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A typed slice refuses indexing after proving its live extent
+- Category: branch per shape
+- Where: [typed collection reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L442), [collection access contract](wiki/spec/language/expressions.md#indexing-and-ranges)
+- Saw: On macOS arm64 on clean `a532f60be46`, the same fixed Ticket array supports a native and Psi typed-slice length read and an indexed read through a fixed-array reference. Its borrowed `&[Ticket]` indexed read refuses before discharge when `requires tickets.len >= 1` proves index 0, and when the same fact is established by a local branch. The source reader rejects every extent other than a fixed literal.
+- Cost: The checker cannot use ordinary contract or branch evidence to read through a typed slice's own descriptor. Feed its exact path, current length and index into the existing checked access operation. Keep an out-of-bounds index and a bound from another slice refused.
+- Reported: 2026-11-15, Codex, while checking native backing for owned record sequences.
+
 ### Saved named record sequences lose their storage contracts
 - Category: knowledge crossing a boundary
 - Where: [constant-element sequence](tests/fixtures/run/ownership/owned_record_sequence/main.omg#L9), [runtime-valued sequence](tests/fixtures/pending/ownership/runtime_record_sequence/main.omg#L7), [payload replay](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L5677)
@@ -156,20 +163,6 @@ framework or a list of unimplemented features.
 - Saw: On macOS arm64 at `c55c52f59b1`, below the workstation's 45.0 GiB free-space floor, mbx 1.29.2 deleted assigned `worker-8`'s target between commands. The next test build compiled from cold in 3m 12s. In two isolated checkouts, `MBX_TARGET_EVICT_FIRST` changed one collector's choice under a one-target budget. An independent collector reverted to oldest-first. With a zero budget and simulated low disk, both a running `mbx run` lease and an explicit `MBX_TARGET_KEEP` kept the view. Once the command ended, the same scratch view could be collected unless explicitly kept.
 - Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Add an advisory priority for managed views to mbx and set it from the pool’s existing assignment state. Respect explicit operator rules and running-command locks, and still let assigned views be reclaimed under disk pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
-
-### Psi cannot run until native lowering succeeds
-- Category: knowledge crossing a boundary
-- Where: [runtime admission](omega-rust/omega/compilation/native-compiler/src/realization.rs#L152), [borrowed-storage layout extraction](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L30)
-- Saw: At `2669589de8a`, both `omega run --both` and `omega run --engine psi` refuse the unchanged console program with the same native target-lowering error. Neither executes guest code. Runtime admission calls `lower_borrowed_storage_layouts`, which lowers the whole guest program before taking its borrowed-storage descriptions. These runs do not measure that step's time.
-- Cost: A backend gap prevents Psi from running checked code. Have the layout stage supply the exact borrowed-storage descriptions directly. Preserve native binding, layout, authority and provider checks, and keep full native lowering for image production.
-- Reported: 2026-11-15, Codex, while checking the console's interpreter and native paths
-
-### Test edits change the production compiler identity
-- Category: verifying costs more than writing
-- Where: [compiler build-input collection](omega-rust/omega/compilation/compiler/build.rs#L32), [recursive input scan](omega-rust/omega/compilation/compiler/build.rs#L98)
-- Saw: The build hashes every `.rs`, `.toml` and `.omg` under `omega-rust`, including integration tests. Changing only a control in `compiler/tests/executed_fixture_discovery.rs` rebuilt `compiler`, `package-manager` and `orchestration` in 18.21 seconds before the filtered test ran. Shipped code had not changed.
-- Cost: Test edits also change the compiler-version key for accepted packages, forcing compilation and review as the test tree grows. Derive the key from production inputs and configuration. Still invalidate uncommitted implementation changes; ignoring required source or using only Git HEAD would miss changes.
-- Reported: 2026-11-14, Codex, while checking actual project publication of native calling metadata
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
