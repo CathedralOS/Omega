@@ -1090,11 +1090,11 @@ pub(crate) mod analysis {
                     .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
                     .collect::<Result<_, DescriptorGraphError>>()?;
                 for edge in &mut step.successors {
-                    edge.definitions = edge
-                        .definitions
-                        .iter()
-                        .map(canonical)
-                        .collect::<Result<_, DescriptorGraphError>>()?;
+                    edge.definitions = edge.definitions.iter().map(canonical).collect::<Result<
+                        _,
+                        DescriptorGraphError,
+                    >>(
+                    )?;
                 }
                 if residence_rules.is_some() {
                     for edge in &mut step.successors {
