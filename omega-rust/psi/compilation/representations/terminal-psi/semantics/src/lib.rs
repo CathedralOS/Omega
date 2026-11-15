@@ -230,8 +230,6 @@ pub(crate) mod semantic_rows {
             declared: IntegerType,
             actual: ScalarType,
         },
-        ExactShiftLeftRequiresValueOrLiteralOperand,
-        ExactShiftLeftRequiresValueOrLiteralCount,
         ExactArithmeticRequiresFixedInteger(IntegerType),
         ExactArithmeticExpressionTypeMismatch {
             declared: IntegerType,
@@ -243,7 +241,6 @@ pub(crate) mod semantic_rows {
             left: ScalarType,
             right: ScalarType,
         },
-        ExactArithmeticRequiresValueOrLiteralOperand,
         ExactCastUnsupportedCarriers {
             source: IntegerType,
             target: IntegerType,
