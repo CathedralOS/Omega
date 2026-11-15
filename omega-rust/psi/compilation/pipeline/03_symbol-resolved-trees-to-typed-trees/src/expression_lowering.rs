@@ -2437,6 +2437,10 @@ pub(crate) mod expression {
                             program.child_type_reference(reference.base_type),
                         );
                     }
+                    // A transparent alias is its substituted expansion.
+                    TypeReference::AliasUse { expansion, .. } => {
+                        return resolved_data_definition_for_type(program, expansion);
+                    }
                     _ => return None,
                 };
                 program.data_definitions.iter().find(|definition| {
