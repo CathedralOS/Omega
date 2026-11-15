@@ -218,6 +218,10 @@ name = "lowered_route_float_values"
 path = "tests/lowered_route_float_values.rs"
 
 [[test]]
+name = "lowered_route_float_contracts"
+path = "tests/lowered_route_float_contracts.rs"
+
+[[test]]
 name = "lowered_route_scalar_match"
 path = "tests/lowered_route_scalar_match.rs"
 

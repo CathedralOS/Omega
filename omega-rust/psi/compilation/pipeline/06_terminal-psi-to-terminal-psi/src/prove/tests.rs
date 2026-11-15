@@ -115,3 +115,61 @@ fn ieee_order_search_uses_only_connected_ordered_premises() {
         .unwrap();
     proof_admission::accept_certificate(&context, &zero_goal, &assumptions, &[], &proof).unwrap();
 }
+
+#[test]
+fn ieee_literal_and_copy_equations_reach_the_closed_kernel_judgment() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+        let scalar = ScalarType::IeeeFloat(format);
+        let mut values = IdTable::default();
+        let [value, copied] = [1, 2].map(|raw| {
+            let id = values.push(ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::Operation(OperationId::new(raw).unwrap()),
+                rigid: None,
+            });
+            ScalarTerm::value(id, scalar)
+        });
+        let [zero, quarter, half, nan] = match format {
+            IeeeFloatFormat::Binary32 => {
+                [0, 0x3e80_0000, 0x3f00_0000, 0x7fc0_0042].map(IeeeFloatValue::Binary32)
+            }
+            IeeeFloatFormat::Binary64 => [
+                0,
+                0x3fd0_0000_0000_0000,
+                0x3fe0_0000_0000_0000,
+                0x7ff8_0000_0000_0042,
+            ]
+            .map(IeeeFloatValue::Binary64),
+        }
+        .map(ScalarTerm::IeeeFloatLiteral);
+        let relation = |left, right| Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::LessOrEqual,
+            format,
+            left,
+            right,
+        };
+        let goal = Proposition::Conjunction(vec![
+            relation(zero, copied.clone()),
+            relation(copied.clone(), half),
+        ]);
+        let context = PropositionContext::from_value_types(
+            values.iter().map(|(id, row)| (id, row.scalar_type)),
+        )
+        .unwrap();
+        for (literal, expected) in [(quarter, true), (nan, false)] {
+            let axioms = [
+                Proposition::Equal(value.clone(), literal),
+                Proposition::Equal(copied.clone(), value.clone()),
+            ];
+            let result = Prover::new(&context, &[], &axioms, &values).prove(&goal);
+            assert_eq!(result.is_ok(), expected);
+            if let Ok(proof) = result {
+                let accepted =
+                    proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof)
+                        .unwrap();
+                assert_eq!(accepted.semantic_axioms.len(), 2);
+            }
+        }
+    }
+}

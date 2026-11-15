@@ -23,8 +23,6 @@
     cycle.
 */
 
-#[cfg(test)]
-use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{Proposition, ScalarType};
 
 use crate::integer_rules::closed_integer::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
@@ -122,7 +120,8 @@ mod tests {
     use crate::check_predicate_denotations;
     use crate::integer_rules::closed_integer::ClosedIntegerEvaluator;
     use semantic_vocabulary::{
-        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, PropositionContext, ValueId,
+        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, PropositionContext, ScalarTerm,
+        ValueId,
     };
 
     fn literal(value: IeeeFloatValue) -> ScalarTerm {
