@@ -302,6 +302,22 @@ mod tests {
             .unwrap();
         assert_eq!(leaf.satisfied_schema, original.schema);
         assert!(leaf.validate_calling_custody().is_ok());
+        let errors = leaf.plan.validate_against_schema();
+        assert!(
+            errors.is_empty(),
+            "the complete logical exit contract: {errors:?}"
+        );
+        let mut missing_result_identity = leaf.clone();
+        std::sync::Arc::make_mut(&mut missing_result_identity.plan.schema.declaration).methods[0]
+            .result_type_identity = Default::default();
+        assert!(
+            missing_result_identity
+                .plan
+                .validate_against_schema()
+                .iter()
+                .any(|error| error
+                    .contains("result presence disagrees with its exact result type identity"))
+        );
         for change in 0..3 {
             let mut changed = leaf.clone();
             let schema = std::sync::Arc::make_mut(&mut changed.plan.schema.declaration);
