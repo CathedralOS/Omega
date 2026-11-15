@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Plain suffixed programs are blocked by a value-qualification support limit even though the operation and crash predicate have implementations. Carry the operation policy through lowering independently of an authored value qualification and restore both route controls, including the original overflow trap. Full Trapping-domain support is tracked under OPERATION-ARITHMETIC-POLICY.
 - Reported: 2026-11-14, Codex, while validating the Stage 05 build repair on macOS arm64
 
-### Build and Product operator-domain resolution controls fail on main
-- Category: tests that pin the bug
-- Where: [Stage 02 primitive-family tests](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs#L2890)
-- Saw: On macOS arm64 at clean base `0fc8f51db365ee7b7a3f136794978e1c307ed118`, `mbx test -p syntax-trees-to-symbol-resolved-trees --lib` fails `domain_token_homes_keep_distinct_build_and_product_instances` with no selected domain where it expects `SemanticDomainId(4)`. `inactive_retained_token_bindings_do_not_rejoin_a_product_frontier` refuses the retained `Quantity::subtract` operator because neither operand carries its home domain.
-- Cost: The resolution suite cannot show that same-named domain families stay separate across Build and Product or that inactive retained bindings stay out of the Product frontier. Trace domain qualification and selected source custody before changing the tests or their oracles.
-- Reported: 2026-11-14, Codex, while attributing resolver test failures during the implicit-entry repair
-
 ### The target-body reachability policy has no compiler caller
 - Category: zombie machinery
 - Where: [target_bodies.rs](omega-rust/omega/compilation/realization/provider-selection/src/bodies/target_bodies.rs#L14), [typed direct-call inventory](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L90)
