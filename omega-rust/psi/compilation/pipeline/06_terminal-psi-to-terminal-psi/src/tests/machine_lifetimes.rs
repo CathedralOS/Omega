@@ -220,7 +220,7 @@ fn a_literal_match_keeps_each_incoming_view_for_a_caller_chosen_result() {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
         .unwrap();
     assert!(
         matches!(
