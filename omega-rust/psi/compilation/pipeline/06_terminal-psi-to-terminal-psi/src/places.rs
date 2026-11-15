@@ -5310,7 +5310,12 @@ impl Held<'_, '_> {
                 // overlap with that backing invalidates contents, never proves
                 // that two windows have the same predicate.
                 let loans::LoanRegion::Storage(backing) = storage
-                    .borrow_backing(place, captured, self.concerns)
+                    .borrow_backing(
+                        place,
+                        loans::BorrowedResource::ViewPayload,
+                        captured,
+                        self.concerns,
+                    )
                     .map_err(crate::Unbound::Refused)?
                 else {
                     return Err(crate::Unbound::Unproved(
