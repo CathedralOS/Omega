@@ -1426,7 +1426,7 @@ and floating-control obligations, and receiving checks these against the
 authenticated boundary and canonical method schema.
 Other tags reject. Earlier formats reject at the header, before any table is
 decoded. Marker 275 retains the structural qualification rows and marker 273's
-machine-contract account of public result lifetimes. Formats 271, 272 and 273
+machine-contract account of public result lifetimes. Formats 271, 272, 273
 and 274 are refused before payload interpretation. Vocabulary marker 135 and the
 artifact transport envelope remain unchanged.
 
