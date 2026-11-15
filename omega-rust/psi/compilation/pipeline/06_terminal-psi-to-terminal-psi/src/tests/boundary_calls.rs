@@ -236,6 +236,102 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
     );
 }
 
+/// A boundary requirement with a value parameter, `take<const Count: u64>`,
+/// whose contract compares an `i32` formal with that `u64` parameter. Typed
+/// preparation closes it once per application, so `take<4>` has an array
+/// formal of four bytes and the clause `used <= 4`. `calls` is the entry's
+/// body; it may apply the requirement or not.
+fn value_generic_boundary(calls: &str) -> typed_trees::FrozenTypedTrees {
+    let typed = typed(&format!(
+        r#"
+boundary trait Sink {{
+    machine take<const Count: u64>(items: &[u8; Count], used: i32) -> u32
+    reaches none
+    requires used <= Count
+    crashes none;
+}}
+machine entry() -> u32 crashes none {{
+    let buffer: [u8; 4] = [0, 0, 0, 0];
+    {calls}
+}}
+"#
+    ));
+    typed_trees_to_typed_trees::prepare_typed_trees(
+        typed,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0
+}
+
+/// What a native binding of `Sink::take` claims: the generic requirement,
+/// named as the Build names it.
+fn claimed(
+    frozen: &typed_trees::FrozenTypedTrees,
+    requirement: symbols::SymbolHandle,
+) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+    let entry = entry(frozen);
+    typed_trees_to_terminal_psi::elaborate_for(
+        frozen,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[requirement],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+}
+
+fn sink_requirement(frozen: &typed_trees::FrozenTypedTrees) -> symbols::SymbolHandle {
+    let sink = frozen
+        .traits()
+        .iter()
+        .find(|declared| declared.name.as_str() == "Sink")
+        .expect("the program declares `Sink`");
+    frozen.trait_machine_signatures(sink)[0].symbol
+}
+
+/// numeric_values.md, "Integer equality and order": integers of different
+/// types compare by their exact values, in contracts too. A native binding
+/// claims each closed application of a value-generic requirement, because
+/// only those have a contract with literal array lengths.
+#[test]
+fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
+    let applied = value_generic_boundary("Sink::take<4>(&buffer, 3)");
+    let requirement = sink_requirement(&applied);
+    let elaboration = claimed(&applied, requirement).unwrap();
+    // The claim and the call name the one closed application.
+    assert_eq!(elaboration.module.boundary_machines.len(), 1);
+    let verdict = judge(Ok(elaboration)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    // The twin differs in one argument: an `i32` of 5 is past the `u64` 4.
+    let verdict = judge(claimed(
+        &value_generic_boundary("Sink::take<4>(&buffer, 5)"),
+        requirement,
+    ))
+    .unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{verdict:?}"
+    );
+
+    // With no application, nothing gives the requirement a contract to read.
+    let unapplied = value_generic_boundary("7u32");
+    let refused = claimed(&unapplied, sink_requirement(&unapplied)).unwrap_err();
+    assert!(
+        refused
+            .detail
+            .contains("native binding of a requirement with value parameters that nothing applies"),
+        "{refused:?}"
+    );
+}
+
 #[test]
 fn a_closed_boundary_application_does_not_authorize_an_unrelated_selection() {
     use typed_trees::expression::ExpressionNode;

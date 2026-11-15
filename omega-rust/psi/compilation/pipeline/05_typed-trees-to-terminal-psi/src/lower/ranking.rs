@@ -183,11 +183,14 @@ impl Lowering<'_> {
                 let exact = self.exact_root(argument.place)?;
                 self.name_contents(exact, ValueType::record(record))?;
                 let operation = self.operation_identity(expression.source);
-                self.emit(
-                    operation,
-                    Some(scalar_type),
-                    OperationKind::ByteSequenceLength { source: argument },
-                )?
+                let read = self
+                    .record_type(record)?
+                    .shape
+                    .length_operation()
+                    .ok_or_else(|| {
+                        self.unserved_rank("ranking length has no collection descriptor")
+                    })?;
+                self.emit(operation, Some(scalar_type), read(argument))?
             }
             _ => {
                 return Err(

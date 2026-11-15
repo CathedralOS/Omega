@@ -387,17 +387,46 @@ impl Program<'_> {
         if self.mathematical(binary.left) || self.mathematical(binary.right) {
             return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
         }
-        // A wholly anonymous operand lands in its partner's type.
+        // A wholly anonymous operand lands in its partner's type; an
+        // operand that already has a type keeps it (numeric_values.md,
+        // "Integer equality and order": "Already-typed operands retain their
+        // types").
         let ((left, left_type), (right, right_type)) = if self.wholly_anonymous(binary.left) {
             let right = self.term(id, scope, binary.right, None)?;
             (self.term(id, scope, binary.left, right.1.scalar())?, right)
         } else {
             let left = self.term(id, scope, binary.left, None)?;
-            let right = self.term(id, scope, binary.right, left.1.scalar())?;
+            let expected = if self.wholly_anonymous(binary.right) {
+                left.1.scalar()
+            } else {
+                None
+            };
+            let right = self.term(id, scope, binary.right, expected)?;
             (left, right)
         };
         let left_type = self.clause_operand_type(id, left_type)?;
         let right_type = self.clause_operand_type(id, right_type)?;
+        // Integers of different types compare by their exact values ("The
+        // operands may differ in width, signedness, or both"), which is the
+        // comparison of their embeddings: `characters <= 4096u64` with an
+        // `i32` formal is `embed(characters) <= 4096`.
+        if left_type != right_type
+            && let (Some(_), Some(_)) = (left_type.as_integer(), right_type.as_integer())
+        {
+            if let MathematicalTerms::Refused(why) = scope.mathematical {
+                return Err(refuse(id, Construct::Machine, Unserved::Contract(why)));
+            }
+            let embedded = |term| {
+                IntegerMathTerm::embed(term).ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("embed of a value that is not an integer"),
+                    )
+                })
+            };
+            return mathematical_relation(comparison, embedded(left)?, embedded(right)?, id);
+        }
         if left_type != right_type {
             return Err(refuse(
                 id,
@@ -694,17 +723,12 @@ impl Program<'_> {
                 else {
                     return unserved("extent of non-collection storage");
                 };
-                if !matches!(
-                    self.data_type(id, record)?.shape,
-                    crate::StorageShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(
-                                terminal_psi::StructuralAccess::SharedBorrow
-                                    | terminal_psi::StructuralAccess::MutableBorrow
-                            ),
-                        }
-                    )
-                ) {
+                if self
+                    .data_type(id, record)?
+                    .shape
+                    .length_operation()
+                    .is_none()
+                {
                     return unserved("extent without its descriptor operation");
                 }
                 let scalar_type = semantic_vocabulary::IntegerType::new(
@@ -1038,28 +1062,7 @@ impl Program<'_> {
         }
         let left = self.mathematical_term(id, scope, left)?;
         let right = self.mathematical_term(id, scope, right)?;
-        match comparison {
-            // The codec holds an equality's operands in the vocabulary's
-            // order (`validate_canonical_proposition`).
-            BinaryOperator::Equal if left <= right => {
-                Ok(Proposition::IntegerMathEqual(left, right))
-            }
-            BinaryOperator::Equal => Ok(Proposition::IntegerMathEqual(right, left)),
-            BinaryOperator::Less => Ok(Proposition::IntegerMathLessThan(left, right)),
-            BinaryOperator::LessOrEqual => Ok(Proposition::IntegerMathLessOrEqual(left, right)),
-            BinaryOperator::Greater => Ok(Proposition::IntegerMathLessThan(right, left)),
-            BinaryOperator::GreaterOrEqual => Ok(Proposition::IntegerMathLessOrEqual(right, left)),
-            BinaryOperator::NotEqual => canonical::clauses(
-                vec![
-                    Proposition::IntegerMathLessThan(left.clone(), right.clone()),
-                    Proposition::IntegerMathLessThan(right, left),
-                ],
-                Repeated::Refuse,
-                id,
-            )
-            .map(Proposition::Disjunction),
-            _ => unserved("comparison"),
-        }
+        mathematical_relation(comparison, left, right, id)
     }
 
     /// One side of a comparison between mathematical integers: `embed` of a
@@ -1552,5 +1555,39 @@ impl Program<'_> {
             Some(alternatives) => Ok(alternatives),
             None => unserved("type parameter that is not a finite family"),
         }
+    }
+}
+
+/// `comparison` between two mathematical integers, as the kernel states it:
+/// `>` and `>=` are `<` and `<=` swapped, `!=` is the disjunction of the two
+/// strict orders, and an equality holds its operands in the vocabulary's
+/// order (`validate_canonical_proposition`).
+fn mathematical_relation(
+    comparison: BinaryOperator,
+    left: IntegerMathTerm,
+    right: IntegerMathTerm,
+    id: MachineId,
+) -> Checked<Proposition> {
+    match comparison {
+        BinaryOperator::Equal if left <= right => Ok(Proposition::IntegerMathEqual(left, right)),
+        BinaryOperator::Equal => Ok(Proposition::IntegerMathEqual(right, left)),
+        BinaryOperator::Less => Ok(Proposition::IntegerMathLessThan(left, right)),
+        BinaryOperator::LessOrEqual => Ok(Proposition::IntegerMathLessOrEqual(left, right)),
+        BinaryOperator::Greater => Ok(Proposition::IntegerMathLessThan(right, left)),
+        BinaryOperator::GreaterOrEqual => Ok(Proposition::IntegerMathLessOrEqual(right, left)),
+        BinaryOperator::NotEqual => canonical::clauses(
+            vec![
+                Proposition::IntegerMathLessThan(left.clone(), right.clone()),
+                Proposition::IntegerMathLessThan(right, left),
+            ],
+            Repeated::Refuse,
+            id,
+        )
+        .map(Proposition::Disjunction),
+        _ => Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("comparison"),
+        )),
     }
 }

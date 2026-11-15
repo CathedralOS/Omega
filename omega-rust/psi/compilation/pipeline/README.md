@@ -1,11 +1,14 @@
 # Source-to-Terminal pipeline
 
-The [pipeline map](../../../pipeline.md) connects source preparation to structural
-lowering, the lowered-form checker and Terminal publication. These stages own
-increasingly resolved source meaning;
-source acquisition and package closure remain compiler/package responsibilities.
-They do not select providers, physical storage, native ABI plans, or installed
-authority.
+These stages take source text to checked, published Terminal Psi; the
+[pipeline map](../../../pipeline.md) shows how they connect. Each stage resolves
+more of the source's meaning. Loading sources and closing the package graph
+belong to the compiler and package system. These stages do not choose
+providers, physical storage, native ABI plans or installed authority.
+
+Fixtures named below as `pass/...` or `fail/...` without a `tests/fixtures/`
+path belong to [the former corpus](../../../../tests/README.md#the-former-corpus)
+and must be recovered from history.
 
 ## Follow the compilation route
 
@@ -20,33 +23,34 @@ authority.
 | 06 — lowered-form checking | [judge_compilation](06_terminal-psi-to-terminal-psi/src/verdict.rs) | accepted closure and evidence |
 | Publication | [accepted source factory](../terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
-Every program crosses 04, which runs one ordered pass list over the typed trees
-and freezes the result; that is prepared source data, not acceptance. Requested
-layout, representation-selection and wire work, and Product operands, refuse
-with `no product route yet`. This owner map and the implementation
-notes below do not establish working default source, Build or native compilation;
-unfinished producers remain on [TASKS.md](../../../../TASKS.md).
+Every program passes through 04, which runs one ordered pass list over the
+typed trees and freezes the result. That result is prepared source, not an
+accepted program. A program that requests layout, representation-selection or
+wire work, or uses Product operands, is refused with `no product route yet`.
+This table and the notes below do not mean default source, Build or native
+compilation works; unfinished stages remain on [TASKS.md](../../../../TASKS.md).
 
-Stage 05 reads typed structure without checker facts and prepares the root module,
-all demanded generic forms, conformance witnesses and their exact correspondence.
-Stage 06 consumes that complete Terminal input without importing a preceding
-stage or reading typed source; unsupported constructs refuse.
-The driver retains source-record and Build-operand correspondence separately
-for publication, paired with the same frozen source owner. It is not proof input.
-The accepted-source factory publishes that same module with its evidence. The
-retired checked-to-Lowered-Psi and optimization/publication wrappers are absent.
-[Compile-time elaboration](../build-time-evaluation/README.md) owns evaluation
-continuations around source preparation. The product driver owns sequencing.
+Stage 05 reads the typed trees, without any checker facts, and builds the root
+module, every generic form the program uses, the conformance witnesses and the
+exact mapping between them. Stage 06 checks that complete Terminal input
+without importing an earlier stage or reading typed source; it refuses
+constructs it does not support. The driver keeps the mapping from source
+records and Build operands separately for publication, tied to the same frozen
+source. The checker does not read it. The accepted-source factory publishes the
+checked module with its evidence. The old checked-to-Lowered-Psi and
+optimization/publication wrappers are gone.
+[Compile-time elaboration](../build-time-evaluation/README.md) runs evaluation
+around source preparation; the product driver decides the order of stages.
 
 ## Lexing and parsing
 
-Value-position `match`, including a bare machine-tail expression, retains its
-subject and ordered, source-linked arms through all source representations.
-It is not a spelling for `transition`. Scalar computation dispatch saves the
-subject once, evaluates patterns in order, and sends only the selected result
-to the ordinary expression continuation. Source replay independently checks the
-exact arm identities and coverage; it cannot treat an arbitrary last arm as a
-default.
+A `match` used as a value, including a bare expression at the end of a
+machine, keeps its subject and its ordered arms, each linked to source, through
+every source representation. It is not another way to write `transition`. For
+scalar computations the compiler evaluates the subject once, tries the
+patterns in order, and passes only the chosen arm's result on to the
+surrounding expression. Source replay separately checks the exact arms and
+coverage; it cannot treat whatever arm is last as a default.
 
 The [dispatch contract](../../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
@@ -58,18 +62,16 @@ can select whole immutable plain-affine locals alongside fresh scalar-case or
 record constructors. Fresh record children can contain their own dispatch without
 consuming the outer candidates; exact edge transfers and residual disposal remain
 mandatory. The former `pass/expressions/owned_match_record_values` fixture
-recorded independent Terminal replay and native payload observations; recover its
-source through [the former corpus](../../../../tests/README.md#the-former-corpus).
+recorded independent Terminal replay and native payload observations.
 Source checking permits fresh
 plain-owned constructors, including nested records, sums and arrays, on selected
 result paths. Each child must be fresh or unrestricted; loans, linear contents,
 nominal cleanup and owned call results still require their missing custody join.
 An explicitly initialized affine local retains one whole ownership timeline
 regardless of its initializer shape or mutability. Selection does not make the
-result copyable. The source probe is
-`cargo run -p omega -- --check tests/omega/pass/expressions/match_fresh_owned/main.omg`;
-`tests/omega/fail/expressions/match_result_double_move/main.omg` rejects a second
-transfer. These checked constructors do not by themselves establish native
+result copyable. The former `pass/expressions/match_fresh_owned` fixture checked
+this; `fail/expressions/match_result_double_move` rejected a second transfer.
+These checked constructors do not by themselves establish native
 aggregate result transport. Checking still validates every arm's
 type, including unreachable arms. Stable comparison facts belong to the exact
 selected branch and are retired by writes to their inputs; they do not escape
@@ -115,9 +117,8 @@ join; routed provenance, borrowed results and transfers from existing owners
 retain their separate fences.
 Raw dependent range predicates are not merged by rendered spelling.
 
-`cargo run -p omega -- --check --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
-checks same-domain result selection. The corresponding negative
-`tests/omega/fail/expressions/match_mixed_result_domains/main.omg` must reject
+The former `pass/expressions/match_domain_results` fixture checked same-domain
+result selection. Its negative `fail/expressions/match_mixed_result_domains` must reject
 kilometres joined with miles before an outer bare-carrier cast. Predicate- and
 route-free scalar casts now retain explicit `Qualification` computation nodes,
 including their exact operands and normalized result types. Source replay checks
@@ -127,8 +128,7 @@ cast. Terminal declarations retain the full scalar type: canonical domain sets
 are shared across the reachable call closure, and explicit qualification binds
 a fresh successor value without a runtime tag or operation. Every incoming edge,
 ordinary call and result independently preserves that type.
-`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
-publishes this fixture; `value_dispatch` replays both selections from canonical
+`psi inspect` published that fixture; `value_dispatch` replays both selections from canonical
 bytes. Explicit same-carrier erasure uses that same computation node and a strict
 subset qualification edge, including a bare destination. Its authored cast must
 survive source replay even when later qualification restores the original tags.
@@ -137,13 +137,11 @@ Match results retain exact membership grants for compatible formals, including
 closed indices. Predicate/routed evidence and erasure, plus shared structural
 qualification transport, remain separate obligations, not bare-carrier fallbacks.
 
-`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg`
-publishes an explicitly erased qualified Match/call result;
-`python3 tools/corpus_gate.py --native --filter expressions/explicit_scalar_tag_erasure`
-records its host build outcome. No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
+The former `pass/expressions/explicit_scalar_tag_erasure` fixture published an
+explicitly erased qualified Match/call result and recorded its host build outcome. No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
 pattern equality uses the existing comparison and branch machinery.
 
-`cargo run -p omega -- --check tests/fixtures/pass/expressions/declared_operator_match_result/main.omg`
+`omega --check tests/fixtures/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.
 This is a legacy signature-plus-satisfier fixture, not the settled direct supply
 model. [Declaration-owned machine bodies](../../../../wiki/spec/language/expressions.md#executable-supply)
@@ -163,16 +161,14 @@ non-NaN source and bound facts; unsupported membership remains a proof failure.
 Matching full-width suffixed integer leaves retain their own
 carrier through the same consumer-edge custody, including bitwise complement.
 
-`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/anonymous_numeric_match_subject/main.omg`
-exercises a Match whose subject and tested patterns are exact anonymous numbers.
+The former `pass/expressions/anonymous_numeric_match_subject` fixture exercised a Match whose subject and tested patterns are exact anonymous numbers.
 Checking and independent source replay rederive first-match selection with the
 existing exact-number evaluator. Only the chosen result becomes a computation;
 no fixed-width subject or runtime rational carrier is invented. Even a leading
 wildcard must not erase a call, typed value, or undefined subject. All-arm typing,
 coverage and result-destination checks remain separate from selective execution.
 
-`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_results/main.omg`
-exercises f32 result selection inside ordinary calls. Match carries f32/f64
+The former `pass/expressions/match_float_results` fixture exercised f32 result selection inside ordinary calls. Match carries f32/f64
 results through the same typed continuation as other scalar values, preserving
 format and payload without arithmetic, conversion, or comparison of the result.
 Boolean/integer subjects and exact anonymous selection are supported here;
@@ -182,39 +178,40 @@ is preserved through Terminal, interpreter, and native replay. The
 former `pass/expressions/match_float_interpretation` and
 `pass/expressions/match_float_subjects` fixtures recorded named, call, indexed,
 projected and computed subject shapes in both formats. Their source is recovered
-from [the former corpus](../../../../tests/README.md#the-former-corpus). A floating result does not authorize integer equality on
+from the former corpus. A floating result does not authorize integer equality on
 a floating subject, and a domain-carried floating subject still needs a
 pattern vocabulary for its constraint surface.
 
-[Lexing](00_source-files-to-tokens/src/lexer.rs) consumes loaded source records,
-preserving source identity and byte spans. Numeric metadata and decoded literal
-bytes are spelling-level payload, not typed values or proof facts. The closed
-lexical profile uses explicit whitespace, ASCII identifiers and byte escapes;
-host Unicode classification is not authority. Literal decoding copies source
-bytes and expands fixed escapes, not a host-selected Unicode encoding.
-The Rust lexer has independent behavior tests; no mirrored lexical serialization
-protocol is required by the product lexer.
+The [lexer](00_source-files-to-tokens/src/lexer.rs) reads loaded source records
+and keeps each token's source identity and byte span. Numeric metadata and
+decoded literal bytes describe spelling only; they are not typed values or
+proof facts. The lexer accepts a fixed set of characters: explicit whitespace,
+ASCII identifiers and byte escapes. It never asks the host for Unicode
+classification. Decoding a literal copies its source bytes and expands fixed
+escapes; it does not pick a Unicode encoding from the host.
+The Rust lexer has its own behavior tests; the product lexer does not need a
+mirrored serialization format for tokens.
 
-[Parsing](01_tokens-to-syntax-trees/src/parser.rs) builds arena-backed syntax roots
-and tables, retaining grammar, spans and literal structure without choosing
-symbols, types, effects or proof evidence. The
-[expression parser](01_tokens-to-syntax-trees/src/expressions.rs) uses an
-explicit binary-operator stack and reversed unary prefixes; membership is a
-separate grammar boundary, and postfix scratch is not retained across nested
-primary parsing. Groups, aggregates, arguments and types still recurse. This is
-not a stackless-parser claim; ordinary accepted input must not rely on an
-enlarged host thread stack.
+The [parser](01_tokens-to-syntax-trees/src/parser.rs) builds syntax roots and
+tables in arenas. It keeps grammar, spans and literal structure but does not
+choose symbols, types, effects or proof evidence. The
+[expression parser](01_tokens-to-syntax-trees/src/expressions.rs) keeps binary
+operators on an explicit stack and collects unary prefixes in reverse;
+membership tests have their own grammar rule, and postfix scratch is dropped
+before a nested primary expression is parsed. Groups, aggregates, arguments
+and types still parse recursively, so the parser is not stackless, but
+ordinary accepted input must not need a larger host thread stack.
 
-The parser's sibling domains expose grammar ownership directly:
+Each parser file owns one part of the grammar:
 [declarations](01_tokens-to-syntax-trees/src/declarations.rs) dispatch root
 forms; [parameters](01_tokens-to-syntax-trees/src/contracts_and_parameters.rs) own shared
 callable and generic binders; [contracts](01_tokens-to-syntax-trees/src/contracts_and_parameters.rs)
 own clauses, facts, and conformance applications;
 [bodies](01_tokens-to-syntax-trees/src/bodies_and_transitions.rs) own entries and states;
 [type syntax](01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs) owns type references
-and property grammar. Shared grammar does not live under whichever declaration
-first needed it. Each named entry file performs its work, rather than forwarding
-to another hidden coordinator. Rust-only source registration stays in
+and property grammar. Shared grammar does not live in whichever declaration
+first needed it. Each named file does its own work instead of forwarding to a
+hidden coordinator. Rust-only source registration stays in
 [`lib.rs`](01_tokens-to-syntax-trees/src/lib.rs); implementation files neither use
 `mod.rs` nor pair `name.rs` with a `name/` directory. This keeps responsibility
 names independent of Rust's module-root convention for future Omega source,
@@ -222,35 +219,35 @@ without assuming identical import or visibility semantics. `parser::parse_error`
 remains a public compatibility path to the diagnostic type, not a container for
 grammar modules.
 
-Preserve authored clause occurrences separately from normalized meaning:
-memberless `reaches` differs from omission, and each authored `suspends` or
+Keep each clause as written, separately from its normalized meaning:
+`reaches` with no members differs from no `reaches` at all, and each authored `suspends` or
 `blocks` keyword retains its span on machines and structural signatures.
 Synthesized or omitted clauses must not acquire fictional source coordinates.
 Exact requirement applications retain their authored lifetime/type/const/machine
 arguments. Contracts and mathematical bundles retain logical source structure,
 not an implicitly selected proof producer or runtime aggregate.
 
-Anonymous `%` expressions remain trees for semantic formation checks; parsing
-must not fold them into apparently valid integer leaves. Explicit non-returning
-crashes stay distinct from ordinary terminal transitions. Retired grammar is
-diagnosed rather than admitted as a compatibility syntax tree. Parser diagnostics
+Anonymous `%` expressions stay trees so later stages can check that they are
+well formed; the parser must not fold them into integer literals that look valid. Explicit non-returning
+crashes stay distinct from ordinary terminal transitions. Retired grammar gets
+a diagnostic; the parser does not accept it into a compatibility syntax tree. Parser diagnostics
 and the current language specification must agree.
 
 ## Value-generic staging
 
 The settled [value-binder contract](../../../../wiki/spec/language/generics.md#value-binders-and-const-requirements)
-distinguishes runtime-capable `Count: u32` from static `const Count: u32`.
-Distinct binder kinds, exact runtime-subject substitution, and ordinary operand
-lowering with checked representation/custody are landed for machine signatures
-(`monomorphization::runtime_value_bindings`). Preserve rejection of runtime
-subjects in const applications; do not turn a failed constant evaluation into a
-guessed value or runtime fallback.
+separates `Count: u32`, which may be a runtime value, from the static
+`const Count: u32`. Machine signatures already have distinct binder kinds,
+exact substitution of runtime subjects, and ordinary operand lowering with
+checked representation and custody (`monomorphization::runtime_value_bindings`).
+Keep rejecting runtime subjects in const applications; a failed constant
+evaluation must not become a guessed value or a runtime fallback.
 
-Runtime witnesses are not canonical static index bytes. Scope/name resolution,
-parameter modes, contract dependencies, and result identity survive through
-Terminal and artifact replay, and stay that way. The residual legs — the
-contract/domain-qualification work and layout-determining uses, which still
-reject — remain under `RUNTIME-VALUE-GENERICS` on the
+Runtime witnesses are not canonical static index bytes. Scope and name
+resolution, parameter modes, contract dependencies and result identity survive
+Terminal and artifact replay. The remaining work, contract and
+domain-qualification support and uses that determine layout, still rejects and
+stays under `RUNTIME-VALUE-GENERICS` on the
 [execution board](../../../../TASKS.md).
 
 The [structural type-equation rules](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
@@ -266,7 +263,7 @@ scalar range annotations and range-shell inference pending canonical migration.
 Their migration is tracked by `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the
 [board](../../../../TASKS.md).
 That implementation is not the accepted structural inference contract, and
-existing test results do not establish support for the replacement syntax.
+passing tests do not show the replacement syntax works.
 
 Local scalar calls without an outer result-operation owner use the shared
 computation plan even when their arguments are pure; operand purity cannot
@@ -341,8 +338,8 @@ or runtime-dependent inline storage is part of this work.
 
 ## Resolution and closed-instance normalization
 
-Authored `module` paths establish namespace symbols without moving the ordered
-root declaration slots. Semantic paths include the namespace; physical member
+A `module` path creates namespace symbols without moving the root's ordered
+declaration slots. Semantic paths include the namespace; physical member
 ownership and exact package provenance remain separate. Cross-file imports join
 logical paths to the exact loaded source. A certified package alias can qualify
 public declarations in other already-loaded sources of that same direct
@@ -370,18 +367,17 @@ Scoped fields, named states and conformance binders also select the path head
 before normalization; a failed suffix cannot reopen lookup as a module case.
 They retain the original occurrence and exact case owner and undergo ordinary
 common-field, default, payload and opaque-construction checks. Case membership
-keeps its separate declaration role. Check the package customer with
-`omega --check tests/omega/pass/modules/package_bare_cases/main.omg`.
+keeps its separate declaration role. The former `pass/modules/package_bare_cases`
+fixture checked the package customer.
 The `module_machine_indices::qualified_case_values` probes cover lexical precedence,
 ambiguity, authority and construction obligations.
 Closed generic sum paths retain the authored carrier and case spans while
 selecting the specialized owner. Both selections survive as evidence that a
-membership test is not payload construction. Check this route with
-`omega --check tests/omega/pass/generics/closed_sum_case_membership/main.omg`
-and `cargo nextest run -p compiler --test generic_data --no-fail-fast`.
+membership test is not payload construction. The former
+`pass/generics/closed_sum_case_membership` fixture checked this route.
 Proof-position case membership uses that same expression and selection route;
-the bundled optional carrier's zero theorem is exercised by
-`omega --check tests/omega/pass/collections/std_option_surface/main.omg`.
+the former `pass/collections/std_option_surface` fixture exercised the bundled
+optional carrier's zero theorem.
 
 Nominal data references, scalar free-machine calls, and literal constants used
 in bodies have namespace coverage. Scalar constants include qualified Terminal
@@ -515,8 +511,8 @@ spelling keeps the pooled checked-obligation result rather than selecting or
 hiding a declaration. Other module-owned declared domain forms remain a
 separate implementation limit; header-level
 selection tests pin the shared namespace independently of that source fence.
-`cargo run -p omega -- --check tests/omega/pass/modules/qualified_case_membership/main.omg`
-checks the four-source package customer. Additional `case_membership` source
+The former `pass/modules/qualified_case_membership` fixture checked the
+four-source package customer. Additional `case_membership` source
 controls retain common-field tag observation and independently required owner
 and case selection occurrences.
 This does not establish native Boolean membership of a newly constructed case.
@@ -542,8 +538,8 @@ carry the instance relationship; generated display names are lookup metadata.
 The statement walk retains parameters and preceding locals before relabeling a
 constructor, and bare paths also retain ordinary constant-prefix precedence.
 Static `::` paths cannot project through runtime bindings; value projections
-remain ordinary `.` expressions. Check the sum customer with
-`omega --check tests/omega/pass/modules/closed_sum_constructors/main.omg`.
+remain ordinary `.` expressions. The former `pass/modules/closed_sum_constructors`
+fixture checked the sum customer.
 The `package_compilation_inputs::module_generic_data` probes cover these
 checked-source relationships and rejection of private or transitive-only access.
 Ordinary methods on closed templates retain the selected template attachment
@@ -553,9 +549,8 @@ Calls rejoin the static carrier or receiver type and the selected method state.
 Same-leaf methods cannot borrow another carrier's fields, and copied inherited fields retain their
 authored declaration provenance. Method binders must remain within the existing
 carrier-binder synthesis rules; borrowing and per-use package authority still
-apply. Check this source boundary with
-`omega --check tests/omega/pass/modules/closed_template_methods/main.omg` and
-`package_compilation_inputs::module_template_methods`. This establishes checked
+apply. The former `pass/modules/closed_template_methods` fixture and
+`package_compilation_inputs::module_template_methods` checked this source boundary. This establishes checked
 source behavior; native receiver storage and execution have their own admission.
 
 Generated-source normalization borrows the retained resolved predecessor for
@@ -595,17 +590,14 @@ paths before legacy materialization, including fixed-array destinations: a
 runtime-qualified root cannot acquire a same-spelled static aggregate. Destination
 syntax chooses the value route, never permission to skip lexical selection. The
 selection prepass retains declaration custody without materializing aggregate
-values. The two-file CLI check
-`cargo run -p omega -- --check tests/omega/pass/modules/fixed_array_machine_indices/main.omg`
-preserves static array identity across root and module machine owners; the same
-command on `tests/omega/fail/modules/runtime_fixed_array_index/main.omg` rejects
-a runtime qualifier. Module-owned fixed-array constants with integer/Boolean
+values. The former two-file `pass/modules/fixed_array_machine_indices` fixture
+preserved static array identity across root and module machine owners;
+`fail/modules/runtime_fixed_array_index` rejected a runtime qualifier. Module-owned fixed-array constants with integer/Boolean
 literal leaves use the same exact declaration selector and structural encoder.
 Every such declaration validates its extents and element carriers even when
 private and unused; explicit integer landings cannot be erased during encoding.
-The two-file CLI check
-`cargo run -p omega -- --check tests/omega/pass/modules/module_array_constant_indices/main.omg`
-covers same-leaf root/module constants with different canonical array values,
+The former two-file `pass/modules/module_array_constant_indices` fixture
+covered same-leaf root/module constants with different canonical array values,
 including `settings::Sizes::SIZE` and scalar `settings::Sizes::MAX`. Scoped constants
 select an exact nongeneric data carrier in their declaring module and retain the authored carrier occurrence for
 visibility checks. Relative attached names prefer their local module; narrow
@@ -619,8 +611,8 @@ selected declaration's type and package owner. Signed infinities have exact
 format-specific bits, and signed zeros remain distinct;
 equivalent literals that round to the same value share the value encoding.
 These declaration encodings do not admit floating generic/domain indices,
-including an unused machine const binder. The two-file checked-source customer
-is `tests/omega/pass/modules/public_float_constants/main.omg`; package review
+including an unused machine const binder. The former two-file `pass/modules/public_float_constants` fixture was the
+checked-source customer; package review
 retains the same encoding through serialization. Call-free integer/Boolean
 initializers evaluate at build time, including each leaf of a fixed-array,
 closed record, or case-payload literal. `computed_constant_initializers` selects
@@ -666,23 +658,22 @@ path. Every retained named declaration, even unused and private, independently
 requires a recursively copyable type with no cleanup; this includes inactive
 case payloads and empty-array element types. Generic structural atom eligibility
 remains a separate judgment and does not grant named-constant permission.
-`cargo run -p omega -- --check tests/omega/pass/modules/nominal_constant_bodies/main.omg`
-is the checked-source customer. The `package_compilation_inputs` nominal constant
+The former `pass/modules/nominal_constant_bodies` fixture was the checked-source
+customer. The `package_compilation_inputs` nominal constant
 body probes cover nested records, cases, independent uses, receiving identity,
-privacy and direct-package exposure. The two-file command
-`cargo run -p omega -- --check tests/omega/pass/constants/lexical_aggregate_values/main.omg`
-also checks runtime parameter/local shadows and a module consumer whose value
+privacy and direct-package exposure. The former two-file
+`pass/constants/lexical_aggregate_values` fixture also checked runtime parameter/local shadows and a module consumer whose value
 parameter shares the declaring constructor's name. Its package integration
 tests distinguish the selected constant occurrence from runtime references
 through checked compilation; constructor ownership remains declaration-local.
 The same nominal body customer with `psi inspect
---machine keep` still reports that the machine has no source-independent checked
+--machine keep` reported that the machine has no source-independent checked
 scalar control plan; nominal aggregate execution needs that producer dependency.
 Integer/Boolean array body
 references use the same exact selector and deep-copy their literal trees per use.
 Destination checks rejoin their declared dimensions and element identity, including
 empty and nested-empty arrays; scalar leaf landings alone cannot retain that shape.
-The CLI example above includes root, module-local and qualified array body uses.
+The array fixture above included root, module-local and qualified array body uses.
 Literal scalar indexing of these constants retains its declared element type,
 bounds and selected indexing meaning through checking. The checked interpreter
 evaluates the copied value; Terminal production selects its closed literal leaf
@@ -697,9 +688,9 @@ Elements finish in index order, preserving earlier values across mutating calls
 and short-circuit control before the constructor commits its payload. Array-valued
 constant projections still require closed unselected siblings; selection cannot
 erase an evaluation or effect.
-`cargo run -p omega -- psi inspect --machine selected_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
-publishes the material row; selecting `selected_empty_row` retains its exact empty
-array type. Selecting `computed_row` exercises runtime scalar construction.
+Inspecting that fixture's `selected_row` machine published the material row;
+`selected_empty_row` retained its exact empty array type, and `computed_row`
+exercised runtime scalar construction.
 Array argument/result transport through calls and state transfers, and native
 construction remain separate executable dependencies. Dynamic selectors, slicing and
 explicitly borrowed projections still reject pending general value projection
@@ -712,22 +703,19 @@ order operation; anonymous operands must land exactly in the selected peer carri
 Boolean equality and inequality compose named constants and comparison results
 without losing their separate authored selection occurrences.
 Boolean `&&` and `||` evaluate only the selected right operand, while the probe
-retains admission and authored custody for both operands. The two-file CLI check
-`cargo run -p omega -- --check tests/omega/pass/modules/boolean_logic_indices/main.omg`
-covers root and module selection under that schedule.
-The two-file CLI check
-`cargo run -p omega -- --check tests/omega/pass/modules/literal_boolean_indices/main.omg`
-covers literal Boolean expressions and fixed-integer comparisons in both scopes.
+retains admission and authored custody for both operands. The former two-file
+fixtures `pass/modules/boolean_logic_indices` and `pass/modules/literal_boolean_indices`
+covered root and module selection under that schedule, and literal Boolean
+expressions and fixed-integer comparisons in both scopes.
 Comparisons between two anonymous numeric operands consume exact rational values
 without selecting an integer carrier or floating format. The shared evaluator
 rejects undefined rational values even in unselected comparisons; typed operands
-still require ordinary peer landing. The two-file CLI check
-`cargo run -p omega -- --check tests/omega/pass/modules/rational_boolean_indices/main.omg`
-covers fractional and decimal comparisons with their canonical Boolean results.
+still require ordinary peer landing. The former two-file
+`pass/modules/rational_boolean_indices` fixture covered fractional and decimal comparisons with their canonical Boolean results.
 Scalar `match` indices retain their complete source trees for the
 [typed evaluation owner](../build-time-evaluation/README.md), including
-coverage and unselected-arm admission. Their source check is
-`cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`.
+coverage and unselected-arm admission. The former
+`pass/modules/match_constant_indices` fixture was their source check.
 Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
 and module-owned domain families remain outside this probe.
 Domain indices retain the declared family's identity; equal results share canonical
@@ -749,22 +737,13 @@ needs a distinct exact-machine identity, not a conversion to a selected satisfie
 `MODULE-NAMESPACE-RESOLUTION` and `DOMAIN-ISSUER-ROUTES` on the
 [execution board](../../../../TASKS.md) track this work, not an unresolved owner decision.
 
-The focused source/Terminal probes run from the repository root:
-
-```sh
-cargo run -p omega -- --check tests/omega/pass/modules/qualified_declarations/main.omg
-cargo run -p omega -- psi inspect --machine combat::damage tests/omega/pass/modules/qualified_declarations/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/qualified_constants/main.omg
-cargo run -p omega -- psi inspect --machine combat::damage tests/omega/pass/modules/qualified_constants/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/qualified_constant_indices/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/compound_constant_indices/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/machine_constant_indices/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/boolean_machine_indices/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/comparison_machine_indices/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/boolean_equality_indices/main.omg
-cargo run -p omega -- --check tests/omega/pass/modules/aggregate_machine_indices/main.omg
-```
+The former corpus held focused source and Terminal probes for these rules,
+under `pass/modules/`: `qualified_declarations` and `qualified_constants` (both
+also inspected with `--machine combat::damage`), `qualified_constant_indices`,
+`compound_constant_indices`, `domain_constant_indices`,
+`machine_constant_indices`, `boolean_machine_indices`,
+`comparison_machine_indices`, `boolean_equality_indices` and
+`aggregate_machine_indices`.
 
 [Resolution](02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
 identity and exact lexical lookup, not type compatibility, borrow legality,
@@ -795,7 +774,7 @@ Unresolved projected or call-result receivers cannot fall back to a free
 same-named callable. Bounds, case reachability, index effects and receiver access
 remain later obligations.
 
-Operator contracts resolve in their own formal telescope, including domain-owned
+Operator contracts resolve in their own parameter list (telescope), including domain-owned
 operators. Nested conformance applications retain their own argument packs rather
 than borrowing the enclosing telescope or inferring omitted arguments. Exact
 requirement lifetime names settle binder membership/ordinals during typing.
@@ -813,14 +792,14 @@ bodylessness, reach or catalog membership cannot synthesize that declaration.
 
 ## Typing and source custody
 
-[Typing](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) owns type identity,
-compatibility, signature and typed contract surfaces. Roots and tables preserve
-enough information for checking without reverse-engineering syntax. Typed
-references are not active loans; type-derived cleanup requirements are not a
-drop schedule. Proof discharge, flow invalidation and concrete ABI placement
-remain outside this stage.
+[Typing](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) decides type
+identity and compatibility and builds typed signatures and contracts. Its roots
+and tables keep enough information that checking never has to reconstruct
+syntax. A typed reference is not an active loan, and the cleanup a type
+requires is not a drop schedule. Proof discharge, flow invalidation and ABI
+placement happen later.
 
-The typing coordinator sequences declaration lowering and finalization.
+The typing coordinator orders declaration lowering and finalization.
 [Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations.rs)
 own header selection, lifetime arguments, realization parameter binding and
 publication; proposition definitions live with declarations, while proposition
@@ -860,11 +839,11 @@ demands them. Original template
 contracts and body selections remain obligations; package identity alone cannot
 replace the exact closed conformance owner.
 
-Resolution and typing retain source-authored selections. The lowered-form route
-must settle late calls, operators and evidence before acceptance. Public declaration contracts remain
+Resolution and typing keep the selections the source made. The lowered-form
+route must settle late calls, operators and evidence before it accepts a program. Public declaration contracts remain
 interface exposure while executable bodies and internal states remain private.
 Lexical locals and source-free synthesis do not receive fictional package owners.
 See [typing](03_symbol-resolved-trees-to-typed-trees/README.md) for the source
 frontier and [lowered-form checking](06_terminal-psi-to-terminal-psi/README.md) for the served
-proof, flow and ownership boundary. Unserved source execution and late obligations
-remain explicit refusals.
+proof, flow and ownership boundary. Source execution and late obligations it does not
+handle are refused explicitly.

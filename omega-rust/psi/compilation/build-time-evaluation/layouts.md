@@ -1,215 +1,200 @@
 # Layout evaluation implementation
 
-The [layout specification](../../../../wiki/spec/layouts/plans.md) owns language
-meaning. These are implementation boundaries, not limits on the language.
+The [layout specification](../../../../wiki/spec/layouts/plans.md) defines the
+language. This page covers the implementation, not limits on the language.
 
 ## Ratified representation migration
 
 The 2026-10-27 [representation-family contract](../../../../wiki/spec/layouts/plans.md#representation-applications)
-replaces empty policy data, attached `Policy::plan` discovery and synthetic
+replaced empty policy data, discovery of an attached `Policy::plan` and fake
 generic-looking record shells with named `FixedLayout<T>` implementations and
 the general `LayoutStorage<T, Policy>` application. Library families such as
 CLayout use ordinary transparent generic aliases; aliases and named evidence
-must be resolved by their actual declaration identities, not source spelling.
-The compiler supplies authorized schema/target facts, checks compile-time
-admission, evaluates and validates a plan, and retains the representation for
-all storage and ABI consumers. Build grants no per-layout blessing.
+are resolved by their declaration identities, not their spelling. The compiler
+supplies the authorized schema and target facts, checks compile-time
+admission, evaluates and validates a plan, and keeps the representation for
+every storage and ABI consumer. Build does not approve layouts one by one.
 
-The selected Core `LayoutStorage<T, Policy>` constructor carries the semantic
-value and exact named implementation identity. Policies implement ordinary
-`FixedLayout<T>::plan(schema, target)` members; attached plan machines, empty
-policy data and synthetic record shells are retired. This establishes the
-explicit fixed-policy application path. Transparent aliases, conversion
-families and programmable case layouts retain their separate task acceptance
-under `LIBRARY-REPRESENTATION-FAMILIES` and `PREFIX-CASE-IDENTITIES` in
+The Core `LayoutStorage<T, Policy>` constructor carries the semantic value and
+the exact named implementation identity. Policies implement ordinary
+`FixedLayout<T>::plan(schema, target)` members; the old attached plan machines,
+empty policy data and record shells are gone. This gives explicit fixed
+policies a working path. Transparent aliases, conversion families and
+programmable case layouts are still separate tasks, `LIBRARY-REPRESENTATION-FAMILIES` and `PREFIX-CASE-IDENTITIES` in
 [TASKS.md](../../../../TASKS.md).
 
 ## Ownership
 
 The [domain access contract](../../../../wiki/spec/resources/access.md) uses
-`AccessPolicy::plan(reflect::TypeSchema) -> AccessPlan`: semantic region rules,
-establishment/reader/writer ceilings, observation demands and reach, with no
-embedded layout. Caller authorization defaults to unrestricted by this policy;
-an explicit empty list denies everyone. Establishment joins the result to the
-independent layout and actual backing. `DOMAIN-ACCESS-AUTHORITY` owns the
-core, compiler, source and fixture migration in [TASKS.md](../../../../TASKS.md),
-including removal of the separate view shell and old domain clauses. This note
-does not make a layout field key interchangeable with a reflected member identity.
+`AccessPolicy::plan(reflect::TypeSchema) -> AccessPlan`. The plan holds semantic
+region rules, limits on who may establish, read and write, observation demands
+and reach, but no layout. If the policy names no callers, any caller is
+allowed; an explicit empty list denies everyone. Establishment joins the plan
+to the separate layout and the actual backing storage. `DOMAIN-ACCESS-AUTHORITY`
+in [TASKS.md](../../../../TASKS.md) covers moving core, compiler, source and
+fixtures over, including removing the separate view shell and old domain
+clauses. A layout field key is not interchangeable with a reflected member
+identity.
 
-`layout_plans/` reflects checked schemas, evaluates authored plans and validates
-them. `plan_laid.rs` discovers exact closed representation applications in the
-existing Psi checking facade; `plan_laid/layout_installation.rs` installs the
-validated result. Build supplies explicit deployment roots, selected providers
-and immutable target facts. The facade preserves package selection authority
-while ordinary compile-time admission checks the complete policy closure.
-An inactive target scope with no application needs no layout facts.
-`access_views/`, `access_plans/` and `wire_plans.rs` own their respective probes
-and installations. Omega supplies target inputs through those services rather
-than reinterpreting policy semantics or reopening source initializers.
+`layout_plans/` reflects checked schemas, then evaluates and validates authored
+plans. `plan_laid.rs` finds exact closed representation applications in the Psi
+checking facade; `plan_laid/layout_installation.rs` installs the validated
+result. Build supplies explicit deployment roots, selected providers and fixed
+target facts. The facade keeps package selection authority while ordinary
+compile-time admission checks every policy reached. An inactive target with no
+application needs no layout facts. `access_views/`, `access_plans/` and
+`wire_plans.rs` do the same probing and installing for their kinds. Omega passes
+target inputs through these services; it never reinterprets policy or reopens
+source initializers.
 
-The [layout-plans foundation](../../foundation/layout-plans/src/layout_reports/mod.rs) holds
-normalized geometry and the conventional report carriers, including the
-conventional sum reports' path depth limit. The interpreter's provider storage
-applies those reports through the same foundation's aggregate materialization.
-Compact fingerprints are compatibility reports; exact schema rows and complete
-layouts govern replay.
+The [layout-plans foundation](../../foundation/layout-plans/src/layout_reports.rs)
+holds normalized geometry and the conventional report types, including the path
+depth limit for conventional sum reports. The interpreter's provider storage
+applies those reports through the foundation's aggregate materialization.
+Compact fingerprints only report compatibility; replay uses the exact schema
+rows and complete layouts.
 
 ## Supported geometry and values
 
 Fixed-layout normalization supports `At`, complete fragmented `Bits`, and
-`IntegerAt`. Stored integers currently require positive whole-byte widths
-through 64 bits. Source reflection includes records, cases, payload scopes, and
-tombstones; that does not make programmable case/tag placement implemented.
-The source library's fixed reflection capacities are private implementation
-bounds, not schema semantics.
+`IntegerAt`. Stored integers must be a whole number of bytes, up to 64 bits.
+Source reflection covers records, cases, payload scopes and tombstones, but
+programmable case and tag placement is not implemented. The source library's
+fixed reflection capacities are private limits, not schema meaning.
 
 Fixed arrays and fixed records reflect as one `Repeated` or `Nested` field.
-Whole-extent `At` preserves compiler-derived interior layout; an outer fixed
-array may instead use one `At` per element at a constant nonoverlapping stride.
-Sorted destination offsets determine semantic element order. Scalar fragments,
-stored-width integer placement, and active field-access decisions do not apply
-to these aggregate fields.
+An `At` over the whole extent keeps the interior layout the compiler derived;
+an outer fixed array may instead use one `At` per element at a constant,
+non-overlapping stride. Element order follows the sorted destination offsets.
+Scalar fragments, stored-width integer placement and active field-access
+decisions do not apply to these aggregate fields.
 
-Typed-owned byte materialization has no entrance here. The record, sum,
-record-with-sum and record-with-nested-sum carriers
+Nothing here turns typed owned values into bytes. The record, sum,
+record-with-sum and record-with-nested-sum types
 (`ValidatedConstMaterialization` and the `ValidatedConstRecordWith*` family),
-their per-shape validators and their shared replay helpers outlived tree
-execution inside the compiler: no compile path, reader or consumer called them,
-so they were deleted. The language's
+their per-shape validators and shared replay helpers outlived the compiler's
+tree execution; nothing called them, so they were deleted. The
 [materialization rule](../../../../wiki/spec/language/constants.md#materialization)
-still governs: a value materializes only from admitted computation or a checked
-realization, under a selected layout that determines every observable bit, and
-the foundation's reports plus the interpreter's provider storage carry the
-aggregate path that does exist.
+still applies: a value becomes bytes only from admitted computation or a
+checked realization, under a selected layout that fixes every observable bit.
+The foundation's reports and the interpreter's provider storage carry the
+aggregate path that exists.
 
 ## Runtime layout observations
 
-Portable checking retains layout queries until selected, validated layouts
-close their values before Terminal production. Exact integer addition,
-subtraction and multiplication retain bounds recipes through ordinary value
-flow: locals, copied fields and records, array elements, parameters, results,
-casts, dispatch and state transfers. Copies keep value snapshots; writes retire
-facts about the changed storage. Each arithmetic operation retains its own
-representability obligation, so later cancellation cannot excuse an overflowing
-intermediate.
+Portable checking keeps layout queries open until selected, validated layouts
+give them values, before Terminal Psi is produced. Exact integer addition,
+subtraction and multiplication carry their bounds through ordinary value flow:
+locals, copied fields and records, array elements, parameters, results, casts,
+dispatch and state transfers. A copy keeps a snapshot of the value; a write
+drops facts about the storage it changed. Each arithmetic operation must fit
+its type on its own, so a later cancellation cannot excuse an intermediate
+overflow.
 
-Proof applications follow checked invocation edges into portable helpers,
-selected callbacks and provider bodies under each applicable target, including
-authored bodies outside the requested output target. False or unresolved
-predicates and arithmetic bounds refuse production. These facts describe
-geometry only; they grant no custody, backing or memory-access authority.
-They do not turn an arbitrary runtime argument into a layout constant.
+Proofs follow checked calls into portable helpers, selected callbacks and
+provider bodies for each applicable target, including authored bodies for
+targets other than the one requested. A false or unresolved predicate or bound stops
+production. These facts describe geometry only: they
+grant no custody, backing or memory access, and do not turn an arbitrary
+runtime argument into a layout constant.
 
 [Record storage geometry](../../../../samples/cli/probes/record_geometry/README.md)
-exercises the supported value flow through native and Terminal execution;
-`tests/omega/fail/layouts/` pins overflow, overwritten values and unselected
-target applications.
+runs the supported value flow natively and in the Terminal interpreter.
 
 ## Target-family value policies
 
-A plan-laid value policy may retain a finite target family. Psi evaluates every
-exact checked member with the same complete invariant Schema argument, validates
-every returned plan, and retains the guarded alternatives. A bad member rejects
-even when deployment requests another target. Recasts and narrowed integer writes
-must satisfy every relevant alternative; source checking never chooses host
+A plan-laid value policy may have a finite family of targets. Psi evaluates
+every checked member with the same full Schema argument, validates every
+returned plan and keeps the guarded alternatives. A bad member is refused even
+when deployment asks for another target. Recasts and narrowed integer writes
+must satisfy every relevant alternative; source checking never picks host
 geometry.
 
-Terminal Psi retains the exact application, schema argument, family roster and
-member geometries. Omega selects a member through the ordinary target-family
-receipt and supplies an immutable record-geometry overlay to native lowering and
-Terminal execution. The receipt keeps the original canonical artifact identity;
-selection neither rewrites that artifact nor supplies new proof authority. The
-complete artifact conservatively retains the policy bodies and their dependencies.
+Terminal Psi keeps the exact application, schema argument, family members and
+their geometries. Omega selects a member through the ordinary target-family
+receipt and gives native lowering and Terminal execution a fixed record-geometry
+overlay. The receipt keeps the original artifact identity; selection neither
+rewrites it nor adds proof authority. The artifact conservatively keeps all
+policy bodies and their dependencies.
 
-Schema ABI 4 retains per-target geometry, complete member and retirement
+Schema ABI 4 keeps per-target geometry, complete member and retirement
 identities, exact policy application custody and `FieldLayoutSource`. Scalar
 geometry and explicitly selected `LayoutStorage` geometry remain distinct from
 default aggregate/reference storage. Fixed arrays inherit their element source;
-an explicit child stops that walk. Checked and Terminal consumers reconstruct
-the source from the exact field type and selected child target, never from equal
-sizes or a policy display name. Source references use their
-source-visible geometry; engine-private loan descriptors do not change it.
+an explicit child stops that walk. Consumers rebuild the source from the exact
+field type and selected child target, never from equal sizes or a policy's
+display name. Source references use their source-visible geometry; the
+engine's private loan descriptors do not change it.
 Nested by-value representations are evaluated with their explicit target
 inputs and lexical owners. References do not demand pointee placement.
-Programmable case/tag placement and private-callback publication retain their
-separate acceptance; a reflected schema alone does not establish those paths.
+Programmable case and tag placement and private-callback publication are
+separate work; a reflected schema alone does not provide them.
 
-The retired attached-policy surface allowed an authored narrower schema input.
-Ordinary `FixedLayout` has the canonical `Schema` signature instead. The former
-`schema_identity_payload_*` fixtures therefore do not survive as custom
-host-payload predicate coverage. Their replacement
-`canonical_schema_stable_identity_*` pair checks exact `Optional<u64>` stable
-identity transport and ordinary plan validation. General authored case-payload
-predicates remain covered separately by `data/closed_literal_nested_predicates`
-and `data/closed_literal_selected_case_false`, and canonical const arguments by
-`generics/const_index_active_case_predicates_exit` and
-`generics/const_index_active_case_false`.
+The retired attached-policy surface let an author narrow the schema input.
+Ordinary `FixedLayout` has the canonical `Schema` signature instead. None of
+the fixtures that once covered either surface remain.
 
 ## Conventional sum materialization
 
-Read-only conventional reports retain the fixed four-byte tag, authored-order
-ordinals, complete payload overlay, and total geometry, with the foundation's
-`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT` bounding one record path. They are not
-authorable `LayoutPlan` tag placements. Outer record plans retain sum fields and
-arrays as opaque whole `At` extents, and the interpreter's provider storage
-applies the reports through the foundation's aggregate materialization.
+Read-only conventional reports keep the fixed four-byte tag, ordinals in
+authored order, the full payload overlay and total geometry; the foundation's
+`CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT` caps the length of one record path.
+Authors cannot write these as `LayoutPlan` tag placements. Outer record plans
+treat sum fields and arrays as opaque whole `At` extents, and the interpreter's
+provider storage applies the reports through the foundation's aggregate
+materialization.
 
-Depth is report data, not a family of Rust APIs. An earlier compiler revision
+Depth is data in the report, not a family of Rust APIs. An earlier compiler
 kept one `ValidatedConstRecordWithSum*` / `ValidatedConstRecordWithNestedSum*`
-carrier and one `validate_const_materializable_*` entrance per nesting
-combination for a tree-execution route the compiler no longer has; none had a
-caller, so that family is deleted with the rest of the materialization
-entrances. Cycles, array-mediated nested paths, mixed common-field/case shapes,
-direct sums coexisting with deeper sum paths in one record, and target-dependent
-sum geometry stayed unsupported by it; deleting it widens no live path and does
-not authorize flattening children into the outer schema or adding programmable
-tag placement.
+type and one `validate_const_materializable_*` function per nesting combination,
+for a tree-execution route that no longer exists. None had a caller, so they
+were deleted with the other materialization functions. They never supported
+cycles, nesting through arrays, mixed common-field and case shapes, a direct
+sum beside deeper sum paths in one record, or target-dependent sum geometry.
+Deleting them widens no live path, and does not permit flattening children
+into the outer schema or adding programmable tag placement.
 
 ## Other consumers
 
-Plan-laid value and byte-region projection cover fixed scalars, recursive fixed
-records/arrays, and supported gapped outer-array layouts in native and
-interpreter paths. Equal-width semantic widening is distinct from foreign
-stored-width decode. Recasts have a separate
+Plan-laid value and byte-region projection handle fixed scalars, nested fixed
+records and arrays, and supported outer-array layouts with gaps, both natively
+and in the interpreter. Widening to an equal-width semantic type is not the
+same as decoding a foreign stored width. Recasts have a separate
 [validation note](../checking/recasts.md).
 
 Wire-plan evaluation supports bounded scalar repetition; symbolic
-materialization uses sealed data/entry identities. Source relocation derivation,
-provider-key establishment, wider programmable placements, independently
-verified generated codecs, and historical compatibility remain separate work.
-Source API declarations or normalized plan records alone prove none of these
-consumer paths complete.
+materialization uses sealed data and entry identities. Still separate work:
+deriving source relocations, establishing provider keys, wider programmable
+placements, independently verified generated codecs and historical
+compatibility. Neither source API declarations nor normalized plan records
+show that any of these paths works.
 
 ## Generated compact binary codecs
 
-The generated `compact_binary` slice supports numbered scalars, exact arrays
-and `FixedVec` repeated scalars, trailing borrowed scalar encoding, a trailing
-runtime-sized UTF-8 byte field, and one level of nested scalar records. Arrays
-use their exact count and `FixedVec` its bounded live length, not an invented
-sibling count field. Borrowed bytes use a zero-copy length-delimited path.
+Generated `compact_binary` codecs support numbered scalars, repeated scalars in
+exact arrays and `FixedVec`, trailing borrowed scalar encoding, a trailing
+runtime-sized UTF-8 byte field and one level of nested scalar records. Arrays
+use their exact count and `FixedVec` its bounded live length, never an invented
+count field. Borrowed bytes use a zero-copy, length-prefixed path.
 
-Borrowed scalar encoding measures then emits the packed body without allocation.
-Its normalized plan retains live count, two scalar passes per element, and
-capacity for the canonical length prefix plus exact body. Packed-varint decode
-requires owned or caller-provided mutable scalar storage; owned `Vec` needs its
+Borrowed scalar encoding measures, then writes the packed body without
+allocating. Its plan records the live count, two scalar passes per element, and
+room for the length prefix plus the exact body. Packed-varint decoding needs
+owned or caller-provided mutable scalar storage; an owned `Vec` needs its
 allocator contract.
 
-Reports retain distinct normalized `Encode` and `StrictDecode` requirements,
-the normalized plan and dynamic obligations, and generated origin independently
-of compiler-admitted trust. The codec verifier
-independently checks the generated bodies -- it byte-compares canonical
-emissions against a reference framing written from the contract alone,
-round-trips the strict decoder, and requires malformed frames to be rejected.
-That suite is differential evidence over selected members and malformed frames:
-the codec spec calls such probes regression checks, not a general agreement
-argument, so a fully exercised suite still does not earn `Derived` -- every
-outcome keeps `Admitted` trust naming the compiler, with the exercised checks
-recorded as the evidence they are. A field kind with no decode-side realization
-(borrowed scalar slices, owned text) is named as a coverage gap, and a proven
-divergence is a compile diagnostic. `Derived` needs agreement evidence
-establishing the public requirement for every input, tied to the exact
-realization and schema; that machinery remains separate work. The current
-strict decoder cannot satisfy a preservation demand; preserving realization
-remains separate work.
+Reports keep separate `Encode` and `StrictDecode` requirements, the plan, its
+dynamic obligations and the generated origin, apart from compiler-admitted trust. The codec verifier independently checks the generated bodies: it compares their output byte for byte against a reference framing
+written from the contract alone, round-trips the strict decoder, and requires
+malformed frames to be rejected. That suite compares behavior on selected
+members and malformed frames; the codec spec calls such probes regression
+checks, not proof of agreement. So even a fully passing suite does not earn
+`Derived`: every outcome keeps `Admitted` trust naming the compiler, with the
+checks recorded as what they are. A field kind with no decoder (borrowed scalar
+slices, owned text) is reported as a coverage gap, and a proven mismatch is a
+compile diagnostic. `Derived` needs evidence that the public requirement holds
+for every input, tied to the exact realization and schema; that is separate
+work. The strict decoder cannot yet satisfy a preservation demand; a preserving
+realization is also separate work.
 The [codec specification](../../../../wiki/spec/layouts/codecs.md) owns byte
 grammar, destination establishment, and failure behavior.

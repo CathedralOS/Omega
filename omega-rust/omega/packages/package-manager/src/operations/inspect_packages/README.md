@@ -1,9 +1,9 @@
 # Package inspection
 
 `omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...`
-shows the project graph, exact source pins, and compiler-derived API/authority
-findings beside accepted lock policy. It does not accept changes, certify an
-audit, or publish native artifacts.
+shows the project graph, exact source pins, and the compiler's API and
+authority findings beside the lock's accepted policy.
+It does not accept changes, certify an audit or publish native artifacts.
 
 ```text
 inspect_packages.rs  transaction, target admission, policy/report joins and completion
@@ -12,55 +12,54 @@ inspect_packages/
 ├── report.rs        bounded graph and policy presentation
 └── report/
     ├── policy.rs        typed policy summary and full-detail delegation
-    ├── policy_callables.rs  callable reach, invocation, and checked behavior
-    └── tests.rs         identity, history, unknown analysis, and output limits
+    └── policy_callables.rs  callable reach, invocation, and checked behavior
 ```
 
 Application Build's [`package_inspection.rs`](../../../../../build-system/orchestration/src/package/package_inspection.rs)
-owns session creation/disposal, shared source execution and the ordered target
-loop. Each selected source Build runs once, before target-specific review;
-review passes consume its retained result, not new execution requests or grants.
-It uses the same source resolver and review executor as install/update.
-Package completion requires every
-admitted target, in order, and rechecks the original project files before returning
-the report. A failed target produces unavailable findings without hiding later
-targets; a reporting failure stops further work.
+creates and disposes of the session, runs shared source Builds and loops over
+targets in order. Each selected source Build runs once, before any target's
+review; review passes read its kept result and request no new execution or
+grants. It uses the same source resolver and review
+executor as install/update. Inspection finishes every admitted target in
+order and rechecks the original project files before returning the report. A
+failed target reports unavailable findings without hiding later targets; a
+reporting failure stops further work.
 
-With a lock, dependency requests and content stay pinned. Git acquisition may
-fetch an absent exact accepted commit, never refresh its branch or tag. The
-project root remains editable as in ordinary compilation. Without a lock,
-inspection resolves the authored graph and checks it as unaccepted source;
-it does not create a lock.
+With a lock, dependency requests and content stay pinned. Git may fetch a
+missing exact accepted commit but never refreshes its branch or tag. The
+project root stays editable, as in ordinary compilation. Without a lock,
+inspection resolves the written graph and checks it as unaccepted source; it
+does not create a lock.
 
-`--build-input <path>` and `--optional-build-input <path>` select the root's
-immutable input inventory, using the same canonical relative paths and capture
-checks as compilation. Directories include their subtrees; include every root
-source file consumed by checking. Repeat the flags for additional entries. The
-selection applies to each requested target and both binding-discovery and final
-review passes; dependencies keep their own package inputs. Missing required
-entries report unavailable analysis, not empty policy or a broader fallback.
-Use the same selection for audit and compilation. Inspection still cannot accept
-a policy change, supply restricted host grants, or publish staged outputs.
+`--build-input <path>` and `--optional-build-input <path>` choose the root's
+fixed input files, with compilation's canonical relative paths and capture
+checks. A directory includes its subtree; include every
+root source file that checking reads. Repeat a flag for each entry. The set
+applies to every requested target and both binding-discovery and final
+review passes; dependencies keep their own package inputs. A missing required
+entry reports unavailable analysis, not an empty policy or a wider fallback.
+Give audit and compilation the same set. Inspection still cannot accept a
+policy change, supply restricted host grants or publish staged outputs.
 
-`--offline` uses cached exact accepted Git pins and permits local source work.
-Missing cached content reports unavailable fresh analysis without network
-access or lock changes. Without a lock, any Git request requires an online
-resolution first; a cached branch name is not an accepted exact pin.
+`--offline` uses cached exact accepted Git pins and allows local source work.
+Missing cached content reports fresh analysis unavailable, without network
+access or lock changes. Without a lock, any Git request needs
+an online resolution first; a cached branch name is not an accepted exact pin.
 
-Omitting `--target` inspects every accepted target, or the host target when
-there is no lock. An explicitly requested target missing from an existing lock
-rejects before acquisition; `omega packages update --target <name>` owns fresh target
-review.
+Without `--target`, inspection covers every accepted target, or the host
+target without a lock. A requested target that an existing lock lacks
+is rejected before acquisition; review a new target with
+`omega packages update --target <name>`.
 
-Default output summarizes callable reach, authority, and assumptions. `--details`
-includes the complete fresh compiler-owned normalized policy. Accepted state
-contains only compact risk-bearing acceptance rows, not a historical API or
-representation snapshot. Equality compares those complete rows with the fresh
-risk projection; it does not assert equality of the full fresh report. Accepted policy
-remains historical meaning even when source cannot be reacquired or checked;
-such a target reports `fresh-analysis unavailable`, not empty capabilities.
-Different same-named packages retain their source-qualified identities, graph
-edges, and aliases. Fresh reports include root-to-package dependency paths.
+Default output summarizes callable reach, authority and assumptions.
+`--details` adds the complete fresh normalized policy. The lock stores only
+compact risk-bearing acceptance rows, not a past API or representation
+snapshot. The comparison checks those rows against the fresh report's risk
+rows, not the whole report. Accepted policy keeps its recorded meaning even
+when source cannot be refetched or checked; such a target reports `fresh-analysis unavailable`, not
+empty capabilities. Different packages with the same name keep their
+source-qualified identities, graph edges and aliases. Fresh reports include
+root-to-package dependency paths.
 
 Exit status:
 
@@ -69,12 +68,11 @@ Exit status:
 - `64`: invalid command arguments.
 - `3`: checking completed, but policy changes require review through install/update.
 
-Inspection holds the existing project transaction guard while loading and
-checking accepted state. Pending publication intent must be recovered by an
-ordinary package operation first; inspection never completes that write.
-Pending review proposals and editable review files are left untouched. Builds
-still execute through the scoped evaluator and may write disposable diagnostics
-under private invocation staging in `build/package-manager/`, disposed on return.
-This is not a no-execution parser mode. The complete multi-target report is bounded
-to 64 MiB and source-controlled
-strings remain escaped data.
+Inspection holds the project transaction lock while it loads and checks
+accepted state. An unfinished publication must be recovered by an ordinary
+package operation first; inspection never completes that write. Pending review
+proposals and editable review files are left alone. Builds still run through
+the scoped evaluator and may write throwaway diagnostics in private staging
+under `build/package-manager/`, deleted on return; inspection is not
+parse-only. The full multi-target report is capped at 64 MiB,
+and strings taken from source stay escaped data.

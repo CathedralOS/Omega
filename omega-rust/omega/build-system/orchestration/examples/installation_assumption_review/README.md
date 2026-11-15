@@ -21,16 +21,16 @@ Use an ordinary project whose package review is already complete:
 installation_assumption_review prepare PROJECT/main.omg uefi_x86_64 NEW_PREPARATION
 ```
 
-This saves `terminal.psi`, `native-inputs.bin` and `catalog.txt` from the same
-checked production. It round-trips the pair through the ordinary recovery API
-before reporting success. Source activity counts and both hashes are printed.
-The catalog names the actual entry and installation operation; those identifiers
-are not permission to assume an environment. Projects containing separately
+This saves `terminal.psi`, `native-inputs.bin` and `catalog.txt` from one
+checked compilation. Before reporting success it loads the first two back
+through the ordinary recovery API. It prints source activity counts and both
+hashes. The catalog names the program's entry and installation operation;
+those identifiers do not permit assuming an environment. Projects containing separately
 compiled components are rejected because this helper does not yet save those
 components.
 
-Review the exact program, selected target and external launch description.
-Only the caller responsible for that environment may record its assumptions:
+Review the exact program, selected target and external launch description. Only the caller responsible for that environment may record its
+assumptions:
 
 ```sh
 installation_assumption_review accept-bootstrap NEW_PREPARATION/terminal.psi uefi_x86_64 ENTRY_ID INSTALLATION_ID environment.md CALLER bootstrap.bin
@@ -39,32 +39,30 @@ installation_assumption_review show bootstrap.bin
 installation_assumption_review show delivery.bin
 ```
 
-These records describe caller assumptions, not observed or proved physical
-truth. A changed program must be reviewed with its own actual identifiers.
+These records state what the caller assumes, not what was observed or proved
+about the hardware. A changed program must be reviewed with its own identifiers.
 
-Finish in a separate invocation after explicitly accepting the saved program's
-actual producer. `--trust-producer` is that receiving-host decision; saved hashes
-and environment-assumption records do not authenticate the producer. Supply the
-saved program and reviewed records. A program needing no installation assumptions
-can omit the records:
+Finish in a separate run after explicitly accepting the compiler that produced
+the saved program. `--trust-producer` records that decision by the receiving
+host; saved hashes and assumption records do not prove who produced it. Pass
+the saved program and reviewed records; a program needing no installation
+assumptions can omit them:
 
 ```sh
 installation_assumption_review finish --trust-producer NEW_PREPARATION NEW_NATIVE_DIRECTORY bootstrap.bin delivery.bin
 ```
 
-Producer trust is bound to the exact artifact loaded by this invocation and is
-not written into the saved input record. Finishing does not read project source
-or an accepted lock. It recovers the
-original native proposal and accepted package policy, checks the supplied
-conditions, evaluates the remaining layout and calling-convention values, and
-runs ordinary native admission, emission and final-image validation. It
-publishes direct images only.
-Any failed gate prevents successful output. Printed source activity must remain
-zero for this separate invocation. Saving inputs does not establish backing,
-receiver authority, loader behavior or runtime execution; review and execution
-of the resulting image remain separate steps.
+Producer trust applies only to the artifact this run loads and is not written
+into the saved inputs. Finishing reads no project source and no accepted lock.
+It recovers the original native proposal and accepted package policy, checks
+the supplied conditions, computes the remaining layout and calling-convention
+values, and runs ordinary native admission, emission and final-image
+validation. It publishes direct images only. Any failed check prevents output.
+The printed source activity must stay zero for this run. Saving inputs does
+not establish backing storage, receiver authority, loader behavior or runtime
+execution; reviewing and running the image are separate steps.
 
-The existing `inspect` command remains available for an in-memory inspection
-that does not save native inputs. Package update/review remains an independent
-required operation when project inputs change; this workflow avoids repeating
-the subsequent inspection's source work for native completion.
+The `inspect` command still inspects in memory without saving native inputs.
+When project inputs change, package update/review is still required separately;
+this workflow only avoids repeating the later inspection's source work to
+finish native compilation.

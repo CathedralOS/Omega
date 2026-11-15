@@ -1,21 +1,23 @@
 # 05 — Typed trees to Terminal Psi
 
-This crate turns frozen typed trees into an unsealed Terminal Psi module and
-fills the [check tables](../../representations/terminal-psi/check-tables/README.md)
-that describe it, for route one's scalar subset and for plain data: records
-(literals, field reads, stores, whole copies) and sums (case literals, case
-tests, dispatch and `match` with payload bindings). It is the second piece of
-[check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
-it proves nothing, reads no checker fact, and mints every obligation the
-lowered form implies without discharging any. The product driver calls this
-stage before stage 06; unsupported source still refuses. To run the checking
-route on a source program without running its Build, see
+This crate turns the finished typed trees into an unsealed Terminal Psi
+module, and fills the [check tables](../../representations/terminal-psi/check-tables/README.md)
+that the checker reads beside it. It covers scalar code and plain data:
+records (literals, field reads, stores, whole copies) and sums (case literals,
+case tests, dispatch and `match` with payload bindings). It is the second
+piece of [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
+it proves nothing and reads no checker fact. It records every proof
+obligation the lowered form implies and leaves all of them for stage 06 to
+discharge. The product driver runs this stage before stage 06; source outside
+what it supports is refused. To check a source program without running its
+Build, see
 [Running the checker on a source program](../06_terminal-psi-to-terminal-psi/README.md#running-the-checker-on-a-source-program).
 
-Start at [compilation.rs](src/compilation.rs) (`prepare_compilation`): it prepares
-the root, demanded generic forms and conformance witnesses before judgment.
-Its semantic packet belongs to `terminal-check-tables`; source-record and
-Build-operand correspondence remains in the driver's publication envelope.
+Start at [compilation.rs](src/compilation.rs) (`prepare_compilation`): before
+the checker runs, it prepares the root machines, the generic forms they need
+and the conformance witnesses. The semantic data it produces is defined in
+`terminal-check-tables`; the mapping back to source records and Build
+operands stays in the driver's publication envelope.
 [read.rs](src/read.rs) resolves a
 machine's typed trees into the closed body of [body.rs](src/body.rs);
 [outcome.rs](src/outcome.rs) then works out, callees first, whether each
@@ -39,62 +41,69 @@ and [places](src/lower/places.rs) (roots, projections, the write log, record
 and case construction, field and payload reads, whole copies, the dispatch
 terminator).
 
-Expression evaluation returns either a value or an explicit ended-path outcome.
-Calls, projections and constructors propagate that outcome in evaluation order;
-branch owners retain whichever paths still reach their join. A genuine refusal
-stays an error, independent of its diagnostic text.
+Evaluating an expression gives either a value or an explicit outcome saying
+the path ended (for example, at a call that never returns). Calls,
+projections and constructors pass that outcome on in evaluation order; a
+branch keeps whichever paths still reach its join. A real refusal stays an
+error, whatever its diagnostic text says.
 
 The reader also knows each supplied value's type. The shared
-[receiving-type diagnostics](src/read/rejections.rs) reject different scalar
-carriers, incompatible declared domains and unrelated declared result
-lifetimes at the supplied expression. Match arms use that same owner rather
-than treating a known carrier mismatch as an unsupported construct. A type or
-region relationship the reader cannot decide still refuses by name; no
-second expression-typing pass or source-text diagnostic classification is
-involved.
+[receiving-type diagnostics](src/read/rejections.rs) reject, at the supplied
+expression, a different scalar carrier, an incompatible declared domain or an
+unrelated declared result lifetime. Match arms use the same code, so a known
+carrier mismatch is not reported as an unsupported construct. A type or
+region relationship the reader cannot decide is still refused by name. There
+is no second typing pass and no classification of diagnostics by their text.
 
 ## The subset
 
-Data declarations do not own machines or provide code namespaces.
-The reader rejects retained data-attachment metadata, even with explicit
+Data declarations do not own machines or provide code namespaces. The
+reader rejects retained data-attachment metadata, even with explicit
 arguments, under [static declarations and explicit state](../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state).
 Module and trait qualification still identify ordinary static declarations;
-they do not supply implicit arguments.
+they supply no implicit arguments.
 
-Machines with one state and a complete body whose formals, locals and result
-are builtin integers (`i8` to `u64`) or `bool`, using: scalar locals and
-assignment to them; integer and Boolean literals; wholly anonymous `+`, `-`,
-`*` and `/` trees over unsuffixed literals, evaluated as exact rationals (so
-`7 / 2` is `7/2`, not 3) and lowered as one literal when the completed value
-is an integer of the context's type reached with no fractional intermediate,
-any other such tree (fractional anywhere, out of range, or under an operator
-with no anonymous meaning) being refused; builtin `Exact` integer
-arithmetic, bitwise operations, shifts and comparisons; integers of type
-`T in Wrapping` and `T in Saturating` with their arithmetic
-([Arithmetic policies](#arithmetic-policies)); `!`, `~`, `&&` and
-`||`; `as` between two integer carriers ([Casts](#casts)); direct calls of other such machines with `requires` clauses over their
-formals and `ensures` clauses over their formals and `result`; `crashes Trap`
-and `crashes Abort` clauses with or without route guards over the formals;
-`crashes none`; an integer `!=` in a clause, read as `a < b or b < a`, the
-form the kernel denotes a false integer equality by; a `requires` or
-`ensures` clause that compares mathematical integers
-([Mathematical integers in a clause](#mathematical-integers-in-a-clause));
-`crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
-of a machine that may return is an operation wherever it stands, and carries
-the callee's crash routes when it publishes any. A call of a machine with no
-normal completion becomes the block's no-normal invocation wherever it occurs.
-The surrounding evaluation stops on that path; other branch arrivals remain.
-Everything else is refused with `RefusalReason::Unsupported` and a detail
-naming the construct (`type reference`, ...): a reference outside [References](#references), slice, generic, callable value, suspension, assembly, float,
-domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
-refusal anywhere in the compilation refuses the whole compilation.
+The base subset is machines with one state and a complete body whose
+formals, locals and result are builtin integers (`i8` to `u64`) or `bool`.
+Such a body may use:
+
+- scalar locals and assignment to them; integer and Boolean literals;
+- `+`, `-`, `*` and `/` trees made only of unsuffixed literals. These are
+  evaluated as exact rationals (`7 / 2` is `7/2`, not 3) and lowered as one
+  literal when the result is an integer of the context's type with no
+  fractional step on the way. Any other such tree (fractional anywhere, out
+  of range, or under an operator with no anonymous meaning) is refused;
+- builtin `Exact` integer arithmetic, bitwise operations, shifts and
+  comparisons; integers of type `T in Wrapping` and `T in Saturating` with
+  their arithmetic ([Arithmetic policies](#arithmetic-policies)); `!`, `~`,
+  `&&` and `||`; `as` between two integer carriers ([Casts](#casts));
+- direct calls of other such machines, with `requires` clauses over their
+  formals and `ensures` clauses over their formals and `result`;
+- `crashes Trap` and `crashes Abort` clauses, with or without route guards
+  over the formals, and `crashes none`;
+- an integer `!=` in a clause, read as `a < b or b < a`, the form the kernel
+  uses for a false integer equality; a `requires` or `ensures` clause that
+  compares mathematical integers
+  ([Mathematical integers in a clause](#mathematical-integers-in-a-clause));
+- `crash Trap;` and `crash Abort;`, guarded transition arms, and returns.
+
+A call of a machine that may return is an operation wherever it stands, and
+carries the callee's crash routes if it publishes any. A call of a machine
+that never completes normally ends its block as a no-normal invocation,
+wherever it occurs. Evaluation stops on that path; other paths into the
+branch's join remain. Everything else is refused with
+`RefusalReason::Unsupported` and a detail naming the construct
+(`type reference`, ...). A reference outside [References](#references), a slice, a
+generic, a callable value, a suspension, assembly, a float, a domain, a cast
+that names a domain, or service reach is never skipped, approximated or
+passed through. A refusal anywhere refuses the whole compilation.
 
 ### What one compilation elaborates
 
-Every machine the check claims is lowered, not only the ones the entry calls.
-A machine nothing calls still has a body that can overflow, break its own
-`ensures` or call another machine without its `requires`; left out of the
-module, it would be accepted with no obligation and no refusal.
+Every machine the check covers is lowered, not only those the entry calls. A
+machine nothing calls can still overflow, break its own `ensures` or call
+another machine without its `requires`; if it were left out, it would be
+accepted unchecked.
 [Validation subjects](../../../../../wiki/spec/build/validation_subjects.md)
 sets the scope: "every declaration of the subject packages is valid, and
 every declaration they depend on is valid", and the closure "starts from
@@ -119,23 +128,24 @@ decided by the request, not by where source lives". The roots are, in
 5. every machine those call, in discovery order, whichever package declares
    it.
 
-A selected data type is resolved as a record. A native binding also selects
-its exact boundary requirement and declaring trait: the reader checks the
-requirement's signature and contracts and retains the trait's service identity.
-Declaration checking does not install a provider or permit calls to another
-package's private requirement. Actual calls retain visibility and operational
-checks; providers are judged separately as supplies. Other selected declarations,
-including ordinary traits and operator families, are refused.
+A selected data type is read as a record. A native binding also selects its
+exact boundary requirement and declaring trait: the reader checks the
+requirement's signature and contracts and keeps the trait's service identity.
+Checking the declaration neither installs a provider nor permits calls to
+another package's private requirement. Actual calls keep their visibility and
+operational checks; providers are judged separately as supplies. Other
+selected declarations, including ordinary traits and operator families, are
+refused.
 
 A supply (`Supply { slot, provider }`) names a boundary trait or one of its
-requirements and the provider chosen for it: a Build selection, or the supply
-settlement chose for a requirement the compilation reaches. For each
-requirement of the slot the provider must give exactly one machine. That
-machine is a root with its declared input contract, and the statement that
-it refines the requirement is a conformance witness beside those of the
-subject's implementations, so the checker proves the refinement (signature,
-`requires` and `ensures`, service reach, callback entries, crash routes)
-before the compilation is accepted. A slot that is not a boundary trait or
+requirements and the provider chosen for it, by a Build selection or by
+supply settlement for a requirement the compilation reaches. The provider
+must give exactly one machine per requirement of the slot. That machine is a
+root with its declared input contract. The claim that it refines the
+requirement is a conformance witness, like those of the subject's
+implementations, so the checker proves the refinement (signature, `requires`
+and `ensures`, service reach, callback entries, crash routes) before
+accepting the compilation. A slot that is not a boundary trait or
 requirement, and a provider with no machine or several for a requirement,
 are refused by name.
 
@@ -145,121 +155,120 @@ wherever it is judged, as a supply, a subject declaration or a callee
 parameters, of an operator or a top-level requirement, or one that carries a
 native binding or an alias, refuses the machine by name.
 
-`read/subjects.rs` decides whose a declaration is from the source file of its
-symbol: a toolchain file or a file of another admitted package is a
-dependency, judged only when something reaches it; any other Product-scope
-file is the subject's. A declaration with no source file is refused.
+`read/subjects.rs` decides which package a declaration belongs to from the
+source file of its symbol. A toolchain file or a file of another admitted
+package is a dependency, judged only when something reaches it; any other
+Product-scope file belongs to the subject. A declaration with no source file
+is refused.
 
 Subject declarations that are not machines are also roots. A `data`
-declaration is resolved as a record, so one outside the record subset refuses
+declaration is read as a record, so one outside the record subset refuses
 the compilation even when no machine names it. A trait that only lists
-requirements has each requirement's contract read. An eligible type-only
-generic trait gets its own rigid header form, with real bodyless requirements
-and no executable entry. An implementation has each exact row set aside
-(`Elaboration::conformance_witnesses`): its actual body must refine the
-requirement. An owning generic map uses the same source telescope for that
-universal witness; its concrete captures also retain their own witnesses.
-Schema clauses, refinements, unsupported telescopes and generic reference-row
-witnesses remain refused by name. Every other kind (`const`, `domain`,
-`operator`, a proposition, a measure, a mathematical definition, a type
-alias, a wire schema, a machine token binding) is refused as
+requirements has each requirement's contract read. An eligible generic trait
+with only type parameters gets its own rigid header form, with real
+requirements that have no body and no executable entry. Each exact row of an
+implementation is set aside (`Elaboration::conformance_witnesses`): its
+actual body must refine the requirement. A generic map that owns its rows
+uses the same source parameter list for that universal witness; its
+concrete captures also keep their own witnesses. Schema clauses,
+refinements, unsupported parameter lists and witnesses for generic
+reference rows are still refused by name. Every other kind (`const`,
+`domain`, `operator`, a proposition, a measure, a mathematical definition, a
+type alias, a wire schema, a machine token binding) is refused as
 `declaration <kind>`: the route judges none of them yet.
 
-For a call such as `Selected<u32>::apply(7)`, the reader authenticates the
-complete map tuple, actual caller, unique owned row, captured instance and
-entry correspondence. Callers receive the public requirement contract; the
-owning body is checked independently under its written and inherited clauses.
-Entry-only compilation also queues the reached original generic source form.
-One immutable capture index serves the compilation's root, forms and witnesses.
+For a call such as `Selected<u32>::apply(7)`, the reader verifies the
+complete map tuple, the actual caller, the unique owned row, the captured
+instance and the entry correspondence. Callers see the public requirement
+contract; the owning body is checked separately under its written and
+inherited clauses. A compilation of entries only also queues the original
+generic source form it reaches. One immutable capture index serves the
+compilation's root, forms and witnesses.
 
-Proof forms retain their actual static source binders in
-`Elaboration::generic_binders`, including unused binders, alongside the existing
-static-value counts and rigid value rows. Publication refuses those forms.
-A declared call may transport a rigid result, whose value row keeps its exact
-rigid identity; the physical stand-in grants no bounds or other scalar facts.
-Closed runtime instances retain no open binder roster.
+Proof forms keep their actual static source binders, unused ones included,
+in `Elaboration::generic_binders`, beside the static-value counts and rigid
+value rows. Publication refuses those forms. A declared call may pass on a
+rigid result, whose value row keeps its exact rigid identity; the physical
+stand-in grants no bounds or other scalar facts. Closed runtime instances
+keep no list of open binders.
 
-Two sets the specification's closure names are not roots, so the route's
-verdict does not cover them and a router must not treat it as if it did.
-The closure includes "the Build and preparation entries the compile
+The specification's closure names two sets that are not roots here, so the
+verdict does not cover them and a router must not treat it as if it did. The
+closure includes "the Build and preparation entries the compile
 executes":
 
-- **The Build program in `build.omg`.** It is read under the Build's
-  dependency scope, and Build activation checks it before execution with
-  the lowered-form checker.
+- **The Build program in `build.omg`.** Build activation reads it under the
+  Build's dependency scope and checks it with the lowered-form checker before
+  running it.
 - **The bound target's entry-contract source**
-  (`source/library/std/targets/<target>/entry.omg`), whose machines plan the
-  entry boundary. It is a toolchain file here, so its machines are judged
-  only if something reaches them.
-
-Build activation owns checking the first closure. The second remains a
-closure-coverage limit: this reader does not make every entry-contract helper
-a root, and acceptance does not cover those unreached bodies.
+  (`source/library/std/targets/<target>/entry.omg`), whose machines plan how
+  the program is entered. It is a toolchain file, so its machines are judged
+  only if something reaches them; acceptance does not cover the helpers
+  nothing reaches.
 
 ### Generic machines
 
-Three kinds of generic parameter are read, as an experiment for
-[the checker's generic bodies](../06_terminal-psi-to-terminal-psi/README.md#generic-bodies-experiment):
-an implementation parameter (`Selected satisfies Step`), through which the
-body calls members (`Selected::apply(x)`), a value parameter (`const
-Units: u64`), which the body and its contract name like a formal, and an
-opaque type parameter (`T`), whose values the body can pass on. A machine
-whose generic parameters are all of these kinds is read in two forms.
+As an experiment for
+[the checker's generic bodies](../06_terminal-psi-to-terminal-psi/README.md#generic-bodies-experiment),
+three kinds of generic parameter are read: an implementation parameter
+(`Selected satisfies Step`), through which the body calls members
+(`Selected::apply(x)`); a value parameter (`const Units: u64`), which the
+body and its contract name like a formal; and an opaque type parameter
+(`T`), whose values the body can pass on. A machine whose generic parameters
+are all of these kinds is read in two forms.
 
-- **Its specializations**, by `elaborate`. Stage 04 closes each static
-  application `advance<Double>` by generating a machine for it, so the
-  typed trees already hold one closed machine per application. A call of
-  `advance<Double>` targets that generated machine and is read as a direct
-  call; inside it, the call through the parameter targets the selected
-  member and is read as a direct call of that member. Each such call is
-  recorded in `Elaboration::selections` with the parameter, the trait, the
-  requirement and the member, all symbols. A machine generated for a
-  value argument (`clamp<7>`) has an integer literal wherever its
-  declaration named the binder, so it reads as any closed machine. Only a
-  declaration whose generic parameters are all implementation or value
-  parameters has its generated machines read; an application with a type
-  argument is still `call static application arguments`, and a member named
-  through the implementation itself (`Double::apply(x)`) is still `call
-  static requirement dispatch`.
+- **Its specializations**, by `elaborate`. Stage 04 generates one closed
+  machine for each static application such as `advance<Double>`. A call of
+  `advance<Double>` is read as a direct call of that machine; inside it, the
+  call through the parameter is read as a direct call of the selected
+  member. Each such call is recorded in `Elaboration::selections` with the
+  parameter, trait, requirement and member, all as symbols. A machine
+  generated for a value argument (`clamp<7>`) has an integer literal
+  wherever its declaration named the binder, so it reads as any closed
+  machine. Generated machines are read only when every generic parameter of
+  the declaration is an implementation or value parameter; an application
+  with a type argument is still `call static application arguments`, and a
+  member named through the implementation itself (`Double::apply(x)`) is
+  still `call static requirement dispatch`.
 - **The generic check form**, by `elaborate_generic`. The declared machine
   is read with its parameters rigid. A call through an implementation
   parameter names the requirement, which becomes a machine with a
   signature, a contract and no body (`Elaboration::requirements`,
-  `lower_generic`); it lowers to a machine with no block. A value parameter
-  becomes a scalar formal after the authored ones, of the binder's carrier
-  and with no definition (`Elaboration::value_parameters`): a name in the
-  body or in a clause resolves to it by the binder's symbol, and all that is
-  known of it is what the `requires` say. Only an integer carrier is
-  served. A generic form is never sealed, encoded or run.
+  `lower_generic`), lowered with no block. A value parameter becomes an
+  undefined scalar formal of the binder's carrier, after the authored ones
+  (`Elaboration::value_parameters`): a name in the body or a clause
+  resolves to it by the binder's symbol, and only its `requires` say
+  anything about it. Only an integer carrier is served. A generic form is
+  never sealed, encoded or run.
 
 **A requirement with value parameters** (`trait Bounded { machine
 value<const Units: u64>(input: u64) -> u64 requires input <= Units ...; }`)
-is read at the literals one call binds them to: `Implementation::value<7>(x)`
-is held to the contract with 7 where the clauses name `Units`
-(`requirement_signature`, `ClauseScope::bound`). The literals are the call
-site's own static arguments, each of which must be exactly one integer
-literal (`StaticMachineArgument::const_literal`); a requirement is one
-machine per tuple of them (`Elaboration::value_arguments`). In a generated
-machine the same call targets the machine stage 04 generated from the
-selected member for those arguments, and its selection records the literals
+is read at the literals a call binds them to: `Implementation::value<7>(x)`
+is held to the contract with 7 wherever the clauses name `Units`
+(`requirement_signature`, `ClauseScope::bound`). Each literal is one of the
+call site's static arguments and must be exactly one integer literal
+(`StaticMachineArgument::const_literal`); the requirement becomes one machine
+per tuple of them (`Elaboration::value_arguments`). In a generated machine
+the same call targets the machine stage 04 generated from the selected
+member for those arguments, and its selection records the literals
 (`Selected::value_arguments`). The reader states the requirement's contract
-from its declaration and those retained literals; dispatch carries the exact
-requirement and selected realization, not another prepared signature.
+from its declaration and those literals; dispatch carries the exact
+requirement and selected realization, not a second prepared signature.
 
 **A type parameter** of the generic check form's entry is rigid: a formal
 or result of type `T` has `ValueType::Rigid`, which is neither a scalar nor a
 record, so every operator, comparison, field and literal rule refuses it.
 What each type parameter in scope stands for is kept beside the machine
-being read (`Program::scope`), found by the binder's symbol. A call of
+being read (`Program::scope`), looked up by the binder's symbol. A call of
 another generic machine at the entry's own type parameters,
 `forward<T>(item, limit)`, is read from the bindings of the call's static
-application: the callee becomes one machine per tuple of type arguments,
-with its signature and contract at those types and no body
-(`Program::application`, `Elaboration::applications`). A value of `T` may be
-named once in a body unless `T` is declared `[copy]`; a `[linear]`
+application: the callee becomes one bodiless machine per tuple of type
+arguments, with its signature and contract at those types
+(`Program::application`, `Elaboration::applications`). A body may name a
+value of `T` only once unless `T` is declared `[copy]`; a `[linear]`
 parameter, a local of type `T` and a call that returns a `T` are refused. A
-machine stage 04 generated for a type argument is a closed machine and
-reads as one, as far as its clauses and body are in the subset.
+machine stage 04 generated for a type argument is closed and reads like any
+closed machine, as far as its clauses and body are in the subset.
 
 **A generated machine of a finite type family** keeps its type equations.
 Stage 04 does not fold them: the machine generated from `threshold<T>
@@ -271,18 +280,17 @@ from a machine whose result is `u32`. Such an equation is static
 "a branch with established `T == u32` may use that equality to check its
 operations and values as u32. On leaving the branch, only facts common to
 its surviving predecessors remain"), so the reader decides it
-(`static_truth`): two closed builtin types are equal exactly when their
-symbols name the same compiler-installed atom, and a local bound to such a
-truth, and `==`, `&&`, `||` and `!` over those, are decided with it. A
-`requires` or `ensures` clause decided as true adds no clause, and one
-decided as false is refused. An arm whose guard is decided as false is the
-branch of another type: it is left unread, because it is typed under an
-equation that is false here. An arm decided as true is taken
-unconditionally, and the arms after it are left unread. A lone Boolean
-literal decides nothing this way: only a type equation makes a condition
-static. An equation with a rigid type parameter, a data type or an
-application on either side is not decided, so the opaque generic form of
-such a machine is refused (`expression type expression`).
+(`static_truth`). Two closed builtin types are equal exactly when their
+symbols name the same compiler-installed atom; a local bound to such a
+truth, and `==`, `&&`, `||` and `!` over those, are decided the same way. A
+`requires` or `ensures` clause decided true adds no clause; one decided
+false is refused. An arm whose guard is decided false belongs to another
+type and is not read, because it is typed under an equation that is false
+here. An arm decided true is taken unconditionally, and the arms after it
+are not read. A lone Boolean literal decides nothing this way: only a type
+equation makes a condition static. An equation with a rigid type parameter,
+a data type or an application on either side is not decided, so the opaque
+generic form of such a machine is refused (`expression type expression`).
 
 **The family itself** is read once per alternative it lists, by
 `elaborate_alternatives`: `family_alternatives` finds the one `requires`
@@ -292,24 +300,23 @@ and each check reads the declaration as its entry with `T` fixed to one `X`
 stage 04 had substituted it. Inside a machine contract clause a type
 equation guards what follows it (generics.md: "Conjuncts are read left to
 right; a disjunct whose type equation is false for the instantiation holds
-vacuously"): a conjunct decided true is dropped, and a disjunct a type
-equation decides false (`guarded_false`) contributes nothing and is not
-read, so a conjunct typed only under another alternative is never typed.
-What remains must be a clause the reader serves; a clause decided false
-outright is refused.
+vacuously"): a conjunct decided true is dropped, and a disjunct that a type
+equation decides false (`guarded_false`) is not read, so a conjunct typed
+only under another alternative is never typed. What remains must be a
+clause the reader serves; a clause decided false outright is refused.
 
-`elaborate_witness` builds the statement that an implementation refines a
+`elaborate_witness` builds the claim that an implementation refines a
 requirement: the requirement's contract, at the given value arguments, on a
 body that is one call of the implementation. `template_of` gives the
-declaration a generated machine came from. A callable parameter, a
-runtime-capable value binder (`Count: u32` without `const`), a value
-parameter of a carrier other than an integer, and a type parameter with a
-declared type equation are still refused by the rule the parameters broke
-and the declaration's name (`machine linear type parameter: \`relay\``) or
-by the parameter's own refusal (findings 29 to 32).
+declaration a generated machine came from. A callable parameter, a value
+binder that may hold a runtime value (`Count: u32` without `const`), a value
+parameter of a non-integer carrier, and a type parameter with a declared
+type equation are still refused, either by the rule they break and the
+declaration's name (`machine linear type parameter: \`relay\``) or by the
+parameter's own refusal (findings 29 to 32).
 
-A contract clause that is the literal `true` adds no clause: it asks and
-promises nothing, as an absent `requires` or `ensures` does.
+A contract clause that is the literal `true` adds no clause: like an absent
+`requires` or `ensures`, it asks and promises nothing.
 
 ### Casts
 
@@ -368,18 +375,18 @@ destination declares").
   "`as` never calls user code, rounds, saturates, traps"). A literal operand
   lands in the carrier the cast names, so `5 as u32 in Wrapping` is the
   Wrapping constant.
-- **Suffixed operators.** The reader selects `%`, `|` or `!` at that node,
-  using only unqualified integer operands and returning the bare carrier.
-  The operation carries the selected policy separately from value
-  qualifications. Its operands and result stay plain; it does not convert
-  an operand or change the policy of an inner expression.
-  A `!` form lowers to one `TrappingInteger` operation, its own `Trap`
-  site. Its `CrashCoverage` obligation requires the Exact primitive's
-  definedness or the machine's published same-cause route. The checker
-  establishes the Exact result equation only on its normal successor.
-  `Trapping`-qualified types remain unsupported on this route; enabling
-  these compiler-owned suffixed primitives does not supply the ordinary
-  core policy-domain declarations tracked in `OPERATION-ARITHMETIC-POLICY`.
+- **Suffixed operators.** An operator suffix (`%` Wrapping, `|` Saturating,
+  `!` Trapping, as in `a +! b`) selects the policy for that one operation.
+  It takes only unqualified integer operands and returns the bare carrier;
+  the operation carries the policy, not the values. It converts no operand
+  and changes no inner expression's policy.
+  A `!` form lowers to one `TrappingInteger` operation, which is its own
+  `Trap` site. Its `CrashCoverage` obligation needs either the Exact
+  operation to be defined or a published route of the machine for the same
+  cause. The checker knows the Exact result only on its normal successor.
+  `Trapping`-qualified types are still unsupported on this route; the
+  compiler-owned suffixed operators do not supply the core policy-domain
+  declarations tracked in `OPERATION-ARITHMETIC-POLICY`.
 - **Contracts.** A clause names a policy-qualified formal, field or result
   as its stored value.
 
@@ -415,13 +422,13 @@ the total `embed` projection, retaining exact carrier range"), where `+`, `-`
 and `*` cannot overflow
 ([mathematical values](../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
 "These terms denote unbounded mathematical integers and cannot overflow"). So
-such a clause computes nothing in a carrier and owes no formation condition,
-which is what sets it apart from carrier arithmetic in a clause
-(`requires a + b <= 99`, which "discharge[s] representability before
-formation"). The reader retains the selected operation as a canonical scalar
-term. Stage 06 proves its formation using independent, already-formed clauses
-before the containing condition can contribute facts. The same rule applies
-to fields, nested terms, result contracts and domains. Wrapping and saturating
+such a clause computes nothing in a carrier and owes no formation condition
+(a proof that the term can be computed at all). Carrier arithmetic in a
+clause is different (`requires a + b <= 99`, which "discharge[s]
+representability before formation"): the reader keeps the selected operation
+as a canonical scalar term, and stage 06 proves its formation from other,
+already-formed clauses before the clause containing it can supply facts. The
+same rule applies to fields, nested terms, result contracts and domains. Wrapping and saturating
 division still require a nonzero divisor; trapping arithmetic is refused in
 clauses because its operation may crash.
 
@@ -460,12 +467,13 @@ arguments.
 | a literal past 64 bits, or an anonymous tree whose value is fractional | `contract mathematical literal beyond 64 bits`, `contract fractional anonymous value in a mathematical term` |
 | the comparison in a data `requires`, whose establishment goals do not yet serve mathematical comparisons | `contract mathematical comparison in a data requires` |
 
-Crash guards and cycle-head requirements use the same checked clause
-substitution as call requirements and guarantees. It retains mathematical
-arithmetic and total policy operations while replacing exact formal identities;
-an unbound name is refused, never retained as an accidental caller identity.
-Structural crash guards still require captured entry-storage observations before
-the source reader can admit them.
+Crash guards and loop-head requirements replace formals with actual values
+the same checked way call requirements and guarantees do. The substitution
+keeps mathematical arithmetic and total policy operations and replaces each
+exact formal identity; a name with no binding is refused, never left to be
+mistaken for a value of the caller. A crash guard over storage still needs
+the reader to capture what that storage held at entry before it can be
+admitted.
 
 ### Erased scalar bindings
 
@@ -518,13 +526,14 @@ forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
 
 A loop can name its decreasing measure with `terminates by remaining` or
-`terminates by bytes -> Slice::Length`. The reader uses resolved typed
-expressions and the selected view declaration, checking explicit
+`terminates by bytes -> Slice::Length`. The reader uses the resolved typed
+expressions and the selected view declaration, and checks an explicit
 `Nat::Descending` against its sealed catalog header. Short forms use the
-carrier's canonical default; an authored lookalike grants no ranking theory.
-Supported measures use scalar formals, integer constants, exact subtraction,
-and the length of a borrowed byte-view formal. Ranked mutual call components
-retain a private measure for every member. A recursive call group may declare
+carrier's canonical default; a user-written declaration that looks like a
+catalog view grants no ranking rules. Measures may use scalar formals,
+integer constants, exact subtraction and the length of a borrowed byte-view
+formal. In a ranked group of mutually recursive machines, every member keeps
+a private measure. A recursive call group may declare
 its decreasing measure in one machine and pass the values it needs through
 helpers. The compiler follows each call's actual argument bindings to express
 that measure using the helper's own inputs. It refuses an expression that
@@ -604,14 +613,16 @@ value which is not `[copy]` moves once is the custody replay's judgment
 `[copy]` is required, not inferred
 ([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
 requires an explicit `[copy]` declaration; copyable fields do not change the
-affine default."). Plain data without it transfers once. Its exact moved
-regions become unavailable and disjoint siblings remain readable. Whole owned
-transport consumes its source home. A projected move leaves its owner allocated;
-normal continuations dispose the residual regions before retiring that home.
-Named affine locals reserve storage distinct from their initializer or call
-result. This first ownership slice requires no-code cleanup and no conserved
-claim: nominal cleanup hooks, linear data, reference-bearing fields, borrowed
-extraction and incompatible affine frontiers at joins are refused.
+affine default."). Plain data without it moves at most once. The exact
+parts moved out become unavailable, and disjoint sibling fields stay
+readable. Moving a whole owned value consumes the storage it came from.
+Moving out one field leaves its owner allocated; on normal paths the
+remaining parts are disposed of before that storage is retired. A named
+affine local gets its own storage, separate from its initializer or call
+result. This first ownership slice handles only data whose cleanup runs no
+code and that carries no conserved claim: cleanup hooks, linear data, fields
+holding references, moving out of borrowed storage, and joins where the
+arriving paths disagree on what has been moved are refused.
 
 A declaration may state lifetime parameters, `data Outer<'a>`, and a field
 may apply such data at them, `inner: Inner<'a>`. A lifetime argument selects
@@ -636,21 +647,21 @@ operand, a copy out of it is the ordinary leaf copy, and a local declared
 without an initializer holds the empty shared view there. A field that
 stores an exclusive view is refused (`stored view that is not a shared byte
 view`).
-Naming the data bare therefore relates nothing. The source record
-correspondence a product keeps is the declaration's, with no lifetime
-argument in it: it keeps the type occurrence the record was read from, bare
-or applied at lifetimes, and keeps none for a declaration with no type
-parameter that the program declares and never names as a type, because the
-declaration alone identifies that record. Any other reference field is refused as `type reference`.
-The reader checks
-the declaration and each application itself, because the stage that did is
-being removed ("They must match the declaration's lifetime arity and use
-binders declared in the lexical owner. Duplicate binders and undeclared tags
-reject."). The owner of the lifetimes an application names is the typed
-trees' answer: the declaration they retained for that occurrence of the type,
-as stage 03 does for the type of a literal nested in another literal, and
-otherwise the declaration being read: the data declaration whose member it
-is, or the machine whose signature or body it is. A tag that owner has no
+Naming the data bare therefore relates nothing. The source-record mapping a
+product keeps belongs to the declaration and holds no lifetime argument. It
+keeps the type occurrence the record was read from, bare or applied at
+lifetimes. It keeps none for a declaration with no type parameter that the
+program declares but never names as a type, because the declaration alone
+identifies that record. Any other reference field is refused as `type reference`.
+The reader checks the declaration and each application itself, because the
+stage that did so was removed ("They must match the declaration's lifetime
+arity and use binders declared in the lexical owner. Duplicate binders and
+undeclared tags reject."). The typed trees decide which declaration owns the
+lifetimes an application names: the declaration they retained for that
+occurrence of the type (as stage 03 does for the type of a literal nested in
+another literal), or else the declaration being read, meaning the data
+declaration the member belongs to or the machine whose signature or body it
+is in. A tag that owner has no
 binder for, in a data application or on a reference such as `&'a [u8]`, is
 the program's error and is rejected, not refused as an unserved type
 (`read/places.rs`, `reference_lifetime_declared`).
@@ -661,7 +672,7 @@ layout and monomorphization"). A byte view written with one of them,
 `&'a [u8]`, has a type that names that region, so the body may return or
 store it only where the same region is written. A call stands a region of
 the caller in for each lifetime the callee's signature names or leaves out:
-the region of the view passed (`read/calls.rs`, `view_regions`). Views of two
+the region of the view passed (`read/calls.rs`). Views of two
 regions passed for one lifetime are refused, a result view is a view of the
 region its lifetime was given, and a result written without a lifetime is a
 view of the one region all views passed without a lifetime are of. A place
@@ -729,7 +740,7 @@ call forms for it.
   machine's first places, so a clause names the `k`-th of them as place
   `k + 1`. An entry `requires` may name a borrowed scalar formal (`x < 10`)
   or a field of a borrowed record (`cell.value > 0`): what the storage holds
-  at entry. This is what the current pipeline emits for such a formal.
+  at entry.
 - **A loan** is the argument for a borrowed formal: `&place` or `&mut
   place` with the formal's access, the place a slot or a field path beneath
   one (`ExpressionKind::Borrow`), or a borrowed formal of the caller named
@@ -741,14 +752,14 @@ call forms for it.
   formal). [loans](../../../../../wiki/spec/terminal-psi/loans.md): "Loan
   formation captures a place, not a live selector expression." A scalar
   local that is an SSA value gets a home holding its current value first
-  (`EstablishPrimitiveLocal`, as the current pipeline does for a local it
-  lends), and the slot names that home from then on.
-- **Data predicates stay owed through a loan.** Both shared and exclusive
-  formals may refer to established data with `requires`, including nested data.
-  An exclusive store mints the same owning data obligations as an owned store.
-  The lowered checker's invariant windows require restoration at normal
-  handback; removing the old reader refusal does not establish missing input
-  storage or allow write-only reference formals.
+  (`EstablishPrimitiveLocal`), and the slot names that home from then on.
+- **Data predicates stay owed through a loan.** Shared and exclusive formals
+  may both refer to established data with `requires`, nested data included.
+  A store through an exclusive reference owes the same data obligations as a
+  store into owned storage. The checker's invariant windows require the
+  predicate to hold again when the loan is handed back on a normal path. This
+  does not establish missing input storage or allow write-only reference
+  formals.
 - **When the call returns**, the loan has ended: each is formed for one call
   and returns with it, so no loan is live on any edge. An exclusive loan
   logs `Overwritten` on the lent place at the call's normal continuation:
@@ -1108,19 +1119,19 @@ machine, like every identity here.
 search of the parent's sorted `children` and pushed only when absent, so a
 path is one `ExactPlaceId` however often it is used.
 
-`Segment::Extent` names a byte descriptor's current extent metadata through
-the same interning. A selected `CollectionMeasure::Length` evaluates its actual
-base and emits `ByteSequenceLength` on that descriptor and path. Input
+`Segment::Extent` names a byte view's current length metadata, interned the
+same way. A selected `CollectionMeasure::Length` evaluates its actual base
+and emits `ByteSequenceLength` on that descriptor and path. Input
 requirements name its `ViewExtent`; the checker binds that to the formal's
-entry snapshot and follows descriptor stores and mutable calls before
-equating any fresh observation to it. Saved scalar values retain their
+value at entry, and follows descriptor stores and mutable calls before
+equating any new measurement with it. Saved scalar values keep their
 original meaning. Whole descriptor reads and copies name the same entry
-metadata through the ordinary leaf mechanism; only formal roots receive
-entry values. See [byte observations](../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations).
-Fixed-array measurement, range/index lowering and call requirements needing
-extent substitution still require their own served operations. Source storage
-cycles remain refused; the storage checker's backedge control tests its actual
-CFG walk without claiming source-loop acceptance.
+metadata through the ordinary leaf mechanism; only formal roots get entry
+values. See [byte observations](../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations).
+Measuring fixed arrays, lowering ranges and indexes, and call requirements
+that need the length substituted each still need their own operations.
+Loops over source storage are still refused; the storage checker's backedge
+test exercises its control-flow walk without claiming such loops are accepted.
 
 **Writes.** Each row says what one operation stored and where, at
 `ProgramPoint::AfterOperation` of that operation. Lowering never asks what a
@@ -1165,18 +1176,15 @@ local is copied whole) and replaces the field with one
 destination through the ordinary structural replacement operation ... Root,
 field, and indexed destinations do not change construction semantics or
 decompose the assignment into member stores"). Whole assignment to a local,
-`r = R { ... }`, constructs the value and then the local names that root:
-this is what the current pipeline emits for a root destination, and it is
+`r = R { ... }`, constructs the value and then the local names that root,
 the same rebinding a scalar assignment does. Stores go straight into the
 root a local names ("A whole, unqualified, claim-free owned record home
 (entry, block parameter, or completed establishment/call result) supplies
-write authority directly"); the current pipeline first moves a `mut` local
-into a block parameter, which this subset has no join to need.
+write authority directly").
 
 **Locals with no initializer.** `let mut r: R;` emits
 `EstablishZeroedStructural` and `let mut x: u32;` a zero constant and
-`EstablishPrimitiveLocal`, the operations the current pipeline emits, so the
-module runs.
+`EstablishPrimitiveLocal`, which the interpreter runs.
 
 A data local is zero-established. Its declaration logs one row for the
 root's new contents and, on each scalar leaf of the zero value, a constant
@@ -1185,9 +1193,8 @@ value of a sum is its first declared case with a zeroed payload
 ([data and literals](../../../../../wiki/spec/language/data_and_literals.md):
 "The ordinary zero representation of a sum selects the first declared case
 and a recursively zeroed payload."), so only that case's payload leaves get a
-row. The current pipeline emits no constant for a data home; the constants
-are what gives each leaf's content a value identity the module contains, the
-way its own scalar home's constant does. The establishment owes the
+row. The constants give each leaf's content a value identity inside the
+module, as a scalar home's constant does. The establishment owes the
 `requires` clauses of the type and of every data-typed place of the zero
 value, and the checker decides from them whether the storage is an
 established value or the type is gated
@@ -1283,8 +1290,7 @@ retire the consumed homes. A record result returns through
 **Cases.** A case literal evaluates its payload operands in authored order
 and then establishes once: `EstablishScalarCase` with no field for a case
 without payload, `EstablishStructuralCase` with the payload roster in
-declaration order otherwise, which are the operations the current pipeline
-emits. `s in S::C` is one `StructuralCaseMembership` on the sum in place. A
+declaration order otherwise. `s in S::C` is one `StructuralCaseMembership` on the sum in place. A
 scalar payload member outside a dispatch on its place is a
 `ScalarStructuralField` whose carrier ends in the one `Case` step.
 
@@ -1302,10 +1308,8 @@ of them.
 The record flags (`copyable`, `no_code_affine_cleanup`, `descriptor_cleanup`,
 no linear claim) retain authored copy permission and the admitted plain
 storage's no-code disposal authority. Copyable fields never promote an affine
-declaration to `[copy]`. One column differs: the
-current pipeline sets `inline_carrier` on each scalar field to the primitive
-structural type of that scalar, and this route leaves it `None`. The
-interpreter loads and runs both.
+declaration to `[copy]`. This route leaves `inline_carrier` `None` on each
+scalar field; the interpreter runs the module without it.
 
 ## Obligations
 
@@ -1346,13 +1350,13 @@ it comes from the typed trees' `Identifier`s and
 lowering or the checker decides anything from it. `lower_bodies` leaves it
 empty.
 
-## What is reused from the current pipeline
+## What is reused from other crates
 
 Pure helpers only: `numerics::integer_policy::integer_policy_bridge` (which
 operations are partial), the Terminal Psi data types,
 `terminal_codec::canonical_proposition_order_key` and
-`canonical_scalar_term_order_key` (Terminal Psi's canonical order). Nothing
-from Psi 05, validation, or Psi 06 is used or depended on.
+`canonical_scalar_term_order_key` (Terminal Psi's canonical order). This
+crate uses no code from Psi 06.
 
 ## Findings
 
@@ -1406,9 +1410,8 @@ worked around by adding to `terminal-check-tables`.
     gives a static field path the other form
     ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
     "A carrier with neither a runtime element nor a reference crossing keeps
-    the canonical `ScalarStructuralField` or `BooleanStructuralField` read."),
-    and it is what the current pipeline emits. It is also the form with no
-    text in it: its path is `CanonicalStructuralPathSegment::Field(StructuralFieldId)`.
+    the canonical `ScalarStructuralField` or `BooleanStructuralField` read.").
+    It is also the form with no text in it: its path is `CanonicalStructuralPathSegment::Field(StructuralFieldId)`.
 11. **`StructuralLeafCopy` of a member path needs the interned text index.**
     Its path is `StructuralPathSegment::Field(TerminalIdentityIndex)`.
     Lowering fills it from the field's own declaration row and compares
@@ -1440,22 +1443,18 @@ worked around by adding to `terminal-check-tables`.
     ([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
     "Selected payload fields become scalar parameters on that case's edge
     before cleanup."; structural access: "producers read a root sum's
-    payload as parameters of its dispatch block"), and it is what the
-    current pipeline emits for `transition`.
-17. **Value `match` uses the dispatch terminator; the current pipeline does
-    not.** For `match` the current pipeline emits a chain of
+    payload as parameters of its dispatch block").
+17. **Value `match` uses the dispatch terminator.** This route emits one
+    `StructuralCase`, as the lane plan asks ("The same terminator; arms join
+    with the result as a block parameter"), not a chain of
     `StructuralCaseMembership` tests and conditionals with payload reads
-    whose carrier ends in the case. This route emits one `StructuralCase`,
-    as the lane plan asks ("The same terminator; arms join with the result
-    as a block parameter"). Both forms run in the interpreter.
+    whose carrier ends in the case. Both forms run in the interpreter.
 18. **Where coverage is rejected today.** A `transition` over a sum that
     misses a case never reaches this crate: stage 03 rejects it
     (`equality_and_exhaustiveness.rs`, "match over `S` does not cover").
-    A `match` that misses a case, a pattern that names fewer than all
-    payload fields, and a partial record pattern are rejected by
-    `validation` (`validate_match_coverage`, `validate_for_subject`,
-    `validate_destructure_exhaustiveness`), which runs after the typed trees
-    this route reads are frozen. So this route decides the first two itself.
+    This route itself decides a `match` that misses a case, a pattern that
+    names fewer than all payload fields, and a partial record pattern; the
+    later validation pass that also rejected them has been removed.
 19. **A directly authored payload member carries its field symbol.** `s.at`
     and `s.at = x` on a sum used to reach the typed trees as a member with a
     name and an invalid `member_symbol`, and so did a field of a data payload
@@ -1473,11 +1472,11 @@ worked around by adding to `terminal-check-tables`.
     followed by one ordinary field-read local per bound field. The marker
     carries a roster (`TableLocalData::pattern_fields`, one row per named
     field, bound or waived) that typed preparation resolves against the subject's declared
-    record (`pattern_subject`), and `validate_destructure_exhaustiveness`
-    and this reader decide coverage from those symbols.
+    record (`pattern_subject`), and this reader decides coverage from those
+    symbols.
     [Patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings)
     requires the pattern to name every field, so a roster that omits one is
-    refused here as it is rejected there.
+    refused.
 21. **A crash inside a case arm has no exact site guard.** The guard is the
     conjunction of the branch decisions before the crash, each a value equal
     to a Boolean. Which case a dispatch selected is not a value, so the arm
@@ -1489,7 +1488,7 @@ worked around by adding to `terminal-check-tables`.
     the same row with `cases` instead of `fields`; the names were kept so
     the slices before this one read unchanged.
 24. **Terminal Psi carries no data `requires`.** For
-    `data R requires low <= high`, the current pipeline's module holds the
+    `data R requires low <= high`, the published module holds the
     construction and the store with `range_obligation: None` and no clause
     anywhere: it proves the domain outside the module text. The clauses therefore
     travel in `Elaboration::domains`, a field of this crate's result, not in
@@ -1498,8 +1497,7 @@ worked around by adding to `terminal-check-tables`.
     for a field of bounded or refined type (`StructuralFieldType::BoundedInteger`,
     `RefinedScalar`), which a constrained field type or a named domain
     produces. A plain integer field under a data `requires`, one-sided or
-    two-sided, lowers with `range_obligation: None` in the current pipeline,
-    so this slice mints no `OperationSafety` for a field.
+    two-sided, lowers with `range_obligation: None`, so this slice mints no `OperationSafety` for a field.
 26. **Invariant windows mint nothing new here.**
     [Dependent values](../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
     "A write known to preserve the default domain keeps it established.
@@ -1524,15 +1522,15 @@ worked around by adding to `terminal-check-tables`.
     leaf stated as a value in the caller, which this slice does not do.
 29. **A machine generated for a static application keeps its declaration's
     identities.** Stage 04 generates one machine per application of a
-    generic machine; its retained application owns the template, bound
-    arguments and exact entry-state correspondence. The call's authored selection and binding still name the
-    declaration, and the generated machine's `ensures` clause still records
-    `result` against the declaration, because the copied clauses retain their
-    declaration owner. The reader accepts each where the symbol is the declaration
-    retained by the callee's application and refuses missing or ambiguous
-    entry correspondence and any other mismatch. Symbol provenance is not a
-    second application marker. Nothing is matched by
-    name.
+    generic machine; its retained application records the template, the
+    bound arguments and which entry state corresponds to which. The call's
+    authored selection and binding still name the declaration, and the
+    generated machine's `ensures` clause still ties `result` to the
+    declaration, because copied clauses keep their declaration as owner. The
+    reader accepts each where the symbol is the declaration retained by the
+    callee's application, and refuses a missing or ambiguous entry
+    correspondence and any other mismatch. Where a symbol came from does not
+    count as a second record of the application. Nothing is matched by name.
 30. **A trait requirement is a bare signature.** The typed trees hold a
     requirement as a `StateSignature`, not as a machine, so the reader has a
     second entry to the one contract reader. An authored `crashes none`

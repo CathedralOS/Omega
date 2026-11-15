@@ -517,22 +517,24 @@ ensures result <= span.high
     assert!(matches!(ordered, RouteVerdict::Accepted(_)), "{ordered:?}");
 }
 
-/// A formal the body may write would let the body break the predicate it
-/// assumed, so the reader refuses it rather than assume a stale fact.
+/// A declared borrowed domain contributes its predicates again at normal
+/// handback, including when the incoming reference permits mutation.
 #[test]
-fn a_mutably_borrowed_data_formal_in_a_predicated_domain_is_refused() {
-    let refused = invocation(
-        r#"
+fn a_mutably_borrowed_data_formal_keeps_its_domain_at_handback() {
+    let source = r#"
 domain [u16; 8]::Terminated requires self[7] == 0;
 machine entry(path: &mut [u16; 8] in Terminated) -> u16 { path[7] }
-"#,
-    )
-    .unwrap_err();
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let invalid = source.replace("{ path[7] }", "{ path[7] = 1; path[7] }");
+    let refusal = invocation(&invalid).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
-        refused
+        refusal
             .detail
-            .contains("mutably borrowed formal of a data type in a domain with predicates"),
-        "{refused:?}"
+            .contains("write inside a value whose domain has predicates"),
+        "{refusal:?}"
     );
 }

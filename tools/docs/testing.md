@@ -1,22 +1,21 @@
 # Local testing
 
-Choose focused checks that show whether the changed behavior works, then land
-through [admission and a squash merge](landing.md). Main verification follows
-the merge; admission does not run the compiler tests for you.
+Run focused checks that show the changed behavior works, then land through
+[admission and a squash merge](landing.md). `main` is tested after the merge;
+admission does not run the compiler tests for you.
 
-[AGENTS.md](../../AGENTS.md) owns the common workflow. This guide supplies test
-selection, execution evidence and platform details. The
-[CI rebuild plan](../../wiki/drafts/designs/ci_rebuild_plan.md) records intended CI
-work; [.github/workflows/](../../.github/workflows/) defines what is implemented.
-Older qualification procedures below do not reinstate retired checks.
+[AGENTS.md](../../AGENTS.md) holds the common workflow; this guide covers test
+choice, run records and platforms. The
+[CI rebuild plan](../../wiki/drafts/designs/ci_rebuild_plan.md) records planned CI
+work; [.github/workflows/](../../.github/workflows/) is what actually runs.
+The older qualification procedures below do not bring back retired checks.
 
-Repository-dependent `xtask` commands default to the nearest Omega workspace
-containing their invocation directory, even when the binary was built elsewhere.
-Run them inside the checkout you intend to inspect; outside one, commands needing a
-repository refuse instead of falling back to the build checkout. Existing
-command-specific paths such as `fmt --repository` and
-`rust-producer-omission --root` still select their explicit inputs. `fmt` already
-uses its invocation directory by default and keeps that behavior.
+`xtask` commands that need a repository use the nearest Omega workspace that
+contains the directory you run them from, even if the binary was built in
+another checkout. Run them inside the checkout to inspect; outside one they
+refuse instead of using the build checkout.
+Explicit paths such as `fmt --repository` and `rust-producer-omission --root`
+still choose their inputs. `fmt` already defaulted to the current directory.
 
 ## Validation scope
 
@@ -31,115 +30,103 @@ themselves were deleted with it.
 history. A program a test reads is kept beside the tests, under
 `tests/fixtures/`.
 
-Iteration uses focused behavioral feedback; landing establishes the scoped
-change and attributes affected failures; release runs the full release matrix.
-A known-red unrelated baseline need not block a checkpoint, but is not release
-acceptance. Add tests for missing behavioral distinctions, not mechanically
-expanded combinations or test-count targets.
+Iterate on focused tests. Landing shows the change works and explains
+failures in what it affects; a release runs the full release matrix. An
+unrelated failing base need not block a checkpoint but does not pass a release.
+Add tests for behavior no test yet distinguishes, not combinations or counts.
 
 An agent may take **VALIDATION-ENVIRONMENT** or **ITERATION-PERFORMANCE** after
-a round of compiler work (see [working the board](../../TASKS.md#working-the-board)).
-Name the obstructed workflow and adequate target first. Repair the bottleneck
-or validation path, demonstrate the result and stop. Do not silently turn a
-feature assignment into profiling or repeated broad test runs.
+a round of compiler work (see [development-health outcomes](../../TASKS.md#development-health-outcomes)).
+Name the blocked workflow and what would be good enough, fix the bottleneck
+or test path, show the result and stop. Do not quietly turn a feature task into
+profiling or repeated broad runs.
 
-Routine changes, including `advance`, use focused regression coverage, affected
-crate checks, and relevant integration tests. Choose checks from the changed
-behavior and its dependencies/source readers, not from the mere existence of a
-new worktree. Use crate-scoped check/Clippy for Rust changes.
-For prose-only instructions, review consistency, links, and skill metadata;
-run source audits only when their actual input rules are affected. No Rust build
-is required merely to edit workflow prose.
+Routine changes, including `advance`, run the regression tests for the change,
+the affected crates' checks and the relevant integration tests. Pick checks
+from the changed behavior and the code that depends on or reads it, not
+because the worktree is new. Run check and Clippy per affected crate. For prose-only instructions, check consistency, links and
+skill metadata; run source audits only when their input rules change. Editing
+workflow prose needs no Rust build.
 
-A bug fix needs a witnessed regression and checks for affected behavior. Reuse
-successful results when their inputs are unchanged. Full workspace runs
-are user-triggered baseline, health or release work. Keep ordinary repairs on
-the affected tests and crates.
-An unverified base alone does not force a routine task to establish a full baseline.
+A bug fix needs a test that shows the bug and checks of the affected behavior.
+Reuse passing results whose inputs are unchanged. Full workspace runs are
+baseline, health or release work only the user starts; an unverified base is no
+reason for a routine task to run one.
 
-Attribute unexpected failures from the actual diagnostic, dependencies and
-source readers. Do not add before/after runs
-against moving main. Confirmed unrelated failures do not block landing a
-scoped change: retain the command, revision, and evidence, and report them without
-repairing them in the same task. New or unexplained failures in affected behavior
-must be resolved before landing. Do not repeat broad suites to attribute one test.
+Explain an unexpected failure from its diagnostic and the change's dependencies
+and readers, without before/after runs against a moving `main`. A failure confirmed unrelated does not block landing:
+keep its command, revision and evidence, and report it without fixing it in
+the same task. New or unexplained failures in affected behavior must be fixed
+before landing. Do not rerun broad suites to find which change broke one test.
 
 ### Merge validation budget
 
-Run the affected crates' unit tests and Clippy locally, with the tests that
-read the same mechanism and the known affected samples. Reuse a verified warm producer
-when its inputs still apply. A filter matching no executed tests supplies no
-evidence. Compiler-program acceptance still needs its actual engine observations.
-If resources obstruct the necessary run, identify that concrete blocker rather
-than dispatching the retired `compiler.yml` or `compiler-regression.yml` workflows.
+Run the affected crates' unit tests and Clippy locally, plus the tests of the
+same mechanism and the samples known to be affected. Reuse a verified warm
+compiler build when its inputs still apply. A filter that runs no tests proves
+nothing. Accepting a compiled program still needs its real Psi and native runs.
+If resources block a needed run, name the blocker; do not dispatch the
+retired `compiler.yml` or `compiler-regression.yml` workflows.
 
-For each proposed build or test, name the decision it answers, the affected
-behavior, and why applicable existing evidence is insufficient. Estimate time
-and resources, including compilation. Reuse evidence only when its revision,
-toolchain, configuration, relevant dependencies and consumers still apply;
-distinguish cold and warm observations. Retain command, inputs and outcome.
+For each planned build or test, say what it decides, what behavior it covers
+and why existing results are not enough, and estimate its time and resources,
+compilation included. Reuse a result only when its revision,
+toolchain, configuration, dependencies and dependents still apply; say whether
+it was a cold or warm build. Keep the command, inputs and outcome.
 
-If a run exceeds its budget, inspect progress, CPU activity, logs and blockers
-before deciding whether to continue, narrow or revise it. Record the decision
-and reason; do not blindly wait, restart or expand the suite. A justified slow
-run may continue. A budget is not an automatic timeout or a passing result.
-Reviewers rerun checks to resolve material evidence gaps, not every expensive
-build by default. Required CI and release gates remain mandatory.
+If a run goes over budget, check progress, CPU use, logs and blockers, then
+continue, narrow or change it and record why; do not blindly wait, restart or
+widen the suite.
+A budget is neither a timeout nor a pass. Reviewers rerun checks to fill real
+gaps in the evidence, not every expensive build. Required CI and release gates
+still apply.
 
-Before starting a build, record a short plan in the PR or claim: the behavior
-changed, the smallest checks that establish it, reusable observations, and the
-expected build plus execution time. Choose by affected behavior, not by a
-growing list of every test added during the session. Capability-wide acceptance
-does not automatically become the suite for every complete progress PR.
+Before a build, write a short plan in the PR or claim: the changed behavior,
+the smallest checks that show it, reusable results and expected build and run
+time. Pick by affected behavior, not every test added this session. The acceptance for a whole capability is not automatically the
+suite for every PR that advances it.
 
-Routine merge validation should take minutes. If a planned run exceeds about
-15 minutes, or another repair expands the plan, reassess its scope before
-launching more work. Include compilation cost: seven seconds of selected tests
-can still require a 25-minute build. Reuse a verified warm producer, select the
-affected crate and tests, or use an existing hosted check where it establishes
-the required behavior. A genuinely necessary slow check can run; state which
-changed obligation requires it. This checkpoint introduces no permission gate
-and never turns an unexecuted check into a pass.
+Routine merge testing should take minutes. Rethink the scope if a planned run
+exceeds about 15 minutes or another repair grows the plan. Count compilation:
+seven seconds of tests can need a 25-minute build. Reuse a verified warm build,
+select the affected crate and tests, or use a hosted check that covers the
+behavior. A truly needed slow check can run; say which change requires it. This is not a permission step,
+and a check that did not run never counts as a pass.
 
-Full Product compilation, self-hosting, bootstrap reconstruction, broad runtime
-cohorts and release qualification are not routine progress-PR prerequisites.
-Run them for an explicitly assigned acceptance that needs them. Unfiltered
-workspace and full-baseline runs remain user-triggered only. Discovering a compiler performance problem
-during an additional run does not automatically attach that repair and another
-complete validation chain to an independently complete PR. Record its actual
-failure and remaining work separately; preserve affected-behavior failures as
-blockers and continue the parent capability after landing the completed step.
+A routine progress PR does not need full Product compilation, self-hosting,
+bootstrap reconstruction, broad runtime groups or release qualification unless
+its assigned acceptance does. A compiler performance problem
+found during an extra run does not attach its fix and another full test chain
+to an otherwise complete PR. Record it separately; affected-behavior failures
+still block, and the larger capability continues after the finished step lands.
 
-Once the scoped checks and any required review pass, push, update the PR, and
-follow [admission and squash-merge landing](landing.md). Do not add more suites,
-rebuild an unchanged producer, or create nested reviews of scripts/manifests merely to
-increase confidence. Required semantic review examines the changed meaning and
-relevant controls; it does not restart every earlier review. Keep the actual
-revision, command and outcome in the existing PR/claim rather than building an
-ad hoc qualification framework. Report pending or failed extended validation
-honestly without describing the whole compiler or release as qualified.
+Once the scoped checks and any required review pass, push, update the PR and
+follow [admission and squash-merge landing](landing.md). Do not add suites,
+rebuild an unchanged compiler or re-review scripts and manifests for comfort. A required semantic review looks at the changed meaning and the
+relevant controls; it does not redo earlier reviews. Keep the revision, command
+and outcome in the existing PR or claim, not a new qualification framework. Report pending or failed extended tests honestly, without calling the
+whole compiler or release qualified.
 
 The [PR #730 retrospective](../../wiki/drafts/measurements/merge_validation_2026_10_31/README.md)
 records the cost and failure pattern behind this rule.
 
 ### Historical pilot records
 
-The earlier pilot workflow was removed in #2080. Use the current Rust
-qualification route below for new program observations. Existing pilot records
-retain their original source, producer, profile and executor identities; assess
-reuse through the [execution evidence rule](#execution-evidence-and-replay-inputs).
+The earlier pilot workflow was removed in #2080; use the Rust qualification
+below for new program runs. Old pilot records keep their original source,
+compiler, profile and executor identities; judge reuse by the
+[execution evidence rule](#execution-evidence-and-replay-inputs).
 The [historical pilot protocol](https://github.com/CathedralOS/Omega/blob/868574432568c7bb2586952397d3e8a217ad79a0/tools/testing.md#exact-fixtures-on-a-hosted-pilot)
 explains those original records, including replay plans and SDK-specific controls.
 
 ### Current Rust qualification
 
-`mbx xtask qualify` runs a bounded, explicit selection of sample programs
-through the ordinary CLI sample gate and retains the evidence. Name the
-programs with `--samples samples/project,...` and a new output directory with
-`--output`; an existing directory refuses rather than mixing runs. The
-selection is limited to 200 programs. These are exact paths, not search
-fragments, and each program's authored oracle is checked before compiler
-preparation. `--target <host>` defaults to this host and must match it; each
+`mbx xtask qualify` runs a named list of at most 200 sample programs through
+the ordinary CLI sample gate and keeps the evidence. Name the programs with
+`--samples samples/project,...` (exact paths, not search fragments) and a new
+output directory with `--output`; an existing directory is refused so runs do
+not mix. Each program's expected results are checked before the compiler is
+built. `--target <host>` defaults to this host and must match it; each
 sample must bind that target. The command refuses a dirty source tree: it
 qualifies only committed sources.
 
@@ -149,8 +136,8 @@ mbx xtask qualify \
   --output build/qualification-local
 ```
 
-Use the command on the matching authorized host and retain its output
-directory even on failure. Acceptance requires actual native and Psi exits at
+Run it on the matching authorized host and keep its output directory, even
+on failure. Acceptance requires actual native and Psi exits at
 the authored values, agreement, and any output oracle. A rejection counts only
 with the sample's intended diagnostic.
 
@@ -161,32 +148,30 @@ and before/after source identities, with the accepted review decisions and
 consumed project/dependency locks. Never commit the raw directory. A failed
 summary is unfinished qualification.
 
-Qualification records observations. It does not approve a design, infer a
-complete dependency closure, or replace review and [landing](landing.md).
+Qualification records what happened. It does not approve a design, work out
+every dependency, or replace review and [landing](landing.md).
 
 ### Optimized validation compilers
 
-Current gates prepare executables through `mbx` for their source checkout. They
-bind each actual image digest to Cargo's optimized artifact profile and its
-matching fingerprint, including effective Rust flags. Effective optimization
-level 0, hidden response-file flags, missing fingerprints, changed image bytes,
-or changed source during preparation refuse.
-Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
-and the full process environment are never captured.
+Gates build their executables with `mbx` from their own checkout and tie each
+binary's digest to Cargo's optimized profile and matching fingerprint,
+including the Rust flags in effect. They refuse optimization level 0, hidden
+response-file flags, a missing fingerprint, or binary or source bytes that
+change during the build. They keep the toolchain, host, jobs, flags and
+profile; they never record credentials or the full environment.
 
-Rust compiler preparation has no wall-clock time cap: waiting for shared mbx
-capacity is not compiler failure. Receipts retain elapsed time and use a null
-`timeout_ms` for unlimited preparation. Other commands
-retain their explicit/default limits; native execution and Psi work
-budgets are unchanged.
+Building the Rust compiler has no time limit: waiting for shared mbx capacity
+is not a compiler failure. Receipts record elapsed time with a null
+`timeout_ms`. Other commands keep their explicit or default limits, as do
+native execution and Psi work budgets.
 
-Every shared command reuses `bounded-process`'s native owner through its trusted
-tooling API, with a Unix process group or suspended-start Windows Job Object.
-Windows assignment/resume failure uses the same stop-and-reap path as bounded
-runtime launches; runtime resource-capped constructors remain unchanged.
-On timeout, wait failure, normal completion or unwinding,
-the owner terminates remaining descendants and reaps the command, preserving
-peer jobs. Receipts retain the actual command status, original stdout/stderr,
+Every shared command runs under `bounded-process` through its trusted tooling
+API, in a Unix process group or a Windows Job Object started suspended. If
+Windows cannot assign or resume the job, it stops and reaps the process the
+same way bounded runtime launches do; the resource-capped runtime
+constructors are unchanged. On timeout, wait failure, normal exit or panic,
+it kills the remaining child processes and reaps the command, leaving other
+jobs alone. Receipts retain the actual command status, original stdout/stderr,
 container identity and cleanup errors; a cleanup failure cannot become a pass.
 `timeout_cleanup.reaped` records reaping the owned command, not a claim that
 every orphaned Unix descendant was adopted by this process. The same cleanup
@@ -194,53 +179,53 @@ is recorded as `container_cleanup` for non-timeout completion.
 
 ### Execution evidence and replay inputs
 
-Record what a command actually did: source checking, target publication, native
-execution or Terminal execution. A successful compiler exit or target flag does
-not establish that a program ran. Runtime acceptance records each required
-engine's actual exit and authored payload/output/writeback oracle. Where useful,
-corrupt the expected result and verify the failure path in both engines. A reject
-twin must reach its intended semantic obligation; missing imports, stale setup
-or an unrelated refusal do not establish that the fact is enforced. Keep source
-rejection, unsupported publication and runtime failure distinct, and name
-unavailable hosts. Consult CLI help before combining unfamiliar modes or flags.
+Record what a command actually did: checked source, published a target, ran
+natively or ran in the Psi interpreter. A compiler exit of 0 or a target flag
+does not show that a program ran. A runtime acceptance records each required
+engine's real exit and the expected payload, output or writeback. Where useful,
+break the expected result and confirm both engines fail. A negative twin must
+be refused for its intended reason; a missing import, stale setup or unrelated
+refusal does not show the fact is enforced. Keep source refusal, unsupported
+publication and runtime failure apart, and name hosts you could not use. Read
+CLI help before combining unfamiliar modes or flags.
 
-Prepare ordinary package acceptance before a frozen execution capture. Publishing
-an ignored `omega.lock` can change its source directory's timestamps even when
-tracked sources are unchanged, correctly invalidating that capture's stability
-check. For the sample gate, run `--accepted-inputs-only` after normal per-project
-review. It disables package updates and stale-state cleanup/retries; the normal
-CLI still enforces exact accepted inputs and every authored execution oracle.
-Retain the consumed locks as replay inputs. Do not relax source-mutation checks
-or copy an accepted lock into another checkout as authority.
+Accept packages before starting a frozen execution capture. Writing an
+ignored `omega.lock` can change its directory's timestamps even when tracked
+sources are unchanged, which rightly fails the capture's stability check. For
+the sample gate, run `--accepted-inputs-only` after the normal per-project
+review. It turns off package updates and stale-state cleanup and retries; the
+CLI still requires the exact accepted inputs and checks every expected result.
+Keep the locks it read as replay inputs. Do not loosen source-change checks or
+copy an accepted lock into another checkout as if it were approval there.
 
-Fresh replay projects contain authored sources, declared resources and oracle
-files. Exclude generated build directories, caches, binaries and package-review
-state. Carry a lock only when that exact approved lock is an explicit check
-input; otherwise generate it normally in the fresh project. Preserve historical
-producers, products and locks unchanged. Perform necessary generated-file updates
-outside active qualification captures. Retain setup failures and their corrected
-attempts instead of disguising them as compiler or semantic outcomes.
+A fresh replay project holds the written sources, declared resources and
+expected-result files, without build directories, caches, binaries or
+package-review state. Bring a lock only when that exact approved lock is an
+input to the check; otherwise let the fresh project generate it. Leave old
+compilers, products and locks unchanged. Update generated files outside a
+running qualification capture. Keep setup failures and their fixed retries
+instead of passing them off as compiler or semantic results.
 
-Use existing qualification/claim records for a compact evidence ledger: asserted
-behavior, observed source and producer identities, library/toolchain/environment,
-target/engine, command, exit/diagnostic, source/oracle/artifact hashes, and the
-reason to reuse or rerun. Keep raw outcomes with their actual observed revision.
+Record evidence in the existing qualification or claim records, briefly: the
+behavior claimed, the source and compiler identities, library, toolchain and
+environment, target and engine, command, exit or diagnostic, source, oracle
+and artifact hashes, and why you reused or reran it. Keep raw results with the
+revision they were observed on.
 
 ### Main-change validation
 
-Record scoped evidence on a fixed revision, with source/oracle hashes,
-compiler binary identity and producer revision, toolchain, target and relevant
-environment/resources. Keep frozen expected results and refusal controls intact.
-Keep the initial base fixed through publication. A changed main SHA
-alone does not trigger pull, rebase, rebuild, requalification or review. Only a
-demonstrated actual merge conflict, concrete prerequisite or changed affected
-source justifies targeted local work and reassessment against recorded inputs.
+Record evidence on one fixed revision, with source and oracle hashes, the
+compiler binary and the revision it was built from, toolchain, target and
+relevant environment and resources. Do not change frozen expected results or
+refusal controls. Keep the starting base until the PR is published. A new
+`main` SHA alone is no reason to pull, rebase, rebuild, requalify or review.
+Only a real merge conflict, a concrete prerequisite or a change to affected
+source justifies targeted work and rechecking against the recorded inputs.
 
-When a release or trust-boundary assignment asks for sample qualification,
-run [`mbx xtask qualify`](#current-rust-qualification). An ordinary progress PR needs its
-scoped evidence and passing admission. Keep the checkpoint fixed through
-publication. After a justified source change, rerun the affected checks.
-Preserve original observation identities when reusing evidence.
+When a release or trust-boundary task asks for sample qualification, run
+[`mbx xtask qualify`](#current-rust-qualification). An ordinary progress PR
+needs its scoped evidence and a passing admission. After a justified source
+change, rerun the affected checks. Reused evidence keeps its original identities.
 
 - Resolve ordinary Git text conflicts while preserving both outcomes' intent.
   Unrelated changes do not require repeating unaffected checks.
@@ -261,36 +246,37 @@ codec, lowering and admission changes may execute even when the advertised new
 feature is absent. Compiler checking, formatting and lint inspect source
 independently of runtime branch reachability.
 
-For each check, connect the changes to its asserted behavior and state the
-evidence supporting reuse or the focused rerun needed. If that argument is
-uncertain or costs more than the check, rerun the affected check. Retain
-the original run, producer, and artifact identities when reusing evidence. New corroborating executions
-keep their own identities; do not relabel an old observation as a new execution.
+For each check, say how the changes relate to what it tests and why its
+result can be reused or which focused rerun is needed. If that is uncertain or
+costs more than the check, rerun it. Reused evidence keeps its original run,
+compiler and artifact identities; a new confirming run keeps its own. Never
+relabel an old result as a new run.
 
-Share a completed replay's artifacts and receipts across checks/reviewers when
-the protocol supports that reuse; do not repeat the entire preparation/execution
-pass merely to fill another manifest. Keep current producer/review bindings
-separate from historical frozen products. This does not waive affected-consumer
-reruns, artifact integrity or review required for the submitted change.
+Share a finished replay's artifacts and receipts across checks and reviewers
+when the protocol allows; do not redo the whole preparation and run just to
+fill another manifest. Keep current compiler and review bindings apart from
+old frozen products. This does not waive reruns of affected code, artifact
+integrity or review the submitted change requires.
 
-Record evidence against the source actually tested. A new main SHA alone
-does not require author rebase, tests or review. The [admission check](landing.md)
+Record evidence against the source you tested. The [admission check](landing.md)
 checks rules and formatting; the author runs affected tests and Clippy before
-squash-merging, and main is verified afterward. Review and rerun affected checks
-when the author edits source, resolves a conflict or discovers a changed semantic premise.
-Independent-workspace checks remain part of focused author validation, not a
-per-main-movement qualification loop. New affected failures still require repair;
-authority, custody, digest and golden rules remain. Post-merge runtime checks and
-release qualification are separate from the deliberately small admission gate.
-Postlanding verification observes the merged source head, published commit and
-CI results; it does not rebuild the compiler or rerun local qualification.
+squash-merging. Review and rerun affected checks
+when the author edits source, resolves a conflict or finds a changed semantic
+assumption. Independent-workspace checks are part of the author's focused testing, not
+rerun each time `main` moves. New failures in affected code
+still need fixing, and the authority, custody, digest and golden-file rules
+still apply. Post-merge runtime checks and release qualification are separate
+from the deliberately small admission check. After landing, verification looks
+at the merged source, published commit and CI results; it does not rebuild the
+compiler or rerun local qualification.
 
 ### Independent semantic review
 
-When the assignment requires independent review, provide the exact submitted
-candidate and base, relevant accepted canonical passages and source identities,
-original baseline outcomes, preserved positives/controls, the evidence ledger,
-current versus historical observations, and known limitations. Review the
+When the task requires independent review, give the reviewer the exact
+submitted change and base, the relevant accepted spec passages and source
+identities, the original baseline results, the positives and controls kept,
+the evidence record, which results are current and which are old, and known
+limits. Review the
 [requirements and evidence](../../AGENTS.md#requirements-and-evidence) established
 by those consumers, including the semantic premise behind a rewrite, exact
 subjects/actuals, effects/lifetime, formation and authority. For every fact
@@ -299,19 +285,19 @@ the static reject twin: if `Psi 06–08` or `Omega 00–09` inverted the branch,
 took the wildcard arm, omitted the cleanup action, or miscalculated the slot
 offset, would `main()` trap? A witness whose branches yield the same result on
 the only tested input or whose cleanup mutates only a dying temporary fails
-semantic review just as a missing `invalid/main.omg` twin does. Inspect raw evidence;
-check counts, file presence and a reviewer's identity field alone prove none of
-those obligations. Choose necessary independent replays from the affected scope.
+semantic review just as a missing `invalid/main.omg` twin does. Inspect the raw evidence;
+counts, file presence or a reviewer's name prove none of this. Choose needed
+independent replays from the affected scope.
 
-Return an exact-candidate acceptance decision, concrete blocking findings with
-file/line or evidence references, any needed focused checks, and material
-limitations. Distinguish demonstrated defects from unresolved concerns and
-documented baseline failures. Review authority does not transfer implementation
-ownership: the worker resolves findings and finishes authorized publication.
-An approval names the source reviewed. Do not relabel it as a review of the
-published squash commit, and do not require another review solely for that
-SHA. Author changes, conflict resolutions or changed semantic assumptions need
-affected review; routine base movement alone does not require another author review.
+The reviewer returns an accept or reject decision for that exact change,
+blocking findings with file/line or evidence references, any focused checks
+needed, and important limits, keeping shown defects apart from open concerns
+and documented baseline failures. The reviewer does not take over the work:
+the worker fixes findings and publishes. An approval names the source
+reviewed; do not relabel it as a review of the squash commit or demand another
+review just for that SHA. Author changes, conflict resolutions or changed
+semantic assumptions need review of what they affect; routine base movement
+does not.
 
 ## Running one test
 
@@ -338,26 +324,24 @@ external submodules use their own gates.
 `mbx xtask sample-gate` runs each sample's `omega packages update`, then builds
 and runs it. Without `--cli` it first builds the opt-level 1 CLI with `mbx`
 (direct Cargo fallback is forbidden) in the checkout's own Cargo target directory
-(`target/`, or `CARGO_TARGET_DIR`) and measures that. The default input inventory
-keeps the sample's files, assets and module subdirectories, stopping at nested
-projects with their own `build.omg` or `sample.json`. Those projects are discovered
-separately. An authored `source_inputs` list overrides that default. The gate
-passes the same explicit inventory to preparation, checking and execution.
-Package review of a
-std-using sample takes minutes with an unoptimized binary: 31 projects took
-66 s with the optimized CLI against 436 s unoptimized, with identical results.
-The dev profile is opt-level 1, so the gate's build and a plain
+(`target/`, or `CARGO_TARGET_DIR`) and measures that. By default a sample's
+inputs are its files, assets and module subdirectories, stopping at nested
+projects with their own `build.omg` or `sample.json`, which are found
+separately. A `source_inputs` list in the sample replaces that default. The
+gate passes the same input list to preparation, checking and execution.
+Package review of a sample using std takes minutes with an unoptimized binary:
+31 projects took 66 s with the optimized CLI and 436 s unoptimized, with the
+same results. The dev profile is opt-level 1, so the gate's build and a plain
 `mbx build -p omega` share every artifact, and a compiler the session already
-built costs the gate under a second. A separate gate directory used to compile
-the whole compiler a second time, 12 minutes cold on a 4-core cloud session.
-A run never executes the shared image: it copies the built binary aside under
-`build/gate-cli.lock` and runs the copy, so two gates can reuse and rebuild the
-target directory at once without one holding an open image the other's build
-cannot replace (witnessed 2026-10-17: the second of two concurrent gates failed
-with `failed to remove file build/gate-cli/debug/omega.exe: Access is denied`).
-An explicit `--cli` older
-than the checkout's last compiler change draws a warning, and the run record
-marks it stale. Each run is recorded under the main checkout's
+built costs the gate under a second. (A separate gate directory used to
+rebuild the whole compiler, 12 minutes cold on a 4-core cloud session.)
+A run copies the built binary aside under `build/gate-cli.lock` and runs the
+copy, so two gates can share and rebuild the target directory without one
+holding open a binary the other's build must replace (seen 2026-10-17: the
+second of two concurrent gates failed with
+`failed to remove file build/gate-cli/debug/omega.exe: Access is denied`).
+An explicit `--cli` older than the checkout's last compiler change gets a
+warning, and the run record marks it stale. Each run is recorded under the main checkout's
 `build/sample-gate-runs/`, shared by every worktree, with per-sample and
 per-phase times. Programs run from a scratch directory under
 their own ignored `build/`, so files they write stay out of the checkout. A
@@ -395,8 +379,8 @@ both gates still gets an empty stdin. Close stdin
 (`< /dev/null`, or `$null |` in PowerShell) on a direct `omega` command run in
 the background: `omega run` forwards stdin and otherwise waits at zero CPU.
 
-A sample is the product's own customer, so a cluster names a capability the
-language owes rather than a fixture to repair. Read the
+A group of failing samples names a capability the language still lacks, not
+fixtures to repair. Read the
 `provider absent on this host` cluster before treating a refusal as
 breakage: a sample declaring a provider this host does not supply is
 reporting the host.
@@ -488,9 +472,9 @@ subset: all library tests, no target-specific executable/runtime legs.
 `--no-fail-fast` is mandatory; retries are disabled. Platform integration tests
 are separate and must report an explicit skip when the host cannot run them.
 
-Keep checks applicable under Validation scope, including relevant
-integration and bootstrap checks. Select and report scoped checks explicitly;
-do not describe them as a verified full baseline.
+Otherwise run the checks [validation scope](#validation-scope) calls for,
+including relevant integration and bootstrap checks, and report them as
+scoped, never as a verified full baseline.
 
 ## Requirements and commands
 
@@ -530,10 +514,9 @@ speedup.
 
 ## Slow builds
 
-Use [test-cycle measurements](../../wiki/drafts/measurements/test_cycle_measurements.md) to distinguish
-compilation, test execution, and repeated landing validation. The Windows
-measurements did not establish a stable universal test-thread cap or a full-suite
-speedup from nextest alone; avoid unrelated test execution.
+Use [test-cycle measurements](../../wiki/drafts/measurements/test_cycle_measurements.md) to tell
+compilation, test execution and repeated landing checks apart. They found no
+reliable thread cap or nextest speedup, so avoid running unrelated tests.
 
 If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
@@ -638,7 +621,7 @@ Never accept an empty diagnostic without `test -x target/debug/omega` first, and
 also copy the binary out of the worktree, or chain the runs that must share one
 runner.
 
-The fix is two fixes, which is why it belongs in a setting rather than a habit.
+One setting fixes two problems:
 `mbx settings set cache_dir <volume holding the checkout>` (measured here:
 `/Volumes/Crucial/mbx-cache`). First, the floor then applies to that volume —
 10% of 3.6 TB exceeds the 50 GiB ceiling against 3.2 TB free — so eviction
