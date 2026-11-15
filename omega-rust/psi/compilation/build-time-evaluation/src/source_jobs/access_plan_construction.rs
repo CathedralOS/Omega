@@ -524,7 +524,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     assert!(matches!(
         error,
         terminal_codec::CodecError::MalformedStructuralFoundation(
-            "domain access operations require an enforcing consumer"
+            "memory access checks for these saved rules are not implemented yet"
         )
     ));
     // This is an ordinary program with an authored Trap ceiling. Execute its

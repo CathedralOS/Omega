@@ -1562,8 +1562,8 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
     for domain in &module.structural_domains {
         validate_access_policy(module, domain)?;
         // A received program can already hold a qualified input. Source
-        // formation refusal alone cannot protect its operations while read,
-        // write, observation and reach rules have no enforcing consumer.
+        // formation refusal alone cannot protect its operations until memory
+        // access checks implement read, write, observation and reach rules.
         // Description-only plans can still be validated separately.
         if domain.access_policy.as_ref().is_some_and(|plan| {
             !plan.readers.is_empty()
@@ -1573,7 +1573,7 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
         }) {
             return malformed(
                 None,
-                "domain access operations require an enforcing consumer",
+                "memory access checks for these saved rules are not implemented yet",
             );
         }
     }
