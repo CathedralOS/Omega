@@ -73,6 +73,27 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Structural equality refuses a field of a closed generic type
+- Category: knowledge crossing a boundary
+- Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)
+- Saw: On clean `eca5c0b9d21` and candidate `c64a4d172f9` on macOS arm64, `Player.point: Point<1>` with `PointEquality satisfies Equatable<Point<1>>` refuses that the field is not Equatable before choosing its comparison row. `Point<const Index: u64> [copy]` has one `i32` field. The same nested comparison over non-generic `Point` runs in both engines.
+- Cost: Equality preparation has the resolved application and has no comparison over its instantiated fields. Use the existing applied type and member substitution owner so a comparison for `Point<1>` cannot be reused for a different argument or unresolved field.
+- Reported: 2026-11-15, Codex, while verifying exact structural equality through aliases.
+
+### A borrowed generic equality formal stops a closed comparison
+- Category: knowledge crossing a boundary
+- Where: [borrowed formal reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L2742), [authored equality signature](samples/cli/probes/synthesized_equatable/main.omg#L17)
+- Saw: On clean `eca5c0b9d21` on macOS arm64, an exact named `Equatable<Player>` row with the declared formal `left: &T` is refused as “parameter reference to a value of a type parameter” even though its actual comparison uses only concrete `Player` values. A separate control with by-value formals and copyable records runs in native and Psi.
+- Cost: The equality's selected concrete row cannot bypass the earlier rigid borrowed formal. Use the checked callable's existing requirement and lifetime ownership so admission closes the reference without assigning an arbitrary referent or waiving its loan.
+- Reported: 2026-11-15, Codex, while preserving the original reference-signature comparison control.
+
+### A user trait named Equatable receives compiler synthesis
+- Category: the documents disagree
+- Where: [synthesis selection](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L2601), [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition)
+- Saw: On clean `eca5c0b9d21` on macOS arm64, an authored root `trait Equatable<T>` with `equals(left: T, right: T) -> bool` gives an empty named implementation a compiler-generated row. The copied program with only that trait consistently renamed to `UserComparable` refuses the missing `equals` row. The working spelling runs in both engines and reopens. The specification reserves synthesis for a sealed core declaration.
+- Cost: A user root path grants synthesis privilege through spelling. Publish and select the existing equality protocol through an exact sealed owner. Migrate the legacy authored witnesses together with that change so a lookalike user declaration cannot acquire synthesis.
+- Reported: 2026-11-15, Codex, while auditing remaining equality-name selection.
+
 ### Named mathematical terms reject total wrapping operators before formation
 - Category: branch per shape
 - Where: [policy-specific binary expression lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [total arithmetic in proof terms](wiki/spec/proofs/contracts.md#total-arithmetic)
@@ -93,13 +114,6 @@ framework or a list of unimplemented features.
 - Saw: `omega --check --target linux_x86_64` on the fixture prints `compiled 237 source file(s)` at dc83fcb65264, although its header expects `carrier arithmetic in a clause term`; `an_invalid_bound_entry_reports_the_routes_rejection` panics with "the compilation must be rejected after Psi 04".
 - Cost: the governance test is red for every agent that runs the lowered-form checker's area tests, and an unused partial predicate (`value + 1u32 == 1u32`) is accepted without the rejection the fixture pins.
 - Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
-
-### Equality preparation reconstructs resolved types from names
-- Category: re-deriving
-- Where: [operand scope](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L722), [field comparison](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L515), [operand lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L3356)
-- Saw: Source inspection at `c30b00a0b878` finds `EqualityScope::value_types` storing value/type string pairs. Field comparison converts a resolved type to its name and looks it up again using the containing data's source context. Recursion tracks `Vec<String>`; `Equatable` recognition compares a rendered path and `equals` selection compares row spelling. No runnable misbinding was reproduced.
-- Cost: Equality maintains another model of relationships already resolved upstream. Carry exact value, type/application and requirement-row identities through preparation, keeping names for diagnostics. Check same-leaf imported types, aliased fields and generated/applied types; unrelated declaration order or diagnostic spelling must not change selection. Preserve recursive-equality rejection using the traversed identities.
-- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
 ### Selection recomputes the plan for a call's indirect result
 - Category: re-deriving
