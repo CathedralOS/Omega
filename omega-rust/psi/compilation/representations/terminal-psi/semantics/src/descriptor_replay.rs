@@ -3474,6 +3474,7 @@ pub(crate) mod contents_queries {
             before: &State,
             after: &mut State,
             transfers: &[DescriptorContentsTransfer],
+            derivations: &[(DescriptorLocation, DescriptorLocation)],
             reads: &DescriptorReadDepth<'_>,
         ) {
             let mut replacements = BTreeMap::new();
@@ -3513,6 +3514,14 @@ pub(crate) mod contents_queries {
                 ) else {
                     continue;
                 };
+                if !derivations
+                    .iter()
+                    .any(|(actual_source, actual_destination)| {
+                        *actual_source == source && *actual_destination == destination
+                    })
+                {
+                    continue;
+                }
                 let target = DescriptorPayloadTarget::current(destination.clone());
                 let Some(Some(incoming)) = replacements.get(&target) else {
                     continue;
@@ -5059,7 +5068,14 @@ pub(crate) mod engine {
                         }
                     }
                     if let Some(transfers) = machine.contents_transfers.get(&position) {
-                        self.transfer_contents(machine, &before, &mut after, transfers, &reads);
+                        self.transfer_contents(
+                            machine,
+                            &before,
+                            &mut after,
+                            transfers,
+                            &step.derivations,
+                            &reads,
+                        );
                     }
                     if let Some(origins) = machine.originations.get(&position) {
                         let completed =
