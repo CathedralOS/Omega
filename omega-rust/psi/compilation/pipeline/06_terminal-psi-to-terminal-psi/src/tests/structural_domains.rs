@@ -122,6 +122,121 @@ machine entry() -> u32 {
 }
 
 #[test]
+fn array_element_domains_are_checked_at_establishment_and_at_runtime_index() {
+    use terminal_psi::{
+        OperationKind, OperationResult, StructuralPathQualification, StructuralPathSegment,
+    };
+
+    let source = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine number(ticket: &Ticket in Stamped) -> u32 { ticket.number }
+machine select(tickets: &[Ticket in Stamped; 2], index: u64) -> u32
+requires index < 2u64
+{
+    number(&tickets[index])
+}
+machine entry() -> u32 {
+    let tickets: [Ticket in Stamped; 2] = [stamp(Ticket { number: 3u32 }), stamp(Ticket { number: 5u32 })];
+    select(&tickets, 1u64)
+}
+"#;
+    let mut elaboration = invocation(source).unwrap();
+    let domain = elaboration.module.structural_domains[0].id;
+    let array = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishStructuralArray { .. }
+            )
+        })
+        .expect("the source establishes an array");
+    let OperationResult::Structural(result) = &mut array.result else {
+        panic!("the establishment yields a structural result");
+    };
+    assert!(result.qualifications.is_empty());
+    assert_eq!(
+        result.projected_qualifications,
+        [StructuralPathQualification {
+            path: vec![StructuralPathSegment::AllElements],
+            domain,
+        }]
+    );
+    result.projected_qualifications.clear();
+    let encoded = terminal_codec::ClosedTerminalModule::new(elaboration.module.clone()).unwrap();
+    let detail = "a collection element does not deliver its declared domains";
+    let rejected =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes());
+    assert!(
+        matches!(&rejected, Err(terminal_codec::CodecError::MalformedOperationFoundation { reason, .. })
+            if *reason == "structural field store does not restore the selected memberships"),
+        "{rejected:?}",
+    );
+    refused(elaboration, detail);
+
+    assert_unsigned_invocation(source, 5);
+}
+
+#[test]
+fn zeroed_arrays_keep_unrestricted_record_element_domains() {
+    let source = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped;
+machine entry() -> u32 {
+    let mut tickets: [Ticket in Stamped; 2];
+    tickets[1u64].number
+}
+"#;
+    assert_unsigned_invocation(source, 0);
+    let predicated = source.replace(
+        "domain Ticket::Stamped;",
+        "domain Ticket::Stamped requires self.number > 0u32;",
+    );
+    let refusal = invocation(&predicated).unwrap_err();
+    assert!(
+        refusal
+            .detail
+            .contains("zero-established value in a domain that must be established"),
+        "{refusal:?}"
+    );
+}
+
+fn assert_unsigned_invocation(source: &str, expected: u128) {
+    use terminal_interpreter::{
+        TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
+    };
+
+    let verdict = judge(invocation(source)).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the qualified array must check: {verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let actual = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            actual,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ..
+                }
+            )) if value == expected
+        ),
+        "{actual:?}"
+    );
+}
+
+#[test]
 fn the_lowered_record_type_retains_its_domains_and_casts() {
     let elaboration = invocation(STAMPED).unwrap();
     let module = &elaboration.module;

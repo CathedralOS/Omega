@@ -171,9 +171,11 @@ impl Program<'_> {
                 StorageShape::Record(fields) => {
                     pending.extend(fields.iter().map(|field| field.value_type))
                 }
-                StorageShape::FixedArray { element, .. } => {
-                    pending.push(ValueType::record(*element))
-                }
+                StorageShape::FixedArray {
+                    element,
+                    qualification,
+                    ..
+                } => pending.push(self.storage_value_type(id, *element, *qualification)?),
                 StorageShape::PrimitiveScalar { .. } => {}
                 _ => {
                     return Err(refuse(
@@ -239,8 +241,15 @@ impl Program<'_> {
                         .into_iter()
                         .flat_map(|case| case.fields.iter().map(|field| (field.value_type, false))),
                 ),
-                StorageShape::FixedArray { element, .. } => {
-                    pending.push((ValueType::record(*element), false));
+                StorageShape::FixedArray {
+                    element,
+                    qualification,
+                    ..
+                } => {
+                    pending.push((
+                        self.storage_value_type(id, *element, *qualification)?,
+                        false,
+                    ));
                 }
                 // The canonical zero producer establishes an actual empty
                 // immutable sequence; no element is constructed or borrowed.

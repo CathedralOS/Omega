@@ -27,6 +27,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
         true,
         crate::StorageShape::FixedArray {
             element: id(1),
+            qualification: Qualification::NONE,
             length: ArrayExtent::Literal(3),
         },
     );

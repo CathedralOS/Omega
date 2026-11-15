@@ -6322,6 +6322,10 @@ pub(crate) mod zeroed_structural {
         qualifications: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
         qualifications.iter().all(|row| {
+            let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
+            // The structural qualification judgment establishes ordinary
+            // memberships. This check only decides predicates from bytes.
+            let Some(predicate) = domain.byte_predicate else { return true; };
             if row.path.is_empty() { return false; }
             for (index, segment) in row.path.iter().enumerate() {
                 if let StructuralPathSegment::Case(selected) = segment {
@@ -6340,16 +6344,15 @@ pub(crate) mod zeroed_structural {
                     if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())) {
                 return false;
             }
-            let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
             domain.carrier == carrier.id
                 && domain.content_projection.is_none()
                 && domain.establishment_routes.is_none()
                 && domain.has_no_required_memberships()
-                && domain.byte_predicate.is_some_and(|predicate| match predicate {
+                && match predicate {
                     terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
                     terminal_psi::ByteSequencePredicate::NoNul => length == 0,
                     terminal_psi::ByteSequencePredicate::NonEmpty => length != 0,
-                })
+                }
         })
     }
 }

@@ -112,6 +112,7 @@ impl Program<'_> {
         let actual = self.records.get(actual)?;
         let StorageShape::FixedArray {
             element,
+            qualification: Qualification::NONE,
             length: ArrayExtent::Literal(_),
         } = actual.shape
         else {
@@ -300,12 +301,12 @@ impl Program<'_> {
                 Unserved::Type("array literal without a closed contextual type"),
             ));
         };
-        let (element, extent) =
+        let (element, qualification, extent) =
             self.array_element(machine, super::authority::Opened::constructing(array))?;
         // An array value holds its elements' regions (`array_type`).
         let element_regions = self.collection_element_regions(machine, array, regions)?;
         let declared = super::places::with_regions(
-            self.storage_value_type(machine, element)?,
+            self.storage_value_type(machine, element, qualification)?,
             element_regions,
         );
         let supplied = self.typed.expression_table.expression_handles(supplied);
@@ -375,7 +376,7 @@ impl Program<'_> {
             }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
-        let (element, extent) = self.array_element(machine, array)?;
+        let (element, qualification, extent) = self.array_element(machine, array)?;
         if !matches!(extent, CollectionExtent::Fixed(_)) {
             return Err(refuse(
                 machine,
@@ -388,7 +389,7 @@ impl Program<'_> {
             .map_or(crate::body::Regions::NONE, ValueType::regions);
         let element_regions = self.collection_element_regions(machine, array.record(), regions)?;
         let result = super::places::with_regions(
-            self.storage_value_type(machine, element)?,
+            self.storage_value_type(machine, element, qualification)?,
             element_regions,
         );
         let index_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
@@ -430,15 +431,18 @@ impl Program<'_> {
         &self,
         machine: MachineId,
         array: super::authority::Opened,
-    ) -> Checked<(StructuralTypeId, CollectionExtent)> {
+    ) -> Checked<(StructuralTypeId, Qualification, CollectionExtent)> {
         match &self.data_type(machine, array.record())?.shape {
             StorageShape::FixedArray {
                 element,
+                qualification,
                 length: ArrayExtent::Literal(length),
-            } => Ok((*element, CollectionExtent::Fixed(*length))),
-            StorageShape::ElementView { element, .. } => {
-                Ok((*element, CollectionExtent::StoredLength))
-            }
+            } => Ok((*element, *qualification, CollectionExtent::Fixed(*length))),
+            StorageShape::ElementView {
+                element,
+                qualification,
+                ..
+            } => Ok((*element, *qualification, CollectionExtent::StoredLength)),
             _ => Err(refuse(
                 machine,
                 Construct::Machine,
@@ -451,6 +455,7 @@ impl Program<'_> {
         &self,
         machine: MachineId,
         storage: StructuralTypeId,
+        qualification: Qualification,
     ) -> Checked<ValueType> {
         Ok(match self.data_type(machine, storage)?.shape {
             StorageShape::PrimitiveScalar {
@@ -461,7 +466,7 @@ impl Program<'_> {
                 scalar_type,
                 policy: Some(policy),
             } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
-            _ => ValueType::record(storage),
+            _ => ValueType::Record(storage, qualification, crate::body::Regions::NONE),
         })
     }
 
@@ -502,8 +507,12 @@ impl Program<'_> {
         let value = self.value_type(machine, element)?;
         tuple.extend_from_slice(self.region_tuple(value.regions()));
         let regions = self.intern_regions(tuple);
-        let element = self.storage_type(machine, element, value)?;
-        let shape = StorageShape::ElementView { element, access };
+        let (element, qualification) = self.collection_element_storage(machine, element, value)?;
+        let shape = StorageShape::ElementView {
+            element,
+            qualification,
+            access,
+        };
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
@@ -543,12 +552,13 @@ impl Program<'_> {
             )
         })?;
         let value = self.value_type(machine, element)?;
-        let element = self.storage_type(machine, element, value)?;
-        let extent = ArrayExtent::Literal(length);
-        if let Some((id, _)) = self.records.iter().find(|(_, row)| {
-            matches!(&row.shape, StorageShape::FixedArray { element: known, length }
-                if *known == element && *length == extent)
-        }) {
+        let (element, qualification) = self.collection_element_storage(machine, element, value)?;
+        let shape = StorageShape::FixedArray {
+            element,
+            qualification,
+            length: ArrayExtent::Literal(length),
+        };
+        if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
         let copyable = self.data_type(machine, element)?.copyable;
@@ -558,16 +568,28 @@ impl Program<'_> {
             owns_linear_claim,
             copyable,
             identity,
-            shape: StorageShape::FixedArray {
-                element,
-                length: extent,
-            },
+            shape,
             requires: Vec::new(),
         });
         self.record_sources.push(physical_source(reference));
         // The row is the element's carrier; the regions its elements hold
         // belong to the array value's type, as a record's do (`regions`).
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
+    }
+
+    fn collection_element_storage(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+        value: ValueType,
+    ) -> Checked<(StructuralTypeId, Qualification)> {
+        match value {
+            ValueType::Record(element, qualification, _) => Ok((element, qualification)),
+            _ => Ok((
+                self.storage_type(machine, reference, value)?,
+                Qualification::NONE,
+            )),
+        }
     }
 
     pub(super) fn storage_type(
