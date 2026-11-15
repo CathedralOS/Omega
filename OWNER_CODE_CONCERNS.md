@@ -73,12 +73,26 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### A panic hides the remaining generic fixture verdicts
+### The post-merge sample stops in byte-window formation before either engine runs
 - Category: tests that pin the bug
-- Where: [generic fixture compilation lock](omega-rust/omega/compilation/compiler/tests/lowered_route_generics.rs#L21), [fixture runner](omega-rust/omega/compilation/compiler/tests/lowered_route_generics.rs#L52)
-- Saw: The [main post-merge check](https://github.com/CathedralOS/Omega/actions/runs/43663933401) at `c1abef796f6` first failed the actual-refinement verdict count, then five distinct tests stopped at the same mutex with `PoisonError`. The original refinement assertion passed in an isolated rerun on macOS arm64 at `d75251ea39f` after the universe admission repair.
-- Cost: The reported failure count mixes the first compiler failure with fixtures that never obtained a verdict. Preserve serialization while allowing independent assertions to complete after another fixture panics.
-- Reported: 2026-11-14, Codex, while checking main after the codec test-build repair
+- Where: [post-merge runtime step](.github/workflows/post-merge-check.yml#L97), [length sample](samples/cli/facts/length/local/main.omg#L6), [array view reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L180)
+- Saw: The [sample job](https://github.com/CathedralOS/Omega/actions/runs/43664409560/job/132661175144) at `d75251ea39f` exits 1 in `mbx xtask sample-gate --filter samples/cli/facts/length/local`. Package checking refuses `&items[0..count]` with `partial array views need their endpoint and window correspondence` while reading `window` in `last_byte`.
+- Cost: The configured post-merge runtime witness never checks the length of a borrowed byte window or reaches native/Psi comparison. Preserve the window and its result oracle when tracing receiver selection and endpoint proof ownership.
+- Reported: 2026-11-14, Codex, while verifying the main compiler and native jobs
+
+### Compiler subject fixtures still expect earlier refusal reasons and outcomes
+- Category: tests that pin the bug
+- Where: [subject fixture assertions](omega-rust/omega/compilation/compiler/tests/lowered_route_subjects.rs#L315)
+- Saw: The [main compiler job](https://github.com/CathedralOS/Omega/actions/runs/43664409560/job/132661174957) at `d75251ea39f` reports precise rejections where unused-machine controls expect fallbacks or incompleteness, and appends the declaring body or signature to three old exact diagnostic strings. The unrelated policy-qualification failure in the same log is covered separately by #3313.
+- Cost: Stale expectations stop the suite before it can verify the intended exact source rules. Inspect each changed verdict’s evidence and keep the fixture and its original obligation.
+- Reported: 2026-11-14, Codex, while reviewing the main compiler checks after hosted admission was restored
+
+### An unimported case can turn a deferred name error into a resolver failure
+- Category: knowledge crossing a boundary
+- Where: [global bare case scan](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_expressions.rs#L47)
+- Saw: At `d75251ea39f` the source forest for `machine main() {} machine unused() -> u64 { Missing }` reaches typing and records `UndeclaredValueName` on `unused`. Add an unimported dependency containing `public data Choice { case Missing; }` and resolution of the same client instead fails immediately with `case value Missing requires its carrier-qualified Type::Missing path` (the diagnostic quotes both names).
+- Cost: Whether an unused declaration stops resolution depends on an inaccessible case spelling. Classify the exact authored occurrence through ordinary scoped lookup and preserve the deferred violation on its holder.
+- Reported: 2026-11-14, Codex, while tracing scoped unbound-name verdicts on macOS arm64
 
 ### Runtime array index proofs cannot attach to their canonical operations
 - Category: knowledge crossing a boundary
