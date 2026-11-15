@@ -277,7 +277,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         "the public generic form remains valid: {:?}",
         verdicts[1]
     );
-    for witnesses in verdicts[2..].chunks_exact(2) {
+    for witnesses in verdicts[2..].as_chunks::<2>().0 {
         assert_eq!(
             witnesses
                 .iter()
