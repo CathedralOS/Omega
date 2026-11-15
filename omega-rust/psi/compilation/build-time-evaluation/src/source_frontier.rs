@@ -128,7 +128,12 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             "retained product source normalization correspondence",
         ));
     }
-    if !typed.wire_schemas().is_empty()
+    // A numbered record contributes a derived schema for later selection.
+    // Evaluation is owed once an encoding or its executable plan is present.
+    if typed
+        .wire_schemas()
+        .iter()
+        .any(|schema| schema.encoding.is_some())
         || !typed.wire_schema_plans.is_empty()
         || !typed.wire_placements.is_empty()
         || !typed.wire_encode_obligations.is_empty()
@@ -504,11 +509,6 @@ impl PreCheckEvaluation {
         if wire_schema_frontier > typed.wire_schemas().len() {
             return Err(vec![Diagnostic::error(
                 "source extension lost its original wire-schema frontier",
-            )]);
-        }
-        if wire_schema_frontier < typed.wire_schemas().len() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: source wire-schema evaluation",
             )]);
         }
         defer_source_jobs(typed)?;

@@ -2376,7 +2376,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v56\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v57\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
@@ -3624,11 +3624,13 @@ pub(crate) mod operation_encoding {
                     encode_successor(bytes, when_false);
                 }
                 O::StructuralCase {
+                    psi_block,
                     source,
                     path,
                     cases,
                 } => {
                     bytes.u8(48);
+                    bytes.id(*psi_block);
                     bytes.id(*source);
                     bytes.slice(path, encode_structural_path_segment);
                     bytes.len(cases.len());

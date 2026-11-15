@@ -2,7 +2,7 @@
 // Expected exit: 0
 // Place: target_body.
 boundary trait WideRowTarget {
-    machine preserve(value: u32) -> u32 reaches;
+    machine preserve(value: u32) -> u32 reaches crashes none;
 }
 HostedWideRow satisfies WideRowTarget {
     machine preserve(value: u32) -> u32 reaches { value }
@@ -38,7 +38,7 @@ requires width == 16 || width == 32 {
 
 boundary trait FamilyForward {
     machine forward(selected: dyn Family, width: u32) -> u32
-    requires width == 16 || width == 32 reaches invokes WideRowTarget;
+    requires width == 16 || width == 32 reaches invokes WideRowTarget crashes none;
 }
 HostedFamily satisfies FamilyForward {
     machine forward(selected: dyn Family, width: u32) -> u32

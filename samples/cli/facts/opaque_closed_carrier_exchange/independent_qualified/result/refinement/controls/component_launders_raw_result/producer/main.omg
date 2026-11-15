@@ -11,19 +11,19 @@ public data AddressCarrier<T> { payload: T; }
 public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
 
 public boundary trait AddressParts {
-    machine make(network: u32, host: u32) -> InternetAddress reaches;
-    machine host(address: InternetAddress) -> u32 reaches;
+    machine make(network: u32, host: u32) -> InternetAddress reaches crashes none;
+    machine host(address: InternetAddress) -> u32 reaches crashes none;
 }
 
 public boundary trait UncheckedFactory {
- machine make(network: u32, host: u32) -> InternetAddress in Classified::Ready reaches;
+ machine make(network: u32, host: u32) -> InternetAddress in Classified::Ready reaches crashes none;
 }
 
 public boundary trait AddressBridge {
- machine classified_make(network: u32, host: u32) -> InternetAddress in Classified::Ready reaches AddressParts, UncheckedFactory;
- machine make(network: u32, host: u32) -> InternetAddress reaches AddressParts;
- machine host(address: InternetAddress) -> u32 reaches AddressParts;
- machine classified_host(address: InternetAddress in Classified::Ready) -> u32 reaches AddressParts;
+ machine classified_make(network: u32, host: u32) -> InternetAddress in Classified::Ready reaches AddressParts, UncheckedFactory crashes none;
+ machine make(network: u32, host: u32) -> InternetAddress reaches AddressParts crashes none;
+ machine host(address: InternetAddress) -> u32 reaches AddressParts crashes none;
+ machine classified_host(address: InternetAddress in Classified::Ready) -> u32 reaches AddressParts crashes none;
 }
 public AddressBridgeProvider satisfies AddressBridge {
  machine classified_make(network: u32, host: u32) -> InternetAddress in Classified::Ready reaches AddressParts, UncheckedFactory { UncheckedFactory::make(network, host) }

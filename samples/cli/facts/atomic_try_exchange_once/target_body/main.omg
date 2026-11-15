@@ -5,7 +5,7 @@ use omega::language::core::AtomicTryExchangeOnceOutcome;
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
 
 boundary trait SelectedAttempt {
-    machine attempt(cells: &Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches;
+    machine attempt(cells: &Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches crashes none;
 }
 
 SingleAttempt satisfies SelectedAttempt {

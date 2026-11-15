@@ -20,9 +20,7 @@ use terminal_psi::{
 
 use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
-use crate::body::{
-    Expression, ExpressionKind, Qualification, Selector, Statement, Strict, Target, ValueType,
-};
+use crate::body::{Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -116,7 +114,7 @@ impl Lowering<'_> {
         self.jump_with_structural(target, arguments, Vec::new(), source)
     }
 
-    fn jump_with_structural(
+    pub(super) fn jump_with_structural(
         &mut self,
         target: BlockId,
         arguments: Vec<ValueId>,
@@ -436,38 +434,58 @@ impl Lowering<'_> {
         match target {
             Target::Unit => self.return_unit(source),
             Target::Crash(cause) => self.crash(*cause, source),
-            // A member's arguments are scalars, evaluated left to right like
-            // any call's, and the edge carries them.
-            Target::Value(expression) if let Some((member, arguments)) = self.loops(expression) => {
-                let (values, structural, cleanup) =
-                    match self.tail_arguments(member, arguments, expression.source)? {
-                        Reached::Value(arguments) => arguments,
-                        Reached::Ended(_) => return Ok(()),
-                    };
-                self.arrive(
-                    member,
-                    values,
-                    structural,
-                    cleanup,
-                    expression.source,
-                    Some(expression.call_context.unwrap_or_default()),
-                )
-            }
-            // An arm whose every path ends at a call that never returns is
-            // complete there.
-            Target::Value(expression) => {
-                let value = self.expression(expression);
-                match value? {
-                    Reached::Ended(_) => Ok(()),
-                    Reached::Value(Value::Scalar(value)) => {
-                        self.return_value(value, expression.source)
-                    }
-                    Reached::Value(Value::Record(root)) => {
-                        self.return_record(root, expression.source)
-                    }
-                    Reached::Value(Value::Unit) => self.return_unit(expression.source),
-                }
-            }
+            Target::Value(value) => self.complete_value(value),
+        }
+    }
+
+    fn complete_value(&mut self, expression: &Expression) -> Checked<()> {
+        if let ExpressionKind::Match {
+            capture,
+            subject,
+            arms,
+            default,
+        } = &expression.kind
+        {
+            // The selected arm completes this invocation. Reuse the ordinary
+            // match dispatch, then transfer/clean up that arm directly rather
+            // than create a continuation after its recursive call.
+            let bound = self.slots.clone();
+            self.dispatch_match(
+                subject,
+                arms,
+                default.as_deref(),
+                expression.source,
+                *capture,
+                |lowering, value| {
+                    lowering.complete_value(value)?;
+                    lowering.slots.clone_from(&bound);
+                    Ok(())
+                },
+            )?;
+            return Ok(());
+        }
+        if let Some((member, arguments)) = self.loops(expression) {
+            let (values, structural, cleanup) =
+                match self.tail_arguments(member, arguments, expression.source)? {
+                    Reached::Value(arguments) => arguments,
+                    Reached::Ended(_) => return Ok(()),
+                };
+            return self.arrive(
+                member,
+                values,
+                structural,
+                cleanup,
+                expression.source,
+                Some(expression.call_context.unwrap_or_default()),
+            );
+        }
+        // An arm whose every path ends at a call that never returns is
+        // complete there. Other values use their ordinary return transfer.
+        match self.expression(expression)? {
+            Reached::Ended(_) => Ok(()),
+            Reached::Value(Value::Scalar(value)) => self.return_value(value, expression.source),
+            Reached::Value(Value::Record(root)) => self.return_record(root, expression.source),
+            Reached::Value(Value::Unit) => self.return_unit(expression.source),
         }
     }
 
@@ -579,8 +597,34 @@ impl Lowering<'_> {
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
     ) -> Evaluation<Value> {
+        let mut arrivals = Arrivals::default();
+        if let Reached::Ended(call) = self.dispatch_match(
+            subject,
+            arms,
+            default,
+            source,
+            capture,
+            |lowering, value| lowering.arm(value, &mut arrivals),
+        )? {
+            arrivals.ended = Some(call);
+        }
+        self.join(arrivals, result_type)
+    }
+
+    /// Evaluate the selector once and enter each authored arm with its exact
+    /// case/decision facts. The caller owns whether that arm joins a value or
+    /// completes the invocation; dispatch itself introduces no continuation.
+    fn dispatch_match(
+        &mut self,
+        subject: &Expression,
+        arms: &[(Selector, Expression)],
+        default: Option<&Expression>,
+        source: SourceOrigin,
+        capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
+        mut finish: impl FnMut(&mut Self, &Expression) -> Checked<()>,
+    ) -> Evaluation<()> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
-            return self.scalar_match(subject, subject_type, arms, default, result_type);
+            return self.scalar_match(subject, subject_type, arms, default, finish);
         }
         let cases = arms
             .iter()
@@ -598,56 +642,38 @@ impl Lowering<'_> {
             .map(|(_, value)| value)
             .zip(blocks)
             .chain(default.zip(rest));
-        let mut arrivals = Arrivals::default();
         for (value, (block, chosen)) in bodies {
-            // Each arm is entered only on the dispatch edges of its cases:
-            // an authored branch the checker asks whether any arrival can
-            // take (`MachineSources::branches`).
             self.authored_arm(block, decided_in, value.source, value.source);
             self.enter(block);
             self.selected.push(chosen);
-            let reached = self.arm(value, &mut arrivals);
+            let reached = finish(self, value);
             self.selected.pop();
             reached?;
         }
-        self.join(arrivals, result_type)
+        Ok(Reached::Value(()))
     }
 
-    /// Value-position `match` over a scalar: the subject's one value, then
-    /// for each value arm in authored order its equality test and a branch
-    /// to the arm's block or on to the next test; after the last test, the
-    /// default. Every arm block jumps to a join whose one parameter is the
-    /// result, as over a sum. patterns.md: a dispatch "evaluates its subject
-    /// once, tests alternatives in authored order, and executes only the
-    /// selected arm". Each branch edge carries its decision, so an arm is
-    /// checked knowing its test held and every earlier one failed.
+    /// Scalar patterns retain their authored order and decisions. A pattern
+    /// that ends control preserves any earlier completed arms through the
+    /// caller's ordinary value-arrival or invocation-completion owner.
     fn scalar_match(
         &mut self,
         subject: &Expression,
         subject_type: ScalarType,
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
-        result_type: ValueType,
-    ) -> Evaluation<Value> {
+        mut finish: impl FnMut(&mut Self, &Expression) -> Checked<()>,
+    ) -> Evaluation<()> {
         let Some(default) = default else {
             return Err(self.internal("a scalar match without a default arm"));
         };
         let tested = continuing!(self.scalar(subject));
-        let mut arrivals = Arrivals::default();
         let mut decided_in = None;
         for (selector, value) in arms {
             let Selector::Value(pattern) = selector else {
                 return Err(self.internal("a case pattern on a scalar subject"));
             };
-            let expected = match self.scalar(pattern)? {
-                Reached::Value(value) => value,
-                Reached::Ended(call) => {
-                    // Earlier arms may already arrive. Only the remaining tests
-                    // end here, so retain those arrivals rather than ending the match.
-                    arrivals.ended = Some(call);
-                    return self.join(arrivals, result_type);
-                }
-            };
+            let expected = continuing!(self.scalar(pattern));
             let Value::Scalar(condition) = self.strict(
                 Strict::Equal,
                 subject_type,
@@ -664,10 +690,6 @@ impl Lowering<'_> {
             let rest = self.block(SourceOrigin::Unpositioned(
                 Unpositioned::DispatchContinuation,
             ));
-            // The arm is entered only on its test's true edge, and the
-            // arms after it only on its false edge: each is an authored
-            // branch the checker asks whether any arrival can take
-            // (`MachineSources::branches`).
             self.authored_arm(arm, here, value.source, pattern.source);
             self.branch(
                 condition,
@@ -676,18 +698,16 @@ impl Lowering<'_> {
                 pattern.source,
             )?;
             self.enter(arm);
-            self.arm(value, &mut arrivals)?;
+            finish(self, value)?;
             self.enter(rest);
             decided_in = Some(here);
         }
-        // The default takes what every test turned away, on the last test's
-        // false edge.
         if let Some(decided_in) = decided_in {
             let block = self.current()?;
             self.authored_arm(block, decided_in, default.source, default.source);
         }
-        self.arm(default, &mut arrivals)?;
-        self.join(arrivals, result_type)
+        finish(self, default)?;
+        Ok(Reached::Value(()))
     }
 
     /// Records the authored arm whose first block is `block`, entered only
@@ -748,7 +768,7 @@ impl Lowering<'_> {
                 self.parameter(join, result, scalar_type)?;
                 Value::Scalar(result)
             }
-            ValueType::Record(record, Qualification::NONE, _) => {
+            ValueType::Record(record, qualification, _) => {
                 let (place, _) = self.root(
                     semantic_vocabulary::StructuralPlaceKind::BlockParameter {
                         block: join,
@@ -756,14 +776,18 @@ impl Lowering<'_> {
                     },
                     record,
                 )?;
+                // Every arm delivers the match's one type, domains included;
+                // the checker holds each arrival to them.
+                let (qualifications, projected_qualifications) =
+                    self.memberships(record, qualification)?;
                 let parameter = StructuralParameterDeclaration {
                     place,
                     position: 0,
                     structural_type: record,
                     multiplicity: self.records.multiplicity(record, self.id)?,
                     access: StructuralAccess::Owned,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                     additional_input_qualifications: Vec::new(),
                 };
                 let id = self.id;
@@ -779,9 +803,6 @@ impl Lowering<'_> {
                     .structural_parameters
                     .push(parameter);
                 Value::Record(place)
-            }
-            ValueType::Record(..) => {
-                return Err(self.internal("a qualified data match result has no established join"));
             }
             ValueType::Rigid(_) => {
                 return Err(self.internal("a rigid match result has no established join"));

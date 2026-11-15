@@ -3,7 +3,7 @@ public boundary trait DependencyOnly {}
 public boundary trait Untaken {}
 
 public boundary trait Driver {
-    machine drive() reaches MotorControl + DependencyOnly + Untaken;
+    machine drive() reaches MotorControl + DependencyOnly + Untaken crashes none;
 }
 
 public machine drive() reaches MotorControl + DependencyOnly + Untaken invokes Driver {

@@ -47,6 +47,31 @@ independent publication authority; it cannot manufacture the bytes. It records
 makes them reachable. Shared establishment/content/linearity infrastructure
 does not imply a universal hardware-table/executable typestate algebra.
 
+## Interrupt-table validation
+
+Named decision: `static-interrupt-validator-crash-ceiling`, settled 2026-11-15.
+
+[`StaticInterruptTableValidation::validate`](../../../source/library/core/static_interrupt.omg)
+publishes `reaches none` and `crashes none`. It returns a Boolean satisfying
+`Valid(result, table)`. A policy-justified `false` causes
+`X86StaticInterruptScope::run` to return `false` without publishing the new
+table or invoking its work callback. The caller decides whether that refusal
+is fatal. A `true` result permits the remaining publication checks; it does
+not independently establish materialization or installed-root admission.
+
+A selected validator must establish the existing policy relation for either
+result. Converting a failure into `false` does not establish that relation.
+Under the existing [guarded crash rules](../language/effects.md#guarded-crashes),
+a potentially trapping operation is allowed only when its crash condition is
+excluded under the admitted inputs. A remaining possible `Trap` route fails
+conformance even though the enclosing scope independently permits `Trap` for
+its work callback and invocation-sequence exhaustion. The scope's ceiling does
+not widen the validator's contract.
+
+This decision adds no termination promise to executable validation. The logical
+`Valid` parameter retains its existing `terminates` requirement; the executable
+`validate` requirement has none.
+
 ## Bootstrap safety
 
 A post-firmware writer's software-fault-free certificate combines mapped/pinned/

@@ -73,12 +73,8 @@ classification or branch/head/energy reports.
 including all 48 combinations a,b in 0..3 and c in 0..2 (other coefficients
 fixed), nontrivial rational/irrational/asymmetric/linear variants, multiple
 roots, exact and fractional tangencies, shutoff, no intersection, unmet demands,
-invalid model fields and malformed runtime records. `data/freeze.py` uses
-independent Fraction equations and enumerates every 1/1024 interval rather than
-the Omega coarse-bracket algorithm. `data/freeze.sha256` freezes its artifact
-before compiler check or runtime execution. `validate.py` verifies the frozen
-hash and compares every output byte, exit code and empty stderr; it never
-regenerates expected results.
+invalid model fields and malformed runtime records. `data/freeze.sha256` freezes
+its artifact before compiler check or runtime execution.
 
 From the repository root, with a compiler built from the recorded base and
 `OMEGA_LIBRARY_ROOT` set to this checkout's `source/library`:
@@ -95,8 +91,6 @@ remaining blocker, not permission to retry acceptance or bypass review.
 ```
 omega run --both --keep samples/cli/independent/pump_network_operating_point/main.omg < samples/cli/independent/pump_network_operating_point/data/rational.in
 omega psi inspect --machine main --target linux_x86_64 samples/cli/independent/pump_network_operating_point/main.omg
-python3 samples/cli/independent/pump_network_operating_point/validate.py <published-native-executable>
-python3 samples/cli/independent/pump_network_operating_point/terminal_matrix.py <verified-corpus-runner>
 omega --check samples/cli/independent/pump_network_operating_point/controls/intended_invalid/main.omg
 omega --check samples/cli/independent/pump_network_operating_point/controls/valid_extent/main.omg
 ```

@@ -6,8 +6,8 @@
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
 use native_compiler::{
-    BoundaryApplicationSettlement, CompilerIntrinsicPlanProvenance, NativeProgramEntrySettlement,
-    TerminalNativeProposalRequest, current_terminal_authority_policy,
+    BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
+    current_terminal_authority_policy,
 };
 use optimization_core::OptimizationSelections;
 use source_compiler::ProducedTerminalApplication;
@@ -53,11 +53,11 @@ pub(crate) fn prepare(
     // Build retains authenticated bindings from dependency packages, including
     // unused requirements and foreign targets. Declaration is not demand:
     // target supply has already settled the actual executable closure. Below,
-    // every selected row still needs its canonical execution producer; only
-    // checked adapters and the admitted core primitives have one on this route.
+    // every selected row still needs its canonical execution producer. The
+    // inventory itself supplies neither execution nor physical permission.
     if !checked.execution().plans().assumed_bindings().is_empty() {
         return Err(failure(
-            "no product route yet: executable assumed provider bindings need their admitted applications",
+            "no product route yet: executable assumed bindings need their reviewed installation",
         ));
     }
     if !checked
@@ -120,26 +120,6 @@ pub(crate) fn prepare(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let leaves =
         provider_planning::direct_hosted_primitive_leaves(module, &schemas, profile.target_name())?;
-    // Checked wrappers carry no compiler execution identity. Their actual
-    // canonical candidates are admitted downstream; only the independently
-    // checked core primitive supplies a native catalog operation.
-    let row_executions = selected
-        .plans
-        .iter()
-        .map(|plan| {
-            if plan.rows.iter().any(|row| {
-                !matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-                )
-            }) {
-                return Err(failure(
-                    "native selected provider row has no canonical execution producer",
-                ));
-            }
-            Ok(vec![None; plan.rows.len()])
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     let policy = current_terminal_authority_policy();
     let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut permission_rows = Vec::new();
@@ -171,21 +151,34 @@ pub(crate) fn prepare(
         .physical_calling_application()
         .ok_or_else(|| failure("native entry lost its physical calling application"))?;
     let proposals = vec![proposal.clone()];
+    // Each selected plan enters settlement with its own canonical rows. This
+    // in-process product holds no host or device review, so no row carries a
+    // reviewed execution: checked rows execute their selected machine, and an
+    // intrinsic row realizes only through its canonical declared meaning or
+    // is refused at boundary settlement.
+    let selected_plans = checked.execution().plans();
+    let unreviewed = selected_plans
+        .plans()
+        .iter()
+        .map(|plan| vec![None; plan.rows.len()])
+        .collect::<Vec<_>>();
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: &module.identities,
         direct_boundary_leaves: leaves.iter().collect(),
         target_profile: Some(profile),
         boundaries: BoundaryApplicationSettlement {
-            selected_provider_plans: checked.execution().plans(),
-            selected_provider_provenance: selected
-                .plans
+            selected_provider_plans: selected_plans,
+            selected_provider_provenance: selected_plans
+                .plans()
                 .iter()
-                .zip(&row_executions)
-                .map(|(plan, executions)| CompilerIntrinsicPlanProvenance {
-                    plan,
-                    semantic_schema: &plan.schema,
-                    row_executions: executions,
-                })
+                .zip(&unreviewed)
+                .map(
+                    |(plan, row_executions)| native_compiler::CompilerIntrinsicPlanProvenance {
+                        plan,
+                        semantic_schema: &plan.schema,
+                        row_executions,
+                    },
+                )
                 .collect(),
             calling_applications: vec![semantic.clone(), physical.clone()],
         },

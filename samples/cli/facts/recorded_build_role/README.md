@@ -81,10 +81,8 @@ source repairs do not close that broader outcome.
 
 ## HTTPS Git review
 
-`git_review.py` carries the same nine programs through ordinary HTTPS Git
-workspace acquisition, native/Terminal execution and a second update at a new
-commit. The second update must recover the accepted old member at its exact
-recorded commit/tree and report one changed source entry. On fixed base
+The second update must recover the accepted old member at its exact recorded
+commit/tree and report one changed source entry. On fixed base
 `74888680a843ba5f23d7a4cbf3b742f1efccd3ff`, initial admission and both executions
 pass, but helper-defined names make historical review unavailable. A literal
 package name passes that control. Root Git selection has the same helper-name
@@ -92,15 +90,6 @@ failure; a literal name with an inactive conditional dependency also fails
 historical review on that base.
 
 Run from the repository root with a new artifact directory for each invocation:
-
-```sh
-python3 samples/cli/facts/recorded_build_role/git_review.py --cli target/debug/omega --root build/git-role-positive --all
-python3 samples/cli/facts/recorded_build_role/git_review.py --cli target/debug/omega --root build/git-role-negative --all --invalid
-python3 samples/cli/facts/recorded_build_role/git_review.py --cli target/debug/omega --root build/git-role-root --selection root
-python3 samples/cli/facts/recorded_build_role/git_review.py --cli target/debug/omega --root build/git-role-literal --literal
-python3 samples/cli/facts/recorded_build_role/git_review.py --cli target/debug/omega --root build/git-role-inactive --conditional
-python3 samples/cli/facts/recorded_build_role/git_review.py --cli target/debug/omega --root build/git-role-active --conditional --request-missing
-```
 
 The harness requires an optimized compiler, Git, OpenSSL and Python 3. It serves
 a private bare repository through `git http-backend` on loopback HTTPS. Each

@@ -67,14 +67,10 @@ explicit convergence failures rather than successful partial trajectories. A tri
 requires h > 10^-15(1+t) and t+h > t. Newton budgets count corrections;
 the final corrected iterate still receives a residual check.
 
-`reference.py` freezes SciPy Radau and BDF references at rtol=1e-11, atol=1e-14;
-both linear chains additionally use exact exponential formulas. Frozen input
-and oracle hashes live in `data/FROZEN.sha256`. The 38 cases include Robertson
-at 0.4, 4 and 40, distinct-rate/equal-rate chains, three relative tolerances,
-input refusals, both trial/Newton exhaustion, a stationary zero-rate network, and a
-linear chain restricted to one Newton correction. `validate.py` checks actual
-outputs, finite nonnegative concentrations, time, mass balance, numeric error,
-and strict tolerance refinement for five model/time groups.
+Frozen input and oracle hashes live in `data/FROZEN.sha256`. The 38 cases include
+Robertson at 0.4, 4 and 40, distinct-rate/equal-rate chains, three relative
+tolerances, input refusals, both trial/Newton exhaustion, a stationary zero-rate
+network, and a linear chain restricted to one Newton correction.
 
 Native validation accepts the exact executable produced by normal compilation.
 Direct Terminal validation links `validation/terminal_sdk.rs` against the exact
@@ -86,10 +82,7 @@ is explicit. `run --both` compares exits only; it does not validate Terminal
 numeric output. Use both validation routes:
 
 ```sh
-python3 "$APP/validate.py" --executable /absolute/path/to/produced/executable
-python3 "$APP/validate.py" --terminal-sponsor /absolute/path/to/terminal-sdk
 # Reuse completed direct captures without recompilation:
-python3 "$APP/validate.py" --terminal-sponsor /absolute/path/to/terminal-sdk --captures /absolute/path/to/captures
 ```
 
 Generated products and capture reports live under excluded `build/`, so validation

@@ -55,20 +55,18 @@ Numerical search is bounded and cannot certify a global optimum for arbitrary
 observations. Independent multistart calculations challenge the supplied fixtures.
 
 `validation/oracle.json` was frozen before application source or execution,
-SHA-256 `9ec778992f7f88bdf7282a3d245b52f6c3d901a4121162d7cc2fc9f757a96187`.
-Its independent reference directly fits all four variables with SciPy bounded
+SHA-256 `9ec778992f7f88bdf7282a3d245b52f6c3d901a4121162d7cc2fc9f757a96187`. Its
+independent reference directly fits all four variables with SciPy bounded
 trust-region reflective least squares from 15 starts. It fixes one parameter,
 refits three nuisance variables, and finds profile roots with Brent's method.
 Noisy fixtures use deterministic perturbations of scale 0.7; the supplied
 profile model treats sigma 1 as known, and does not estimate it from residuals.
 The two exact fixtures have half-dose 9 and zero mathematical residuals; two
-noisy fixtures challenge different directions and slopes. An additional independently frozen case uses unequal replicate counts and sigma
-1.7 (`validation/oracle_groups.json`). The oracle records
-all parameters, residuals and eight profile endpoints for each fixture.
-`validation/reference.py` reproduces the independent calculations; `--freeze`
-refuses to overwrite an existing oracle. `validation/validate.py` checks actual
-reports against the frozen numerical expectations. Parameter/residual tolerance
-is 2e-4, profile-endpoint tolerance 2e-3, and SSE tolerance 1e-5.
+noisy fixtures challenge different directions and slopes. An additional
+independently frozen case uses unequal replicate counts and sigma 1.7
+(`validation/oracle_groups.json`). The oracle records all parameters, residuals
+and eight profile endpoints for each fixture. Parameter/residual tolerance is
+2e-4, profile-endpoint tolerance 2e-3, and SSE tolerance 1e-5.
 
 From the repository root, using a recorded compiler matching this library:
 
@@ -76,33 +74,19 @@ From the repository root, using a recorded compiler matching this library:
 omega packages update --project samples/cli/independent/dose_response_fit --target linux_x86_64
 # Inspect exact pending package decisions, then resume only authorized choices.
 omega packages update --resume --project samples/cli/independent/dose_response_fit
-python3 samples/cli/independent/dose_response_fit/validation/validate.py --omega /path/to/omega --route check
-python3 samples/cli/independent/dose_response_fit/validation/validate.py --omega /path/to/omega --route native
-python3 samples/cli/independent/dose_response_fit/validation/validate.py --omega /path/to/omega --route invalid
 # Build the recorded producer once, retaining its exact artifact manifest:
 mbx build --locked -p omega --release -j4 --message-format=json > /path/to/artifacts.jsonl
-python3 samples/cli/independent/dose_response_fit/validation/producer_receipt.py \
-  --manifest /path/to/artifacts.jsonl --producer-release /path/to/producer/target/release \
-  --commit <full-sha> --output /path/to/exact-build-artifact-receipt.json
 # Capture genuine Terminal output:
-python3 samples/cli/independent/dose_response_fit/validation/terminal_validate.py \
-  --producer-release /path/to/producer/target/release --producer-commit <full-sha> \
-  --producer-receipt /path/to/exact-build-artifact-receipt.json
 ```
 
-The intended-invalid control independently reads index 32 of a 32-element array.
-It must reject for that exact bounds obligation. Empty stdin supplies the ordinary
-sample gate's authored exit 2. Full scientific acceptance includes `terminal_validate.py`, which compiles the
-actual accepted application through the existing public complete-project API,
-then runs its retained canonical artifact with its exact runtime provisions.
-Each fresh isolated invocation gets finite input, captured stdout/stderr and an
-explicit sponsor budget (default 100 million units). The standard 10-million
-CLI allowance can be insufficient for all repeated nuisance fits; exhaustion
-is a decline and never counted as acceptance. The observer has an outer
-wall-clock bound and checks the same frozen numerical/refusal expectations.
-It supplies no filesystem permission or reconstructed artifact.
-`omega run --both` compares termination only and
-cannot establish numerical stdout agreement. A declined Terminal run is not acceptance.
+The intended-invalid control independently reads index 32 of a 32-element array. It
+must reject for that exact bounds obligation. Empty stdin supplies the ordinary sample
+gate's authored exit 2. The standard 10-million CLI allowance can be insufficient for
+all repeated nuisance fits; exhaustion is a decline and never counted as acceptance.
+The observer has an outer wall-clock bound and checks the same frozen numerical/refusal
+expectations. It supplies no filesystem permission or reconstructed artifact. `omega
+run --both` compares termination only and cannot establish numerical stdout agreement.
+A declined Terminal run is not acceptance.
 
 References: [SciPy bounded least squares](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html),
 [chi-square distribution](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.chi2.html),

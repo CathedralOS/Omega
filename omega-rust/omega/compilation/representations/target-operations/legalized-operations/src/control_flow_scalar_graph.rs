@@ -1310,8 +1310,10 @@ pub enum LegalizedScalarTerminator {
         ownership: Vec<OwnershipEvent>,
     },
     StructuralCase {
+        psi_block: BlockId,
         source: LegalizedStructuralCaseSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<crate::LegalizedRuntimeIndexOperand>,
         root_shape: calling_conventions::ValueShape,
         byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
@@ -1434,15 +1436,18 @@ impl LegalizedScalarTerminator {
                 _ => false,
             }),
             Self::Crash { .. } => false,
-            Self::StructuralCase { cases, .. } => cases
-                .iter()
-                .flat_map(|case| &case.structural_bindings)
-                .any(|binding| {
-                    binding
-                        .indices
+            Self::StructuralCase { cases, indices, .. } => {
+                indices.iter().any(|index| index.operand.value == value)
+                    || cases
                         .iter()
-                        .any(|index| index.operand.value == value)
-                }),
+                        .flat_map(|case| &case.structural_bindings)
+                        .any(|binding| {
+                            binding
+                                .indices
+                                .iter()
+                                .any(|index| index.operand.value == value)
+                        })
+            }
             Self::Return(returned) | Self::ReturnCleanup { returned, .. } => {
                 matches!(returned.value,
                 LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value)

@@ -358,9 +358,9 @@ impl<'t> Program<'t> {
         )
     }
 
-    /// A supplied realization has the same advertised contract as its
-    /// ordinary routed entry. The exact slot additionally admits a boundary
-    /// implementation as a root, without making its name callable.
+    /// Root the machine identified by an exact supply. An owning boundary
+    /// conformer exposes its required entry. A row selecting a plain machine
+    /// uses its own entry and owes a separate refinement witness.
     pub fn provider(
         &mut self,
         symbol: SymbolHandle,
@@ -389,13 +389,6 @@ impl<'t> Program<'t> {
         let bound = self
             .conformer_requirement(id, machine)?
             .map(|(owner, required)| (owner, required.symbol));
-        if matches!(reading, Reading::Provider) && bound.is_none() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("provider body needs its exact supplied requirement"),
-            ));
-        }
         if let Some(bound) = bound
             && bound != (declaring_trait, requirement)
         {

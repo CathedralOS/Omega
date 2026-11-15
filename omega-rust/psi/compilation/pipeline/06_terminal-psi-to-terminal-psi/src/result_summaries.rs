@@ -29,7 +29,8 @@ An equation that contains partial arithmetic also retains that arithmetic's
 canonical formation conditions. A normal successor of a trapping operation
 can establish them even when the entry does not. The complete proposal must
 be proved at every normal return and formed before publication; the result
-equation cannot supply its own missing condition.
+equation cannot supply its own missing condition. A part with a partial term
+that has no canonical condition is not proposed at all.
 
 Which machines get one is elaboration's decision (`Elaboration::local_results`):
 private machines of the subject package, which no other verification unit can
@@ -258,35 +259,36 @@ fn widest(
 }
 
 /// A normal return can establish the conditions that made its computation
-/// complete. Keep those conditions beside a proposed result equation; the
-/// equation alone cannot make its own partial terms safe. These remain a
-/// proposal until every return proves the whole conjunction below.
-fn with_formation_conditions(summary: Proposition, id: MachineId) -> Checked<Proposition> {
-    let mut conditions = Vec::new();
-    let mut failure = None;
-    summary.visit_scalar_terms(|term| {
-        let condition = CanonicalScalarGoal::for_term(term)
-            .and_then(|goal| goal.map(|goal| goal.kernel_proposition()).transpose());
-        match condition {
-            Ok(Some(condition)) => {
-                if condition != Proposition::Truth {
-                    conditions.push(condition);
-                }
+/// complete. Keep those conditions beside each proposed part; an equation
+/// alone cannot make its own partial terms safe. These remain a proposal
+/// until every return proves the whole conjunction below.
+///
+/// A part whose partial term has no canonical formation condition is left
+/// out, which only weakens the proposal: `result == (x & 32) as u8 as u64`
+/// casts a mask, not a value or literal, and the cast's representability
+/// is stated only over those (`CanonicalScalarGoal`). The returned value's
+/// literal bounds still cross, and a caller that needs the equation itself
+/// does not get it.
+fn with_formation_conditions(parts: Vec<Proposition>) -> Vec<Proposition> {
+    let mut formed = Vec::with_capacity(parts.len());
+    for part in parts {
+        let mut conditions = Vec::new();
+        let mut unformed = false;
+        part.visit_scalar_terms(|term| {
+            match CanonicalScalarGoal::for_term(term)
+                .and_then(|goal| goal.map(|goal| goal.kernel_proposition()).transpose())
+            {
+                Ok(Some(Proposition::Truth) | None) => {}
+                Ok(Some(condition)) => conditions.push(condition),
+                Err(_) => unformed = true,
             }
-            Ok(None) => {}
-            Err(error) => failure = Some(error),
+        });
+        if !unformed {
+            formed.extend(conditions);
+            formed.push(part);
         }
-    });
-    if let Some(error) = failure {
-        return Err(refusal(
-            RefusalReason::Unsupported,
-            id,
-            Construct::Machine,
-            &format!("result summary has no canonical formation condition: {error:?}"),
-        ));
     }
-    conditions.push(summary);
-    entry_inputs::canonical(joins::connective(conditions, true), id)
+    formed
 }
 
 fn summarize(
@@ -441,7 +443,14 @@ fn summarize(
     let Ok(summary) = entry_inputs::canonical(joins::connective(parts, true), id) else {
         return Ok(());
     };
-    let summary = with_formation_conditions(summary, id)?;
+    let parts = match summary {
+        Proposition::Conjunction(parts) => parts,
+        other => vec![other],
+    };
+    let summary = entry_inputs::canonical(
+        joins::connective(with_formation_conditions(parts), true),
+        id,
+    )?;
     if matches!(summary, Proposition::Truth | Proposition::Falsehood)
         || lowered
             .contract

@@ -1,4 +1,0 @@
-cannot check prepared project: checked compilation failed for package `disk_collision_lab` with 3 diagnostic(s)
-  error: state `advance` receives `main.lab` as both mutable and read-only
-  error: state `advance` receives `main.lab` as both mutable and read-only
-  error: state `advance` receives `main.lab` as both mutable and read-only

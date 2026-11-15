@@ -3,12 +3,13 @@
 //! instantiated, and these byte values grant no permission.
 
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::references::StaticArgumentCall;
+use typed_trees::types::TypeReferenceHandle;
 
-use super::Program;
+use super::{Program, places::literal_value_type, regions::Substitution};
 use crate::{Expression, ExpressionKind, SourceOrigin, ValueType};
 
 fn invalid(machine: MachineId, detail: impl Into<String>) -> Refusal {
@@ -22,11 +23,31 @@ fn invalid(machine: MachineId, detail: impl Into<String>) -> Refusal {
 }
 
 impl Program<'_> {
+    fn description_result(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+        expected: Option<ValueType>,
+        not_structured: &'static str,
+    ) -> Checked<(ValueType, StructuralTypeId, Substitution)> {
+        // The generated fields point into immutable program data. Their
+        // elided regions can be inferred just like a literal's, then each
+        // field is formed at the selected record application.
+        let written = self.local_type(machine, reference)?;
+        let result = literal_value_type(written, expected);
+        let ValueType::Record(record, _, regions) = result else {
+            return Err(invalid(machine, not_structured));
+        };
+        let field_regions = self.field_regions(machine, record, regions)?;
+        Ok((result, record, field_regions))
+    }
+
     fn field_description(
         &mut self,
         machine: MachineId,
         query: symbols::SymbolHandle,
         call: &TableCallExpression,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use semantic_vocabulary::{IntegerValue, ScalarType};
@@ -295,9 +316,12 @@ impl Program<'_> {
         {
             return Err(fail("a field query lost its toolchain FieldInfo result"));
         }
-        let ValueType::Record(record, _, regions) = self.value_type(machine, result_type)? else {
-            return Err(fail("a field description requires structured storage"));
-        };
+        let (result, record, field_regions) = self.description_result(
+            machine,
+            result_type,
+            expected,
+            "a field description requires structured storage",
+        )?;
         let fields = self.data_type(machine, record)?.fields().to_vec();
         if fields.len() != 11 || !self.data_type(machine, record)?.cases().is_empty() {
             return Err(fail("a field description has another result field roster"));
@@ -314,9 +338,10 @@ impl Program<'_> {
             if matches.next().is_some() {
                 return Err(fail("field description repeats a byte field"));
             }
+            let field_type = self.substitute(field.value_type, &field_regions);
             values.push((
                 position,
-                self.byte_literal(machine, &bytes, Some(field.value_type), source)?,
+                self.byte_literal(machine, &bytes, Some(field_type), source)?,
             ));
         }
         for (name, kind) in [
@@ -373,11 +398,7 @@ impl Program<'_> {
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Record { fields: values },
-            result: Some(ValueType::Record(
-                record,
-                crate::body::Qualification::NONE,
-                regions,
-            )),
+            result: Some(result),
             source,
         })
     }
@@ -387,6 +408,7 @@ impl Program<'_> {
         machine: MachineId,
         query: symbols::SymbolHandle,
         call: &TableCallExpression,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use typed_trees::reflection::SchemaQueryAuthority;
@@ -484,9 +506,12 @@ impl Program<'_> {
         {
             return Err(fail("a schema query lost its toolchain result type"));
         }
-        let ValueType::Record(record, _, _) = self.value_type(machine, result_type)? else {
-            return Err(fail("a schema description requires structured storage"));
-        };
+        let (result, record, field_regions) = self.description_result(
+            machine,
+            result_type,
+            expected,
+            "a schema description requires structured storage",
+        )?;
         let fields = self.data_type(machine, record)?.fields();
         let [field] = fields else {
             return Err(fail("a schema result has another field list"));
@@ -494,7 +519,8 @@ impl Program<'_> {
         if field.identity != "storage" || !self.data_type(machine, record)?.cases().is_empty() {
             return Err(fail("a schema result lost its immutable byte storage"));
         }
-        let value_type = field.value_type;
+        let field_type = field.value_type;
+        let value_type = self.substitute(field_type, &field_regions);
         let bytes = graph.runtime_image();
         let value = self.byte_literal(machine, &bytes, Some(value_type), source)?;
         Ok(Expression {
@@ -502,7 +528,7 @@ impl Program<'_> {
             kind: ExpressionKind::Record {
                 fields: vec![(0, value)],
             },
-            result: Some(ValueType::record(record)),
+            result: Some(result),
             source,
         })
     }
@@ -511,6 +537,7 @@ impl Program<'_> {
         &mut self,
         machine: MachineId,
         call: &TableCallExpression,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
         let declaration = self
@@ -557,12 +584,12 @@ impl Program<'_> {
         self.visible_to(machine, declaration.symbol)?;
         if query == ReflectionDeclaration::Schema {
             return self
-                .schema_description(machine, declaration.symbol, call, source)
+                .schema_description(machine, declaration.symbol, call, expected, source)
                 .map(Some);
         }
         if query == ReflectionDeclaration::Field {
             return self
-                .field_description(machine, declaration.symbol, call, source)
+                .field_description(machine, declaration.symbol, call, expected, source)
                 .map(Some);
         }
         if !call.machine_arguments.is_empty() {
@@ -620,12 +647,12 @@ impl Program<'_> {
                 "callable description lost its toolchain result vocabulary",
             ));
         }
-        let Some(ValueType::Record(record, _, _)) = Some(self.value_type(machine, result_type)?)
-        else {
-            return Err(fail(
-                "callable description result is not structured storage",
-            ));
-        };
+        let (result, record, field_regions) = self.description_result(
+            machine,
+            result_type,
+            expected,
+            "callable description result is not structured storage",
+        )?;
         let alternative = if requirement {
             "Requirement"
         } else {
@@ -664,9 +691,10 @@ impl Program<'_> {
             if matches.next().is_some() {
                 return Err(fail("callable description repeats an identity field"));
             }
+            let field_type = self.substitute(field.value_type, &field_regions);
             fields.push((
                 position,
-                self.byte_literal(machine, &bytes, Some(field.value_type), source)?,
+                self.byte_literal(machine, &bytes, Some(field_type), source)?,
             ));
         }
         if fields.len() != case.fields.len() {
@@ -678,7 +706,7 @@ impl Program<'_> {
                 case: case_index,
                 fields,
             },
-            result: Some(ValueType::record(record)),
+            result: Some(result),
             source,
         }))
     }

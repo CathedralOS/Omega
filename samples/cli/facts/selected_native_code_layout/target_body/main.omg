@@ -17,7 +17,7 @@ machine query_layout() -> bool terminates {
     inspect(&layout)
 }
 boundary trait SelectedLayoutCheck {
-    machine target_witness() -> bool reaches terminates;
+    machine target_witness() -> bool reaches terminates crashes none;
 }
 CheckedLayoutProbe satisfies SelectedLayoutCheck {
     machine target_witness() -> bool terminates {

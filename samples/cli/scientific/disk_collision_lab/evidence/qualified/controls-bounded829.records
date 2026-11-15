@@ -1,5 +1,0 @@
-pass/float/runtime_authored_max_selection_exit built 60122ms exit:70 interpreter-exit:70 interpreter:agrees
-pass/float/runtime_builtin_guard_application_exit built 67183ms exit:70 interpreter-exit:70 interpreter:agrees
-pass/float/runtime_builtin_ieee_order_exit built 76984ms exit:70 interpreter-exit:70 interpreter:agrees
-pass/float/runtime_shared_float_operand_once_exit incomplete 33894ms interpreter:unchecked
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (outer calls: argument calls)

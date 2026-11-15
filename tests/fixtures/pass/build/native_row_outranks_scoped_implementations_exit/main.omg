@@ -6,7 +6,7 @@
 // target selected, or the native import where an adapter is selected, changes
 // the observed value and traps.
 boundary trait Distance {
-    machine absolute(value: i32) -> i32 reaches Distance;
+    machine absolute(value: i32) -> i32 reaches Distance crashes none;
 }
 
 MacosDistance satisfies Distance {

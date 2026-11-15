@@ -148,34 +148,34 @@ fn a_binding_that_names_no_requirement_is_refused() {
 }
 
 /// A package's own bindings are judged with the package, even when no
-/// machine calls the requirement: the control's twin binds a requirement that
-/// declares no crash ceiling, and nothing calls it.
+/// machine calls the requirement: the control's twin binds a requirement with
+/// a default body, which the checker does not read, and nothing calls it.
 #[test]
 fn a_requirement_the_package_binds_is_judged_though_nothing_calls_it() {
     let product = PRODUCT.replace(
         "machine tock() reaches none crashes none;",
-        "machine tock() reaches none;",
+        "machine tock() reaches none crashes none { }",
     );
     let stderr = check_product(
         "uncalled-binding",
         &product,
         &format!("    Build::bind<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
     );
-    assert!(
-        stderr.contains("boundary requirement must declare its crash ceiling"),
-        "{stderr}"
-    );
+    assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
 
-/// A dependency whose Build binds a requirement that declares no crash
-/// ceiling, and a public machine that calls it.
+/// A dependency whose Build binds a requirement with a default body, which
+/// the checker does not read, and a public machine that calls it.
 const BOUND_LIBRARY: &str = "\
 public boundary trait Raw {
-    machine read() reaches none;
+    machine read() reaches none crashes none { }
 }
 public machine reads() reaches none { Raw::read(); }
 public machine answer() -> u32 { 73u32 }
 ";
+
+/// What the checker says when it judges a requirement with a default body.
+const DEFAULT_BODY_REFUSAL: &str = "machine default or native-callback requirement";
 
 /// Stage a program that uses `BOUND_LIBRARY` through `body`, and check it.
 fn check_with_bound_library(name: &str, body: &str) -> String {
@@ -228,10 +228,7 @@ machine build(builder: &mut Build) {{
 #[test]
 fn a_dependency_binding_nothing_reaches_is_not_judged() {
     let stderr = check_with_bound_library("unreached-dependency-binding", "");
-    assert!(
-        !stderr.contains("boundary requirement must declare its crash ceiling"),
-        "{stderr}"
-    );
+    assert!(!stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
 
 /// Its twin reaches the library's machine that calls the bound requirement,
@@ -239,10 +236,7 @@ fn a_dependency_binding_nothing_reaches_is_not_judged() {
 #[test]
 fn a_dependency_binding_the_program_reaches_is_judged() {
     let stderr = check_with_bound_library("reached-dependency-binding", "    bound::reads();\n");
-    assert!(
-        stderr.contains("boundary requirement must declare its crash ceiling"),
-        "{stderr}"
-    );
+    assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
 
 /// A program that depends on the standard library receives the bindings and

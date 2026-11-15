@@ -4160,6 +4160,11 @@ pub(crate) mod structural_locals {
 
     use terminal_psi::{StructuralOperationResult, StructuralTypeDeclaration};
 
+    /// A vacant home holds nothing, so the memberships a record home
+    /// declares grant nothing: they are the type of the value a later store
+    /// must deliver, which the structural qualification judgment holds that
+    /// store to. A byte view keeps its narrower rule: whole-value byte
+    /// domains only.
     pub fn validate_vacant_structural_local<'a>(
         declarations: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
         result: &StructuralOperationResult,
@@ -4176,8 +4181,15 @@ pub(crate) mod structural_locals {
         if !result.claims.is_empty() || !result.qualification_establishments.is_empty() {
             return Err("vacant structural local introduces value custody");
         }
-        if !result.projected_qualifications.is_empty()
-            || (!result.qualifications.is_empty() && !declaration.shape.is_borrowed_byte_view())
+        let byte_view = declaration.shape.is_borrowed_byte_view();
+        let record = matches!(
+            declaration.shape,
+            terminal_psi::StructuralTypeShape::Record { .. }
+                | terminal_psi::StructuralTypeShape::Sum { .. }
+                | terminal_psi::StructuralTypeShape::Mixed { .. }
+        );
+        if (!result.projected_qualifications.is_empty() && !record)
+            || (!result.qualifications.is_empty() && !byte_view && !record)
         {
             return Err("vacant structural local has invalid declared qualifications");
         }

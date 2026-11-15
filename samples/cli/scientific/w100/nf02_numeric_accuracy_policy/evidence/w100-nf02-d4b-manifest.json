@@ -1,8 +1,0 @@
-{
-  "revision": "cab58211668083d7f5e0a048ba687bbc81da6923",
-  "product_sha256": "2073686380287e2424ae9fabbd5701c6ab880df5cf7adb4125c58ce49430f298",
-  "base": "d4b100d0aca0787dd0a003a1ae96a7f97e2ec1e4",
-  "one_rust_build_maximum": true,
-  "one_omega_execution_maximum": true,
-  "corpus_jobs": 1
-}

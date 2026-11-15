@@ -34,7 +34,7 @@ machine verify(tallies: &Tallies, reversed: bool) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-boundary trait TalliesProvider { machine produce() -> Tallies reaches; }
+boundary trait TalliesProvider { machine produce() -> Tallies reaches crashes none; }
 HostedTallies satisfies TalliesProvider {
     machine produce() -> Tallies { Tallies { values: [0, 15, 16, 8] } }
 }

@@ -1,0 +1,27 @@
+data Choice { case First; case Second; }
+data Table { before: u64; choices: [Choice; 2]; after: u64; }
+
+machine selected(table: &Table, index: u64) -> u64
+requires index < 3
+{
+    match table.choices[index] {
+        Choice::First -> 17u64
+        Choice::Second -> 29u64
+    }
+}
+
+machine main() crashes Trap {
+    let mut table: Table;
+    table.before = 11;
+    table.choices[0] = Choice::First;
+    table.choices[1] = Choice::Second;
+    table.after = 37;
+    let first: u64 = selected(&table, 0);
+    let second: u64 = selected(&table, 1);
+    transition first == 17 && second == 29 && table.before == 11 && table.after == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

@@ -1827,7 +1827,8 @@ pub(crate) mod value_transport {
                     bind(when_true, &mut pending);
                     bind(when_false, &mut pending);
                 }
-                Terminator::StructuralCase { cases, .. } => {
+                Terminator::StructuralCase { cases, indices, .. } => {
+                    pending.extend(indices.iter().map(|index| index.operand.value));
                     pending.extend(
                         cases
                             .iter()

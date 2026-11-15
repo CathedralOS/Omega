@@ -49,6 +49,15 @@ carrier or prevent forwarding a surviving root loan. Every enclosing `Case`
 segment still requires unchanged active-case evidence at that exact root and
 path; byte layout alone does not grant payload access.
 
+An indexed discriminator's bounds belong to that terminator's execution site:
+after its block's operations and before choosing an outgoing case edge. Each
+runtime selector retains its own bound against the array or live view its prefix
+selects, including the lower bound for a signed selector. Evidence attachment
+and native realization preserve that original checked site when control-flow
+rewrites move the terminator into another block. Neither block entry nor one
+chosen edge can stand in for the shared read. This coordinate adds no separate
+work charge, ownership event, or enduring case fact about indexed storage.
+
 `EliminateEmpty` observes a live, readable structural source at an exact path
 whose declared value domain is proved empty. A final `Case` segment denotes
 that selected case's payload namespace, rather than a separately stored value.

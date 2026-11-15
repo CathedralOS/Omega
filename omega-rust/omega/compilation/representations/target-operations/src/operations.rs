@@ -404,6 +404,8 @@ pub enum TargetUnitOperation {
         field: StructuralFieldId,
         destination_storage: crate::TargetStructuralArgumentSource,
         field_byte_offset: u32,
+        /// Exact physical write envelope, not the semantic register width.
+        field_byte_size: u32,
         source: TargetUnitScalarArgumentSource,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
@@ -435,12 +437,14 @@ pub enum TargetUnitOperation {
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
         correspondence: abstract_operations::AccessReferenceBacking,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     EstablishReference {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
         storage: Option<terminal_psi::ReferenceStorageView>,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     ReleaseReference {
         psi_operation: OperationId,

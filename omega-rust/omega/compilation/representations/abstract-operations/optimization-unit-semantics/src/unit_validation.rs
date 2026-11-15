@@ -422,6 +422,7 @@ mod activation_storage {
                 source,
                 path,
                 cases,
+                ..
             } => Terminator::StructuralCase {
                 source: *source,
                 path: path.clone(),
@@ -1810,8 +1811,11 @@ mod catalogs {
 
         for block in &function.blocks {
             for node in &block.nodes {
-                // The discriminator a terminator reads before choosing an
-                // edge is owned by the block, never by one of its edges.
+                // A moved discriminator keeps its original checked read site.
+                let checked_block = match &node.operation {
+                    O::StructuralCase { psi_block, .. } => *psi_block,
+                    _ => block.id,
+                };
                 for (_, obligation) in node
                     .operation
                     .terminator_read_path()
@@ -1822,7 +1826,7 @@ mod catalogs {
                     require_accepted_goal_fact(
                         unit,
                         function.machine,
-                        optimization_unit::AcceptedObligationOwner::Terminator(block.id),
+                        optimization_unit::AcceptedObligationOwner::Terminator(checked_block),
                         Some(obligation),
                         None,
                     )?;
@@ -3504,6 +3508,7 @@ pub(crate) mod function_structure {
                         source,
                         path: selected_path,
                         cases,
+                        ..
                     } => {
                         *source == before
                             && path == selected_path
@@ -14692,6 +14697,7 @@ pub(crate) mod operation_contracts {
                 source,
                 path,
                 cases,
+                ..
             } = &node.operation
             {
                 return super::structural_cases::validate(

@@ -22,7 +22,7 @@ public boundary trait Net {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Net
-        Allocator;
+        Allocator crashes none;
 }
 
 data Client {

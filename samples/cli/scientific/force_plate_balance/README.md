@@ -56,7 +56,6 @@ proposal and `--resume`. Then:
 "$OMEGA" run --keep samples/cli/independent/force_plate_balance/main.omg < samples/cli/independent/force_plate_balance/data/frames.txt > /tmp/force-plate.stdout
 cmp /tmp/force-plate.stdout samples/cli/independent/force_plate_balance/data/expected_stdout.txt
 "$OMEGA" run --both --keep samples/cli/independent/force_plate_balance/main.omg < samples/cli/independent/force_plate_balance/data/frames.txt
-python3 samples/cli/independent/force_plate_balance/data/reference.py
 ```
 
 Repeat native and Terminal comparison with `data/variants.txt`, checking

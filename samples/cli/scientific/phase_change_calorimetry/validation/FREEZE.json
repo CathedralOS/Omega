@@ -1,5 +1,4 @@
 {
-  "validation/reference.py": "7a2bcc07c065f57badcd3e7bfea13e23fccc132198d203e737933ba5124b4fdf",
   "validation/oracle.json": "d431c4af9337181cad06725e81b631efca5cf7a21a256f4512fccdc7d3347f09",
   "data/both_isothermal.txt": "1960710679fe4dd5cfca1b9c56450d87d9a1e94589105aa185c206061af2a275",
   "data/different_melting.txt": "f2ded57d58186f0ac0b5ac85c1ce7582d3bd6de439d97ff4b5ec570f3aea542e",

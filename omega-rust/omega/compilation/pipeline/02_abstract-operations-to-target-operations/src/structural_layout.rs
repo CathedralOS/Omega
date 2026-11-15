@@ -1109,6 +1109,23 @@ pub(crate) fn runtime_borrowed_projection(
     Ok((selected, shape, offset, indices))
 }
 
+/// Reference formation selects the descriptor before a final dereference and
+/// the backing before a fixed slice. Neither suffix adds a runtime selector.
+pub(crate) fn reference_formation_indices(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &StructuralLayouts<'_>,
+) -> Result<Vec<RuntimeIndex>, LoweringError> {
+    let path = path
+        .strip_suffix(&[StructuralPathSegment::Referent])
+        .unwrap_or(path);
+    let path = match path.split_last() {
+        Some((StructuralPathSegment::FixedRange { .. }, prefix)) => prefix,
+        _ => path,
+    };
+    storage_address_indices(structural_type, path, declarations)
+}
+
 pub(crate) fn storage_address_indices(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -1223,6 +1240,14 @@ mod placed_geometry_tests {
             StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
                 access: Some(StructuralAccess::SharedBorrow),
             }),
+            StructuralTypeShape::Reference {
+                referent: StructuralTypeId::new(1).unwrap(),
+                access: StructuralAccess::SharedBorrow,
+            },
+            StructuralTypeShape::FixedArray {
+                element: StructuralTypeId::new(6).unwrap(),
+                length: terminal_psi::ArrayExtent::Literal(3),
+            },
         ]
         .into_iter()
         .enumerate()
@@ -1260,6 +1285,37 @@ mod placed_geometry_tests {
         });
         let (_, _, _, indices) = runtime_projection(types[0].id, &path, &declarations).unwrap();
         assert_eq!(indices, selectors);
+        assert_eq!(
+            reference_formation_indices(types[0].id, &path, &declarations).unwrap(),
+            selectors
+        );
+        let through_reference = [
+            StructuralPathSegment::Referent,
+            path[0].clone(),
+            path[1].clone(),
+        ];
+        assert_eq!(
+            reference_formation_indices(types[5].id, &through_reference, &declarations).unwrap(),
+            selectors
+        );
+        let slice = [
+            StructuralPathSegment::Referent,
+            path[0].clone(),
+            StructuralPathSegment::FixedRange { start: 1, end: 3 },
+        ];
+        assert_eq!(
+            reference_formation_indices(types[5].id, &slice, &declarations).unwrap(),
+            selectors[..1]
+        );
+        let descriptor = [path[0].clone(), StructuralPathSegment::Referent];
+        assert_eq!(
+            reference_formation_indices(types[6].id, &descriptor, &declarations).unwrap(),
+            [RuntimeIndex {
+                stride: 8,
+                extent: Some(3),
+                ..selectors[0]
+            }]
+        );
         let repeated_selector = [
             selectors[0],
             RuntimeIndex {

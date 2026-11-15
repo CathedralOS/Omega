@@ -31,9 +31,7 @@ symmetric positive-definite free stiffness uses a scale-relative pivot test;
 there is no stabilization or invented solution for mechanisms. A pivot no larger
 than 1e-12 times the largest constrained matrix entry refuses a mechanism or
 numerically unresolved structure, even with zero load. This conservative test is
-not a proof of a condition-number bound. `validation/reference.py` independently
-scatters explicit 4x4 endpoint matrices and solves only free equations using
-70-digit Decimal partial pivoting.
+not a proof of a condition-number bound.
 
 The output contains decimal numbers with twelve fractional digits, truncated
 toward zero. Integer and fractional portions are emitted separately so large
@@ -54,15 +52,13 @@ or unresolved stiffness; 66 reports a numerical output outside the published
 range. Invalid data never produces a successful result row.
 
 The 37-case oracle was frozen before application execution. Its SHA-256 is
-`92d5871f34cb91e4035ef2a4abdb3a586d66e67d6a4ca2a4cbeafb218f91b9d6`.
-Thirteen original successes plus CRLF cover analytic axial-bar and 3-4-5 triangle
-cases, compression, horizontal loads, an asymmetric eight-node/sixteen-bar dense
-system, reordered/reversed bars and nodes, 90-degree rotation with transformed
-loads/support flags, unloaded stable geometry, unloaded mechanisms, all-fixed
-structures, support loads and stiffness/load scales. Refusals exercise dimensions,
-indices, flags, EA, zero length, nonfinite spelling, malformed and bounded input.
-`freeze.py` documents oracle construction and refuses to overwrite the frozen
-file; `verify.py` only reads it and certifies analytic values and dense recomputation.
+`92d5871f34cb91e4035ef2a4abdb3a586d66e67d6a4ca2a4cbeafb218f91b9d6`. Thirteen original
+successes plus CRLF cover analytic axial-bar and 3-4-5 triangle cases, compression,
+horizontal loads, an asymmetric eight-node/sixteen-bar dense system,
+reordered/reversed bars and nodes, 90-degree rotation with transformed loads/support
+flags, unloaded stable geometry, unloaded mechanisms, all-fixed structures, support
+loads and stiffness/load scales. Refusals exercise dimensions, indices, flags, EA,
+zero length, nonfinite spelling, malformed and bounded input.
 
 Qualification compares displacement, reaction, extension and bar force with
 1e-7 relative tolerance plus 2e-12 times the larger of one and the family's
@@ -79,15 +75,11 @@ one, work and twice the energy.
 From the repository root, using a compiler built from recorded source:
 
 ```sh
-python3 samples/cli/independent/planar_truss_elasticity/validation/verify.py --oracle-only
 omega packages update --project samples/cli/independent/planar_truss_elasticity --target linux_x86_64
 # Inspect pending review decisions and accept only authorized decisions, then:
 omega packages update --resume --project samples/cli/independent/planar_truss_elasticity
 omega run --both samples/cli/independent/planar_truss_elasticity/main.omg < samples/cli/independent/planar_truss_elasticity/input.txt
-python3 samples/cli/independent/planar_truss_elasticity/validation/build_terminal.py --omega /absolute/path/to/omega --output /absolute/path/to/terminal-validator
 /absolute/path/to/terminal-validator /absolute/path/to/sample /absolute/path/to/captures
-python3 samples/cli/independent/planar_truss_elasticity/validation/verify.py --captured /absolute/path/to/captures --output /absolute/path/to/terminal-results
-python3 samples/cli/independent/planar_truss_elasticity/validation/verify.py --native /absolute/path/from/captures/native-path.txt
 ```
 
 The private test consumer links the exact compiler library fingerprints retained

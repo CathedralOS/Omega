@@ -42,6 +42,7 @@ pub mod scalar_qualifications;
 pub mod scalars;
 pub mod storage;
 pub mod structural;
+pub mod structural_qualifications;
 pub mod substitution;
 pub mod suspension_frontier;
 
@@ -131,7 +132,10 @@ pub use references::reference_storage_geometry::{
     reference_storage_region, reference_storage_size, schema_field_layout_source,
     validate_storage_destination_intervals,
 };
-pub use references::{SelectedReferenceResult, selected_reference_result};
+pub use references::{
+    RequirementReferenceResult, SelectedReferenceResult, declared_reference_result_sources,
+    requirement_reference_result, selected_reference_result,
+};
 pub use references::{
     boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
 };
@@ -646,7 +650,7 @@ pub use structural::static_path::{
     canonical_structural_storage_path, constant_runtime_index, interior_member_borrow,
     qualification_path_carrier, runtime_index_bound, runtime_index_selects,
     structural_memberships_disjoint_from_write, structural_paths_may_overlap,
-    structural_paths_select_same_location,
+    structural_paths_select_same_location, visit_canonical_inline_carriers,
 };
 pub use structural::structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,

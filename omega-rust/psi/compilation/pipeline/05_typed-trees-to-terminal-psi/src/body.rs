@@ -1015,8 +1015,8 @@ pub enum ExpressionKind {
         subject: Box<Expression>,
         case: usize,
     },
-    /// Value-position `match` whose arms are scalar: the subject is
-    /// evaluated once, the selected arm's value is the result
+    /// Value-position `match`: evaluate the subject once and transfer the
+    /// selected scalar or owned result to its continuation or normal return
     /// (`wiki/spec/language/expressions.md`: "Value-position `match` |
     /// Subject once; first matching arm only.").
     ///
@@ -1089,8 +1089,16 @@ pub enum ExpressionKind {
     /// here: lending it needs storage, so lowering gives it a home holding
     /// its current value first, and this is the text identity of that
     /// home's type, as `Statement::Declare` carries one.
+    ///
+    /// `access` is what the holder receives; `formation` is the loan the
+    /// program wrote. They differ only for `&mut place` given a `&T` formal
+    /// (`ReferenceAccess::forms`): the place is lent exclusively and its
+    /// holder observes through it, so the lowered-form checker judges that
+    /// formation against every overlapping live loan as the exclusive loan
+    /// it is.
     Borrow {
         access: language_core::ReferenceAccess,
+        formation: language_core::ReferenceAccess,
         place: Box<Expression>,
         home: Option<String>,
     },

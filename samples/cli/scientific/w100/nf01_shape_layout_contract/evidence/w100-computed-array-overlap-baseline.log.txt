@@ -1,1 +1,0 @@
-error: state `collide` receives `items` as both mutable and read-only

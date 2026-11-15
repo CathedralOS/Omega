@@ -4939,14 +4939,14 @@ pub(crate) mod structural_case {
             u32,
             calling_conventions::ValueShape,
             calling_conventions::ConventionalSumLayout,
+            Vec<RuntimeElement>,
         ),
         LegalizationError,
     > {
         let root = source_identity(function, source, source_result(function, source))?;
         let geometry = reference_source_geometry(root, path, plan.geometry())
             .ok_or(LegalizationError::custody())?;
-        if !geometry.elements.is_empty()
-            || !geometry.readable
+        if !geometry.readable
             || geometry
                 .pointer_slots
                 .iter()
@@ -4968,7 +4968,7 @@ pub(crate) mod structural_case {
         {
             return Err(LegalizationError::custody());
         }
-        Ok((selected, byte_offset, root_shape, layout))
+        Ok((selected, byte_offset, root_shape, layout, geometry.elements))
     }
 
     #[allow(clippy::type_complexity)]

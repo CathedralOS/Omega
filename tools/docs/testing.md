@@ -646,35 +646,31 @@ clamped to [5 GiB, 500 GiB] — `185.0 GiB budget` here against roughly 23 GiB
 when the cache sits on the system volume). Change the setting, then verify with
 `mbx doctor`.
 
-Changing `cache_dir` strands the old target directories, because a worktree's
-`target` is a symlink into `<cache_dir>/targets/v1/<hash>`. Three states then
-produce the same failure — a build or gate refusing with `Caused by: Not a
-directory (os error 20)` before compiling anything — and one remedy covers all
-three: remove `target` (it is ignored scratch; no source is touched), let the
-next `mbx` invocation recreate it under the new cache, and rebuild, because the
-collected target directories took every binary with them.
+A local worktree assignment reserves the checkout, while mbx manages its
+build storage under the workstation's disk budget. When mbx collects a target
+between commands, the worktree and its source are still usable. From that
+worktree root, run the build with mbx's default target placement, for example
+`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega < /dev/null`. mbx 1.29.2
+recreates its collected view under the current target root. Setting
+`CARGO_TARGET_DIR=$PWD/target` or passing `--target-dir target` selects an
+explicit path even when it names the default location. mbx then leaves the
+dangling link in place, and Cargo reports `Not a directory (os error 20)`.
+If the shell sets an explicit target for other work, omit it just for this
+default-placement build. [Target placement in mbx 1.29.2](https://github.com/jdx/mr-boxington/blob/v1.29.2/crates/mbx/src/target.rs#L813-L838).
 
-- **A symlink into the old cache**, whose target area the GC then collected —
-  measured here, on a worktree whose link named one of the `2 live` target
-  directories the GC had just removed; `rm target` and the next `mbx` run
-  recreated the link under the new cache.
-- **Absent** — already removed, or never created; `mbx` creates it.
-- **A plain empty directory**, which `mbx` never replaces with its link:
-  measured by the discovery lane, where `cargo` failed with the same `Not a
-  directory (os error 20)` until `rmdir target` and a rebuild.
+Changing `cache_dir` also changes the default managed target root. If the old
+view and its ownership record have already been collected, mbx cannot identify
+a dangling link into the old root as its own. Inspect `ls -ld target` first.
+On Unix, `rm target` unlinks a verified dangling link to your old mbx cache.
+Do this from the owning worktree between commands, then rerun the
+default-placement build. A real, empty `target/` directory can be removed
+with `rmdir target` to opt into managed placement. Keep live links, populated
+directories and operator-selected targets in place.
+[Managed link recognition in mbx 1.29.2](https://github.com/jdx/mr-boxington/blob/v1.29.2/crates/mbx/src/target.rs#L1298-L1318).
 
-Inspect each worktree's `target` with `ls -ld target`, not `readlink`: a plain
-empty directory is the third state above, and `readlink` reports it as "no
-symlink", which reads as fine.
-
-Reclaiming the old cache before the links are fixed is what turned this into an
-outage, because every worktree fails at once and the failure does not read like
-one: a gate reports it as `corpus_gate: runner build failed (101)` and a
-dependency as the same `os error 20`, both of which look like a compiler or
-runner defect. Do it in order: change `cache_dir`, fix `target` in every
-worktree, verify one `mbx build` in one of them, and only then reclaim the old
-cache. A measurement run that started before the move measured a runner that no
-longer exists, so re-run it rather than reusing its result.
+When planning a cache move, verify a build using the new root before
+reclaiming the old cache. Repeat any measurement whose executable disappeared
+before it ran.
 
 Moving a cache between volumes has its own trap. macOS ships `openrsync` as
 `/usr/bin/rsync`: it rejects GNU-only flags such as `--info=...` by printing

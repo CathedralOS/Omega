@@ -1,2 +1,0 @@
-native compile FAILED:
-  error: terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("structural argument has the wrong concrete type")))

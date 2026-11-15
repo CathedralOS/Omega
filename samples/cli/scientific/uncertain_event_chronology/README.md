@@ -51,14 +51,11 @@ entire feasible set, or extracts irreducible inconsistent constraint sets.
 
 `data/cases.json` describes 42 input cases: 12 named valid models, 20 seeded
 nontrivial variants, and 10 invalid records. Each folder contains stdin, exact
-stdout and exit oracles. `validation/reference.py` independently enumerates the
-Cartesian product of interval members and verifies every contradiction witness's
-inconsistency and irreducibility. All arithmetic is integer: tolerance is zero.
-The oracle was frozen before the first Omega check; its SHA-256 identity is in
-`validation/oracle-freeze.sha256`. Validation never regenerates expectations. `verify_frozen.py` checks exact raw
-input/stdout/exit bytes and both frozen ledgers while retaining the original
-reference source unchanged. Two separately frozen supplemental cases exercise
-EOF without LF and the unconstrained 1000-assignment upper limit (44 total).
+stdout and exit oracles. All arithmetic is integer: tolerance is zero. The
+oracle was frozen before the first Omega check; its SHA-256 identity is in
+`validation/oracle-freeze.sha256`. Validation never regenerates expectations.
+Two separately frozen supplemental cases exercise EOF without LF and the
+unconstrained 1000-assignment upper limit (44 total).
 
 From the repository root on Linux x86-64, using the compiler at the recorded
 qualification revision and this origin's accepted package graph:
@@ -67,13 +64,9 @@ qualification revision and this origin's accepted package graph:
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 APP=samples/cli/independent/uncertain_event_chronology
 CLI=target/debug/omega
-python3 -B "$APP/validation/verify_frozen.py"
 sha256sum -c "$APP/validation/oracle-freeze.sha256"
-python3 -B "$APP/validation/validate.py" --omega "$CLI" --route check
 "$CLI" --target linux_x86_64 "$APP/main.omg"
 # Use the executable path printed by successful compilation:
-python3 -B "$APP/validation/validate.py" --omega "$CLI" --route native --executable <published-path>
-python3 -B "$APP/validation/validate.py" --omega "$CLI" --route invalid
 ```
 
 Package preparation must already be accepted for this exact origin. An ordinary
@@ -91,7 +84,6 @@ For CLI host execution and termination comparison, omit `--target`:
 
 ```sh
 "$CLI" run --both --keep "$APP/main.omg" < "$APP/data/compatible/input.txt"
-python3 -B "$APP/validation/validate.py" --omega "$CLI" --route host-comparison
 ```
 
 An explicit target makes `run` compile-only, even with `--both`. The corrected
@@ -110,8 +102,6 @@ use Cargo when it is unavailable):
 ```sh
 mkdir -p "$APP/build/validation"
 mbx build -p omega --message-format=json > "$APP/build/validation/omega-build.jsonl"
-python3 -B "$APP/validation/link_terminal.py" "$APP/build/validation/omega-build.jsonl" "$PWD" "$APP/build/validation/terminal-sdk"
-python3 -B "$APP/validation/validate.py" --route terminal --terminal-sponsor "$APP/build/validation/terminal-sdk"
 ```
 
 `terminal_sdk.rs` is the unchanged sponsor source used for the qualified 44-case

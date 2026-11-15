@@ -71,8 +71,8 @@ machine make() -> LayoutStorage<PackedFlags, CompactBits> {
     value
 }
 boundary trait Delivery {
-    machine value() -> LayoutStorage<PackedFlags, CompactBits> reaches terminates;
-    machine marker() -> u64 reaches terminates;
+    machine value() -> LayoutStorage<PackedFlags, CompactBits> reaches terminates crashes none;
+    machine marker() -> u64 reaches terminates crashes none;
 }
 FirstDelivery satisfies Delivery {
     machine value() -> LayoutStorage<PackedFlags, CompactBits> { make() }

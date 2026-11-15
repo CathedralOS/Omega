@@ -19,8 +19,7 @@
       "replayed_python_sha256": "cdc1d928d8bd44365b9d31bee102542ca5f3cf8adeb6deb5eca6a4c11c720164"
     },
     {
-      "source_command": "t00-i0026.shell.txt",
-      "literal_heredoc_path": "validate.py"
+      "source_command": "t00-i0026.shell.txt"
     },
     {
       "source_command": "t00-i0026.shell.txt",

@@ -47,9 +47,16 @@ fact slice; the earlier function and unit bodies are not inputs to that API.
 Function headers likewise consume the retained target storage contract, scalar
 ABI parameters and entry block. Scalar definition sites follow their parameter
 ordinals. The independent audit compares the complete structural contract to
-the source, including claims and service ceilings. Remaining instruction and
-terminator construction still uses earlier bodies; this header handoff does
-not claim that dependency is fully removed.
+the source, including claims and service ceilings. Remaining ordinary
+instruction construction still uses earlier bodies; the complete ordinary
+body-driver handoff remains unfinished.
+
+[Control-exit construction](src/legalization_control.rs) consumes only target
+terminators, retained storage declarations and admitted immutable proof facts.
+The independent audit alone uses the earlier body's terminator as an oracle,
+comparing complete exits including work, ownership, cleanup and successor
+bindings. Return, branch, sum dispatch, crash and no-normal exits share this
+handoff without recovering executable bodies during ordinary construction.
 
 Every target function contains its `TargetControlGraph` directly. This stage
 does not convert flat bodies or whole-function expression trees. Unit, scalar,

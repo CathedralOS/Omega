@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // The checked seed-2 mov/sub/jnz CFG falls through with eax == 0 and stores output == 0.
 boundary trait Countdown {
-    machine run(seed: u32) -> u32 reaches requires seed == 2 ensures result == 0;
+    machine run(seed: u32) -> u32 reaches requires seed == 2 ensures result == 0 crashes none;
 }
 
 X86Countdown satisfies Countdown {

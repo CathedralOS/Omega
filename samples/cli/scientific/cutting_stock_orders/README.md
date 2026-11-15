@@ -55,22 +55,18 @@ reuses remnants, counts tied packings, or certifies material conservation. A sea
 of existing samples for cutting stock, bin packing, knapsack, kerf, and remnant
 found no corresponding workflow before authoring.
 
-`reference.py` independently partitions feasible order subsets stock by stock;
-it does not follow the Omega assignment-code search. Its expectations were frozen
-before any Omega check/native/Terminal execution. `data/frozen.json` contains 991
-cases: 972 exhaustive tiny inputs (fresh 3..5, remnant 0 or 3, kerf 0 or 1, four
-lengths independently 1..3), nine named cases, and ten invalid runtime cases.
-`reusable_leftover` leaves eight millimetres on stock 0. The original
-`remnant_reuse` and `reuse_round2` fixtures test available remnants that the
-objective leaves untouched. A separate pre-execution freeze,
+`data/frozen.json` contains 991 cases: 972 exhaustive tiny inputs (fresh 3..5,
+remnant 0 or 3, kerf 0 or 1, four lengths independently 1..3), nine named cases,
+and ten invalid runtime cases. `reusable_leftover` leaves eight millimetres on
+stock 0. The original `remnant_reuse` and `reuse_round2` fixtures test available
+remnants that the objective leaves untouched. A separate pre-execution freeze,
 `data/frozen_reuse.json`, adds `remnant_required` and `reuse_actual_round2`: the
 latter feeds those eight millimetres into a second batch with fresh stock 6 and
 verifies actual remnant cuts. Both extra fixtures assert that stock 2 is opened.
-The complete validation inventory has 993 cases. Supplemental frozen SHA-256: `0bd8d5341a852594f1352b7fc1ce17f65eaf04b894df4a8d516c47b47c5fee44`. Named `.stdin` and
-`.stdout` files expose exact fixtures. Tolerance is zero. Frozen SHA-256:
-`8725271f0cb3cc403e695898157d925baaebaebe74045178229bc3ac2b6d9f33`.
-The `reference.py --freeze` and `--freeze-reuse` commands refuse to overwrite their existing oracles; validation never
-regenerates expected output from observed results.
+The complete validation inventory has 993 cases. Supplemental frozen SHA-256:
+`0bd8d5341a852594f1352b7fc1ce17f65eaf04b894df4a8d516c47b47c5fee44`. Named
+`.stdin` and `.stdout` files expose exact fixtures. Tolerance is zero. Frozen
+SHA-256: `8725271f0cb3cc403e695898157d925baaebaebe74045178229bc3ac2b6d9f33`.
 
 From the repository root, use the compiler binary built for this checkout and
 its matching library. `OMEGA` below names that binary:
@@ -85,8 +81,6 @@ export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 "$OMEGA" --target linux_x86_64 --build-dir samples/cli/independent/cutting_stock_orders/build/native samples/cli/independent/cutting_stock_orders/main.omg
 "$OMEGA" run --both samples/cli/independent/cutting_stock_orders/main.omg < samples/cli/independent/cutting_stock_orders/data/kerf_ties.stdin
 "$OMEGA" --check samples/cli/independent/cutting_stock_orders/controls/invalid_contract/main.omg
-python3 samples/cli/independent/cutting_stock_orders/validate.py --executable /absolute/path/to/produced/executable --output samples/cli/independent/cutting_stock_orders/build/native-validation
-python3 samples/cli/independent/cutting_stock_orders/validate.py --omega "$OMEGA" --both --named-only --output samples/cli/independent/cutting_stock_orders/build/terminal-validation
 ```
 
 The separately complete invalid source calls a cut requiring sufficient stock

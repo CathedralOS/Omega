@@ -3151,7 +3151,7 @@ pub(crate) mod tests {
     #[test]
     fn source_jobs_construct_copy_and_return_byte_fields_with_their_real_contents() {
         let entry = program(
-            "data Packet [copy] { bytes: &[u8]; }
+            "data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
             machine answer(input: Packet) -> Packet { input }",
         );
         let value = BuildTimeValue::Struct {
@@ -3207,7 +3207,7 @@ pub(crate) mod tests {
         // Numbered members keep their schema identity when materialized.
         // An authored name and its returned number select the same member.
         let entry = program(
-            "data Choice [copy] { #7 case Ready(#9 bytes: &[u8]); #8 case Empty; }
+            "data Choice<'bytes> [copy] { #7 case Ready(#9 bytes: &'bytes [u8]); #8 case Empty; }
              machine answer(value: Choice) -> Choice { value }",
         );
         let value = BuildTimeValue::Case {
