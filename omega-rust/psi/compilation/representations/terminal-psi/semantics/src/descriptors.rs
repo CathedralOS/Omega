@@ -11,13 +11,45 @@ pub mod descriptor_lifetimes {
 
     pub(crate) mod arrivals {
         use super::{DescriptorLocation, DescriptorPathSegment};
-        use semantic_vocabulary::{PlaceId, StructuralTypeId};
+        use semantic_vocabulary::{PlaceId, ScalarTerm, StructuralTypeId};
         use terminal_psi::StructuralAccess;
 
         #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
         pub enum DescriptorContentsStep {
             Address(DescriptorPathSegment),
-            AnyElement { element: StructuralTypeId },
+            Element {
+                element: StructuralTypeId,
+                // The same typed selector term as ScalarReadProjection::Index.
+                // Without one the query ranges over all possible elements.
+                selector: Option<Box<ScalarTerm>>,
+            },
+        }
+
+        impl DescriptorContentsStep {
+            pub(crate) fn may_match(&self, other: &Self) -> bool {
+                self == other
+                    || matches!(
+                        (self, other),
+                        (
+                            Self::Element { .. },
+                            Self::Address(DescriptorPathSegment::FixedIndex(_))
+                        ) | (
+                            Self::Address(DescriptorPathSegment::FixedIndex(_)),
+                            Self::Element { .. }
+                        )
+                    )
+                    || matches!(
+                        (self, other),
+                        (Self::Element { element: left, .. }, Self::Element { element: right, .. })
+                            if left == right
+                    )
+            }
+            pub fn any_element(element: StructuralTypeId) -> Self {
+                Self::Element {
+                    element,
+                    selector: None,
+                }
+            }
         }
 
         #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -2728,7 +2760,7 @@ pub mod descriptor_results {
             ) -> Option<PayloadMembershipContract> {
                 let count = steps
                     .iter()
-                    .position(|step| matches!(step, DescriptorContentsStep::AnyElement { .. }))
+                    .position(|step| matches!(step, DescriptorContentsStep::Element { .. }))
                     .unwrap_or(steps.len());
                 let address = steps[..count]
                     .iter()
@@ -2740,7 +2772,7 @@ pub mod descriptor_results {
                 let mut contract =
                     super::select_payload_memberships(types, domains, &contract, &address)?;
                 let carrier = contract.carrier;
-                let Some(DescriptorContentsStep::AnyElement { element }) = steps.get(count) else {
+                let Some(DescriptorContentsStep::Element { element, .. }) = steps.get(count) else {
                     super::close_predicate_memberships(types, domains, &mut contract);
                     return Some(contract);
                 };
@@ -2821,7 +2853,7 @@ pub mod descriptor_results {
             DescriptorContentsQuery, DescriptorContentsStep,
         };
         use semantic_vocabulary::ScalarRefinement;
-        use semantic_vocabulary::ScalarType;
+        use semantic_vocabulary::{ScalarType, ValueId};
         use terminal_psi::StructuralPathQualification;
 
         pub struct DescriptorContentsTransfer {
@@ -2880,6 +2912,41 @@ pub mod descriptor_results {
         }
 
         impl DescriptorContentsQuery {
+            pub(crate) fn retains_selector(&self) -> bool {
+                self.steps.iter().any(|step| {
+                    matches!(
+                        step,
+                        DescriptorContentsStep::Element {
+                            selector: Some(_),
+                            ..
+                        }
+                    )
+                })
+            }
+
+            pub(crate) fn without_selectors(&self) -> Self {
+                Self {
+                    root: self.root,
+                    steps: self
+                        .steps
+                        .iter()
+                        .map(|step| match step {
+                            DescriptorContentsStep::Element { element, .. } => {
+                                DescriptorContentsStep::any_element(*element)
+                            }
+                            step => step.clone(),
+                        })
+                        .collect(),
+                }
+            }
+
+            pub(crate) fn is_symbolic_location(&self) -> bool {
+                self.retains_selector()
+                    && self.steps.iter().all(|step| {
+                        !matches!(step, DescriptorContentsStep::Element { selector: None, .. })
+                    })
+            }
+
             /// Whether each step stays inside the selected value's own
             /// storage. A reference, view backing or accessor crosses out.
             pub(crate) fn inline_steps(
@@ -2918,7 +2985,7 @@ pub mod descriptor_results {
                                 })
                         }
                         DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(_))
-                        | DescriptorContentsStep::AnyElement { .. } => {
+                        | DescriptorContentsStep::Element { .. } => {
                             container().is_some_and(|shape| {
                                 matches!(shape, StructuralTypeShape::FixedArray { .. })
                             })
@@ -2926,7 +2993,7 @@ pub mod descriptor_results {
                     });
                     match step {
                         DescriptorContentsStep::Address(segment) => path.push(*segment),
-                        DescriptorContentsStep::AnyElement { element } => {
+                        DescriptorContentsStep::Element { element, .. } => {
                             base = *element;
                             path.clear();
                         }
@@ -2943,7 +3010,7 @@ pub mod descriptor_results {
                         .iter()
                         .map(|step| match step {
                             DescriptorContentsStep::Address(segment) => Some(*segment),
-                            DescriptorContentsStep::AnyElement { .. } => None,
+                            DescriptorContentsStep::Element { .. } => None,
                         })
                         .collect::<Option<_>>()?,
                 })
@@ -2969,7 +3036,7 @@ pub mod descriptor_results {
                         .iter()
                         .map_while(|step| match step {
                             DescriptorContentsStep::Address(segment) => Some(*segment),
-                            DescriptorContentsStep::AnyElement { .. } => None,
+                            DescriptorContentsStep::Element { .. } => None,
                         })
                         .collect(),
                 }
@@ -3007,7 +3074,7 @@ pub mod descriptor_results {
                 for step in &self.steps {
                     match step {
                         DescriptorContentsStep::Address(segment) => path.push(*segment),
-                        DescriptorContentsStep::AnyElement { element } => {
+                        DescriptorContentsStep::Element { element, .. } => {
                             tip = location_type(tip, &path, original)??;
                             let declaration = terminal_psi::find_structural_type(types, tip)?;
                             match declaration.shape {
@@ -3049,6 +3116,17 @@ pub mod descriptor_results {
             path: &[StructuralPathSegment],
             final_field: Option<semantic_vocabulary::StructuralFieldId>,
         ) -> Option<DescriptorContentsQuery> {
+            descriptor_contents_query_with(types, root, root_type, path, final_field, |_| None)
+        }
+
+        fn descriptor_contents_query_with(
+            types: &[StructuralTypeDeclaration],
+            root: PlaceId,
+            root_type: StructuralTypeId,
+            path: &[StructuralPathSegment],
+            final_field: Option<semantic_vocabulary::StructuralFieldId>,
+            select: impl Fn(semantic_vocabulary::ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
+        ) -> Option<DescriptorContentsQuery> {
             let mut query = DescriptorContentsQuery {
                 root,
                 steps: Vec::new(),
@@ -3056,7 +3134,7 @@ pub mod descriptor_results {
             let mut tip = root_type;
             let mut static_path = Vec::new();
             for segment in path {
-                if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+                if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
                     let prefix = descriptor_location(types, root, tip, &static_path, None)?;
                     tip = descriptor_location_type(types, tip, &prefix.path)?;
                     query
@@ -3068,9 +3146,17 @@ pub mod descriptor_results {
                         | StructuralTypeShape::ElementView { element, .. } => element,
                         _ => return None,
                     };
-                    query
-                        .steps
-                        .push(DescriptorContentsStep::AnyElement { element });
+                    let selector = select(*index);
+                    let fixed = inline_selected_index(&declaration.shape, selector.as_ref());
+                    query.steps.push(match fixed {
+                        Some(index) => DescriptorContentsStep::Address(
+                            DescriptorPathSegment::FixedIndex(index),
+                        ),
+                        None => DescriptorContentsStep::Element {
+                            element,
+                            selector: selector.map(Box::new),
+                        },
+                    });
                     tip = element;
                     static_path.clear();
                 } else {
@@ -3083,6 +3169,145 @@ pub mod descriptor_results {
                 .extend(suffix.path.into_iter().map(DescriptorContentsStep::Address));
             query.validate(types, root_type)?;
             Some(query)
+        }
+
+        pub(crate) fn inline_selected_index(
+            shape: &StructuralTypeShape,
+            selector: Option<&semantic_vocabulary::ScalarTerm>,
+        ) -> Option<u64> {
+            let StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(extent),
+                ..
+            } = shape
+            else {
+                return None;
+            };
+            crate::runtime_index_selects(selector?.integer_value()?.1, *extent)
+        }
+
+        // Effects cross machine boundaries only in terms of stable scalar
+        // inputs. A read of local storage or a renewed block argument cannot
+        // accompany the descriptor into the caller.
+        pub fn entry_selector(
+            term: semantic_vocabulary::ScalarTerm,
+            is_parameter: impl Fn(semantic_vocabulary::ValueId) -> bool,
+        ) -> Option<semantic_vocabulary::ScalarTerm> {
+            use semantic_vocabulary::ScalarTerm;
+            let mut pending = vec![&term];
+            while let Some(value) = pending.pop() {
+                match value {
+                    ScalarTerm::Value { id, .. } if is_parameter(*id) => (),
+                    ScalarTerm::Value { .. }
+                    | ScalarTerm::Application { .. }
+                    | ScalarTerm::StructuralRead { .. }
+                    | ScalarTerm::BooleanField { .. }
+                    | ScalarTerm::IntegerField { .. }
+                    | ScalarTerm::IeeeFloatField { .. }
+                    | ScalarTerm::ViewExtent { .. } => return None,
+                    _ => pending.extend(value.operands()),
+                }
+            }
+            Some(term)
+        }
+
+        pub fn descriptor_scalar_arguments(
+            formals: impl ExactSizeIterator<Item = (ValueId, semantic_vocabulary::ScalarType)>,
+            actuals: &[ValueId],
+            expression: impl Fn(ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
+        ) -> Vec<(ValueId, semantic_vocabulary::ScalarTerm)> {
+            if formals.len() != actuals.len() {
+                return Vec::new();
+            }
+            let mut bindings = formals
+                .zip(actuals)
+                .filter_map(|((formal, scalar_type), actual)| {
+                    let term = expression(*actual)?;
+                    (term.scalar_type() == scalar_type).then_some((formal, term))
+                })
+                .collect::<Vec<_>>();
+            bindings.sort_unstable_by_key(|(formal, _)| *formal);
+            if bindings.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return Vec::new();
+            }
+            bindings
+        }
+
+        pub struct DescriptorStoreFlow<'a> {
+            pub position: crate::descriptor_lifetimes::DescriptorPosition,
+            pub transfers: &'a mut std::collections::BTreeMap<
+                crate::descriptor_lifetimes::DescriptorPosition,
+                Vec<DescriptorContentsTransfer>,
+            >,
+            pub unresolved:
+                &'a mut std::collections::BTreeSet<crate::descriptor_lifetimes::DescriptorPosition>,
+        }
+
+        pub fn descriptor_leaf_store(
+            DescriptorStoreFlow {
+                position,
+                transfers,
+                unresolved,
+            }: DescriptorStoreFlow<'_>,
+            step: &mut crate::descriptor_lifetimes::DescriptorFlowStep,
+            types: &[StructuralTypeDeclaration],
+            slot_kind: DescriptorSlotKind,
+            destination: DescriptorContentsOperand<'_>,
+            source: PlaceId,
+            select: impl Fn(semantic_vocabulary::ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
+        ) -> Option<()> {
+            let from = DescriptorLocation::whole(source);
+            let query = descriptor_contents_query_with(
+                types,
+                destination.root,
+                destination.root_type,
+                destination.path,
+                destination.field,
+                select,
+            );
+            let location = query
+                .as_ref()
+                .and_then(DescriptorContentsQuery::exact_location)
+                .or_else(|| {
+                    descriptor_location(
+                        types,
+                        destination.root,
+                        destination.root_type,
+                        destination.path,
+                        destination.field,
+                    )
+                });
+            if let Some(location) = location {
+                step.definitions.push(location.clone());
+                step.derivations.push((from.clone(), location));
+            } else {
+                step.may_escape = true;
+                if let Some(query) = query.filter(|query| {
+                    query.retains_selector()
+                        && query
+                            .inline_steps(types, destination.root_type)
+                            .is_some_and(|steps| steps.iter().all(|inline| *inline))
+                }) {
+                    transfers
+                        .entry(position)
+                        .or_default()
+                        .push(DescriptorContentsTransfer {
+                            source: DescriptorContentsQuery::from_location(&from),
+                            destination: query,
+                            removes_source: false,
+                        });
+                } else {
+                    unresolved.insert(position);
+                    step.definitions.extend(slot_kind.overwritten_slots(
+                        types,
+                        destination.root,
+                        destination.root_type,
+                        destination.path,
+                        destination.field,
+                    )?);
+                }
+            }
+            step.inputs = vec![from];
+            Some(())
         }
 
         #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -3388,7 +3613,7 @@ pub mod descriptor_results {
             for step in steps {
                 match step {
                     DescriptorContentsStep::Address(segment) => address.push(*segment),
-                    DescriptorContentsStep::AnyElement { element } => {
+                    DescriptorContentsStep::Element { element, .. } => {
                         let prefix = descriptor_path(types, carrier, &address)?;
                         path.extend(prefix.iter().cloned());
                         carrier =
@@ -3794,7 +4019,7 @@ pub mod descriptor_results {
                 descriptor_contents_query(types, source.place, root.carrier, &source.path, None)?;
             query
                 .steps
-                .push(DescriptorContentsStep::AnyElement { element });
+                .push(DescriptorContentsStep::any_element(element));
             query.validate(types, root.carrier)?;
             let targets = analysis.payload_targets(machine, position, &query)?;
             if targets.is_empty() {
@@ -7378,7 +7603,7 @@ pub mod descriptor_results {
                 remaining: &mut usize,
                 depth: usize,
             ) -> Option<()> {
-                if depth > 64 {
+                if depth > crate::substitution::SCALAR_EXPRESSION_DEPTH {
                     return None;
                 }
                 *remaining = remaining.checked_sub(1)?;
@@ -7400,7 +7625,8 @@ pub mod descriptor_results {
             }
             let (scalar_type, _) = origin(value)?;
             let mut term = ScalarTerm::value(value, scalar_type);
-            expand(&mut term, origin, &mut 4096, 0)?;
+            let mut remaining = crate::substitution::SCALAR_EXPRESSION_NODES;
+            expand(&mut term, origin, &mut remaining, 0)?;
             Some(term)
         }
 
@@ -10810,9 +11036,9 @@ pub mod descriptor_results {
                 };
                 let query = |root| DescriptorContentsQuery {
                     root: PlaceId::new(root).unwrap(),
-                    steps: vec![DescriptorContentsStep::AnyElement {
-                        element: StructuralTypeId::new(1).unwrap(),
-                    }],
+                    steps: vec![DescriptorContentsStep::any_element(
+                        StructuralTypeId::new(1).unwrap(),
+                    )],
                 };
                 assert_eq!(
                     replay.read_contents(row, current, &query(4)),
@@ -10992,7 +11218,7 @@ pub mod descriptor_results {
                 let current = states.get(&(block, 2)).unwrap();
                 let pointer = DescriptorContentsQuery {
                     root: PlaceId::new(3).unwrap(),
-                    steps: vec![DescriptorContentsStep::AnyElement { element: reference }],
+                    steps: vec![DescriptorContentsStep::any_element(reference)],
                 };
                 assert_eq!(
                     replay.read_contents(&graph[0], current, &pointer),
@@ -11430,7 +11656,7 @@ pub mod descriptor_results {
                 }
                 let query = DescriptorContentsQuery {
                     root: PlaceId::new(3).unwrap(),
-                    steps: vec![DescriptorContentsStep::AnyElement { element: bytes }],
+                    steps: vec![DescriptorContentsStep::any_element(bytes)],
                 };
                 let after_call = states.get(&(receiver_entry, 1)).unwrap();
                 let constructor = graph.iter().find(|row| row.id == caller).unwrap();
@@ -11736,7 +11962,7 @@ pub mod descriptor_results {
                 let current = states.get(&(receiver_entry, 1)).unwrap();
                 let query = DescriptorContentsQuery {
                     root: PlaceId::new(3).unwrap(),
-                    steps: vec![DescriptorContentsStep::AnyElement { element: bytes }],
+                    steps: vec![DescriptorContentsStep::any_element(bytes)],
                 };
                 assert_eq!(
                     replay.read_contents(receiver, current, &query),
@@ -11852,8 +12078,8 @@ pub mod descriptor_results {
                 let mut query = DescriptorContentsQuery {
                     root: PlaceId::new(3).unwrap(),
                     steps: vec![
-                        DescriptorContentsStep::AnyElement { element: sequence },
-                        DescriptorContentsStep::AnyElement { element: bytes },
+                        DescriptorContentsStep::any_element(sequence),
+                        DescriptorContentsStep::any_element(bytes),
                     ],
                 };
                 assert_eq!(
@@ -12146,7 +12372,7 @@ pub mod descriptor_results {
                     assert!(matches!(
                         graph[0].payload_invalidations[&(body.entry, 0)].as_slice(),
                         [Some(DescriptorContentsQuery { steps, .. })]
-                            if matches!(steps.as_slice(), [DescriptorContentsStep::AnyElement { .. }])
+                            if matches!(steps.as_slice(), [DescriptorContentsStep::Element { .. }])
                     ));
                     assert_eq!(
                         crate::borrowed_storage::inferred_write_frames(&module)
@@ -12180,7 +12406,7 @@ pub mod descriptor_results {
                     assert!(matches!(
                         graph[0].payload_invalidations[&(body.entry, 0)].as_slice(),
                         [Some(DescriptorContentsQuery { steps, .. })]
-                            if matches!(steps.as_slice(), [DescriptorContentsStep::AnyElement { .. }, DescriptorContentsStep::AnyElement { .. }])
+                            if matches!(steps.as_slice(), [DescriptorContentsStep::Element { .. }, DescriptorContentsStep::Element { .. }])
                     ));
                     assert_eq!(
                         crate::borrowed_storage::inferred_write_frames(&module)
@@ -13141,11 +13367,14 @@ pub mod descriptor_results {
     }
     pub use contents::{
         DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
-        DescriptorContentsTransfer, DescriptorPayloadTarget, ElementPayloadMemberships,
-        PayloadMembershipContract, descriptor_contents_query, descriptor_contents_transfers,
-        element_payload_memberships, element_payload_memberships_in, payload_memberships,
-        reference_backing_memberships, terminal_payload_contract,
+        DescriptorContentsTransfer, DescriptorPayloadTarget, DescriptorStoreFlow,
+        ElementPayloadMemberships, PayloadMembershipContract, descriptor_contents_query,
+        descriptor_contents_transfers, descriptor_leaf_store, descriptor_scalar_arguments,
+        element_payload_memberships, element_payload_memberships_in, entry_selector,
+        payload_memberships, reference_backing_memberships, terminal_payload_contract,
     };
+
+    pub(crate) use contents::inline_selected_index;
     pub use payload_history::{
         PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
     };
@@ -13358,6 +13587,7 @@ pub mod descriptor_results {
                 return None;
             }
             Some(DescriptorInvocation {
+                scalar_arguments: Vec::new(),
                 operation,
                 target: DescriptorInvocationTarget::Public {
                     effects_machine: None,
@@ -13727,6 +13957,7 @@ pub mod descriptor_results {
                 crate::descriptor_lifetimes::DescriptorLocation::whole(result.unwrap().place)
             });
             Some(DescriptorInvocation {
+                scalar_arguments: Vec::new(),
                 operation,
                 target: DescriptorInvocationTarget::Provider {
                     results,
@@ -13951,6 +14182,17 @@ pub mod descriptor_results {
         ) -> Option<DescriptorMachine> {
             let scalar_expressions =
                 super::payload_predicates::TerminalScalarExpressions::new(machine);
+            let mut scalar_formals = machine
+                .parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect::<Vec<_>>();
+            scalar_formals.sort_unstable();
+            let selector = |value| {
+                super::entry_selector(scalar_expressions.expression(value)?, |id| {
+                    scalar_formals.binary_search(&id).is_ok()
+                })
+            };
             let mut graph = DescriptorMachine {
                 id: machine.id,
                 returns: machine
@@ -14256,7 +14498,7 @@ pub mod descriptor_results {
                                 StructuralTypeShape::ElementView { element, .. } => {
                                     query
                                         .steps
-                                        .push(DescriptorContentsStep::AnyElement { element });
+                                        .push(DescriptorContentsStep::any_element(element));
                                 }
                                 StructuralTypeShape::ByteSequence(_)
                                     if is_descriptor(
@@ -14849,22 +15091,25 @@ pub mod descriptor_results {
                             source,
                             ..
                         } => {
-                            if let Some(destination) = location(*destination, path, *field) {
-                                step.definitions.push(destination.clone());
-                                step.derivations
-                                    .push((DescriptorLocation::whole(*source), destination));
-                            } else {
-                                graph.unresolved_contents_writes.insert(position);
-                                step.definitions.extend(slot_kind.overwritten_slots(
-                                    &module.structural_types,
-                                    *destination,
-                                    *graph.place_types.get(destination)?,
+                            let root_type = *graph.place_types.get(destination)?;
+                            super::descriptor_leaf_store(
+                                super::DescriptorStoreFlow {
+                                    position,
+                                    transfers: &mut graph.contents_transfers,
+                                    unresolved: &mut graph.unresolved_contents_writes,
+                                },
+                                &mut step,
+                                &module.structural_types,
+                                slot_kind,
+                                super::DescriptorContentsOperand {
+                                    root: *destination,
+                                    root_type,
                                     path,
-                                    *field,
-                                )?);
-                                step.may_escape = true;
-                            }
-                            step.inputs = vec![DescriptorLocation::whole(*source)];
+                                    field: *field,
+                                },
+                                *source,
+                                selector,
+                            )?;
                         }
                         OperationKind::EstablishPrimitiveLocal { value, .. } => {
                             if let Some(value) = scalar_expressions.expression(*value) {
@@ -15278,6 +15523,14 @@ pub mod descriptor_results {
                                 graph.calls.insert(
                                     position,
                                     DescriptorInvocation {
+                                        scalar_arguments: super::descriptor_scalar_arguments(
+                                            callee
+                                                .parameters
+                                                .iter()
+                                                .map(|formal| (formal.id, formal.scalar_type)),
+                                            operation.module_invocation()?.arguments,
+                                            selector,
+                                        ),
                                         operation: operation.id,
                                         target: DescriptorInvocationTarget::Machine(callee.id),
                                         arguments,
@@ -16496,11 +16749,13 @@ pub mod descriptor_results {
 
     #[derive(Clone, Copy)]
     pub struct DescriptorActualInputs<'a> {
+        pub scalar_arguments: &'a [(ValueId, semantic_vocabulary::ScalarTerm)],
         pub arguments: &'a [Option<DescriptorLocation>],
         pub argument_contents: &'a [Option<DescriptorContentsQuery>],
     }
 
     pub struct DescriptorInvocation {
+        pub scalar_arguments: Vec<(ValueId, semantic_vocabulary::ScalarTerm)>,
         pub operation: semantic_vocabulary::OperationId,
         pub target: DescriptorInvocationTarget,
         pub arguments: Vec<Option<DescriptorLocation>>,
@@ -16527,6 +16782,7 @@ pub mod descriptor_results {
     impl DescriptorInvocation {
         pub fn actual_inputs(&self) -> DescriptorActualInputs<'_> {
             DescriptorActualInputs {
+                scalar_arguments: &self.scalar_arguments,
                 arguments: &self.arguments,
                 argument_contents: &self.argument_contents,
             }

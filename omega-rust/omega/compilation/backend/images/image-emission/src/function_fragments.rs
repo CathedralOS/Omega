@@ -11525,7 +11525,7 @@ mod source {
                             let mut child = query;
                             child
                                 .steps
-                                .push(DescriptorContentsStep::AnyElement { element: *element });
+                                .push(DescriptorContentsStep::any_element(*element));
                             descriptor_queries(types, *element, child, active, slots)?;
                         }
                         StructuralTypeShape::Record { fields, .. } => {
@@ -12046,6 +12046,7 @@ mod source {
                                 *position,
                                 row.callee,
                                 DescriptorActualInputs {
+                                    scalar_arguments: &[],
                                     arguments,
                                     argument_contents: contents,
                                 },
@@ -12311,6 +12312,7 @@ mod source {
                         caller.calls.insert(
                             position,
                             terminal_semantics::descriptor_results::DescriptorInvocation {
+                                scalar_arguments: Vec::new(),
                                 operation: *psi_operation,
                                 target:
                                     terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
