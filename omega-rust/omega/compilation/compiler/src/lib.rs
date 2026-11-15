@@ -40,15 +40,16 @@ mod terminal;
 pub mod checked;
 
 pub use crate::checked::{
-    CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
-    IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
-    OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
+    CheckedCompilation, CheckedCompileRequest, ChosenDefaultLayout, CompilationSession,
+    CompletedBuild, IndependentComponentDiscovery, IndependentComponentSelection,
+    OptimizationRollback, OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
     PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct, ProductCheckOutcome,
     ProductSupplySource, RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation,
-    SuppliedProduct, TargetSupplySource, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
-    checked_compilation_call_count, judge_supplied_product, prepare_supplied_target,
-    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
+    SuppliedProduct, SupplyJudgment, TargetSupplySource, TypedFrontier, TypedFrontierCheck,
+    TypedFrontierRequest, checked_compilation_call_count, judge_supplied_product,
+    prepare_supplied_target, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;
