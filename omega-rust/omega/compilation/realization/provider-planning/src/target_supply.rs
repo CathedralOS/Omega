@@ -167,6 +167,38 @@ impl PreparedTargetSupply {
             ));
         }
         let defect = |reason: String| vec![refuse(scope, &format!("a call graph ({reason})"))];
+        // Explicit Build selections commit their requirements on this target,
+        // even in a provider-only package. Available defaults and unselected
+        // declarations impose nothing. Continue through a selected body only
+        // after the ordinary precedence/conflict decision below chooses it.
+        let mut selected_declarations = build
+            .iter()
+            .filter(|selection| {
+                selection
+                    .target
+                    .is_none_or(|selected| Some(selected.canonical_name()) == target)
+            })
+            .flat_map(|selection| selection_declarations(&selection.subject))
+            .collect::<Vec<_>>();
+        selected_declarations.sort_unstable();
+        selected_declarations.dedup();
+        let mut selected_requirements = declared
+            .iter()
+            .filter(|requirement| {
+                selected_declarations
+                    .binary_search(&SelectionDeclarationKey::slot(requirement.slot))
+                    .is_ok()
+                    || selected_declarations
+                        .binary_search(&SelectionDeclarationKey::requirement(
+                            requirement.requirement,
+                        ))
+                        .is_ok()
+            })
+            .map(|requirement| requirement.boundary)
+            .collect::<Vec<_>>();
+        selected_requirements.sort_unstable();
+        selected_requirements.dedup();
+        let mut roots = roots.to_vec();
         // Every boundary the walk has met, demanded or refused, so each is
         // decided once; `resolved` holds the ones the walk continues through.
         let mut met = Vec::<BoundaryMachineId>::new();
@@ -177,9 +209,9 @@ impl PreparedTargetSupply {
                 .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
                 .map_err(defect)?;
             let scalar_roots = graph
-                .scalar_evaluation_roots(roots, target)
+                .scalar_evaluation_roots(&roots, target)
                 .map_err(defect)?;
-            let reached = graph
+            let mut reached = graph
                 .from_callables(
                     roots
                         .iter()
@@ -189,16 +221,27 @@ impl PreparedTargetSupply {
                 )
                 .map_err(defect)?
                 .boundaries;
+            reached.extend(selected_requirements.iter().copied());
             let before = resolved.len();
             for boundary in reached {
                 if met.contains(&boundary) {
                     continue;
                 }
                 met.push(boundary);
-                if module
-                    .boundary_machine(boundary)
-                    .is_some_and(is_direct_compiler_primitive)
+                if let Some(declaration) = module.boundary_machine(boundary)
+                    && is_direct_compiler_primitive(declaration)
                 {
+                    if declaration.numeric_intrinsic.is_some()
+                        && let Some(target) = target
+                        && let Err(diagnostics) =
+                            crate::provider_planning::provider_rows::canonical_numeric_realization(
+                                module,
+                                declaration,
+                                target,
+                            )
+                    {
+                        refusals.extend(diagnostics);
+                    }
                     continue;
                 }
                 let Some(requirement) = declared.iter().find(|row| row.boundary == boundary) else {
@@ -268,6 +311,11 @@ impl PreparedTargetSupply {
                 });
                 if let Some(machine) = realization {
                     resolved.push((boundary, machine));
+                    if selected_requirements.binary_search(&boundary).is_ok()
+                        && !roots.contains(&machine)
+                    {
+                        roots.push(machine);
+                    }
                 }
                 requirements.push(DemandedRequirement {
                     reached: requirement.clone(),
@@ -850,18 +898,54 @@ fn names_requirement(
     subject: &ProviderSelectionSubject,
     requirement: &ReachedBoundaryRequirement,
 ) -> bool {
-    match subject {
-        ProviderSelectionSubject::BoundaryTrait(identity) => {
-            identity.application_identity.is_none() && identity.symbol == requirement.slot
-        }
-        ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            identity.application_identity.is_none() && identity.symbol == requirement.requirement
-        }
-        ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
-            .coordinates()
-            .iter()
-            .any(|coordinate| coordinate.symbol == requirement.requirement),
+    let slot = SelectionDeclarationKey::slot(requirement.slot);
+    let member = SelectionDeclarationKey::requirement(requirement.requirement);
+    selection_declarations(subject).any(|declaration| declaration == slot || declaration == member)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SelectionDeclarationKey {
+    Slot(u32, u32),
+    Requirement(u32, u32),
+}
+
+impl SelectionDeclarationKey {
+    fn slot(symbol: symbols::SymbolHandle) -> Self {
+        Self::Slot(symbol.arena_index(), symbol.generation())
     }
+
+    fn requirement(symbol: symbols::SymbolHandle) -> Self {
+        Self::Requirement(symbol.arena_index(), symbol.generation())
+    }
+}
+
+// Root preparation indexes only the selected family. Ordinary supply matching
+// consumes these same identities and application guards without allocating.
+fn selection_declarations(
+    subject: &ProviderSelectionSubject,
+) -> impl Iterator<Item = SelectionDeclarationKey> {
+    let (single, family) = match subject {
+        ProviderSelectionSubject::BoundaryTrait(identity) => (
+            identity
+                .application_identity
+                .is_none()
+                .then_some(SelectionDeclarationKey::slot(identity.symbol)),
+            &[] as &[_],
+        ),
+        ProviderSelectionSubject::BoundaryRequirement(identity) => (
+            identity
+                .application_identity
+                .is_none()
+                .then_some(SelectionDeclarationKey::requirement(identity.symbol)),
+            &[] as &[_],
+        ),
+        ProviderSelectionSubject::BoundaryOperatorFamily(family) => (None, family.coordinates()),
+    };
+    single.into_iter().chain(
+        family
+            .iter()
+            .map(|coordinate| SelectionDeclarationKey::requirement(coordinate.symbol)),
+    )
 }
 
 /// The module-level demand tables whose rows need a plan this route cannot

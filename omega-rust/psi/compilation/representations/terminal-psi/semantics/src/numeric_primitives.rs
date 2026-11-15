@@ -73,51 +73,16 @@ pub fn comparison_predicate(
     Comparison::from_meaning(meaning)?.predicate(left, right)
 }
 
-/// The exact Core declaration for each supported semantic operation. Consumers
-/// authenticate its sealed source and full signature separately from this name.
-pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static str> {
-    use language_semantics::numeric_intrinsics::NumericType;
-    use numerics::arithmetic::ArithmeticDomain;
-    match meaning {
-        NumericIntrinsic::FloatBinary { operation, .. } => {
-            Ok(format!("Float::{}", operation.name()))
-        }
-        NumericIntrinsic::Conversion {
-            source: NumericType::F32,
-            target: NumericType::F64,
-            domain: ArithmeticDomain::Exact,
-        } => Ok("F64::from_f32".into()),
-        NumericIntrinsic::Conversion {
-            source: NumericType::F64,
-            target: NumericType::F32,
-            domain: ArithmeticDomain::Exact,
-        } => Ok("F32::from_f64".into()),
-        _ => Err("numeric primitive is outside the supported catalog"),
-    }
-}
-
-/// The sealed catalog retains token-bound declarations as machines and named
-/// declarations as operators. Receiving reconstructs that actual source form.
-pub fn declaration_kind(
-    meaning: NumericIntrinsic,
-) -> Result<semantic_vocabulary::BoundaryRequirementKind, &'static str> {
-    declaration_path(meaning)?;
-    Ok(match meaning {
-        NumericIntrinsic::FloatBinary { .. } => {
-            semantic_vocabulary::BoundaryRequirementKind::Machine
-        }
-        NumericIntrinsic::Conversion { .. } => {
-            semantic_vocabulary::BoundaryRequirementKind::Operator
-        }
-        _ => return Err("numeric primitive has no supported declaration kind"),
-    })
-}
-
-/// The full normal-result contract of the supported closed primitive. Inputs
-/// occupy consecutive values starting at 1; the normal result follows them,
-/// just as an ordinary scalar callable does. Unsupported operations refuse.
+/// The full normal-result contract of the supported closed primitive. Its
+/// declaration-ordered inputs precede the result, as in an ordinary scalar
+/// callable. Unsupported catalog operations refuse.
 pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static str> {
-    let semantic_operation = match meaning {
+    use language_semantics::numeric_intrinsics::NumericType;
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Integer, Meaning},
+    };
+    let semantic = match meaning {
         NumericIntrinsic::FloatBinary { operation, .. }
             if matches!(
                 operation,
@@ -127,19 +92,32 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
                     | PrimitiveFloatBinaryOperation::Divide
             ) =>
         {
-            Some(operation.name())
+            FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                operation.name(),
+                &[Format, Meaning, Meaning],
+                Meaning,
+            )
         }
-        NumericIntrinsic::Conversion { .. } => {
-            declaration_path(meaning)?;
-            Some("convert")
+        NumericIntrinsic::Conversion {
+            source,
+            target,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+        } if target.is_float() => {
+            let (name, operand) = match source {
+                NumericType::Integer(carrier) => ("from_integer", Integer(carrier)),
+                NumericType::F32 | NumericType::F64 => ("convert", Meaning),
+            };
+            FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                name,
+                &[Format, operand],
+                Meaning,
+            )
         }
         _ => None,
     };
-    if let Some(name) = semantic_operation {
-        use numerics::float_semantics::{
-            FloatSemanticOperation,
-            FloatSemanticValueKind::{Format, Meaning},
-        };
+    if let Some(operation) = semantic {
         let signature = meaning
             .signature()
             .ok_or("numeric primitive has no scalar signature")?;
@@ -148,34 +126,20 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
             .scalar_type()
             .ok_or("numeric primitive has no scalar operand")?;
         let result = result_scalar_type(meaning)?;
-        let format = result
-            .as_ieee_float()
-            .ok_or("numeric primitive has no float result")?;
-        let parameters = std::iter::once(Format)
-            .chain(std::iter::repeat_n(Meaning, signature.operand_count))
-            .collect::<Vec<_>>();
-        let operation = FloatSemanticOperation::from_source_identity(
-            "FloatSemantics",
-            name,
-            &parameters,
-            Meaning,
-        )
-        .ok_or("numeric primitive has no complete semantic catalog row")?;
-        let count = u64::try_from(signature.operand_count)
-            .map_err(|_| "numeric primitive has too many scalar formals")?;
-        let result_id = count
-            .checked_add(1)
-            .and_then(ValueId::new)
-            .ok_or("numeric primitive has no normal result coordinate")?;
+        let ScalarType::IeeeFloat(format) = result else {
+            return Err("numeric primitive has no float result format");
+        };
+        let result_id = u64::try_from(signature.operand_count + 1)
+            .map_err(|_| "numeric primitive has too many parameters")?;
         let clause = semantic_vocabulary::FloatMeaningClause::result_equation(
-            ScalarTerm::value(result_id, result),
+            ScalarTerm::value(
+                ValueId::new(result_id).ok_or("numeric primitive has no result identity")?,
+                result,
+            ),
             operation.contract_identity(),
             format,
-            (1..=count).map(|raw| {
-                ScalarTerm::value(
-                    ValueId::new(raw).expect("nonzero formal coordinate"),
-                    operand,
-                )
+            (1..result_id).map(|raw| {
+                ScalarTerm::value(ValueId::new(raw).expect("nonzero scalar formal"), operand)
             }),
         )?;
         return Ok(vec![Proposition::FloatMeaningEqual(clause)]);
@@ -225,6 +189,31 @@ pub fn result_scalar_type(meaning: NumericIntrinsic) -> Result<ScalarType, &'sta
     }
 }
 
+fn carrier_name(carrier: language_semantics::numeric_intrinsics::NumericType) -> String {
+    use language_semantics::numeric_intrinsics::NumericType;
+    match carrier {
+        NumericType::F32 => "f32".to_owned(),
+        NumericType::F64 => "f64".to_owned(),
+        NumericType::Integer(carrier) => carrier.to_string(),
+    }
+}
+
+/// The catalog declaration is derived from the closed operation and signature,
+/// never from a caller's spelling. Custody is checked separately against Core.
+pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static str> {
+    match meaning {
+        NumericIntrinsic::FloatBinary { operation, .. } => {
+            Ok(format!("Float::{}", operation.name()))
+        }
+        NumericIntrinsic::Conversion { source, target, .. } if target.is_float() => Ok(format!(
+            "{}::from_{}",
+            carrier_name(target).to_ascii_uppercase(),
+            carrier_name(source)
+        )),
+        _ => Err("numeric primitive is outside the supported catalog"),
+    }
+}
+
 /// Rejoin a retained numeric primitive to its exact catalog declaration and
 /// complete public contract. Neither a name nor a numeric tag grants execution.
 pub fn validate_boundary(
@@ -240,20 +229,10 @@ pub fn validate_boundary(
         .numeric_intrinsic
         .ok_or("numeric primitive has no closed meaning")?;
     let expected_ensures = ensures(meaning)?;
-    let declaration = declaration_path(meaning)?;
-    let kind = declaration_kind(meaning)?;
     let signature = meaning
         .signature()
         .ok_or("numeric primitive has no scalar signature")?;
-    let expected_operand = signature
-        .operand
-        .scalar_type()
-        .ok_or("numeric primitive has no scalar operand")?;
-    let format_name = match expected_operand {
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32",
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
-        _ => return Err("numeric primitive has an unsupported operand carrier"),
-    };
+    let parameter_name = carrier_name(signature.operand);
     let expected_result = result_scalar_type(meaning)?;
     let result_name = match expected_result {
         ScalarType::Boolean => "bool",
@@ -261,15 +240,19 @@ pub fn validate_boundary(
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
         _ => return Err("numeric primitive has an unsupported result carrier"),
     };
+    let declaration = declaration_path(meaning)?;
     let [owner, state, semantic, callable, parameter, result] = coordinates(
         &declaration,
-        kind,
-        format_name,
+        &parameter_name,
         signature.operand_count,
         result_name,
     )?;
     let text = |identity| module.identities.text(identity);
     let source = &checked.source;
+    let expected_scalar = signature
+        .operand
+        .scalar_type()
+        .ok_or("numeric primitive has no scalar operand")?;
     macro_rules! require {
         ($condition:expr, $field:literal) => {
             if !$condition {
@@ -284,7 +267,10 @@ pub fn validate_boundary(
         checked.execution == CheckedBoundaryExecution::NumericPrimitive,
         "execution kind"
     );
-    require!(boundary.kind == kind, "requirement kind");
+    require!(
+        boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Machine,
+        "requirement kind"
+    );
     require!(
         boundary.role == terminal_psi::BoundaryDeclarationRole::Callable,
         "callable role"
@@ -342,7 +328,7 @@ pub fn validate_boundary(
             && boundary
                 .scalar_parameters
                 .iter()
-                .all(|&carrier| carrier == expected_operand),
+                .all(|&carrier| carrier == expected_scalar),
         "scalar parameter formats"
     );
     require!(
@@ -406,9 +392,8 @@ pub fn validate_boundary(
 
 fn coordinates(
     declaration: &str,
-    kind: semantic_vocabulary::BoundaryRequirementKind,
     format: &str,
-    arity: usize,
+    parameter_count: usize,
     result: &str,
 ) -> Result<[String; 6], &'static str> {
     use language_core::sealed_intrinsics::{
@@ -419,11 +404,12 @@ fn coordinates(
     };
     use language_semantics::type_identity::vocabulary::{Label, NameForm, OwnerForm, TypeForm};
     let (file, bytes) = language_core::sealed_intrinsics::float_operations_source();
-    if SealedIntrinsicCatalog::classify(SealedDeclarationSite {
-        file: std::path::Path::new(file),
-        declaration,
-        source: bytes,
-    }) != Some(SealedIntrinsic::FloatOperationRequirement)
+    if !language_core::float_operations::CANONICAL_FLOAT_OPERATIONS.contains(&declaration)
+        || SealedIntrinsicCatalog::classify(SealedDeclarationSite {
+            file: std::path::Path::new(file),
+            declaration,
+            source: bytes,
+        }) != Some(SealedIntrinsic::FloatOperationRequirement)
     {
         return Err("numeric primitive has no exact admitted catalog declaration");
     }
@@ -466,41 +452,32 @@ fn coordinates(
             ordinary(format),
         ],
     );
-    let callable = if kind == semantic_vocabulary::BoundaryRequirementKind::Operator {
-        format!(
-            "operator::{declaration}({})->{}",
-            vec![ordinary(format); arity].join(","),
-            ordinary(result)
-        )
-    } else {
-        compound(
-            CoordinateTag::NamedCallable,
-            [
-                atom(
-                    CoordinateTag::Path,
-                    &compound(
-                        NameForm::Nominal,
-                        [bare(OwnerForm::Toolchain), atom(Label::Path, declaration)],
-                    ),
+    let callable = compound(
+        CoordinateTag::NamedCallable,
+        [
+            atom(
+                CoordinateTag::Path,
+                &compound(
+                    NameForm::Nominal,
+                    [bare(OwnerForm::Toolchain), atom(Label::Path, declaration)],
                 ),
-                atom(CoordinateTag::Parameters, &vec![parameter; arity].join(",")),
-                atom(CoordinateTag::ResultDispatch, ""),
-            ],
-        )
-    };
+            ),
+            atom(
+                CoordinateTag::Parameters,
+                &vec![parameter; parameter_count].join(","),
+            ),
+            atom(CoordinateTag::ResultDispatch, ""),
+        ],
+    );
     Ok([
         exact(declaration),
-        if kind == semantic_vocabulary::BoundaryRequirementKind::Operator {
-            exact(declaration)
-        } else {
-            exact(&format!(
-                "{declaration}::{}",
-                declaration
-                    .rsplit("::")
-                    .next()
-                    .ok_or("numeric declaration has no entry member")?
-            ))
-        },
+        exact(&format!(
+            "{declaration}::{}",
+            declaration
+                .rsplit("::")
+                .next()
+                .ok_or("numeric declaration has no entry member")?
+        )),
         format!("toolchain::{declaration}"),
         callable,
         declared(format),

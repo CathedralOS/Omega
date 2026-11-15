@@ -722,6 +722,7 @@ flat table; they are not runtime values or module proof-value ids.
 | --- | --- | --- |
 | 0 | Format | IEEE float format |
 | 1 | Meaning | `u32` earlier clause slot |
+| 2 | Integer | scalar term with the catalog's exact integer carrier |
 
 Receiving checks each exact catalog commitment, ordered application signature,
 permanent format, unique topological rows and complete connection to the two
@@ -1478,6 +1479,15 @@ when either is empty. An installation-bound requirement has no fixed service
 contribution; its published ceiling remains the selected row's finite upper
 bound. Root installation dependencies must name such requirements. Earlier
 semantic formats reject before table decoding.
+
+Semantic format marker 278 adds typed integer operands to float-result
+contract clauses. Operand tag 2 carries an ordinary scalar term whose signedness
+and width must match the exact `FloatSemantics::from_integer` catalog signature.
+Calls substitute this input with their other scalar actuals; it is not an IEEE
+projection or a new float source class. Receiving validates the full equation,
+including the integer carrier. Vocabulary marker 137 and native input record
+`OMGNTI32` distinguish these contracts; their earlier formats reject. This adds
+no arithmetic proof rule or execution authority.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -2798,14 +2808,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (136). A receiver rejects an unknown magic or stale marker
+vocabulary marker (137). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 277 | yes |
+| semantic module | `PSITERM\0` | 278 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

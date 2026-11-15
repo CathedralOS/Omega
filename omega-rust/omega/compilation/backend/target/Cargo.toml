@@ -9,6 +9,7 @@ name = "target"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../../psi/foundation/language-core" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 compiler-storage = { path = "../../../../psi/foundation/compiler-storage" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
