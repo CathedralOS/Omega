@@ -208,6 +208,39 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
 }
 
 #[test]
+fn an_effect_statement_discards_only_an_actual_normal_result() {
+    // The inhabited declared type stays u32. Its published false postcondition
+    // excludes a result just as an empty declared carrier does, without a
+    // separate statement-only prediction of the call's outcome.
+    let stopped = accepted(
+        "public machine stop() -> u32 ensures false crashes Trap { crash Trap; } \
+         machine main() crashes Trap { stop(); }",
+    );
+    assert!(
+        stopped
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .any(|block| matches!(
+                block.terminator,
+                terminal_psi::Terminator::InvokeNoNormal { .. }
+            )),
+    );
+    stopped.publish_invocation().unwrap();
+
+    let normal = "public machine value() -> u32 crashes none { 1u32 } \
+                  machine main() crashes none { value(); }";
+    let verdicts = program(normal);
+    assert!(
+        format!("{verdicts:?}").contains("expression statement that discards its value"),
+        "an inhabited normal result still requires the authored marker: {verdicts:?}",
+    );
+    accepted(&normal.replace("{ value(); }", "{ _ = value(); }"));
+}
+
+#[test]
 fn a_first_empty_match_arm_does_not_choose_the_common_or_inferred_type() {
     for matched in [
         "match fatal { true -> halt() false -> value }",

@@ -196,7 +196,10 @@ pub(crate) fn components(
 fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. } | Statement::Evaluate(value) => expression(value, sites),
+            Statement::Bind { value, .. }
+            | Statement::Evaluate {
+                expression: value, ..
+            } => expression(value, sites),
             Statement::Store {
                 destination, value, ..
             } => {
@@ -408,7 +411,10 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
         || signature.result.as_ref().is_some_and(data)
         || body.slots.iter().any(data)
         || body.statements.iter().any(|statement| match statement {
-            Statement::Bind { value, .. } | Statement::Evaluate(value) => stored(value),
+            Statement::Bind { value, .. }
+            | Statement::Evaluate {
+                expression: value, ..
+            } => stored(value),
             // Refused on a cycle by its own name, as an erased binding.
             Statement::Witness { .. } => false,
             Statement::CaptureReference { .. }

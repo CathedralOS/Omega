@@ -907,7 +907,10 @@ impl<'a> Lowering<'a> {
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } => None,
-                Statement::Bind { value, .. } | Statement::Evaluate(value) => Some(value.source),
+                Statement::Bind { value, .. }
+                | Statement::Evaluate {
+                    expression: value, ..
+                } => Some(value.source),
                 Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }

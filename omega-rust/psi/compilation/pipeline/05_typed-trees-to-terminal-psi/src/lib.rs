@@ -592,7 +592,10 @@ pub(crate) fn callable_refinement_body(required: &body::Signature, call: Express
                 target: Target::Value(call),
                 source,
             },
-            None => Statement::Evaluate(call),
+            None => Statement::Evaluate {
+                expression: call,
+                discards_result: false,
+            },
         }],
     }
 }
