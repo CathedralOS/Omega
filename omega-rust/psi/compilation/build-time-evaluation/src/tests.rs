@@ -977,6 +977,68 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
 }
 
 #[test]
+fn a_computed_record_array_receipt_checks_each_named_use() {
+    use typed_trees::expression::ExpressionNode;
+
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        data Ticket [copy] { number: u32; }
+        const TICKETS: [Ticket; 2] = make();
+        machine make() -> [Ticket; 2] {
+            [Ticket { number: 3u32 }, Ticket { number: 5u32 }]
+        }
+        machine answer() -> u32 { TICKETS[1u64].number }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+
+    let declaration = &program.const_declarations()[0];
+    let crate::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+    else {
+        panic!("the constant must execute its original initializer");
+    };
+    let original = receipt.request_source();
+    let use_handle = typed_trees::references::collect_program_references(original)
+        .expressions
+        .into_iter()
+        .find(|expression| {
+            original
+                .expression_table
+                .name_path_node(*expression)
+                .and_then(|path| path.resolved_symbol())
+                == Some(declaration.symbol)
+        })
+        .expect("the invocation source retains its named use");
+    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(use_handle)
+    else {
+        panic!("the named use must carry the evaluated array");
+    };
+    let mut fields = program
+        .expression_table
+        .expression_handles(*elements)
+        .iter()
+        .map(|element| {
+            let ExpressionNode::StructLiteral(record) =
+                program.expression_table.expression(*element)
+            else {
+                panic!("the snapshot must preserve the element's record carrier");
+            };
+            program.expression_table.struct_fields(record.fields)[0].value
+        });
+    let first = fields.next().unwrap();
+    let second = fields.next().unwrap();
+    let wrong = program.expression_table.expression(first).clone();
+    *program.expression_table.expression_mut(second) = wrong;
+    assert_eq!(
+        crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap_err(),
+        "constant materialization differs from its invocation outcome"
+    );
+}
+
+#[test]
 fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes() {
     let text = r#"
         const FIRST: u64 = first();
