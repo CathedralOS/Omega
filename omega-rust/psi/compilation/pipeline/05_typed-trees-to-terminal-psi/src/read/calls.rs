@@ -660,7 +660,7 @@ impl<'t> Program<'t> {
                 Unserved::Call("integer carrier query read as a runtime value"),
             ));
         }
-        if let Some(description) = self.declaration_query(id, call, source)? {
+        if let Some(description) = self.declaration_query(id, call, expected, source)? {
             return Ok(description);
         }
         if let Some(reference) = self.borrow_factory_call(id, slots, call, source)? {
