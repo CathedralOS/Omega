@@ -397,10 +397,10 @@ impl Program<'_> {
             })();
             self.keep(read)?;
         }
-        for definition in typed.mathematical_definitions() {
+        for (definition_index, definition) in typed.mathematical_definitions().iter().enumerate() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
-                    self.mathematical_predicate_definition(entry, definition, None, &[])?;
+                    self.mathematical_predicate_definition(entry, definition_index, None, &[])?;
                 }
                 Ok(())
             })();

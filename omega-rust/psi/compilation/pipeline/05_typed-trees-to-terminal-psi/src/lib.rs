@@ -154,8 +154,8 @@ pub struct Compilation<'a> {
 pub use typed_trees::trait_definition::Supply;
 
 pub use terminal_check_tables::program::{
-    Branch, ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin,
-    SuppliedRequirement, Unpositioned, Unreachable,
+    Branch, ConformanceWitness, Elaboration, MachineSources, PredicateSource, Selected,
+    SourceOrigin, SuppliedRequirement, Unpositioned, Unreachable,
 };
 
 /// What the subset does not serve, named for the refusal. Closed: a new
@@ -1296,6 +1296,7 @@ fn lower_generic_for<'source>(
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
             undeclared: Vec::new(),
+            predicate_sources: Vec::new(),
         },
     };
     if declarations.is_none() {

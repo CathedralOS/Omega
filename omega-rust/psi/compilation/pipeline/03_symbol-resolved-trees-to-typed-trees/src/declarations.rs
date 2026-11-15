@@ -1298,6 +1298,9 @@ pub(crate) mod mathematical {
                 resolved::mathematical::MathematicalBody::Assumption => {
                     typed::mathematical::MathematicalBody::Assumption
                 }
+                // A definition's body is a proof term like a contract clause,
+                // so it may use total policy arithmetic (`+%`); stage 05 forms
+                // it under the definition's own formals.
                 resolved::mathematical::MathematicalBody::Definition(term) => {
                     typed::mathematical::MathematicalBody::Definition(
                         lowerer.admitting_contract_policy_operators(|lowerer| {

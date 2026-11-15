@@ -24,7 +24,7 @@ fn form(clauses: Vec<Proposition>) -> Checked<()> {
         requires: clauses,
         ..machine(vec![u32_type(), u32_type()], vec![returns(unsigned(0))])
     }])?;
-    crate::formation::module(&elaboration.module)
+    crate::formation::module(&elaboration.module, &[])
 }
 
 #[test]
@@ -114,23 +114,30 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
     let declaration = identities.intern("test-predicate");
     module.identities = identities.build();
     let input = formal(1, u32_type());
-    module.scalar_predicate_definitions.push(terminal_psi::ScalarPredicateDefinition {
-        declaration,
-        parameters: vec![terminal_psi::ValueDeclaration {
-            id: id(1),
-            scalar_type: ScalarType::Integer(integer_type(IntegerSign::Unsigned)),
-            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
-        }],
-        body: Proposition::Conjunction(vec![
-            Proposition::LessOrEqual(number(1), input.clone()),
-            nonnegative(subtract(input.clone(), number(1))),
-        ]),
-    });
-    let error = crate::formation::module(&module).unwrap_err();
+    module
+        .scalar_predicate_definitions
+        .push(terminal_psi::ScalarPredicateDefinition {
+            declaration,
+            parameters: vec![terminal_psi::ValueDeclaration {
+                id: id(1),
+                scalar_type: ScalarType::Integer(integer_type(IntegerSign::Unsigned)),
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            }],
+            body: Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(number(1), input.clone()),
+                nonnegative(subtract(input.clone(), number(1))),
+            ]),
+        });
+    let error = crate::formation::module(&module, &[]).unwrap_err();
     assert_eq!(error.reason, RefusalReason::Violation);
-    assert!(error.detail.contains("mathematical definition: contract arithmetic is not proved total"));
-    module.scalar_predicate_definitions[0].body = nonnegative(subtract(number(u32::MAX.into()), input));
-    crate::formation::module(&module).unwrap();
+    assert!(
+        error
+            .detail
+            .contains("mathematical definition: contract arithmetic is not proved total")
+    );
+    module.scalar_predicate_definitions[0].body =
+        nonnegative(subtract(number(u32::MAX.into()), input));
+    crate::formation::module(&module, &[]).unwrap();
 }
 
 #[test]
@@ -143,7 +150,7 @@ fn guarantees_cannot_form_an_input_precondition() {
         obligation: id(1),
         proposition: Proposition::LessOrEqual(number(1), formal(1, u32_type())),
     });
-    assert!(crate::formation::module(&elaboration.module).is_err());
+    assert!(crate::formation::module(&elaboration.module, &[]).is_err());
 }
 
 #[test]
@@ -336,14 +343,14 @@ machine build_entry() {}
     predicate.subject = id(7);
     predicate.proposition =
         Proposition::LessOrEqual(subtract(number_field, number(1)), number(u32::MAX.into()));
-    crate::formation::module(module).unwrap();
+    crate::formation::module(module, &[]).unwrap();
 
     module.structural_domains[0]
         .predicate
         .as_mut()
         .unwrap()
         .subject = id(8);
-    let refusal = crate::formation::module(module).unwrap_err();
+    let refusal = crate::formation::module(module, &[]).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
         refusal

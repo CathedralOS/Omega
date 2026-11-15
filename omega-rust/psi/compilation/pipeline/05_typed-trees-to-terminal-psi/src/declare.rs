@@ -199,20 +199,40 @@ pub(crate) fn declare(
         }
     }
     let result = (|| {
-        for definition in &program.predicate_definitions {
-            elaboration.module.scalar_predicate_definitions.push(terminal_psi::ScalarPredicateDefinition {
-                declaration: semantic_identity(typed, definition.symbol, &mut identities)?,
-                parameters: definition.parameters.clone(),
-                body: definition.body.clone(),
+        for definition in program.predicate_definitions.iter().flatten() {
+            let declaration = semantic_identity(typed, definition.symbol, &mut identities)?;
+            elaboration.module.scalar_predicate_definitions.push(
+                terminal_psi::ScalarPredicateDefinition {
+                    declaration,
+                    parameters: definition.parameters.clone(),
+                    body: definition.body.clone(),
+                },
+            );
+            elaboration.predicate_sources.push(crate::PredicateSource {
+                declaration,
+                name: typed.symbols.display_path(definition.symbol, "::"),
+                machine: definition.diagnostic,
+                source_span: typed
+                    .symbols
+                    .symbol_provenance_source_span(definition.symbol)
+                    .filter(|span| *span != source::SourceSpan::default()),
             });
         }
-        elaboration.module.scalar_predicate_definitions.sort_unstable_by_key(|definition| definition.declaration);
-        if elaboration.module.scalar_predicate_definitions.windows(2).any(|pair| {
-            pair[0].declaration == pair[1].declaration && pair[0] != pair[1]
-        }) {
-            return Err("mathematical definition has inconsistent formal meaning");
+        elaboration
+            .module
+            .scalar_predicate_definitions
+            .sort_unstable_by_key(|definition| definition.declaration);
+        if elaboration
+            .module
+            .scalar_predicate_definitions
+            .windows(2)
+            .any(|pair| pair[0].declaration == pair[1].declaration)
+        {
+            return Err("mathematical definitions share one declaration identity");
         }
-        elaboration.module.scalar_predicate_definitions.dedup();
+        elaboration
+            .predicate_sources
+            .sort_unstable_by_key(|source| source.declaration);
         if elaboration.module.declaration_contracts.is_empty() {
             return Ok(());
         }

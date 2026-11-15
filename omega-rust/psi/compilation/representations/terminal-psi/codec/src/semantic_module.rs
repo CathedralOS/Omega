@@ -591,12 +591,17 @@ pub(crate) mod canonical_order {
             }
         }
         require_increasing(
-            module.scalar_predicate_definitions.iter().map(|definition| definition.declaration),
+            module
+                .scalar_predicate_definitions
+                .iter()
+                .map(|definition| definition.declaration),
             "scalar predicate definitions by declaration identity",
         )?;
         for definition in &module.scalar_predicate_definitions {
-            require_increasing(definition.parameters.iter().map(|parameter| parameter.id),
-                "scalar predicate inputs by ValueId")?;
+            require_increasing(
+                definition.parameters.iter().map(|parameter| parameter.id),
+                "scalar predicate inputs by ValueId",
+            )?;
             validate_canonical_proposition(&definition.body)?;
         }
         require_increasing(
@@ -5864,7 +5869,10 @@ mod format_marker_tests {
 #[cfg(test)]
 mod scalar_predicate_definition_tests {
     use super::*;
-    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarQualificationSetId, ScalarTerm, ScalarType, ValueId};
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, Proposition, ScalarQualificationSetId, ScalarTerm,
+        ScalarType, ValueId,
+    };
     use terminal_psi::{ScalarPredicateDefinition, ValueDeclaration};
 
     fn predicate_module() -> TerminalModule {
@@ -5875,11 +5883,20 @@ mod scalar_predicate_definition_tests {
         let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
         let scalar = ScalarType::Integer(integer);
         let formal = ValueId::new(1).unwrap();
-        module.scalar_predicate_definitions.push(ScalarPredicateDefinition {
-            declaration,
-            parameters: vec![ValueDeclaration { id: formal, scalar_type: scalar, qualifications: ScalarQualificationSetId::ZERO }],
-            body: Proposition::LessOrEqual(ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(), ScalarTerm::value(formal, scalar)),
-        });
+        module
+            .scalar_predicate_definitions
+            .push(ScalarPredicateDefinition {
+                declaration,
+                parameters: vec![ValueDeclaration {
+                    id: formal,
+                    scalar_type: scalar,
+                    qualifications: ScalarQualificationSetId::ZERO,
+                }],
+                body: Proposition::LessOrEqual(
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                    ScalarTerm::value(formal, scalar),
+                ),
+            });
         module
     }
 
@@ -5890,27 +5907,47 @@ mod scalar_predicate_definition_tests {
         assert_eq!(decode_module(&bytes).unwrap(), original);
         let mut changed = original.clone();
         changed.scalar_predicate_definitions[0].body = Proposition::Truth;
-        assert_ne!(semantic_fingerprint(&original).unwrap(), semantic_fingerprint(&changed).unwrap());
+        assert_ne!(
+            semantic_fingerprint(&original).unwrap(),
+            semantic_fingerprint(&changed).unwrap()
+        );
 
         let mut capture = original.clone();
-        capture.scalar_predicate_definitions[0].body.remap_value_ids(|_| ValueId::new(2).unwrap());
-        assert!(matches!(decode_module(&encode_module(&capture).unwrap()), Err(CodecError::MalformedProposition(_))));
+        capture.scalar_predicate_definitions[0]
+            .body
+            .remap_value_ids(|_| ValueId::new(2).unwrap());
+        assert!(matches!(
+            decode_module(&encode_module(&capture).unwrap()),
+            Err(CodecError::MalformedProposition(_))
+        ));
 
         let mut duplicate_input = original.clone();
         let input = duplicate_input.scalar_predicate_definitions[0].parameters[0];
-        duplicate_input.scalar_predicate_definitions[0].parameters.push(input);
+        duplicate_input.scalar_predicate_definitions[0]
+            .parameters
+            .push(input);
         assert!(decode_module(&module_wire::encode_raw(&duplicate_input).unwrap()).is_err());
 
         let mut duplicate_declaration = original.clone();
-        duplicate_declaration.scalar_predicate_definitions.push(duplicate_declaration.scalar_predicate_definitions[0].clone());
+        duplicate_declaration
+            .scalar_predicate_definitions
+            .push(duplicate_declaration.scalar_predicate_definitions[0].clone());
         assert!(decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()).is_err());
 
         let mut unknown = original.clone();
-        unknown.scalar_predicate_definitions[0].declaration = terminal_psi::TerminalIdentityIndex(u32::MAX);
-        assert!(matches!(decode_module(&encode_module(&unknown).unwrap()), Err(CodecError::MalformedStructuralFoundation(_))));
+        unknown.scalar_predicate_definitions[0].declaration =
+            terminal_psi::TerminalIdentityIndex(u32::MAX);
+        assert!(matches!(
+            decode_module(&encode_module(&unknown).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(_))
+        ));
 
         let mut qualified = original;
-        qualified.scalar_predicate_definitions[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
-        assert!(matches!(decode_module(&encode_module(&qualified).unwrap()), Err(CodecError::MalformedStructuralFoundation(_))));
+        qualified.scalar_predicate_definitions[0].parameters[0].qualifications =
+            ScalarQualificationSetId::new(1);
+        assert!(matches!(
+            decode_module(&encode_module(&qualified).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(_))
+        ));
     }
 }

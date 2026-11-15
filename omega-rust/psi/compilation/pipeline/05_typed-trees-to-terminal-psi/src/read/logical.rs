@@ -241,15 +241,21 @@ impl MathematicalInputs {
         machine: MachineId,
         proposition: &Proposition,
     ) -> Checked<Vec<terminal_psi::ValueDeclaration>> {
-        let parameters = self.inputs.leaves.iter().enumerate().map(|(position, leaf)| {
-            terminal_psi::ValueDeclaration {
+        let parameters = self
+            .inputs
+            .leaves
+            .iter()
+            .enumerate()
+            .map(|(position, leaf)| terminal_psi::ValueDeclaration {
                 id: ValueId::new(position as u64 + 1).expect("allocated formal count"),
                 scalar_type: leaf.scalar,
                 qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
-            }
-        }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let context = semantic_vocabulary::PropositionContext::from_value_types(
-            parameters.iter().map(|parameter| (parameter.id, parameter.scalar_type)),
+            parameters
+                .iter()
+                .map(|parameter| (parameter.id, parameter.scalar_type)),
         )
         .map_err(|error| identity(machine, &format!("mathematical formal context: {error:?}")))?;
         context.validate(proposition).map_err(|error| {
