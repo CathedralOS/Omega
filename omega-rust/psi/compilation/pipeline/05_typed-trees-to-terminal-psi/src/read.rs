@@ -206,7 +206,7 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
-    pub scalar_applications: terminal_psi::ScalarApplications,
+    pub(crate) scalar_applications: constant_values::ScalarApplications,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
     pub declared_domains: Vec<DeclaredDomain>,

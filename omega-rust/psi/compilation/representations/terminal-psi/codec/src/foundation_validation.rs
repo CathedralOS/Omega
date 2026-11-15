@@ -4723,6 +4723,8 @@ pub(crate) mod scalar_applications {
             .iter()
             .map(|(_, owner)| *owner)
             .collect::<std::collections::BTreeSet<_>>();
+        let application_sized_storage = terminal_semantics::application_sized_storage(module)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         for machine in &module.machines {
             for (_, expected) in module
                 .layout_call_conditions(machine)
@@ -4742,6 +4744,45 @@ pub(crate) mod scalar_applications {
                     return malformed(
                         "layout call requirement lost its exact pending target condition",
                     );
+                }
+            }
+            if !module.scalar_applications.declarations().is_empty() {
+                let types = terminal_semantics::SortedValueTypes::new(
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| {
+                            block.parameters.iter().chain(&block.erased_scalar_formals)
+                        })
+                        .chain(
+                            machine
+                                .operations()
+                                .filter_map(|operation| operation.result.scalar_ref()),
+                        )
+                        .map(|value| (value.id, value.scalar_type))
+                        .collect(),
+                )
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "target arithmetic has repeated scalar values",
+                ))?;
+                for expected in terminal_semantics::target_scalar_ranges(
+                    module,
+                    machine,
+                    &types,
+                    &application_sized_storage,
+                )
+                .map_err(CodecError::MalformedStructuralFoundation)?
+                {
+                    if !pending.contains(&expected.owner)
+                        || !conditions
+                            .ranges()
+                            .iter()
+                            .any(|condition| expected.matches(conditions, condition))
+                    {
+                        return malformed(
+                            "arithmetic operation lost its exact pending target range",
+                        );
+                    }
                 }
             }
         }
@@ -4960,6 +5001,106 @@ pub(crate) mod scalar_applications {
                 .insert(ProofDeclarationId(1));
             validate(&module).unwrap();
             module.machines[1].contract.requires[0] = at_least(17);
+            refusal(&module);
+        }
+
+        #[test]
+        fn ground_target_arithmetic_replays_its_exact_range() {
+            use semantic_vocabulary::{
+                IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
+            };
+            use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+
+            let caller = MachineId::new(1).unwrap();
+            let evaluator = MachineId::new(2).unwrap();
+            let mut module = TerminalModule::for_entry(caller);
+            module.identities = identity_table(5);
+            let mut body = unit_machine(caller);
+            let declaration = body.declaration.as_mut().unwrap();
+            declaration.semantic_declaration = TerminalIdentityIndex(3);
+            declaration.callable = TerminalIdentityIndex(4);
+            declaration.result_type = TerminalIdentityIndex(5);
+            let owner = ProofDeclarationId(1);
+            let scope = &mut module.scalar_applications.proof_scope;
+            scope
+                .declarations
+                .insert(ProofScopeDeclaration::Callable(declaration.clone()));
+            scope.callables.insert(ProofCallableAssociation::Callable {
+                declaration: owner,
+                callable: TargetMachineCallable::Machine(caller),
+            });
+            let scalar_type =
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+            let value = |raw| ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type,
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            };
+            let mut evaluation = unit_machine(evaluator);
+            evaluation.contract.result = terminal_psi::TerminalMachineResult::Scalar(value(1));
+            let application = module
+                .scalar_applications
+                .insert(ScalarApplication::Evaluate {
+                    entry: TargetMachineCallable::Machine(evaluator),
+                    scalar_type,
+                })
+                .unwrap();
+            let operation = |raw, kind| {
+                Operation::unsuspended(
+                    OperationId::new(raw).unwrap(),
+                    OperationResult::Scalar(value(raw + 1)),
+                    kind,
+                )
+            };
+            body.blocks[0].operations = vec![
+                operation(1, OperationKind::ReadScalarApplication { application }),
+                operation(
+                    2,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(5),
+                    },
+                ),
+                operation(
+                    3,
+                    OperationKind::ExactIntegerSubtract {
+                        left: value(2).id,
+                        right: value(3).id,
+                        obligation: ObligationId::new(1).unwrap(),
+                    },
+                ),
+            ];
+            module.machines.extend([body, evaluation]);
+            let refusal = |module: &TerminalModule| {
+                assert!(matches!(
+                    validate(module),
+                    Err(CodecError::MalformedStructuralFoundation(
+                        "arithmetic operation lost its exact pending target range"
+                    )),
+                ))
+            };
+            refusal(&module);
+            let types = terminal_semantics::SortedValueTypes::new(
+                (2..=4).map(|raw| (value(raw).id, scalar_type)).collect(),
+            )
+            .unwrap();
+            let [range]: [terminal_semantics::TargetScalarRange; 1] =
+                terminal_semantics::target_scalar_ranges(&module, &module.machines[0], &types, &[])
+                    .unwrap()
+                    .try_into()
+                    .unwrap();
+            range
+                .retain(&mut module.scalar_applications.conditions)
+                .unwrap();
+            refusal(&module);
+            module
+                .scalar_applications
+                .proof_scope
+                .pending_evaluation_conditions
+                .insert(owner);
+            validate(&module).unwrap();
+            module.machines[0].blocks[0].operations[1].kind = OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(6),
+            };
             refusal(&module);
         }
 

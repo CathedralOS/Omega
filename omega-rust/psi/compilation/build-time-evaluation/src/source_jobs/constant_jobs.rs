@@ -828,8 +828,35 @@ pub fn evaluate_with_source_consent(
                 .iter()
                 .map(|scope| (scope.target.as_str(), scope.facts.as_ref()))
                 .collect::<Vec<_>>();
-            let values = prepared
-                .prepare_entry(symbol, entry, &[])?
+            let invocation = prepared.prepare_entry(symbol, entry, &[])?;
+            let module = invocation.accepted().module();
+            if module
+                .scalar_applications
+                .declarations()
+                .iter()
+                .any(|application| {
+                    matches!(
+                        application,
+                        terminal_psi::ScalarApplication::Evaluate { .. }
+                    )
+                })
+                || module.boundary_machines.iter().any(|boundary| {
+                    boundary
+                        .declaration
+                        .as_ref()
+                        .is_some_and(|row| !row.execution.compiler_owned())
+                })
+            {
+                // This value belongs to an actual selected closure. Keep its
+                // exact initializer for the product scalar evaluator.
+                program
+                    .tables
+                    .const_declarations
+                    .get_mut(handle)
+                    .pending_target_observation = true;
+                return Ok(());
+            }
+            let values = invocation
                 .invoke_recorded_in_targets(&targets, accounting)
                 .map_err(super::invocation_error)?;
             let carrier = program.tables.const_declarations.get(handle).declared_type;

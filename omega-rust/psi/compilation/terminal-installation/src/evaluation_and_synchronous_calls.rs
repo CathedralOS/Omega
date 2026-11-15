@@ -1793,8 +1793,36 @@ pub(crate) mod synchronous_calls {
             &self,
             root: MachineId,
         ) -> Result<SynchronousCallClosure<'module>, String> {
-            let mut pending = vec![TargetMachineCallable::Machine(root)];
-            let mut visited = BTreeSet::new();
+            self.from_callables([TargetMachineCallable::Machine(root)])
+        }
+
+        pub fn scalar_evaluation_roots(
+            &self,
+            roots: &[MachineId],
+            target: Option<&str>,
+        ) -> Result<Vec<TargetMachineCallable>, String> {
+            crate::scalar_applications::demanded_scalar_entries(
+                self.module,
+                self,
+                roots,
+                target,
+                &self.boundary_calls,
+            )
+        }
+
+        pub fn from_callables(
+            &self,
+            roots: impl IntoIterator<Item = TargetMachineCallable>,
+        ) -> Result<SynchronousCallClosure<'module>, String> {
+            self.visit_callables(roots, &mut BTreeSet::new())
+        }
+
+        pub(crate) fn visit_callables(
+            &self,
+            roots: impl IntoIterator<Item = TargetMachineCallable>,
+            visited: &mut BTreeSet<TargetMachineCallable>,
+        ) -> Result<SynchronousCallClosure<'module>, String> {
+            let mut pending: Vec<_> = roots.into_iter().collect();
             let mut machines = Vec::new();
             let mut boundaries = BTreeSet::new();
             while let Some(callable) = pending.pop() {

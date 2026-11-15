@@ -655,28 +655,42 @@ impl Program<'_> {
         machine: MachineId,
         reference: TypeReferenceHandle,
         element: TypeReferenceHandle,
-        extent: &FixedArrayLength,
+        _extent: &FixedArrayLength,
     ) -> Checked<ValueType> {
-        let FixedArrayLength::Literal(length) = extent else {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("unresolved array extent"),
-            ));
+        use typed_trees::constant_recipes::DeclaredArrayExtent;
+
+        let unserved = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+        let length = match self.typed.declared_array_extent(reference) {
+            Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
+            Some(DeclaredArrayExtent::Recipe(recipe)) => {
+                let recipe = self.typed.constant_recipes.get(recipe);
+                let contexts = self
+                    .typed
+                    .constant_expression_contexts
+                    .span_or_empty(recipe.contexts);
+                let [context] = contexts else {
+                    return Err(unserved(
+                        "array extent has no unique retained evaluation context",
+                    ));
+                };
+                ArrayExtent::Application(
+                    self.scalar_evaluation(
+                        machine,
+                        context.evaluation_entry,
+                        context.evaluation_expression,
+                        context.result_type,
+                    )?
+                    .0,
+                )
+            }
+            None => return Err(unserved("unresolved array extent")),
         };
-        let length = u64::try_from(*length).map_err(|_| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("array extent outside u64"),
-            )
-        })?;
         let value = self.value_type(machine, element)?;
         let (element, qualification) = self.collection_element_storage(machine, element, value)?;
         let shape = StorageShape::FixedArray {
             element,
             qualification,
-            length: ArrayExtent::Literal(length),
+            length,
         };
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));

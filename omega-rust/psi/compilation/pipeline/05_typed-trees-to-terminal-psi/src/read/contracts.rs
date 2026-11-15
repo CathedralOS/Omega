@@ -938,7 +938,7 @@ impl Program<'_> {
                     crate::SourceOrigin::of(typed.expression_table.source_span(expression));
                 let measured = self.layout_query(id, call, query, source)?;
                 if let (
-                    crate::body::ExpressionKind::LayoutObservation { application },
+                    crate::body::ExpressionKind::ScalarApplication { application },
                     Some(ValueType::Scalar(scalar_type, qualification)),
                 ) = (measured.kind, measured.result)
                 {

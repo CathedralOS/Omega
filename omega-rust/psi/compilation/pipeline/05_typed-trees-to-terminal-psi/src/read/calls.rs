@@ -986,16 +986,13 @@ impl<'t> Program<'t> {
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
         );
-        let application = crate::qualifications::layout_observation(
-            &mut self.scalar_applications,
-            subject,
-            measurement,
-            scalar_type,
-        )
-        .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+        let application = self
+            .scalar_applications
+            .layout(subject, measurement, scalar_type)
+            .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::LayoutObservation { application },
+            kind: ExpressionKind::ScalarApplication { application },
             result: Some(ValueType::plain(scalar_type)),
             source,
         })
@@ -3012,7 +3009,7 @@ fn mentions<'a>(
         }
         ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => Ok(false),
         ExpressionKind::Referent(operand)

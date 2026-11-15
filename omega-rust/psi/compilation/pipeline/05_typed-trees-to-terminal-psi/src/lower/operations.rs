@@ -241,7 +241,7 @@ impl Lowering<'_> {
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }
-            ExpressionKind::LayoutObservation { application } => {
+            ExpressionKind::ScalarApplication { application } => {
                 let scalar_type = self.result_type(expression)?;
                 let operation = self.operation_identity(source);
                 self.emit(
