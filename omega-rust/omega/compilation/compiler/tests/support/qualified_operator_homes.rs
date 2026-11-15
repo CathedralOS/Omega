@@ -128,17 +128,18 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
             );
             assert_ne!(changed, original);
             std::fs::write(declaration, changed).unwrap();
-            let failure = terminal_product(&private.main())
+            let diagnostics = terminal_product(&private.main())
                 .expect_err("a public domain must not publish its private operator");
-            let diagnostics = failure;
             assert!(
                 diagnostics.iter().any(|diagnostic| {
-                    // The package name also contains "operator": it must not
-                    // make a setup/refusal elsewhere count as this oracle.
-                    diagnostic.message.contains(
-                        "operator on an operand that is not a plain or policy-qualified scalar",
-                    ) || diagnostic.message.contains("no visible operator")
-                        || diagnostic.message.contains("private operator")
+                    // Project compilation renders the nested typing error and its location.
+                    let message = &diagnostic.message;
+                    diagnostic.is_error()
+                        && message.contains("builtin operator `+`")
+                        && message.contains("unqualified operands")
+                        && message.contains("`distance_left` has type `u32 in Distance`")
+                        && message.contains("no operator `+` is declared")
+                        && message.contains("main.omg:6:51")
                 }),
                 "{diagnostics:#?}"
             );
