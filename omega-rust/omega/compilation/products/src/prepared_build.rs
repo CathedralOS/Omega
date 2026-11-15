@@ -103,6 +103,12 @@ impl CheckedProductSource {
         Arc::ptr_eq(&self.program, &other.program)
             && self
                 .terminal_publication
+                .roster()
+                .ok()
+                .zip(other.terminal_publication.roster().ok())
+                .is_some_and(|(left, right)| left.inspection_root == right.inspection_root)
+            && self
+                .terminal_publication
                 .optimizations()
                 .eq(other.terminal_publication.optimizations())
             && self

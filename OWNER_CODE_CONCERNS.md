@@ -73,12 +73,26 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Source-name Psi inspection always refuses before selecting the machine
-- Category: the documents disagree
-- Where: [source inspection route](omega-rust/omega/compilation/compiler/src/terminal/product_code.rs#L31), [documented command](wiki/spec/build/command_line.md#L24)
-- Saw: On macOS arm64 at `7f1259f6fab`, `omega psi inspect --machine retained --output retained-inspected.txt main.omg` on the incoming record reference fixture exits 1 with `no product route yet: named inspection requires its own accepted source selection`. The source inspection method always returns that error after checker removal in `cea9cdcde46`. Its parent selected the named declaration for publication.
-- Cost: The advertised source-machine command cannot produce a Psi artifact for an accepted machine. Route the exact requested declaration through the current accepted source selection and publication owners.
-- Reported: 2026-11-15, Codex, while tracing a native structural return
+### An ordinary generic specialization publishes Psi bytes that cannot be reloaded
+- Category: knowledge crossing a boundary
+- Where: [specialization declaration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L454), [artifact validation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L1858), [anonymous source fixture](samples/cli/facts/nominal_declaration_owner/library/library.omg#L4)
+- Saw: The unchanged `library::read` body calls `identity<Token>`. Both an ordinary entryless Check publication and the named `library::read` publication succeed, but their emitted bytes are refused by canonical decoding with `checked specialization has no retained application`. The ordinary Check probe observes the same failure with no inspection root.
+- Cost: Producers can emit portable bytes that the receiving trust boundary rejects. Carry the concrete source specialization through the existing declaration/application correspondence and preserve rejection for a genuinely missing or mismatched application.
+- Reported: 2026-11-15, Codex, on macOS arm64 with the source-inspection candidate on `30ae6323d4b`.
+
+### The complete-debug-module fixture passes an unqualified value to a qualified formal
+- Category: tests that pin the bug
+- Where: [debug-module fixture](tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg#L6), [inspection batch control](omega-rust/omega/compilation/compiler/examples/package_batch_sources.rs#L97)
+- Saw: The exact `7ff185a76e8` macOS arm64 CLI refuses `finish(10u8)` in `state_graph` because the argument does not carry the formal's `Wrapping` domain. The inspection batch's debug-module control stops at the same point before it can compare a scalar body with a multiblock body.
+- Cost: The kept fixture cannot check debug identity over control flow. Establish the intended arithmetic policy at the original call and preserve the state graph, call closure, complete debug map and exit oracles.
+- Reported: 2026-11-15, Codex, while validating mixed named Psi inspection.
+
+### Eight host access-view controls stop at a retired constructor
+- Category: zombie machinery
+- Where: [placed view fixture](tests/fixtures/pass/layouts/placed_view_call_custody/main.omg#L12), [fixture admission](omega-rust/omega/compilation/compiler/tests/access_view_calls.rs#L22)
+- Saw: All eight tests in `access_view_calls` refuse their shared source before selecting the helper. The exact `7ff185a76e8` macOS arm64 CLI also refuses ordinary checking at `AccessPlan::inaccessible`. The same source imports retired `AccessPlan::with`, `AccessPlan::with_reach` and `Access::view_mut`.
+- Cost: The hosted interpreter tests cannot reach their original checks of exact shared and exclusive backing, alias rejection, field effects and reordered inputs. Carry those same oracles through the current access contracts and the existing host admission.
+- Reported: 2026-11-15, Codex, while restoring Psi source inspection.
 
 ### Typed size and alignment queries are refused as unresolved calls
 - Category: knowledge crossing a boundary

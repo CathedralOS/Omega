@@ -25,8 +25,11 @@ pub struct ProductTerminalPublication {
 pub struct ProductRoster {
     /// Canonical declaration descriptors required by this product.
     pub declaration_metadata: Vec<symbols::SymbolHandle>,
-    /// The Build's bound program entries. The first is the module's entry.
+    /// The Build's bound program entries, which drive deployment demand.
     pub entries: Vec<symbols::SymbolHandle>,
+    /// An inspection sets the artifact entry without binding it for deployment.
+    /// Its Build entries remain among the selected declarations.
+    pub inspection_root: Option<symbols::SymbolHandle>,
     /// The package whose declarations the check claims; `None` for a source
     /// checked outside a package.
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -45,7 +48,10 @@ impl ProductRoster {
     pub fn compilation(&self) -> source_compiler::TerminalSourceCompilation<'_> {
         source_compiler::TerminalSourceCompilation {
             declaration_metadata: &self.declaration_metadata,
-            entries: &self.entries,
+            entries: self
+                .inspection_root
+                .as_ref()
+                .map_or(self.entries.as_slice(), std::slice::from_ref),
             subjects: std::slice::from_ref(&self.subject),
             purpose: source::DependencyScope::Product,
             selected: &self.selected,
