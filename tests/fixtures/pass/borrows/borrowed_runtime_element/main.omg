@@ -1,9 +1,9 @@
-// A nested machine receives a borrowed record and lends one runtime-selected
-// element of it, beside a shared loan of a different field. The two loans
-// name disjoint storage, so the call is accepted and writes `cells[2]`.
+// A nested machine receives a borrowed record and writes one runtime-selected
+// element of it while a shared view of a different field is still live. The
+// write and the view name disjoint storage, so the program is accepted.
 data Grid { cells: [u64; 4]; total: u64; at: u64; }
 
-machine copy_total(cell: &mut u64, total: &u64) { cell = total; }
+machine observe(value: &u64) -> u64 { value }
 
 machine main() crashes Trap {
     let mut grid: Grid = Grid { cells: [0, 0, 0, 0], total: 9, at: 2 };
@@ -19,9 +19,10 @@ machine main() crashes Trap {
     }
 
     machine fill(grid: &mut Grid) {
-        let at: u64 = grid.at;
-        copy_total(&mut grid.cells[at], &grid.total);
-        transition grid.cells[2] == 9 {
+        let view: &u64 = &grid.total;
+        grid.cells[grid.at] = 9;
+        let seen: u64 = observe(view);
+        transition grid.cells[2] == seen {
             true -> good()
             false -> bad()
         }
