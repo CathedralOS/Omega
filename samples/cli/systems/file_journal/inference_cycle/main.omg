@@ -1,8 +1,8 @@
 // Recursive helpers retain every actual boundary requirement independently of their published invocation ceilings.
 // Expected exit: 0
-boundary trait First { machine value() -> u64 reaches; }
-boundary trait Second { machine value() -> u64 reaches; }
-boundary trait Third { machine value() -> u64 reaches; }
+boundary trait First { machine value() -> u64 reaches crashes none; }
+boundary trait Second { machine value() -> u64 reaches crashes none; }
+boundary trait Third { machine value() -> u64 reaches crashes none; }
 FirstSelected satisfies First { machine value() -> u64 { 1 } }
 SecondSelected satisfies Second { machine value() -> u64 { 2 } }
 ThirdSelected satisfies Third { machine value() -> u64 { 4 } }

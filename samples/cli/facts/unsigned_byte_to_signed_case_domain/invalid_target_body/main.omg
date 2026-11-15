@@ -17,7 +17,7 @@ public machine consume(parcel: ByteParcel) -> i32 {
         ByteParcel::Empty -> (-1)
     }
 }
-boundary trait ByteSource { machine produce(byte: u8) -> ByteParcel reaches; }
+boundary trait ByteSource { machine produce(byte: u8) -> ByteParcel reaches crashes none; }
 HostedByteSource satisfies ByteSource {
     machine produce(byte: u8) -> ByteParcel { make(byte) }
 }

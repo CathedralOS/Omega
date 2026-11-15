@@ -16,7 +16,7 @@ Policy satisfies FixedLayout<Payload> {
         LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
     }
 }
-boundary trait ReadValue { machine read() -> u64 reaches; }
+boundary trait ReadValue { machine read() -> u64 reaches crashes none; }
 DefaultRead satisfies ReadValue {
     machine read() -> u64 {
         let mut storage: LayoutStorage<Payload, Policy>;

@@ -16,7 +16,7 @@ use omega_language_std::CallingPolicy;
 use omega_language_std::Calling;
 
 public boundary trait Callback: Calling<WordCalling> {
-    machine value() -> u64 reaches;
+    machine value() -> u64 reaches crashes none;
 }
 machine first_handler() -> u64 satisfies Callback::value { 11u64 }
 machine second_handler() -> u64 satisfies Callback::value { 22u64 }
@@ -25,7 +25,7 @@ public boundary trait Probe<Owner>: Calling<WordCalling> {
     machine inspect<Phantom, machine Handler>(native callback value from Handler) -> u64
     requires machine Handler satisfies Callback::value;
     reaches
-    invokes Callback;
+    invokes Callback crashes none;
 }
 public ProbeMap satisfies Probe<u8> {
     machine inspect<Phantom, machine Handler>() -> u64

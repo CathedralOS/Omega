@@ -18,7 +18,7 @@ Second satisfies Payload {
     }
 }
 boundary trait Reader {
-    machine read<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8, decoder: dyn Payload) -> &'input [u8] in Utf8 reaches;
+    machine read<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8, decoder: dyn Payload) -> &'input [u8] in Utf8 reaches crashes none;
 }
 Selected satisfies Reader {
     machine read<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8, decoder: dyn Payload) -> &'input [u8] in Utf8 {

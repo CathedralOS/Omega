@@ -157,13 +157,6 @@ framework or a list of features that remain unimplemented.
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
-### The parser still accepts a boundary requirement with no `crashes` clause
-- Category: a verdict with nothing behind it
-- Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
-- Saw: [effects](wiki/spec/language/effects.md#open-callable-contracts) requires a written crash clause. The lowered-form checker only enforces it at a call. At `eea1528bbeb`, the lexer and parser found 1,734 omissions across 1,053 sample files, 69 across 39 test-fixture files, and one of 401 bundled-library requirements. The counts include boundary traits parsed in isolation when another part of the file failed. Twelve sample boundary trait declarations still failed to parse in isolation and are outside those counts. The bundled omission is [the interrupt-table validator](OWNER_QUESTIONS.md#1-may-the-interrupt-table-validator-trap-before-publication). Migrate the missing clauses to their intended ceilings before making the parser reject them
-- Cost: a library or program author learns that the clause is missing only when some caller is refused. Thirty other bundled requirements with no known provider or caller already carry `crashes Trap crashes Abort`
-- Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
-
 ### Layout evaluation forms every target's library layouts instead of the subject's closure
 - Category: a verdict with nothing behind it
 - Where: [reusable layout scope](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L272) (no root bindings); [layout evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/fixed_layouts.rs#L64), which then selects all declarations; reached at `source/library/std/targets/macos_arm64/filesystem_abi.omg` (`CLayout<DarwinTimespec>`)

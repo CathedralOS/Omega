@@ -32,20 +32,20 @@ public boundary trait Writer {
         core::Identity<CountedQuantity<ByteUnit>>(
             Owned::content(old(&buffer)),
             Retained::content(&result)
-        );
+        ) crashes none;
     machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
     ensures result in Buffer::Owned,
         result.pointer == pending.pointer,
         core::Identity<CountedQuantity<ByteUnit>>(
             Retained::content(old(&pending)),
             Owned::content(&result)
-        );
+        ) crashes none;
 }
 // This is the actual native supply/custody leaf. The raw allocation result
 // has no Owned qualification; a null result never becomes a normal grant.
 public boundary trait NativeBytes {
-    machine allocate(count: u64, width: u64) -> addr reaches;
-    machine release(buffer: Buffer in Buffer::Owned) reaches;
+    machine allocate(count: u64, width: u64) -> addr reaches crashes none;
+    machine release(buffer: Buffer in Buffer::Owned) reaches crashes none;
 }
 InitialSupplyProvider satisfies InitialSupply {
     machine acquire() -> Buffer reaches NativeBytes crashes Trap

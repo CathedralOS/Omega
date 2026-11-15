@@ -6,7 +6,7 @@ domain Storage::Reissued established by reissue;
 machine issue(value: u32) -> Storage in Issued { Storage { left_canary: 17, value: value, right_canary: 23 } }
 machine reissue(value: u32) -> Storage in Reissued { Storage { left_canary: 17, value: value, right_canary: 23 } }
 boundary trait ErasedWrite {
-    machine write(storage: &write Storage in Issued) reaches;
+    machine write(storage: &write Storage in Issued) reaches crashes none;
 }
 ErasedWriteCode satisfies ErasedWrite {
     machine write(storage: &write Storage in Issued) {

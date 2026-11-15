@@ -3,7 +3,7 @@
 // Public, implementation and forwarding binders keep distinct lexical identities.
 boundary trait BoundedValue {
     machine bound<const Bound: u64>(value: u64) -> u64 reaches
-        requires value <= Bound ensures result <= Bound;
+        requires value <= Bound ensures result <= Bound crashes none;
 }
 
 PortableBoundedValue satisfies BoundedValue {

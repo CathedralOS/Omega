@@ -33,7 +33,7 @@ public boundary trait Writer {
 boundary trait PendingTransfer {
     machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained
     reaches
-    ensures result in Pending::Retained;
+    ensures result in Pending::Retained crashes none;
 }
 PendingTransferCode satisfies PendingTransfer {
     machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained

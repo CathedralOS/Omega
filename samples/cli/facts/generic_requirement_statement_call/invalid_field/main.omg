@@ -4,7 +4,7 @@
 // Place: field.
 // Expected exit: 0
 boundary trait Mark {
-    machine record<T>(value: &T, label: u64, hits: &mut u64) reaches;
+    machine record<T>(value: &T, label: u64, hits: &mut u64) reaches crashes none;
 }
 
 Counting satisfies Mark {

@@ -14,10 +14,10 @@ machine extract<T>(v: Value<T>) -> T {
     }
 }
 boundary trait ValueProvider {
-    machine number() -> Value<i32> reaches;
-    machine other_number() -> Value<i32> reaches;
-    machine flag() -> Value<bool> reaches;
-    machine other_flag() -> Value<bool> reaches;
+    machine number() -> Value<i32> reaches crashes none;
+    machine other_number() -> Value<i32> reaches crashes none;
+    machine flag() -> Value<bool> reaches crashes none;
+    machine other_flag() -> Value<bool> reaches crashes none;
 }
 HostedValue satisfies ValueProvider {
     machine number() -> Value<i32> { Value::Integer { value: 7 } }

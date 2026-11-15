@@ -2,7 +2,7 @@
 // An atomic value operand is checked once against the cell's `u32` carrier: a `u32` operand exchanges the resident, and an operand of another carrier reports one implicit conversion.
 data Cell { value: AtomicU32; }
 boundary trait HostedExchange {
-    machine perform(cell: &Cell, expected: u32, select: bool) -> u32 reaches;
+    machine perform(cell: &Cell, expected: u32, select: bool) -> u32 reaches crashes none;
 }
 HostedExchangeBody satisfies HostedExchange {
     machine perform(cell: &Cell, expected: u32, select: bool) -> u32 {

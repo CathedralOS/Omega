@@ -36,7 +36,7 @@ machine update<'source, 'storage, const Marker: u64>(pointer: &'source LayoutSto
 }
 // Place: target_body. The complete returned carrier enters an ordinary Build-selected named implementation.
 boundary trait ReadbackInspect {
-    machine inspect<'held>(result: Readback<'held, LayoutStorage<Payload, PayloadLayout<7u64> > >) -> bool reaches;
+    machine inspect<'held>(result: Readback<'held, LayoutStorage<Payload, PayloadLayout<7u64> > >) -> bool reaches crashes none;
 }
 LinuxX8664Readback satisfies ReadbackInspect {
     machine inspect<'held>(result: Readback<'held, LayoutStorage<Payload, PayloadLayout<7u64> > >) -> bool { result.value == 7u64 && result.pointer.value == 43u64 }

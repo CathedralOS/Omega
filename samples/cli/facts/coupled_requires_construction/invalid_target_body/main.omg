@@ -4,7 +4,7 @@ data Counter [copy] requires self.value <= 60 { value: u8; }
 boundary trait Advance {
     machine next(value: u8, left: u8) -> Counter
         requires left > 0 && left <= 60 && value <= 60 && value + left == 60
-        reaches;
+        reaches crashes none;
 }
 X86Advance satisfies Advance {
     machine next(value: u8, left: u8) -> Counter

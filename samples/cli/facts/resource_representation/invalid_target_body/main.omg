@@ -198,7 +198,7 @@ machine exercise(saved: Pair, edge: Pair) crashes Trap {
 
 data Delivered [copy] { value: Pair; marker: u64; }
 boundary trait PairDelivery {
-    machine semantic(edge: bool) -> Delivered reaches terminates;
+    machine semantic(edge: bool) -> Delivered reaches terminates crashes none;
 }
 FirstDelivery satisfies PairDelivery {
     machine semantic(edge: bool) -> Delivered {

@@ -9,7 +9,7 @@ ensures result == 0u32
 { value - 0xFFFF_FFFFu32 }
 
 boundary trait EndpointProbe {
-    machine probe() -> u32 reaches ensures result == 0u32;
+    machine probe() -> u32 reaches ensures result == 0u32 crashes none;
 }
 
 WindowsEndpointProbe satisfies EndpointProbe {
