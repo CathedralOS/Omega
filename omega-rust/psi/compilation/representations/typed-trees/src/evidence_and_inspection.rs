@@ -1171,9 +1171,11 @@ pub mod inspection {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             pub struct AppliedDomainSnapshot {
                 pub semantic_id: u32,
+                pub is_closed: bool,
+                pub preparation_refusal: Option<String>,
                 pub arguments: Vec<TypeReferenceSnapshot>,
-                pub target_type: TypeReferenceSnapshot,
-                pub facts: Vec<ProofFactSnapshot>,
+                pub target_type: Option<TypeReferenceSnapshot>,
+                pub facts: Option<Vec<ProofFactSnapshot>>,
                 pub cleanup_selection: Option<CleanupSelectionSnapshot>,
             }
 
@@ -1385,21 +1387,33 @@ pub mod inspection {
                         .iter()
                         .filter(|application| application.declaration == domain.symbol)
                         .map(|application| AppliedDomainSnapshot {
-                            semantic_id: application.theory.semantic_id.0,
+                            semantic_id: application.identity.0,
+                            is_closed: application.is_closed,
+                            preparation_refusal: application
+                                .theory
+                                .as_ref()
+                                .and_then(|theory| theory.as_ref().err())
+                                .cloned(),
                             arguments: application
                                 .arguments
                                 .iter()
                                 .map(|argument| type_reference_snapshot(program, *argument))
                                 .collect(),
-                            target_type: type_reference_snapshot(
-                                program,
-                                application.theory.target_type,
-                            ),
-                            facts: domain_fact_snapshots(program, &application.theory),
+                            target_type: application
+                                .theory
+                                .as_ref()
+                                .and_then(|theory| theory.as_ref().ok())
+                                .map(|theory| type_reference_snapshot(program, theory.target_type)),
+                            facts: application
+                                .theory
+                                .as_ref()
+                                .and_then(|theory| theory.as_ref().ok())
+                                .map(|theory| domain_fact_snapshots(program, theory)),
                             cleanup_selection: application
                                 .theory
-                                .cleanup_selection
                                 .as_ref()
+                                .and_then(|theory| theory.as_ref().ok())
+                                .and_then(|theory| theory.cleanup_selection.as_ref())
                                 .map(|selection| cleanup_selection_snapshot(program, selection)),
                         })
                         .collect(),

@@ -802,6 +802,23 @@ pub(crate) mod constraint_identity {
         context: &TypeIdentityContext<'_>,
     ) -> String {
         let ordinary_name = declared_domain_identity(program, domain, context);
+        if let Some(arguments) =
+            program.domain_arguments_for_instance(domain.symbol, domain.semantic_id)
+            && !arguments.is_empty()
+        {
+            return compound(
+                ConstraintForm::DeclaredDomain,
+                std::iter::once(atom(
+                    Label::Name,
+                    &context.name(program, domain.symbol, &ordinary_name),
+                ))
+                .chain(
+                    arguments
+                        .iter()
+                        .map(|argument| normalize_type_reference(program, *argument, context)),
+                ),
+            );
+        }
         if context.qualification == TypeIdentityQualification::Ordinary
             && domain.arguments.is_empty()
         {
@@ -8291,6 +8308,66 @@ impl TypedTrees {
     pub fn normalized_type_identity_text(&self, type_reference: TypeReferenceHandle) -> String {
         self.type_identity_text(self.normalized_type_identity(type_reference))
             .unwrap_or_default()
+    }
+
+    /// Projects a retained domain application into the existing canonical
+    /// application grammar. The caller supplies its exact declaration identity;
+    /// the retained telescope supplies every carrier/type/const coordinate.
+    pub fn domain_application_identity(
+        &self,
+        declaration: SymbolHandle,
+        identity: language_semantics::SemanticDomainId,
+        declaration_identity: &str,
+        toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<String, &'static str> {
+        let arguments = self
+            .domain_arguments_for_instance(declaration, identity)
+            .ok_or("domain identity lost its complete application")?;
+        if arguments.is_empty() {
+            return Ok(declaration_identity.to_owned());
+        }
+        let definition = self
+            .domain_definition(declaration)
+            .ok_or("domain identity lost its declaration")?;
+        let parameters = self.domain_type_parameters(definition);
+        if parameters.len() != arguments.len() {
+            return Err("domain identity has an incomplete declaration telescope");
+        }
+        let invalid = Cell::new(false);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            exact_toolchain_sources: toolchain_sources,
+            missing_exact_nominal_owner: Some(&invalid),
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..Default::default()
+        };
+        let parts = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| {
+                let argument = match parameter.kind {
+                    crate::data::TypeParameterKind::Type => {
+                        IndexIdentityArgument::TypeArgument(*argument)
+                    }
+                    crate::data::TypeParameterKind::Const { .. } => {
+                        IndexIdentityArgument::TypeReference(*argument)
+                    }
+                    _ => {
+                        invalid.set(true);
+                        return String::new();
+                    }
+                };
+                substitution::index_argument(self, argument, &context)
+            });
+        let application = compound(
+            TypeForm::Generic,
+            std::iter::once(atom(Label::Name, declaration_identity)).chain(parts),
+        );
+        if invalid.get() {
+            return Err("domain identity has an unresolved or unowned application argument");
+        }
+        Ok(application)
     }
 
     pub fn type_identity_by_text(&self, text: &str) -> TypeIdentityId {

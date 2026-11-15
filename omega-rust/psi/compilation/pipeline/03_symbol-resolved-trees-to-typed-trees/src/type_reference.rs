@@ -227,17 +227,11 @@ pub(crate) mod domain_constraints {
                     domain_constraint.arguments.len()
                 )));
             }
-            let instance_name = typed_trees::domain::indexed_domain_instance_name(
-                program,
-                domain,
-                index_parameters,
+            let semantic_id = program.retain_domain_application(
+                domain.symbol,
+                carrier,
                 &domain_constraint.arguments,
             )?;
-            let semantic_id = if domain_constraint.arguments.is_empty() {
-                domain.semantic_id
-            } else {
-                program.semantic_domains.intern(&instance_name)
-            };
             let semantic_roles = language_semantics::DomainSemanticRoles {
                 denotation_dimension: domain
                     .semantic_roles

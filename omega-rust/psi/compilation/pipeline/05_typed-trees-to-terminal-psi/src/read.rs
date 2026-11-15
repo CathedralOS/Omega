@@ -194,7 +194,7 @@ pub(crate) struct Program<'t> {
     pub records: IdTable<StructuralTypeId, RecordType>,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
-    pub declared_domains: Vec<(SymbolHandle, ValueType)>,
+    pub declared_domains: Vec<(crate::body::DomainInstance, ValueType)>,
     /// Only completed source contracts enter this stage-local query cache.
     /// It contains no value facts and is never published as evidence.
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -688,9 +688,11 @@ mod tests {
             } else {
                 (DomainPredicatePresence::Absent, arena::HandleSpan::empty())
             };
+            let semantic_id = typed.semantic_domains.intern(name);
             typed.push_domain_definition(DomainDefinition {
                 symbol,
                 name: name.into(),
+                semantic_id,
                 predicate_presence,
                 facts,
                 ..Default::default()
@@ -698,11 +700,17 @@ mod tests {
         }
         let mut program = Program::new(&typed, false);
         let carrier = program.records.push(plain_record());
-        program.declared_domains.extend(
-            domains
-                .handles()
-                .map(|symbol| (symbol, ValueType::record(carrier))),
-        );
+        program
+            .declared_domains
+            .extend(domains.handles().map(|symbol| {
+                (
+                    crate::body::DomainInstance {
+                        declaration: symbol,
+                        identity: typed.domain_definition(symbol).unwrap().semantic_id,
+                    },
+                    ValueType::record(carrier),
+                )
+            }));
         let bodies = semantic_vocabulary::IdTable::default();
         let components = crate::components::components(&bodies, &mut program.signatures).unwrap();
         let elaboration = crate::lower_generic_for(
@@ -1565,7 +1573,12 @@ mod tests {
                 scalar_type,
                 Qualification {
                     policy: None,
-                    domains: DomainSet::EMPTY.with(foreign).unwrap(),
+                    domains: DomainSet::EMPTY
+                        .with(crate::body::DomainInstance {
+                            declaration: foreign,
+                            identity: language_semantics::SemanticDomainId::NULL,
+                        })
+                        .unwrap(),
                 },
             ),
             ..slot()

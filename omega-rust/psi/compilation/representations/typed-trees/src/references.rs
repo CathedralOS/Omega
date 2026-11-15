@@ -2767,7 +2767,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
     }
 
-    for application in &program.applied_domain_applications {
+    for application in program.applied_domain_applications.iter() {
         if !retained.derived_declaration_references()
             || !retained.declaration(application.declaration)
         {
@@ -2776,10 +2776,13 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         for argument in &application.arguments {
             visit_type_reference(program, retained, *argument);
         }
-        visit_type_reference(program, retained, application.theory.target_type);
-        visit_proof_facts(program, retained, application.theory.facts);
-        visit_domain_establishment_routes(retained, &application.theory.establishment_routes);
-        if let Some(selection) = &application.theory.cleanup_selection {
+        let Some(Ok(theory)) = &application.theory else {
+            continue;
+        };
+        visit_type_reference(program, retained, theory.target_type);
+        visit_proof_facts(program, retained, theory.facts);
+        visit_domain_establishment_routes(retained, &theory.establishment_routes);
+        if let Some(selection) = &theory.cleanup_selection {
             visit_cleanup_selection(program, retained, selection);
         }
     }
