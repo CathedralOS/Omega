@@ -87,13 +87,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The red diagnostic assertions obscure independent failures. Pin the original reason and its appropriate declaration context. Attribute the remaining failures separately.
 - Reported: 2026-11-14, Codex, while restoring downstream checker test compilation
 
-### Stored-reference field tests stop at field selection before checking custody
-- Category: tests that pin the bug
-- Where: [Stage 06 stored-reference fixtures](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs)
-- Saw: At production base `af9510104ca` with the test-constructor compatibility repair, `a_store_through_a_stored_reference_changes_the_original_cell`, `a_record_holding_a_reference_is_passed_on_as_an_owned_argument`, and other stored-reference fixtures fail with `typing member is not a field of its receiver's data type`.
-- Cost: Positive programs and their rejection controls cannot reach the original-cell, ownership or loan checks. Trace exact field identity through the referent and preserve the programs and their custody oracles.
-- Reported: 2026-11-14, Codex, while restoring downstream checker test compilation on macOS arm64
-
 ### An indexed read from a lent record cannot retain its scalar qualification
 - Category: knowledge crossing a boundary
 - Where: [Stage 06 runtime indexed element controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs)
