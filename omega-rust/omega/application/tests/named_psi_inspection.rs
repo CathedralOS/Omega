@@ -80,6 +80,30 @@ fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
 }
 
 #[test]
+fn saved_console_provider_keeps_the_direct_mutable_byte_window() {
+    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
+    let scratch = TemporaryDirectory::create("console-provider-inspection", false).unwrap();
+    let artifact = scratch.path().join("console.psi");
+    let published = inspect(&project, "entry_start", &artifact);
+    assert!(published.status.success(), "{published:?}");
+
+    let reopened = omega(&project)
+        .args(["psi", "inspect", "--artifact"])
+        .arg(&artifact)
+        .output()
+        .expect("reopen the saved Console artifact");
+    assert!(reopened.status.success(), "{reopened:?}");
+    let inspection = String::from_utf8(reopened.stdout).unwrap();
+    assert!(
+        inspection
+            .lines()
+            .any(|row| { row.starts_with("boundary ") && row.contains("Console::read_line") }),
+        "the original mutable requirement is retained"
+    );
+}
+
+#[test]
 fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
     let scratch = TemporaryDirectory::create("unnamed-psi-inspection", false).unwrap();
     let project = scratch.path();

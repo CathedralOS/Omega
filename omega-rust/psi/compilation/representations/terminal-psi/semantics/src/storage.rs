@@ -1610,6 +1610,23 @@ pub(crate) mod arrival_storage {
         matching.next().is_none() && !declaration.shape.is_canonical_view_descriptor()
     }
 
+    /// A loan of a writable descriptor slot keeps the slot's parent
+    /// occurrence. A direct view lends the original payload instead.
+    pub fn borrowed_view_payload_parameter<'types>(
+        parameter: &StructuralParameterDeclaration,
+        declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
+    ) -> bool {
+        let Some(declaration) =
+            exactly_one(declarations, |row| row.id == parameter.structural_type)
+        else {
+            return false;
+        };
+        declaration.shape.is_view_descriptor()
+            && (crate::stored_reference_access(&declaration.shape)
+                != Some(terminal_psi::StructuralAccess::MutableBorrow)
+                || !borrowed_storage_parameter(parameter, std::iter::once(declaration)))
+    }
+
     pub fn borrowed_storage_reference_ceiling<'types>(
         parameter: &StructuralParameterDeclaration,
         mut declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
@@ -1862,6 +1879,15 @@ pub(crate) mod arrival_storage {
                 _ => Some(access),
             };
         };
+        // A canonical direct view leaves permission on its declared formal.
+        // Its carrier alone has no access to use in place of that loan.
+        if selected.shape.is_canonical_view_descriptor()
+            && argument.path.is_empty()
+            && let Some(parameter) = arrival_parameter(machine, argument.place)
+            && parameter.access != terminal_psi::StructuralAccess::Owned
+        {
+            return descriptor_parameter_access(parameter, types.iter());
+        }
         match &selected.shape {
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView {

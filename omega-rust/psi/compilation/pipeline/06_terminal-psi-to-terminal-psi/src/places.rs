@@ -3414,7 +3414,7 @@ impl<'a> Storage<'a> {
             };
             if touches
                 && matches!(
-                    self.borrowed_resource(formal.structural_type),
+                    self.borrowed_resource(formal),
                     loans::BorrowedResource::ViewPayload
                 )
             {

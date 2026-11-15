@@ -135,6 +135,43 @@ pub(super) struct SourceByteView {
     pub(super) domains: Vec<crate::body::DomainInstance>,
 }
 
+// Both the formal and its source record use the declared slice's identity.
+// The parameter owns the access and region of this loan.
+pub(super) fn mutable_byte_formal_identity(
+    typed: &typed_trees::TypedTrees,
+    machine: MachineId,
+    reference: TypeReferenceHandle,
+) -> Checked<String> {
+    let types = &typed.type_reference_table;
+    let malformed = || {
+        refuse(
+            machine,
+            Construct::Machine,
+            Unserved::Type("byte view formal without its declared slice"),
+        )
+    };
+    let TypeReferenceNode::Reference {
+        referee,
+        access: ReferenceAccess::Mutable,
+        ..
+    } = types.type_reference(reference)
+    else {
+        return Err(malformed());
+    };
+    if !types.contains_type_reference(*referee)
+        || !matches!(
+            types.type_reference(*referee),
+            TypeReferenceNode::Slice { .. }
+        )
+    {
+        return Err(malformed());
+    }
+    let identity = typed.normalized_type_identity_text(*referee);
+    (!identity.is_empty())
+        .then_some(identity)
+        .ok_or_else(malformed)
+}
+
 /// The type beneath the domains displayed on a view's referent, and those
 /// domains in written order.
 ///
@@ -223,7 +260,8 @@ impl Program<'_> {
         Ok(matches!(
             self.data_type(machine, record)?.shape,
             StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                access: None
+                    | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             })
         ))
     }
@@ -563,6 +601,15 @@ impl Program<'_> {
         machine: MachineId,
         reference: TypeReferenceHandle,
     ) -> Checked<Option<ValueType>> {
+        self.view_type_with_formal_access(machine, reference, false)
+    }
+
+    pub(super) fn view_type_with_formal_access(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+        formal_access: bool,
+    ) -> Checked<Option<ValueType>> {
         let lexical_owner = self.lifetime_owner;
         let Some(SourceByteView {
             carrier,
@@ -608,6 +655,20 @@ impl Program<'_> {
         let region = self.borrowed_view_region(machine, reference, lexical_owner, &identity)?;
         let regions = self.intern_regions(vec![region]);
         let typed_view = |row| Some(ValueType::Record(row, qualification, regions));
+        let (carrier, identity) = if formal_access
+            && matches!(
+                carrier,
+                ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                }
+            ) {
+            (
+                ByteSequenceCarrier::BorrowedView { access: None },
+                mutable_byte_formal_identity(self.typed, machine, reference)?,
+            )
+        } else {
+            (carrier, identity)
+        };
         // One row per carrier, whatever region: the lowered form erases
         // regions. The row keeps the first occurrence it was read from as
         // its source, whose identity text it carries

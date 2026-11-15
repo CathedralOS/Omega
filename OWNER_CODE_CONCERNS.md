@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### The Console fixture cannot emit its Windows imports with an admitted stack
+- Category: knowledge crossing a boundary
+- Where: [Windows Console imports](source/library/std/build.omg#L675), [native import stack admission](omega-rust/omega/compilation/realization/provider-admission/src/native_bindings.rs#L234)
+- Saw: The unchanged Console fixture requests its authored Windows entry and provider. From macOS arm64, `omega run --both --keep --target windows_x86_64` exits 200 with “foreign import needs admitted demand on a fixed or freestanding stack” on both the typed-slice neighbor `3a2064f458c` and the Console candidate `99317a6e1fe`. The Console candidate emits Linux x86-64 and Linux arm64 and reopens their Psi artifacts.
+- Cost: The Windows route stops when the existing import owner checks demand. Preserve the selected Windows Console bindings and carry their admitted call stack through target settlement. The fixture has no Windows image or execution receipt from these runs.
+- Reported: 2026-11-15, Codex, while cross-emitting the unchanged Console fixture.
+
 ### The ownership walk refuses the kept array-view attenuation case
 - Category: knowledge crossing a boundary
 - Where: [array_view fixture](tests/fixtures/pass/borrows/exclusive_formation_attenuation/main.omg#L11), [compiler ownership oracle](omega-rust/omega/compilation/compiler/tests/lowered_route_ownership.rs#L431), [ownership reconstruction](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics/src/unit_validation.rs#L18472)
@@ -193,12 +200,12 @@ framework or a list of unimplemented features.
 - Cost: A guarded read loses the descriptor's projected path at the scalar operation. Preserve the same storage and length through its existing exact descriptor access. Keep a sibling descriptor's bound and a non-copy element read refused.
 - Reported: 2026-11-15, Codex, while checking native backing for owned record sequences. Narrowed after replaying whole descriptors and projected length.
 
-### Console reload treats a mutable byte window as a replaceable descriptor
+### A boundary that borrows a stored mutable byte descriptor omits its output contract
 - Category: knowledge crossing a boundary
-- Where: [Console requirement](source/library/std/console.omg#L36), [formal lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L529), [writable descriptor slots](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs#L7341), [boundary output coverage](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13050)
-- Saw: On macOS arm64 with the borrowed-slice ABI repair based on `dd0a0349985`, the unchanged Console program prints `K` and exits 0 in native and Psi. Independent inspection of its saved artifact reaches `boundary reference parameter contract has incomplete leaf coverage`. Two selected provider programs differing only between `&mut [u8]` and `&mut &mut [u8]` on the retained requirement and its implementation both run and reach that same refusal. Their raw structural formals both name an unrestricted mutable borrow of the same `BorrowedView { access: Some(MutableBorrow) }` shape and both have an empty reference-output roster.
-- Cost: The published structural formal loses the distinction between lending bytes and lending a stored descriptor that can be replaced. Carry the source's direct-view role through the shared formal owner using the existing canonical descriptor with access on the parameter. Preserve output coverage for the writable stored descriptor and keep provider and calling signatures aligned.
-- Reported: 2026-11-15, Codex, while repairing saved byte-view calling signatures.
+- Where: [structural boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs) (`reference_outputs`), [boundary output coverage](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs) (`provider_outputs_cover_writable_slots`)
+- Saw: The unchanged Console program prints `K`, exits 0 in native and Psi on macOS arm64 and reopens with its original direct `Console::read_line(&mut [u8])` requirement. A separate selected requirement and implementation with `input: &mut &mut [u8]` still run and then refuse readback with “boundary reference parameter contract has incomplete leaf coverage”. Such a formal borrows the descriptor's storage, and its output roster is empty.
+- Cost: A mutable loan of stored descriptor storage can replace the slot. The checked boundary must publish the exact writable slot's handback origin or replacement before independent readback can admit it. Preserve the distinction from directly borrowed bytes and keep incomplete output coverage refused.
+- Reported: 2026-11-15, Codex, while repairing saved byte-view calling signatures. Narrowed after replaying the direct and stored-parameter twins.
 
 ### A layout-query constant lacks target authority at evaluation
 - Category: knowledge crossing a boundary

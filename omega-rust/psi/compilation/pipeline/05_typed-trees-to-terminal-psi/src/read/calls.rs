@@ -2188,8 +2188,7 @@ impl<'t> Program<'t> {
                 self.erased_term(id, slots, *argument, formal.scalar())?
             } else if let Some(borrowed) = borrowed {
                 let (mut lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
-                lent.result =
-                    self.borrowed_argument_type(id, lent.result, *formal, borrowed.access)?;
+                lent.result = self.borrowed_argument_type(id, slots, &lent, *formal, borrowed)?;
                 // Its position among the runtime actuals, as the invocation
                 // row counts them: erased arguments are not actuals.
                 let actual = formals[..read.len()]
@@ -2389,7 +2388,14 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
-            && let Some(view) = self.borrowed_array_range(id, slots, argument, expected, source)?
+            && let Some(view) = self.borrowed_array_range(
+                id,
+                slots,
+                argument,
+                expected,
+                source,
+                Some(formal.access),
+            )?
         {
             return Ok((
                 Expression {
@@ -2677,20 +2683,21 @@ impl<'t> Program<'t> {
         ))
     }
 
-    /// A shared lend observes an existing mutable descriptor's backing. Its
-    /// argument type may present shared access, while the captured place and
-    /// its producer retain their actual type and exclusive loan. Owned values
-    /// and different descriptor geometry still require exact correspondence.
-    fn borrowed_argument_type(
+    /// A slice lend presents the backing with the formal's access. The
+    /// captured place and its producer retain the actual descriptor type and
+    /// loan. Other geometry still requires exact correspondence.
+    pub(super) fn borrowed_argument_type(
         &mut self,
         machine: MachineId,
-        actual: Option<ValueType>,
+        slots: &[Slot],
+        lent: &Expression,
         expected: ValueType,
-        access: ReferenceAccess,
+        formal: &crate::body::Borrowed,
     ) -> Checked<Option<ValueType>> {
         use crate::StorageShape;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
 
+        let actual = lent.result;
         let (
             Some(ValueType::Record(actual_row, qualification, regions)),
             ValueType::Record(expected_row, _, _),
@@ -2698,16 +2705,33 @@ impl<'t> Program<'t> {
         else {
             return Ok(actual);
         };
-        if access != ReferenceAccess::Shared
-            || self.data_type(machine, actual_row)?.shape
-                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::MutableBorrow),
-                })
-            || self.data_type(machine, expected_row)?.shape
-                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow),
-                })
-        {
+        let actual_access = match self.data_type(machine, actual_row)?.shape {
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+            _ => return Ok(actual),
+        };
+        let expected_access = match self.data_type(machine, expected_row)?.shape {
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+            _ => return Ok(actual),
+        };
+        let lends_mutable_backing = formal.referent == crate::body::BorrowedReferent::Slice
+            && formal.access == ReferenceAccess::Mutable
+            && expected_access.is_none()
+            && actual_access == Some(StructuralAccess::MutableBorrow);
+        let lends_for_observation = formal.access == ReferenceAccess::Shared
+            && matches!(actual_access, None | Some(StructuralAccess::MutableBorrow))
+            && expected_access == Some(StructuralAccess::SharedBorrow);
+        // A shared loan of the direct formal may observe its descriptor.
+        // Only that formal supplies the inner mutable access it describes.
+        let observes_mutable_formal = formal.access == ReferenceAccess::Shared
+            && actual_access.is_none()
+            && expected_access == Some(StructuralAccess::MutableBorrow)
+            && matches!(
+                &lent.kind,
+                ExpressionKind::Borrow { place, .. }
+                    if matches!(place.kind, ExpressionKind::Slot(slot)
+                        if slots.get(slot).and_then(|slot| slot.borrowed) == Some(ReferenceAccess::Mutable))
+            );
+        if !lends_mutable_backing && !lends_for_observation && !observes_mutable_formal {
             return Ok(actual);
         }
         let presented = ValueType::Record(expected_row, qualification, regions);

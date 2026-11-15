@@ -8028,12 +8028,20 @@ pub(crate) mod storage_foundations {
                 )
                 .map_err(CodecError::MalformedStructuralFoundation)?
             }
-            None => reference_source_projection_compatible(
-                module.structural_types.iter(),
-                source_type,
-                source_path,
+            None => terminal_semantics::shared_direct_byte_descriptor_source(
+                module,
+                machine,
+                source,
                 result.structural_type,
-            ),
+            )
+            .unwrap_or_else(|| {
+                reference_source_projection_compatible(
+                    module.structural_types.iter(),
+                    source_type,
+                    source_path,
+                    result.structural_type,
+                )
+            }),
         };
         let ancestors_preserved = *access == StructuralAccess::SharedBorrow
             || declared_memberships(machine, source.place).is_some_and(|(whole, projected)| {
