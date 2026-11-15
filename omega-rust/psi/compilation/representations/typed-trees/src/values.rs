@@ -366,7 +366,7 @@ pub mod expression {
         StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
         StaticMachineLifetimeBinding,
     };
-    use arena::{Arena, Handle, HandleSpan};
+    use arena::{Handle, HandleSpan, RetainedArena as Arena};
     pub type BuildSelectionRequest =
         language_semantics::declaration_selection::BuildSelectionRequest<
             crate::types::TypeReferenceHandle,
@@ -1522,9 +1522,7 @@ pub mod expression {
                     language_core::PatternComponent::Fields
                 };
                 let node = self.expression(source).clone();
-                let source_index = super::source_span_index(source);
-                let destination_index = super::source_span_index(destination);
-                let occurrences = self.authored_selection_occurrences[source_index];
+                let occurrences = self.metadata(source).authored_selection_occurrences;
                 let source_span = self.source_span(source);
                 let materialization_source = self.materialization_source(source);
                 let materialization_source = if materialization_source == destination {
@@ -1536,22 +1534,15 @@ pub mod expression {
                 *self.expression_mut(destination) = node;
                 self.set_pattern_component(destination, component);
                 self.set_source_span(destination, source_span);
-                self.authored_selection_occurrences[destination_index] = occurrences;
-                self.materialization_sources[destination_index] = materialization_source;
+                self.metadata_mut(destination)
+                    .authored_selection_occurrences = occurrences;
+                self.metadata_mut(destination).materialization_source = materialization_source;
                 if carrier.is_valid() {
                     self.set_constructed_value_type_reference(destination, carrier);
-                } else if let Some(previous) = self
-                    .constructed_value_type_handles
-                    .get_mut(destination_index)
-                {
-                    *previous = Default::default();
+                } else {
+                    self.metadata_mut(destination).constructed_value_type = Default::default();
                 }
-                if let Some(previous) = self
-                    .construction_required_type_handles
-                    .get_mut(destination_index)
-                {
-                    *previous = Default::default();
-                }
+                self.metadata_mut(destination).construction_required_type = Default::default();
             }
 
             pub fn copy_from(
@@ -3155,25 +3146,48 @@ pub mod expression {
         pub domain: SymbolHandle,
     }
 
+    // A continuation appends nodes and their provenance in the same private
+    // rows. Sharing the nodes alone would still copy every metadata column.
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    struct StoredExpression {
+        node: ExpressionNode,
+        metadata: ExpressionMetadata,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    struct ExpressionMetadata {
+        source_span: SourceSpan,
+        unresolved_name: symbols::UnresolvedName,
+        pattern_component: language_core::PatternComponent,
+        // Preserve invocation custody without executing the original checked
+        // computation again after static materialization replaces its node.
+        materialization_source: ExpressionHandle,
+        constructed_value_type: Handle<crate::types::TypeReferenceHandle>,
+        construction_required_type: Handle<crate::types::TypeReferenceHandle>,
+        authored_selection_occurrences: HandleSpan<StoredAuthoredSelectionOccurrenceId>,
+        executable_domain_tests: HandleSpan<ExecutableDomainTest>,
+    }
+
+    fn stored_expression_handle(handle: ExpressionHandle) -> Handle<StoredExpression> {
+        Handle::from_parts(handle.arena_index(), handle.generation())
+    }
+
+    fn expression_handle(handle: Handle<StoredExpression>) -> ExpressionHandle {
+        Handle::from_parts(handle.arena_index(), handle.generation())
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct ExpressionTable {
-        expressions: Arena<ExpressionNode>,
+        expressions: Arena<StoredExpression>,
         build_selection_requests: Arena<BuildSelectionCall>,
         expression_roots: Arena<ExpressionHandle>,
-        source_spans: Vec<SourceSpan>,
-        unresolved_names: Vec<symbols::UnresolvedName>,
-        pattern_components: Vec<language_core::PatternComponent>,
-        /// Original checked computation of a materialized static value. This
-        /// provenance edge preserves invocation custody without executing it again.
-        materialization_sources: Vec<ExpressionHandle>,
-
         constructed_value_types: Arena<crate::types::TypeReferenceHandle>,
-        constructed_value_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
+        // The source records type attachments only through these initialized
+        // prefixes. Materialization may extend, but not rewrite, that input.
+        constructed_value_type_count: usize,
         construction_required_types: Arena<crate::types::TypeReferenceHandle>,
-        construction_required_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
-        authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
+        construction_required_type_count: usize,
         authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
-        executable_domain_tests: Vec<HandleSpan<ExecutableDomainTest>>,
         executable_domain_test_rows: Arena<ExecutableDomainTest>,
         expression_handles: Arena<ExpressionHandle>,
         name_path_members: Arena<Identifier>,
@@ -3448,19 +3462,13 @@ pub mod expression {
                 expressions: Arena::with_capacity(capacity.expressions),
                 build_selection_requests: Arena::default(),
                 expression_roots: Arena::with_capacity(capacity.expressions),
-                source_spans: Vec::with_capacity(capacity.expressions),
-                unresolved_names: Vec::with_capacity(capacity.expressions),
-                pattern_components: Vec::with_capacity(capacity.expressions),
-                materialization_sources: Vec::new(),
                 constructed_value_types: Arena::default(),
-                constructed_value_type_handles: Vec::new(),
+                constructed_value_type_count: 0,
                 construction_required_types: Arena::default(),
-                construction_required_type_handles: Vec::new(),
-                authored_selection_occurrences: Vec::with_capacity(capacity.expressions),
+                construction_required_type_count: 0,
                 authored_selection_occurrence_ids: Arena::with_capacity(
                     capacity.authored_selection_occurrences,
                 ),
-                executable_domain_tests: Vec::with_capacity(capacity.expressions),
                 executable_domain_test_rows: Arena::default(),
                 expression_handles: Arena::with_capacity(capacity.expression_handles),
                 name_path_members: Arena::with_capacity(capacity.name_path_members),
@@ -3481,17 +3489,12 @@ pub mod expression {
             self.expressions.reset_retain_capacity();
             self.build_selection_requests.reset_retain_capacity();
             self.expression_roots.reset_retain_capacity();
-            self.source_spans.clear();
-            self.unresolved_names.clear();
-            self.materialization_sources.clear();
             self.constructed_value_types.reset_retain_capacity();
-            self.constructed_value_type_handles.clear();
+            self.constructed_value_type_count = 0;
             self.construction_required_types.reset_retain_capacity();
-            self.construction_required_type_handles.clear();
-            self.authored_selection_occurrences.clear();
+            self.construction_required_type_count = 0;
             self.authored_selection_occurrence_ids
                 .reset_retain_capacity();
-            self.executable_domain_tests.clear();
             self.executable_domain_test_rows.reset_retain_capacity();
             self.expression_handles.reset_retain_capacity();
             self.name_path_members.reset_retain_capacity();
@@ -3744,12 +3747,7 @@ pub mod expression {
             expression: ExpressionHandle,
         ) -> Option<language_core::PatternComponent> {
             self.expression_is_valid(expression)
-                .then(|| {
-                    self.pattern_components
-                        .get(source_span_index(expression))
-                        .copied()
-                })
-                .flatten()
+                .then(|| self.metadata(expression).pattern_component)
         }
 
         /// A component belongs to the produced occurrence, not the current node
@@ -3759,11 +3757,8 @@ pub mod expression {
             expression: ExpressionHandle,
             component: language_core::PatternComponent,
         ) {
-            let slot = &mut self.pattern_components[source_span_index(expression)];
-            if *slot != component {
-                *slot = component;
-                // Role changes invalidate the same derived readers as node changes.
-                let _ = self.expressions.get_mut(expression);
+            if self.metadata(expression).pattern_component != component {
+                self.metadata_mut(expression).pattern_component = component;
             }
         }
 
@@ -3780,7 +3775,13 @@ pub mod expression {
                 ExpressionNode::SavedSubject(saved) => saved.capture,
                 _ => Handle::invalid(),
             };
-            let handle = self.expressions.insert(expression);
+            let handle = expression_handle(self.expressions.insert(StoredExpression {
+                node: expression,
+                metadata: ExpressionMetadata {
+                    pattern_component: component,
+                    ..Default::default()
+                },
+            }));
             if self.completed_values.is_valid(alias_capture) {
                 let capture = self.completed_values.get_mut(alias_capture);
                 if !capture.value_anchor.is_valid() {
@@ -3794,27 +3795,27 @@ pub mod expression {
                 }
             }
             self.expression_roots.insert(handle);
-            self.source_spans.push(SourceSpan::default());
-            self.unresolved_names.push(Default::default());
-            self.pattern_components.push(component);
-            self.materialization_sources
-                .push(ExpressionHandle::invalid());
-            self.authored_selection_occurrences
-                .push(HandleSpan::empty());
-            self.executable_domain_tests.push(HandleSpan::empty());
-            debug_assert_eq!(source_span_index(handle), self.source_spans.len() - 1);
-            debug_assert_eq!(
-                source_span_index(handle),
-                self.authored_selection_occurrences.len() - 1
-            );
             handle
         }
 
+        fn metadata(&self, handle: ExpressionHandle) -> &ExpressionMetadata {
+            source_span_index(handle);
+            &self
+                .expressions
+                .get(stored_expression_handle(handle))
+                .metadata
+        }
+
+        fn metadata_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionMetadata {
+            source_span_index(handle);
+            &mut self
+                .expressions
+                .get_mut(stored_expression_handle(handle))
+                .metadata
+        }
+
         pub fn materialization_source(&self, handle: ExpressionHandle) -> ExpressionHandle {
-            self.materialization_sources
-                .get(source_span_index(handle))
-                .copied()
-                .unwrap_or_default()
+            self.metadata(handle).materialization_source
         }
 
         pub fn retain_materialization_source(
@@ -3824,26 +3825,26 @@ pub mod expression {
         ) {
             assert!(value.is_valid() && authored.is_valid() && value != authored);
             assert!(!self.materialization_source(value).is_valid());
-            self.materialization_sources[source_span_index(value)] = authored;
+            self.metadata_mut(value).materialization_source = authored;
         }
 
         pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
-            self.source_spans[source_span_index(handle)]
+            self.metadata(handle).source_span
         }
 
         pub fn try_source_span(&self, handle: ExpressionHandle) -> Option<SourceSpan> {
-            if !self.expressions.is_valid(handle) {
+            if !self.expression_is_valid(handle) {
                 return None;
             }
-            self.source_spans.get(source_span_index(handle)).copied()
+            Some(self.metadata(handle).source_span)
         }
 
         /// The source owner's scoped result, retained through copying and typing.
         pub fn unresolved_name(&self, handle: ExpressionHandle) -> symbols::UnresolvedName {
-            if !self.expressions.is_valid(handle) {
+            if !self.expression_is_valid(handle) {
                 return Default::default();
             }
-            self.unresolved_names[source_span_index(handle)]
+            self.metadata(handle).unresolved_name
         }
 
         pub fn set_unresolved_name(
@@ -3851,7 +3852,7 @@ pub mod expression {
             handle: ExpressionHandle,
             outcome: symbols::UnresolvedName,
         ) {
-            self.unresolved_names[source_span_index(handle)] = outcome;
+            self.metadata_mut(handle).unresolved_name = outcome;
         }
 
         pub fn insert_build_selection_call(
@@ -3878,7 +3879,7 @@ pub mod expression {
         }
 
         pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
-            self.source_spans[source_span_index(handle)] = source_span;
+            self.metadata_mut(handle).source_span = source_span;
         }
 
         pub fn constructed_value_type_reference(
@@ -3888,14 +3889,9 @@ pub mod expression {
             if !self.expression_is_valid(handle) {
                 return crate::types::TypeReferenceHandle::invalid();
             }
-            let Some(reference) = self
-                .constructed_value_type_handles
-                .get(source_span_index(handle))
-            else {
-                return crate::types::TypeReferenceHandle::invalid();
-            };
+            let reference = self.metadata(handle).constructed_value_type;
             if reference.is_valid() {
-                *self.constructed_value_types.get(*reference)
+                *self.constructed_value_types.get(reference)
             } else {
                 crate::types::TypeReferenceHandle::invalid()
             }
@@ -3907,16 +3903,14 @@ pub mod expression {
             type_reference: crate::types::TypeReferenceHandle,
         ) {
             let position = source_span_index(handle);
-            if self.constructed_value_type_handles.len() <= position {
-                self.constructed_value_type_handles
-                    .resize(position + 1, Handle::invalid());
-            }
-            let reference = &mut self.constructed_value_type_handles[position];
+            let reference = self.metadata(handle).constructed_value_type;
             if reference.is_valid() {
-                *self.constructed_value_types.get_mut(*reference) = type_reference;
+                *self.constructed_value_types.get_mut(reference) = type_reference;
             } else {
-                *reference = self.constructed_value_types.insert(type_reference);
+                let reference = self.constructed_value_types.insert(type_reference);
+                self.metadata_mut(handle).constructed_value_type = reference;
             }
+            self.constructed_value_type_count = self.constructed_value_type_count.max(position + 1);
         }
 
         pub fn construction_required_type_reference(
@@ -3926,14 +3920,9 @@ pub mod expression {
             if !self.expression_is_valid(handle) {
                 return crate::types::TypeReferenceHandle::invalid();
             }
-            let Some(reference) = self
-                .construction_required_type_handles
-                .get(source_span_index(handle))
-            else {
-                return crate::types::TypeReferenceHandle::invalid();
-            };
+            let reference = self.metadata(handle).construction_required_type;
             if reference.is_valid() {
-                *self.construction_required_types.get(*reference)
+                *self.construction_required_types.get(reference)
             } else {
                 crate::types::TypeReferenceHandle::invalid()
             }
@@ -3945,16 +3934,15 @@ pub mod expression {
             type_reference: crate::types::TypeReferenceHandle,
         ) {
             let position = source_span_index(handle);
-            if self.construction_required_type_handles.len() <= position {
-                self.construction_required_type_handles
-                    .resize(position + 1, Handle::invalid());
-            }
-            let reference = &mut self.construction_required_type_handles[position];
+            let reference = self.metadata(handle).construction_required_type;
             if reference.is_valid() {
-                *self.construction_required_types.get_mut(*reference) = type_reference;
+                *self.construction_required_types.get_mut(reference) = type_reference;
             } else {
-                *reference = self.construction_required_types.insert(type_reference);
+                let reference = self.construction_required_types.insert(type_reference);
+                self.metadata_mut(handle).construction_required_type = reference;
             }
+            self.construction_required_type_count =
+                self.construction_required_type_count.max(position + 1);
         }
 
         pub fn attach_authored_selection_occurrences(
@@ -3962,7 +3950,6 @@ pub mod expression {
             handle: ExpressionHandle,
             occurrences: impl IntoIterator<Item = AuthoredDeclarationSelectionOccurrenceId>,
         ) {
-            let index = source_span_index(handle);
             let mut combined = self
                 .authored_selection_occurrences(handle)
                 .collect::<Vec<_>>();
@@ -3973,12 +3960,12 @@ pub mod expression {
                 }
             }
 
-            self.authored_selection_occurrences[index] =
-                self.authored_selection_occurrence_ids.insert_many(
-                    combined
-                        .into_iter()
-                        .map(StoredAuthoredSelectionOccurrenceId::new),
-                );
+            let retained = self.authored_selection_occurrence_ids.insert_many(
+                combined
+                    .into_iter()
+                    .map(StoredAuthoredSelectionOccurrenceId::new),
+            );
+            self.metadata_mut(handle).authored_selection_occurrences = retained;
         }
 
         /// Hands an expression's authored selection occurrences to the
@@ -3990,10 +3977,10 @@ pub mod expression {
             to: ExpressionHandle,
         ) {
             let moved = std::mem::replace(
-                &mut self.authored_selection_occurrences[source_span_index(from)],
+                &mut self.metadata_mut(from).authored_selection_occurrences,
                 HandleSpan::empty(),
             );
-            self.authored_selection_occurrences[source_span_index(to)] = moved;
+            self.metadata_mut(to).authored_selection_occurrences = moved;
         }
 
         pub fn authored_selection_occurrences(
@@ -4001,7 +3988,7 @@ pub mod expression {
             handle: ExpressionHandle,
         ) -> impl ExactSizeIterator<Item = AuthoredDeclarationSelectionOccurrenceId> + '_ {
             self.authored_selection_occurrence_ids
-                .span_or_empty(self.authored_selection_occurrences[source_span_index(handle)])
+                .span_or_empty(self.metadata(handle).authored_selection_occurrences)
                 .iter()
                 .copied()
                 .map(StoredAuthoredSelectionOccurrenceId::occurrence)
@@ -4012,7 +3999,7 @@ pub mod expression {
             expression: ExpressionHandle,
         ) -> &[ExecutableDomainTest] {
             self.executable_domain_test_rows
-                .span_or_empty(self.executable_domain_tests[source_span_index(expression)])
+                .span_or_empty(self.metadata(expression).executable_domain_tests)
         }
 
         pub fn retain_executable_domain_test(
@@ -4021,10 +4008,10 @@ pub mod expression {
             test: ExecutableDomainTest,
         ) {
             if !self.executable_domain_tests(expression).contains(&test) {
-                self.executable_domain_test_rows.append_to_span(
-                    &mut self.executable_domain_tests[source_span_index(expression)],
-                    test,
-                );
+                let mut tests = self.metadata(expression).executable_domain_tests;
+                self.executable_domain_test_rows
+                    .append_to_span(&mut tests, test);
+                self.metadata_mut(expression).executable_domain_tests = tests;
             }
         }
 
@@ -4033,8 +4020,8 @@ pub mod expression {
             expression: ExpressionHandle,
             tests: impl IntoIterator<Item = ExecutableDomainTest>,
         ) {
-            self.executable_domain_tests[source_span_index(expression)] =
-                self.executable_domain_test_rows.insert_many(tests);
+            let tests = self.executable_domain_test_rows.insert_many(tests);
+            self.metadata_mut(expression).executable_domain_tests = tests;
         }
 
         pub fn insert_expression_handles(
@@ -4079,12 +4066,15 @@ pub mod expression {
         }
 
         pub fn expression_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionNode {
-            self.expressions.get_mut(handle)
+            &mut self
+                .expressions
+                .get_mut(stored_expression_handle(handle))
+                .node
         }
 
         #[inline]
         pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
-            self.expressions.get(handle)
+            &self.expressions.get(stored_expression_handle(handle)).node
         }
 
         pub fn peeled_expression_handle(&self, mut handle: ExpressionHandle) -> ExpressionHandle {
@@ -4135,7 +4125,7 @@ pub mod expression {
 
         #[inline]
         pub fn expression_is_valid(&self, handle: ExpressionHandle) -> bool {
-            self.expressions.is_valid(handle)
+            self.expressions.is_valid(stored_expression_handle(handle))
         }
 
         pub fn borrow_expression(
@@ -4193,13 +4183,15 @@ pub mod expression {
         ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
             self.expression_roots
                 .iter()
-                .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
+                .map(|(_, handle)| (*handle, self.expression(*handle)))
         }
 
         pub fn iter_backing_expressions(
             &self,
         ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
-            self.expressions.iter()
+            self.expressions
+                .iter()
+                .map(|(handle, row)| (expression_handle(handle), &row.node))
         }
 
         pub fn iter_expressions_from(
@@ -4208,12 +4200,11 @@ pub mod expression {
         ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> + '_ {
             let start_root = self
                 .expression_roots
-                .storage_slice()
                 .partition_point(|handle| (handle.arena_index() as usize) < start_arena_index);
             self.expression_roots
                 .iter_from(start_root)
                 .filter(move |(_, handle)| handle.arena_index() as usize >= start_arena_index)
-                .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
+                .map(|(_, handle)| (*handle, self.expression(*handle)))
         }
 
         /// Keep the unowned expression roots `retain` accepts. It reads the
@@ -4277,8 +4268,7 @@ pub mod expression {
 
         pub fn respell_single_member_names(&mut self, symbol: SymbolHandle, member: &Identifier) {
             let spans: Vec<HandleSpan<Identifier>> = self
-                .expressions
-                .iter()
+                .iter_backing_expressions()
                 .filter_map(|(_, node)| match node {
                     ExpressionNode::Name(path)
                         if !path.static_application.is_valid()
@@ -4423,36 +4413,64 @@ pub mod expression {
                     .iter()
                     .all(|(handle, value)| current.is_valid(handle) && current.get(handle) == value)
             }
+            if self.constructed_value_type_count < source.constructed_value_type_count
+                || self.construction_required_type_count < source.construction_required_type_count
+            {
+                return false;
+            }
+            for (handle, original) in source.expressions.iter() {
+                let Some(current) = self.expressions.try_get(handle) else {
+                    return false;
+                };
+                let position = source_span_index(expression_handle(handle));
+                let mut expected = original.metadata;
+                // A source records attachments through its initialized prefix.
+                // Adding one beyond that prefix does not rewrite a source input.
+                if position >= source.constructed_value_type_count {
+                    expected.constructed_value_type = current.metadata.constructed_value_type;
+                }
+                if position >= source.construction_required_type_count {
+                    expected.construction_required_type =
+                        current.metadata.construction_required_type;
+                }
+                if expected != current.metadata {
+                    return false;
+                }
+            }
             macro_rules! storage {
-                (arenas [$($arena:ident),* $(,)?], vectors [$($vector:ident),* $(,)?]) => {{
+                ($($arena:ident),* $(,)?) => {{
                     // Exhaustive destructuring makes adding an unaccounted
                     // storage family a compile error. Node changes are the
                     // explicit exception, authenticated by the materializer.
-                    let Self { expressions: _, $($arena: _,)* $($vector: _,)* } = self;
+                    let Self {
+                        expressions: _,
+                        constructed_value_type_count: _,
+                        construction_required_type_count: _,
+                        $($arena: _,)*
+                    } = self;
                     $(if !rows(&self.$arena, &source.$arena) { return false; })*
-                    $(if self.$vector.get(..source.$vector.len()) != Some(source.$vector.as_slice()) {
-                        return false;
-                    })*
                     true
                 }};
             }
             storage!(
-                arenas [
-                    build_selection_requests, expression_roots,
-                    constructed_value_types, construction_required_types,
-                    authored_selection_occurrence_ids,
-                    executable_domain_test_rows, expression_handles,
-                    name_path_members, name_path_member_symbols, struct_fields,
-                    match_arms, match_fields, completed_values, match_proof_selectors,
-                    static_machine_applications, static_machine_arguments,
-                    static_machine_bindings, static_machine_lifetime_bindings,
-                ],
-                vectors [
-                    source_spans, unresolved_names, pattern_components, materialization_sources,
-                    constructed_value_type_handles, construction_required_type_handles,
-                    authored_selection_occurrences,
-                    executable_domain_tests,
-                ]
+                build_selection_requests,
+                expression_roots,
+                constructed_value_types,
+                construction_required_types,
+                authored_selection_occurrence_ids,
+                executable_domain_test_rows,
+                expression_handles,
+                name_path_members,
+                name_path_member_symbols,
+                struct_fields,
+                match_arms,
+                match_fields,
+                completed_values,
+                match_proof_selectors,
+                static_machine_applications,
+                static_machine_arguments,
+                static_machine_bindings,
+                static_machine_lifetime_bindings,
             )
         }
 
@@ -5872,5 +5890,99 @@ pub mod subtrees {
                 ExpressionNode::TypeExpression(_) | crate::literal_expression_pattern!() => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod storage_ownership_tests {
+    use crate::expression::{ExpressionNode, ExpressionTable};
+    use crate::statement::{StatementNode, StatementTable};
+    use crate::types::TypeReferenceHandle;
+    use language_core::PatternComponent;
+    use source::{SourceId, SourceSpan, Span};
+
+    #[test]
+    fn body_tables_share_retained_rows_and_keep_metadata_with_their_handles() {
+        let mut source = ExpressionTable::new();
+        let old = source.insert(ExpressionNode::default());
+        let span = SourceSpan::new(SourceId(7), Span::new(1, 2));
+        source.set_source_span(old, span);
+        source.set_pattern_component(old, PatternComponent::Case);
+        let mut selected = source.clone();
+        let added = selected.insert(ExpressionNode::default());
+        assert_eq!(added.arena_index(), old.arena_index() + 1);
+        assert!(std::ptr::eq(
+            source.expression(old),
+            selected.expression(old)
+        ));
+        assert_eq!(selected.source_span(old), span);
+        assert_eq!(
+            selected.direct_pattern_component(old),
+            Some(PatternComponent::Case)
+        );
+        selected.set_pattern_component(old, PatternComponent::Fields);
+        assert_eq!(
+            source.direct_pattern_component(old),
+            Some(PatternComponent::Case)
+        );
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&selected, limits).unwrap();
+        let decoded: ExpressionTable = compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(decoded, selected);
+
+        let mut statements = StatementTable::new();
+        let old = statements.insert(StatementNode::default());
+        let original_revision = statements.declaration_revision();
+        let mut selected = statements.clone();
+        let added = selected.insert(StatementNode::default());
+        assert_eq!(added.arena_index(), old.arena_index() + 1);
+        assert!(std::ptr::eq(
+            statements.statement(old),
+            selected.statement(old)
+        ));
+        assert_eq!(statements.declaration_revision(), original_revision);
+        assert_eq!(statements.statement_count(), 1);
+    }
+
+    #[test]
+    fn source_storage_guard_preserves_initialized_type_attachment_prefixes() {
+        let mut source = ExpressionTable::new();
+        let first = source.insert(ExpressionNode::default());
+        let second = source.insert(ExpressionNode::default());
+        let original_type = TypeReferenceHandle::from_arena_index(7);
+        let other_type = TypeReferenceHandle::from_arena_index(8);
+        let mut selected = source.clone();
+        selected.set_constructed_value_type_reference(first, original_type);
+        selected.set_construction_required_type_reference(first, original_type);
+        assert!(selected.retains_input_storage(&source));
+
+        source.set_constructed_value_type_reference(second, original_type);
+        source.set_construction_required_type_reference(second, original_type);
+        let mut selected = source.clone();
+        selected.set_constructed_value_type_reference(first, original_type);
+        assert!(!selected.retains_input_storage(&source));
+        let mut selected = source.clone();
+        selected.set_construction_required_type_reference(first, original_type);
+        assert!(!selected.retains_input_storage(&source));
+        let mut selected = source.clone();
+        selected.set_constructed_value_type_reference(second, other_type);
+        assert!(!selected.retains_input_storage(&source));
+        let mut selected = source.clone();
+        selected.set_source_span(first, SourceSpan::new(SourceId(2), Span::new(3, 4)));
+        assert!(!selected.retains_input_storage(&source));
+    }
+
+    #[test]
+    fn clearing_expression_storage_drops_metadata_from_reused_slots() {
+        let mut table = ExpressionTable::new();
+        let old = table.insert(ExpressionNode::default());
+        table.set_pattern_component(old, PatternComponent::Case);
+        table.clear();
+        let new = table.insert(ExpressionNode::default());
+        assert_eq!(new.arena_index(), old.arena_index());
+        assert_eq!(
+            table.direct_pattern_component(new),
+            Some(PatternComponent::Fields)
+        );
     }
 }

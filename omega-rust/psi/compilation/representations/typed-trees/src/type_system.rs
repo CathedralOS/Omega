@@ -2812,9 +2812,8 @@ pub mod types {
                 return Err("substituted operand has no registered type row");
             }
             let row = Handle::from_parts(reference.arena_index(), reference.generation());
-            let retained = self.operand_lifetime_owners.get_mut(row);
-            if !retained.is_valid() {
-                *retained = owner;
+            if !self.operand_lifetime_owners.get(row).is_valid() && owner.is_valid() {
+                *self.operand_lifetime_owners.get_mut(row) = owner;
             }
             Ok(())
         }
