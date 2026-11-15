@@ -267,6 +267,9 @@ impl Program<'_> {
                 if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
                     return Ok(predicate);
                 }
+                // A call of a declared machine states what its body computes
+                // for the arguments (`clause_calls`).
+                return self.called_clause(id, scope, call);
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 // A callable predicate is Boolean, including a named input
@@ -952,7 +955,7 @@ impl Program<'_> {
                 }
                 unserved("layout query has no scalar application")
             }
-            ExpressionNode::Call(_) => unserved("call in a clause term"),
+            ExpressionNode::Call(call) => self.called_term(id, scope, call),
             _ => unserved("term other than a formal, a literal or an embedded integer"),
         }
     }

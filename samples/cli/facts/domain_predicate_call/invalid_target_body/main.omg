@@ -45,8 +45,8 @@ X86Observe satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let direct: bool in Held = true;
-        hold(direct)
+        let direct: bool in Held = true as +Held;
+        hold(direct as -Held)
     }
 }
 
@@ -55,8 +55,8 @@ ArmObserve satisfies SelectedObserve {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let direct: bool in Held = true;
-        hold(direct)
+        let direct: bool in Held = true as +Held;
+        hold(direct as -Held)
     }
 }
 

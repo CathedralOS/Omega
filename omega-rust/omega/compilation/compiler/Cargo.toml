@@ -215,6 +215,12 @@ path = "tests/lowered_route_generics.rs"
 name = "lowered_route_qualified"
 path = "tests/lowered_route_qualified.rs"
 
+# A domain predicate that calls a declared machine is judged as that
+# machine's body at the actual arguments.
+[[test]]
+name = "lowered_route_clause_calls"
+path = "tests/lowered_route_clause_calls.rs"
+
 # A value-position `match` on an integer or Boolean subject is judged on the
 # lowered form: each arm is checked knowing its test held.
 # Canonical float calls keep the complete IEEE contract and target realization.

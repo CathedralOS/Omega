@@ -16,8 +16,8 @@ requires direct == true
 }
 
 machine main() crashes Trap {
-    let kept: bool in Held = true;
-    transition hold(kept) {
+    let kept: bool in Held = true as +Held;
+    transition hold(kept as -Held) {
         true -> done()
         _ -> bad()
     }

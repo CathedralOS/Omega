@@ -19,8 +19,8 @@ machine produced() -> bool { true }
 
 machine main() crashes Trap {
     let kept: bool = produced();
-    let direct: bool in Held = kept;
-    transition hold(direct) {
+    let direct: bool in Held = kept as +Held;
+    transition hold(direct as -Held) {
         true -> done()
         _ -> bad()
     }

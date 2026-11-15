@@ -31,7 +31,11 @@ Each twin changes only `premise`'s body from `kept` to `false`.
 
 Parameter and another-machine transports require `kept == true` so the true
 subject arrives. They do not re-establish `Held` after the qualification.
-Reject fragments are `bool::Held` and `cannot prove initializer`.
+Each place adds the domain with `as +Held` and passes the value to `hold`'s
+plain parameter with `as -Held`, as [named domain casts](../../../../wiki/spec/language/domains.md#domain-casts)
+require. The lowered-form checker reads `premise(self)` as `premise`'s body at
+the cast operand (`read/clause_calls.rs`). Reject fragments are `bool::Held`
+and `cannot prove the value of this cast is in the domain it adds`.
 
 On Linux x86_64, after projecting the selected body into the scalar domain
 predicate, all nine positives report native exit 0 and interpreter exit 0 from
