@@ -419,6 +419,12 @@ fn boundary_header(
                 .machine_by_symbol(symbol)
                 .map(|machine| typed.machine_type_parameters(machine).len())
         })
+        .or_else(|| {
+            typed
+                .operator_definition_by_symbol(symbol)
+                .filter(|operator| operator.is_boundary && operator.symbol == symbol)
+                .map(|operator| typed.operator_type_parameters(operator).len())
+        })
         .ok_or("proof boundary has no exact source parameter roster")?;
     let evaluation = (|| {
         Ok(CompilerEvaluationDeclaration {

@@ -105,7 +105,7 @@ pub(crate) use loans::reference_graph;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 fn index(raw: u64) -> usize {
@@ -317,8 +317,8 @@ pub(crate) fn input_content(
 /// What one scalar leaf holds on every path to a point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reached {
-    /// This path revisits a copy equation being solved. Other incoming paths
-    /// must supply its initial value; a cycle alone establishes nothing.
+    /// No real arrival supplies this equation yet. A cycle of copies has
+    /// no contents of its own.
     Cycle,
     /// The one value every path supplies.
     Value(ValueId),
@@ -351,6 +351,26 @@ impl Reached {
             reached => reached,
         }
     }
+
+    fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Cycle, supply) | (supply, Self::Cycle) => supply,
+            (Self::Unestablished, _) | (_, Self::Unestablished) => Self::Unestablished,
+            (Self::Open, _) | (_, Self::Open) => Self::Open,
+            (Self::Established(left), Self::Established(right)) => {
+                Self::Established(left.min(right))
+            }
+            (left, right) if left == right => left,
+            _ => Self::Unknown,
+        }
+    }
+
+    fn without_identity(self) -> Self {
+        match self {
+            Self::Cycle | Self::Unestablished => self,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 /// A read supplies a value snapshot without writing or restoring storage.
@@ -368,15 +388,145 @@ enum QueryKind {
     Case,
 }
 
+/// What reaches one equation: a real store, entry, or case selection, or
+/// the result of another equation before a copy or block argument transfer.
+#[derive(Clone, Copy)]
+enum Supply {
+    Direct(Reached),
+    Transfer {
+        source: usize,
+        depth: usize,
+        loses_identity: bool,
+    },
+}
+
+impl Supply {
+    fn transfer(source: usize) -> Self {
+        Self::Transfer {
+            source,
+            depth: usize::MAX,
+            loses_identity: false,
+        }
+    }
+
+    fn within(self, limit: usize) -> Self {
+        match self {
+            Self::Direct(reached) => Self::Direct(reached.within(limit)),
+            Self::Transfer {
+                source,
+                depth,
+                loses_identity,
+            } => Self::Transfer {
+                source,
+                depth: depth.min(limit),
+                loses_identity,
+            },
+        }
+    }
+
+    fn without_identity(self) -> Self {
+        match self {
+            Self::Direct(reached) => Self::Direct(reached.without_identity()),
+            Self::Transfer { source, depth, .. } => Self::Transfer {
+                source,
+                depth,
+                loses_identity: true,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Transfer {
+    destination: usize,
+    depth: usize,
+    loses_identity: bool,
+}
+
+struct ReachingEquation {
+    direct: Reached,
+    transfers: Vec<Transfer>,
+}
+
 struct Reaching {
-    // Active equations for exact queries; all discovered equations for initialization.
-    equations: BTreeSet<(BlockId, usize, Lineage, QueryKind)>,
+    keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
+    equations: Vec<ReachingEquation>,
     initialization_only: bool,
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
     #[cfg(test)]
     scanned_rows: usize,
+}
+
+impl Reaching {
+    fn add_equation(&mut self) -> usize {
+        let address = self.equations.len();
+        self.equations.push(ReachingEquation {
+            direct: Reached::Cycle,
+            transfers: Vec::new(),
+        });
+        address
+    }
+
+    fn add_supply(&mut self, destination: usize, supply: Supply) {
+        match supply {
+            Supply::Direct(reached) => {
+                let entry = &mut self.equations[destination].direct;
+                *entry = entry.merge(if self.initialization_only {
+                    reached.without_identity()
+                } else {
+                    reached
+                });
+            }
+            Supply::Transfer {
+                source,
+                depth,
+                loses_identity,
+            } => {
+                self.equations[source].transfers.push(Transfer {
+                    destination,
+                    depth,
+                    loses_identity,
+                });
+            }
+        }
+    }
+
+    fn solve(&mut self, root: usize) -> Reached {
+        let mut pending = Vec::new();
+        let mut queued = vec![false; self.equations.len()];
+        for (address, row) in self.equations.iter().enumerate() {
+            if row.direct != Reached::Cycle {
+                queued[address] = true;
+                pending.push(address);
+            }
+        }
+        // Copies have no independent contents. Propagate real arrivals until
+        // every equation agrees with its predecessors. A cycle with no real
+        // supply remains empty, including one with projected copies.
+        while let Some(source) = pending.pop() {
+            queued[source] = false;
+            let previous = self.equations[source].direct;
+            for position in 0..self.equations[source].transfers.len() {
+                let transfer = self.equations[source].transfers[position];
+                let reached = if transfer.loses_identity {
+                    previous.without_identity()
+                } else {
+                    previous.within(transfer.depth)
+                };
+                let output = &mut self.equations[transfer.destination].direct;
+                let merged = output.merge(reached);
+                if merged != *output {
+                    *output = merged;
+                    if !std::mem::replace(&mut queued[transfer.destination], true) {
+                        pending.push(transfer.destination);
+                    }
+                }
+            }
+        }
+        self.equations[root].direct
+    }
 }
 
 /// What a place is, by the lowered form's own declarations.
@@ -2278,25 +2428,25 @@ impl<'a> Storage<'a> {
         asked: Asked<'_>,
         budget: &mut Reaching,
         concerns: Construct,
-    ) -> Checked<Reached> {
+    ) -> Checked<Supply> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
             // A window asks only which store a path met last: the one that
             // opened it, or one that closed it.
             if let Asked::Window { by, .. } = asked {
-                return Ok(if row.operation == by {
+                return Ok(Supply::Direct(if row.operation == by {
                     Reached::Open
                 } else {
                     Reached::Closed
-                });
+                }));
             }
             let place = asked.place();
             // Only a store into the place or above it replaces it whole; one
             // beneath it or beside it leaves contents this route cannot name.
             let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice()) else {
                 if matches!(row.stored, Stored::Vacated) {
-                    return Ok(Reached::Unestablished);
+                    return Ok(Supply::Direct(Reached::Unestablished));
                 }
                 // A constructor first establishes its whole case, then its
                 // fields at the same operation. Follow earlier stores of that
@@ -2314,15 +2464,9 @@ impl<'a> Storage<'a> {
                     weakened = true;
                     continue;
                 }
-                let previous =
-                    self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?;
-                return Ok(
-                    if matches!(previous, Reached::Unestablished | Reached::Cycle) {
-                        previous
-                    } else {
-                        Reached::Unknown
-                    },
-                );
+                return Ok(self
+                    .reaching_supply(tables, asked, row.block, row.position - 1, budget, concerns)?
+                    .without_identity());
             };
             let reached = match (&row.stored, asked) {
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
@@ -2405,17 +2549,28 @@ impl<'a> Storage<'a> {
                         }
                     };
                     // The source as it was just before the store.
-                    self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?
-                        .within(beneath.len())
+                    let supply = self
+                        .reaching_supply(
+                            tables,
+                            asked,
+                            row.block,
+                            row.position - 1,
+                            budget,
+                            concerns,
+                        )?
+                        .within(beneath.len());
+                    return Ok(if weakened {
+                        supply.without_identity()
+                    } else {
+                        supply
+                    });
                 }
             };
-            return Ok(
-                if weakened && !matches!(reached, Reached::Unestablished | Reached::Cycle) {
-                    Reached::Unknown
-                } else {
-                    reached
-                },
-            );
+            return Ok(Supply::Direct(if weakened {
+                reached.without_identity()
+            } else {
+                reached
+            }));
         }
     }
 
@@ -2576,36 +2731,77 @@ impl<'a> Storage<'a> {
         asked: Asked<'_>,
         block: BlockId,
         up_to: usize,
-        budget: &mut Reaching,
+        trace: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
-        // Each alternative arrival has its own copy chain. Restore the depth
-        // on return so a sibling starts with the same bound. Equation membership
-        // and crossed-entry history remain shared across alternative arrivals.
+        let root = self.reaching_supply(tables, asked, block, up_to, trace, concerns)?;
+        let Supply::Transfer { source, depth, .. } = root else {
+            unreachable!("a query is an equation")
+        };
+        for equation in &mut trace.equations {
+            // Entry crossings discovered anywhere in the query retire reads
+            // from an earlier iteration, even if we saw the read first.
+            if let Reached::Value(value) = equation.direct
+                && let Some(ValueOrigin::Operation(operation)) =
+                    tables.values.get(value).map(|row| row.origin)
+                && self
+                    .read_leaf(self.operation(operation, concerns)?)?
+                    .is_some()
+            {
+                let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+                if trace.crossed_entries[index(owner.get())] {
+                    equation.direct = Reached::Unknown;
+                }
+            }
+        }
+        Ok(match trace.solve(source).within(depth) {
+            Reached::Cycle if matches!(asked, Asked::Window { .. }) => Reached::Unknown,
+            Reached::Cycle => Reached::Unestablished,
+            reached => reached,
+        })
+    }
+
+    fn reaching_supply(
+        &self,
+        tables: &MachineTables,
+        asked: Asked<'_>,
+        block: BlockId,
+        up_to: usize,
+        budget: &mut Reaching,
+        concerns: Construct,
+    ) -> Checked<Supply> {
+        let original = asked.place();
+        let resolved = self.backing(original, block, up_to, concerns)?;
+        let asked = asked.at(&resolved);
+        let key = match asked {
+            Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
+            Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
+            Asked::Window { .. } => None,
+        };
+        let projection = if original == &resolved { usize::MAX } else { 0 };
+        if let Some(key) = &key
+            && let Some(&address) = budget.keys.get(key)
+        {
+            return Ok(Supply::transfer(address).within(projection));
+        }
+        let address = budget.add_equation();
+        if let Some(key) = key {
+            budget.keys.insert(key, address);
+        }
+        // A real cleanup epoch can end this observation before operation
+        // stores do. Feed that result into the same equation graph so shared
+        // copy traces and initialization still use the ordinary solver.
+        if up_to >= self.block(block)?.operations.len()
+            && let Some(point) = budget.used
+            && let Some(changed) = self.cleanup_at_point(asked, block, point)?
+        {
+            budget.add_supply(address, Supply::Direct(changed));
+            return Ok(Supply::transfer(address).within(projection));
+        }
+        // The limit still bounds walks whose projected source keeps changing.
+        // Alternative arrivals start with the same remaining depth.
         let remaining = budget.remaining;
-        let reached = (|| {
-            let original = asked.place();
-            let resolved = self.backing(original, block, up_to, concerns)?;
-            let asked = asked.at(&resolved);
-            if up_to >= self.block(block)?.operations.len()
-                && let Some(point) = budget.used
-                && let Some(changed) = self.cleanup_at_point(asked, block, point)?
-            {
-                return Ok(changed);
-            }
-            let key = match asked {
-                Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
-                Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
-                Asked::Window { .. } => None,
-            };
-            let root_query = budget.equations.is_empty();
-            if let Some(key) = &key
-                && !budget.equations.insert(key.clone())
-            {
-                return Ok(Reached::Cycle);
-            }
-            // Repeated copy equations are handled above. The remaining limit
-            // refuses chains whose projected source keeps growing.
+        let discovered = (|| {
             budget.remaining = budget
                 .remaining
                 .checked_sub(1)
@@ -2619,52 +2815,6 @@ impl<'a> Storage<'a> {
                     ProgramPoint::AfterOperation(operations[count - 1].id)
                 });
             }
-            let mut merged: Option<Reached> = None;
-            let mut supply = |reached: Reached| {
-                // Identity-copy cycles contribute no extra initial value. Walk
-                // every other arrival before claiming what the cycle carries.
-                if reached == Reached::Cycle {
-                    return;
-                }
-                merged = Some(match (merged, reached) {
-                    (None, reached) => reached,
-                    (Some(Reached::Cycle), _) | (_, Reached::Cycle) => Reached::Cycle,
-                    (Some(Reached::Unestablished), _) | (Some(_), Reached::Unestablished) => {
-                        Reached::Unestablished
-                    }
-                    // A window open on one arrival is open at the join.
-                    (Some(Reached::Open), _) | (Some(_), Reached::Open) => Reached::Open,
-                    (Some(Reached::Closed), Reached::Closed) => Reached::Closed,
-                    (Some(Reached::Value(known)), Reached::Value(value)) if known == value => {
-                        Reached::Value(known)
-                    }
-                    (Some(Reached::Extent(known)), Reached::Extent(value)) if known == value => {
-                        Reached::Extent(known)
-                    }
-                    (Some(Reached::Case(known)), Reached::Case(case)) if known == case => {
-                        Reached::Case(known)
-                    }
-                    (Some(Reached::Established(first)), Reached::Established(second)) => {
-                        Reached::Established(first.min(second))
-                    }
-                    (
-                        Some(
-                            Reached::Value(_)
-                            | Reached::Extent(_)
-                            | Reached::Case(_)
-                            | Reached::Established(_)
-                            | Reached::Unknown
-                            | Reached::Closed,
-                        ),
-                        Reached::Value(_)
-                        | Reached::Extent(_)
-                        | Reached::Case(_)
-                        | Reached::Established(_)
-                        | Reached::Unknown
-                        | Reached::Closed,
-                    ) => Reached::Unknown,
-                });
-            };
             // Each block is walked whole at most once, so a cycle ends the walk.
             let mut walked = vec![false; self.graph.block_count()];
             let mut pending = vec![(block, up_to)];
@@ -2711,12 +2861,14 @@ impl<'a> Storage<'a> {
                             })?,
                         )?
                     {
-                        supply(Reached::Value(observation.value));
+                        budget
+                            .add_supply(address, Supply::Direct(Reached::Value(observation.value)));
                         continue;
                     }
                 }
                 if let Some((index, _)) = last {
-                    supply(self.supplied(tables, index, asked, budget, concerns)?);
+                    let supply = self.supplied(tables, index, asked, budget, concerns)?;
+                    budget.add_supply(address, supply);
                     continue;
                 }
                 // A block formal is a new owner of the selected edge's actual
@@ -2745,7 +2897,7 @@ impl<'a> Storage<'a> {
                     // closes any window on the destination. A window on its
                     // source is owed at the edge's ordinary consumption point.
                     if matches!(asked, Asked::Window { .. }) {
-                        supply(Reached::Closed);
+                        budget.add_supply(address, Supply::Direct(Reached::Closed));
                         continue;
                     }
                     budget.crossed_entries[index(block.get())] = true;
@@ -2801,8 +2953,8 @@ impl<'a> Storage<'a> {
                                     unreachable!("windows close at the binding")
                                 }
                             };
-                            supply(
-                                self.reaching(
+                            let supply = self
+                                .reaching_supply(
                                     tables,
                                     asked,
                                     predecessor,
@@ -2810,8 +2962,8 @@ impl<'a> Storage<'a> {
                                     budget,
                                     concerns,
                                 )?
-                                .within(beneath.len()),
-                            );
+                                .within(beneath.len());
+                            budget.add_supply(address, supply);
                         }
                     }
                     if !found {
@@ -2822,35 +2974,34 @@ impl<'a> Storage<'a> {
                     continue;
                 }
                 if block == self.graph.entry() {
-                    supply(
-                        match (asked, self.root_kind(asked_root(asked), concerns)?) {
-                            // A path that never passed the opening write.
-                            (Asked::Window { .. }, _) => Reached::Closed,
-                            // A formal arrives with its declared type established.
-                            // A selected field need not name one entry value,
-                            // especially when its index changes in a ranked loop.
-                            (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
-                                .interned(tables, leaf, concerns)?
-                                .and_then(|place| {
-                                    self.initial_contents.get(index(place.get())).copied()
-                                })
-                                .flatten()
-                                .map_or(Reached::Established(leaf.segments.len()), Reached::Value),
-                            // Which case a formal holds at entry is not known, and
-                            // other storage holds nothing there; that it holds
-                            // nothing is the contents question's answer to give.
-                            (Asked::Case(_), _) => Reached::Unknown,
-                            (
-                                Asked::Contents(_),
-                                StructuralPlaceKind::BlockParameter { .. }
-                                | StructuralPlaceKind::Result
-                                | StructuralPlaceKind::OperationResult { .. }
-                                | StructuralPlaceKind::ByteSequenceLiteral { .. }
-                                | StructuralPlaceKind::ProviderAttachment { .. }
-                                | StructuralPlaceKind::TrivialAffineLocal { .. },
-                            ) => Reached::Unestablished,
-                        },
-                    );
+                    let reached = match (asked, self.root_kind(asked_root(asked), concerns)?) {
+                        // A path that never passed the opening write.
+                        (Asked::Window { .. }, _) => Reached::Closed,
+                        // A formal arrives with its declared type established.
+                        // A selected field need not name one entry value,
+                        // especially when its index changes in a ranked loop.
+                        (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
+                            .interned(tables, leaf, concerns)?
+                            .and_then(|place| {
+                                self.initial_contents.get(index(place.get())).copied()
+                            })
+                            .flatten()
+                            .map_or(Reached::Established(leaf.segments.len()), Reached::Value),
+                        // Which case a formal holds at entry is not known, and
+                        // other storage holds nothing there; that it holds
+                        // nothing is the contents question's answer to give.
+                        (Asked::Case(_), _) => Reached::Unknown,
+                        (
+                            Asked::Contents(_),
+                            StructuralPlaceKind::BlockParameter { .. }
+                            | StructuralPlaceKind::Result
+                            | StructuralPlaceKind::OperationResult { .. }
+                            | StructuralPlaceKind::ByteSequenceLiteral { .. }
+                            | StructuralPlaceKind::ProviderAttachment { .. }
+                            | StructuralPlaceKind::TrivialAffineLocal { .. },
+                        ) => Reached::Unestablished,
+                    };
+                    budget.add_supply(address, Supply::Direct(reached));
                 }
                 budget.crossed_entries[index(block.get())] = true;
                 let mut asked_of: Vec<BlockId> = Vec::new();
@@ -2861,14 +3012,14 @@ impl<'a> Storage<'a> {
                     }
                     asked_of.push(*predecessor);
                     if let Some(changed) = self.cleanup_arrival(asked, *predecessor, block)? {
-                        supply(changed);
+                        budget.add_supply(address, Supply::Direct(changed));
                         continue;
                     }
                     if let Asked::Case(sum) = asked
                         && let Some(selected) =
                             self.edge_selects(tables, sum, *predecessor, block, concerns)?
                     {
-                        supply(selected);
+                        budget.add_supply(address, Supply::Direct(selected));
                         continue;
                     }
                     let slot = walked.get_mut(index(predecessor.get())).ok_or_else(|| {
@@ -2882,54 +3033,17 @@ impl<'a> Storage<'a> {
                     }
                 }
             }
-            // No path reaches the point at all: nothing is claimed about it.
-            let mut reached = merged.unwrap_or(if key.is_some() {
-                Reached::Cycle
-            } else {
-                Reached::Unknown
-            });
-            if let Some(key) = key {
-                if !budget.initialization_only {
-                    budget.equations.remove(&key);
-                }
-                if root_query && reached == Reached::Cycle {
-                    reached = Reached::Unestablished;
-                }
-            }
-            // Expanding an equation once preserves initialization, but does
-            // not establish a shared value identity or enclosing type depth.
-            if budget.initialization_only
-                && !matches!(reached, Reached::Unestablished | Reached::Cycle)
-            {
-                reached = Reached::Unknown;
-            }
-            if let Reached::Value(value) = reached
-                && let Some(ValueOrigin::Operation(operation)) =
-                    tables.values.get(value).map(|row| row.origin)
-                && self
-                    .read_leaf(self.operation(operation, concerns)?)?
-                    .is_some()
-            {
-                let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-                if budget.crossed_entries[index(owner.get())] {
-                    return Ok(Reached::Unknown);
-                }
-            }
-            // Backing substitution can replace the enclosing types. Only named
-            // value identities can cross that substitution without its type path.
-            Ok(if original == &resolved {
-                reached
-            } else {
-                reached.within(0)
-            })
+            Ok(())
         })();
         budget.remaining = remaining;
-        reached
+        discovered?;
+        Ok(Supply::transfer(address).within(projection))
     }
 
     fn budget(&self) -> Reaching {
         Reaching {
-            equations: BTreeSet::new(),
+            keys: BTreeMap::new(),
+            equations: Vec::new(),
             initialization_only: false,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
@@ -2940,13 +3054,8 @@ impl<'a> Storage<'a> {
     }
 
     fn initialization_budget(&self) -> Reaching {
-        // Initialization needs every arrival to supply storage, not the exact
-        // value or enclosing type evidence. Expand each copy equation once:
-        // revisits add no initial contents, while a missing arrival propagates
-        // through its first expansion to the root. A cycle without any real
-        // supply remains unestablished. Keep all arrivals even after a supply.
-        // Reads do not initialize storage, so this mode ignores observations;
-        // exact value and case queries retain their path-sensitive tracing.
+        // Reads supply snapshots rather than initialize storage. Suppress
+        // their observations and project away identity from the same solver.
         Reaching {
             initialization_only: true,
             ..self.budget()
@@ -5651,10 +5760,11 @@ mod observation_tests {
             )
             .unwrap();
         assert_eq!(reached, Reached::Established(1));
+        let row_budget = storage.log.len() * graph.block_count();
         assert!(
-            trace.scanned_rows < 2_000_000,
-            "copy queries scanned unrelated blocks: {} rows",
-            trace.scanned_rows
+            trace.scanned_rows <= row_budget,
+            "exact contents revisited reconverging copy equations: {} rows, budget {row_budget}",
+            trace.scanned_rows,
         );
 
         // Initialization must check every incoming value, but reconverging
@@ -5674,7 +5784,6 @@ mod observation_tests {
             initialized,
             Reached::Unestablished | Reached::Cycle
         ));
-        let row_budget = storage.log.len() * graph.block_count();
         eprintln!(
             "COPY_TRACE full_rows={} initialization_rows={} polynomial_row_budget={row_budget}",
             trace.scanned_rows, initialization.scanned_rows,

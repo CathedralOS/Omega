@@ -80,12 +80,33 @@ framework or a list of unimplemented features.
 - Cost: The private catalog advertises incomplete access summaries that cannot support preservation claims. Retire the unused analysis or derive its results from the existing owner-aware descriptor effect solver; appending recursive call paths would introduce an unbounded path fixed point.
 - Reported: 2026-11-15, Codex, while reviewing ordinary owned cleanup call composition.
 
+### The private-operator twin in `lowered_route_qualified` expects wording typing no longer prints
+- Category: tests that pin the bug
+- Where: `omega-rust/omega/compilation/compiler/tests/support/qualified_operator_homes.rs:133`
+- Saw: with `Distance::add` made private, typing refuses with "builtin operator `+` takes unqualified operands only, but `distance_left` has type `u32 in Distance` and no operator `+` is declared for it" (`03_symbol-resolved-trees-to-typed-trees/src/operator_calls.rs`, wording from #3541); the test accepts only "not a plain or policy-qualified scalar", "no visible operator" or "private operator", so `domain_operators_cross_package_boundaries_without_importing_their_module` fails at dc83fcb65264.
+- Cost: the lowered-form checker's area tests are red for a correct refusal; the oracle should name the refusal by what it checks, not by retired text.
+- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
+
+### A `fail/` proof fixture compiles, so `lowered_route_governance` fails at its base
+- Category: a verdict with nothing behind it
+- Where: `tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg`, `omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs:44`
+- Saw: `omega --check --target linux_x86_64` on the fixture prints `compiled 237 source file(s)` at dc83fcb65264, although its header expects `carrier arithmetic in a clause term`; `an_invalid_bound_entry_reports_the_routes_rejection` panics with "the compilation must be rejected after Psi 04".
+- Cost: the governance test is red for every agent that runs the lowered-form checker's area tests, and an unused partial predicate (`value + 1u32 == 1u32`) is accepted without the rejection the fixture pins.
+- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
+
 ### Equality preparation reconstructs resolved types from names
 - Category: re-deriving
 - Where: [operand scope](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L722), [field comparison](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L515), [operand lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L3356)
 - Saw: Source inspection at `c30b00a0b878` finds `EqualityScope::value_types` storing value/type string pairs. Field comparison converts a resolved type to its name and looks it up again using the containing data's source context. Recursion tracks `Vec<String>`; `Equatable` recognition compares a rendered path and `equals` selection compares row spelling. No runnable misbinding was reproduced.
 - Cost: Equality maintains another model of relationships already resolved upstream. Carry exact value, type/application and requirement-row identities through preparation, keeping names for diagnostics. Check same-leaf imported types, aliased fields and generated/applied types; unrelated declaration order or diagnostic spelling must not change selection. Preserve recursive-equality rejection using the traversed identities.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
+
+### Selection recomputes the plan for a call's indirect result
+- Category: re-deriving
+- Where: [indirect result check](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_inputs.rs#L1492) (`aggregate_result_input::indirect_result`)
+- Saw: Selection decides whether a call returns through a caller-supplied result pointer by running `calling_conventions::evaluate_call_plan` on a result-only signature and comparing its result placement with the stored one. Borrowed and owned call arguments now take their placements from the stored plan, and the independent audit compares that plan with the callee's own plan. This check still recomputes the plan.
+- Cost: Every call whose result comes back through a result pointer runs the calling convention a second time in default compilation. Read the register from the stored placement's shape and location, and leave the plan comparison to the audit. A live claim (call_contract_repair domain enforcement) lists this file.
+- Reported: 2026-11-15, Claude Code, while removing the recomputed plan from borrowed and owned call arguments
 
 ### Literal declaration validation still judges selected predicates in syntax
 - Category: one idea, several implementations
@@ -101,13 +122,6 @@ framework or a list of unimplemented features.
 - Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
-### Build readiness refuses its authored operands before suspension
-- Category: knowledge crossing a boundary
-- Where: [kept readiness call](tests/fixtures/pass/build/explicit_provider_readiness_exit/build.omg#L10), [static operand reader](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L6817), [fixture staging test](omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs#L179)
-- Saw: Clean `a343c6b50a9` refuses the first Build in `executed_bindings_select_targets_and_retained_legs_keep_separate_staging` at `build.omg:10:13` (bytes 556..577). `Build::await_provider<ProgramImage, backing::TestImage>` reports “applied callable has an unrepresented static type operand” before readiness can suspend. The same refusal in the full test poisons the mutex shared by six other cases.
-- Cost: The test cannot check that the completed Build resumes with its exact backing, excludes the untaken UEFI target, or reuses settlement across the two Product legs. Carry the existing authored supplier selection into checked readiness and preserve those assertions.
-- Reported: 2026-11-15, Codex, macOS arm64, while checking the fixture review harness.
-
 ### A narrow installation bound rejects a valid selected child
 - Category: knowledge crossing a boundary
 - Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
@@ -122,14 +136,6 @@ framework or a list of unimplemented features.
 - Cost: The library and selected UEFI twin never distinguish target capability, and the closed addition never reaches the toolchain owner in recovered policy. Retain each authored operation while completing its canonical call contract.
 - Reported: 2026-11-15, Codex, while replaying kept package-review numeric fixtures.
 
-### Exact storage queries revisit reconverging copies
-- Category: verifying costs more than writing
-- Where: [reaching storage](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2551), [reconverging copy control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L5472)
-- Saw: On `a343c6b50a9`, the twelve-branch control scans 475,120 rows for an exact value and 196 for initialization. Exact-value and case queries retrace copies across incoming edges. Restricting each scan to the requested root cut the exact-value count to 237,560 and left the repeated traversal intact.
-- Cost: The cost grows with the number of paths through a graph with few distinct writes. Reuse reaching-write equations for the exact query, and preserve projected writes, disagreement across arrivals, case retirement and cycle refusal.
-- Reported: 2026-11-15, Codex, while profiling the checked native callback fixture.
-
-
 ### Static callable specialization needs a portable receipt for open structural reach
 - Category: knowledge crossing a boundary
 - Where: [static operand reader](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs), [checked application producer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L537), [retained reach reader](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L2324), [open structural requirements](wiki/spec/language/effects.md#deferred-callback-reach)
@@ -139,8 +145,9 @@ framework or a list of unimplemented features.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
-- Where: [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L565), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L942), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L727)
-- Saw: `complete_selected` starts from typing retained for later selections. Source activation still copies that typed program when the body batch is empty, because the following projection rewrites its declaration roots, side tables and selected source symbols. Projection narrows the resulting owned program in place.
-- Cost: Even an empty body batch needs a copy of unrelated typed storage with the current projection owner. Moving the copy into projection leaves the cost. Per-table copy-on-write still copies body arenas that completion appends to, and `Arena` exposes contiguous spans. If repeated nonempty completion proves costly, use the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share immutable declaration and type storage and publish body replacements through stable handles. Preserve exact source authority, refusal behavior, and signature and inferred-summary dependencies.
-- Measured: The two Build routes from the [earlier measurement](wiki/drafts/measurements/selected_body_copies.md) on macOS arm64 at `d66164cd0f5` each selected 75 source files with zero bodies to finish. Activation requested 32,333,303 bytes across 14,553 allocations and cloned 101 arenas. Projection's typed extraction allocated zero bytes. Neither route measures repeated nonempty continuations.
-- Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals; narrowed 2026-11-15, Claude Code, after removing the projection copy
+- Where: [activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs), [source application preparation](omega-rust/psi/compilation/representations/typed-trees/src/references.rs)
+- Saw: Type, expression and statement tables share retained pages and append private rows. Empty selected activation still copies declaration and side-record storage before projection narrows its roots. Later declarations can also give a retained call its source application; that necessary write still detaches the earlier completion batch's whole page.
+- Cost: Unrelated declaration storage is copied even for an empty body batch. A real update to one retained call can copy unrelated bodies from its earlier batch. Use the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share the remaining immutable declaration storage and keep body replacements under their actual owner, not the earlier batch. Do not skip source application preparation, projection, source authority checks, or signature and inferred-summary dependencies.
+- Measured: On Windows x86-64 at opt-level 1, the two original Build routes each selected 75 files and zero bodies. Activation requested 5,072,931 bytes across 13,043 allocations and cloned 63 arenas. Later full completions of 1,695 / 1,693 machines requested 322,765,350 / 322,664,660 bytes, including new output and required preparation. They still copied earlier pages containing 21,773 / 21,757 expression rows and 1,955 statement rows. These are operation counts, not a runtime-speedup claim. The [historical macOS measurement](wiki/drafts/measurements/selected_body_copies.md) at `d66164cd0f5` recorded 32,333,303 activation bytes, 14,553 allocations and 101 cloned arenas; it did not measure repeated nonempty completion.
+- Reported: 2026-11-15, Codex, after measuring retained type and body storage on the original scalar-contract and borrowed-root Build routes
+

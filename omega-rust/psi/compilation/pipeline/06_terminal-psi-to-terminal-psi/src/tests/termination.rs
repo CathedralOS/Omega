@@ -212,9 +212,12 @@ fn assert_unchanged_measure_refuses(text: &str) {
         Ok(RouteVerdict::Rejected { unproved, .. }) => assert_no_descent(&unproved),
         Err(crate::CompilationRefusal::Elaboration(refusal)) => {
             assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
-            assert_eq!(
-                refusal.detail,
-                "removing strict rank edges leaves a control cycle"
+            // The refusal names the recursive machine after its reason.
+            let reason = "removing strict rank edges leaves a control cycle in machine `";
+            assert!(
+                refusal.detail.starts_with(reason) && refusal.detail.ends_with('`'),
+                "{}",
+                refusal.detail
             );
         }
         result => panic!("the unchanged measure must fail its progress check: {result:?}"),

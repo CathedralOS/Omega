@@ -50,6 +50,12 @@ impl<T: Default> RetainedArena<T> {
         }
     }
 
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut rows = Self::new();
+        rows.reserve(capacity);
+        rows
+    }
+
     /// An append after a fork starts a private page, rather than making an
     /// independent copy of the retained rows. Read-only forks allocate no rows.
     fn prepare_append(&mut self) {
@@ -237,6 +243,24 @@ impl<T: Default> RetainedArena<T> {
             })
     }
 
+    /// Find a partition in stored rows without flattening retained pages.
+    /// As with a slice partition, the caller supplies a partitioned predicate;
+    /// retired slots still occupy their original storage positions.
+    pub fn partition_point(&self, mut predicate: impl FnMut(&T) -> bool) -> usize {
+        let page = self.pages.partition_point(|page| {
+            predicate(
+                page.rows
+                    .storage_slice()
+                    .last()
+                    .expect("retained page is nonempty"),
+            )
+        });
+        match self.pages.get(page) {
+            Some(page) => page.start + page.rows.storage_slice().partition_point(predicate),
+            None => self.start + self.appended.storage_slice().partition_point(predicate),
+        }
+    }
+
     fn stored_rows(&self) -> impl Iterator<Item = (&T, u32, bool)> {
         self.pages
             .iter()
@@ -272,6 +296,26 @@ impl<T: Default + Clone> RetainedArena<T> {
         let position = self.page_position(slot)?;
         let page = &mut self.pages[position];
         Some((page.start, Arc::make_mut(&mut page.rows)))
+    }
+
+    pub fn reset_retain_capacity(&mut self) {
+        self.rewrite();
+        if let Some(appended) = Arc::get_mut(&mut self.appended) {
+            appended.reset_retain_capacity();
+        } else {
+            let generation = self.appended.storage_view().fresh_generation;
+            let dummy = self.appended.dummy().clone();
+            self.appended = Arc::new(
+                Arena::from_storage(dummy, Vec::new(), None, generation, true)
+                    .expect("empty retained append page is valid"),
+            );
+        }
+        let mut previous_pages = std::mem::take(&mut self.pages);
+        self.start = 0;
+        self.retired = 0;
+        self.append_only = true;
+        previous_pages.clear();
+        self.pages = previous_pages;
     }
 
     #[track_caller]
@@ -423,6 +467,10 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
 impl<T: Default + PartialEq> PartialEq for RetainedArena<T> {
     fn eq(&self, other: &Self) -> bool {
         self.appended.dummy() == other.appended.dummy()
+            // Equal stored rows must also produce equal future handles, even
+            // when no live row records the append generation.
+            && self.appended.storage_view().fresh_generation
+                == other.appended.storage_view().fresh_generation
             && self.storage_len() == other.storage_len()
             && self.stored_rows().eq(other.stored_rows())
     }
@@ -451,6 +499,10 @@ mod tests {
         let copies = Arc::new(AtomicUsize::new(0));
         let mut original = RetainedArena::new();
         original.insert_many((0..100).map(|_| Tracked(Arc::clone(&copies))));
+        let mut cleared = original.clone();
+        cleared.reset_retain_capacity();
+        assert_eq!(cleared.len(), 0);
+        assert_eq!(copies.load(Ordering::Relaxed), 0);
         let mut selected = original.clone();
         selected.append(Tracked(Arc::clone(&copies)));
         assert_eq!(copies.load(Ordering::Relaxed), 0);
@@ -541,6 +593,27 @@ mod tests {
     }
 
     #[test]
+    fn partition_queries_and_reset_keep_retained_pages_independent() {
+        let mut original = RetainedArena::with_capacity(8);
+        original.insert_many([1u32, 2, 3]);
+        let mut selected = original.clone();
+        selected.insert_many([4, 5]);
+        for threshold in 0..=6 {
+            assert_eq!(
+                selected.partition_point(|value| *value < threshold),
+                [1u32, 2, 3, 4, 5].partition_point(|value| *value < threshold)
+            );
+        }
+        selected.reset_retain_capacity();
+        assert!(selected.is_empty());
+        assert_eq!(selected.append(9).arena_index(), 1);
+        assert_eq!(
+            original.iter().map(|(_, value)| *value).collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+    }
+
+    #[test]
     fn private_record_keeps_page_ranges_and_generations() {
         let mut first = RetainedArena::<u32>::new();
         let retained = first.insert_many([1, 2]);
@@ -616,6 +689,34 @@ mod tests {
         assert_eq!(selected.len(), 0);
         assert_eq!(original.len(), 1);
         assert!(original.is_valid(handle));
+    }
+
+    #[test]
+    fn equality_keeps_the_generation_used_by_the_next_append() {
+        for retire_existing_row in [false, true] {
+            let mut original = RetainedArena::<u32>::new();
+            if retire_existing_row {
+                let existing = original.append(1);
+                assert!(original.free(existing));
+            }
+            let storage = original.appended.storage_view();
+            let mut other_generation = original.clone();
+            other_generation.appended = Arc::new(
+                Arena::from_storage(
+                    *storage.dummy,
+                    storage.items.to_vec(),
+                    storage.slots.cloned(),
+                    9,
+                    storage.fresh,
+                )
+                .unwrap(),
+            );
+            let original_next = original.clone().append(2);
+            let other_next = other_generation.clone().append(2);
+            assert_eq!(original_next.arena_index(), other_next.arena_index());
+            assert_ne!(original_next.generation(), other_next.generation());
+            assert_ne!(original, other_generation);
+        }
     }
 
     #[test]

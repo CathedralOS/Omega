@@ -782,7 +782,10 @@ machine entry() crashes none {
         panic!("a selected call without its public header must be refused");
     };
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
-    assert_eq!(refused.detail, "an invocation row names another callee");
+    assert_eq!(
+        refused.detail,
+        "an invocation row names another callee in machine `relay`"
+    );
 
     let mut missing_lifetimes = prepare();
     let TerminalCompilation::Prepared(prepared) = &mut missing_lifetimes else {
@@ -847,7 +850,7 @@ machine entry() crashes none {
         refused.concerns,
         terminal_check_tables::Construct::Operation(operation)
     );
-    assert_eq!(refused.detail, detail);
+    assert_eq!(refused.detail, format!("{detail} in machine `relay`"));
 }
 
 #[test]

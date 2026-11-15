@@ -22,17 +22,17 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
     // Circle radius 3: r*r = 9, passed as scalar; callee returns 9*3 = 27.
-    let rr: i32 in Saturating = 3 * 3;
+    let rr: i32 in Saturating = (3 * 3) as +Saturating;
     let a1: i32 in Saturating = triple(rr);
 
     // Rectangle 5x8: callee returns 5*8 = 40.
-    let a2: i32 in Saturating = product(5, 8);
+    let a2: i32 in Saturating = product(5 as +Saturating, 8 as +Saturating);
 
     // Triangle base=6, height=1: callee returns 6*1/2 = 3.
-    let a3: i32 in Saturating = halve(6, 1);
+    let a3: i32 in Saturating = halve(6 as +Saturating, 1 as +Saturating);
 
     main.total = a1 + a2 + a3;
 
@@ -44,14 +44,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: areas 27+40+3 total 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: area total did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -80,5 +80,5 @@ machine halve(b: i32 in Saturating, h: i32 in Saturating) -> i32 in Saturating {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

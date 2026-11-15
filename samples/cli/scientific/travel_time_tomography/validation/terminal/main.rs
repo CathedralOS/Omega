@@ -38,6 +38,7 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
         .map_err(|diagnostic| format!("{diagnostic:?}"))?;
     let native_directory = output.join("native");
     let outcomes = orchestration::build(BuildRequest {
+        stage_validators: Default::default(),
         root_path: sample.join("main.omg"),
         build_directory: Some(native_directory.clone()),
         targets: BuildTargets::Single(profile),

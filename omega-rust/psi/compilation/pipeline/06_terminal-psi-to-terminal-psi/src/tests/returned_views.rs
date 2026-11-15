@@ -138,7 +138,9 @@ fn a_provider_view_permission_cannot_be_claimed_as_owned_storage() {
     assert!(
         matches!(crate::judge(Ok(changed)),
         Err(Refusal { reason: RefusalReason::ForeignIdentity, detail, .. })
-        if detail == "reborrow names a different immediate parent occurrence"),
+        if detail.starts_with(
+            "reborrow names a different immediate parent occurrence in machine `"
+        )),
         "a provider result cannot claim ownership of its payload"
     );
 }

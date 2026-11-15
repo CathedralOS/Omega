@@ -360,6 +360,18 @@ impl<'t> Program<'t> {
                 caller,
                 Construct::Machine,
             )?;
+            let kind = if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
+                let requirement = typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(self.typed, *symbol)
+                    .ok_or_else(|| unavailable("numeric primitive lost its declaration kind"))?;
+                match requirement.kind {
+                    typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::Operator => semantic_vocabulary::BoundaryRequirementKind::Operator,
+                    typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::TopLevelRequirement => semantic_vocabulary::BoundaryRequirementKind::Machine,
+                }
+            } else if execution.compiler_owned() {
+                semantic_vocabulary::BoundaryRequirementKind::Machine
+            } else {
+                semantic_vocabulary::BoundaryRequirementKind::Trait
+            };
             let mut declaration = crate::lower::boundary(
                 caller,
                 boundary,
@@ -373,6 +385,7 @@ impl<'t> Program<'t> {
                 } else {
                     None
                 },
+                kind,
                 qualifications,
             )?;
             declaration.result_lifetimes = self

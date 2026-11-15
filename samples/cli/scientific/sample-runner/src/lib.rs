@@ -604,6 +604,7 @@ fn invocation(sample: Sample, arguments: &[String]) -> Invocation {
 fn build(root: PathBuf, product_directory: PathBuf) -> BuildReport {
     let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let outcomes = orchestration::build(BuildRequest {
+        stage_validators: Default::default(),
         root_path: root,
         build_directory: Some(product_directory),
         targets: BuildTargets::Single(profile),

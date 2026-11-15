@@ -10710,9 +10710,9 @@ pub(crate) mod operation_contracts {
         use std::collections::BTreeMap;
 
         #[allow(clippy::too_many_arguments)]
-        pub(super) fn validate_node_operation_contracts(
+        pub(super) fn validate_node_operation_contracts<'function>(
             unit: &optimization_unit::PsiOptimizationUnit,
-            function: &PsiOptimizationFunction,
+            function: &'function PsiOptimizationFunction,
             block: &optimization_unit::OptimizationBlock,
             node_index: usize,
             node: &optimization_unit::OptimizationNode,
@@ -10729,6 +10729,9 @@ pub(crate) mod operation_contracts {
                 &terminal_psi::StructuralDomainDeclaration,
             >,
             call_accesses: &crate::current_ownership::CallAccesses,
+            scalar_expressions: &std::cell::OnceCell<
+                crate::descriptor_results::scalar_expressions::ScalarExpressions<'function>,
+            >,
         ) -> Result<(), OptimizationUnitValidationError> {
             if !operation_scalar_types_match(
                 unit,
@@ -10757,6 +10760,7 @@ pub(crate) mod operation_contracts {
                 structural_types,
                 structural_domains,
                 call_accesses,
+                scalar_expressions,
             ) {
                 return Err(
                     OptimizationUnitValidationError::StructuralCallContractMismatch(
@@ -11781,9 +11785,12 @@ pub(crate) mod operation_contracts {
         use semantic_vocabulary::StructuralTypeId;
         use std::collections::BTreeMap;
 
-        pub(crate) fn scalar_array_establishment_matches(
-            function: &PsiOptimizationFunction,
+        pub(crate) fn scalar_array_establishment_matches<'function>(
+            function: &'function PsiOptimizationFunction,
             operation: &O,
+            scalar_expressions: &std::cell::OnceCell<
+                crate::descriptor_results::scalar_expressions::ScalarExpressions<'function>,
+            >,
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
             domains: &BTreeMap<
                 semantic_vocabulary::StructuralDomainId,
@@ -11813,41 +11820,10 @@ pub(crate) mod operation_contracts {
                     &result.qualifications,
                     elements,
                     |element| {
-                        terminal_semantics::scalar_constant_value(element, |value| {
-                            if let Some((ty, literal)) =
-                                function
-                                    .block_nodes()
-                                    .find_map(|node| match node.operation {
-                                        O::IntegerConstant {
-                                            result,
-                                            scalar_type,
-                                            value: literal,
-                                            ..
-                                        } if result == value => Some((scalar_type, literal)),
-                                        _ => None,
-                                    })
-                            {
-                                return Some(terminal_semantics::ScalarConstantOrigin::Literal(
-                                    ty, literal,
-                                ));
-                            }
-                            let owner = function.blocks.iter().find(|block| {
-                                block
-                                    .parameters
-                                    .iter()
-                                    .any(|parameter| parameter.value == value)
-                            })?;
-                            if owner.id == function.entry {
-                                return None;
-                            }
-                            let incoming = function
-                                .block_nodes()
-                                .flat_map(|node| &node.successors)
-                                .filter(|edge| edge.target == owner.id)
-                                .map(|edge| edge.binding(value).map(|binding| binding.argument))
-                                .collect::<Option<Vec<_>>>()?;
-                            Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
-                        })
+                        let (ty, literal) = scalar_expressions
+                            .get_or_init(|| crate::descriptor_results::scalar_expressions::ScalarExpressions::new(function))
+                            .literal(element)?.integer_value()?;
+                        Some((semantic_vocabulary::ScalarType::Integer(ty), literal))
                     },
                 )
                 && result.projected_qualifications.is_empty()
@@ -12749,9 +12725,9 @@ pub(crate) mod operation_contracts {
         }
 
         #[allow(clippy::too_many_arguments)]
-        pub(crate) fn operation_structural_call_contract_matches(
+        pub(crate) fn operation_structural_call_contract_matches<'function>(
             unit: &optimization_unit::PsiOptimizationUnit,
-            caller: &PsiOptimizationFunction,
+            caller: &'function PsiOptimizationFunction,
             operation: &O,
             functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
             boundary_machines: &BTreeMap<
@@ -12761,6 +12737,9 @@ pub(crate) mod operation_contracts {
             types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
             domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
             call_accesses: &crate::current_ownership::CallAccesses,
+            scalar_expressions: &std::cell::OnceCell<
+                crate::descriptor_results::scalar_expressions::ScalarExpressions<'function>,
+            >,
         ) -> bool {
             match operation {
         O::InvokeNoNormal { callee, structural_arguments, claim_transfers, requirement_obligations, crash_continuations, psi_edge, .. } => functions.get(callee).is_some_and(|callee| {
@@ -12843,7 +12822,7 @@ pub(crate) mod operation_contracts {
             super::scalar_arrays::structural_array_establishment_matches(caller, operation, types)
         }
         O::EstablishScalarArray { .. } => {
-            scalar_array_establishment_matches(caller, operation, types, domains)
+            scalar_array_establishment_matches(caller, operation, scalar_expressions, types, domains)
         }
         O::EstablishCase { .. } => case_establishment_matches(caller, operation, types, domains),
         O::EstablishRecord { .. } => {
@@ -14763,6 +14742,9 @@ pub(crate) mod operation_contracts {
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Result<(), OptimizationUnitValidationError> {
         let definitions = values::collect_value_definitions(function)?;
+        // Most functions never need array literal qualification. Retain one
+        // reader only if an actual query needs it, and share it across nodes.
+        let scalar_expressions = std::cell::OnceCell::new();
         let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
         atomic_coherence::validate_function_atomic_coherence(
             function,
@@ -14793,6 +14775,7 @@ pub(crate) mod operation_contracts {
                     structural_types,
                     structural_domains,
                     call_accesses,
+                    &scalar_expressions,
                 )?;
                 values::validate_successor_bindings(
                     function,

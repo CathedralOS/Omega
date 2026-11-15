@@ -5,9 +5,10 @@ for executable expressions and contract terms. Adding a domain owes its issuer
 and predicate checks. Removal keeps ownership and cannot erase access, cleanup
 or borrowed restoration obligations.
 
-Carrier casts start with an unqualified operand and perform the exact integer
-conversion before adding a policy. Trapping conversions, storage recasts and
-unserved anonymous operands refuse explicitly.
+Carrier casts start with an unqualified operand and perform an exact scalar
+conversion before adding a policy. Float widening uses the authenticated Core
+conversion whose entire input format is exactly representable in its result.
+Trapping conversions, storage recasts and unserved anonymous operands refuse.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -108,19 +109,37 @@ impl Program<'_> {
         if !target.qualification().domains.is_empty() {
             return unserved("carrier cast into a type that carries a declared domain");
         }
-        let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
-            (source_type.scalar(), target.scalar())
-        else {
-            return unserved("cast between carriers that are not integers");
-        };
         // The carrier first: the same carrier converts nothing, and any
         // other is the one exact conversion, whatever policy the cast then
         // adds ("`plain as i64 +Km` abbreviates `(plain as i64) as +Km`").
         // No policy makes it a truncation or a clamp: "`as` never calls
         // user code, rounds, saturates, traps".
-        let converted = if from == to {
+        let converted = if matches!(
+            (source_type.scalar(), target.scalar()),
+            (Some(from), Some(to)) if from == to
+        ) {
             operand
+        } else if matches!(
+            (source_type.scalar(), target.scalar()),
+            (
+                Some(ScalarType::IeeeFloat(
+                    semantic_vocabulary::IeeeFloatFormat::Binary32
+                )),
+                Some(ScalarType::IeeeFloat(
+                    semantic_vocabulary::IeeeFloatFormat::Binary64
+                ))
+            )
+        ) {
+            // Every binary32 value is exactly representable in binary64.
+            // Narrowing needs a representability proof; a rounding conversion
+            // alone cannot justify an exact carrier cast.
+            self.exact_numeric_conversion(id, operand, source)?
         } else {
+            let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
+                (source_type.scalar(), target.scalar())
+            else {
+                return unserved("cast whose exact carrier conversion is not supported");
+            };
             // counts_and_addresses.md: "neither arbitrary value-to-address
             // conversions nor the inverse ... follow from these queries".
             if from.is_address() || to.is_address() {
@@ -146,6 +165,61 @@ impl Program<'_> {
             call_context: None,
             kind: ExpressionKind::Requalify(Box::new(converted)),
             result: Some(target),
+            source,
+        })
+    }
+
+    /// Cast formation establishes exactness before this call. Publication and
+    /// lowering retain the canonical operation's complete equation, source
+    /// identity and target controls, just as for an ordinary numeric call.
+    fn exact_numeric_conversion(
+        &mut self,
+        id: MachineId,
+        operand: Expression,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Expression(detail));
+        let meaning = NumericIntrinsic::Conversion {
+            source: NumericType::F32,
+            target: NumericType::F64,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+        };
+        let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)
+            .map_err(unavailable)?;
+        let target = self.typed.symbols
+            .find_top_level_by_name_and_kinds_from_source_matching(
+                &declaration,
+                &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
+                source.authored_span().unwrap_or_default(),
+                |symbol| {
+                    self.typed.symbols.sealed_intrinsic(symbol)
+                        == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+                        && self.typed.numeric_intrinsic_execution(symbol) == Some(meaning)
+                },
+            ).ok_or_else(|| unavailable("exact carrier conversion has no canonical declaration"))?;
+        let boundary = self.boundary_declaration(id, target)?;
+        let signature = self
+            .boundary_signatures
+            .get(boundary)
+            .ok_or_else(|| unavailable("exact carrier conversion lost its signature"))?;
+        if signature.parameters.len() != 1
+            || operand.result != signature.parameters.first().copied()
+        {
+            return Err(unavailable(
+                "exact carrier conversion changes its operand format",
+            ));
+        }
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                callee: semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
+                required_contract: None,
+                source_call: None,
+                arguments: vec![operand],
+                designated: None,
+            },
+            result: signature.result,
             source,
         })
     }

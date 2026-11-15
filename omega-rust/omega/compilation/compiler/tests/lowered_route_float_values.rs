@@ -473,3 +473,151 @@ fn float_zero_locals_keep_positive_bits_and_require_the_default_domain() {
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_operand() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use semantic_vocabulary::{
+                FloatMeaningClauseValue, IeeeFloatFormat, ScalarType, ValueId,
+            };
+            let main = repository().join("tests/fixtures/run/float/exact_widening/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = publication.artifact.semantic_module();
+            let meaning = NumericIntrinsic::Conversion {
+                source: NumericType::F32,
+                target: NumericType::F64,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            };
+            let boundary = module
+                .boundary_machines
+                .iter()
+                .find(|boundary| boundary.numeric_intrinsic == Some(meaning))
+                .unwrap();
+            assert_eq!(
+                boundary.scalar_parameters,
+                [ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)]
+            );
+            assert_eq!(
+                boundary.result.scalar(),
+                Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
+            );
+            let [semantic_vocabulary::Proposition::FloatMeaningEqual(clause)] =
+                boundary.scalar_ensures.as_slice()
+            else {
+                panic!("conversion must publish its complete meaning equation")
+            };
+            let sources = clause.sources().cloned().collect::<Vec<_>>();
+            assert!(sources.contains(&semantic_vocabulary::ScalarTerm::value(
+                ValueId::new(1).unwrap(),
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)
+            )));
+            assert!(sources.contains(&semantic_vocabulary::ScalarTerm::value(
+                ValueId::new(2).unwrap(),
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)
+            )));
+            let applications = clause
+                .values
+                .iter()
+                .filter_map(|row| match row {
+                    FloatMeaningClauseValue::Application {
+                        contract,
+                        format,
+                        operands,
+                    } => Some((contract, format, operands)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(applications.len(), 1);
+            assert_eq!(*applications[0].1, IeeeFloatFormat::Binary64);
+            assert_eq!(
+                applications[0].2.len(),
+                2,
+                "destination format and one source meaning"
+            );
+            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_planning::direct_compiler_primitive_leaves(
+                module,
+                &schemas,
+                "macos_arm64",
+            )
+            .unwrap();
+            let leaf = leaves
+                .iter()
+                .find(|leaf| {
+                    leaf.callable_identity == module.identities.text(boundary.identity).unwrap()
+                })
+                .unwrap();
+            leaf.validate_bound_calling_custody(module).unwrap();
+            assert_eq!(
+                leaf.satisfied_schema.declaration.methods[0].requirement_owner,
+                module.identities.text(boundary.identity).unwrap()
+            );
+            assert_eq!(leaf.satisfied_schema.declaration.methods[0].name, "realize");
+            assert_eq!(
+                boundary.kind,
+                semantic_vocabulary::BoundaryRequirementKind::Operator
+            );
+            for altered in 0..2 {
+                let mut changed = module.clone();
+                let row = changed
+                    .boundary_machines
+                    .iter_mut()
+                    .find(|row| row.id == boundary.id)
+                    .unwrap();
+                match altered {
+                    0 => {
+                        row.scalar_parameters[0] = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)
+                    }
+                    1 => row.scalar_ensures.clear(),
+                    _ => unreachable!(),
+                }
+                assert!(receiving_error(changed).contains("MalformedStructuralFoundation"));
+            }
+            // Corrupt the published bytes so receiving, rather than the
+            // producer's equation validation, must reject the catalog change.
+            let commitment = applications[0].0.commitment;
+            let mut bytes = publication.artifact.semantic_bytes().to_vec();
+            let position = bytes
+                .windows(commitment.len())
+                .position(|window| window == commitment)
+                .unwrap();
+            bytes[position] ^= 1;
+            assert!(terminal_codec::ClosedTerminalModule::from_semantic_bytes(&bytes).is_err());
+            let invalid = repository().join("tests/fixtures/fail/float/exact_widening/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("carrier cast must remove the source domain")
+            .into_diagnostics();
+            let diagnostics = format!("{diagnostics:?}");
+            assert!(
+                diagnostics.contains("operand of a carrier cast carries no domain"),
+                "{diagnostics}"
+            );
+            assert!(!diagnostics.contains("not supported yet"), "{diagnostics}");
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}

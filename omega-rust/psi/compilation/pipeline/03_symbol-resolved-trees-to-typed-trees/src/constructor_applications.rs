@@ -137,7 +137,11 @@ pub(crate) fn prepare(
                 .expression_handles(call.arguments)
                 .to_vec(),
         };
+        let previous = (input.target, input.application);
         let application = infer_call(source, program, &mut input, caller)?;
+        if input.target == previous.0 && application.is_none_or(|next| next == previous.1) {
+            continue;
+        }
         if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
             call.target_symbol = input.target;
             if let Some(application) = application {
@@ -180,7 +184,11 @@ pub(crate) fn prepare(
         })
         .collect();
     for (caller, handle, mut input) in statements {
+        let previous = (input.target, input.application);
         let application = infer_call(source, program, &mut input, caller)?;
+        if input.target == previous.0 && application.is_none_or(|next| next == previous.1) {
+            continue;
+        }
         if let Some(call) = program.statement_table.call_mut(handle) {
             call.target_symbol = input.target;
             if let Some(application) = application {
@@ -1048,6 +1056,53 @@ mod tests {
     use crate::qualified_operator_home_tests::checked;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+    #[test]
+    fn prepared_statement_calls_keep_retained_body_storage_shared() {
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let caller = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("caller"),
+        );
+        let target = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("target"),
+        );
+        let symbols = symbols.finish();
+        let source = symbol_resolved_trees::SymbolResolvedTrees {
+            symbols: symbols.clone(),
+            ..Default::default()
+        };
+        let mut program = TypedTrees {
+            symbols,
+            ..Default::default()
+        };
+        let statements = program
+            .statement_table
+            .insert_statements([StatementNode::Call(typed_trees::statement::TableCall {
+                target_symbol: target,
+                ..Default::default()
+            })]);
+        let states = program
+            .tables
+            .machine_states
+            .insert_many([typed_trees::state::State {
+                statement_nodes: statements,
+                ..Default::default()
+            }]);
+        program.push_machine(typed_trees::machine::Machine {
+            symbol: caller,
+            states,
+            ..Default::default()
+        });
+        let retained = program.clone();
+        prepare(&source, &mut program, 0).unwrap();
+        assert_eq!(program, retained);
+        assert!(std::ptr::eq(
+            program.statement_table.statement(statements.start()),
+            retained.statement_table.statement(statements.start())
+        ));
+    }
 
     fn owned_call(
         program: &TypedTrees,

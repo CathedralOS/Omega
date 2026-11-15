@@ -7746,8 +7746,7 @@ pub mod descriptor_results {
             {
                 return Some(literal);
             }
-            let (scalar_type, literal) =
-                crate::scalar_constant_value(value, |value| index.constant_origin(value))?;
+            let (scalar_type, literal) = index.constant_value(value)?;
             let ScalarType::Integer(integer) = scalar_type else {
                 return None;
             };

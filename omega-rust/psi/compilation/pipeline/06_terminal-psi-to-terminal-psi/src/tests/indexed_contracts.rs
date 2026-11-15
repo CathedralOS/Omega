@@ -260,9 +260,9 @@ fn a_storage_snapshot_requires_its_exact_establishing_call() {
         assert_eq!(
             refused.detail,
             if shared_call {
-                "a returned storage snapshot is outside the call's established storage"
+                "a returned storage snapshot is outside the call's established storage in machine `main`"
             } else {
-                "a storage snapshot is not after a declared call"
+                "a storage snapshot is not after a declared call in machine `main`"
             }
         );
     }
