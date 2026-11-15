@@ -1169,6 +1169,7 @@ impl<'a> Prover<'a> {
                 .closed(goal.clone())
                 .ok_or("mathematical strict order over open terms"),
             Proposition::Atom(_)
+            | Proposition::FloatMeaningEqual(_)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }

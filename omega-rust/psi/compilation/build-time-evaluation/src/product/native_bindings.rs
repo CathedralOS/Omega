@@ -26,7 +26,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::product_operand::{
-    native_binding_formation, resolve_build_request_author, resolve_product_path,
+    ProductDeclarationLookup, ProductRequestAuthors, native_binding_formation,
 };
 
 const APPLIED: &str =
@@ -57,6 +57,7 @@ pub struct CapturedNativeDeclaration {
 /// The boundary trait and the requirement a binding request names.
 fn requirement(
     typed: &TypedTrees,
+    declarations: &ProductDeclarationLookup<'_>,
     request: &ProductDeclarationRequest,
 ) -> Result<(SymbolHandle, SymbolHandle), Diagnostic> {
     let typed = typed.product_declarations();
@@ -74,8 +75,7 @@ fn requirement(
     if operand.application.is_some() {
         return Err(Diagnostic::error(APPLIED).with_source_span(operand.source_span));
     }
-    let symbol = resolve_product_path(
-        typed,
+    let symbol = declarations.resolve(
         &operand.path,
         operand.source_span,
         ProductOperandRole::Requirement,
@@ -100,11 +100,20 @@ pub fn collect(
     declared: &[std::sync::Arc<ProductDeclarationRequest>],
     executed: &[ExecutedNativeBinding],
 ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
+    if !declared
+        .iter()
+        .any(|request| request.operation == BuildOperation::NativeBinding)
+        && executed.is_empty()
+    {
+        return Ok(Vec::new());
+    }
+    let declarations = ProductDeclarationLookup::new(typed, &[ProductOperandRole::Requirement]);
+    let authors = ProductRequestAuthors::new(typed);
     for request in declared
         .iter()
         .filter(|request| request.operation == BuildOperation::NativeBinding)
     {
-        requirement(typed, request)
+        requirement(typed, &declarations, request)
             .map_err(|error| vec![error.with_source_span(request.source_span)])?;
     }
     if executed.is_empty() {
@@ -126,9 +135,10 @@ pub fn collect(
                 "executed native binding has no retained source formation request",
             ));
         }
-        let (subject, selected) = requirement(typed, &event.request)
+        let (subject, selected) = requirement(typed, &declarations, &event.request)
             .map_err(|error| vec![error.with_source_span(span)])?;
-        let author = resolve_build_request_author(typed, event.selecting_machine)
+        let author = authors
+            .resolve(event.selecting_machine)
             .map_err(|reason| refuse(&reason))?;
         let supplier_package = typed
             .symbols
@@ -171,7 +181,11 @@ pub fn capture_package_intents(
     formations: &[NativeBindingFormation],
     executed: &[ExecutedNativeBinding],
 ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>> {
+    if formations.is_empty() && executed.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
     let program = typed.product_declarations();
+    let lookup = ProductDeclarationLookup::new(program, &[ProductOperandRole::Requirement]);
     let declarations = formations
         .iter()
         .map(|formation| {
@@ -179,7 +193,7 @@ pub fn capture_package_intents(
                 .seal(package)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             let (_, selected) =
-                requirement(program, &formation.request).map_err(|error| vec![error])?;
+                requirement(program, &lookup, &formation.request).map_err(|error| vec![error])?;
             let (owner, signature) =
                 program.trait_machine_signature(selected).ok_or_else(|| {
                     vec![Diagnostic::error(

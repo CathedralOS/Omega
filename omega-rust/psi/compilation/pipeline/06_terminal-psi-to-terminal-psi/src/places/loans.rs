@@ -283,16 +283,20 @@ impl Storage<'_> {
     pub(super) fn borrow_backing(
         &self,
         raw: &super::Lineage,
+        resource: BorrowedResource,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
     ) -> Checked<LoanRegion> {
         use terminal_semantics::descriptor_results::{
             DescriptorCallOrigin, DescriptorSourceOrigin,
         };
-        let is_view = matches!(self.shape(raw, concerns)?, super::Shape::View)
-            || matches!(self.shape(raw, concerns)?, super::Shape::Typed(ty)
+        // A descriptor home and its captured payload can be borrowed at the
+        // same time. Follow the backing only when the operation lends it.
+        let shape = self.shape(raw, concerns)?;
+        let is_view = matches!(shape, super::Shape::View)
+            || matches!(shape, super::Shape::Typed(ty)
                 if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty));
-        if !is_view {
+        if matches!(resource, BorrowedResource::Storage) || !is_view {
             return self
                 .backing(raw, at.0, at.1 as usize, concerns)
                 .map(LoanRegion::Storage);
@@ -622,13 +626,9 @@ impl Storage<'_> {
                 ));
             }
             self.byte_array_presentation(argument, parameter, concerns)?;
-            let (expected_lender, parent, from, permitted) = self.source_lender(
-                &lent,
-                &argument.path,
-                access,
-                self.borrowed_resource(parameter),
-                concerns,
-            )?;
+            let resource = self.borrowed_resource(parameter);
+            let (expected_lender, parent, from, permitted) =
+                self.source_lender(&lent, &argument.path, access, resource, concerns)?;
             let (obligation, row) = tables
                 .obligations
                 .iter()
@@ -671,7 +671,6 @@ impl Storage<'_> {
             let lifetime = retained
                 .next_if(|loan| loan.position == structural_position && loan.path == argument.path)
                 .map(|loan| loan.lifetime);
-            let resource = self.borrowed_resource(parameter);
             let cut = {
                 let (block, before) = self.graph.locate(before)?;
                 (
@@ -686,7 +685,7 @@ impl Storage<'_> {
                 invocation: Some(invocation),
                 position,
                 access,
-                lineage: self.borrow_backing(&lent, cut, concerns)?,
+                lineage: self.borrow_backing(&lent, resource, cut, concerns)?,
                 parent,
                 lender,
                 from,
@@ -743,7 +742,7 @@ impl Storage<'_> {
                     invocation: None,
                     position,
                     access,
-                    lineage: self.borrow_backing(&raw, cut, concerns)?,
+                    lineage: self.borrow_backing(&raw, resource, cut, concerns)?,
                     parent,
                     lender,
                     from,
@@ -1087,7 +1086,12 @@ impl Storage<'_> {
                 for effect in self.operation_read_effects(operation)? {
                     let (place, backing) = match effect {
                         super::StorageEffect::Payload(place) => {
-                            let backing = self.borrow_backing(&place, at, concerns)?;
+                            let backing = self.borrow_backing(
+                                &place,
+                                BorrowedResource::ViewPayload,
+                                at,
+                                concerns,
+                            )?;
                             (place, backing)
                         }
                         super::StorageEffect::Storage(place) => {
@@ -1119,7 +1123,12 @@ impl Storage<'_> {
                 for effect in self.operation_changes(operation)? {
                     let (place, backing) = match effect {
                         super::StorageEffect::Payload(place) => {
-                            let backing = self.borrow_backing(&place, at, concerns)?;
+                            let backing = self.borrow_backing(
+                                &place,
+                                BorrowedResource::ViewPayload,
+                                at,
+                                concerns,
+                            )?;
                             (place, backing)
                         }
                         super::StorageEffect::Storage(place) => {
@@ -1269,13 +1278,9 @@ impl Storage<'_> {
                         continue;
                     };
                     let raw = self.argument(argument, concerns)?;
-                    let (_, parent, from, permitted) = self.source_lender(
-                        &raw,
-                        &argument.path,
-                        access,
-                        self.borrowed_resource(parameter),
-                        concerns,
-                    )?;
+                    let resource = self.borrowed_resource(parameter);
+                    let (_, parent, from, permitted) =
+                        self.source_lender(&raw, &argument.path, access, resource, concerns)?;
                     if !permitted
                         || access.is_exclusive() && parent == Some(ReferenceAccess::Shared)
                     {
@@ -1286,7 +1291,7 @@ impl Storage<'_> {
                             "successor borrow exceeds its original parent access",
                         ));
                     }
-                    let backing = self.borrow_backing(&raw, at, concerns)?;
+                    let backing = self.borrow_backing(&raw, resource, at, concerns)?;
                     if let Some(descriptor) = from {
                         terminal_semantics::borrowed_loan_source(
                             self.module,
@@ -1645,13 +1650,9 @@ impl Storage<'_> {
                     let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
                         self.foreign(concerns, "successor borrow has no captured place row")
                     })?;
-                    let (expected_lender, parent, from, permitted) = self.source_lender(
-                        &raw,
-                        &argument.path,
-                        access,
-                        self.borrowed_resource(parameter),
-                        concerns,
-                    )?;
+                    let resource = self.borrowed_resource(parameter);
+                    let (expected_lender, parent, from, permitted) =
+                        self.source_lender(&raw, &argument.path, access, resource, concerns)?;
                     let (obligation, row) = tables.obligations.iter().find(|(id, row)| {
                         !claimed[index(id.get())] && row.created_at == before
                             && matches!(row.kind, ObligationKind::Loan { captured: place, access: actual, .. } if place == captured && actual == access)
@@ -1694,7 +1695,7 @@ impl Storage<'_> {
                         invocation: None,
                         position,
                         access,
-                        lineage: self.borrow_backing(&raw, at, concerns)?,
+                        lineage: self.borrow_backing(&raw, resource, at, concerns)?,
                         parent,
                         lender,
                         from,

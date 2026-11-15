@@ -73,6 +73,7 @@ pub(crate) fn produce(
     correspondence: &typed_trees_to_terminal_psi::SourceCorrespondence,
 ) -> Result<BuildCompanions, Diagnostic> {
     let mut companions = BuildCompanions::default();
+    let mut native_authors = None;
     let mut designated = 0;
     // Calls of no Build protocol, by boundary, until every readiness
     // request has been read.
@@ -117,13 +118,14 @@ pub(crate) fn produce(
                             "a native Build binding lost its requirement request",
                         ));
                     };
-                    let author = typed_trees::product_operand::resolve_build_request_author(
-                        source,
-                        row.selecting_machine.ok_or_else(|| {
+                    let author = native_authors
+                        .get_or_insert_with(|| {
+                            typed_trees::product_operand::ProductRequestAuthors::new(source)
+                        })
+                        .resolve(row.selecting_machine.ok_or_else(|| {
                             refused("a native Build binding lost its selecting machine")
-                        })?,
-                    )
-                    .map_err(refused)?;
+                        })?)
+                        .map_err(refused)?;
                     let root = match elaboration.module.entry {
                         Some(terminal_psi::TargetMachineCallable::Machine(root)) => {
                             elaboration.machines.get(root).copied()

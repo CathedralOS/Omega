@@ -545,7 +545,13 @@ pub(super) fn service_origins(
                 "a stale boundary declaration in the accepted module's service inventory",
             ));
         }
-        boundaries.push((service, source.symbols.get(original).parent));
+        // A specialized protocol call retains its typed requirement even
+        // when its generated symbol has no lexical trait parent.
+        let owner = source.trait_machine_signature(original).map_or_else(
+            || source.symbols.get(original).parent,
+            |(declaration, _)| declaration.symbol,
+        );
+        boundaries.push((service, owner));
     }
     boundaries.sort_unstable_by_key(|(service, _)| *service);
     boundaries.dedup();

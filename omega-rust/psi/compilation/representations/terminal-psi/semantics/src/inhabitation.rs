@@ -44,108 +44,134 @@ pub fn observed_storage_path(path: &[StructuralPathSegment]) -> &[StructuralPath
     }
 }
 
-/// Whether actual retained clauses exclude every value by Boolean constants
-/// alone. An unproved atom/comparison is unknown, even if its type is unserved.
+/// Whether retained clauses exclude every value using closed Boolean and
+/// integer computations. An unavailable atom, observation or actual is unknown.
 /// This is also usable for a named domain's already-instantiated predicates.
 pub fn predicates_are_false(predicates: &[Proposition]) -> bool {
     predicates_are_false_with(predicates, |_| None)
 }
 
-/// Substitute only the caller's known Boolean actuals for the visible contract's
-/// exact formal value IDs. The resolver is scoped to that contract: it must map
-/// actual parameters (including real erased scalar formals), never look up an
-/// arbitrary callee ID in the caller's value table. Result and foreign IDs must
-/// remain unknown even when their numbers collide with caller-side constants.
-///
-/// This reads no body or name and proves no integer, rigid-type or storage fact.
-/// It does not change the result type or supply termination/crash authority.
+/// Bind the visible contract's exact formal IDs to known typed literals. The
+/// resolver must expose only actual parameters, including real erased scalar
+/// formals; result and foreign IDs remain unknown despite numeric collisions.
+/// No body, storage observation or execution authority enters this query.
 pub fn predicates_are_false_with(
     predicates: &[Proposition],
-    mut boolean_value: impl FnMut(ValueId) -> Option<bool>,
+    mut scalar_value: impl FnMut(ValueId) -> Option<(ScalarType, semantic_vocabulary::IntegerValue)>,
 ) -> bool {
-    predicates
-        .iter()
-        .any(|predicate| constant_truth(predicate, &mut boolean_value) == Some(false))
+    let mut bindings = KnownLiterals(&mut scalar_value);
+    let mut integers = proof_admission::ClosedIntegerEvaluator::default();
+    predicates.iter().any(|predicate| {
+        let truth = proof_admission::closed_guard_with(predicate, |leaf| {
+            // The general crash-guard evaluator also decides IEEE relations.
+            // This query admits only the Boolean/integer part of that owner.
+            let allowed = matches!(
+                leaf,
+                Proposition::Truth
+                    | Proposition::Falsehood
+                    | Proposition::Equal(..)
+                    | Proposition::LessThan(..)
+                    | Proposition::LessOrEqual(..)
+                    | Proposition::IntegerMathEqual(..)
+                    | Proposition::IntegerMathLessThan(..)
+                    | Proposition::IntegerMathLessOrEqual(..)
+            );
+            let value = if allowed && leaf.validate().is_ok() {
+                // Substitute each comparison once. An unresolved sibling must
+                // not hide another child's independently false condition.
+                crate::substitution::clauses::substitute_clause(leaf, &mut bindings)
+                    .ok()
+                    .filter(|closed| closed.validate().is_ok())
+                    .and_then(|closed| {
+                        proof_admission::closed_guard(&closed, &mut integers)
+                            .ok()
+                            .flatten()
+                    })
+            } else {
+                None
+            };
+            Ok::<_, std::convert::Infallible>(value)
+        });
+        matches!(truth, Ok(Some(false)))
+    })
 }
 
-/// Resolve a Boolean term using values from that term's exact owner. A caller's
-/// erased actual is evaluated in the caller before binding it to a callee's
-/// genuine formal; equal numeric IDs across those owners confer no identity.
-/// The resolver must leave foreign, unavailable and result-pseudo values unknown.
-///
-/// This is the same term evaluator used for published predicates. It reads no
-/// body or name and supplies no facts for non-Boolean terms.
-pub fn boolean_value_with(
+/// Resolve a caller-owned erased actual before binding it to a genuine formal.
+/// Known values keep their declared carrier; unavailable or malformed terms,
+/// unresolved widths and guarded arithmetic failures supply no constant.
+pub fn known_scalar_value_with(
     term: &ScalarTerm,
-    mut boolean_value: impl FnMut(ValueId) -> Option<bool>,
-) -> Option<bool> {
-    boolean_term_value(term, &mut boolean_value)
-}
-
-fn boolean_term_value(
-    term: &ScalarTerm,
-    boolean_value: &mut impl FnMut(ValueId) -> Option<bool>,
-) -> Option<bool> {
-    match term {
-        ScalarTerm::Boolean(value) => Some(*value),
-        ScalarTerm::Value {
-            id,
-            scalar_type: ScalarType::Boolean,
-        } => boolean_value(*id),
-        ScalarTerm::BooleanNot { operand } => Some(!boolean_term_value(operand, boolean_value)?),
-        ScalarTerm::BooleanEqual { left, right } => Some(
-            boolean_term_value(left, boolean_value)? == boolean_term_value(right, boolean_value)?,
-        ),
+    mut scalar_value: impl FnMut(ValueId) -> Option<(ScalarType, semantic_vocabulary::IntegerValue)>,
+) -> Option<(ScalarType, semantic_vocabulary::IntegerValue)> {
+    use semantic_vocabulary::IntegerValue;
+    term.validate().ok()?;
+    let closed = crate::substitution::clauses::substitute_clause_term(
+        term,
+        &mut KnownLiterals(&mut scalar_value),
+    )
+    .ok()?;
+    closed.validate().ok()?;
+    match closed.scalar_type() {
+        ScalarType::Boolean => Some((
+            ScalarType::Boolean,
+            IntegerValue::Unsigned(u128::from(u8::from(closed.boolean_value()?))),
+        )),
+        ScalarType::Integer(integer) if integer.bits().is_some() => {
+            let (actual, value) = closed.integer_value()?;
+            (actual == integer && integer.admits(value))
+                .then_some((ScalarType::Integer(integer), value))
+        }
         _ => None,
     }
 }
 
-fn constant_truth(
-    predicate: &Proposition,
-    boolean_value: &mut impl FnMut(ValueId) -> Option<bool>,
-) -> Option<bool> {
-    match predicate {
-        Proposition::Truth => Some(true),
-        Proposition::Falsehood => Some(false),
-        Proposition::Equal(left, right) => Some(
-            boolean_term_value(left, boolean_value)? == boolean_term_value(right, boolean_value)?,
-        ),
-        Proposition::Conjunction(parts) => {
-            let mut all_true = true;
-            for part in parts {
-                match constant_truth(part, boolean_value) {
-                    Some(false) => return Some(false),
-                    Some(true) => {}
-                    None => all_true = false,
-                }
-            }
-            all_true.then_some(true)
+struct KnownLiterals<'a, F>(&'a mut F);
+
+impl<F> crate::substitution::clauses::ClauseBindings for KnownLiterals<'_, F>
+where
+    F: FnMut(ValueId) -> Option<(ScalarType, semantic_vocabulary::IntegerValue)>,
+{
+    type Error = &'static str;
+
+    fn value(&mut self, id: ValueId, expected: ScalarType) -> Result<ScalarTerm, Self::Error> {
+        use semantic_vocabulary::IntegerValue;
+        let (actual, value) = (self.0)(id).ok_or("scalar value is unavailable")?;
+        if actual != expected {
+            return Err("scalar actual has another carrier");
         }
-        Proposition::Disjunction(parts) => {
-            let mut all_false = true;
-            for part in parts {
-                match constant_truth(part, boolean_value) {
-                    Some(true) => return Some(true),
-                    Some(false) => {}
-                    None => all_false = false,
-                }
+        match (actual, value) {
+            (ScalarType::Boolean, IntegerValue::Unsigned(value @ 0..=1)) => {
+                Ok(ScalarTerm::Boolean(value != 0))
             }
-            all_false.then_some(false)
-        }
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => {
-            match (
-                constant_truth(premise, boolean_value),
-                constant_truth(conclusion, boolean_value),
-            ) {
-                (Some(false), _) | (_, Some(true)) => Some(true),
-                (Some(true), Some(false)) => Some(false),
-                _ => None,
+            (ScalarType::Integer(integer), value)
+                if integer.bits().is_some() && integer.admits(value) =>
+            {
+                Ok(ScalarTerm::Integer {
+                    scalar_type: integer,
+                    value,
+                })
             }
+            _ => Err("scalar actual has no valid closed literal"),
         }
-        _ => None,
+    }
+
+    fn field(
+        &mut self,
+        _version: semantic_vocabulary::ContentPlaceVersion,
+        _root: semantic_vocabulary::PlaceId,
+        _path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        Err("scalar predicate has no storage observation")
+    }
+
+    fn case(
+        &mut self,
+        _root: semantic_vocabulary::PlaceId,
+        _path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _case: semantic_vocabulary::StructuralCaseId,
+    ) -> Result<bool, Self::Error> {
+        Err("scalar predicate has no case observation")
     }
 }
 
@@ -997,6 +1023,13 @@ mod tests {
         }]));
     }
 
+    fn known_boolean(value: bool) -> (ScalarType, semantic_vocabulary::IntegerValue) {
+        (
+            ScalarType::Boolean,
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(u8::from(value))),
+        )
+    }
+
     fn boolean_value(raw: u64) -> ScalarTerm {
         ScalarTerm::Value {
             id: ValueId::new(raw).unwrap(),
@@ -1015,11 +1048,11 @@ mod tests {
         );
         assert!(predicates_are_false_with(
             std::slice::from_ref(&clause),
-            |id| (id == formal).then_some(true)
+            |id| (id == formal).then_some(known_boolean(true))
         ));
         assert!(!predicates_are_false_with(
             std::slice::from_ref(&clause),
-            |id| (id == formal).then_some(false)
+            |id| (id == formal).then_some(known_boolean(false))
         ));
         assert!(!predicates_are_false_with(
             std::slice::from_ref(&clause),
@@ -1041,7 +1074,7 @@ mod tests {
         let formal_actual = [(formal, caller_constant)];
         let resolve = |id| {
             let (_, actual) = formal_actual.iter().find(|(formal, _)| *formal == id)?;
-            (*actual == caller_constant).then_some(true)
+            (*actual == caller_constant).then_some(known_boolean(true))
         };
         for raw in [2, 99] {
             assert!(!predicates_are_false_with(
@@ -1070,11 +1103,11 @@ mod tests {
         let condition = Proposition::Equal(equal, ScalarTerm::Boolean(false));
         assert!(predicates_are_false_with(
             std::slice::from_ref(&condition),
-            |_| Some(true)
+            |_| Some(known_boolean(true))
         ));
         assert!(!predicates_are_false_with(
             std::slice::from_ref(&condition),
-            |_| Some(false)
+            |_| Some(known_boolean(false))
         ));
         let unknown = Proposition::Atom(PropositionId::new(1).unwrap());
         assert!(!predicates_are_false_with(
@@ -1082,16 +1115,16 @@ mod tests {
                 condition.clone(),
                 unknown.clone()
             ])],
-            |_| Some(true)
+            |_| Some(known_boolean(true))
         ));
         assert!(predicates_are_false_with(
             &[Proposition::Conjunction(vec![condition, unknown])],
-            |_| Some(true)
+            |_| Some(known_boolean(true))
         ));
     }
 
     #[test]
-    fn integer_and_unresolved_width_terms_never_enter_the_boolean_resolver() {
+    fn ill_typed_integer_relationships_do_not_resolve_actuals() {
         use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, WidthParameter};
         let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
         let unresolved = IntegerType::parameterized(
@@ -1110,8 +1143,228 @@ mod tests {
                 ScalarTerm::Boolean(false),
             );
             assert!(!predicates_are_false_with(&[clause], |_| panic!(
-                "an integer is not a Boolean formal"
+                "ill-typed comparison operands cannot acquire actual values"
             )));
         }
+    }
+
+    #[test]
+    fn typed_integer_actuals_decide_closed_scalar_and_mathematical_comparisons() {
+        use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerType, IntegerValue};
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let formal = ValueId::new(1).unwrap();
+        let value = ScalarTerm::Value {
+            id: formal,
+            scalar_type: ScalarType::Integer(integer),
+        };
+        let zero = ScalarTerm::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(0),
+        };
+        let clauses = [
+            Proposition::Equal(value.clone(), zero.clone()),
+            Proposition::LessOrEqual(value.clone(), zero.clone()),
+            Proposition::IntegerMathEqual(
+                IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
+                IntegerMathTerm::Add(
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: integer,
+                        value: formal,
+                    }),
+                    Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                ),
+            ),
+            Proposition::Equal(
+                ScalarTerm::IntegerEqual {
+                    scalar_type: integer,
+                    left: Box::new(value),
+                    right: Box::new(zero),
+                },
+                ScalarTerm::Boolean(true),
+            ),
+        ];
+        for clause in clauses {
+            clause.validate().unwrap();
+            for actual in [0, 1] {
+                assert_eq!(
+                    predicates_are_false_with(std::slice::from_ref(&clause), |id| {
+                        (id == formal).then_some((
+                            ScalarType::Integer(integer),
+                            IntegerValue::Unsigned(actual),
+                        ))
+                    }),
+                    actual != 0,
+                    "{clause:?}, actual={actual}"
+                );
+            }
+        }
+        // Binding zero reverses the original symbolic equality's operand
+        // order. The substituted relation must remain canonical and false.
+        let reverses = Proposition::IntegerMathEqual(
+            IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
+            IntegerMathTerm::MathValue {
+                source_type: integer,
+                value: formal,
+            },
+        );
+        reverses.validate().unwrap();
+        assert!(predicates_are_false_with(&[reverses], |_| {
+            Some((ScalarType::Integer(integer), IntegerValue::Unsigned(0)))
+        }));
+    }
+
+    #[test]
+    fn scalar_actuals_cannot_reinterpret_carriers_or_capture_result_ids() {
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, IntegerValue, MachineId, WidthParameter,
+        };
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let signed = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        let formal = ValueId::new(1).unwrap();
+        let clause = |id| {
+            Proposition::Equal(
+                ScalarTerm::Value {
+                    id,
+                    scalar_type: ScalarType::Integer(integer),
+                },
+                ScalarTerm::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(0),
+                },
+            )
+        };
+        for actual in [
+            (ScalarType::Integer(signed), IntegerValue::Signed(1)),
+            (ScalarType::Integer(integer), IntegerValue::Signed(1)),
+            (ScalarType::Integer(integer), IntegerValue::Unsigned(256)),
+            known_boolean(true),
+        ] {
+            assert!(!predicates_are_false_with(&[clause(formal)], |_| Some(
+                actual
+            )));
+        }
+        for foreign in [2, 99] {
+            assert!(!predicates_are_false_with(
+                &[clause(ValueId::new(foreign).unwrap())],
+                |id| {
+                    (id == formal)
+                        .then_some((ScalarType::Integer(integer), IntegerValue::Unsigned(1)))
+                }
+            ));
+        }
+        let unresolved = IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(2).unwrap(),
+            },
+        );
+        let condition = Proposition::Equal(
+            ScalarTerm::Value {
+                id: formal,
+                scalar_type: ScalarType::Integer(unresolved),
+            },
+            ScalarTerm::Value {
+                id: ValueId::new(2).unwrap(),
+                scalar_type: ScalarType::Integer(unresolved),
+            },
+        );
+        assert!(!predicates_are_false_with(&[condition], |id| {
+            Some((
+                ScalarType::Integer(unresolved),
+                IntegerValue::Unsigned(u128::from(id == formal)),
+            ))
+        }));
+    }
+
+    #[test]
+    fn closed_scalar_evaluation_keeps_arithmetic_policies_and_guard_failures() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let literal = |value| ScalarTerm::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(value),
+        };
+        let exact = ScalarTerm::ExactIntegerAdd {
+            scalar_type: integer,
+            left: Box::new(literal(255)),
+            right: Box::new(literal(1)),
+        };
+        let wrapping = ScalarTerm::WrappingIntegerAdd {
+            scalar_type: integer,
+            left: Box::new(literal(255)),
+            right: Box::new(literal(1)),
+        };
+        let saturating = ScalarTerm::SaturatingIntegerAdd {
+            scalar_type: integer,
+            left: Box::new(literal(255)),
+            right: Box::new(literal(1)),
+        };
+        assert!(!predicates_are_false(&[Proposition::Equal(
+            exact.clone(),
+            literal(0)
+        )]));
+        assert!(!predicates_are_false(&[Proposition::Equal(
+            wrapping.clone(),
+            literal(0)
+        )]));
+        assert!(predicates_are_false(&[Proposition::Equal(
+            saturating,
+            literal(0)
+        )]));
+        assert_eq!(known_scalar_value_with(&exact, |_| None), None);
+        assert_eq!(
+            known_scalar_value_with(&wrapping, |_| None),
+            Some((ScalarType::Integer(integer), IntegerValue::Unsigned(0)))
+        );
+    }
+
+    #[test]
+    fn scalar_predicates_keep_unknown_alternatives_and_opaque_meanings() {
+        use semantic_vocabulary::{
+            IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType,
+            IntegerValue,
+        };
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let falsehood = Proposition::Equal(
+            ScalarTerm::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(1),
+            },
+            ScalarTerm::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(0),
+            },
+        );
+        let unknown = Proposition::Atom(PropositionId::new(1).unwrap());
+        assert!(predicates_are_false(&[Proposition::Conjunction(vec![
+            unknown.clone(),
+            falsehood.clone()
+        ])]));
+        assert!(!predicates_are_false(&[Proposition::Disjunction(vec![
+            unknown, falsehood
+        ])]));
+        assert!(!predicates_are_false(&[
+            Proposition::ScalarIeeeFloatComparison {
+                kind: IeeeFloatComparisonKind::Equal,
+                format: IeeeFloatFormat::Binary32,
+                left: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x3f80_0000)),
+                right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x4000_0000)),
+            }
+        ]));
+    }
+
+    #[test]
+    fn a_closed_integer_resource_limit_does_not_prove_a_predicate_false() {
+        use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
+        let condition = Proposition::IntegerMathEqual(
+            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+            IntegerMathTerm::ShiftLeft {
+                value: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                count: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1_000_000))),
+            },
+        );
+        condition.validate().unwrap();
+        assert!(!predicates_are_false(&[condition]));
     }
 }

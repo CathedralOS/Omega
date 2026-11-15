@@ -6,7 +6,7 @@ the driver that reads one body statement by statement.
 
 use crate::body::Qualification;
 use language_semantics::{TerminationGuarantee, TerminationInterface};
-use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
@@ -240,11 +240,34 @@ impl<'t> Program<'t> {
             outcomes: Vec::with_capacity(self.subject_machines.len()),
             result_contracts: Vec::with_capacity(self.subject_machines.len()),
         };
+        let mut complete_subject = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
+            *complete_subject.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local subject without a machine"),
+                )
+            })? = true;
+        }
+        for (id, &symbol) in self.symbols.iter() {
             if boundary.get(id) == Some(&true) {
                 continue;
             }
-            let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let complete = complete_subject.get(id) == Some(&true);
+            let outcome_subject = match &self.outcome_subjects {
+                Some(subjects) if !complete => typed_trees::source_subjects::contains(
+                    self.typed,
+                    symbol,
+                    subjects,
+                    self.purpose,
+                )
+                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Declaration(reason)))?,
+                _ => complete,
+            };
+            if !outcome_subject {
+                continue;
+            }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
@@ -256,7 +279,7 @@ impl<'t> Program<'t> {
                 && crate::template_of(self.typed, symbol).is_none()
             {
                 local.outcomes.push(id);
-                if !machine.is_public {
+                if complete && !machine.is_public {
                     local.result_contracts.push(id);
                 }
             }
@@ -1900,8 +1923,10 @@ impl<'t> Program<'t> {
             .operand
             .scalar_type()
             .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
+        let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
+            .map_err(unavailable)?;
         if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
-            || result != Some(ValueType::plain(ScalarType::Boolean))
+            || result != Some(ValueType::plain(expected_result))
         {
             return Err(unavailable(
                 "numeric primitive differs from its canonical scalar signature",

@@ -230,10 +230,8 @@ pub(crate) fn settle<'execution>(
                 {
                     return Err(refuse("import has another target calling policy".into()));
                 }
-                if target::HostedIntrinsicBundle::from_native_target(
-                    request.profile.native_target(),
-                )
-                .is_none()
+                if request.profile.program_entry_slot().schema
+                    != target::ProgramEntrySchema::HostedApplication
                 {
                     return Err(refuse(
                         "foreign import needs admitted demand on a fixed or freestanding stack"

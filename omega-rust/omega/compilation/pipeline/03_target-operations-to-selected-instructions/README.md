@@ -48,8 +48,9 @@ function or unit bodies.
 Function headers likewise use the retained target storage contract, scalar
 ABI parameters and entry block, and scalar definitions follow their parameter
 ordinals. The audit compares the whole structural contract, claims and
-service ceilings included, to the source. Other ordinary instruction building
-still reads earlier bodies; that handoff is unfinished.
+service ceilings included, to the source. Ordinary instruction building reads
+only target rows and immutable proof facts; it receives no earlier executable
+function or unit.
 
 [Control-exit construction](src/legalization_control.rs) uses only target
 terminators, retained storage declarations and admitted proof facts. Only the audit uses the earlier body's terminator, as a reference for whole
@@ -61,8 +62,9 @@ Common instruction annotations also come from the target row, not the old
 optimization node. A missing annotation is refused even if that node is still available. The audit compares the exact
 result definition, logical work, effect order and custody events and reports
 which annotation differs. A block's parameter definitions use its retained
-parameter values and ordinals. Building operation kinds still reads earlier
-bodies; the annotations do not hide that.
+parameter values and ordinals. Operation kinds, scalar operands and structural
+selectors likewise come from target rows. Only the independent audit reconstructs
+them from earlier bodies and compares the resulting instructions.
 
 Every target function holds its `TargetControlGraph` directly; this stage
 converts no flat bodies or whole-function expression trees. Unit, scalar and

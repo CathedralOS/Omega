@@ -1149,11 +1149,16 @@ pub(crate) mod address_joins {
                 destination: &[terminal_psi::StructuralParameterDeclaration],
                 requirements: &mut Vec<DescriptorCompatibilityRequirement>,
             ) -> Option<PlaceId> {
+                let position = (block, node);
                 for loan in &self.loans {
-                    if !loan.live.contains(&(block, node)) || !loan.live.contains(&(edge.target, 0))
-                    {
+                    if !loan.live.contains(&position) || !loan.live.contains(&(edge.target, 0)) {
                         continue;
                     }
+                    let overlaps = |region: &Region| {
+                        loan.regions.iter().any(|backing| {
+                            borrowed_regions.regions_overlap_at(backing, region, position)
+                        })
+                    };
                     let disturbed = edge
                         .structural_bindings
                         .iter()
@@ -1174,12 +1179,7 @@ pub(crate) mod address_joins {
                                 Projection::new(&binding.argument.path),
                                 binding.argument.access == StructuralAccess::Owned,
                             )
-                        })
-                        .chain(
-                            edge.cleanup_actions
-                                .iter()
-                                .map(|action| (action.place(), Projection::new(&[]), true)),
-                        );
+                        });
                     for (place, projection, forced) in disturbed {
                         let location = borrowed_regions.access_location(
                             (block, node),
@@ -1192,15 +1192,7 @@ pub(crate) mod address_joins {
                             projection.at((block, node)),
                         );
                         if forced {
-                            if regions.iter().any(|region| {
-                                loan.regions.iter().any(|backing| {
-                                    borrowed_regions.regions_overlap_at(
-                                        backing,
-                                        region,
-                                        (block, node),
-                                    )
-                                })
-                            }) {
+                            if regions.iter().any(overlaps) {
                                 return Some(place);
                             }
                             continue;
@@ -1222,6 +1214,25 @@ pub(crate) mod address_joins {
                                     None => return Some(place),
                                 }
                             }
+                        }
+                    }
+                    for action in &edge.cleanup_actions {
+                        let place = action.place();
+                        let disturbed = if action.invoked_machine().is_some() {
+                            borrowed_regions
+                                .resolve_at(position, place, Projection::new(&[]).at(position))
+                                .iter()
+                                .any(overlaps)
+                        } else {
+                            // A no-code disposal touches its own home, including
+                            // the carrier of a descriptor with separate backing.
+                            overlaps(&Region {
+                                root: Some(place),
+                                projection: Projection::new(action.path()),
+                            })
+                        };
+                        if disturbed {
+                            return Some(place);
                         }
                     }
                 }
@@ -1372,12 +1383,13 @@ pub(crate) mod address_joins {
                     path,
                     ..
                 } => {
-                    let mut selected = vec![StructuralPathSegment::RuntimeIndex {
+                    let mut selected = source.path.clone();
+                    selected.push(StructuralPathSegment::RuntimeIndex {
                         index: *index,
                         obligation: *obligation,
-                    }];
+                    });
                     selected.extend_from_slice(path);
-                    retain(*source, projected(*source, &selected, None));
+                    retain(source.place, projected(source.place, &selected, None));
                 }
                 O::ByteSequenceRead {
                     source,
@@ -10092,9 +10104,10 @@ mod value_custody {
                     );
                     self.observing(current, *source, region.direct_path())
                 }
-                O::ElementViewRead { source, .. } | O::ByteSequenceRead { source, .. } => {
-                    self.observing(current, *source, &[])
+                O::ElementViewRead { source, .. } => {
+                    self.observing(current, source.place, &source.path)
                 }
+                O::ByteSequenceRead { source, .. } => self.observing(current, *source, &[]),
                 O::EstablishByteSequenceConcatenation { left, right, .. }
                 | O::ByteSequenceEqual { left, right, .. } => {
                     self.byte_operand(current, left)?;

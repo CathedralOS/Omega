@@ -7,6 +7,7 @@ use crate::record::PackagePolicyConformanceShape;
 use crate::record::PackagePolicyDataShape;
 use crate::record::PackagePolicyDomainShape;
 use crate::record::PackagePolicyExternalExecutableSupply;
+use crate::record::PackagePolicyNativeBinding;
 use crate::record::PackagePolicyOperatorShape;
 use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyRepresentation;
@@ -50,6 +51,7 @@ impl PackagePolicyBaseline {
     field_projection_accessors!(borrowed selected_providers: &PackagePolicySelectedProviders);
     field_projection_accessors!(borrowed terminal_permissions: &PackagePolicyTerminalPermissions);
     field_projection_accessors!(borrowed representation: &PackagePolicyRepresentation);
+    field_projection_accessors!(sliced native_bindings: &[PackagePolicyNativeBinding]);
     field_projection_accessors!(sliced external_supplies: &[PackagePolicyExternalExecutableSupply]);
     field_projection_accessors!(sliced dangerous_capabilities: &[PackageReviewDangerousAuthority]);
     field_projection_accessors!(sliced slack_uses: &[PackageReviewDangerousAuthoritySlack]);

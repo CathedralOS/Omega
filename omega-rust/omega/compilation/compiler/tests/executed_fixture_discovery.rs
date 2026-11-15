@@ -10,6 +10,33 @@ use target::TargetProfile;
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
+fn reviewed_fixture_discovers_an_empty_dangerous_service_roster() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let root = repo_root()
+        .join("tests/fixtures/pass/facts/compound_index_guard_through_call_result_exit/main.omg");
+    let discovered = discover_fixture(&root, Default::default()).expect("kept index-guard Build");
+    let mut prepared = review_fixture(
+        discovered,
+        &[TargetProfile::LinuxX64],
+        CompilationProduct::Terminal(Default::default()),
+    )
+    .expect("the checked program needs no dangerous service");
+    assert!(
+        prepared.package_inputs.is_some(),
+        "the test must reach package review"
+    );
+    let output = produce_fixture(&mut prepared, Some("linux_x86_64"))
+        .expect("the reviewed program still publishes its original checks");
+    assert!(
+        output
+            .into_report()
+            .expect("Terminal report")
+            .into_retained_terminal_artifact()
+            .is_some()
+    );
+}
+
+#[test]
 fn native_project_build_publishes_the_reached_boundary_calling_application() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
@@ -161,4 +188,31 @@ fn completed_outputs_keep_exact_bytes_after_package_staging_closes() {
         std::fs::read(sets[0].join("files/generated.omg")).unwrap(),
         b"public const GENERATED: u32 = 73;\n",
     );
+}
+
+#[test]
+fn target_audit_rejoins_compiled_foreign_operands() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
+    let report = orchestration::compile_sources(
+        &mut compiler::CompilationSession::default(),
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: root,
+            build_dir: None,
+            target_name: Some("macos_arm64".to_owned()),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .unwrap_or_else(|errors| panic!("process-ID native production: {errors:?}"));
+    let artifact = report
+        .retained_native_artifact()
+        .expect("retain the emitted direct native artifact");
+    assert_eq!(
+        artifact.object().foreign_calls().len(),
+        1,
+        "the kept source reaches its native process-ID binding"
+    );
+    image_emission::verify_retained_target_operations(artifact.object())
+        .unwrap_or_else(|error| panic!("process-ID target audit: {error:?}"));
 }

@@ -385,6 +385,12 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             &elaboration.module.structural_types,
             boundary,
         )
+        .and_then(|_| {
+            terminal_semantics::references::validate_declared_boundary_reference_outputs(
+                &elaboration.module.structural_types,
+                boundary,
+            )
+        })
         .map_err(|detail| {
             refusal(
                 RefusalReason::Unsupported,
@@ -399,6 +405,20 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             )
         })?;
     }
+    terminal_semantics::references::validate_provider_reference_outputs(&elaboration.module)
+        .map_err(|detail| {
+            refusal(
+                RefusalReason::Unsupported,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                detail,
+            )
+        })?;
     let mut scope = prepare_replay(elaboration)?;
     let elaboration = scope.source();
     minted::width_questions_are_minted(elaboration)?;
@@ -1451,8 +1471,7 @@ pub(crate) fn callee(
                     "boundary call needs its structural qualification proof",
                 ));
             }
-            if !declaration.reference_outputs.is_empty()
-                || !declaration.result_reference_regions.is_empty()
+            if !declaration.result_reference_regions.is_empty()
                 || !declaration.program_local_root_introductions.is_empty()
                 || !declaration.content_guarantees.is_empty()
                 || matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(result)
@@ -1634,6 +1653,10 @@ impl Bindings for ErasedTerms<'_> {
         path: &[CanonicalStructuralPathSegment],
     ) -> Result<ScalarTerm, Unbound> {
         self.runtime.byte_predicate(predicate, root, path)
+    }
+
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.runtime.validate_float_meaning_source(source)
     }
 
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
@@ -1903,24 +1926,8 @@ fn stated_goal(
                     },
                 )
             };
-            match row.site {
-                InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
-                    tables,
-                    &row.actuals,
-                    formals,
-                    site,
-                    concerns,
-                )?),
-                InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
-                    let actuals = scalar_actuals(&row.actuals);
-                    over_actuals(&mut ScalarActuals {
-                        actuals: &actuals,
-                        result: None,
-                        tables,
-                    })
-                }
-            }
-            .map_err(|unbound| unbound.refusal(id, concerns))
+            over_actuals(&mut storage.at_call(tables, &row.actuals, formals, row.site, concerns)?)
+                .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::DataDomain { operation, clause } => {
             storage.domain_goal(tables, operation, clause, concerns)

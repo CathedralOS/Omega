@@ -24,7 +24,9 @@ pub(crate) mod byte_views {
     use target_operations::{
         TargetBooleanExpression, TargetIntegerExpression, TargetStructuralParameter,
     };
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralTypeShape,
+    };
     use terminal_semantics::descriptor_results::{is_descriptor, result_access};
     use terminal_semantics::{descriptor_parameter_access, fixed_byte_extent};
 
@@ -132,7 +134,7 @@ pub(crate) mod byte_views {
         parameters: &[TargetStructuralParameter],
         backings: super::element_views::ElementViewBackings<'_>,
         values: &mut BTreeMap<ValueId, KnownScalar>,
-        lengths: &BTreeMap<ValueId, PlaceId>,
+        lengths: &BTreeMap<ValueId, StructuralArgument>,
         provenance: &mut Vec<OperationId>,
     ) -> Result<bool, LoweringError> {
         if let AbstractOperation::ByteSequenceSubslice {
@@ -335,7 +337,13 @@ pub(crate) mod byte_views {
                 };
                 if index_type.sign() != IntegerSign::Unsigned
                     || index_type.bits() != Some(64)
-                    || !observes_measured_length(values, lengths, *length, source, true)
+                    || !observes_measured_length(
+                        values,
+                        lengths,
+                        *length,
+                        &StructuralArgument::whole(source, StructuralAccess::SharedBorrow),
+                        true,
+                    )
                 {
                     return Err(invalid());
                 }
@@ -370,7 +378,7 @@ pub(crate) mod byte_views {
         parameters: &[TargetStructuralParameter],
         backings: super::element_views::ElementViewBackings<'_>,
         values: &BTreeMap<ValueId, KnownScalar>,
-        lengths: &BTreeMap<ValueId, PlaceId>,
+        lengths: &BTreeMap<ValueId, StructuralArgument>,
         place: PlaceId,
         active: &mut [PlaceId],
     ) -> Result<(TargetByteView, StructuralAccess), LoweringError> {
@@ -947,9 +955,9 @@ pub(crate) mod descriptor_operands {
 
     pub(crate) fn observes_measured_length(
         values: &BTreeMap<semantic_vocabulary::ValueId, super::KnownScalar>,
-        lengths: &BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::PlaceId>,
+        lengths: &BTreeMap<semantic_vocabulary::ValueId, StructuralArgument>,
         length: semantic_vocabulary::ValueId,
-        source: semantic_vocabulary::PlaceId,
+        source: &StructuralArgument,
         bytes: bool,
     ) -> bool {
         let Some(super::KnownScalar::Integer { scalar_type, value }) = values.get(&length) else {
@@ -965,28 +973,33 @@ pub(crate) mod descriptor_operands {
                 source: observed,
                 source_value,
                 ..
-            }) if bytes => measured(observed, *source_value, length, source),
+            }) if bytes => *source_value == length && matches_descriptor(observed, source, bytes),
             super::KnownInteger::Runtime(TargetIntegerExpression::ElementViewLength {
                 source: observed,
                 source_value,
                 ..
-            }) if !bytes => measured(observed, *source_value, length, source),
+            }) if !bytes => *source_value == length && matches_descriptor(observed, source, bytes),
             super::KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
                 home.source_value == length
                     && home.scalar_type == ScalarType::Integer(*scalar_type)
-                    && lengths.get(&length) == Some(&source)
+                    && lengths
+                        .get(&length)
+                        .is_some_and(|observed| matches_descriptor(observed, source, bytes))
             }
             _ => false,
         }
     }
 
-    fn measured(
+    fn matches_descriptor(
         observed: &StructuralArgument,
-        source_value: semantic_vocabulary::ValueId,
-        length: semantic_vocabulary::ValueId,
-        source: semantic_vocabulary::PlaceId,
+        source: &StructuralArgument,
+        bytes: bool,
     ) -> bool {
-        observed.place == source && observed.path.is_empty() && source_value == length
+        if bytes {
+            observed.place == source.place && observed.path.is_empty() && source.path.is_empty()
+        } else {
+            terminal_semantics::same_descriptor_coordinate(observed, source)
+        }
     }
 
     pub(crate) fn storage_backs_view_parameter(
@@ -1617,7 +1630,7 @@ pub(crate) mod element_views {
         parameters: &[TargetStructuralParameter],
         backings: ElementViewBackings<'_>,
         values: &mut BTreeMap<ValueId, KnownScalar>,
-        lengths: &BTreeMap<ValueId, PlaceId>,
+        lengths: &BTreeMap<ValueId, StructuralArgument>,
         provenance: &mut Vec<OperationId>,
     ) -> Result<bool, LoweringError> {
         if let AbstractOperation::ElementViewSubslice {
@@ -1686,19 +1699,15 @@ pub(crate) mod element_views {
                 result,
                 source,
                 ..
-            } => (*psi_operation, *result, *source),
+            } => (*psi_operation, *result, source),
             _ => return Ok(false),
         };
         let invalid = || super::descriptor_operands::refusal(function, &operation);
-        let (view, view_structural_type, _) = resolve_element_view(
+        let (view_structural_type, indices) = super::descriptor_operands::descriptor_projection(
             function,
             structural_types,
-            parameters,
             backings,
-            values,
-            lengths,
             source,
-            &mut Vec::new(),
         )?;
         let known = match operation {
             AbstractOperation::ElementViewRead {
@@ -1734,8 +1743,8 @@ pub(crate) mod element_views {
                         value: KnownInteger::Runtime(TargetIntegerExpression::ElementViewRead {
                             psi_operation,
                             source_value: result.value,
-                            source,
-                            view: Box::new(view),
+                            source: source.clone(),
+                            indices,
                             index: Box::new(index_value.clone().into_expression(*index)),
                             length: *length,
                             obligation: *obligation,
@@ -1747,8 +1756,8 @@ pub(crate) mod element_views {
                         target_operations::TargetBooleanExpression::ElementViewRead {
                             psi_operation,
                             source_value: result.value,
-                            source,
-                            view: Box::new(view),
+                            source: source.clone(),
+                            indices,
                             index: Box::new(index_value.clone().into_expression(*index)),
                             length: *length,
                             obligation: *obligation,
@@ -1770,10 +1779,9 @@ pub(crate) mod element_views {
         operation: &AbstractOperation,
         function: &AbstractFunction,
         structural_types: &StructuralTypeLookup<'_>,
-        parameters: &[TargetStructuralParameter],
         backings: ElementViewBackings<'_>,
         values: &BTreeMap<ValueId, KnownScalar>,
-        lengths: &BTreeMap<ValueId, PlaceId>,
+        lengths: &BTreeMap<ValueId, StructuralArgument>,
     ) -> Result<target_operations::TargetScalarExpression, LoweringError> {
         let invalid = || super::descriptor_operands::refusal(function, operation);
         let AbstractOperation::ElementViewRead {
@@ -1791,17 +1799,13 @@ pub(crate) mod element_views {
         let ScalarType::IeeeFloat(format) = result.scalar_type else {
             return Err(invalid());
         };
-        let (view, view_type, _) = resolve_element_view(
+        let (view_type, indices) = super::descriptor_operands::descriptor_projection(
             function,
             structural_types,
-            parameters,
             backings,
-            values,
-            lengths,
-            *source,
-            &mut Vec::new(),
+            source,
         )?;
-        if !observes_measured_length(values, lengths, *length, *source, false) {
+        if !observes_measured_length(values, lengths, *length, source, false) {
             return Err(invalid());
         }
         let element_byte_offset =
@@ -1818,8 +1822,8 @@ pub(crate) mod element_views {
                 format,
                 psi_operation: *psi_operation,
                 source_value: result.value,
-                source: *source,
-                view: Box::new(view),
+                source: source.clone(),
+                indices,
                 index: Box::new(value.clone().into_expression(*index)),
                 length: *length,
                 obligation: *obligation,
@@ -1894,7 +1898,7 @@ pub(crate) mod element_views {
         parameters: &[TargetStructuralParameter],
         backings: ElementViewBackings<'_>,
         values: &BTreeMap<ValueId, KnownScalar>,
-        lengths: &BTreeMap<ValueId, PlaceId>,
+        lengths: &BTreeMap<ValueId, StructuralArgument>,
         place: PlaceId,
         active: &mut [PlaceId],
     ) -> Result<(TargetElementView, StructuralTypeId, StructuralAccess), LoweringError> {

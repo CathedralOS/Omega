@@ -54,6 +54,11 @@ impl From<MachineId> for TargetMachineCallable {
 mod source_review;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 
+mod float_meaning_clauses;
+pub use float_meaning_clauses::{
+    FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,
+};
+
 pub(crate) use optimization::codec_bytes;
 
 mod behavior_policy {

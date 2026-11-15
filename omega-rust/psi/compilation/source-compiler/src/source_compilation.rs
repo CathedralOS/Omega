@@ -390,6 +390,7 @@ mod product_policy {
     use language_semantics::declaration_selection::{
         AuthoredBehaviorExclusion, AuthoredRootGrant, CapturedNativeIntent, ExecutedEnumExclusion,
         ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationRequest,
+        ProductOperandRole,
     };
     use std::sync::Arc;
     use symbols::SymbolHandle;
@@ -420,18 +421,29 @@ mod product_policy {
             executed: &[ExecutedNativeBinding],
         ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>>
         {
+            if formations.is_empty() && executed.is_empty() {
+                return Ok((Vec::new(), Vec::new()));
+            }
+            let authors = typed_trees::product_operand::ProductRequestAuthors::new(self.typed());
+            let declarations = typed_trees::product_operand::ProductDeclarationLookup::new(
+                self.typed(),
+                &[ProductOperandRole::Requirement],
+            );
             for formation in formations {
-                let author = typed_trees::product_operand::resolve_build_request_author(
-                    self.typed(),
-                    formation.author,
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let author = authors
+                    .resolve(formation.author)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let [operand] = formation.request.operands.as_ref() else {
                     return Err(vec![Diagnostic::error(
                         "native formation lost its exact requirement operand",
                     )]);
                 };
-                self.prepare_product_requirement_operand(operand, author, None)?;
+                typed_trees_to_typed_trees::prepare_product_requirement_operand(
+                    &declarations,
+                    operand,
+                    author,
+                    None,
+                )?;
             }
             build_time_evaluation::native_bindings::capture_package_intents(
                 self.typed(),
@@ -452,30 +464,46 @@ mod product_policy {
                 retained: &[],
             }
             .require_none_requested()?;
-            let providers = self.admit_product_provider_requests(
-                request.activation,
-                request.declared,
-                request.executed,
-            )?;
             use language_semantics::declaration_selection::BuildOperation;
             let formations = self.product_formation_authors(request.declared, |request| {
                 matches!(
                     request.operation,
                     BuildOperation::NativeBinding | BuildOperation::ServiceAudit
-                )
+                ) || super::provider_requests::has_provider_application(request)
             })?;
-            let mut audit_formations = Vec::new();
-            for (request, author) in formations {
-                if request.operation == BuildOperation::ServiceAudit {
-                    audit_formations.push((request, author));
-                    continue;
+            let providers = self.admit_product_provider_requests(
+                request.activation,
+                request.declared,
+                request.executed,
+                &formations,
+            )?;
+            let audit_formations = formations
+                .iter()
+                .filter(|(request, _)| request.operation == BuildOperation::ServiceAudit)
+                .cloned()
+                .collect::<Vec<_>>();
+            let mut native_formations = formations
+                .iter()
+                .filter(|(request, _)| request.operation == BuildOperation::NativeBinding)
+                .peekable();
+            if native_formations.peek().is_some() {
+                let declarations = typed_trees::product_operand::ProductDeclarationLookup::new(
+                    self.typed(),
+                    &[ProductOperandRole::Requirement],
+                );
+                for (request, author) in native_formations {
+                    let [operand] = request.operands.as_ref() else {
+                        return Err(vec![Diagnostic::error(
+                            "native binding lost its exact requirement operand",
+                        )]);
+                    };
+                    typed_trees_to_typed_trees::prepare_product_requirement_operand(
+                        &declarations,
+                        operand,
+                        *author,
+                        None,
+                    )?;
                 }
-                let [operand] = request.operands.as_ref() else {
-                    return Err(vec![Diagnostic::error(
-                        "native binding lost its exact requirement operand",
-                    )]);
-                };
-                self.prepare_product_requirement_operand(operand, author, None)?;
             }
             let typed = self.typed();
             let representations = Vec::new();
@@ -548,35 +576,52 @@ mod provider_requests {
             activation: Option<SymbolHandle>,
             declared: &[Arc<ProductDeclarationRequest>],
             executed: &[ExecutedProductSelection],
+            formations: &[(Arc<ProductDeclarationRequest>, SymbolHandle)],
         ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-            let formations = self.product_formation_authors(declared, has_provider_application)?;
-            for (request, author) in formations {
-                self.prepare_provider_request(
-                    &request,
-                    author,
-                    None,
-                    ProductApplicationDemand::FormationOnly,
-                )?;
-            }
-            for event in executed
+            if formations
                 .iter()
-                .filter(|event| has_provider_application(&event.request))
+                .any(|(request, _)| has_provider_application(request))
+                || executed
+                    .iter()
+                    .any(|event| has_provider_application(&event.request))
             {
-                let author = typed_trees::product_operand::resolve_build_request_author(
-                    self.typed(),
-                    event.selecting_machine.ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "executed provider recipe lost its original author",
-                        )]
-                    })?,
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                self.prepare_provider_request(
-                    &event.request,
-                    author,
-                    event.static_environment.as_deref(),
-                    ProductApplicationDemand::Selected,
-                )?;
+                // Applying an operand mutates the consuming program, not the source
+                // declarations and lexical authors that authorized this batch.
+                let source = Arc::clone(&self.input);
+                let lookups =
+                    typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
+                for (request, author) in formations
+                    .iter()
+                    .filter(|(request, _)| has_provider_application(request))
+                {
+                    self.prepare_provider_request(
+                        &lookups,
+                        request,
+                        *author,
+                        None,
+                        ProductApplicationDemand::FormationOnly,
+                    )?;
+                }
+                for event in executed
+                    .iter()
+                    .filter(|event| has_provider_application(&event.request))
+                {
+                    let author = lookups
+                        .authors
+                        .resolve(event.selecting_machine.ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "executed provider recipe lost its original author",
+                            )]
+                        })?)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    self.prepare_provider_request(
+                        &lookups,
+                        &event.request,
+                        author,
+                        event.static_environment.as_deref(),
+                        ProductApplicationDemand::Selected,
+                    )?;
+                }
             }
             collect_product_provider_selections(
                 ProviderPlanningContext::new(self.typed(), source::DependencyScope::Product),
@@ -592,39 +637,23 @@ mod provider_requests {
             selects: impl Fn(&ProductDeclarationRequest) -> bool,
         ) -> Result<Vec<(Arc<ProductDeclarationRequest>, SymbolHandle)>, Vec<Diagnostic>> {
             let typed = self.typed();
+            let declared = declared
+                .iter()
+                .filter(|request| selects(request))
+                .collect::<Vec<_>>();
+            if declared.is_empty() {
+                return Ok(Vec::new());
+            }
+            // One source roster serves this policy batch. The span narrows the
+            // join; the complete request still proves lexical author custody.
             let occurrences =
                 typed_trees::product_operand::collect_product_selection_occurrences(typed);
-            let mut formations = Vec::new();
-            for request in declared.iter().filter(|request| selects(request)) {
-                let mut owners = occurrences
-                    .iter()
-                    .filter(|occurrence| {
-                        typed.same_product_request_source(&occurrence.request, request)
-                    })
-                    .map(|occurrence| typed.symbols.authored_origin(occurrence.machine));
-                let owner = owners.next().ok_or_else(|| {
-                    vec![
-                        Diagnostic::error(
-                            "Product declaration recipe lost its original authored body occurrence",
-                        )
-                        .with_source_span(request.source_span),
-                    ]
-                })?;
-                if owners.any(|other| other != owner) {
-                    return Err(vec![
-                        Diagnostic::error(
-                            "Product declaration recipe has multiple original lexical owners",
-                        )
-                        .with_source_span(request.source_span),
-                    ]);
-                }
-                formations.push((Arc::clone(request), owner));
-            }
-            Ok(formations)
+            formation_authors(typed, &declared, &occurrences)
         }
 
         fn prepare_provider_request(
             &mut self,
+            source: &typed_trees::product_operand::ProductSourceLookups<'_>,
             request: &ProductDeclarationRequest,
             author: SymbolHandle,
             static_environment: Option<&ProductStaticEnvironment>,
@@ -639,6 +668,7 @@ mod provider_requests {
                     })?;
                 typed_trees_to_typed_trees::prepare_product_operand_application(
                     Arc::make_mut(&mut self.input).typing.typed_mut(),
+                    source,
                     operand,
                     role,
                     author,
@@ -650,12 +680,125 @@ mod provider_requests {
         }
     }
 
-    fn has_provider_application(request: &ProductDeclarationRequest) -> bool {
+    fn formation_authors(
+        typed: &typed_trees::TypedTrees,
+        declared: &[&Arc<ProductDeclarationRequest>],
+        occurrences: &[typed_trees::product_operand::ProductSelectionOccurrence],
+    ) -> Result<Vec<(Arc<ProductDeclarationRequest>, SymbolHandle)>, Vec<Diagnostic>> {
+        let source_key = |span: source::SourceSpan| {
+            let span = typed.symbols.rejoin_product_occurrence(span);
+            (span.source_id.0, span.span.start, span.span.end)
+        };
+        let mut occurrences = occurrences
+            .iter()
+            .map(|occurrence| (source_key(occurrence.request.source_span), occurrence))
+            .collect::<Vec<_>>();
+        occurrences.sort_by_key(|(span, _)| *span);
+        let mut formations = Vec::new();
+        for &request in declared {
+            let key = source_key(request.source_span);
+            let first = occurrences.partition_point(|(span, _)| *span < key);
+            let last = occurrences.partition_point(|(span, _)| *span <= key);
+            let mut owners = occurrences[first..last]
+                .iter()
+                .filter(|(_, occurrence)| {
+                    typed.same_product_request_source(&occurrence.request, request)
+                })
+                .map(|(_, occurrence)| typed.symbols.authored_origin(occurrence.machine));
+            let owner = owners.next().ok_or_else(|| {
+                vec![
+                    Diagnostic::error(
+                        "Product declaration recipe lost its original authored body occurrence",
+                    )
+                    .with_source_span(request.source_span),
+                ]
+            })?;
+            if owners.any(|other| other != owner) {
+                return Err(vec![
+                    Diagnostic::error(
+                        "Product declaration recipe has multiple original lexical owners",
+                    )
+                    .with_source_span(request.source_span),
+                ]);
+            }
+            formations.push((Arc::clone(request), owner));
+        }
+        Ok(formations)
+    }
+
+    pub(super) fn has_provider_application(request: &ProductDeclarationRequest) -> bool {
         request.operation == BuildOperation::ProviderSelection
             && request
                 .operands
                 .iter()
                 .any(|operand| operand.application.is_some())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use language_semantics::declaration_selection::ProductDeclarationOperand;
+        use typed_trees::product_operand::ProductSelectionOccurrence;
+
+        #[test]
+        fn formation_authors_keep_complete_requests_and_lexical_owners() {
+            let mut builder = symbols::SymbolTableBuilder::new();
+            let root = builder.insert_root(
+                symbols::SymbolKind::Root,
+                symbols::SymbolNameRef::Static("root"),
+            );
+            let owners = builder.insert_children(
+                root,
+                ["first", "second"].map(|name| {
+                    (
+                        symbols::SymbolKind::Machine,
+                        symbols::SymbolNameRef::Static(name),
+                    )
+                }),
+            );
+            let typed = typed_trees::TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            let span = source::SourceSpan::new(source::SourceId(0), source::Span::new(4, 9));
+            let request = Arc::new(ProductDeclarationRequest {
+                operation: BuildOperation::ServiceAudit,
+                source_span: span,
+                operands: vec![ProductDeclarationOperand {
+                    path: "Boundary".into(),
+                    source_span: span,
+                    ..Default::default()
+                }]
+                .into(),
+            });
+            let occurrence = |request, machine| ProductSelectionOccurrence {
+                request,
+                machine,
+                state: SymbolHandle::invalid(),
+                expression: typed_trees::expression::ExpressionHandle::invalid(),
+            };
+            let mut other = request.as_ref().clone();
+            other.operands[0].path = "Other".into();
+            let mut occurrences = vec![
+                occurrence(Arc::new(other), owners.handle_at(1)),
+                occurrence(Arc::clone(&request), owners.start()),
+                occurrence(Arc::clone(&request), owners.start()),
+            ];
+            let authors = formation_authors(&typed, &[&request], &occurrences).unwrap();
+            assert_eq!(authors.len(), 1);
+            assert_eq!(authors[0].1, owners.start());
+            occurrences.push(occurrence(Arc::clone(&request), owners.handle_at(1)));
+            assert!(
+                formation_authors(&typed, &[&request], &occurrences).unwrap_err()[0]
+                    .message
+                    .contains("multiple original lexical owners")
+            );
+            assert!(
+                formation_authors(&typed, &[&request], &[]).unwrap_err()[0]
+                    .message
+                    .contains("lost its original authored body occurrence")
+            );
+        }
     }
 }
 pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
@@ -1043,10 +1186,10 @@ impl SourceContinuation {
         >,
     ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
         typed_trees_to_typed_trees::prepare_product_requirement_operand(
-            Arc::make_mut(&mut self.input)
-                .typing
-                .typed_mut()
-                .product_declarations_mut(),
+            &typed_trees::product_operand::ProductDeclarationLookup::new(
+                self.typed(),
+                &[language_semantics::declaration_selection::ProductOperandRole::Requirement],
+            ),
             operand,
             author,
             static_environment,

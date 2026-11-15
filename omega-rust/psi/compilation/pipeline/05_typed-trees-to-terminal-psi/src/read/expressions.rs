@@ -832,9 +832,14 @@ impl<'t> Program<'t> {
             return Ok(value);
         }
         let value_type = match value.result {
-            Some(
-                value_type @ (ValueType::Scalar(_, Qualification::NONE) | ValueType::Record(..)),
-            ) => value_type,
+            // Every returning arm supplies the same arithmetic policy.
+            // Predicate-domain membership still needs its own arrival proof.
+            Some(value_type @ ValueType::Scalar(_, qualification))
+                if qualification.domains.is_empty() =>
+            {
+                value_type
+            }
+            Some(value_type @ ValueType::Record(..)) => value_type,
             Some(ValueType::Scalar(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
@@ -1286,6 +1291,26 @@ pub(super) fn binary_selection(
             boolean
         }
         Operands::Ordering if integer(left_type) && left_type == right_type => boolean,
+        Operands::Arithmetic
+            if left_type.as_ieee_float().is_some()
+                && right_type.as_ieee_float().is_some()
+                && left_type != right_type =>
+        {
+            let name = |scalar| match scalar {
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32",
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
+                _ => unreachable!("the mismatch has two known float formats"),
+            };
+            return Err(reject(
+                id,
+                right_source,
+                format!(
+                    "float arithmetic operand types differ: {} and {}; this operation has no implicit format conversion",
+                    name(left_type),
+                    name(right_type),
+                ),
+            ));
+        }
         Operands::Arithmetic | Operands::Shift | Operands::Equality | Operands::Ordering => {
             return Err(typing("operand types"));
         }

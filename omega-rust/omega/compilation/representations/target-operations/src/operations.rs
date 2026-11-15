@@ -116,6 +116,7 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         arguments: [StructuralArgument; 6],
+        indices: [Vec<TargetStructuralRuntimeIndex>; 6],
         calls: [TargetInstallationCall; 2],
         result_home: TargetUnitScalarHomeRequirement,
     },
@@ -124,12 +125,14 @@ pub enum TargetUnitOperation {
         boundary: BoundaryMachineId,
         operation: language_core::static_interrupts::StaticInterruptOperation,
         token: StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
         result_home: Option<TargetStructuralHomeRequirement>,
     },
     AccessLifecycle {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         operands: abstract_operations::AccessLifecycleOperands,
+        indices: Vec<TargetStructuralRuntimeIndex>,
         result_home: TargetStructuralHomeRequirement,
     },
     EstablishActivationClaim {
@@ -176,6 +179,7 @@ pub enum TargetUnitOperation {
         boundary: BoundaryMachineId,
         realization: crate::AccessorScalarAccessRealization,
         location: StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
         operand: Option<TargetUnitScalarArgumentSource>,
         result_home: Option<TargetUnitScalarHomeRequirement>,
     },
@@ -533,6 +537,7 @@ pub enum TargetUnitOperation {
         task_state: StructuralArgument,
         selector: TargetUnitScalarArgumentSource,
         scratch: StructuralArgument,
+        indices: [Vec<TargetStructuralRuntimeIndex>; 3],
         result_home: TargetUnitScalarHomeRequirement,
     },
     ReloadSegmentDescriptors {
@@ -543,6 +548,7 @@ pub enum TargetUnitOperation {
         gdt: StructuralArgument,
         selector: TargetUnitScalarArgumentSource,
         scratch: StructuralArgument,
+        indices: [Vec<TargetStructuralRuntimeIndex>; 2],
         result_home: TargetUnitScalarHomeRequirement,
     },
     ReadSegmentSelector {
@@ -561,6 +567,7 @@ pub enum TargetUnitOperation {
         service: ServiceId,
         operation: terminal_psi::GlobalDescriptorTableOperation,
         source: terminal_psi::StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     RegisterAccess {
         psi_operation: OperationId,

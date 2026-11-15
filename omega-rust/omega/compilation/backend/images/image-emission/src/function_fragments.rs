@@ -4468,6 +4468,7 @@ mod source {
                     gdt,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4486,6 +4487,7 @@ mod source {
                     task_state,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4500,6 +4502,7 @@ mod source {
                     service,
                     operation,
                     source,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -5043,6 +5046,7 @@ mod source {
                     arguments,
                     calls,
                     result_home,
+                    ..
                 } = row
                 else {
                     continue;
@@ -9970,6 +9974,7 @@ mod source {
                         token,
                         result_home,
                         operation: kind,
+                        ..
                     } if actual == psi_operation => {
                         Some((actual_boundary, token, result_home, kind))
                     }
@@ -11525,7 +11530,7 @@ mod source {
                             let mut child = query;
                             child
                                 .steps
-                                .push(DescriptorContentsStep::AnyElement { element: *element });
+                                .push(DescriptorContentsStep::any_element(*element));
                             descriptor_queries(types, *element, child, active, slots)?;
                         }
                         StructuralTypeShape::Record { fields, .. } => {
@@ -12046,6 +12051,7 @@ mod source {
                                 *position,
                                 row.callee,
                                 DescriptorActualInputs {
+                                    scalar_arguments: &[],
                                     arguments,
                                     argument_contents: contents,
                                 },
@@ -12311,6 +12317,7 @@ mod source {
                         caller.calls.insert(
                             position,
                             terminal_semantics::descriptor_results::DescriptorInvocation {
+                                scalar_arguments: Vec::new(),
                                 operation: *psi_operation,
                                 target:
                                     terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
@@ -20794,6 +20801,7 @@ mod source {
                 boundary: actual_boundary,
                 operands,
                 result_home,
+                ..
             } if actual == psi_operation => Some((actual_boundary, operands, result_home)),
             _ => None,
         });
@@ -20917,16 +20925,18 @@ mod source {
         #[test]
         fn ieee_element_read_coverage_requires_a_unique_exact_result() {
             use semantic_vocabulary::{
-                IeeeFloatFormat, IntegerValue, ObligationId, PlaceId, ScalarType, StructuralTypeId,
+                IeeeFloatFormat, IntegerValue, ObligationId, PlaceId, ScalarType,
             };
             use target_operations::{
-                TargetElementView, TargetIntegerExpression, TargetScalarExpression,
-                TargetUnitScalarHomeRequirement,
+                TargetIntegerExpression, TargetScalarExpression, TargetUnitScalarHomeRequirement,
             };
 
             let operation = OperationId::new(1).unwrap();
             let result = ValueId::new(3).unwrap();
-            let source = PlaceId::new(1).unwrap();
+            let source = terminal_psi::StructuralArgument::whole(
+                PlaceId::new(1).unwrap(),
+                terminal_psi::StructuralAccess::SharedBorrow,
+            );
             let index = ValueId::new(1).unwrap();
             let length = ValueId::new(2).unwrap();
             let obligation = ObligationId::new(1).unwrap();
@@ -20937,7 +20947,7 @@ mod source {
                     value: result,
                     scalar_type,
                 },
-                source,
+                source: source.clone(),
                 index,
                 length,
                 obligation,
@@ -20954,12 +20964,8 @@ mod source {
                     format,
                     psi_operation: identity,
                     source_value: retained_result,
-                    source,
-                    view: Box::new(TargetElementView::Result {
-                        psi_operation: OperationId::new(2).unwrap(),
-                        place: source,
-                        structural_type: StructuralTypeId::new(1).unwrap(),
-                    }),
+                    source: source.clone(),
+                    indices: Vec::new(),
                     index: Box::new(TargetIntegerExpression::Immediate {
                         source_value: index,
                         value: IntegerValue::Unsigned(0),

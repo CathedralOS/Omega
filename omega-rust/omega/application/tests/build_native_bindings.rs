@@ -259,3 +259,31 @@ fn a_program_receives_the_bindings_of_the_standard_library() {
         "{stderr}"
     );
 }
+
+#[test]
+fn windows_console_emits_with_its_authored_imports() {
+    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "run",
+            "--both",
+            "--target",
+            "windows_x86_64",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "main.omg",
+        ])
+        .current_dir(directory)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("omega runs");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("compiled for target `windows_x86_64`"),
+        "{stderr}"
+    );
+}

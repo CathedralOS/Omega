@@ -15,8 +15,8 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::product_operand::{
-    ProductSelectionOccurrence, collect_product_selection_occurrences,
-    resolve_build_request_author, resolve_product_path,
+    ProductDeclarationLookup, ProductRequestAuthors, ProductSelectionOccurrence,
+    collect_product_selection_occurrences,
 };
 
 struct Formation<'request> {
@@ -86,6 +86,7 @@ struct Operand {
 
 fn operand(
     context: ProviderPlanningContext<'_>,
+    declarations: &ProductDeclarationLookup<'_>,
     request: &ProductDeclarationRequest,
     operand: &ProductDeclarationOperand,
     role: ProductOperandRole,
@@ -93,7 +94,7 @@ fn operand(
     environment: Option<&ProductStaticEnvironment>,
 ) -> Result<Operand, Vec<Diagnostic>> {
     let typed = context.typed;
-    let symbol = resolve_product_path(typed, &operand.path, operand.source_span, role)
+    let symbol = declarations.resolve(&operand.path, operand.source_span, role)
         .ok_or_else(|| {
             refusal(
                 request,
@@ -175,6 +176,7 @@ fn satisfied_application(
 /// arguments: its operands name no application yet.
 fn formation(
     context: ProviderPlanningContext<'_>,
+    declarations: &ProductDeclarationLookup<'_>,
     request: &ProductDeclarationRequest,
     author: SymbolHandle,
     environment: Option<&ProductStaticEnvironment>,
@@ -190,6 +192,7 @@ fn formation(
     };
     let slot = operand(
         context,
+        declarations,
         request,
         slot,
         ProductOperandRole::BoundarySubject,
@@ -198,6 +201,7 @@ fn formation(
     )?;
     let provider = operand(
         context,
+        declarations,
         request,
         provider,
         ProductOperandRole::Provider,
@@ -266,6 +270,14 @@ pub(super) fn collect(
         return Ok(Vec::new());
     }
     let typed = context.typed;
+    let declarations = ProductDeclarationLookup::new(
+        typed,
+        &[
+            ProductOperandRole::BoundarySubject,
+            ProductOperandRole::Provider,
+        ],
+    );
+    let authors = ProductRequestAuthors::new(typed);
     let mut occurrences = collect_product_selection_occurrences(typed);
     occurrences.retain(|row| row.request.operation == BuildOperation::ProviderSelection);
     occurrences.sort_unstable_by_key(|row| key(typed, &row.request));
@@ -278,7 +290,7 @@ pub(super) fn collect(
         formations.push(Formation {
             request,
             author,
-            selection: formation(context, request, author, None)?,
+            selection: formation(context, &declarations, request, author, None)?,
         });
     }
     let mut selections: Vec<ProviderSelection> = Vec::new();
@@ -297,13 +309,11 @@ pub(super) fn collect(
                     "executed provider choice has no original Build activation",
                 )
             })?;
-        let author = resolve_build_request_author(
-            typed,
-            event.selecting_machine.ok_or_else(|| {
+        let author = authors
+            .resolve(event.selecting_machine.ok_or_else(|| {
                 refusal(request, "executed provider choice lost its lexical author")
-            })?,
-        )
-        .map_err(|reason| refusal(request, reason))?;
+            })?)
+            .map_err(|reason| refusal(request, reason))?;
         let selected = key(typed, request);
         let start = formations.partition_point(|row| key(typed, row.request) < selected);
         let formation = formations[start..].iter()
@@ -320,6 +330,7 @@ pub(super) fn collect(
         let formed = if applied {
             self::formation(
                 context,
+                &declarations,
                 request,
                 author,
                 event.static_environment.as_deref(),

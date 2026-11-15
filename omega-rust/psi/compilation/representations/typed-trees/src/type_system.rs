@@ -1342,7 +1342,7 @@ pub(crate) mod type_predicates {
     }
 }
 pub mod types {
-    use arena::{Arena, Handle, HandleSpan};
+    use arena::{Handle, HandleSpan, RetainedArena as Arena};
     use language_core::ReferenceAccess;
     use numerics::arithmetic::ArithmeticDomain;
     use std::fmt;
@@ -2570,6 +2570,9 @@ pub mod types {
     }
 
     #[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
+    // Type occurrences and their aligned metadata retain one absolute slot
+    // numbering across continuations. Appending a new body must not copy the
+    // types already available to it or renumber their metadata associations.
     pub struct TypeReferenceTable {
         type_references: Arena<TypeReferenceNode>,
         type_reference_handles: Arena<TypeReferenceHandle>,
@@ -3971,6 +3974,65 @@ pub mod types {
         use crate::name::Identifier;
         use language_core::ReferenceAccess;
         use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn a_type_continuation_shares_retained_rows_and_keeps_metadata_coordinates() {
+            let mut original = TypeReferenceTable::new();
+            let unit = original.insert(TypeReferenceNode::Unit);
+            let mut selected = original.clone();
+            assert!(std::ptr::eq(
+                original.type_reference(unit),
+                selected.type_reference(unit)
+            ));
+            let added = selected.insert(TypeReferenceNode::Slice { element_type: unit });
+            let owner = SymbolHandle::from_arena_index(7);
+            selected
+                .retain_operand_lifetime_owner(added, owner)
+                .unwrap();
+            assert_eq!(selected.operand_lifetime_owner(added), owner);
+            assert_eq!(
+                selected.operand_lifetime_owner(unit),
+                SymbolHandle::invalid()
+            );
+            assert!(!original.contains_type_reference(added));
+            assert!(std::ptr::eq(
+                original.type_reference(unit),
+                selected.type_reference(unit)
+            ));
+            let mut second = selected.clone();
+            let third = second.fresh_occurrence(added);
+            assert_eq!(third.arena_index(), 3);
+            assert_eq!(second.operand_lifetime_owner(third), owner);
+            assert!(std::ptr::eq(
+                selected.type_reference(added),
+                second.type_reference(added)
+            ));
+            let handles = second
+                .references()
+                .map(|(handle, _)| handle)
+                .collect::<Vec<_>>();
+            assert_eq!(handles, [unit, added, third]);
+            assert_eq!(second.references_from(2).count(), 2);
+            second.substitute_node(added, TypeReferenceNode::Unit);
+            assert!(matches!(
+                original.type_reference(unit),
+                TypeReferenceNode::Unit
+            ));
+            assert!(matches!(
+                selected.type_reference(added),
+                TypeReferenceNode::Slice { .. }
+            ));
+            assert!(matches!(
+                second.type_reference(added),
+                TypeReferenceNode::Unit
+            ));
+            let stale = arena::Handle::from_parts(added.arena_index(), added.generation() + 1);
+            assert!(!second.contains_type_reference(stale));
+            assert_eq!(
+                second.retain_operand_lifetime_owner(stale, owner),
+                Err("substituted operand has no registered type row")
+            );
+        }
 
         /*
             A builtin integer atom denotes its carrier and nothing else, so

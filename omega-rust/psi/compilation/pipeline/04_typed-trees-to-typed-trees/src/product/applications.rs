@@ -53,6 +53,11 @@ pub(super) enum Stop {
 
 type Formed<T> = Result<T, Stop>;
 
+pub(super) enum OperandSource<'program> {
+    Authored(&'program typed_trees::product_operand::ProductSourceLookups<'program>),
+    Retained(SymbolHandle),
+}
+
 /// A static argument with nothing left to substitute.
 enum Closed {
     Type(TypeReferenceHandle),
@@ -67,6 +72,7 @@ const NODES: usize = 4096;
 
 struct Lower<'a> {
     program: &'a mut TypedTrees,
+    source: Option<&'a typed_trees::product_operand::ProductSourceLookups<'a>>,
     graph: &'a ProductStaticOperandGraph,
     /// The helper's static arguments, when the graph is the authored request
     /// of a selection made inside a generic helper. `None` while an
@@ -107,8 +113,7 @@ impl Lower<'_> {
                     "a static argument name with no declaration anchor",
                 ));
             }
-            return typed_trees::product_operand::resolve_product_path(
-                self.program,
+            return self.source.ok_or(Stop::Unserved("a retained operand has no authored lookup scope"))?.declarations.resolve(
                 &name.text,
                 name.source_span,
                 ProductOperandRole::Data,
@@ -164,10 +169,9 @@ impl Lower<'_> {
             return Ok(None);
         }
         let helper = match self.environment {
-            Some(environment) => environment.template.and_then(|template| {
-                typed_trees::product_operand::resolve_build_request_author(self.program, template)
-                    .ok()
-            }),
+            Some(environment) => environment
+                .template
+                .and_then(|template| self.source?.authors.resolve(template).ok()),
             None => Some(self.helper),
         };
         let Some(machine) = helper.and_then(|helper| self.program.machine_by_symbol(helper)) else {
@@ -212,6 +216,7 @@ impl Lower<'_> {
         };
         let mut actual = Lower {
             program: self.program,
+            source: self.source,
             graph: &environment.graph,
             environment: None,
             helper: SymbolHandle::invalid(),
@@ -487,13 +492,17 @@ fn bound(
 /// the declaration is the one its anchor found again.
 pub(super) fn form(
     program: &mut TypedTrees,
+    source: OperandSource<'_>,
     operand: &ProductDeclarationOperand,
     role: ProductOperandRole,
     author: SymbolHandle,
     environment: Option<&ProductStaticEnvironment>,
     demand: ProductApplicationDemand,
-    retained: Option<SymbolHandle>,
 ) -> Formed<Option<Handle<ProductOperandApplication>>> {
+    let (source, retained) = match source {
+        OperandSource::Authored(source) => (Some(source), None),
+        OperandSource::Retained(declaration) => (None, Some(declaration)),
+    };
     let Some(graph) = operand.application.as_deref() else {
         return Ok(None);
     };
@@ -523,8 +532,7 @@ pub(super) fn form(
     }
     let declaration = match retained {
         Some(declaration) => Some(declaration),
-        None => typed_trees::product_operand::resolve_product_path(
-            program,
+        None => source.ok_or(Stop::Unserved("an authored operand has no declaration lookup scope"))?.declarations.resolve(
             &operand.path,
             operand.source_span,
             role,
@@ -588,6 +596,7 @@ pub(super) fn form(
     for (parameter, argument) in parameters.iter().zip(arguments) {
         let mut lower = Lower {
             program,
+            source,
             graph,
             environment,
             helper: if retained.is_some() {

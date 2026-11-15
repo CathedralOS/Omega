@@ -471,16 +471,21 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                         Some(storage_qualifications(module, machine, *source, path)?)
                     }
                     OperationKind::ElementViewRead { source, path, .. } => {
-                        let root = machine.structural_place_type(*source).ok_or(
+                        let root = machine.structural_place_type(source.place).ok_or(
                             ScalarQualificationError::MalformedStructuralFoundation(
                                 "scalar element view lost its declared root",
                             ),
                         )?;
-                        let view =
-                            terminal_psi::find_structural_type(&module.structural_types, root)
-                                .ok_or(ScalarQualificationError::MalformedStructuralFoundation(
-                                    "scalar element view lost its declared carrier",
-                                ))?;
+                        let view = crate::runtime_structural_path_tip(
+                            module.structural_types.iter(),
+                            root,
+                            &source.path,
+                        )
+                        .ok_or(
+                            ScalarQualificationError::MalformedStructuralFoundation(
+                                "scalar element view lost its declared carrier",
+                            ),
+                        )?;
                         let element = match view.shape {
                             terminal_psi::StructuralTypeShape::ElementView { element, .. }
                             | terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {

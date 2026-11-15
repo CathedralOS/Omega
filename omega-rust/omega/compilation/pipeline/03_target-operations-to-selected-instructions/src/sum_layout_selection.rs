@@ -80,10 +80,15 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let node = &unit.functions[0].blocks[0].nodes[0];
     let instruction = &target.functions[0].graph.blocks[0].operations[0];
     let source = instruction.source.as_ref().unwrap();
-    let projected = crate::legalization_source::scalar_graph::instruction::with_metadata(
-        source,
-        legalized_operations::LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(7)),
-    );
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let projected = crate::legalization_source::scalar_graph::instruction::project(
+        unit.functions[0].machine,
+        &unit.accepted_obligation_facts,
+        &target,
+        &geometry,
+        instruction,
+    )
+    .unwrap();
     assert_eq!(projected.operation, op(1));
     assert_eq!(projected.result.as_ref().unwrap().value, val(1));
     assert_eq!(
@@ -124,17 +129,13 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
         crate::legalization_target::control_flow::validate_instruction_metadata(instruction, node)
     };
     audit(instruction).expect("exact instruction metadata");
-    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let native_plan = crate::native_geometry::NativeInput::new(&plan, &geometry);
-    let native_unit = crate::native_geometry::NativeInput::new(&unit, &geometry);
     let mut missing = instruction.clone();
     missing.source = None;
     let failure = crate::legalization_source::scalar_graph::instruction::project(
-        node,
-        &unit.functions[0],
+        unit.functions[0].machine,
+        &unit.accepted_obligation_facts,
         &target,
-        &native_plan,
-        &native_unit,
+        &geometry,
         &missing,
     )
     .expect_err("the old body cannot reconstruct missing target metadata");
@@ -218,6 +219,109 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
             "forged instruction metadata {mutation}"
         );
     }
+}
+
+#[test]
+fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
+    let integer = u64_type();
+    let plan = plan(
+        TerminalIdentityTableBuilder::default(),
+        Vec::new(),
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![
+                    AbstractOperation::IntegerConstant {
+                        psi_operation: op(1),
+                        result: val(1),
+                        scalar_type: ScalarType::Integer(integer),
+                        value: IntegerValue::Unsigned(7),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
+        ),
+    );
+    let mut target = target_plan(
+        &plan,
+        vec![block(
+            1,
+            vec![TargetUnitOperation::IntegerConstant {
+                psi_operation: op(1),
+                result: val(1),
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(7),
+            }],
+            return_unit(1),
+        )],
+    );
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let module = TerminalModule::for_entry(plan.entry);
+    let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
+    let evidence = crate::TargetSelectionEvidence {
+        optimization_unit: unit.identity,
+        work_schedule: unit.work_schedule,
+        accepted_obligation_facts: &[],
+        ownership_frontier_facts: &[],
+    };
+    let origins = BoundaryOriginFacts {
+        program_entry: None,
+        assumed_bindings: &[],
+        target_context: None,
+        module: &module,
+    };
+    crate::legalization::legalize_retained_target_operations(
+        &target,
+        evidence,
+        origins,
+        &interrupts,
+        None,
+        &[],
+    )
+    .unwrap();
+    // The selector-free helper has a representable operand. Only separately
+    // admitted installation authority may authorize it, not that geometry.
+    target.functions[0].graph.blocks[0].operations[0].kind = TargetUnitOperation::StaticInterrupt {
+        psi_operation: op(1),
+        boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+        operation: language_core::static_interrupts::StaticInterruptOperation::FinishCompletion,
+        token: terminal_psi::StructuralArgument {
+            place: place(1),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        },
+        indices: Vec::new(),
+        result_home: None,
+    };
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    crate::legalization_source::scalar_graph::instruction::project(
+        machine(),
+        &[],
+        &target,
+        &geometry,
+        &target.functions[0].graph.blocks[0].operations[0],
+    )
+    .unwrap();
+    let error = crate::legalization::legalize_retained_target_operations(
+        &target,
+        evidence,
+        origins,
+        &interrupts,
+        None,
+        &[],
+    )
+    .expect_err("operand geometry cannot invent an admitted helper association");
+    assert!(
+        matches!(error, crate::LegalizationError::InstalledInterruptAssociation {
+        operation: Some(operation), reason: "interrupt helper has no admitted installation association",
+    } if operation == op(1)),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -1401,9 +1505,11 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
     use legalized_operations::LegalizedScalarInstructionKind;
     use semantic_vocabulary::{IeeeFloatFormat, ObligationId};
     use target_operations::{
-        TargetBooleanExpression, TargetElementView, TargetIntegerExpression,
-        TargetScalarExpression, TargetUnitScalarHomeRequirement,
+        TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
+        TargetUnitScalarHomeRequirement,
     };
+
+    use terminal_psi::StructuralArgument;
 
     for scalar in [
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
@@ -1437,7 +1543,7 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         let read = AbstractOperation::ElementViewRead {
             psi_operation: op(3),
             result,
-            source: source.place,
+            source: StructuralArgument::whole(source.place, source.access),
             index: val(1),
             length: val(2),
             obligation: bound,
@@ -1475,55 +1581,51 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         );
         let plan = plan(names, vec![element, view_type], function);
         let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
-        let view = |position: usize| {
-            let parameter = &target.functions[0].graph.parameters[position];
-            TargetElementView::Parameter {
-                place: parameter.place,
-                placement: parameter.placement.clone(),
-            }
-        };
-        let row = |position, literal, element_byte_offset, path: Vec<StructuralPathSegment>| {
-            let view = Box::new(view(position));
-            let index = Box::new(TargetIntegerExpression::Immediate {
-                source_value: val(1),
-                value: IntegerValue::Unsigned(literal),
-            });
-            let source_value = result.value;
-            let source = source.place;
-            let psi_operation = op(3);
-            let length = val(2);
-            let obligation = bound;
-            macro_rules! read {
+        let row =
+            |position: usize, literal, element_byte_offset, path: Vec<StructuralPathSegment>| {
+                let parameter = &target.functions[0].graph.parameters[position];
+                let source = StructuralArgument::whole(parameter.place, source.access);
+                let indices = Vec::new();
+                let index = Box::new(TargetIntegerExpression::Immediate {
+                    source_value: val(1),
+                    value: IntegerValue::Unsigned(literal),
+                });
+                let source_value = result.value;
+                let psi_operation = op(3);
+                let length = val(2);
+                let obligation = bound;
+                macro_rules! read {
                 ($module:ident :: $variant:ident $(, $format:ident)?) => {
                     $module::$variant {
                         $($format,)?
-                        psi_operation, source_value, source, view, index, length, obligation,
+                        psi_operation, source_value, source, indices, index, length, obligation,
                         path, element_byte_offset,
                     }
                 };
             }
-            let expression = match scalar {
-                ScalarType::Integer(scalar_type) => TargetScalarExpression::Integer {
-                    scalar_type,
-                    expression: read!(TargetIntegerExpression::ElementViewRead),
-                },
-                ScalarType::Boolean => {
-                    TargetScalarExpression::Boolean(read!(TargetBooleanExpression::ElementViewRead))
-                }
-                ScalarType::IeeeFloat(format) => {
-                    read!(TargetScalarExpression::IeeeFloatElementViewRead, format)
+                let expression = match scalar {
+                    ScalarType::Integer(scalar_type) => TargetScalarExpression::Integer {
+                        scalar_type,
+                        expression: read!(TargetIntegerExpression::ElementViewRead),
+                    },
+                    ScalarType::Boolean => TargetScalarExpression::Boolean(read!(
+                        TargetBooleanExpression::ElementViewRead
+                    )),
+                    ScalarType::IeeeFloat(format) => {
+                        read!(TargetScalarExpression::IeeeFloatElementViewRead, format)
+                    }
+                };
+                TargetUnitOperation::ScalarDefinition {
+                    result_home: TargetUnitScalarHomeRequirement {
+                        defining_operation: op(3),
+                        source_value: result.value,
+                        scalar_type: scalar,
+                        shape: crate::legalization::scalar_graph_input::scalar_shape(scalar)
+                            .unwrap(),
+                    },
+                    expression,
                 }
             };
-            TargetUnitOperation::ScalarDefinition {
-                result_home: TargetUnitScalarHomeRequirement {
-                    defining_operation: op(3),
-                    source_value: result.value,
-                    scalar_type: scalar,
-                    shape: crate::legalization::scalar_graph_input::scalar_shape(scalar).unwrap(),
-                },
-                expression,
-            }
-        };
         let retained = row(0, 1, 8, path.clone());
         let fact = optimization_unit::AcceptedObligationFact::new(
             plan.psi,
@@ -1537,7 +1639,7 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         assert_eq!(
             project_element_view_read(machine(), facts, op(3), &retained).unwrap(),
             Some(LegalizedScalarInstructionKind::ElementViewRead {
-                source: source.place,
+                source: StructuralArgument::whole(source.place, source.access),
                 index: val(1),
                 length: val(2),
                 obligation: bound,

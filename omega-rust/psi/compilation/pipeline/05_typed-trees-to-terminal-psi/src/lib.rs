@@ -565,6 +565,12 @@ pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHa
         .flatten()
 }
 
+struct WitnessInputs<'scope> {
+    captures: NamedCaptures,
+    purpose: source::DependencyScope,
+    outcome_subjects: Option<&'scope [Option<PackageKeyIdentity>]>,
+}
+
 /// Elaborates the conformance witness of `implementation` for `requirement`:
 /// machine 1 has the requirement's formals, result and contract, and its
 /// body is one call of the implementation with those formals, returning its
@@ -588,52 +594,53 @@ pub fn elaborate_witness(
 ) -> Checked<Elaboration> {
     elaborate_witness_with_captures(
         typed,
-        declaration_context(typed, implementation),
         declaring_trait,
         requirement,
         arguments,
         implementation,
         None,
-        named_captures(typed),
+        WitnessInputs {
+            captures: named_captures(typed),
+            purpose: declaration_context(typed, implementation),
+            outcome_subjects: None,
+        },
     )
 }
 
 fn elaborate_applied_witness(
     typed: &TypedTrees,
-    purpose: source::DependencyScope,
     required: &typed_trees::signature::StateSignature,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
-    captures: NamedCaptures,
+    inputs: WitnessInputs<'_>,
 ) -> Checked<Elaboration> {
     elaborate_witness_with_captures(
         typed,
-        purpose,
         declaring_trait,
         requirement,
         arguments,
         implementation,
         Some(required),
-        captures,
+        inputs,
     )
 }
 
 fn elaborate_witness_with_captures(
     typed: &TypedTrees,
-    purpose: source::DependencyScope,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
     expected: Option<&typed_trees::signature::StateSignature>,
-    captures: NamedCaptures,
+    inputs: WitnessInputs<'_>,
 ) -> Checked<Elaboration> {
     let generic = typed
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
-    let mut program = read::Program::with_captures(typed, generic, purpose, captures);
+    let mut program = read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures);
+    program.outcome_subjects = inputs.outcome_subjects.map(|subjects| subjects.to_vec());
     let entry = program.witnessed(
         declaring_trait,
         requirement,
