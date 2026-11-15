@@ -69,7 +69,40 @@ pub fn prepare_replay(
         },
     )?;
     module(&elaboration.module)?;
+    predicates(&elaboration.module, &elaboration.predicates)?;
     Ok(ReplayScope { elaboration })
+}
+
+/// A named predicate owes total arithmetic under its own formals, exactly as
+/// a contract clause does under its machine's (contracts.md, "Total
+/// arithmetic"). Its callers see it only unfolded at their arguments, so this
+/// is the one place the declaration itself is judged, used or not.
+fn predicates(
+    module: &TerminalModule,
+    predicates: &[terminal_check_tables::program::DeclaredPredicate],
+) -> Checked<()> {
+    for predicate in predicates {
+        if !owes([&predicate.proposition]) {
+            continue;
+        }
+        let mut scope = Scope {
+            module,
+            diagnostic: predicate.machine,
+            inputs: predicate.inputs.clone(),
+            result: None,
+            roots: Vec::new(),
+            subject_prefix: Vec::new(),
+            completion: false,
+            facts: Facts::default(),
+        };
+        scope
+            .clauses(
+                std::slice::from_ref(&predicate.proposition),
+                &format!("named predicate `{}`", predicate.name),
+            )
+            .map_err(|refused| refused.with_source_span(predicate.source_span))?;
+    }
+    Ok(())
 }
 
 /// A proof preparation borrows this exact formed module. Only the formation

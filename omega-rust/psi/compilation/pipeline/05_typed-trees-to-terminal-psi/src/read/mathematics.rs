@@ -18,6 +18,14 @@ use super::{
 };
 use crate::{Unserved, refuse};
 
+/// A predicate body read under its declaration's formals: `proposition` is
+/// over `inputs`, the `k`-th formal being value `k + 1`.
+pub(super) struct FormedPredicate {
+    pub(super) expression: ExpressionHandle,
+    pub(super) inputs: Vec<terminal_psi::ValueDeclaration>,
+    pub(super) proposition: Proposition,
+}
+
 impl<'t> Program<'t> {
     fn mathematical_definition(&self, symbol: SymbolHandle) -> Option<&'t MathematicalDefinition> {
         if !self.typed.symbols.symbols().nodes().is_valid(symbol)
@@ -161,8 +169,9 @@ impl<'t> Program<'t> {
         let (definition, bound) = self.mathematical_application(id, scope, call)?;
         let model = scope.logical.and_then(|logical| logical.model);
         let expanding = scope.logical.map_or(&[][..], |logical| logical.expanding);
-        let expression =
-            self.mathematical_predicate_definition(id, definition, model, expanding)?;
+        let expression = self
+            .mathematical_predicate_definition(id, definition, model, expanding)?
+            .expression;
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
         let actual_inputs = MathematicalInputs::empty();
@@ -189,7 +198,7 @@ impl<'t> Program<'t> {
         definition: &MathematicalDefinition,
         model: Option<&typed_trees::callable_signature_shapes::CallableAddressModel>,
         expanding: &[SymbolHandle],
-    ) -> Checked<ExpressionHandle> {
+    ) -> Checked<FormedPredicate> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         if !self
             .typed
@@ -236,9 +245,13 @@ impl<'t> Program<'t> {
             mathematical: super::contracts::MathematicalTerms::Served,
             logical: Some(formal_inputs.scope(id, model, &expanding)),
         };
-        let formed = self.clause(id, &declaration_scope, expression)?;
-        formal_inputs.validate(id, &formed)?;
-        Ok(expression)
+        let proposition = self.clause(id, &declaration_scope, expression)?;
+        formal_inputs.validate(id, &proposition)?;
+        Ok(FormedPredicate {
+            expression,
+            inputs: formal_inputs.declarations(),
+            proposition,
+        })
     }
 
     fn predicate_result(&self, definition: &MathematicalDefinition) -> bool {

@@ -400,7 +400,19 @@ impl Program<'_> {
         for definition in typed.mathematical_definitions() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
-                    self.mathematical_predicate_definition(entry, definition, None, &[])?;
+                    let formed =
+                        self.mathematical_predicate_definition(entry, definition, None, &[])?;
+                    let source_span = typed
+                        .symbols
+                        .symbol_provenance_source_span(definition.symbol)
+                        .filter(|span| *span != source::SourceSpan::default());
+                    self.predicates.push(crate::DeclaredPredicate {
+                        name: typed.symbols.display_path(definition.symbol, "::"),
+                        machine: entry,
+                        source_span,
+                        inputs: formed.inputs,
+                        proposition: formed.proposition,
+                    });
                 }
                 Ok(())
             })();

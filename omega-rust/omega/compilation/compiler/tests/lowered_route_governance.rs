@@ -182,23 +182,53 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             "{messages:#?}"
         );
     }
+}
+
+/// A named predicate owes total arithmetic under its own formals even when no
+/// machine uses it. `value + 1u32` can overflow, so the checker refuses the
+/// declaration and places the refusal there. The positive twin differs only
+/// in `+%`, whose wrapping addition is total.
+#[test]
+fn a_named_predicate_is_formed_at_its_declaration() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
         rejected("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate");
-    let RouteVerdict::FallBack(refusal) = verdict else {
-        panic!("unavailable operand formation must refuse the declaration: {verdict:?}");
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("the partial predicate must be refused: {verdict:?}");
     };
-    assert_eq!(
-        refusal.reason,
-        terminal_check_tables::RefusalReason::Unsupported
-    );
-    assert_eq!(
-        refusal.detail,
-        "contract carrier arithmetic in a clause term"
-    );
+    let [violation] = violations.as_slice() else {
+        panic!("one declaration owes one refusal: {violations:?}");
+    };
     assert!(
-        messages
-            .iter()
-            .any(|message| message.contains(&refusal.detail)),
-        "{messages:#?}"
+        violation.statement.starts_with(
+            "named predicate `reflexive`: contract arithmetic is not proved total before its condition"
+        ),
+        "{violation:?}"
+    );
+    let site = violation
+        .site
+        .expect("the refusal is placed at the declaration");
+    let main = repo_root()
+        .join("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg");
+    let source = std::fs::read_to_string(main).unwrap();
+    assert!(
+        source[site.span.start..].starts_with("reflexive("),
+        "{site:?} is not the `reflexive` declaration"
+    );
+    assert!(messages.contains(&violation.message()), "{messages:#?}");
+
+    let main =
+        repo_root().join("tests/fixtures/pass/proofs/wrapping_mathematical_predicate/main.omg");
+    let checked = std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
+        })
+        .expect("compiler worker")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    });
+    assert!(
+        matches!(checked, FixtureProductCheck::Accepted { .. }),
+        "the wrapping predicate is total and compiles"
     );
 }

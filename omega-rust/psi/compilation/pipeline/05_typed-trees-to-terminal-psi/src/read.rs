@@ -272,6 +272,9 @@ pub(crate) struct Program<'t> {
     /// The machine each chosen provider gives each requirement it supplies,
     /// recorded by `supplied_slots`.
     pub supplied: Vec<crate::SuppliedRequirement>,
+    /// The subject's named predicates under their own formals, read by
+    /// `subject_declarations` for the checker to form.
+    pub predicates: Vec<crate::DeclaredPredicate>,
     /// `Some` while a compilation reports every refusal it meets
     /// (`elaborate_source_for`): a declaration or body that is refused is
     /// recorded here and reading goes on with the next one, so one run names
@@ -423,6 +426,7 @@ impl<'t> Program<'t> {
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
+            predicates: Vec::new(),
             collected: None,
             refused_signatures: Vec::new(),
         }
