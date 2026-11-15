@@ -10,6 +10,33 @@ use target::TargetProfile;
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
+fn reviewed_fixture_discovers_an_empty_dangerous_service_roster() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let root = repo_root()
+        .join("tests/fixtures/pass/facts/compound_index_guard_through_call_result_exit/main.omg");
+    let discovered = discover_fixture(&root, Default::default()).expect("kept index-guard Build");
+    let mut prepared = review_fixture(
+        discovered,
+        &[TargetProfile::LinuxX64],
+        CompilationProduct::Terminal(Default::default()),
+    )
+    .expect("the checked program needs no dangerous service");
+    assert!(
+        prepared.package_inputs.is_some(),
+        "the test must reach package review"
+    );
+    let output = produce_fixture(&mut prepared, Some("linux_x86_64"))
+        .expect("the reviewed program still publishes its original checks");
+    assert!(
+        output
+            .into_report()
+            .expect("Terminal report")
+            .into_retained_terminal_artifact()
+            .is_some()
+    );
+}
+
+#[test]
 fn native_project_build_publishes_the_reached_boundary_calling_application() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
