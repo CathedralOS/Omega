@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An explicit undeclared lifetime is reported as a byte-view type gap
+- Category: a verdict with nothing behind it
+- Where: [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L115), [static lifetime controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs)
+- Saw: At `7fec0fb9f8b` an ordinary static `keep` with a formal `view: &'storage [u8]`, where only the separate `Session` data declaration binds `'storage`, stops with `type byte view has no complete owned region identity`. The explicit-binder control with the same body is accepted. The failure comes from the byte-view identity fallback, while the lifetime specification says undeclared tags reject.
+- Cost: An author sees an unavailable byte-view type when the written signature breaks a binder rule. Preserve an explicit undeclared tag as a source violation while keeping genuinely incomplete region identities fail-closed.
+- Reported: 2026-11-14, Codex, while restoring the Stage 06 machine lifetime control
+
 ### The post-merge sample stops in byte-window formation before either engine runs
 - Category: tests that pin the bug
 - Where: [post-merge runtime step](.github/workflows/post-merge-check.yml#L97), [length sample](samples/cli/facts/length/local/main.omg#L6), [array view reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L180)
@@ -134,13 +141,6 @@ framework or a list of features that remain unimplemented.
 - Where: [Stage 06 selected result control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L694)
 - Saw: At `7f12cb9f722` the call of `Chosen::hand` in `relay` refuses with `call selected result has no complete original declared types`. The test expects the refusal for the absent public requirement contract on a selected reference result.
 - Cost: The test cannot demonstrate that the selected call refuses to use only the private implementation's result origin. Trace the selected declaration and preserve the missing-contract control.
-- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
-
-### The machine lifetime control loses the reason a data lifetime is unavailable
-- Category: tests that pin the bug
-- Where: [Stage 06 data-name machine lifetime control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs#L253)
-- Saw: At `7f12cb9f722` a machine under `Session` that names its data declaration's lifetime returns `rejected` from the test harness. The test expects the explicit refusal that the byte view has no complete owned region identity.
-- Cost: The control cannot show that the machine rejected the data declaration's lifetime because the machine has no binder for it. Inspect the rejection evidence before updating the expected outcome.
 - Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
 
 ### A view returned by a boundary keeps no loan of the input it borrows from
