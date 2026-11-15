@@ -1808,8 +1808,7 @@ pub(crate) mod machine_instances {
         ) -> Result<Option<MachineInstantiation<'_>>, &'static str> {
             let mut receipts = self
                 .machine_specializations
-                .iter()
-                .filter(|receipt| receipt.instance == instance)
+                .for_instance(instance)
                 .map(MachineInstantiation::Specialization)
                 .chain(
                     self.captured_machine_applications
@@ -1909,10 +1908,7 @@ pub(crate) mod machine_instances {
                     return Err("static call has cyclic invocation ownership");
                 }
                 visited.push(owner);
-                let mut instances = self
-                    .machine_specializations
-                    .iter()
-                    .filter(|instance| instance.instance == owner);
+                let mut instances = self.machine_specializations.for_instance(owner);
                 let Some(instance) = instances.next() else {
                     return Ok(false);
                 };
@@ -5428,9 +5424,8 @@ pub(crate) mod requirement_instances {
             let source_owner = self
                 .static_machine_application(application.application)
                 .lexical_owner;
-            let mut matches = self.machine_specializations.iter().filter(|receipt| {
+            let mut matches = self.machine_specializations.for_instance(provider).filter(|receipt| {
             if receipt.template != realization
-                || receipt.instance != provider
                 || !receipt.binding_application.is_valid()
             {
                 return false;

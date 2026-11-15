@@ -137,10 +137,7 @@ impl crate::TypedTrees {
         &'static str,
     > {
         use crate::static_applications::StaticMachineBindingValue;
-        let mut receipts = self
-            .machine_specializations
-            .iter()
-            .filter(|receipt| receipt.instance == instance);
+        let mut receipts = self.machine_specializations.for_instance(instance);
         let receipt = receipts
             .next()
             .ok_or("selected parameter has no supplying specialization")?;

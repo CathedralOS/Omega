@@ -2328,8 +2328,7 @@ pub(crate) mod declaration_tables {
                     application,
                 } => self
                     .machine_specializations
-                    .get_mut(specialization)?
-                    .conformance_applications
+                    .conformance_applications_mut(specialization)?
                     .get_mut(application),
                 Occurrence(handle) => self
                     .expression_table
@@ -2608,8 +2607,7 @@ pub(crate) mod declaration_tables {
                 }
                 let invocations = self
                     .machine_specializations
-                    .iter()
-                    .filter(|invocation| invocation.instance == machine.symbol)
+                    .for_instance(machine.symbol)
                     .collect::<Vec<_>>();
                 let captures = self
                     .captured_machine_applications
@@ -2655,8 +2653,7 @@ pub(crate) mod declaration_tables {
                 |owner| {
                     let mut templates = self
                         .machine_specializations
-                        .iter()
-                        .filter(|application| application.instance == owner)
+                        .for_instance(owner)
                         .map(|application| application.template)
                         .chain(
                             self.captured_machine_applications
@@ -3925,13 +3922,17 @@ pub(crate) mod machine_parameter_signatures {
                 same(&program, &mut queries, callback);
                 assert!(queries.get(callback).is_some());
             }
-            program.machine_specializations[0].template = instance;
+            program
+                .machine_specializations
+                .edit(|rows| rows[0].template = instance);
             {
                 let mut queries = program.machine_parameter_signature_queries();
                 same(&program, &mut queries, callback);
                 assert!(queries.get(callback).is_none());
             }
-            program.machine_specializations[0].template = template;
+            program
+                .machine_specializations
+                .edit(|rows| rows[0].template = template);
             {
                 let mut queries = program.machine_parameter_signature_queries();
                 same(&program, &mut queries, callback);
@@ -4832,10 +4833,7 @@ pub(crate) mod trait_and_machine_tables {
                 self.machine_declaration_scope(machine, same_type_parameter);
             let mut owner = machine.symbol;
             for _ in 0..self.machine_specializations.len() {
-                let Some(specialization) = self
-                    .machine_specializations
-                    .iter()
-                    .find(|specialization| specialization.instance == owner)
+                let Some(specialization) = self.machine_specializations.for_instance(owner).next()
                 else {
                     break;
                 };
