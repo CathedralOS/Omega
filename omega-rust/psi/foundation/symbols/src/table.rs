@@ -3857,6 +3857,18 @@ impl SymbolTable {
         .and_then(FixedCoreDeclaration::from_ordinal)
     }
 
+    /// The compiler's mathematical universe sorts. Their sole operand is a
+    /// level in the proof calculus, with no ordinary constant carrier.
+    pub fn universe_sort_for_symbol(&self, symbol: SymbolHandle) -> Option<FixedCoreDeclaration> {
+        self.fixed_core_declaration_for_symbol(symbol)
+            .filter(|sort| {
+                matches!(
+                    sort,
+                    FixedCoreDeclaration::Type | FixedCoreDeclaration::Strict
+                )
+            })
+    }
+
     /*
         The member's compiler-installed slot beneath its exact builtin owner.
         A package member with the same spelling never supplies this identity.

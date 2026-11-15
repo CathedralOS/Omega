@@ -1108,10 +1108,7 @@ pub(crate) mod access_views {
                 if let Some(factory) = factories.next() {
                     return factories.next().is_none().then_some(factory);
                 }
-                let mut applications = self
-                    .machine_specializations
-                    .iter()
-                    .filter(|application| application.instance == selected);
+                let mut applications = self.machine_specializations.for_instance(selected);
                 let (Some(application), None) = (applications.next(), applications.next()) else {
                     return None;
                 };

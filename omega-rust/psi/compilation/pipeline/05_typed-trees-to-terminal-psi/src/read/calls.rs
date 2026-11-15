@@ -2747,21 +2747,29 @@ mod tests {
                 )
                 .is_err()
         );
-        typed.machine_specializations[0].template = foreign;
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0].template = foreign);
         assert!(
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
                 .is_err()
         );
-        typed.machine_specializations[0] = row.clone();
-        typed.machine_specializations[0].states = Default::default();
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0] = row.clone());
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0].states = Default::default());
         assert!(
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
                 .is_err(),
             "a machine receipt alone does not establish its entry correspondence"
         );
-        typed.machine_specializations[0] = row.clone();
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0] = row.clone());
         typed.machine_specializations.push(row);
         assert!(
             Program::new(&typed, false)
