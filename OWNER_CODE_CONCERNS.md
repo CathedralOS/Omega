@@ -101,13 +101,6 @@ framework or a list of unimplemented features.
 - Cost: Package review stops execution before the original provider markers and byte offsets can be observed. Retain the accepted `Delivery` contract in the existing review record and keep incomplete contracts refused.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
 
-### The Build host site test omits its checked receiver helper
-- Category: tests that pin the bug
-- Where: [test prelude and two call sites](omega-rust/omega/build-system/build-settings/src/host/bindings/tests.rs#L8), [helper selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs#L293), [bundled helper](omega-rust/omega/packages/build-declarations/src/prelude.rs#L144)
-- Saw: On clean `637ee209d8a` on macOS arm64, `source_helper_calls_authenticate_their_site_artifact_receiver_and_ticket` fails while typing its Build with ``Build selection has no checked value helper `build_selection_receiver```. The fixture prelude declares the host requirements and omits the ordinary receiver helper.
-- Cost: The test never exercises the host's site, artifact, receiver or ticket checks. Supply the checked receiver used by the Build protocol, and preserve the two sites and existing refusal controls.
-- Reported: 2026-11-15, Codex, while checking package-backed Build admission.
-
 ### A fence loses the ordering known from a local initializer
 - Category: branch per shape
 - Where: [fence argument reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L196), [ordering rules](wiki/spec/language/concurrency.md#orderings)
