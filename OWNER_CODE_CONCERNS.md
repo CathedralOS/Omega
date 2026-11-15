@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Checked ranked control loops are refused at Build-time installation
+- Category: a verdict with nothing behind it
+- Where: [local termination summary](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/proof_scope.rs#L227), [invocation admission](omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs#L979), [ranked parity witness](tests/fixtures/run/views/ranked_slice_iteration/main.omg#L10)
+- Saw: On macOS arm64 at `028760775d4`, the kept `parity` machine is accepted with its original checked rank. Preparing `parity(3, false)` succeeds, then invocation refuses `has no ordinary checked Terminates guarantee`. The acyclic control with the same inputs returns true. Replacing `remaining - 1` with `remaining` still refuses during source checking because removing strict edges leaves a cycle. The scalar C plan reaches the same installation refusal on `c_abi_fields` once diagnosis gets past its source and invocation-provenance blockers.
+- Cost: A checked local cycle loses its ordinary termination guarantee when a Build-time consumer runs it. Carry the accepted local ranking evidence to the existing admission check and preserve checks for exact recursive-call edges and nondecreasing ranks.
+- Reported: 2026-11-15, Codex, while replaying the generic C layout plan
+
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing
 - Where: [pool assignments](tools/xtask/src/worktree.rs#L166), [pool cache retention](tools/docs/testing.md#L589), [mbx 1.29.2 collection order](https://github.com/jdx/mr-boxington/blob/v1.29.2/docs/managed-targets.md#keep-or-evict-specific-checkouts)
@@ -86,13 +93,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On macOS arm64 at `01ee33b7779`, the existing scalar `Record` on `linux_x86_64` fails with `contract termination promise over a call cycle`. `c_abi_fields` decreases `remaining_steps` before calling `place`. The cycle passes through `represented`, `checked`, `extent`, and `append` before returning to `c_abi_fields`. Those five helpers omit that measure. Adding it exposes the value match in `represented`, where the compiler rejects the recursive call as nonterminal. With the ranks and an equivalent terminal test of the two accepted tags, the guard repair leaves the padding value-match guarantee as the only reported proof failure.
 - Cost: The compiler refuses the unchanged layout before checking size 24, alignment 8, and offsets `[0, 8, 16]`. The scalar and nested-representation samples use this field walk at all nine placements. Preserve the same rank, field order, bounds, and invalid-layout controls through the existing terminal proof mechanisms.
 - Reported: 2026-11-15, Codex, after the Build-time reflection and field lifetime repairs
-
-### A checked generic layout plan loses its selected declaration before execution
-- Category: knowledge crossing a boundary
-- Where: [selected invocation preparation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L549), [fixed-layout publication](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/fixed_layouts.rs#L192), [scalar C-layout control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1202)
-- Saw: On macOS arm64 at `63d9f24b247` with the ranked guard repair, the unchanged scalar `Record` for `linux_x86_64` reaches `layout policy result lost its original source declaration` after adding the C helper ranks and using equivalent terminal tag and padding branches in a diagnostic probe. The selected call passes its public requirement and body checks. The returned entry names the physical body from the prepared invocation's symbol table. Fixed-layout evaluation then tests that handle in the original table and refuses before invoking the policy.
-- Cost: The accepted selected plan cannot execute or publish the expected size 24, alignment 8, and offsets `[0, 8, 16]`. Keep the exact applied policy and connect the accepted invocation to its authored declaration through the existing specialization provenance.
-- Reported: 2026-11-15, Codex, after replaying the C layout padding control
 
 ### The padding value match loses its strict result bound
 - Category: knowledge crossing a boundary
