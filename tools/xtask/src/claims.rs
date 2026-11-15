@@ -236,6 +236,31 @@ fn renew_claim(record: &mut ClaimsRecord, ticket: &str, now: SystemTime) -> Resu
     Ok(true)
 }
 
+// Every write republishes the whole record, and nothing reads an ended claim
+// or a note whose claim has ended: status hides the first and only counts the
+// second. Kept, they grew the record to 915 claims and 1,148 notes (1.7 MB per
+// write). A write therefore drops ended claims and the notes of any ticket that
+// no longer has a visible claim. A claim whose expiry cannot be read stays,
+// with its notes, as status keeps it.
+fn prune_registry(record: &mut ClaimsRecord, now: SystemTime) {
+    let now = epoch_nanoseconds(now);
+    record
+        .claims
+        .retain(|claim| claim_expiry(claim).is_none_or(|expires| expires > now));
+    let mut live: Vec<String> = record
+        .claims
+        .iter()
+        .filter_map(|claim| claim.get("ticket").and_then(serde_json::Value::as_str))
+        .map(str::to_owned)
+        .collect();
+    live.sort_unstable();
+    record.notes.retain(|note| {
+        note.get("ticket")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|ticket| live.binary_search_by(|t| t.as_str().cmp(ticket)).is_ok())
+    });
+}
+
 fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> serde_json::Value {
     let now = epoch_nanoseconds(now);
     let claims: Vec<_> = record
@@ -475,6 +500,7 @@ fn update_registry<T>(
         if record == previous {
             return Ok(outcome);
         }
+        prune_registry(&mut record, SystemTime::now());
         match commit_and_push(repo, &version, &record) {
             Ok(()) => return Ok(outcome),
             Err(PublicationError::Push) => {
@@ -992,7 +1018,7 @@ mod tests {
                 fixture.publish(
                     &json!({"protocol": PROTOCOL,
                         "claims": [{"ticket": "other", "unknown": [1, 2]}],
-                        "notes": [{"text": "keep", "created_utc": "2026-11-14T00:00:00.123456789Z"}]
+                        "notes": [{"ticket": "other", "text": "keep", "created_utc": "2026-11-14T00:00:00.123456789Z"}]
                     })
                     .to_string(),
                 );
@@ -1285,6 +1311,42 @@ mod tests {
             Some(start + lease)
         );
         assert_eq!(claim_expiry(&json!({"claimed_utc": "soon"})), None);
+    }
+
+    #[test]
+    fn a_write_drops_ended_claims_and_notes_without_a_visible_claim() {
+        let now = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
+        let (claimed_utc, expires_utc) = lease_timestamps(now).unwrap();
+        let note = |ticket: Option<&str>| match ticket {
+            Some(ticket) => json!({"ticket": ticket, "text": "milestone"}),
+            None => json!({"text": "unowned"}),
+        };
+        let mut record = ClaimsRecord {
+            claims: vec![
+                json!({"ticket": "live", "claimed_utc": claimed_utc, "expires_utc": expires_utc}),
+                json!({"ticket": "ended", "expires_utc": "2026-11-01T00:00:00Z"}),
+                json!({"ticket": "zombie", "claimed_utc": "2026-11-07T00:00:00Z",
+                    "expires_utc": "2099-01-01T00:00:00Z"}),
+                json!({"ticket": "unreadable", "expires_utc": "soon"}),
+            ],
+            notes: vec![
+                note(Some("live")),
+                note(Some("ended")),
+                note(Some("zombie")),
+                note(Some("released")),
+                note(Some("unreadable")),
+                note(None),
+            ],
+            ..ClaimsRecord::default()
+        };
+        let visible = status_snapshot("v", &record, now)["claims"].clone();
+        prune_registry(&mut record, now);
+        // The stored record now holds exactly what status shows.
+        assert_eq!(json!(record.claims), visible);
+        assert_eq!(
+            record.notes,
+            vec![note(Some("live")), note(Some("unreadable"))]
+        );
     }
 
     #[test]
