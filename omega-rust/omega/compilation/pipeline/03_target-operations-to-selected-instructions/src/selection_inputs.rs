@@ -701,13 +701,9 @@ pub(crate) mod aggregate_result_input {
     ) -> Option<(
         &'a terminal_psi::StructuralOperationResult,
         &'a calling_conventions::ValuePlacement,
-        calling_conventions::CallingPolicy,
     )> {
         match &instruction.kind {
-            LegalizedScalarInstructionKind::Call(call) => {
-                let (result, placement) = call_result(source, call)?;
-                Some((result, placement, call.call_plan.policy))
-            }
+            LegalizedScalarInstructionKind::Call(call) => call_result(source, call),
             LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
                 let target_operations::TargetBoundaryResult::Structural(home) = &call.result else {
                     return None;
@@ -721,7 +717,6 @@ pub(crate) mod aggregate_result_input {
                 Some((
                     result,
                     call.binding.boundary_entry_plan.call.result.as_ref()?,
-                    call.binding.boundary_entry_plan.call.policy,
                 ))
             }
             _ => None,
@@ -777,8 +772,7 @@ pub(crate) mod aggregate_result_input {
         let placement = call.result_placement.as_ref()?;
         if call.call_plan.result.as_ref() != Some(placement)
             || placement.shape != shape
-            || !(direct_fragments(placement)
-                || indirect_result(placement, call.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
         {
             return None;
         }
@@ -819,8 +813,7 @@ pub(crate) mod aggregate_result_input {
                 identity,
             )
             || placement.shape != calling_conventions::ValueShape::integer(16, 8)
-            || !(direct_fragments(placement)
-                || indirect_result(placement, source.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
         {
             return None;
         }
@@ -904,8 +897,7 @@ pub(crate) mod aggregate_result_input {
         if parameter.target.shape != shape
             || parameter.target.placement.shape != shape
             || placement.shape != shape
-            || !(direct_fragments(placement)
-                || indirect_result(placement, source.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
             || !(inline_argument_fragments(&parameter.target.placement)
                 || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(
                     semantic,
@@ -1159,8 +1151,7 @@ pub(crate) mod aggregate_result_input {
         }
         let placement = source.call_plan.result.as_ref()?;
         if placement.shape != shape
-            || !(direct_fragments(placement)
-                || indirect_result(placement, source.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
         {
             return None;
         }
@@ -1462,13 +1453,12 @@ pub(crate) mod aggregate_result_input {
         })
     }
 
+    /// The retained placement supplies the hidden result register. The target
+    /// audit separately checks that the full plan agrees with the callee's ABI.
     pub(crate) fn indirect_result(
         placement: &calling_conventions::ValuePlacement,
-        policy: calling_conventions::CallingPolicy,
     ) -> Option<calling_conventions::MachineRegister> {
-        use calling_conventions::{
-            CallSignature, IndirectPointerLocation, ValueLocation, evaluate_call_plan,
-        };
+        use calling_conventions::{IndirectPointerLocation, ValueLocation};
         if placement.shape.class != calling_conventions::ValueClass::Integer
             || placement.shape.byte_size == 0
             || !placement.shape.alignment.is_power_of_two()
@@ -1486,18 +1476,8 @@ pub(crate) mod aggregate_result_input {
         else {
             return None;
         };
-        if *byte_size != placement.shape.byte_size || *alignment != placement.shape.alignment {
-            return None;
-        }
-        let canonical = evaluate_call_plan(
-            policy,
-            &CallSignature {
-                parameters: Vec::new(),
-                result: Some(placement.shape),
-            },
-        )
-        .ok()?;
-        (canonical.result.as_ref() == Some(placement)).then_some(*register)
+        (*byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment)
+            .then_some(*register)
     }
 
     pub(crate) fn operation_result<'input>(

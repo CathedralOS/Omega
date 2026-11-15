@@ -74,6 +74,7 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 provider-selection = { path = "../realization/provider-selection" }
 layout = { path = "../backend/layout" }
 image-emission = { path = "../backend/images/image-emission" }
+target-operations-to-selected-instructions = { path = "../pipeline/03_target-operations-to-selected-instructions" }
 terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
