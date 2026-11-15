@@ -3222,6 +3222,40 @@ pub(crate) mod program {
     }
 
     #[cfg(test)]
+    mod envelope_load_tests {
+        use super::*;
+
+        #[test]
+        fn loading_an_envelope_keeps_identity_with_its_owned_semantics() {
+            let mut module = TerminalModule::declarations();
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            let declaration = identities.intern("envelope_owned_declaration");
+            module.identities = identities.build();
+            let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+            let identity = closed.identity();
+            let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+                Default::default(),
+                identity,
+                identity,
+            )
+            .unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_closed_parts(closed, record, None)
+                    .unwrap();
+            let bytes = artifact.to_bytes();
+            let program = TerminalProgram::load_envelope(&bytes).unwrap();
+            drop(bytes);
+            drop(artifact);
+            assert_eq!(program.terminal_psi(), identity);
+            assert_eq!(program.closed_module().unwrap().identity(), identity);
+            assert_eq!(
+                program.module().identities.text(declaration),
+                Some("envelope_owned_declaration")
+            );
+        }
+    }
+
+    #[cfg(test)]
     mod private_entry_target_tests {
         use super::*;
 
