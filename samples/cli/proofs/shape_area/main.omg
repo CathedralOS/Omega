@@ -26,7 +26,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("shape_area: matches a Shape enum payload and computes that variant's area");
     main.shape = Shape::Rectangle { width: 6, height: 7 };
 
@@ -64,7 +64,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine emit(main: &mut Main) {
         Console::write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.area);
     }
 }
@@ -72,5 +72,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

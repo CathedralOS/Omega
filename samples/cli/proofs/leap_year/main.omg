@@ -16,7 +16,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("leap_year: classifying 2024 with the div-4/100/400 compound rule");
     main.year = 2024;
 
@@ -28,13 +28,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine leap(main: &mut Main) {
         Console::write_line("PASS: 2024 is a leap year (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
     machine common(main: &mut Main) {
         Console::write_line("FAIL: 2024 misclassified as a common year (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -42,5 +42,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

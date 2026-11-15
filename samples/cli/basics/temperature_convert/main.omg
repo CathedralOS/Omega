@@ -16,7 +16,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
     main.celsius = 20.0;
     main.fahrenheit = main.celsius * 1.8 + 32.0;
@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine done(main: &mut Main) {
         Console::write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.result);
     }
 }
@@ -37,5 +37,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

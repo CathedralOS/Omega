@@ -26,7 +26,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
     main.out = "XXX";
     main.k = 1;
@@ -71,7 +71,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine finish(main: &mut Main) {
         Console::write_line("PASS: 9 squares printed, ending at 081 (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -79,5 +79,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
