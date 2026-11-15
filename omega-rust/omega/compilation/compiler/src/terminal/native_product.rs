@@ -116,8 +116,8 @@ pub(crate) fn prepare(
         ));
     }
     let profile = entry.source().target_slot().owner;
-    let schemas = provider_planning::hosted_primitive_schemas(module)
-        .map_err(|reason| failure(&reason))?;
+    let schemas =
+        provider_planning::hosted_primitive_schemas(module).map_err(|reason| failure(&reason))?;
     let leaves =
         provider_planning::direct_hosted_primitive_leaves(module, &schemas, profile.target_name())?;
     // Checked wrappers carry no compiler execution identity. Their actual

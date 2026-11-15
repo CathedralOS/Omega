@@ -102,7 +102,9 @@ pub fn hosted_requirement_schema(
         terminates_guarantee: boundary.unconditional_termination,
         ..Default::default()
     });
-    Ok(ServiceSchema::from_declaration(std::sync::Arc::new(surface)))
+    Ok(ServiceSchema::from_declaration(std::sync::Arc::new(
+        surface,
+    )))
 }
 
 pub fn hosted_primitive_schemas(module: &TerminalModule) -> Result<Vec<ServiceSchema>, String> {
