@@ -227,9 +227,9 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
-        // Direct callable settlement already owns its complete declaration and
-        // target evidence. Preserve that custody through this consumer instead
-        // of asking an external provider to supply the same operation again.
+        // The selected direct call already records its declaration and target
+        // implementation. Validate that evidence here instead of asking an
+        // external provider to supply it again.
         let mut direct = direct_leaves
             .iter()
             .filter(|leaf| leaf.plan == plans[selected_row.plan_index]);

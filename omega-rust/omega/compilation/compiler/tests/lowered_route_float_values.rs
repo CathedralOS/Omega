@@ -31,6 +31,26 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             let publication = accepted.closure().publish().unwrap();
             terminal_codec::ClosedTerminalModule::from_semantic_bytes(publication.artifact.semantic_bytes()).unwrap();
             let module = publication.artifact.semantic_module();
+            let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+            let imports = program.imports().map(|declaration| declaration.id).collect::<Vec<_>>();
+            assert_eq!(imports.len(), 12, "numeric declarations need admitted scalar adapters");
+            assert!(imports.iter().all(|slot| !program.executes_boundary_internally(*slot)));
+            let request = terminal_interpreter::TerminalRuntimeSupplyRequest {
+                native_code_layouts: None, x86_flags: None, memory_ordering: None,
+                entry: module.entry, installation: None, host_imports: &[],
+                target_machines: None, target_layouts: None,
+            };
+            let empty = program.admit_runtime_supplies(request).unwrap();
+            assert!(program.defer_component(empty, imports[0]).is_err(), "a component cannot replace a canonical numeric declaration");
+            let installed = program.admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                host_imports: &imports, ..request
+            }).unwrap();
+            let requirements = program.execution_requirements(Some(&installed)).unwrap();
+            assert_eq!(requirements.imports.len(), 12, "the dependency walk must retain numeric imports");
+            let duplicates = [imports[0], imports[0]];
+            assert!(program.admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                host_imports: &duplicates, ..request
+            }).is_err(), "a canonical adapter is installed only once");
             let numeric = module.boundary_machines.iter().filter(|boundary|
                 boundary.declaration.as_ref().is_some_and(|declaration|
                     declaration.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive)

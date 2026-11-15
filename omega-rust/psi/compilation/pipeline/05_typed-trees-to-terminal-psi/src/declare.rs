@@ -979,7 +979,7 @@ fn primitive_boundary(
     )
 }
 
-/// Source callable metadata has one owner for hosted and numeric primitives.
+/// Publish source callable metadata for hosted and numeric primitives here.
 fn top_level_boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,

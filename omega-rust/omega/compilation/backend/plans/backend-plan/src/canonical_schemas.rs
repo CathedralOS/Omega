@@ -86,7 +86,7 @@ fn text(
         .ok_or_else(|| "primitive schema lost a declared identity".to_owned())
 }
 
-/// The same complete callable projection serves every admitted direct primitive.
+/// Hosted and numeric primitives use this function to build their callable schemas.
 fn requirement_schema(
     module: &TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
