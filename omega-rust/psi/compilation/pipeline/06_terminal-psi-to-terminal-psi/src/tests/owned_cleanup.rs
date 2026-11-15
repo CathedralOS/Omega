@@ -170,7 +170,10 @@ fn undecomposed_recursive_or_abnormal_consumers_never_gain_a_disposition() {
             | Ok(RouteVerdict::FallBack(refusal)) => refusal,
             other => panic!("{receiver}: expected {expected}, got {other:?}"),
         };
-        assert!(refusal.detail.contains(expected), "{receiver}: {refusal:?}");
+        assert!(
+            refusal.detail.contains(expected),
+            "{receiver}: expected {expected}, got {refusal:?}"
+        );
         assert!(
             matches!(
                 refusal.reason,

@@ -3000,10 +3000,13 @@ impl<'t> Program<'t> {
                     // A nominal owned pattern ends its wrapper before the
                     // following field bindings. Other markers bind nothing.
                     let decomposition = self.record_pattern(id, &slots, local)?;
-                    position += 1;
                     if let Some(statement) = decomposition {
+                        // The common tail advances this real event. The next
+                        // statement is the first component binding, not part
+                        // of the marker, and must still enter the slot scope.
                         statement
                     } else {
+                        position += 1;
                         continue;
                     }
                 }
