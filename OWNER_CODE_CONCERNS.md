@@ -87,13 +87,6 @@ framework or a list of unimplemented features.
 - Cost: A standalone Psi user reading the top-level help can miss the command's runtime work limit. Make both help screens reflect the accepted options and keep the budget limited to Psi execution and host comparisons.
 - Reported: 2026-11-15, Codex, while tracing standalone Psi work-budget reporting.
 
-### A last-use ownership refusal drops its source site
-- Category: knowledge crossing a boundary
-- Where: [affine walk](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L1650), [source refusal adapter](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_ends.rs#L47)
-- Saw: On macOS arm64 at `a532f60be46`, the retained fixed-layout field sample refused without a source location. A focused trace identified `OperationId(23)` at the proposed reference release. The affine walk attaches an operation identity to errors from the operation itself but drops the known identity from last-use planning errors; the stage 05 adapter also leaves the source span empty.
-- Cost: Another last-use planning error can leave a reader unable to locate the failing borrow or use. Keep the existing error site through planning and use its authored source correspondence when available.
-- Reported: 2026-11-15, Codex, while tracing the fixed-layout field samples.
-
 ### A typed slice refuses indexing after proving its live extent
 - Category: branch per shape
 - Where: [typed collection reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L442), [collection access contract](wiki/spec/language/expressions.md#indexing-and-ranges)
