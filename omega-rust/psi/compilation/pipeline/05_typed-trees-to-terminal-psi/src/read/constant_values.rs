@@ -2,6 +2,8 @@
 //! Source completion links computed values to their invocation receipts
 //! before it freezes the typed source. The lowered checker judges the exact
 //! retained initializer as an ordinary machine.
+//! A declared domain on a leaf arrives as the `as +D` entry that
+//! materialization wrote, and is judged as any other such cast.
 
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use semantic_vocabulary::{IntegerValue, MachineId, ScalarType};
@@ -37,7 +39,10 @@ impl Program<'_> {
                 return Err(unserved("constant requires its pure snapshot materializer"));
             }
         };
-        if !qualification.is_none() {
+        // A declared domain on the constant is re-established by the
+        // materialized initializer's `as +D` entries, which this reading
+        // judges with the domain's issuer and predicate obligations.
+        if qualification.policy.is_some() {
             return Err(unserved(
                 "qualified constant requires its declared value obligations",
             ));
@@ -108,8 +113,9 @@ impl Program<'_> {
     /// evaluated canonical value leaf by leaf: each integer has the
     /// encoding's carrier and value. An aggregate must name its declared
     /// type and any selected case, then each field agrees with the value
-    /// named by its declared symbol. Data with `requires` and qualified
-    /// leaves still need their checked domain obligations.
+    /// named by its declared symbol. Data with `requires` and
+    /// policy-qualified leaves still need their checked obligations. A leaf
+    /// with declared domains is compared beneath the entries that added them.
     fn constant_agrees(
         &self,
         id: MachineId,
@@ -123,11 +129,23 @@ impl Program<'_> {
             }
             _ => return Ok(false),
         };
-        if !qualification.is_none() {
+        if qualification.policy.is_some() {
             return Err(unserved(
                 "qualified constant requires its declared value obligations",
             ));
         }
+        // Each declared domain was added by an `as +D` entry that the cast
+        // reader judged; the value is the operand beneath those entries.
+        let mut leaf = materialized;
+        while let ExpressionKind::Requalify(operand) | ExpressionKind::Establish { operand, .. } =
+            &leaf.kind
+        {
+            leaf = operand;
+        }
+        if qualification.domains.is_empty() != std::ptr::eq(leaf, materialized) {
+            return Ok(false);
+        }
+        let materialized = leaf;
         Ok(match (value, &materialized.kind) {
             (
                 DecodedCanonicalConstValue::Integer {
