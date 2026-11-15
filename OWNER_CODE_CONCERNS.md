@@ -143,13 +143,6 @@ framework or a list of features that remain unimplemented.
 - Cost: D dispatched calls over S receipts cost D*S symbol comparisons. A carried instance-to-receipt index has to survive `machine_specializations` being a public `Vec` that declaration projection retains and tests mutate, so it needs one stage-owned construction point rather than a cache. Keep the missing/ambiguous/stale refusals.
 - Reported: 2026-11-14, Claude Code, while indexing stage 04 generated applications; structural bound, not a benchmark
 
-### Logical-module discovery discards a full parse that source admission repeats
-- Category: re-deriving
-- Where: [logical inventory parsing](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L185), [inventory output](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L211), [selected-source parsing](omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L949)
-- Saw: discovery runs the ordinary lexer/parser over the owner's eligible captured files, retains only each path and module name, and drops the syntax. Selected files are then parsed again after admission; source reselection also parses under fresh consumer coordinates. Those fresh coordinates protect source ownership and selection ledgers, but the syntax work is repeated over unchanged bytes.
-- Cost: Selected files pay for syntax construction twice. Retain immutable syntax and a module/import index within the invocation, separately from semantic owner, scope, stratum and bindings. Pin parse counts, distinct Build/Product identities, changed-input behavior and diagnostic locations. Release unused discovery syntax when ownership permits and measure retained memory against avoided parsing; do not add a persistent cache. See the [draft syntax retention design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
-
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L935), [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L566), [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L847), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)

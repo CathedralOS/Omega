@@ -33,7 +33,7 @@ are not already served APIs.
 
 | Stage | Observed ownership or dependency | Proposed work boundary |
 | --- | --- | --- |
-| Psi 00–01 | [Source groups](../../../omega-rust/psi/compilation/source-compiler/src/lib.rs) lex then parse each file with reusable scratch; groups run concurrently on the invocation's [execution budget](../../../omega-rust/psi/foundation/execution-admission/README.md). Discovery also has separate syntax work that admission repeats. | Retain syntax pages and their source-relative index within the invocation. Keep semantic source authority separate. |
+| Psi 00–01 | [Source groups](../../../omega-rust/psi/compilation/source-compiler/src/lib.rs) lex then parse each file with reusable scratch; groups run concurrently on the invocation's [execution budget](../../../omega-rust/psi/foundation/execution-admission/README.md). Logical-module discovery parses each file into a standalone page that admission adopts under the admitted source identity instead of parsing again. | Keep semantic source authority separate from retained syntax. |
 | Psi 02 | [Resolution](../../../omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs#L2496) orders normalization, identities, constants and selections through a mutable owner. A later phase needs facts established earlier. | Prepare declaration/scope/selection inputs, then resolve independent body uses into owned tables. Preserve each phase's preconditions; do not declare all resolution independent. |
 | Psi 03 | [Typing](../../../omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596) loops through declaration families with one mutable lowerer and then closes the cohort. Shared-snapshot completion can clone owned arenas. | Share immutable declaration/type/signature tables; produce body-local tables and explicit closure inputs. Retain necessary cohort closure before consumers use its results. |
 | Psi 04 | [Specialization](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L83) appends generated machines and scans prior instances linearly. [Record-pattern preparation](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/record_patterns.rs) follows it. | Deduplicate canonical instance requests through an exact key index, reserve identities, and generate independent bodies through a bounded work queue once `LOWERED-FORM-CHECKER` stabilizes Psi 04. Keep pass ordering and stop/refusal behavior. |
@@ -255,8 +255,9 @@ walks all bodies is a candidate repair, not automatically an unavoidable join.
    per-machine immediate-dominator trees instead of quadratic dominance matrices
    (`06/src/graph.rs`), compact proof origins instead of upfront derivation
    cloning (`06/src/known.rs`), indexed
-   specialization instance lookup (`04/src/passes/specialization.rs`), and
-   invocation-scoped syntax reuse across logical-module discovery. Validate each
+   specialization instance lookup (`04/src/passes/specialization.rs`).
+   Invocation-scoped syntax reuse across logical-module discovery has landed.
+   Validate each
    as a standalone sequential repair without a scheduler rewrite.
 2. Re-measure the cheaper compiler on the surviving lowered-form route. Note
    that historical ~3,200-second Psi 05 measurements (#2788) belonged to the
@@ -283,8 +284,6 @@ must likewise earn its complexity through a measured critical-path bottleneck.
 Open entries in [OWNER_CODE_CONCERNS.md](../../../OWNER_CODE_CONCERNS.md#entries)
 directly tied to this ownership direction:
 
-- **Syntax retention:** parse unchanged captured bytes once where safely reusable;
-  preserve separate semantic source identity and bound retained discovery storage.
 - **Body ownership:** remove whole-program cloning for selected body completion;
   preserve unchanged pages and explicit signature/summary dependencies once
   `LOWERED-FORM-CHECKER` frontend churn settles.

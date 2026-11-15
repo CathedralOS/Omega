@@ -192,6 +192,136 @@ pub(crate) mod equality {
 }
 pub use equality::SyntaxEquivalent;
 
+/*
+A unit parsed once for logical-module discovery is reused by source admission
+instead of being parsed again. Discovery parses each captured file into its own
+standalone page under private coordinates; admission assigns the file its
+checked source identity and a fresh page in the receiving forest. Every handle
+the page stores names the page by generation and every span names the source,
+so `SyntaxRelocate` moves both before the receiving forest adopts the page.
+*/
+pub(crate) mod relocation {
+    use arena::{Handle, HandleSpan};
+    use source::{SourceId, SourceSpan};
+    use std::sync::Arc;
+
+    /// The private coordinates of a standalone unit page and the admitted
+    /// coordinates it moves to.
+    #[derive(Debug, Clone, Copy)]
+    pub struct PageRelocation {
+        pub(crate) from_generation: u32,
+        pub(crate) generation: u32,
+        pub(crate) from_source: SourceId,
+        pub(crate) source: SourceId,
+    }
+
+    pub trait SyntaxRelocate {
+        fn relocate(&mut self, relocation: &PageRelocation);
+    }
+
+    impl<T> SyntaxRelocate for Handle<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            if self.generation() == relocation.from_generation {
+                *self = Handle::from_parts(self.arena_index(), relocation.generation);
+            }
+        }
+    }
+    impl<T> SyntaxRelocate for HandleSpan<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            let mut start = self.start();
+            start.relocate(relocation);
+            *self = HandleSpan::from_parts_or_empty(start, self.count());
+        }
+    }
+    impl SyntaxRelocate for SourceId {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            if *self == relocation.from_source {
+                *self = relocation.source;
+            }
+        }
+    }
+    impl SyntaxRelocate for SourceSpan {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.source_id.relocate(relocation);
+        }
+    }
+    impl<T: SyntaxRelocate> SyntaxRelocate for Vec<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.as_mut_slice().relocate(relocation);
+        }
+    }
+    impl<T: SyntaxRelocate> SyntaxRelocate for [T] {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.iter_mut().for_each(|value| value.relocate(relocation));
+        }
+    }
+    impl<T: SyntaxRelocate, const N: usize> SyntaxRelocate for [T; N] {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.as_mut_slice().relocate(relocation);
+        }
+    }
+    impl<T: SyntaxRelocate> SyntaxRelocate for Option<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            if let Some(value) = self {
+                value.relocate(relocation);
+            }
+        }
+    }
+    impl<T: SyntaxRelocate + ?Sized> SyntaxRelocate for Box<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            (**self).relocate(relocation);
+        }
+    }
+    impl<T: SyntaxRelocate + Clone> SyntaxRelocate for Arc<T> {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            Arc::make_mut(self).relocate(relocation);
+        }
+    }
+    impl<A: SyntaxRelocate, B: SyntaxRelocate> SyntaxRelocate for (A, B) {
+        fn relocate(&mut self, relocation: &PageRelocation) {
+            self.0.relocate(relocation);
+            self.1.relocate(relocation);
+        }
+    }
+    macro_rules! coordinate_free {
+        ($($kind:ty),* $(,)?) => { $(impl SyntaxRelocate for $kind {
+            fn relocate(&mut self, _: &PageRelocation) {}
+        })* };
+    }
+    coordinate_free!(
+        bool,
+        usize,
+        u8,
+        u16,
+        u32,
+        u64,
+        i64,
+        String,
+        source::Span,
+        source::SourceBytes,
+        language_core::PatternComponent,
+        language_core::OperatorSpelling,
+        numerics::literals::FloatFormat,
+        numerics::literals::IntegerLiteral,
+        language_core::LocalBindingRole,
+        language_core::BindingRelevance,
+        language_core::DataSupplyMode,
+        language_core::CallOperationalAcknowledgement,
+        language_core::DomainPredicatePresence,
+        language_core::ReferenceAccess,
+        language_core::DomainClassification,
+        numerics::arithmetic::ArithmeticDomain,
+        language_core::inline_assembly::AsmTargetApplicability,
+        language_core::atomic::AtomicExpressionResultCustody,
+        language_core::atomic::AtomicOrderingPlan,
+        language_core::CarryPolicy,
+        language_core::CastForm,
+        language_core::constant_value::EvaluatedConstant,
+        language_core::Multiplicity,
+    );
+}
+pub use relocation::{PageRelocation, SyntaxRelocate};
+
 mod copies;
 pub(crate) use copies::item_copies;
 mod control_flow_and_names;
@@ -253,6 +383,17 @@ pub(crate) mod paged_roster {
                 $( self.$field.begin_page(generation); )*
                 $( self.$nested.begin_page(generation); )*
             }
+
+            pub(crate) fn relocate_page(
+                &mut self,
+                relocation: &crate::PageRelocation,
+            ) -> Result<(), &'static str> {
+                $( self.$field.relocate_single_page(relocation.generation, |row| {
+                    crate::SyntaxRelocate::relocate(row, relocation)
+                })?; )*
+                $( self.$nested.relocate_page(relocation)?; )*
+                Ok(())
+            }
         }
     };
 }
@@ -302,6 +443,23 @@ pub mod source_files {
     pub struct ParsedSources {
         pub sources: Arena<ParsedSource>,
         pub batch: HandleSpan<ParsedSource>,
+    }
+
+    /// One source parsed into its own standalone page under private
+    /// coordinates, retained so a later admission of the same bytes can adopt
+    /// it instead of parsing again (`SyntaxTrees::adopt_unit`).
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ParsedUnit {
+        pub syntax: crate::SyntaxTrees,
+        pub source: Arc<str>,
+        pub root_items: Vec<ItemHandle>,
+        pub import_root_range: Range<usize>,
+    }
+
+    impl ParsedUnit {
+        pub fn root_items(&self) -> &[ItemHandle] {
+            &self.root_items
+        }
     }
 }
 #[cfg(test)]
@@ -1816,6 +1974,57 @@ impl SyntaxTrees {
         self.tables.begin_page(generation);
     }
 
+    /// Joins a copy of `unit` as a new page of this forest under the
+    /// admitted `source_id`, returning the unit's root items in this forest.
+    /// The copy is the parse of the same bytes this forest would have made:
+    /// only its page generation and source identity differ from the
+    /// retained unit, and both are moved before the page joins.
+    pub fn adopt_unit(
+        &mut self,
+        unit: &crate::source_files::ParsedUnit,
+        source_id: SourceId,
+    ) -> Result<Vec<ItemHandle>, &'static str> {
+        let generation = u32::try_from(self.page_count())
+            .ok()
+            .and_then(|count| count.checked_add(1))
+            .ok_or("syntax page identity overflow")?;
+        let mut page = unit.syntax.clone();
+        let mut root_items = unit.root_items.clone();
+        let relocation = page.relocate_unit(source_id, generation)?;
+        root_items.relocate(&relocation);
+        self.adopt_page(page);
+        Ok(root_items)
+    }
+
+    /// Moves a standalone single-page forest, parsed under private source
+    /// coordinates, to the admitted `source_id` and to `generation`, a page
+    /// the receiving forest has not used. A forest with more than one page,
+    /// or whose rows were rewritten after parsing, is refused.
+    fn relocate_unit(
+        &mut self,
+        source_id: SourceId,
+        generation: u32,
+    ) -> Result<PageRelocation, &'static str> {
+        if self.page_count() != 1 {
+            return Err("only a standalone unit page can be relocated");
+        }
+        let relocation = PageRelocation {
+            from_generation: self.items.first_generation(),
+            generation,
+            from_source: self.source_id,
+            source: source_id,
+        };
+        self.tables.items.relocate_page(&relocation)?;
+        self.tables.expressions.relocate_page(&relocation)?;
+        self.tables.statements.relocate_page(&relocation)?;
+        self.tables.type_references.relocate_page(&relocation)?;
+        self.roots.items.relocate(&relocation);
+        self.roots.constant_extent_probes.relocate(&relocation);
+        self.roots.mathematical_definitions.relocate(&relocation);
+        self.source_id = source_id;
+        Ok(relocation)
+    }
+
     pub fn page_count(&self) -> usize {
         self.tables.page_count()
     }
@@ -1939,7 +2148,7 @@ pub use language_core::operator_spelling;
 pub use names::identifier;
 pub use names::text_owner::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
 pub use snapshot::SyntaxTreesSnapshot;
-pub use source_files::{ParsedRootItems, ParsedSource, ParsedSources};
+pub use source_files::{ParsedRootItems, ParsedSource, ParsedSources, ParsedUnit};
 pub use type_system::types;
 pub use values::expression;
 pub use values::float_spelling::FloatSpelling;
