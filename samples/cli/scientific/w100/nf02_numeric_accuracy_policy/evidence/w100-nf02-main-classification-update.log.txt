@@ -1,9 +1,0 @@
-linux_x86_64: checked 2 source packages.
-Audit recommended: numerics [c81bab28970d].
-Source diff: nf02_classification [78f36f88d35e]: 0 changed entries.
-Source diff: numerics [c81bab28970d]: 1 changed entries.
-Capability comparison uses accepted lock policy independently of old-source availability.
-Source-code output (separate from editable capability review): /workspace/Omega/.codex/worktrees/nf01/samples/cli/scientific/w100/nf02_numeric_accuracy_policy/classification/build/package-manager/source-diff.txt
-
-Published build.omg and omega.lock for 2 packages across 1 targets.
-review: /workspace/Omega/.codex/worktrees/nf01/samples/cli/scientific/w100/nf02_numeric_accuracy_policy/classification/build/package-manager/review-linux_x86_64.txt

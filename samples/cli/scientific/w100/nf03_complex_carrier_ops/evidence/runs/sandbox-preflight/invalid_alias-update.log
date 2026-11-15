@@ -1,2 +1,0 @@
-$ /workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega update --project /tmp/nf03-preflight/invalid_alias --target linux_x86_64
-git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user

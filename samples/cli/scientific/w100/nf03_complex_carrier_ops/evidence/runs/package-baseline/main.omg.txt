@@ -1,9 +1,0 @@
-// Hosted baseline attribution: no numerics dependency or NF03 imports.
-use omega::language::core::float_operations;
-use omega::language::core::binding;
-use omega_language_std::console;
-data Main { console: Binding<Console>; value: f64; finite: bool; }
-machine Main::main(main: &mut Main) reaches Console {
-    main.finite = F64::is_finite(main.value);
-    main.console.exit_process(0);
-}

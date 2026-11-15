@@ -1,6 +1,0 @@
-// Baseline attribution only: no Complex carrier or NF03 imports.
-use omega::language::core::float_operations;
-data Main { input: f64; finite: bool; }
-machine main(main: &mut Main) {
-    main.finite = F64::is_finite(main.input);
-}

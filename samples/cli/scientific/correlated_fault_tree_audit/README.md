@@ -76,7 +76,3 @@ rule; package/custody/review rejection is a wrong-reason failure. See
 `wiki/spec/language/counts_and_addresses.md#bounds-and-lowering` for bounds obligations.
 Use `--output-dir /absolute/external/evidence` on validate.py to keep evolving route
 logs and native products outside the reviewed source tree. The default is ignored `build/`.
-
-[VALIDATION.md](VALIDATION.md) preserves the first attempt and its recoverable
-source-drift error. The final source tree is frozen before a fresh proposal; new
-validation and integration evidence is recorded externally in the delivery bundle.

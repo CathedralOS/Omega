@@ -72,5 +72,3 @@ Application numerics remain in Omega. Capture manifests name all frozen cases.
 
 `controls/unchecked_snapshot` is a separate source-invalid application: its
 snapshot-derived access has no bounds proof. It must reject for that reason.
-See [qualification](evidence/qualification.md) for producer identities, actual
-measurements, independent review and landing status.
