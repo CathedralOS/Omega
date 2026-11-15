@@ -215,7 +215,7 @@ fn stored_then_read(bounded: u64, stored: Option<u128>, read: usize) -> Lending 
     if let Some(stored) = stored {
         statements.push(store(0, vec![0], unsigned(stored)));
     }
-    statements.push(Statement::Evaluate(strict(
+    statements.push(Statement::discard(strict(
         Strict::Add,
         field(named(0, pair()), read),
         headroom(10),
@@ -258,7 +258,7 @@ fn a_store_into_a_record_formal_leaves_the_callers_argument_alone() {
                     value: pair_of(1, 2),
                 },
                 invoke(2, vec![named(0, pair())]),
-                Statement::Evaluate(strict(Strict::Add, field(named(0, pair()), 0), headroom(1))),
+                Statement::discard(strict(Strict::Add, field(named(0, pair()), 0), headroom(1))),
             ],
         )
     };
@@ -287,7 +287,7 @@ fn a_formal_lent_exclusively_holds_what_the_callee_left() {
                         false,
                     )],
                 ),
-                Statement::Evaluate(strict(
+                Statement::discard(strict(
                     Strict::Add,
                     field(named(0, pair()), read),
                     headroom(10),

@@ -1581,7 +1581,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
         result: u32_type().into(),
         requires: Vec::new(),
         statements: vec![
-            Statement::Evaluate(transferred_when(1, 0)),
+            Statement::discard(transferred_when(1, 0)),
             returns(if read_again {
                 read(place(0, point()), 0)
             } else {
@@ -2015,7 +2015,7 @@ fn a_read_after_construction_is_provably_the_constructed_operand() {
         requires: Vec::new(),
         statements: vec![
             bind(1, point_of(slot(0, u32_type()), unsigned(7))),
-            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            Statement::discard(call(2, vec![read(place(1, point()), 1)])),
             returns(call(2, vec![read(place(1, point()), 0)])),
         ],
     };
@@ -2096,7 +2096,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
         statements: vec![
             bind(0, point_of(unsigned(3), unsigned(7))),
             bind(1, place(0, point())),
-            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            Statement::discard(call(2, vec![read(place(1, point()), 1)])),
             bind(
                 2,
                 of_type(
@@ -2503,8 +2503,8 @@ fn a_stored_leaf_reads_as_the_stored_value_and_its_sibling_keeps_its_content() {
             bind(1, point_of(slot(0, u32_type()), unsigned(7))),
             bind(2, read(place(1, point()), 1)),
             store(1, &[1], unsigned(99)),
-            Statement::Evaluate(call(2, vec![slot(2, u32_type())])),
-            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            Statement::discard(call(2, vec![slot(2, u32_type())])),
+            Statement::discard(call(2, vec![read(place(1, point()), 1)])),
             returns(read(place(1, point()), 0)),
         ],
     };
@@ -5993,7 +5993,7 @@ mod reuse {
         // machine 3's own hypotheses, which are the same propositions over
         // machine 3's own values; where it was found does not matter.
         let program = |third: u128| {
-            let invoke = |callee| Statement::Evaluate(call(callee, vec![unsigned(1), unsigned(2)]));
+            let invoke = |callee| Statement::discard(call(callee, vec![unsigned(1), unsigned(2)]));
             vec![
                 machine(Vec::new(), vec![invoke(2), invoke(3), returns(unsigned(0))]),
                 add(10),
@@ -6026,8 +6026,8 @@ mod reuse {
             ..machine(
                 vec![u32_type()],
                 vec![
-                    Statement::Evaluate(call(2, vec![slot(0, u32_type())])),
-                    Statement::Evaluate(call(2, vec![unsigned(7)])),
+                    Statement::discard(call(2, vec![slot(0, u32_type())])),
+                    Statement::discard(call(2, vec![unsigned(7)])),
                     returns(call(2, vec![unsigned(20)])),
                 ],
             )

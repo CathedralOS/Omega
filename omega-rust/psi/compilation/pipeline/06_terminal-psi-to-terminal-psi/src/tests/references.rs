@@ -139,7 +139,7 @@ pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Ex
 }
 
 pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
-    Statement::Evaluate(Expression {
+    Statement::discard(Expression {
         call_context: None,
         kind: ExpressionKind::Call {
             required_contract: None,
@@ -524,7 +524,7 @@ fn an_exclusive_loan_changes_only_the_lent_field() {
                         false,
                     )],
                 ),
-                Statement::Evaluate(strict(
+                Statement::discard(strict(
                     Strict::Add,
                     field(named(0, pair()), read),
                     unsigned(1),
@@ -679,7 +679,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                     }),
                     source: nowhere(),
                 },
-                Statement::Evaluate(strict(
+                Statement::discard(strict(
                     Strict::Add,
                     named(1, u32_type().into()),
                     unsigned(1),
