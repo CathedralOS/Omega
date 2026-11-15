@@ -2487,7 +2487,6 @@ pub(crate) mod closed_conformance_wire {
             callable: Callable,
             application_commitment: Optional<Digest>,
             method_arguments: List<ReachArgument>,
-            result_lifetimes: Optional<List<ResultLifetime>>,
         }
         ResultLifetime: DeclaredResultLifetime {
             inputs: List<LifetimeDependency>,

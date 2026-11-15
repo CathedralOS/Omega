@@ -335,6 +335,7 @@ fn contract_header(
         parameter_order: formals.order,
         structural_parameters: formals.records,
         result,
+        result_lifetimes: None,
         declared_service_reach: match &signature.reaches {
             crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
             crate::Ceiling::Inferred => None,

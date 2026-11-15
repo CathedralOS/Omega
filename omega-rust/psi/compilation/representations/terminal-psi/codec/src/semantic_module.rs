@@ -4699,6 +4699,9 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 273 moves a public requirement's declared result lifetime groups
+// from each static method tuple onto the machine contract both selected and
+// rigid calls read. A 272 artifact keeps them on the method tuple instead.
 // Marker 271 retains boundary logical result lifetimes independently of spatial regions.
 // Marker 270 removes executable target-family catalogs and portable family heads.
 // Marker 269 retains complete primitive scalar storage types and predicate
@@ -4717,7 +4720,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 272;
+pub(crate) const FORMAT_MARKER: u16 = 273;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
