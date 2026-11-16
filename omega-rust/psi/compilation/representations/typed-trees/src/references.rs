@@ -4752,20 +4752,44 @@ mod cast_dependency_tests {
             self.0.extend(symbols);
         }
     }
-    impl TypedReferences for Symbols {}
+    impl TypedReferences for Symbols {
+        fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
+            // This control isolates the cast's nominal entry. The carrier
+            // has its separate, unchanged type-dependency traversal.
+            false
+        }
+    }
 
     #[test]
     fn absent_cast_domains_are_not_dependencies_but_malformed_nominal_inputs_remain_owed() {
         use crate::expression::TableCastExpression;
-        let mut program = TypedTrees::default();
-        let value = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(true));
+        let mut builder = symbols::SymbolTableBuilder::default();
+        let root = builder.insert_root(
+            symbols::SymbolKind::Root,
+            symbols::SymbolNameRef::Static("root"),
+        );
+        let roots = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols().into_iter().chain([(
+                symbols::SymbolKind::Domain,
+                symbols::SymbolNameRef::Static("Tagged"),
+            )]),
+        );
+        let scalar = roots.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32);
+        let nominal = roots.handle_at(symbols::BuiltinTypeAtom::ALL.len() as u32);
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let value = program.expression_table.insert(ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(1),
+        ));
         let carrier = program
             .type_reference_table
-            .insert(TypeReferenceNode::Primitive(
-                crate::types::PrimitiveType::U32,
-            ));
+            .insert(TypeReferenceNode::Named {
+                symbol: scalar,
+                name: crate::name::Identifier::generated("u64"),
+            });
         let mut cast = TableCastExpression {
             value,
             target_type: carrier,
@@ -4788,10 +4812,7 @@ mod cast_dependency_tests {
         cast.domain = numerics::arithmetic::ArithmeticDomain::Exact;
         *program.expression_table.expression_mut(expression) = ExpressionNode::Cast(cast);
         assert!(observed(&program).is_empty());
-        for symbol in [
-            SymbolHandle::from_parts(7, 1),
-            SymbolHandle::from_parts(0, 1),
-        ] {
+        for symbol in [nominal, SymbolHandle::from_parts(0, 1)] {
             cast.semantic_domain_symbol = symbol;
             *program.expression_table.expression_mut(expression) = ExpressionNode::Cast(cast);
             assert_eq!(observed(&program), vec![symbol]);
