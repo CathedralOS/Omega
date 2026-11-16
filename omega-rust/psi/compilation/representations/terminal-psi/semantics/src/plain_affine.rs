@@ -420,7 +420,7 @@ fn reference_backing_uses(
     use crate::descriptor_results::{DescriptorSlotKind, FlowFeasibility};
     let mut uses = std::collections::BTreeMap::new();
     for (at, step) in &graph.flow {
-        let mut inputs: Vec<_> = step.inputs.iter().map(|(input, _)| input.clone()).collect();
+        let mut inputs: Vec<_> = step.observed_inputs().cloned().collect();
         for candidate in candidates
             .and_then(|candidates| candidates.get(at))
             .into_iter()

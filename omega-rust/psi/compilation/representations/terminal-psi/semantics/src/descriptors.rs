@@ -520,9 +520,8 @@ pub mod descriptor_lifetimes {
                 };
                 let location = name.location();
                 if step
-                    .inputs
-                    .iter()
-                    .any(|(input, _)| observes(*position, input) && input.overlaps(location))
+                    .observed_inputs()
+                    .any(|input| observes(*position, input) && input.overlaps(location))
                 {
                     observations.push(occurrence.clone());
                     if step.may_escape {
@@ -693,10 +692,11 @@ pub mod descriptor_lifetimes {
 
     /// The operand order also identifies captured constructor elements. A
     /// memory operation belongs to its original typed source, not to aliases
-    /// later added solely to keep a loan alive. An unavailable source cannot
+    /// later added solely to keep a loan alive. Its observation is absent when
+    /// a replacement does not read the old value. An unavailable source cannot
     /// establish permission even when its whole root is observed for liveness.
     pub type DescriptorFlowInput = (
-        DescriptorLocation,
+        Option<DescriptorLocation>,
         Option<(access_plans::AccessOperation, DescriptorFlowSource)>,
     );
 
@@ -717,6 +717,20 @@ pub mod descriptor_lifetimes {
     }
 
     impl DescriptorFlowStep {
+        pub fn observed_inputs(&self) -> impl Iterator<Item = &DescriptorLocation> {
+            self.inputs.iter().filter_map(|(input, _)| input.as_ref())
+        }
+
+        /// Dropping a value observation does not erase an actual memory
+        /// operation. This matters when cleanup discards an old descriptor.
+        pub fn forget_observation(&mut self, index: usize) {
+            if self.inputs[index].1.is_some() {
+                self.inputs[index].0 = None;
+            } else {
+                self.inputs.remove(index);
+            }
+        }
+
         /// A value-transfer rewrite can refine the loan observations without
         /// replacing the instruction's actual memory operations. Constructor
         /// operands are never rewritten here: their order and duplicates are
@@ -726,8 +740,11 @@ pub mod descriptor_lifetimes {
             inputs: impl IntoIterator<Item = DescriptorLocation>,
         ) {
             self.inputs.retain(|(_, access)| access.is_some());
+            for (observed, _) in &mut self.inputs {
+                *observed = None;
+            }
             self.inputs
-                .extend(inputs.into_iter().map(|input| (input, None)));
+                .extend(inputs.into_iter().map(|input| (Some(input), None)));
         }
     }
 
@@ -872,9 +889,8 @@ pub mod descriptor_lifetimes {
                 continue;
             };
             if step
-                .inputs
-                .iter()
-                .any(|(input, _)| input.contains(name) || name.contains(input))
+                .observed_inputs()
+                .any(|input| input.contains(name) || name.contains(input))
             {
                 observations.push(occurrence.clone());
                 if step.may_escape {
@@ -1350,12 +1366,50 @@ pub mod descriptor_lifetimes {
         }
 
         #[test]
+        fn replacing_a_descriptor_keeps_its_write_without_observing_old_contents() {
+            let mut replacement = DescriptorFlowStep {
+                inputs: vec![(
+                    Some(root(1)),
+                    Some((
+                        access_plans::AccessOperation::Write,
+                        DescriptorFlowSource::Unavailable(root(1).root),
+                    )),
+                )],
+                definitions: vec![root(1)],
+                successors: vec![edge(1)],
+                ..Default::default()
+            };
+            replacement.replace_value_inputs([root(2)]);
+            assert_eq!(
+                replacement.observed_inputs().collect::<Vec<_>>(),
+                vec![&root(2)]
+            );
+            assert!(matches!(&replacement.inputs[0],
+                (None, Some((access_plans::AccessOperation::Write, DescriptorFlowSource::Unavailable(old))))
+                    if *old == root(1).root));
+            let steps = BTreeMap::from([
+                (position(0), replacement),
+                (position(1), DescriptorFlowStep::default()),
+            ]);
+            let overwritten = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            let incoming = descriptor_entry_lifetime(&steps, position(0), &root(2));
+            assert!(
+                !overwritten.live.contains(&position(0)),
+                "replacing the descriptor is not an observation of its old referent"
+            );
+            assert!(
+                incoming.live.contains(&position(0)),
+                "the incoming descriptor remains live through the replacement"
+            );
+        }
+
+        #[test]
         fn an_incoming_resource_observes_the_first_operation_before_transport() {
             let steps = BTreeMap::from([
                 (
                     position(0),
                     DescriptorFlowStep {
-                        inputs: vec![(root(1), None)],
+                        inputs: vec![(Some(root(1)), None)],
                         successors: vec![edge(1)],
                         ..Default::default()
                     },
@@ -11034,11 +11088,7 @@ pub mod descriptor_results {
                     )],
                 };
                 assert_eq!(
-                    row.flow[&release]
-                        .inputs
-                        .iter()
-                        .map(|(input, _)| input)
-                        .collect::<Vec<_>>(),
+                    row.flow[&release].observed_inputs().collect::<Vec<_>>(),
                     vec![&leaf(1)]
                 );
                 assert_eq!(row.flow[&release].definitions, vec![leaf(1)]);
@@ -11719,7 +11769,7 @@ pub mod descriptor_results {
                     duplicate.flow[&constructor_position]
                         .inputs
                         .iter()
-                        .map(|(input, _)| input.root)
+                        .map(|(input, _)| input.as_ref().unwrap().root)
                         .collect::<Vec<_>>(),
                     expected,
                     "captured constructor operands preserve order and duplicate elements"
@@ -12552,14 +12602,20 @@ pub mod descriptor_results {
                     else {
                         panic!("the projected move retains its take operation");
                     };
+                    assert!(
+                        location.is_none(),
+                        "the event is not another old-content observation"
+                    );
                     assert_eq!(
-                        location,
-                        &DescriptorLocation {
+                        graph[0].flow[&(field_body.entry, 0)]
+                            .observed_inputs()
+                            .collect::<Vec<_>>(),
+                        vec![&DescriptorLocation {
                             root: source,
                             path: vec![crate::descriptor_lifetimes::DescriptorPathSegment::Field(
                                 moved
                             )],
-                        },
+                        }],
                         "the moved field cannot become its disjoint sibling"
                     );
                     if matches!(
@@ -14757,7 +14813,7 @@ pub mod descriptor_results {
                                     ),
                                 )
                             });
-                            step.inputs.push((selected, access));
+                            step.inputs.push((Some(selected), access));
                         } else {
                             // An unresolved selection can retain authority,
                             // never establish disjointness or an early end.
@@ -14775,7 +14831,7 @@ pub mod descriptor_results {
                                     ),
                                 )
                             });
-                            step.inputs.push((selected, access));
+                            step.inputs.push((Some(selected), access));
                         }
                     }
                     let result = operation.result.structural();
@@ -16126,7 +16182,7 @@ pub mod descriptor_results {
                                     ),
                                 )
                             };
-                        step.inputs.push((source.observation(), None));
+                        step.inputs.push((Some(source.observation()), None));
                         if parameter.access == StructuralAccess::Owned
                             && parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         {
@@ -16204,7 +16260,8 @@ pub mod descriptor_results {
                             }
                             returns.push((position, DescriptorLocation::whole(*source)));
                         }
-                        step.inputs.push((DescriptorLocation::whole(*source), None));
+                        step.inputs
+                            .push((Some(DescriptorLocation::whole(*source)), None));
                         step.may_escape = true;
                         graph.normal_exits.push(position);
                     }
@@ -16223,10 +16280,10 @@ pub mod descriptor_results {
                         graph.unresolved_contents_writes.insert(position);
                         for argument in structural_arguments {
                             if let Some(source) = location(argument.place, &argument.path, None) {
-                                step.inputs.push((source, None));
+                                step.inputs.push((Some(source), None));
                             } else {
                                 step.inputs
-                                    .push((DescriptorLocation::whole(argument.place), None));
+                                    .push((Some(DescriptorLocation::whole(argument.place)), None));
                             }
                         }
                         step.may_escape = true;
@@ -16310,7 +16367,7 @@ pub mod descriptor_results {
                                         parameter.structural_type,
                                     )?
                                     .into_iter()
-                                    .map(|input| (input, None)),
+                                    .map(|input| (Some(input), None)),
                             );
                         }
                     }
@@ -17012,6 +17069,9 @@ pub mod descriptor_results {
                 return None;
             }
             let step = self.flow.get(&position)?;
+            if step.inputs.iter().any(|(input, _)| input.is_none()) {
+                return None;
+            }
             // The adapter forms this ordered roster once from the actual
             // constructor operands. Reads borrow it rather than rebuilding or
             // rechecking every source element at every ordinal.
