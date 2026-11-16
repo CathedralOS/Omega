@@ -1,0 +1,41 @@
+// The column loop requires `x <= grid.columns`, but the row state's own
+// requirement names only `grid.rows`. Entering the column loop with x = 1
+// needs `1 <= grid.columns`, which nothing the row state knows proves.
+data Grid {
+    rows: u32;
+    columns: u32;
+}
+
+machine main() crashes Trap {
+    let mut grid: Grid;
+    grid.rows = 2;
+    grid.columns = 3;
+    walk(&mut grid);
+}
+
+machine walk(grid: &mut Grid) {
+    transition { _ -> row(grid, 0) }
+
+    machine row(grid: &mut Grid, y: u32)
+        requires y <= grid.rows
+    {
+        transition { _ -> column(grid, y, 1) }
+    }
+    machine column(grid: &mut Grid, y: u32, x: u32)
+        requires y <= grid.rows && x <= grid.columns
+    {
+        transition x < grid.columns {
+            true -> column(grid, y, x + 1)
+            _ -> next_row(grid, y)
+        }
+    }
+    machine next_row(grid: &mut Grid, y: u32)
+        requires y <= grid.rows
+    {
+        transition y < grid.rows {
+            true -> row(grid, y + 1)
+            _ -> done()
+        }
+    }
+    machine done() {}
+}

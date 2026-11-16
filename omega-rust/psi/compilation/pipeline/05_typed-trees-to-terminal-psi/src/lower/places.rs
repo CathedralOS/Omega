@@ -1575,7 +1575,7 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("cast subject place identity"))?;
             let mut predicate = Vec::with_capacity(clauses.len());
             for clause in clauses {
-                self.name_block_clause_contents(clause, &[(subject, exact)])?;
+                self.name_clause_contents(clause, &[(subject, exact)], None)?;
                 predicate.push(crate::canonical::substitute_parameters(
                     clause,
                     &[],
