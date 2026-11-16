@@ -975,11 +975,12 @@ machine mint_zero() -> IssuedHolder { IssuedHolder { .. } }
     // finding another case or assuming the new membership as a premise.
     let nonzero = source.replace("self == 0u32", "self != 0u32");
     let rejected = verdicts("omitted-nonzero-first-payload", &nonzero);
-    eprintln!("nonzero first payload: {rejected:?}");
     assert!(
         rejected
             .iter()
-            .any(|result| result.starts_with("rejected:")),
+            .any(|result| result.starts_with(
+                "rejected: 0 unestablished; cannot prove the value of this cast is in the domain it adds in machine `make_zero` state `entry` return value: domain `u32::ZeroOnly` requires `self != 0`"
+            )),
         "{rejected:?}"
     );
 

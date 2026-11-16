@@ -36,7 +36,7 @@ common fields beside cases (`type mixed data`). Stores into a record's fields ar
 `statements`, dispatch over a sum in `transitions`.
 */
 
-use crate::body::Qualification;
+use crate::body::{Qualification, StorageShape};
 use semantic_vocabulary::{
     MachineId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
@@ -1084,7 +1084,7 @@ impl Program<'_> {
 
     /// Read authored record or selected-case fields in their written order.
     /// A final `..` supplies checked zero values for missing runtime fields;
-    /// without it the literal must already supply the complete field roster.
+    /// without it the literal must supply every runtime field.
     pub(super) fn record_literal(
         &mut self,
         id: MachineId,
@@ -1266,9 +1266,9 @@ impl Program<'_> {
         })
     }
 
-    /// Form zero through the existing zero-storage owner, then establish each
-    /// declared qualification through the same operation as an explicit cast.
-    /// Zero bits alone never grant membership, an issuer route, or backing.
+    /// Construct zero using the existing initialization logic, then check each
+    /// declared qualification as an explicit cast would. Zero bits alone do not
+    /// prove domain membership, issuer permission, or required backing storage.
     pub(super) fn zero_value(
         &mut self,
         id: MachineId,
@@ -1284,10 +1284,44 @@ impl Program<'_> {
                     Unserved::Expression("zero of a rigid type"),
                 )
             })?;
-        self.zero_established(id, plain, source)?;
+        // Ordinary field construction retains each field's qualification
+        // evidence. An opaque zero operation cannot establish issuer permissions.
+        let kind = match plain {
+            ValueType::Record(record, _, regions) => {
+                let selected = match &self.data_type(id, record)?.shape {
+                    StorageShape::Record(fields) => Some((None, fields.clone())),
+                    StorageShape::Sum(cases) => {
+                        cases.first().map(|case| (Some(0), case.fields.clone()))
+                    }
+                    _ => None,
+                };
+                match selected {
+                    Some((case, declared)) => {
+                        let substitution = self.field_regions(id, record, regions)?;
+                        let mut fields = Vec::with_capacity(declared.len());
+                        for (position, field) in declared.into_iter().enumerate() {
+                            let field_type = self.substitute(field.value_type, &substitution);
+                            fields.push((position, self.zero_value(id, field_type, source)?));
+                        }
+                        match case {
+                            None => ExpressionKind::Record { fields },
+                            Some(case) => ExpressionKind::Case { case, fields },
+                        }
+                    }
+                    None => {
+                        self.zero_established(id, plain, source)?;
+                        ExpressionKind::Zero
+                    }
+                }
+            }
+            _ => {
+                self.zero_established(id, plain, source)?;
+                ExpressionKind::Zero
+            }
+        };
         let mut operand = Expression {
             call_context: None,
-            kind: ExpressionKind::Zero,
+            kind,
             result: Some(plain),
             source,
         };
