@@ -534,6 +534,7 @@ impl PreparedCallingAbis {
         module.calling_abi_signatures = crate::calling_publication::join_abi_declarations(
             self.entry,
             &module.identities,
+            &module.structural_types,
             &module.calling_abi_signatures,
             &rows,
         )?;

@@ -155,6 +155,89 @@ impl PackageCompilationInputs {
         Ok(())
     }
 
+    /// Assemble only the source authority a resumed Build has prepared. The
+    /// returned inputs do not replace the root's eventual completed graph.
+    pub(crate) fn with_prepared_build_sources(
+        &self,
+        prepared: &[crate::source_imports::ProductQueryDependency],
+    ) -> Result<Self, String> {
+        let mut records = self.source.packages.clone();
+        let mut edges = self
+            .dependencies()
+            .map(|(requester, alias, target)| {
+                PackageDependencyBinding::new(requester, alias, target)
+            })
+            .collect::<Vec<_>>();
+        edges.extend(self.build_dependencies().map(|(requester, alias, target)| {
+            PackageDependencyBinding::for_purpose(
+                requester,
+                alias,
+                target,
+                DependencyPurpose::Build,
+            )
+        }));
+        for dependency in prepared {
+            // ProductQueryInputs already checked shared captured sources before
+            // handing these graphs to this constructor.
+            let product = dependency.inputs.dependency_closure();
+            for identity in product.packages() {
+                let record = dependency
+                    .inputs
+                    .source
+                    .packages
+                    .get(identity)
+                    .ok_or("prepared Build dependency lost a Product source")?;
+                records.entry(*identity).or_insert_with(|| record.clone());
+            }
+            edges.extend_from_slice(product.dependencies());
+            edges.push(PackageDependencyBinding::for_purpose(
+                self.root(),
+                &dependency.alias,
+                dependency.inputs.root(),
+                DependencyPurpose::Build,
+            ));
+        }
+        edges.sort_unstable_by(|left, right| {
+            (
+                left.requester(),
+                left.purpose(),
+                left.alias(),
+                left.target(),
+            )
+                .cmp(&(
+                    right.requester(),
+                    right.purpose(),
+                    right.alias(),
+                    right.target(),
+                ))
+        });
+        edges.dedup();
+        let packages = records
+            .into_iter()
+            .map(|(identity, record)| {
+                if record.captured_source.is_none() {
+                    return Err("prepared Build source lost its immutable capture".to_owned());
+                }
+                Ok(PackageSourceBinding {
+                    identity,
+                    canonical_name: record.canonical_name,
+                    source_root: record.source_root,
+                    canonical_source_metadata: if identity == self.root() {
+                        record.canonical_source_metadata
+                    } else {
+                        None
+                    },
+                    captured_source: record.captured_source,
+                    captured_build_source: record.captured_build_source,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let mut inputs = Self::new(self.root(), self.root_role(), packages, edges)
+            .map_err(|errors| format!("cannot admit prepared Build source graph: {errors:?}"))?;
+        inputs.target = self.target.clone();
+        Ok(inputs)
+    }
+
     pub fn with_dependency_acquisitions(
         mut self,
         acquisitions: Vec<PackageDependencyAcquisition>,

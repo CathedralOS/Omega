@@ -207,6 +207,7 @@ struct RuntimeSelection {
 
 struct ExpressionScope {
     expression: ExpressionHandle,
+    description: bool,
     designated: Vec<(
         AuthoredDeclarationSelectionOccurrenceId,
         RawDesignationInput,
@@ -240,7 +241,7 @@ struct Capture<'a> {
         RawSelectionRole,
         RawDependencyKind,
     )>,
-    seen_expressions: Membership<(SymbolHandle, ExpressionHandle)>,
+    seen_expressions: Membership<(SymbolHandle, ExpressionHandle, bool)>,
     seen_types: Membership<(SymbolHandle, TypeReferenceHandle)>,
     seen_facts: Membership<(SymbolHandle, arena::Handle<typed_trees::domain::ProofFact>)>,
     next_authored_symbol: Option<(SymbolHandle, RawSelectionRole)>,
@@ -248,6 +249,50 @@ struct Capture<'a> {
 }
 
 impl Capture<'_> {
+    fn describing(&self) -> bool {
+        self.expressions
+            .last()
+            .is_some_and(|scope| scope.description)
+    }
+
+    fn description_operand(&self, expression: ExpressionHandle) -> bool {
+        use typed_trees::references::StaticArgumentRole;
+        if self.describing() {
+            return true;
+        }
+        let call = if let Some(scope) = self.expressions.last() {
+            let ExpressionNode::Call(call) =
+                self.typed.expression_table.expression(scope.expression)
+            else {
+                return false;
+            };
+            StaticArgumentCall::Expression(scope.expression, call)
+        } else if let Some(statement) = self.statement {
+            let StatementNode::Call(call) = self.typed.statement_table.statement(statement) else {
+                return false;
+            };
+            StaticArgumentCall::Statement(call)
+        } else {
+            return false;
+        };
+        if typed_trees::reflection::construction::declaration_query_argument_role(self.typed, call)
+            != StaticArgumentRole::DeclarationDescription
+        {
+            return false;
+        }
+        match call {
+            StaticArgumentCall::Expression(_, call) => self
+                .typed
+                .expression_table
+                .expression_handles(call.arguments),
+            StaticArgumentCall::Statement(call) => self
+                .typed
+                .statement_table
+                .expression_handles(call.arguments),
+        }
+        .contains(&expression)
+    }
+
     fn fail(&mut self, reason: impl Into<String>) {
         if self.error.is_none() {
             self.error = Some(SelectionCaptureError(reason.into()));
@@ -323,16 +368,18 @@ impl Capture<'_> {
             return None;
         }
         let row = self.typed.symbols.get(symbol);
-        if matches!(
-            row.kind,
-            SymbolKind::Parameter
-                | SymbolKind::TypeParameter
-                | SymbolKind::MachineParameter
-                | SymbolKind::ConformanceParameter
-                | SymbolKind::PropositionParameter
-                | SymbolKind::PropositionMachineParameter
-                | SymbolKind::Local
-        ) {
+        if !self.describing()
+            && matches!(
+                row.kind,
+                SymbolKind::Parameter
+                    | SymbolKind::TypeParameter
+                    | SymbolKind::MachineParameter
+                    | SymbolKind::ConformanceParameter
+                    | SymbolKind::PropositionParameter
+                    | SymbolKind::PropositionMachineParameter
+                    | SymbolKind::Local
+            )
+        {
             if !row.parent.is_valid() || !self.typed.symbols.symbols().nodes().is_valid(row.parent)
             {
                 self.fail("local selection has no exact declaration owner");
@@ -618,7 +665,11 @@ impl Extend<SymbolHandle> for Capture<'_> {
             self.dependency(
                 symbol,
                 RawSelectionRole::Execution,
-                RawDependencyKind::Declaration,
+                if self.describing() {
+                    RawDependencyKind::Description
+                } else {
+                    RawDependencyKind::Declaration
+                },
             );
         }
     }
@@ -684,7 +735,18 @@ impl TypedReferences for Capture<'_> {
             self.fail("source selection traversed a stale expression");
             return false;
         }
-        let key = (self.owner, expression);
+        // A declaration query names a formal; it does not read that formal's
+        // argument value. Preserve the existing Core query classification on
+        // its exact operand, without widening ordinary local visibility.
+        let description = self.description_operand(expression);
+        if self
+            .seen_expressions
+            .contains(&(self.owner, expression, !description))
+        {
+            self.fail("one source expression changes its declaration-description role");
+            return false;
+        }
+        let key = (self.owner, expression, description);
         if !self.seen_expressions.insert(key) {
             return false;
         }
@@ -710,6 +772,7 @@ impl TypedReferences for Capture<'_> {
         };
         self.expressions.push(ExpressionScope {
             expression,
+            description,
             designated,
             runtime,
         });
@@ -1509,6 +1572,64 @@ mod tests {
             refused.to_string().contains("current callable contract"),
             "{refused}"
         );
+    }
+
+    #[test]
+    fn casts_omit_only_absent_semantic_domain_coordinates() {
+        use typed_trees::expression::TableCastExpression;
+        for fault in 0..3 {
+            let (mut typed, owner, _, _) = source();
+            let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
+            let expression =
+                typed
+                    .expression_table
+                    .insert(ExpressionNode::Cast(TableCastExpression {
+                        value,
+                        target_type: Default::default(),
+                        result_type: Default::default(),
+                        target_label: Default::default(),
+                        domain: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                        semantic_domain: Default::default(),
+                        semantic_domain_arguments: Default::default(),
+                        semantic_domain_symbol: if fault == 1 {
+                            SymbolHandle::from_arena_index(9999)
+                        } else {
+                            SymbolHandle::invalid()
+                        },
+                        semantic_domain_id: language_semantics::SemanticDomainId(u32::from(
+                            fault == 2,
+                        )),
+                        form: Default::default(),
+                    }));
+            let state = typed
+                .machine_by_symbol(owner)
+                .unwrap()
+                .states
+                .handles()
+                .next()
+                .unwrap();
+            typed.machine_states.get_mut(state).statement_nodes = typed
+                .statement_table
+                .insert_statements([StatementNode::Expression(expression)]);
+            // This tests source-coordinate capture, before cast type checking.
+            // Missing and stale declared-domain coordinates are not omitted.
+            let result = capture(
+                &typed,
+                &DeclarationSelection::from_symbols([owner]),
+                &CompletedOperators::default(),
+                &[],
+            );
+            if fault == 0 {
+                result.unwrap();
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .to_string()
+                        .contains("missing or stale declaration coordinate")
+                );
+            }
+        }
     }
 
     #[test]
