@@ -607,30 +607,6 @@ fn normalize(
         return Ok(denotation);
     }
     match proposition {
-        // These three IEEE predicates are defined as logical complements,
-        // including unordered NaN inputs. Positive order is never reversed.
-        Proposition::ScalarIeeeFloatComparison {
-            kind,
-            format,
-            left,
-            right,
-        } if matches!(
-            kind,
-            semantic_vocabulary::IeeeFloatComparisonKind::NotEqual
-                | semantic_vocabulary::IeeeFloatComparisonKind::NotLessThan
-                | semantic_vocabulary::IeeeFloatComparisonKind::NotLessOrEqual
-        ) =>
-        {
-            Ok(Proposition::Implication {
-                premise: Box::new(Proposition::ScalarIeeeFloatComparison {
-                    kind: kind.negated(),
-                    format: *format,
-                    left: left.clone(),
-                    right: right.clone(),
-                }),
-                conclusion: Box::new(Proposition::Falsehood),
-            })
-        }
         Proposition::StructuralIdentity { left, right } if left == right => Ok(Proposition::Truth),
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => {
             boolean_equality(left, right, true, budget, depth + 1)
@@ -647,10 +623,33 @@ fn normalize(
         Proposition::Implication {
             premise,
             conclusion,
-        } => Ok(Proposition::Implication {
-            premise: Box::new(normalize(premise, budget, depth + 1)?),
-            conclusion: Box::new(normalize(conclusion, budget, depth + 1)?),
-        }),
+        } => {
+            let premise = normalize(premise, budget, depth + 1)?;
+            let conclusion = normalize(conclusion, budget, depth + 1)?;
+            // IEEE comparison kinds include their exact logical complements.
+            // Keep that predicate as the canonical leaf, including for NaN;
+            // logical negation never reverses a positive order relation.
+            if conclusion == Proposition::Falsehood
+                && let Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left,
+                    right,
+                } = premise
+            {
+                Ok(Proposition::ScalarIeeeFloatComparison {
+                    kind: kind.negated(),
+                    format,
+                    left,
+                    right,
+                })
+            } else {
+                Ok(Proposition::Implication {
+                    premise: Box::new(premise),
+                    conclusion: Box::new(conclusion),
+                })
+            }
+        }
         other => Ok(other.clone()),
     }
 }
@@ -1595,37 +1594,43 @@ mod value_equality_tests {
                 right,
             };
             let converted = super::check_predicate_denotations(&context, &goal, &[], &[]).unwrap();
-            let expected = if matches!(
-                kind,
-                Kind::NotEqual | Kind::NotLessThan | Kind::NotLessOrEqual
-            ) {
-                let Proposition::ScalarIeeeFloatComparison {
-                    format,
-                    left,
-                    right,
-                    ..
-                } = goal.clone()
-                else {
-                    unreachable!()
-                };
-                Proposition::Implication {
-                    premise: Box::new(Proposition::ScalarIeeeFloatComparison {
-                        kind: kind.negated(),
-                        format,
-                        left,
-                        right,
-                    }),
-                    conclusion: Box::new(Proposition::Falsehood),
-                }
-            } else {
-                goal.clone()
-            };
             assert_eq!(
                 converted.goal(),
-                &expected,
+                &goal,
                 "{format:?} {kind:?} keeps its exact predicate"
             );
-
+            let negation = Proposition::Implication {
+                premise: Box::new(goal.clone()),
+                conclusion: Box::new(Proposition::Falsehood),
+            };
+            let Proposition::ScalarIeeeFloatComparison {
+                format,
+                left,
+                right,
+                ..
+            } = goal.clone()
+            else {
+                unreachable!()
+            };
+            let complement = Proposition::ScalarIeeeFloatComparison {
+                kind: kind.negated(),
+                format,
+                left,
+                right,
+            };
+            assert_eq!(
+                super::check_predicate_denotations(&context, &negation, &[], &[])
+                    .unwrap()
+                    .goal(),
+                &complement
+            );
+            let proof = ProofNode {
+                conclusion: negation.clone(),
+                rule: ProofRule::PredicateDenotation {
+                    premise: Box::new(assumption_proof(complement.clone(), 0)),
+                },
+            };
+            crate::accept_certificate(&context, &negation, &[complement], &[], &proof).unwrap();
             let truth = ProofNode {
                 conclusion: Proposition::Truth,
                 rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
