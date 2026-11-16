@@ -358,9 +358,28 @@ pub(crate) mod callable_identity {
 
         fn signature_definition_types(
             &self,
-            mut binders: Vec<(symbols::SymbolHandle, String)>,
+            binders: Vec<(symbols::SymbolHandle, String)>,
             signature: (symbols::SymbolHandle, symbols::SymbolHandle),
             lifetime_owners: &[(symbols::SymbolHandle, usize)],
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
+            result: crate::types::TypeReferenceHandle,
+        ) -> Option<(Vec<String>, String, usize)> {
+            self.signature_types(
+                super::identity_context::SignatureTypeIdentityContext {
+                    binders,
+                    signature,
+                    lifetime_owners,
+                    substitutions: &[],
+                    region_projection: None,
+                },
+                parameters,
+                result,
+            )
+        }
+
+        pub(crate) fn signature_types(
+            &self,
+            scope: super::identity_context::SignatureTypeIdentityContext<'_>,
             parameters: arena::RootRows<'_, crate::signature::StateParameter>,
             result: crate::types::TypeReferenceHandle,
         ) -> Option<(Vec<String>, String, usize)> {
@@ -371,6 +390,13 @@ pub(crate) mod callable_identity {
             };
             use std::cell::Cell;
 
+            let super::identity_context::SignatureTypeIdentityContext {
+                mut binders,
+                signature,
+                lifetime_owners,
+                substitutions,
+                region_projection,
+            } = scope;
             binders.extend(
                 parameters
                     .iter()
@@ -396,6 +422,9 @@ pub(crate) mod callable_identity {
             let context = TypeIdentityContext {
                 binders: &binders,
                 lifetime_binders: &lifetimes,
+                substitutions,
+                require_owned_substitution_regions: true,
+                signature_region_projection: region_projection,
                 signature_elision: Some(&elision),
                 application_owner: signature.0,
                 application_argument_owner: signature.0,
@@ -1720,6 +1749,22 @@ pub(crate) mod identity_context {
         }
     }
 
+    /// A callable's own regions are universally instantiated at each call.
+    /// Captured regions retain the exact declaration that supplied them.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum SignatureRegion {
+        Bound(usize),
+        Captured(LifetimeParameterIdentity),
+    }
+
+    pub(crate) struct SignatureTypeIdentityContext<'scope> {
+        pub(crate) binders: Vec<(SymbolHandle, String)>,
+        pub(crate) signature: (SymbolHandle, SymbolHandle),
+        pub(crate) lifetime_owners: &'scope [(SymbolHandle, usize)],
+        pub(crate) substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+        pub(crate) region_projection: Option<&'scope dyn Fn(SignatureRegion) -> SignatureRegion>,
+    }
+
     #[derive(Default)]
     pub(crate) struct TypeIdentityContext<'binders> {
         pub(crate) portable_machine_applications:
@@ -1748,8 +1793,14 @@ pub(crate) mod identity_context {
         // position the lifetime stage 05 gives it, so a receiver can derive
         // the same loan groups from the schema alone.
         pub(crate) signature_elision: Option<&'binders SignatureElision>,
+        pub(crate) signature_region_projection:
+            Option<&'binders dyn Fn(SignatureRegion) -> SignatureRegion>,
         pub(crate) binders: &'binders [(SymbolHandle, String)],
         pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+        // Caller type arguments retain their supplying regions. They must not
+        // acquire a lifetime from the receiving signature's same-spelled tag.
+        pub(crate) require_owned_substitution_regions: bool,
+        pub(crate) instantiated_type_argument: bool,
         pub(crate) substitution_scope_starts: &'binders [usize],
         pub(crate) substitution_semantics: SubstitutionSemantics,
         pub(crate) active_const_substitutions: &'binders [SymbolHandle],
@@ -2027,13 +2078,28 @@ pub(crate) mod identity_context {
                 .iter()
                 .find(|(parameter, _)| *parameter == region)
                 .map_or(region, |(_, argument)| *argument);
-            if let Some((_, binder)) = self
+            let region = self
                 .lifetime_binders
                 .iter()
                 .find(|(parameter, _)| *parameter == region)
-            {
-                return schema_region(*binder);
-            }
+                .map_or(SignatureRegion::Captured(region), |(_, binder)| {
+                    SignatureRegion::Bound(*binder)
+                });
+            self.encode_signature_region(program, region)
+        }
+
+        pub(crate) fn encode_signature_region(
+            &self,
+            program: &TypedTrees,
+            region: SignatureRegion,
+        ) -> String {
+            let region = self
+                .signature_region_projection
+                .map_or(region, |projection| projection(region));
+            let region = match region {
+                SignatureRegion::Bound(ordinal) => return schema_region(ordinal),
+                SignatureRegion::Captured(region) => region,
+            };
             if self.qualification == TypeIdentityQualification::PackageQualified {
                 let identity = if self.portable_machine_applications.is_some() {
                     super::lifetime_parameters::portable_lifetime_parameter_identity_in_context(
@@ -2198,7 +2264,7 @@ pub(crate) mod identity_context {
         symbol: SymbolHandle,
         context: &TypeIdentityContext<'_>,
     ) -> usize {
-        if context.signature_elision.is_none() {
+        if context.signature_elision.is_none() && !context.instantiated_type_argument {
             return 0;
         }
         if let Some(declaration) = program.unique_data_definition_by_symbol(symbol) {
@@ -2240,7 +2306,15 @@ pub(crate) mod identity_context {
                         context
                             .signature_elision
                             .and_then(SignatureElision::region)
-                            .map_or_else(|| substitution::rejected(context), schema_region)
+                            .map_or_else(
+                                || substitution::rejected(context),
+                                |ordinal| {
+                                    context.encode_signature_region(
+                                        program,
+                                        SignatureRegion::Bound(ordinal),
+                                    )
+                                },
+                            )
                     })
                     .collect::<Vec<_>>()
             } else {
@@ -2612,11 +2686,18 @@ pub(crate) mod identity_context {
                 .find(|(_, (candidate, _))| candidate == symbol)
             && *replacement != type_reference
         {
-            return normalize_type_identity(
-                program,
-                *replacement,
-                &context.replacement_context_at(ordinal),
-            );
+            let mut replacement_context = context.replacement_context_at(ordinal);
+            if context.require_owned_substitution_regions {
+                replacement_context.application_owner = program
+                    .type_reference_table
+                    .operand_lifetime_owner(*replacement);
+                replacement_context.application_argument_owner =
+                    replacement_context.application_owner;
+                replacement_context.application_scopes = &[];
+                replacement_context.signature_elision = None;
+                replacement_context.instantiated_type_argument = true;
+            }
+            return normalize_type_identity(program, *replacement, &replacement_context);
         }
         if context.static_context.is_valid() {
             let refined =
@@ -2644,7 +2725,10 @@ pub(crate) mod identity_context {
                                 if let Some(ordinal) =
                                     context.signature_elision.and_then(SignatureElision::region)
                                 {
-                                    return schema_region(ordinal);
+                                    return context.encode_signature_region(
+                                        program,
+                                        SignatureRegion::Bound(ordinal),
+                                    );
                                 }
                                 if context.qualification
                                     == TypeIdentityQualification::PackageQualified
