@@ -503,6 +503,25 @@ const AFTER_PREPARATION: &[&str] = &[
 const SEALED_TERMINAL_MODULE: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/codec";
 
+/// Selection and later forms carry shared contracts, not the prepared plan's
+/// instruction graph. Follow indirect production edges as well as direct ones.
+const AFTER_SELECTION: &[&str] = &[
+    "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+    "omega-rust/omega/compilation/representations/register-homes",
+    "omega-rust/omega/compilation/representations/post-allocation-machine",
+    "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+];
+
+const PREPARED_EXECUTION_PLAN: &str =
+    "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+
 /// Instruction selection, the forms from the prepared plan onward, the stages
 /// that turn one into the next, the target setup and installation record they
 /// share, and the leaf vocabulary they carry. Instruction selection is handed
@@ -1081,6 +1100,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         )?);
         violations.extend(transitive_exact_violations(
             &metadata,
+            AFTER_SELECTION,
+            PREPARED_EXECUTION_PLAN,
+            "a selected or later form reaches the prepared instruction graph; name shared records from target-vocabulary",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
             &native_forms(),
             SEALED_TERMINAL_MODULE,
             "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
@@ -1310,6 +1335,48 @@ mod tests {
             transitive_exact_violations(&metadata(working), &[form], working, "no").unwrap(),
             vec!["machine-code -> target-operations: no".to_owned()]
         );
+    }
+
+    #[test]
+    fn every_later_form_refuses_an_indirect_prepared_graph_dependency() {
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        for &form in AFTER_SELECTION {
+            let metadata = |kind| Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![
+                    pkg("later-form", form, &[("helper", helper, None)]),
+                    pkg(
+                        "helper",
+                        helper,
+                        &[("legalized-operations", PREPARED_EXECUTION_PLAN, kind)],
+                    ),
+                    pkg("legalized-operations", PREPARED_EXECUTION_PLAN, &[]),
+                ],
+            };
+            for kind in [None, Some("build")] {
+                assert_eq!(
+                    transitive_exact_violations(
+                        &metadata(kind),
+                        &[form],
+                        PREPARED_EXECUTION_PLAN,
+                        "no"
+                    )
+                    .unwrap(),
+                    vec!["later-form -> helper -> legalized-operations: no".to_owned()],
+                    "{form}"
+                );
+            }
+            assert!(
+                transitive_exact_violations(
+                    &metadata(Some("dev")),
+                    &[form],
+                    PREPARED_EXECUTION_PLAN,
+                    "no"
+                )
+                .unwrap()
+                .is_empty()
+            );
+        }
     }
 
     #[test]

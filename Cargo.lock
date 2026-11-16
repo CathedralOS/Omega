@@ -1311,7 +1311,6 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "layout-plans",
- "legalized-operations",
  "native-vocabulary",
  "register-model",
  "selected-instructions",
@@ -1803,7 +1802,6 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "layout-plans",
- "legalized-operations",
  "native-vocabulary",
  "optimization-core",
  "register-environment",
@@ -2011,7 +2009,6 @@ dependencies = [
  "arena",
  "calling-conventions",
  "function-identity",
- "legalized-operations",
  "native-vocabulary",
  "optimization-core",
  "register-model",
@@ -2403,12 +2400,14 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "native-vocabulary",
+ "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
  "task-plans",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]

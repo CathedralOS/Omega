@@ -4,10 +4,6 @@ Structural contract, function metadata, and boundary settlement codecs for regis
 Once the recovery codec has decoded structural type declarations and call descriptors, it must assemble the complete function contract (`encode_contracts` / `decode_contracts`), structural signature (`encode_signature` / `decode_signature`), local storage and outgoing argument slots, memory access descriptors, and boundary settlements (`encode_boundary_settlement` / `decode_boundary_settlement`). Recovery preserves the full structural type catalog—including quotient representations, access views, placed input demands, and access lifecycles—because storage declarations alone cannot reconstruct view demands or lifecycle plans after register allocation.
 */
 
-use legalized_operations::{
-    LegalizedBoundarySettlement, LegalizedStructuralContract, NativeCallOrigin,
-    encode_provider_execution,
-};
 use native_vocabulary::completion_claims::CompletionClaimSource;
 use native_vocabulary::provenance::{EffectLink, OwnershipEvent};
 use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
@@ -28,6 +24,10 @@ use semantic_vocabulary::{
 };
 use target_vocabulary::{
     ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
+};
+use target_vocabulary::{
+    LegalizedBoundarySettlement, LegalizedStructuralContract, NativeCallOrigin,
+    encode_provider_execution,
 };
 use terminal_psi::{
     ClaimContentProjection, CompletionReceipt, ContentEntryClaim, StructuralReferenceOrigin,

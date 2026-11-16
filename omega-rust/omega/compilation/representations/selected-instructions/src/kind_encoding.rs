@@ -9,7 +9,7 @@
 */
 
 use crate::SelectedInstructionKind;
-use legalized_operations::encode_integer;
+use target_vocabulary::encode_integer;
 
 pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) {
     bytes.push(tag);

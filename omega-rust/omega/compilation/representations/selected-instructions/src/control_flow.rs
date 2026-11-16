@@ -33,7 +33,7 @@ pub struct SelectedFunctionContracts {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
     pub provenance: TerminalPsiProvenance,
-    pub structural: Option<legalized_operations::LegalizedStructuralContract>,
+    pub structural: Option<target_vocabulary::LegalizedStructuralContract>,
     pub local_storage_slots: Vec<super::SelectedLocalStorageSlot>,
     pub outgoing_arguments: Vec<super::SelectedOutgoingArgumentSlot>,
     pub calls: Vec<super::SelectedCallContract>,
@@ -263,7 +263,7 @@ pub struct SelectedSuccessor {
 pub struct SelectedStructuralBinding {
     pub semantic: native_vocabulary::values::AbstractStructuralBinding,
     pub transport: SelectedStructuralTransport,
-    pub source_indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
+    pub source_indices: Vec<target_vocabulary::LegalizedRuntimeIndexOperand>,
 }
 
 impl SelectedStructuralBinding {

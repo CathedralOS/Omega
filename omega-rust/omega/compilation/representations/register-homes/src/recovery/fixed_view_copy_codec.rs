@@ -17,7 +17,7 @@ before returning the unchecked plan.
 
 pub(super) use crate::codec_bytes::decode_list;
 pub(super) use crate::cursor::Cursor;
-pub(super) use legalized_operations::encode_work;
+pub(super) use target_vocabulary::encode_work;
 
 use ::selected_instructions::{
     LiveRangeIdentity, LiveRangePoint, LivenessPosition, SelectedBlockId, SelectedFunction,
