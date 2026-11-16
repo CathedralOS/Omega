@@ -1,5 +1,8 @@
+module domain::ledger;
 use domain::normalization;
+use domain::normalization::Variant;
 use domain::sequence;
+use domain::sequence::equal;
 // First-seen canonical ordering is stable. Equal rows merge provenance masks.
 // Different rows conflict when their closed reference intervals intersect.
 // This deliberately conservative synthetic conflict model includes insertions

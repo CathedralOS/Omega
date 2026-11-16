@@ -1,8 +1,12 @@
+module reporting::report;
 use terrain::model;
+use terrain::model::Terrain;
+use terrain::model::Contours;
 use terrain::stitch;
+use terrain::stitch::Paths;
 use omega_language_std::Console;
 use omega::language::core::narrow_u64_to_i32_wrapping;
-data Main {
+public data Main {
     input: [u8; 16];
     terrain: Terrain;
     graph: Contours;
@@ -15,7 +19,7 @@ machine number(value: i32 in Wrapping, context: &mut Main) reaches Console {
     Console::write_byte((value / 10 % 10 + 48) as i32);
     Console::write_byte((value % 10 + 48) as i32);
 }
-machine report(context: &mut Main) reaches Console {
+public machine report(context: &mut Main) reaches Console {
     Console::write("TOPO segments=");
     number(narrow_u64_to_i32_wrapping(context.graph.count) as i32 in Wrapping, context);
     Console::write(" paths=");

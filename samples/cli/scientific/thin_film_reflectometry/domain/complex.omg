@@ -1,3 +1,4 @@
+module domain::complex;
 // Generic scalar operations and nested calls use the canonical complex carrier.
 use omega::language::core::complex::Complex;
 

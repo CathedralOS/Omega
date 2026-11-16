@@ -1,4 +1,7 @@
+module chronology::solver;
 use chronology::model;
+use chronology::model::Chronology;
+use chronology::model::Reconciliation;
 // Immutable candidate storage keeps the three clock coordinates together.
 data Candidate { ticks: [i32; 3]; }
 // Exact finite-domain search, independent of the host-side product oracle.

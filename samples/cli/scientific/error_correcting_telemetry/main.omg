@@ -5,7 +5,14 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::widen_u8_to_i32;
 use codec::field;
+use codec::field::Frame;
+use codec::field::encode;
+use codec::field::location;
+use codec::field::syndrome_first;
+use codec::field::syndrome_second;
 use codec::decoder;
+use codec::decoder::Recovery;
+use codec::decoder::recover;
 
 data Main { input: [u8; 8]; }
 // Protocol: Eab LF or Dabcd LF. Digits 0..4 are F5 symbols; '_' is an erasure.

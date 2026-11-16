@@ -1,4 +1,7 @@
+module domain::statistics;
 use domain::tables;
+use domain::tables::Table;
+use domain::tables::Model;
 // Finite factorial table is a private arithmetic primitive, not an expected-result witness.
 machine factorial(value: u64 in Wrapping) -> u64 in Wrapping {
     transition value {

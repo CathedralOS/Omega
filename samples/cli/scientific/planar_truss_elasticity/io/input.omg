@@ -1,3 +1,4 @@
+module io::input;
 // EOF-terminated signed integers, |token| <= 1000000; at most 4095 bytes.
 use omega_language_std::ByteRead;
 use omega_language_std::Console;

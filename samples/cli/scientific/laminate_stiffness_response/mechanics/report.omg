@@ -1,3 +1,4 @@
+module mechanics::report;
 use omega::language::core::ProcessExit;
 // Signed fixed-point text: one numeric value per line in micro-units.
 use omega_language_std::Console;

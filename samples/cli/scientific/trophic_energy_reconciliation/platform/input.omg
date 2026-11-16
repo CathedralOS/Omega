@@ -1,3 +1,4 @@
+module platform::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 // Finite decimal tokens, 0..1000. -1 means malformed, missing, or oversized.

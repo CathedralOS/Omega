@@ -2,7 +2,12 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: emitted_W,ambient_W,net_W,emission_fraction
 use io::protocol;
+use io::protocol::Protocol;
+use io::protocol::read;
+use io::protocol::number;
 use model::planck;
+use model::planck::band;
+use model::planck::net_exitance;
 use omega_language_std::Console;
 use omega::language::core::is_finite;
 

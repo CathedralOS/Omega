@@ -1,3 +1,4 @@
+module domain::sequence;
 // Private bounded sequence storage. A,C,G,T use codes 1,2,3,4; zero is absent.
 // Accessors keep physical array bounds explicit even for rejected runtime inputs.
 public data Sequence [copy] {

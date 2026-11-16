@@ -8,9 +8,14 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::widen_u8_to_i32;
 use design::model;
+use design::model::Request;
+use design::model::Allocation;
 use design::search;
+use design::search::solve;
 use design::certificate;
+use design::certificate::certify;
 use design::output;
+use design::output::emit;
 
 data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {

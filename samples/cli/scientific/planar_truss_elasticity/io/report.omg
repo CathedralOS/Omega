@@ -1,3 +1,4 @@
+module io::report;
 use omega::language::core::ProcessExit;
 // Decimal output separates the integer part from twelve fractional digits.
 // This retains picounit resolution for small displacements without overflowing
@@ -5,6 +6,8 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use domain::model;
+use domain::model::Truss;
+use domain::model::Solution;
 public data Output { }
 public machine write_scaled(output: &mut Output, value: f64) reaches ProcessExit + Console invokes Console {
     transition value > -1000000000000.0 && value < 1000000000000.0 { true -> sign(output, value) false -> overflow(output) }

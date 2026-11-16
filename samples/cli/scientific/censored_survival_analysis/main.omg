@@ -3,9 +3,20 @@ use omega::language::core::ProcessExit;
 // Expected exit: 2.
 // Expected output contains: ERROR invalid input
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::model;
+use domain::model::Records;
+use domain::model::Table;
+use domain::model::Logrank;
 use domain::solver;
+use domain::solver::analyze;
 use domain::report;
+use domain::report::integer;
+use domain::report::report;
+use domain::report::logrank_report;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;

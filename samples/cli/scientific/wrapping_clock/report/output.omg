@@ -1,12 +1,14 @@
+module report::output;
 use omega_language_std::Console;
 use omega::language::core::narrow_i64_to_i32_trapping;
 use clock::model;
+use clock::model::Acquisition;
 
 // Runtime recursive call cycles must be tail-position calls. Decimal suffix
 // work therefore lives in explicit bounded scratch, not recursive activations.
 // At most 19 digits cover every accepted nonnegative i64 magnitude. Byte output
 // avoids inventing a Utf8 proof for a mutable text carrier.
-machine number(value: i64 in Wrapping) reaches Console
+public machine number(value: i64 in Wrapping) reaches Console
 crashes Trap
 {
     let mut digits: [i32 in Wrapping; 19];
@@ -50,7 +52,7 @@ crashes Trap
     machine invalid() { crash Trap; }
 }
 
-machine report(acquisition: &Acquisition) reaches Console
+public machine report(acquisition: &Acquisition) reaches Console
 crashes Trap
 {
     transition { _ -> row(acquisition, 0) }

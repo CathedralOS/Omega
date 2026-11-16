@@ -1,9 +1,10 @@
+module io::protocol;
 use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
-data Protocol {
+public data Protocol {
     fields: [i32; 9];
     position: i32 in Wrapping;
     length: i32 in Wrapping;
@@ -16,7 +17,7 @@ data Protocol {
 // Exactly nine bounded signed decimal integers separated by spaces or tabs.
 // LF or EOF completes the record. The parser stores no more than nine values,
 // reads at most 160 bytes, and rejects rather than wrapping decimal overflow.
-machine read(protocol: &mut Protocol) -> bool
+public machine read(protocol: &mut Protocol) -> bool
 reaches ProcessExit + Console
 blocks
 crashes Trap
@@ -143,7 +144,7 @@ crashes Trap
     machine rejected() -> bool { false }
 }
 
-machine integer(protocol: &mut Protocol, value: i32 in Wrapping)
+public machine integer(protocol: &mut Protocol, value: i32 in Wrapping)
 reaches ProcessExit + Console {
     transition value < 0 {
         true -> negative(protocol, value)
@@ -195,7 +196,7 @@ reaches ProcessExit + Console {
 
 // Nine significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
-machine number(protocol: &mut Protocol, value: f64)
+public machine number(protocol: &mut Protocol, value: f64)
 reaches ProcessExit + Console {
     transition value == 0.0 {
         true -> zero(protocol)

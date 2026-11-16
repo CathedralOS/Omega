@@ -1,6 +1,7 @@
+module clock::model;
 // Private bounded storage. Mathematical bounds are validated before arithmetic;
 // Wrapping declares the runtime policy, never permission to accept an overflow.
-data Acquisition {
+public data Acquisition {
     tokens: [i64 in Wrapping; 53];
     used: i64 in Wrapping;
     count: i64 in Wrapping;

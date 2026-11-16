@@ -1,3 +1,4 @@
+module domain::report;
 use omega_language_std::Console;
 
 // Emit decimal digits through the standard byte writer. No fabricated UTF-8

@@ -1,5 +1,7 @@
+module domain::report;
 use omega_language_std::Console;
 use domain::cycles;
+use domain::cycles::Audit;
 
 public data Report {}
 
@@ -12,7 +14,7 @@ machine number(number: u64 in Wrapping) reaches Console {
     Console::write_byte((number % 10 + 48) as i32);
 }
 
-machine write(audit: &mut Audit) reaches Console {
+public machine write(audit: &mut Audit) reaches Console {
     Console::write_line("range,half_units,damage_numerator,damage_denominator,cumulative_numerator");
     audit.index = 0;
     audit.current = 0;

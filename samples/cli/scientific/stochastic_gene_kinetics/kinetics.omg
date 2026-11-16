@@ -1,3 +1,4 @@
+module kinetics;
 // Direct-method continuous-time Markov chain. Both independent uniforms are
 // generated from the same explicit Park–Miller stream. The 64-bit product is
 // at most 36,089,477,735,730, well below u64 overflow.

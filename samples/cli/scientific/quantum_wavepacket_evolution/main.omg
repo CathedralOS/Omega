@@ -6,10 +6,23 @@ use omega::language::core::F64::from_i32;
 use omega::language::core::F64::square_root;
 use omega::language::core::I32::from_f64;
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::complex;
+use domain::complex::Complex;
+use domain::complex::subtract;
+use domain::complex::scale;
+use domain::complex::squared;
 use domain::model;
+use domain::model::Problem;
 use domain::evolve;
+use domain::evolve::factor;
+use domain::evolve::step;
 use domain::report;
+use domain::report::scaled;
+use domain::report::integer;
 data Main { reader: Reader; problem: Problem; }
 machine main(main: &mut Main) reaches ProcessExit + Console {
     let count: Number = block number(&mut main.reader);

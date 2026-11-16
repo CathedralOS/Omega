@@ -1,8 +1,12 @@
+module clearance::search;
 // Exhaust all 10^4 height words, independently testing each word's four spans.
 // A feasible word keeps every height inside its span's [floor, ceiling], limits
 // each hoist step to four units, and ends at the required height. The word code
 // orders profiles lexicographically; retain the first tied optimum.
 use clearance::model;
+use clearance::model::Plan;
+use clearance::model::Travel;
+use clearance::model::Certificate;
 
 // Each extracted digit is below ten; the guard before the Exact narrowing to
 // i32 authorizes the conversion, matching the route-event convention.

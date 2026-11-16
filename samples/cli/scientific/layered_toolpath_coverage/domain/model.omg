@@ -1,5 +1,6 @@
+module domain::model;
 // Integer unit-cell fabrication model; private storage, no numeric library.
-data Job {
+public data Job {
     mask: [i32; 256];
     covered: [i32; 256];
     width: i32 in Wrapping;

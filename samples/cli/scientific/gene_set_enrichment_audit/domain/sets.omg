@@ -1,3 +1,4 @@
+module domain::sets;
 // Ten synthetic IDs. Masks are private bounded set storage, not gene biology.
 use omega_language_std::ByteRead;
 use omega_language_std::Console;

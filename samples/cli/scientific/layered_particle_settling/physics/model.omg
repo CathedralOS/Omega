@@ -1,3 +1,4 @@
+module physics::model;
 
 // Nondimensional declared sample law: unit volume, unit gravitational acceleration.
 // Positive depth/velocity points downward. The layer is sampled at the start of

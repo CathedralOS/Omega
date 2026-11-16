@@ -1,3 +1,4 @@
+module domain::input;
 // Bounded ASCII decimal tokens, with optional scientific exponent.
 // Eighteen-digit mantissas accumulate in i64 before conversion to f64.
 // The byte budget includes separators and trailing whitespace. EOF is accepted

@@ -1,3 +1,4 @@
+module io::trace;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 
@@ -5,7 +6,7 @@ use omega::language::core::I64::from_f64;
 // external oracle requires absolute numerical error at most 1e-9.
 // Scan at most nineteen decimal places with state transfers. Only the final
 // remainder is negated, so even the minimum i64 value needs no magnitude cast.
-machine print_integer(value: i64) reaches Console {
+public machine print_integer(value: i64) reaches Console {
     transition value < 0 {
         true -> negative(value)
         false -> scan(value, 1000000000000000000, false)
@@ -51,7 +52,7 @@ machine print_integer(value: i64) reaches Console {
     }
     machine finished() { }
 }
-machine print_number(value: f64) reaches Console {
+public machine print_number(value: f64) reaches Console {
     let integer: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     Console::write(" ");
     print_integer(integer as i64);

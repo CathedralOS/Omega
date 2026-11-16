@@ -1,4 +1,7 @@
+module terrain::extract;
 use terrain::model;
+use terrain::model::Terrain;
+use terrain::model::Contours;
 machine append_segment(graph: &mut Contours, cell: u64, first: u64, second: u64) {
     transition graph.count < 8 && first < 12 && second < 12 {
         true -> store(graph, cell, first, second)
@@ -14,7 +17,7 @@ machine append_segment(graph: &mut Contours, cell: u64, first: u64, second: u64)
     }
     machine failed(graph: &mut Contours) { graph.valid = false; }
 }
-machine extract(terrain: &Terrain, graph: &mut Contours) {
+public machine extract(terrain: &Terrain, graph: &mut Contours) {
     graph.valid = true;
     graph.count = 0;
     graph.saddles = 0;

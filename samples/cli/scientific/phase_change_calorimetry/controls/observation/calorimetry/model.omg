@@ -1,3 +1,4 @@
+module calorimetry::model;
 // Specific enthalpy is zero at onset of melting. Both sensible phases
 // use the material's declared heat capacity. Temperature is continuous.
 use omega::language::core::F64::from_i32;

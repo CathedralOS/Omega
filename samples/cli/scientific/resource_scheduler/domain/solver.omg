@@ -1,4 +1,9 @@
+module domain::solver;
 use domain::model;
+use domain::model::Problem;
+use domain::model::Schedule;
+use domain::model::reset_schedule;
+use domain::model::predecessor;
 
 // Serial schedule generation enumerates all 4^n priority words, discarding
 // repetitions and orders that place a successor before its predecessors.
@@ -7,7 +12,7 @@ use domain::model;
 // for nonpreemptive tasks with renewable resources and finish/start precedence.
 // All limits (n<=4, duration<=5, horizon<=20) are checked by input::decode.
 // Enumerating priority words is private bounded storage, not a numerics service.
-machine solve(problem: &Problem, best: &mut Schedule) -> bool {
+public machine solve(problem: &Problem, best: &mut Schedule) -> bool {
     reset_schedule(best);
     transition problem.count == 0 {
         true -> empty(best)

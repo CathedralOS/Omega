@@ -1,5 +1,10 @@
+module domain::verify;
 use domain::model;
+use domain::model::Partition;
 use domain::geometry;
+use domain::geometry::absolute;
+use domain::geometry::distance;
+use domain::geometry::area;
 // Independent distance checks inspect all vertices and edge midpoints. Squared
 // distance is affine after subtracting two site distances, so a convex cell's
 // vertex checks also certify its entire interior within the stated tolerance.

@@ -1,3 +1,4 @@
+module domain::precision;
 // Double-double arithmetic retains low rounding residues. Integer distances
 // and cubic shell differences are exact in f64 throughout the wire envelope;
 // normalization uses a split reciprocal of pi and compensated division.

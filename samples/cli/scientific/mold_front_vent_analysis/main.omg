@@ -6,8 +6,15 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use model::fill;
+use model::fill::Cavity;
+use model::fill::valid;
+use model::fill::cavity_simulate;
+use model::fill::balanced;
+use model::fill::arrival_row_holds;
 use input::parse;
+use input::parse::parse_input;
 use report::output;
+use report::output::report;
 
 data Main { }
 
