@@ -43,6 +43,8 @@ use crate::{Unserved, refuse};
 pub(super) enum Access {
     /// Reads inside it: a field, an element, a payload, its case.
     Read,
+    /// Selects storage for a shared loan without copying its contents.
+    Borrow,
     /// Stores a complete value of the same type over it.
     Replace,
     /// Changes part of it: a store into a field or an element, or an
@@ -100,7 +102,9 @@ impl Program<'_> {
             // and are checked against actual storage before execution.
             if definition.access_unjudged() {
                 return unserved(match access {
-                    Access::Read => "read inside a value governed by an access policy",
+                    Access::Read | Access::Borrow => {
+                        "read inside a value governed by an access policy"
+                    }
                     Access::Replace => "replacement of a value governed by an access policy",
                     Access::Write => "write inside a value governed by an access policy",
                 });

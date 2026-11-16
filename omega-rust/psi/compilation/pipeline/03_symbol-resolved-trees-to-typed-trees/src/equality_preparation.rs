@@ -222,6 +222,20 @@ pub(crate) fn prepare(
         let own_synthesis = own_synthesis.flatten();
         let observed = |reference| {
             let Some(expected) = own_synthesis else {
+                // Equality observes the borrowed value, just as its ordinary
+                // shared-operand machine does. Retain the complete referent
+                // type, including qualifications; this supplies no read loan.
+                // The lowered-form checker still admits the actual read.
+                if let TypeReferenceNode::Reference {
+                    referee, access, ..
+                } = preparation
+                    .program
+                    .type_reference_table
+                    .type_reference(reference)
+                    && access.is_readable()
+                {
+                    return Ok(*referee);
+                }
                 return Ok(reference);
             };
             let TypeReferenceNode::Reference {
@@ -715,6 +729,26 @@ impl Preparation<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn borrowed_enum_comparison_observes_the_exact_referent() {
+        let source = "data Kind [copy] { case First; case Last; } machine shared(kind: &Kind) -> bool { kind == Kind::First } machine exclusive(kind: &mut Kind) -> bool { kind != Kind::Last }";
+        let checked =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)]);
+        assert!(checked.is_ok(), "{checked:?}");
+
+        let different = format!(
+            "{source} data Other [copy] {{ case First; }} machine different(kind: &Kind) -> bool {{ kind == Other::First }}"
+        );
+        let error = crate::qualified_operator_home_tests::checked_with_equality(&[(
+            "main.omg", &different,
+        )])
+        .unwrap_err();
+        assert!(
+            error.contains("operands are different data types"),
+            "{error}"
+        );
+    }
+
     #[test]
     fn an_authored_row_cannot_replace_missing_quotient_observer_evidence() {
         let source = "data Point [copy] { x: i32; } Equality satisfies Equatable<Point> { machine equals(left: &Point, right: &Point) -> bool { false } }";

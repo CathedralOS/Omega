@@ -11,6 +11,7 @@ pub mod descriptor_lifetimes {
 
     pub(crate) mod arrivals {
         use super::{DescriptorLocation, DescriptorPathSegment};
+        use crate::storage::borrowed_storage::Projection;
         use semantic_vocabulary::{PlaceId, ScalarTerm, StructuralTypeId};
         use terminal_psi::StructuralAccess;
 
@@ -99,6 +100,10 @@ pub mod descriptor_lifetimes {
             /// A weaker header starts a child borrow, not a second name for
             /// its parent's authority.
             pub source_access: StructuralAccess,
+            /// The actual descriptor and relative address captured before the
+            /// edge installs its parameter. Contents queries may erase selectors;
+            /// this projection retains their original formation coordinates.
+            pub captured_storage: Option<(DescriptorLocation, Projection)>,
         }
 
         impl DescriptorFlowBinding {
@@ -113,6 +118,7 @@ pub mod descriptor_lifetimes {
                     parameter,
                     access: parameter_access,
                     source_access: actual_access,
+                    captured_storage: None,
                 })
             }
 
@@ -14400,13 +14406,22 @@ pub mod descriptor_results {
                     &actual.path,
                 );
                 if actual.access != formal.access
-                    || (!selected.is_some_and(|selected| selected.id == formal.structural_type)
-                        && crate::borrowed_primitive_projection_declaration(
-                            module.structural_types.iter(),
-                            root_type,
-                            &actual.path,
-                            Some(formal.structural_type),
-                        ) != Some(formal.structural_type))
+                    || (!selected.is_some_and(|selected| {
+                        selected.id == formal.structural_type
+                            || crate::calls::const_array_argument_matches(
+                                module,
+                                machine,
+                                callee,
+                                arguments,
+                                selected.id,
+                                formal.structural_type,
+                            )
+                    }) && crate::borrowed_primitive_projection_declaration(
+                        module.structural_types.iter(),
+                        root_type,
+                        &actual.path,
+                        Some(formal.structural_type),
+                    ) != Some(formal.structural_type))
                 {
                     return None;
                 }
@@ -17170,6 +17185,19 @@ pub mod descriptor_results {
                             argument.access,
                             parameter.access,
                         )?;
+                        if binding.source.exact_location().is_none()
+                            && let Some(index) = argument
+                                .path
+                                .iter()
+                                .position(|step| step.runtime_index().is_some())
+                        {
+                            let descriptor =
+                                location(argument.place, &argument.path[..index], None)?;
+                            binding.captured_storage = Some((
+                                descriptor,
+                                Projection::new(&argument.path[index..]).at(position),
+                            ));
+                        }
                         binding.source_access = crate::structural_projection_authority(
                             machine,
                             &module.structural_types,

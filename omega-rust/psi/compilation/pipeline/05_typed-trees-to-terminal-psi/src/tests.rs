@@ -1072,6 +1072,86 @@ fn a_private_crash_outcome_does_not_replace_the_published_call_contract() {
     );
 }
 
+#[test]
+fn a_declared_crash_ceiling_is_kept_when_the_private_body_has_no_route() {
+    let published = routes(&[CrashCause::Trap]);
+    let declared = Signature {
+        crashes: CrashCeiling::Authored(published.clone()),
+        ..signature(Vec::new(), None)
+    };
+    let (machine, tables) = lower_with(
+        Body {
+            slots: Vec::new(),
+            statements: vec![returns(call(2, Vec::new(), None))],
+        },
+        vec![declared.clone(), declared],
+        vec![
+            Outcome {
+                crash_routes: published.clone(),
+                ..returns_normally()
+            },
+            returns_normally(),
+        ],
+    );
+    let operation = &block(&machine, 1).operations[0];
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &operation.kind
+    else {
+        panic!("the returning call stays an operation");
+    };
+    assert_eq!(crash_continuations, &published);
+    assert!(obligations(&tables).iter().any(|kind| matches!(kind,
+        ObligationKind::CrashCoverage { site: CrashSite::Operation(site), cause: CrashCause::Trap }
+            if *site == operation.id
+    )));
+}
+
+#[test]
+fn an_open_crash_ceiling_retains_the_inferred_body_route() {
+    let inferred = routes(&[CrashCause::Trap]);
+    let (machine, tables) = lower_with(
+        Body {
+            slots: Vec::new(),
+            statements: vec![returns(call(2, Vec::new(), None))],
+        },
+        vec![
+            Signature {
+                crashes: CrashCeiling::Authored(inferred.clone()),
+                ..signature(Vec::new(), None)
+            },
+            Signature {
+                crashes: CrashCeiling::Inferred,
+                ..signature(Vec::new(), None)
+            },
+        ],
+        vec![
+            Outcome {
+                crash_routes: inferred.clone(),
+                ..returns_normally()
+            },
+            Outcome {
+                crash_routes: inferred.clone(),
+                ..returns_normally()
+            },
+        ],
+    );
+    let operation = &block(&machine, 1).operations[0];
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &operation.kind
+    else {
+        panic!("the returning call stays an operation");
+    };
+    assert_eq!(crash_continuations, &inferred);
+    assert!(obligations(&tables).iter().any(|kind| matches!(kind,
+        ObligationKind::CrashCoverage { site: CrashSite::Operation(site), cause: CrashCause::Trap }
+            if *site == operation.id
+    )));
+}
+
 /// A call of a machine that may return and may crash stays an operation in
 /// the middle of its block. It carries the callee's routes with formals
 /// replaced by the actuals, and that operation, not the block, is the crash

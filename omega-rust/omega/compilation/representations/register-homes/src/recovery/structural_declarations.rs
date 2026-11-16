@@ -156,6 +156,11 @@ pub(super) fn encode_type(
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
             match length {
+                terminal_psi::ArrayExtent::Parameter { .. } => {
+                    return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
+                        "an array extent is still a rigid const input",
+                    ));
+                }
                 terminal_psi::ArrayExtent::Literal(length) => {
                     bytes.push(0);
                     crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());

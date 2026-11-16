@@ -585,6 +585,7 @@ pub(crate) mod type_predicates {
                 return Some((identity(left) == identity(right)) != negate);
             }
             match self.expression_table.expression(expression) {
+                ExpressionNode::Boolean(value) => Some(*value),
                 ExpressionNode::Binary(binary)
                     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
                 {

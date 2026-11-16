@@ -5,13 +5,14 @@
 use super::{Served, Stop, unserved};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::callable_signature_shapes::CallableShapeMismatch;
 use typed_trees::data::{
     TypeParameter, TypeParameterKind, type_parameter_demands_stronger_properties,
 };
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateSignature};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 /// What a binder-side declaration stands for while the callback is compared
 /// with the binder.
@@ -44,8 +45,7 @@ pub(super) fn satisfies_binder(
     };
     let required_parameters = program.state_signature_type_parameters(binder);
     let supplied_parameters = program.machine_callable_parameters(machine);
-    if !binder.lifetime_parameters.is_empty()
-        || !binder.conformance_bounds.is_empty()
+    if !binder.conformance_bounds.is_empty()
         || !binder.invokes.is_empty()
         || !binder.native_callback_parameters.is_empty()
         || required_parameters
@@ -57,7 +57,6 @@ pub(super) fn satisfies_binder(
         ));
     }
     if supplied_parameters.len() != required_parameters.len()
-        || !machine.lifetime_parameters.is_empty()
         || !machine.conformance_bounds.is_empty()
         || !supplied_parameters
             .iter()
@@ -94,23 +93,48 @@ pub(super) fn satisfies_binder(
             supplied.len()
         )));
     }
-    for (position, (required, supplied)) in required.iter().zip(supplied).enumerate() {
-        if !same_type(
-            program,
-            required.type_reference,
-            supplied.type_reference,
-            &map,
-        )? {
-            return Err(refuse(&format!(
+    let substitutions = map
+        .iter()
+        .filter_map(|(parameter, bound)| match bound {
+            Bound::Type(actual) => Some((*parameter, *actual)),
+            Bound::Parameter(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let corresponding_parameters = map
+        .iter()
+        .filter_map(|(parameter, bound)| match bound {
+            Bound::Parameter(supplied) => Some((*parameter, *supplied)),
+            Bound::Type(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let mismatches = program
+        .compare_callback_signature_types(
+            binder,
+            machine,
+            &substitutions,
+            &corresponding_parameters,
+        )
+        .map_err(unserved)?;
+    if let Some(mismatch) = mismatches.first() {
+        return Err(refuse(&match *mismatch {
+            CallableShapeMismatch::ParameterType { position } => format!(
                 "parameter {} `{}` does not have the type of the binder's `{}`",
                 position + 1,
-                supplied.name.as_str(),
-                required.name.as_str(),
-            )));
-        }
-    }
-    if !same_type(program, binder.return_type, entry.return_type, &map)? {
-        return Err(refuse("its result type is not the binder's"));
+                supplied[position].name.as_str(),
+                required[position].name.as_str(),
+            ),
+            CallableShapeMismatch::ParameterMode { position } => format!(
+                "parameter {} `{}` does not have the passing mode of the binder's `{}`",
+                position + 1,
+                supplied[position].name.as_str(),
+                required[position].name.as_str(),
+            ),
+            CallableShapeMismatch::ReturnType => "its result type is not the binder's".to_owned(),
+            CallableShapeMismatch::ParameterArity { .. }
+            | CallableShapeMismatch::GenericArity { .. } => {
+                "its parameter count is not the binder's".to_owned()
+            }
+        }));
     }
     let binder_contracts = program.state_signature_contracts(binder);
     if binder_contracts
@@ -128,7 +152,20 @@ pub(super) fn satisfies_binder(
         .collect::<Vec<_>>();
     if contracts.iter().any(|contract| {
         contract.kind == SignatureContractKind::Requires
-            && (required_parameters.is_empty() || !admits_types_only(program, contract))
+            && (!admits_types_only(program, contract)
+                || required_parameters.is_empty()
+                    && !program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .all(|fact| {
+                            let typed_trees::domain::ProofFact::Expression(expression) = fact
+                            else {
+                                return false;
+                            };
+                            program.applied_static_type_predicate_value(*expression, &substitutions)
+                                == Some(true)
+                        }))
     }) {
         return Err(refuse(
             "it declares a precondition on its inputs that the binder does not publish, so a caller of the binder could not establish it",
@@ -217,117 +254,129 @@ fn admits_types_only(
         })
 }
 
-/// Whether the binder's `required` type is the callback's `supplied` type,
-/// reading each binder-side parameter through `map`. Types that mention no
-/// mapped parameter compare by their normalized identity.
-fn same_type(
-    program: &TypedTrees,
-    required: TypeReferenceHandle,
-    supplied: TypeReferenceHandle,
-    map: &[(SymbolHandle, Bound)],
-) -> Served<bool> {
-    let table = &program.type_reference_table;
-    match (
-        table.type_reference(required),
-        table.type_reference(supplied),
-    ) {
-        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => Ok(true),
-        (
-            TypeReferenceNode::Reference {
-                referee: required,
-                access: required_access,
-                lifetime: required_lifetime,
-            },
-            TypeReferenceNode::Reference {
-                referee: supplied,
-                access: supplied_access,
-                lifetime: supplied_lifetime,
-            },
-        ) => {
-            if required_lifetime.is_some() || supplied_lifetime.is_some() {
-                return Err(unserved(
-                    "a callback parameter with a named lifetime is not compared yet",
-                ));
-            }
-            Ok(
-                required_access == supplied_access
-                    && same_type(program, *required, *supplied, map)?,
-            )
-        }
-        (TypeReferenceNode::Named { symbol, .. }, _)
-            if let Some((_, bound)) = map.iter().find(|(binder, _)| binder == symbol) =>
-        {
-            Ok(match *bound {
-                Bound::Parameter(parameter) => matches!(
-                    table.type_reference(supplied),
-                    TypeReferenceNode::Named { symbol, .. } if *symbol == parameter
-                ),
-                Bound::Type(actual) => {
-                    program.normalized_type_identity(actual)
-                        == program.normalized_type_identity(supplied)
-                }
-            })
-        }
-        (
-            TypeReferenceNode::Named { symbol: left, .. },
-            TypeReferenceNode::Named { symbol: right, .. },
-        ) => Ok(left == right),
-        _ => {
-            if mentions(program, required, map) || mentions(program, supplied, map) {
-                return Err(unserved(
-                    "a callback parameter of this shape is not compared yet",
-                ));
-            }
-            Ok(program.normalized_type_identity(required)
-                == program.normalized_type_identity(supplied))
-        }
-    }
-}
-
-/// Whether `reference` names a mapped binder-side parameter or the
-/// callback's own type parameter anywhere inside it.
-fn mentions(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    map: &[(SymbolHandle, Bound)],
-) -> bool {
-    let table = &program.type_reference_table;
-    let named = |symbol: SymbolHandle| {
-        map.iter().any(|(binder, bound)| {
-            *binder == symbol || matches!(bound, Bound::Parameter(own) if *own == symbol)
-        })
-    };
-    match table.type_reference(reference) {
-        // Callable clauses and signature types can name the mapped binder.
-        TypeReferenceNode::Callable { .. } => {
-            typed_trees::references::type_reference_inputs(program, reference)
-                .symbols
-                .into_iter()
-                .any(named)
-        }
-        TypeReferenceNode::Named { symbol, .. } => named(*symbol),
-        TypeReferenceNode::Reference { referee, .. } => mentions(program, *referee, map),
-        TypeReferenceNode::Constrained { base_type, .. } => mentions(program, *base_type, map),
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => mentions(program, *element_type, map),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } => {
-            named(*base_symbol)
-                || table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .any(|argument| mentions(program, *argument, map))
-        }
-        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use typed_trees::types::TypeReferenceNode;
+
+    #[test]
+    fn callback_binder_matches_named_outer_lifetimes_and_nested_type_arguments() {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::StateParameter;
+        use typed_trees::state::State;
+
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let callback = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("callback"));
+        let parameter = symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("T"));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let mut outer = Machine {
+            symbol: owner,
+            name: Identifier::from("owner"),
+            lifetime_parameters: vec![Identifier::from("input")],
+            ..Default::default()
+        };
+        program.push_machine_state(
+            &mut outer,
+            State {
+                symbol: owner,
+                return_type: unit,
+                ..Default::default()
+            },
+        );
+        program.push_machine(outer);
+        let named = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from("input")),
+            });
+        let elided = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let generic = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: parameter,
+                name: Identifier::from("T"),
+            });
+        let required_result = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice {
+                element_type: generic,
+            });
+        let actual_result = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice { element_type: unit });
+        let binder = StateSignature {
+            symbol: owner,
+            parameters: program.state_parameters.insert_many([StateParameter {
+                type_reference: named,
+                ..Default::default()
+            }]),
+            return_type: required_result,
+            ..Default::default()
+        };
+        let parameters = program.state_parameters.insert_many([StateParameter {
+            type_reference: elided,
+            ..Default::default()
+        }]);
+        let mut machine = Machine {
+            symbol: callback,
+            name: Identifier::from("callback"),
+            ..Default::default()
+        };
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: callback,
+                parameters,
+                return_type: actual_result,
+                ..Default::default()
+            },
+        );
+        program.push_machine(machine.clone());
+        assert!(
+            satisfies_binder(
+                &program,
+                &binder,
+                &machine,
+                "test",
+                &[(parameter, Bound::Type(unit))],
+                None
+            )
+            .is_ok()
+        );
+        let mut wrong = machine.clone();
+        let wrong_parameters = program.state_parameters.insert_many([StateParameter {
+            type_reference: elided,
+            is_mutable: true,
+            ..Default::default()
+        }]);
+        wrong.states = Default::default();
+        program.push_machine_state(
+            &mut wrong,
+            State {
+                symbol: callback,
+                parameters: wrong_parameters,
+                return_type: actual_result,
+                ..Default::default()
+            },
+        );
+        assert!(
+            matches!(satisfies_binder(&program, &binder, &wrong, "test", &[(parameter, Bound::Type(unit))], None), Err(Stop::Rejected(message)) if message.contains("passing mode"))
+        );
+    }
 
     #[test]
     fn finite_callback_copy_bounds_keep_exclusive_references_affine() {

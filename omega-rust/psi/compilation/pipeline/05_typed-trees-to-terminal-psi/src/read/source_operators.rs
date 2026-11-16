@@ -17,6 +17,33 @@ use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
 use crate::{Unserved, refuse};
 
 impl Program<'_> {
+    /// Complete only the static proposition this reader actually evaluated.
+    /// Folding its result must retain the operator questions of its operands,
+    /// including a guard whose known-false branch is never read as a value.
+    pub(super) fn read_static_truth(
+        &mut self,
+        machine: MachineId,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        reading: super::types::Reading,
+    ) -> Checked<Option<super::types::TypeTruth>> {
+        let (truth, operators) = self.type_truth_operators(expression, reading);
+        if !matches!(truth, Some(super::types::TypeTruth::Known(_))) {
+            return Ok(truth);
+        }
+        let boolean = self.operator_operand_reference(ValueType::plain(ScalarType::Boolean));
+        for operator in operators {
+            self.complete_operator(
+                machine,
+                owner,
+                operator.expression(),
+                &[boolean; 2],
+                operator.is_type_equation(),
+            )?;
+        }
+        Ok(truth)
+    }
+
     pub(super) fn complete_anonymous_operators(
         &mut self,
         machine: MachineId,
@@ -122,13 +149,29 @@ impl Program<'_> {
                 self.complete_builtin_operator(machine, owner, expression, &operands)
             }
             _ => {
-                let operands = match &value.kind {
+                // Inequality negates the same validated comparison. A case
+                // test has already resolved its case within the subject's
+                // exact sum, so both operands have that retained carrier.
+                let operation = match &value.kind {
+                    ExpressionKind::Not(inner)
+                        if matches!(
+                            self.typed.expression_table.expression(expression),
+                            ExpressionNode::Binary(binary)
+                                if binary.operator == typed_trees::expression::BinaryOperator::NotEqual
+                        ) =>
+                    {
+                        &inner.kind
+                    }
+                    operation => operation,
+                };
+                let operands = match operation {
                     ExpressionKind::Strict { left, right, .. }
                     | ExpressionKind::ShortCircuit { left, right, .. } => {
                         [left.result, right.result]
                     }
                     ExpressionKind::Index { base, index }
                     | ExpressionKind::ByteElement { base, index } => [base.result, index.result],
+                    ExpressionKind::IsCase { subject, .. } => [subject.result; 2],
                     _ => [None, None],
                 }
                 .map(|operand| {
@@ -159,6 +202,17 @@ impl Program<'_> {
         source_owner: SymbolHandle,
         expression: ExpressionHandle,
         operands: &[Option<TypeReferenceHandle>],
+    ) -> Checked<()> {
+        self.complete_operator(machine, source_owner, expression, operands, false)
+    }
+
+    fn complete_operator(
+        &mut self,
+        machine: MachineId,
+        source_owner: SymbolHandle,
+        expression: ExpressionHandle,
+        operands: &[Option<TypeReferenceHandle>],
+        type_equation: bool,
     ) -> Checked<()> {
         let typed = self.typed;
         let refuse = |detail: String| Refusal {
@@ -253,7 +307,11 @@ impl Program<'_> {
                 return Ok(());
             }
         }
+        // Type-role equality is exact normalized identity (generics.md,
+        // "Static type equality"). Value-operator declarations do not select
+        // it. Only the existing static evaluator supplies that receipt.
         if !suffixed
+            && !type_equation
             && let Some(spelling) = spelling
             && !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 typed, owner, expression, spelling, operands,

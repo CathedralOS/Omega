@@ -2867,7 +2867,9 @@ pub(crate) mod primitive_place {
                 (
                     StructuralPathSegment::FixedIndex(index),
                     StructuralTypeShape::FixedArray { element, length },
-                ) if length.literal().is_none_or(|length| *index < length) => {
+                ) if !matches!(length, terminal_psi::ArrayExtent::Parameter { .. })
+                    && length.literal().is_none_or(|length| *index < length) =>
+                {
                     step(
                         length
                             .literal()
@@ -2935,8 +2937,34 @@ pub(crate) mod primitive_place {
     pub enum RuntimeIndexGoalError {
         InvalidPath,
         OpenExtent,
+        MissingExtent,
         MissingSelector,
         UnsupportedSelector,
+    }
+
+    /// Find a live extent immediately before a projection. Only adjacent length
+    /// observations may intervene; no mutation can change the descriptor between
+    /// this measurement and the access whose bound it establishes.
+    pub fn preceding_element_view_length(
+        operations: &[terminal_psi::Operation],
+        root: semantic_vocabulary::PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<semantic_vocabulary::ValueId> {
+        for operation in operations.iter().rev() {
+            let terminal_psi::OperationKind::ElementViewLength { source } = &operation.kind else {
+                break;
+            };
+            if source.place == root
+                && crate::structural_paths_select_same_location(&source.path, path)
+            {
+                let result = operation.result.scalar_ref()?;
+                let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
+                return (source.access == StructuralAccess::SharedBorrow
+                    && result.scalar_type == count)
+                    .then_some(result.id);
+            }
+        }
+        None
     }
 
     /// Recover each bound from the array reached immediately before its index.
@@ -2948,12 +2976,16 @@ pub(crate) mod primitive_place {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         values: &impl crate::ValueTypes,
+        mut measured_extent: impl FnMut(
+            &[StructuralPathSegment],
+        ) -> Option<semantic_vocabulary::ValueId>,
         mut visit: impl FnMut(ObligationId, Proposition),
     ) -> Result<(), RuntimeIndexGoalError> {
         let Some(last_index) = path.iter().rposition(|step| step.runtime_index().is_some()) else {
             return Ok(());
         };
         let mut error = RuntimeIndexGoalError::InvalidPath;
+        let mut position = 0;
         let walked = walk_primitive_projection_with_lookup(
             (declarations, &declaration),
             root,
@@ -2961,26 +2993,96 @@ pub(crate) mod primitive_place {
             plain_scalar_field,
             |_| {},
             |owner, step| {
+                let prefix = &path[..position];
+                position += 1;
                 let Some((index, obligation)) = step.runtime_index() else {
                     return true;
                 };
                 let Some(array) = owner.and_then(&declaration) else {
                     return false;
                 };
-                let StructuralTypeShape::FixedArray {
-                    length: terminal_psi::ArrayExtent::Literal(extent),
-                    ..
-                } = array.shape
-                else {
-                    error = RuntimeIndexGoalError::OpenExtent;
-                    return false;
-                };
                 let Some(carrier) = values.value_type(index) else {
                     error = RuntimeIndexGoalError::MissingSelector;
                     return false;
                 };
-                let Some(goal) = super::static_path::runtime_index_bound(index, carrier, extent)
-                else {
+                let goal = match array.shape {
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Literal(extent),
+                        ..
+                    } => super::static_path::runtime_index_bound(index, carrier, extent),
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Parameter { value: length, .. },
+                        ..
+                    } => {
+                        let Some(length_type) = values.value_type(length) else {
+                            error = RuntimeIndexGoalError::MissingExtent;
+                            return false;
+                        };
+                        let Some(integer) =
+                            carrier.as_integer().filter(|integer| !integer.is_address())
+                        else {
+                            error = RuntimeIndexGoalError::UnsupportedSelector;
+                            return false;
+                        };
+                        let index_term = semantic_vocabulary::ScalarTerm::value(index, carrier);
+                        let length_term =
+                            semantic_vocabulary::ScalarTerm::value(length, length_type);
+                        let upper = if carrier == length_type {
+                            Proposition::LessThan(index_term.clone(), length_term)
+                        } else {
+                            let Some(left) =
+                                semantic_vocabulary::IntegerMathTerm::embed(index_term.clone())
+                            else {
+                                return false;
+                            };
+                            let Some(right) =
+                                semantic_vocabulary::IntegerMathTerm::embed(length_term)
+                            else {
+                                return false;
+                            };
+                            Proposition::IntegerMathLessThan(left, right)
+                        };
+                        Some(if integer.sign() == IntegerSign::Signed {
+                            Proposition::Conjunction(vec![
+                                Proposition::LessOrEqual(
+                                    semantic_vocabulary::ScalarTerm::integer(
+                                        integer,
+                                        semantic_vocabulary::IntegerValue::Signed(0),
+                                    )
+                                    .expect("zero fits an integer"),
+                                    index_term,
+                                ),
+                                upper,
+                            ])
+                        } else {
+                            upper
+                        })
+                    }
+                    StructuralTypeShape::ElementView { .. } => {
+                        let count = ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                        );
+                        let Some(length) = measured_extent(prefix) else {
+                            error = RuntimeIndexGoalError::MissingExtent;
+                            return false;
+                        };
+                        Some(length)
+                            .filter(|length| {
+                                carrier == count && values.value_type(*length) == Some(count)
+                            })
+                            .map(|length| {
+                                Proposition::LessThan(
+                                    semantic_vocabulary::ScalarTerm::value(index, count),
+                                    semantic_vocabulary::ScalarTerm::value(length, count),
+                                )
+                            })
+                    }
+                    _ => {
+                        error = RuntimeIndexGoalError::OpenExtent;
+                        return false;
+                    }
+                };
+                let Some(goal) = goal else {
                     error = RuntimeIndexGoalError::UnsupportedSelector;
                     return false;
                 };

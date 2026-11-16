@@ -286,7 +286,22 @@ fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<
                         argument,
                     )
                     .ok_or_else(|| unavailable("successor loan has no actual source authority"))?;
-                    if authority == parameter.access {
+                    // Equal access only continues the same permission while
+                    // the projection remains in its storage. Selecting an
+                    // element behind a descriptor creates a child loan even
+                    // when both parent and child are shared (or mutable).
+                    let root = machine
+                        .structural_place_type(argument.place)
+                        .ok_or_else(|| {
+                            unavailable("successor loan has no original storage declaration")
+                        })?;
+                    if authority == parameter.access
+                        && terminal_semantics::projection_stays_in_inline_storage(
+                            elaboration.module.structural_types.iter(),
+                            root,
+                            &argument.path,
+                        )
+                    {
                         continue;
                     }
                     let lender = if authority == StructuralAccess::Owned {
@@ -567,16 +582,12 @@ fn publish_parents(
                     {
                         continue;
                     }
-                    let parent =
-                        terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
-                            root, &segments,
-                        )
-                        .ok_or_else(|| {
-                            unavailable(
-                                machine.id,
-                                "borrowed header parent has no exact descriptor path",
-                            )
-                        })?;
+                    // The header carries the parent permission. The child
+                    // still borrows its complete captured path, including any
+                    // runtime index; that suffix does not name the parent's
+                    // descriptor. The independent loan checker reconstructs
+                    // this same header origin in `source_lender`.
+                    let parent = DescriptorLocation::whole(root);
                     *children
                         .get_mut(id)
                         .ok_or_else(|| unavailable(machine.id, "parent child row disappeared"))? =
