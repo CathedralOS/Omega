@@ -202,7 +202,7 @@ fn classify_scalar_leaves(
         return Ok(ValueClass::Integer);
     }
     if let Some(members) = homogeneous_float_leaves(leaves, referent) {
-        if policy == CallingPolicy::Aapcs64
+        if policy.is_aapcs64()
             || (policy == CallingPolicy::SystemVAMD64 && members > 1 && referent.byte_size <= 16)
         {
             return Ok(ValueClass::HomogeneousFloatAggregate { members });

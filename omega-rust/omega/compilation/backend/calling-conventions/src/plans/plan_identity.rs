@@ -75,6 +75,7 @@ impl Fnv1a {
             CallingPolicy::Aapcs64 => 2,
             CallingPolicy::LinuxSyscallX86_64 => 3,
             CallingPolicy::LinuxSyscallAarch64 => 4,
+            CallingPolicy::DarwinAapcs64 => 5,
         });
         self.u16(plan.stack_alignment);
         self.u16(plan.shadow_bytes);

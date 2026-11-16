@@ -34,6 +34,7 @@ pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
         CallingPolicy::Aapcs64 => 3,
         CallingPolicy::LinuxSyscallX86_64 => 4,
         CallingPolicy::LinuxSyscallAarch64 => 5,
+        CallingPolicy::DarwinAapcs64 => 6,
     });
     encode_len(bytes, plan.parameters.len());
     for placement in &plan.parameters {

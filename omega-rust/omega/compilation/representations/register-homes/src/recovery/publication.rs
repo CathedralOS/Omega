@@ -17,8 +17,8 @@ pub(super) fn decode(cursor: &mut Cursor<'_>) -> Result<NativePublicationFacts, 
             "publication facts have another wire domain",
         ));
     }
-    // Machine ID, operation count, site count and literal count.
-    let functions = decode_rows(cursor, 28, |cursor| {
+    // Machine ID, operation count, site/literal/call counts.
+    let functions = decode_rows(cursor, 36, |cursor| {
         let machine = decode_id(cursor, MachineId::new)?;
         let operation_count = cursor.u32()?;
         // A site tag, semantic ID and original operation ordinal.
@@ -46,11 +46,18 @@ pub(super) fn decode(cursor: &mut Cursor<'_>) -> Result<NativePublicationFacts, 
                 bytes,
             })
         })?;
+        let call_targets = decode_rows(cursor, 17, |cursor| {
+            Ok((
+                decode_id(cursor, OperationId::new)?,
+                super::structural_calls::decode_native_call_target(cursor)?,
+            ))
+        })?;
         Ok(NativeFunctionPublication {
             machine,
             operation_count,
             sites,
             byte_literals,
+            call_targets,
         })
     })?;
     let dynamic_length = cursor.length()?;
@@ -85,11 +92,19 @@ mod tests {
         let operation = OperationId::new(7).unwrap();
         NativePublicationFacts::seal(
             vec![NativeFunctionPublication {
+                call_targets: vec![(
+                    OperationId::new(8).unwrap(),
+                    target_vocabulary::NativeCallTarget::Callable {
+                        callee: semantic_vocabulary::ValueId::new(10).unwrap(),
+                        contract: semantic_vocabulary::CallableContractId::new(11).unwrap(),
+                    },
+                )],
                 machine: MachineId::new(3).unwrap(),
-                operation_count: 2,
+                operation_count: 3,
                 sites: vec![
                     (PsiProvenance::Operation(operation), 0),
-                    (PsiProvenance::Edge(EdgeId::new(9).unwrap()), 1),
+                    (PsiProvenance::Operation(OperationId::new(8).unwrap()), 1),
+                    (PsiProvenance::Edge(EdgeId::new(9).unwrap()), 2),
                 ],
                 byte_literals: vec![NativeByteLiteral {
                     operation,

@@ -15,7 +15,6 @@ unchanged.
 
 use std::sync::Arc;
 
-use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use machine_code::{
     FramedMachineProgram, ResolvedMachineLayout, ResolvedSelectedFormLayoutIdentity,
     SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy, TargetFrameLayoutIdentity,
@@ -154,10 +153,11 @@ impl ValidatedFunctionRelativeOptimizationRealizationManifest {
 
 /// Original artifacts are retained only for explicitly requested independent
 /// replay. Ordinary publication reads the current resolved form and receipts.
+/// Stage 02's output is not among them: the object audits that compare with
+/// it keep it beside the emitted object instead.
 #[derive(Debug)]
 pub struct FunctionRealizationReplay {
     pub allocation: RetainedAllocation,
-    pub target_input: Arc<ValidatedOptimizedTargetOperations>,
     pub machine: StagedOptimizedPostAllocationMachinePlan,
     pub encoding: StagedOptimizedSelectedFormEncoding,
     pub baseline_layout: StagedOptimizedResolvedSelectedFormLayout,

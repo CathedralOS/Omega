@@ -45,7 +45,8 @@ fn ranking_defaults_follow_typed_carriers_and_selected_length() {
         machine length(items: &[u8]) terminates by items.len {}
         machine field(counter: &Counter) terminates by counter.len {}
         machine explicit(n: i32) terminates by n -> Nat::Descending {}
-        machine distance(index: u64, limit: u64) terminates by (index, limit) {}
+        machine pair(index: u64, limit: u64) terminates by (index, limit) {}
+        machine distance(index: u64, limit: u64) terminates by (index, limit) -> Nat::BoundedDistance {}
         "#,
     );
     for (name, expected) in [
@@ -53,7 +54,8 @@ fn ranking_defaults_follow_typed_carriers_and_selected_length() {
         ("slice", RankingViewId::SLICE_LENGTH),
         ("length", RankingViewId::NAT_DESCENDING),
         ("explicit", RankingViewId::NULL),
-        ("distance", RankingViewId::NAT_BOUNDED_DISTANCE),
+        ("distance", RankingViewId::NULL),
+        ("pair", RankingViewId::NULL),
         ("signed", RankingViewId::NULL),
         ("field", RankingViewId::NULL),
     ] {
@@ -63,6 +65,8 @@ fn ranking_defaults_follow_typed_carriers_and_selected_length() {
             witness.view_path,
             if name == "explicit" {
                 "Nat::Descending"
+            } else if name == "distance" {
+                "Nat::BoundedDistance"
             } else {
                 expected.canonical_path().unwrap_or_default()
             },

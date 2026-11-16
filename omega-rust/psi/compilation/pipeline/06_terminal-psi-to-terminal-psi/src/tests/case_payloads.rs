@@ -304,8 +304,52 @@ fn execute_owned_store(source: &str) {
                 terminal_interpreter::TerminalExecutionResult::Unit
             )
         ),
-        "the stored payload must retain seven: {status:?}"
+        "the program must complete without reaching its trap: {status:?}"
     );
+}
+
+/// A match arm reads its payload `s.n` with a call `arm` beside it. The
+/// entry traps unless the arm yields 1, the payload the dispatch saw.
+fn arm_read(arm: &str) -> String {
+    format!(
+        r#"
+data Slot {{ case Full(n: u32); case Empty; }}
+machine peek(held: &mut Slot) -> u32 {{ 0 }}
+machine refill(held: &mut Slot) -> u32 {{
+    held = Slot::Full {{ n: 9 }};
+    0
+}}
+machine build_entry() crashes Trap {{
+    let mut s: Slot = Slot::Full {{ n: 1 }};
+    let got: u32 = match s {{
+        Slot::Full {{ .. }} -> {arm},
+        Slot::Empty -> 0
+    }};
+    transition got == 1 {{
+        true -> done()
+        false -> bad()
+    }}
+    machine done() {{ }}
+    machine bad() {{ crash Trap; }}
+}}
+"#
+    )
+}
+
+/// Inside an arm, `s.n` is the payload the dispatch selected only until a
+/// write or exclusive loan may change `s`. After `refill` replaces `s`, the
+/// arm reads `s` again (structural_access.md: "A read is not equality with
+/// the initializer or a previous read: intervening stores and calls can
+/// change storage"), and nothing establishes the case there. Lowering used
+/// to return the dispatch-time 1 here, in Psi and natively, instead of 9.
+#[test]
+fn a_payload_read_after_the_subject_is_lent_exclusively_reads_the_subject_again() {
+    assert_eq!(verdict(&arm_read("refill(&mut s) + s.n")), NO_CASE);
+    // A helper that writes nothing leaves the case established, so the
+    // fresh read is accepted and still sees 1.
+    execute_owned_store(&arm_read("peek(&mut s) + s.n"));
+    // A read before the loan is the dispatch-time payload.
+    execute_owned_store(&arm_read("s.n + refill(&mut s)"));
 }
 
 #[test]

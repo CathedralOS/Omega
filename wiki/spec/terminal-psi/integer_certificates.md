@@ -109,7 +109,7 @@ names the goals every checker must find such proofs for.
 | `IntegerMathOrderTranslation` | From mathematical `a <= b`, conclude exactly `a + t <= b + t` for one well-formed mathematical integer term `t`. The child remains independently checked, all embedded value identities and carriers remain scoped, and no finite arithmetic or overflow authority is introduced. Strict premises are outside this certificate rule. |
 | `IntegerOrderAntisymmetry` | From independently proved `a <= b` and `b <= a`, conclude `a == b`. Both endpoints retain the same fixed non-address integer carrier and exact identities; strict, missing, or mismatched premises reject. |
 | `IntegerStrictOrderTransitivity` | Compose `a < b` with `b <= c`, `a <= b` with `b < c`, or two strict orders to conclude `a < c`. The shared middle and ordered endpoints are exact. Both children and conclusion use the same scalar integer type, including carrier, signedness, and width, or all use mathematical integers; no mixed domains or IEEE relations. |
-| `IntegerOrderDiscreteness` | Three forms. Outward: replace one literal endpoint of fixed-integer `<=` with its immediate outward neighbor to obtain `<`, such as `1 <= length` to `0 < length`. Inward: replace one literal endpoint of fixed-integer `<` with its immediate inward neighbor to obtain `<=`, such as `length < 8` to `length <= 7`. Both check adjacency inside the shared carrier; no wrap or address carrier. Open: from `a < b`, mathematical or a fixed-integer relation read mathematically, conclude mathematical `a + 1 <= b` with the same `a` and `b`; no literal or carrier check is needed because mathematical integers are unbounded. Only the outward form currently has a mathematical-core derivation. |
+| `IntegerOrderDiscreteness` | Three forms. Outward: replace one literal endpoint of fixed-integer `<=` with its immediate outward neighbor to obtain `<`, such as `1 <= length` to `0 < length`. Inward: replace one literal endpoint of fixed-integer `<` with its immediate inward neighbor to obtain `<=`, such as `length < 8` to `length <= 7`. Both check adjacency inside the shared carrier; no wrap or address carrier. Open: from `a < b`, mathematical or a fixed-integer relation read mathematically, conclude mathematical `a + 1 <= b` with the same `a` and `b`; no literal or carrier check is needed because mathematical integers are unbounded. Only the outward form has a mathematical-core derivation; the core judges the inward and open forms as named rule instances. |
 | `IntegerCarrierBound` | Exactly `MIN <= value` or `value <= MAX` for a declared fixed-integer SSA value of the matching signed width. Its mathematical form bounds `MathValue` by the exact retained carrier endpoints, including an address model's width; it grants no conversion or storage authority. For an address model's `MathValue` it also accepts the strict upper bound `value < R` when `R` normalizes to exactly `MAX + 1`, such as `value < 2^64` for a 64-bit address; `R` may be compound or open if its ring normalization equals that constant. No other strict, compound, or narrower bound. |
 | `IntegerSubtractOrder` | From exact fixed-integer `result = original - decrement` and `0 < decrement`, conclude `result < original`. Match all operand identities/types; wrapping subtraction and nonstrict positivity do not qualify. |
 | `IntegerAddOrder` | From exact fixed-integer `result = original + increment` and `0 < increment`, conclude `original < result`. Match all operand identities/types; wrapping or saturating addition and nonstrict positivity do not qualify. |
@@ -165,6 +165,16 @@ carrier/operand identity, count bounds, and endpoint arithmetic. Zero divisors,
 signed exceptional division, mixed carriers, non-landed runtime counts,
 negative/out-of-width counts, stale/reordered definitions, and target drift reject.
 Checked arithmetic failure is rejection, not wrapped witness arithmetic.
+
+The checker also replays a same-carrier bitwise and/or step whose other
+operand is a literal, embedded or fixed by a cited landing. `x & m` with a
+literal `m >= 0` has the image `0..=m` whatever `x` is, so a `Truth` child
+suffices. `x | c` with a literal `c >= 0` keeps the lower endpoint, and its
+upper endpoint is the smallest all-ones value covering both the root's
+nonnegative upper endpoint and `c` (`-1` when that endpoint is negative); it
+needs a real root bound. A negative literal operand rejects. An operand that
+no literal or landing fixes rejects, even when an earlier axiom bounds it:
+the step must not use an axiom its witness does not cite.
 
 Unsigned wrapping remainder also admits the nonzero-divisor remainder step.
 Its upper endpoint intersects the proved dividend upper bound with `divisor - 1`;

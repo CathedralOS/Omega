@@ -455,6 +455,7 @@ pub(crate) mod optimized {
             &callable_invocations,
             lowering_facts.installed_interrupts(),
             &types,
+            optimized.pre_physical_manifest().identity,
         )
         .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }

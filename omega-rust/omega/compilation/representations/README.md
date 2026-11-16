@@ -78,12 +78,15 @@ type; the folder is not one IR:
 | Framed machine program | [`FramedMachineProgram`](machine-code/src/layout.rs): current physical instructions and function contracts with concrete frame coordinates and protocol. [Backend machine emission](../backend/machine-emission/src/function_realization.rs) computes it from one current physical program; Omega 07 reads it. |
 | Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [Omega 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
 | Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [Omega 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs), adds exact layout rows. [Omega 09](../pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) rewrites that layout in the same current form. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
-| Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. |
+| Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. Fragment emission reads the resolved form plus [`EmissionFacts`](../backend/machine-emission/src/emission_facts.rs), which the [native driver](../native-compiler/src/pipeline.rs) copies out of Omega 02's output: the admitted lowering facts and the optimized abstract program with its projection identities. Callable reach and the pre-physical root come from the current form's execution contracts. |
 
 [`ResolvedMachineProgram`](machine-code/src/layout.rs)
 holds current physical instruction/contract, encoding, layout and frame
 columns that fragment emission shares. It contains neither earlier program
-containers nor a chain of producer-stage objects.
+containers nor a chain of producer-stage objects. Neither does emission:
+Omega 02's output and the original allocation, encoding and layout inputs
+reach the object only when a validator request retains them for
+`TargetOperationCorrespondence` or `FixedFrameCorrespondence`.
 
 ## Supporting data belongs with its domain
 

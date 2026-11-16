@@ -246,84 +246,26 @@ fn windows_canonicalize_receiver() {
     eprintln!("windows filesystem receiver policy: {receiver_identity:?}");
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     eprintln!("Windows receiver: preparing restricted native admission");
-    let prepare = |receiver| {
-        let mut prepared_native = native_compiler::prepare(
-            &retained,
-            native_compiler::NativeCompileRequest {
-                retain_native_stage_inputs: false,
-                private_entry_ram: &[],
-                installation_assumptions: &[],
-                optimization_selections: &optimizations,
-                terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
-                accepted_package_terminal_authority_permission_policy: package_policy.clone(),
-                terminal_authority_permission_policy: Some(receiver),
-                image_request: image_emission::ExecutableImageEmissionRequest::direct(
-                    proposal.application().subsystem,
-                ),
-                imports: &[],
-                components: &[],
-            },
-        )
-        .unwrap_or_else(|(_, diagnostics)| {
-            panic!("{FIXTURE} receiver preparation: {diagnostics:#?}")
-        });
-        let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
-        for completion in prepared_native.scalar_completions() {
-            let artifact = completion.artifact();
-            let completed = build_time_evaluation::complete_scalar_applications(
-                artifact,
-                completion.target(),
-                None,
-                completion.demand(),
-                None,
-                &mut accounting,
-                |scope| {
-                    let scope = scope.ok_or("native completion requires its deployment")?;
-                    let proposal = completion
-                        .provider_proposals()
-                        .iter()
-                        .find(|proposal| proposal.target == scope)
-                        .ok_or_else(|| format!("missing {scope} provider proposal"))?;
-                    let providers = proposal
-                        .selection
-                        .as_ref()
-                        .map_err(|reasons| reasons.join("; "))?
-                        .admit(artifact.view(), scope)?;
-                    let profile = target::TargetProfile::from_canonical_target_name(scope)
-                        .map_err(|diagnostic| diagnostic.message)?;
-                    Ok(build_time_evaluation::ScalarScopeEvaluation {
-                        application_roots: None,
-                        import_realizations: None,
-                        layout_target: Some(
-                            profile.layout_target_facts().ok_or(
-                                "scalar evaluation target has no immutable layout catalogue",
-                            )?,
-                        ),
-                        carrier_layout: profile
-                            .native_realization()
-                            .map(runtime_abi::target_carrier_layout),
-                        targets: Some(terminal_installation::terminal_target_context(
-                            artifact.view(),
-                            scope,
-                        )),
-                        providers,
-                        address_model: Ok(target::TargetSemantics::close_address_model(profile)
-                            .map(|model| terminal_installation::ScalarAddressModel {
-                                target: scope.to_owned(),
-                                carrier: model.carrier(),
-                                semantics_version: model.semantics_version(),
-                                commitment: model.commitment(),
-                            })),
-                    })
-                },
-            )
-            .expect("scalar completion");
-            completion.complete(completed).expect("one completion");
-        }
-        prepared_native
+    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
+        .expect("scalar completion");
+    let request = |receiver| native_compiler::NativeCompileRequest {
+        retain_native_stage_inputs: false,
+        private_entry_ram: &[],
+        installation_assumptions: &[],
+        optimization_selections: &optimizations,
+        terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
+        accepted_package_terminal_authority_permission_policy: package_policy.clone(),
+        terminal_authority_permission_policy: Some(receiver),
+        image_request: image_emission::ExecutableImageEmissionRequest::direct(
+            proposal.application().subsystem,
+        ),
+        imports: &[],
+        components: &[],
+        scalars: scalars.as_ref(),
     };
     eprintln!("Windows receiver: checking the restricted receiver policy");
-    let product = native_compiler::compile(prepare(receiver))
+    let product = native_compiler::compile(&retained, request(receiver))
         .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
 
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
@@ -341,7 +283,7 @@ fn windows_canonicalize_receiver() {
     // Reuse the same accepted retained Terminal input. Runtime admission shares
     // the provider/receiver review and stops before image production; this is
     // a policy refusal control, not a second source review or runtime claim.
-    let refusal = match native_compiler::admit_runtime(prepare(filesystem_only)) {
+    let refusal = match native_compiler::admit_runtime(&retained, request(filesystem_only)) {
         Err((_, diagnostics)) => diagnostics,
         Ok(_) => panic!("filesystem-only input must refuse console-capable WriteFile"),
     };

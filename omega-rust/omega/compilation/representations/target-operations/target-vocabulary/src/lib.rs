@@ -94,6 +94,8 @@ pub use scalar_operands::{
 pub mod function_abi;
 pub use function_abi::LegalizedFunctionAbi;
 pub mod code_catalogs;
+pub mod execution_facts;
+pub use execution_facts::{NativeExecutionFacts, NativeExecutionFactsError, NativeExecutionRoots};
 pub mod publication;
 pub use code_catalogs::NativeCodeCatalogs;
 pub(crate) use optimization_core::codec_bytes;
