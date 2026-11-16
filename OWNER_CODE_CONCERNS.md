@@ -272,13 +272,6 @@ framework or a list of unimplemented features.
 - Cost: Scripts reading `$?` cannot tell a compiler bug from a rejected program. Add `InternalFailure` (exit 3), classify compiler-invariant errors as it, and exit with it.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/compiler_request.md
 
-### `omega packages audit --help` documents exit 2 for invalid arguments; the code exits 64
-- Category: The documents disagree
-- Where: [audit usage text](omega-rust/omega/application/src/arguments/audit.rs#L13), [parse errors exit 64](omega-rust/omega/application/src/main.rs#L62), [bad adapter exits 64](omega-rust/omega/application/src/commands/packages.rs#L125)
-- Saw: The usage text promises "2: invalid arguments". Every parse error exits with `USAGE_ERROR_EXIT` (64), as does a bad adapter, and the comment in `arguments/mod.rs` explains that 2 is the compiler request contract's `Incomplete` status. `omega packages audit --bogus; echo $?` prints 64.
-- Cost: A script written from `--help` never sees its argument errors. Change the help text to 64, or state the audit statuses in command_line.md.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
-
 ### `x == S::C` on a payload-bearing sum becomes a bare tag test when Psi 03 cannot type `x`
 - Category: One idea, several implementations
 - Where: [untyped comparison left in place](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_preparation.rs#L217), [no type for a receiver call](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L1425), [read as a case test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L500), [case test without payload check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L1412)
