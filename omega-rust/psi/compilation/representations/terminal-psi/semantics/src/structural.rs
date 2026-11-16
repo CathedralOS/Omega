@@ -317,7 +317,7 @@ pub(crate) mod inline_carriers {
                 (pure, true, true),
                 (complete_truth, true, true),
                 (primitive_theory, true, true),
-                (incomplete, false, true),
+                (incomplete, false, false),
                 (extra, false, false),
                 (governed, false, true),
             ] {

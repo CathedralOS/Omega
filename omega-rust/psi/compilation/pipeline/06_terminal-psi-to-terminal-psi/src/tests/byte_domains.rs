@@ -64,12 +64,59 @@ machine build_entry() {{
     )
 }
 
+fn judge_portable_byte_build(source: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of("machine product_entry() { }", source);
+    let entries = [symbol(&typed, "build_entry")];
+    let subjects = [Some(package())];
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        roster(&entries, &subjects, source::DependencyScope::Build),
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let mut verdicts = crate::judge_compilation(prepared.program);
+    assert_eq!(
+        verdicts.len(),
+        1,
+        "the requested build_entry compilation returned these complete verdicts: {verdicts:#?}",
+    );
+    verdicts.remove(0)
+}
+
 const NOT_IN_DOMAIN: &str = "a byte transfer's source does not establish its primitive \
                              byte-domain qualifications";
 
 #[test]
 fn valid_text_is_stored_and_invalid_bytes_are_rejected() {
     assert_eq!(verdict(&rejection("valid_utf8", "no plan")), "accepted");
+    let accepted = match judge_portable_byte_build(&rejection("valid_utf8", "no plan")) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the same literal must form a portable checked program: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    terminal_codec::decode_module(&terminal_codec::encode_module(module).unwrap())
+        .expect("the complete primitive theory crosses the actual receiving boundary");
+    let mut incomplete = module.clone();
+    incomplete
+        .structural_domains
+        .iter_mut()
+        .find(|domain| domain.byte_predicate == Some(ByteSequencePredicate::ValidUtf8))
+        .expect("the literal retains its exact primitive domain")
+        .complete_predicate_theory = false;
+    let refused = terminal_semantics::structural_qualifications::validate_shape(&incomplete)
+        .expect_err("known bytes cannot complete an unavailable domain theory");
+    assert!(
+        refused.detail.contains("complete primitive byte domain"),
+        "{refused:?}"
+    );
+    let refused =
+        terminal_codec::decode_module(&terminal_codec::encode_module(&incomplete).unwrap())
+            .expect_err("receiving must reject the same incomplete establishment");
+    assert!(
+        format!("{refused:?}").contains("complete primitive byte domain"),
+        "{refused:?}"
+    );
+    accepted.publish().unwrap();
     assert_eq!(
         verdict(&rejection("valid_utf8", r"no \xff plan")),
         NOT_IN_DOMAIN
@@ -215,24 +262,6 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
 
 #[test]
 fn byte_domain_membership_survives_locals_formals_and_call_results() {
-    fn judged(source: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
-        use super::build_purpose::{frontier_of, package, roster, symbol};
-        let typed = frontier_of("machine product_entry() { }", source);
-        let entries = [symbol(&typed, "build_entry")];
-        let subjects = [Some(package())];
-        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
-            &typed,
-            roster(&entries, &subjects, source::DependencyScope::Build),
-            terminal_codec::TerminalPublication::Portable,
-        );
-        let mut verdicts = crate::judge_compilation(prepared.program);
-        assert_eq!(
-            verdicts.len(),
-            1,
-            "the requested build_entry compilation returned these complete verdicts: {verdicts:#?}",
-        );
-        verdicts.remove(0)
-    }
     let source = r#"
 domain [u8]::Text requires no_nul(self);
 data Choice { case First; case Second; }
@@ -249,7 +278,7 @@ machine build_entry() {
     take(returned);
 }
 "#;
-    let accepted = match judged(source) {
+    let accepted = match judge_portable_byte_build(source) {
         Ok(RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("the declared membership must cross the actual call: {other:?}"),
     };
@@ -346,7 +375,7 @@ machine build_entry() {
     accepted.publish().unwrap();
 
     let invalid = source.replace("\"plain\"", r#""pla\x00in""#);
-    match judged(&invalid) {
+    match judge_portable_byte_build(&invalid) {
         Ok(RouteVerdict::Rejected {
             violations,
             unestablished,

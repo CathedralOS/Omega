@@ -359,6 +359,9 @@ pub(crate) mod byte_sequence_predicates {
     pub(crate) fn primitive_byte_domain_theory_matches(
         domain: &terminal_psi::StructuralDomainDeclaration,
     ) -> bool {
+        if !domain.complete_predicate_theory {
+            return false;
+        }
         let Some(primitive) = domain.byte_predicate else {
             return false;
         };
