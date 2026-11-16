@@ -178,8 +178,11 @@ impl DirectBoundaryLeaf {
         let terminal_requirement = declaration.identities.intern(identity);
         declaration.trait_name = terminal_requirement;
         self.plan.rows[0].requirement_identity = self.plan.identities.intern(identity);
-        self.plan.rows[0].declared_requirement_identity = self.plan.rows[0].requirement_identity;
-        declaration.methods[0].requirement_identity = terminal_requirement;
+        if self.plan.rows[0].calling_signature.is_none() {
+            self.plan.rows[0].declared_requirement_identity =
+                self.plan.rows[0].requirement_identity;
+            declaration.methods[0].requirement_identity = terminal_requirement;
+        }
         if let DirectBoundaryExecution::Foreign(Ok(binding)) = &mut self.execution {
             binding.trait_name = identity.to_owned();
             binding.requirement_identity = identity.to_owned();
@@ -203,8 +206,27 @@ impl DirectBoundaryLeaf {
         if route.is_empty() {
             return Err("direct callable route has no requirement identity".into());
         }
-        if self.plan.schema.identity_text(method.requirement_identity) != route {
-            return Err("direct method coordinate differs from its callable route".into());
+        let declared = self.plan.identities.text(row.declared_requirement_identity);
+        if self.plan.schema.identity_text(method.requirement_identity) != declared {
+            return Err("direct method coordinate differs from its declared requirement".into());
+        }
+        if let Some(signature) = row.calling_signature {
+            let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
+                return Err(
+                    "direct ABI instance has no completed foreign Calling application".into(),
+                );
+            };
+            let [application] = binding.calling_applications.as_slice() else {
+                return Err("direct ABI instance has no unique foreign Calling application".into());
+            };
+            if signature != application.abi.id()
+                || declared != application.abi.requirement_identity
+                || declared != self.satisfied_requirement_identity
+            {
+                return Err("direct ABI instance changes its original declared method".into());
+            }
+        } else if declared != route {
+            return Err("direct callable projection changes its declared route".into());
         }
         if self
             .plan
@@ -389,6 +411,15 @@ impl DirectBoundaryLeaf {
                 return Err("hosted primitive changes its canonical contract or execution".into());
             }
             return Ok(());
+        }
+        if let Some(signature) = self.plan.rows[0].calling_signature {
+            let declaration = Self::declared_calling_abi(module, boundary.id)?;
+            if signature != declaration.id
+                || module.identities.text(declaration.requirement_identity)
+                    != Some(self.satisfied_requirement_identity.as_str())
+            {
+                return Err("direct selected ABI changes its bound original declaration".into());
+            }
         }
         if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
             let schema = Self::declared_schema(module, boundary.id)?;

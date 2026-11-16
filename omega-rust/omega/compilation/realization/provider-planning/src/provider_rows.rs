@@ -183,13 +183,20 @@ impl DirectBoundaryInput {
         declaration.trait_name = declaration.identities.intern(&self.callable_identity);
         declaration.trait_package_identity = self.realization_package;
         plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
-        plan.rows[0].declared_requirement_identity = plan.rows[0].requirement_identity;
+        if plan.rows[0].calling_signature.is_none() {
+            plan.rows[0].declared_requirement_identity = plan.rows[0].requirement_identity;
+        }
         let [method] = declaration.methods.as_mut_slice() else {
             return Err(Diagnostic::error(
                 "boundary leaf does not bind one exact requirement contract",
             ));
         };
-        method.requirement_identity = declaration.identities.intern(&self.callable_identity);
+        // An ABI-selected native instance still implements the original
+        // method. A concrete realization without that instance keeps its
+        // existing private callable projection instead.
+        if plan.rows[0].calling_signature.is_none() {
+            method.requirement_identity = declaration.identities.intern(&self.callable_identity);
+        }
         plan.schema.calling_applications.clear();
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
