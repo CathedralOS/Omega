@@ -6,14 +6,14 @@
 public boundary trait Clock {
     // Block the caller for `milliseconds`. The wait holds the caller's worker,
     // so the requirement declares `blocks` and every caller writes `block`.
-    // Each hosted adapter may enter its one-member raw wait trait; Windows
-    // enters none of them. The trait names are synchronous invocation edges,
-    // not extra reach members.
+    // Each hosted adapter may enter its one-member raw wait trait. The trait
+    // names are synchronous invocation edges, not extra reach members.
     machine sleep(milliseconds: u32)
     reaches Clock
     invokes LinuxClockWait
     invokes LinuxArmClockWait
     invokes DarwinClockWait
+    invokes WindowsClockWait
     blocks
     crashes none;
 }

@@ -128,13 +128,6 @@ framework or a list of unimplemented features.
 - Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
 
-### On Windows, sleeping for `u32::MAX` milliseconds never returns
-- Category: One idea, several implementations
-- Where: [Windows Clock binding](source/library/std/build.omg#L104), [Windows TimeHost sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L119), [POSIX split of large waits](source/library/std/targets/linux_x86_64/clock_impl.omg#L30), [sleep_for saturates](source/library/std/time.omg#L1065)
-- Saw: [three layers](wiki/spec/build/platform_services.md) requires a portable service to mean the same thing on every target. The Linux and Darwin providers split a count above `i32::MAX` into finite waits, so `sleep(4294967295)` returns after about 49.7 days. Windows binds `Clock::sleep` and `WindowsTimeRead::sleep` straight to `Sleep(DWORD)`, where 0xFFFFFFFF is `INFINITE`. `sleep_for` saturates any duration of 49.7 days or more to exactly that value, and its comment says the saturated request "is RETURNED so the caller can observe it".
-- Cost: A long sleep hangs forever on Windows only. Give Windows a checked adapter that never passes 0xFFFFFFFF, for example by splitting the wait as the POSIX providers do.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/platform_services.md
-
 ### POSIX std reads `errno` by `memcpy` from a raw address and declares it cannot crash
 - Category: A verdict with nothing behind it
 - Where: [copy_error](source/library/std/posix_filesystem_adapter.omg#L1813), [posix_canonical_error](source/library/std/posix_filesystem_adapter.omg#L1875), [c_copy_from_address](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L156), [darwin_failure_i32](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L161), [memcpy bindings](source/library/std/build.omg#L359)
