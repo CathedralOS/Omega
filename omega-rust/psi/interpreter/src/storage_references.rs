@@ -2507,22 +2507,13 @@ impl TerminalExecution<'_> {
                     .or(inline_byte)
                     .or_else(|| array_window.map(|window| window.declaration))
                     .ok_or(malformed())?;
-                let compatible = if array_window.is_some() {
-                    terminal_semantics::reference_storage_region_source_compatible(
-                        self.structural_types().values(),
-                        root_type,
-                        &source.path,
-                        reference_type,
-                        None,
-                    )
-                } else {
-                    terminal_semantics::reference_storage_source_compatible(
-                        self.structural_types().values(),
-                        original_type,
-                        reference_type,
-                        None,
-                    )
-                };
+                let compatible = terminal_semantics::reference_storage_region_source_compatible(
+                    self.structural_types().values(),
+                    root_type,
+                    &source.path,
+                    reference_type,
+                    None,
+                );
                 if offset_type.is_address()
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !compatible
