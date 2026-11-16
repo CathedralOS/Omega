@@ -4392,6 +4392,7 @@ pub(crate) mod engine {
                 return Err("access frame has no owning machine");
             }
             if self.summary(identity, 0).is_none() {
+                eprintln!("ACCESS_FRAME_TRACE {identity:?}: no completed body summary");
                 return Ok(());
             }
             let summary = self
@@ -4459,7 +4460,7 @@ pub(crate) mod engine {
                 // effect owner. A possible private implementation is not it.
                 let Some(callee) = invocation.callee() else {
                     eprintln!(
-                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: interface invocation {invocation:?}"
+                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: interface operation {:?}", invocation.operation
                     );
                     return Ok(None);
                 };
