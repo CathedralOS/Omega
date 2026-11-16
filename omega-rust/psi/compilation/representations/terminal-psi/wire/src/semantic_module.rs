@@ -2416,8 +2416,10 @@ pub(crate) mod reach_application_wire {
                     }
                     writer.boolean(binding.upper_bound_may_suspend);
                     writer.boolean(binding.upper_bound_may_block);
+                    writer.boolean(binding.upper_bound_crashes_none);
                     writer.boolean(binding.selected_may_suspend);
                     writer.boolean(binding.selected_may_block);
+                    writer.boolean(binding.selected_may_crash);
                     writer.u32(binding.selected_identity.0);
                     writer.bytes(&binding.selected_contract_commitment);
                     encode_service_ceiling(writer, &binding.selected_reach)?;
@@ -2540,8 +2542,10 @@ pub(crate) mod reach_application_wire {
                         },
                         upper_bound_may_suspend: reader.boolean()?,
                         upper_bound_may_block: reader.boolean()?,
+                        upper_bound_crashes_none: reader.boolean()?,
                         selected_may_suspend: reader.boolean()?,
                         selected_may_block: reader.boolean()?,
+                        selected_may_crash: reader.boolean()?,
                         selected_identity: TerminalIdentityIndex(reader.u32()?),
                         selected_contract_commitment: reader.array()?,
                         selected_reach: decode_ids(reader, "ServiceId")?,
@@ -4562,8 +4566,10 @@ mod routed_scalar_tests {
                     upper_bound: Some(Vec::new()),
                     upper_bound_may_suspend: true,
                     upper_bound_may_block: false,
+                    upper_bound_crashes_none: false,
                     selected_may_suspend: false,
                     selected_may_block: false,
+                    selected_may_crash: false,
                     selected_identity: TerminalIdentityIndex(2),
                     selected_contract_commitment: [3; 32],
                     selected_reach: Vec::new(),
@@ -4619,6 +4625,56 @@ mod routed_scalar_tests {
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
         );
+        // effects.md: a binder's `crashes none` admits only crash-free
+        // selections, so a selected callee that publishes a crash route,
+        // authored or inferred, is refused. The bound is committed, so a
+        // record cannot drop it without changing its template commitment.
+        {
+            let crash_bound = |bound: bool, crashes: bool, recommit: bool| {
+                let mut changed = module.clone();
+                let application = changed.machines[0]
+                    .closed_reach_application
+                    .as_mut()
+                    .unwrap();
+                let terminal_psi::ClosedReachParameter::Machine(binding) =
+                    &mut application.telescope[0]
+                else {
+                    panic!("the telescope holds one machine binder");
+                };
+                binding.upper_bound_crashes_none = bound;
+                binding.selected_may_crash = crashes;
+                if recommit {
+                    application.template_commitment =
+                        terminal_psi::closed_reach_template_commitment(
+                            application.template_base_commitment,
+                            application.parameters(),
+                            &application.suspension_dependency,
+                            &application.blocking_dependency,
+                            &application.conditional_carry,
+                            |_| None,
+                        )
+                        .unwrap();
+                }
+                changed
+            };
+            let crash_free = crash_bound(true, false, true);
+            assert_eq!(
+                decode_module(&encode_module(&crash_free).unwrap()).unwrap(),
+                crash_free
+            );
+            assert_eq!(
+                decode_module(&encode_raw(&crash_bound(true, true, true)).unwrap()),
+                Err(crate::CodecError::MalformedStructuralFoundation(
+                    "selected callback may crash, and its requirement declares `crashes none`",
+                ))
+            );
+            assert_eq!(
+                decode_module(&encode_raw(&crash_bound(true, false, false)).unwrap()),
+                Err(crate::CodecError::MalformedStructuralFoundation(
+                    "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+                ))
+            );
+        }
         // A captured helper still uses the callback supplied to its method.
         // The guard names that method slot after the capture's type slot.
         let capture_commitment = {
