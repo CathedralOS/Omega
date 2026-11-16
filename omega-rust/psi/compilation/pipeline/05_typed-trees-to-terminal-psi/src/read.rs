@@ -44,6 +44,7 @@ mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;
 mod mathematics;
+mod numeric_contracts;
 mod places;
 mod predicates;
 mod provider_selections;

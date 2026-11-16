@@ -9,11 +9,12 @@ use language_semantics::declaration_selection::{
 use semantic_vocabulary::{MachineId, ScalarType};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::TypeReferenceHandle;
 
 use super::Program;
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
+use crate::{Unserved, refuse};
 
 impl Program<'_> {
     pub(super) fn complete_anonymous_operators(
@@ -252,5 +253,174 @@ impl Program<'_> {
         self.completed_operators
             .record_builtin(typed, owner, expression)
             .map_err(|error| refuse(error.to_string()))
+    }
+    /// Select only a successfully formed pure source operator. The canonical
+    /// guarantee remains separate; this is not a semantic-call evaluator.
+    pub(super) fn complete_typed_contract_operator(
+        &mut self,
+        id: MachineId,
+        scope: &super::contracts::ClauseScope<'_>,
+        formals: arena::RootRows<'_, typed_trees::signature::StateParameter>,
+        return_type: TypeReferenceHandle,
+        expression: ExpressionHandle,
+    ) -> Checked<Option<TypeReferenceHandle>> {
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        let typed = self.typed;
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                let reference = if path.reserved_result_of != symbols::SymbolHandle::invalid() {
+                    Some(return_type)
+                } else {
+                    formals.iter().find_map(|formal| {
+                        (path.resolved_symbol() == Some(formal.symbol))
+                            .then_some(formal.type_reference)
+                    })
+                };
+                if reference.is_some() {
+                    // The ordinary term reader checks the exact result owner,
+                    // formal value identity and retained qualification.
+                    self.term(id, scope, expression, None)?;
+                }
+                if reference.is_some() {
+                    return Ok(reference);
+                }
+                // A named constant supplies its declared type, not a scalar
+                // interpretation of an opaque Format/Meaning value.
+                Ok(path
+                    .resolved_symbol()
+                    .and_then(|symbol| typed.const_declaration_by_symbol(symbol))
+                    .map(|constant| constant.declared_type))
+            }
+            ExpressionNode::Boolean(_) => {
+                Ok(self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)))
+            }
+            ExpressionNode::Call(call) => {
+                let mut arguments = Vec::new();
+                for argument in typed.expression_table.expression_handles(call.arguments) {
+                    arguments.push(self.complete_typed_contract_operator(
+                        id,
+                        scope,
+                        formals,
+                        return_type,
+                        *argument,
+                    )?);
+                }
+                // Exact selected catalog headers supply source types only.
+                // Other calls still keep their independent selection questions.
+                if call.runtime_call.is_some()
+                    || call.receiver.is_valid()
+                    || !call.machine_arguments.is_empty()
+                    || !call.evidence_arguments.is_empty()
+                    || !typed.symbols.symbols().nodes().is_valid(call.target_symbol)
+                {
+                    return Ok(None);
+                }
+                let header = typed
+                    .bodyless_machine_signature(call.target_symbol)
+                    .map_err(unavailable)?;
+                let Some((owner, header)) = header else {
+                    return Ok(None);
+                };
+                if !matches!(
+                    typed.symbols.sealed_intrinsic(owner),
+                    Some(language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(_))
+                ) {
+                    return Ok(None);
+                }
+                let parameters = super::span(
+                    |span| typed.state_parameters.span(span),
+                    header.parameters,
+                    id,
+                    "typed source call parameter span",
+                )?;
+                if arguments.len() != call.arguments.len() || arguments.len() != parameters.len() {
+                    return Err(unavailable("typed source call has another argument roster"));
+                }
+                for (actual, formal) in arguments.iter().zip(parameters) {
+                    let Some(actual) = actual else {
+                        return Ok(None);
+                    };
+                    if !typed.type_reference_table.contains_type_reference(*actual)
+                        || !typed
+                            .type_reference_table
+                            .contains_type_reference(formal.type_reference)
+                    {
+                        return Err(unavailable("typed source call has a stale argument type"));
+                    }
+                    let actual = typed.normalized_type_identity(*actual);
+                    let expected = typed.normalized_type_identity(formal.type_reference);
+                    if !actual.is_valid() || !expected.is_valid() || actual != expected {
+                        return Err(unavailable("typed source call changes its argument type"));
+                    }
+                }
+                Ok(Some(header.return_type))
+            }
+            ExpressionNode::Binary(binary) => {
+                let operands = [
+                    self.complete_typed_contract_operator(
+                        id,
+                        scope,
+                        formals,
+                        return_type,
+                        binary.left,
+                    )?,
+                    self.complete_typed_contract_operator(
+                        id,
+                        scope,
+                        formals,
+                        return_type,
+                        binary.right,
+                    )?,
+                ];
+                let [Some(left), Some(right)] = operands else {
+                    return Err(unavailable(
+                        "typed contract operator has no exact operand types",
+                    ));
+                };
+                let left = self.result_type(id, left)?;
+                let right = self.result_type(id, right)?;
+                let pure = match (binary.operator, left, right) {
+                    (
+                        BinaryOperator::Equal | BinaryOperator::NotEqual,
+                        Some(ValueType::Scalar(left, _)),
+                        Some(ValueType::Scalar(right, _)),
+                    ) => {
+                        left == right
+                            && matches!(left, ScalarType::Boolean | ScalarType::Integer(_))
+                    }
+                    (
+                        BinaryOperator::And | BinaryOperator::Or,
+                        Some(ValueType::Scalar(ScalarType::Boolean, _)),
+                        Some(ValueType::Scalar(ScalarType::Boolean, _)),
+                    ) => true,
+                    _ => false,
+                };
+                if !pure {
+                    return Err(unavailable(
+                        "typed contract has an unformed source operator",
+                    ));
+                }
+                self.complete_builtin_operator(id, scope.owner, expression, &operands)?;
+                Ok(self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)))
+            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                let operand = self.complete_typed_contract_operator(
+                    id,
+                    scope,
+                    formals,
+                    return_type,
+                    unary.operand,
+                )?;
+                let Some(reference) = operand else {
+                    return Err(unavailable("typed contract negation has no operand type"));
+                };
+                if self.scalar_type(id, reference)? != ScalarType::Boolean {
+                    return Err(unavailable("typed contract negation is not Boolean"));
+                }
+                self.complete_builtin_operator(id, scope.owner, expression, &[operand])?;
+                Ok(operand)
+            }
+            _ => Ok(None),
+        }
     }
 }

@@ -646,14 +646,9 @@ fn publish_parents(
             .map_err(|error| graph_unavailable(module, error))?;
         let mut analysis =
             DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
-        let flow = analysis.flow(machine.id).map_err(|error| {
-            unavailable(
-                error.machine(),
-                error
-                    .detail()
-                    .unwrap_or("reference parent has no complete descriptor flow"),
-            )
-        })?;
+        let flow = analysis
+            .flow(machine.id)
+            .map_err(|error| graph_unavailable(module, error))?;
         let mut parents = Vec::new();
         for block in &machine.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);

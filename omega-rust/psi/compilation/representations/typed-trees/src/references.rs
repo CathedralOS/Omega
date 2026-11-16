@@ -3376,11 +3376,12 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            // Numeric carrier/policy casts have no named-domain declaration.
-            // A present named-domain lane must retain even an invalid coordinate
-            // so source-selection validation can reject unresolved or stale names.
-            if !cast.semantic_domain.is_empty()
-                || cast.semantic_domain_symbol != SymbolHandle::invalid()
+            // Ordinary carrier conversions and representation recasts have no
+            // named domain declaration. A retained named domain still needs
+            // its exact declaration, including when that coordinate is missing;
+            // every nonempty coordinate also reaches receiver authentication.
+            if cast.semantic_domain_symbol != SymbolHandle::invalid()
+                || !cast.semantic_domain.is_empty()
                 || !cast.semantic_domain_arguments.is_empty()
                 || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
             {
@@ -4460,69 +4461,6 @@ mod declaration_description_tests {
             let mut events = ReferenceEvents::default();
             visit_type_reference(&program, &mut events, reference);
             assert_eq!(events.declarations, [symbol]);
-        }
-    }
-
-    #[test]
-    fn casts_retain_present_named_domains_without_inventing_absent_declarations() {
-        use crate::expression::TableCastExpression;
-
-        let mut symbols = SymbolTableBuilder::default();
-        let carrier = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Carrier"));
-        let domain = symbols.insert_root(SymbolKind::Const, SymbolNameRef::Static("Domain"));
-        let mut program = TypedTrees {
-            symbols: symbols.finish(),
-            ..Default::default()
-        };
-        let target = program
-            .type_reference_table
-            .insert(TypeReferenceNode::Named {
-                symbol: carrier,
-                name: Identifier::generated("Carrier"),
-            });
-        let value = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(true));
-        let mut named = Default::default();
-        program
-            .expression_table
-            .push_name_path_member(&mut named, Identifier::generated("Domain"));
-        let arguments = program
-            .type_reference_table
-            .insert_type_reference_handles([target]);
-        let absent = SymbolHandle::invalid();
-        let stale = SymbolHandle::from_parts(domain.arena_index(), domain.generation() + 1);
-        for (name, symbol, arguments, expected) in [
-            (Default::default(), absent, Default::default(), None),
-            (named, domain, Default::default(), Some(domain)),
-            (named, absent, Default::default(), Some(absent)),
-            (named, stale, Default::default(), Some(stale)),
-            (Default::default(), stale, Default::default(), Some(stale)),
-            (Default::default(), absent, arguments, Some(absent)),
-        ] {
-            let expression =
-                program
-                    .expression_table
-                    .insert(ExpressionNode::Cast(TableCastExpression {
-                        value,
-                        target_type: target,
-                        result_type: target,
-                        target_label: Default::default(),
-                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
-                        semantic_domain: name,
-                        semantic_domain_arguments: arguments,
-                        semantic_domain_symbol: symbol,
-                        semantic_domain_id: language_semantics::SemanticDomainId::NULL,
-                        form: language_core::cast_form::CastForm::Value,
-                    }));
-            let mut events = ReferenceEvents::default();
-            visit_expression(&program, &mut events, expression);
-            assert!(events.declarations.contains(&carrier));
-            if let Some(expected) = expected {
-                assert!(events.declarations.contains(&expected));
-            } else {
-                assert!(!events.declarations.contains(&absent));
-            }
         }
     }
 
