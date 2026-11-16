@@ -146,6 +146,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bound-installations"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
+]
+
+[[package]]
 name = "boundary-applications"
 version = "0.1.0"
 dependencies = [
@@ -1009,9 +1022,9 @@ dependencies = [
  "sha2",
  "target",
  "target-vocabulary",
- "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1174,6 +1187,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "arena",
  "backend-plan",
+ "bound-installations",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1214,6 +1228,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "calling-conventions",
+ "installation-evidence",
  "language-core",
  "legalized-operations",
  "optimization-core",
@@ -1227,6 +1242,7 @@ dependencies = [
  "target-operations",
  "target-operations-to-selected-instructions",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -1253,9 +1269,9 @@ version = "0.1.0"
 dependencies = [
  "optimization-core",
  "semantic-vocabulary",
- "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1655,6 +1671,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "backend-plan",
+ "bound-installations",
  "calling-conventions",
  "component-description",
  "diagnostics",
@@ -1794,9 +1811,9 @@ dependencies = [
  "target",
  "target-vocabulary",
  "task-plans",
- "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1848,6 +1865,7 @@ dependencies = [
 name = "review-evidence"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "backend-plan",
  "build-settings",
  "build-time-evaluation",
@@ -1995,8 +2013,8 @@ dependencies = [
  "sha2",
  "target",
  "target-vocabulary",
- "terminal-codec",
  "terminal-psi",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -2341,7 +2359,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "task-plans",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2351,6 +2368,7 @@ name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "access-plans",
+ "bound-installations",
  "calling-conventions",
  "installation-evidence",
  "language-core",
@@ -2358,7 +2376,6 @@ dependencies = [
  "legalized-operations",
  "native-vocabulary",
  "optimization-core",
- "provider-admission",
  "register-environment",
  "register-model",
  "runtime-abi",
@@ -2383,7 +2400,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "task-plans",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2420,17 +2436,10 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
- "access-plans",
- "arena",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
  "optimization",
- "proof-admission",
  "semantic-vocabulary",
  "terminal-psi",
- "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -2565,6 +2574,7 @@ dependencies = [
  "diagnostics",
  "execution-admission",
  "language-core",
+ "language-semantics",
  "mimalloc",
  "numerics",
  "optimization",
@@ -2629,6 +2639,23 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "terminal-psi",
+]
+
+[[package]]
+name = "terminal-wire"
+version = "0.1.0"
+dependencies = [
+ "access-plans",
+ "arena",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "optimization",
+ "proof-admission",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

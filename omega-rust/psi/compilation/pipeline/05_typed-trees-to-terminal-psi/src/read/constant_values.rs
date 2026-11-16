@@ -257,7 +257,7 @@ impl Program<'_> {
                 .machine_by_symbol(retained.symbol)
                 .filter(|actual| *actual == retained)
                 .ok_or_else(|| unserved("constant initializer is not its actual source machine"))?;
-            let [state] = self.typed.machine_states(actual) else {
+            let Some([state]) = self.typed.machine_states(actual).as_array() else {
                 return Err(unserved("constant initializer has no unique entry"));
             };
             let [typed_trees::statement::StatementNode::Transition(transition)] =

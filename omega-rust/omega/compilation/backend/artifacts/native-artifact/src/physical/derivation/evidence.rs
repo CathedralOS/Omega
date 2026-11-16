@@ -860,6 +860,14 @@ pub(crate) fn physical_child_identity(
                 digest.byte(2);
                 digest.raw(&edge.get().to_le_bytes());
             }
+            InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } => {
+                digest.byte(3);
+                digest.raw(&edge.get().to_le_bytes());
+                digest.raw(&action_ordinal.to_le_bytes());
+            }
         }
         digest.raw(&field.boundary().get().to_le_bytes());
         digest.raw(&field.ordinal().to_le_bytes());

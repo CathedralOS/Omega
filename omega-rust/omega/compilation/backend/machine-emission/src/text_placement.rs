@@ -394,7 +394,8 @@ fn validate_invocation_site(
             operations.last() == Some(&operation) && edges.is_empty()
         }
         semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
-        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => edges == [edge],
+        | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+        | semantic_vocabulary::InvocationSite::Cleanup { edge, .. } => edges == [edge],
     };
     if !matches {
         return Err(TextPlacementError::SourceShapeMismatch);

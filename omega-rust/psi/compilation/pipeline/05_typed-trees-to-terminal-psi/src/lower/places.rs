@@ -144,7 +144,7 @@ pub(crate) fn declare<'a>(
     mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
     let mut field_identities = IdTable::default();
-    let mut structural_types = Vec::with_capacity(types.len());
+    let mut structural_types: Vec<StructuralTypeDeclaration> = Vec::with_capacity(types.len());
     let mut native_layouts = NativeLayoutCatalog::default();
     let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
@@ -327,6 +327,55 @@ pub(crate) fn declare<'a>(
                 }
             }
         };
+        let mut children = shape
+            .direct_fields()
+            .unwrap_or(&[])
+            .iter()
+            .chain(
+                shape
+                    .sum_cases()
+                    .unwrap_or(&[])
+                    .iter()
+                    .flat_map(|case| &case.fields),
+            )
+            .filter_map(|field| match field.field_type {
+                StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let StructuralTypeShape::FixedArray { element, .. } = &shape {
+            children.push(*element);
+        }
+        let mut no_code = !record.owns_linear_claim && record.cleanup.is_none();
+        let mut descriptor_cleanup = no_code;
+        for child in children {
+            let raw = usize::try_from(child.get() - 1).map_err(|_| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child identity"),
+                )
+            })?;
+            let child = structural_types.get(raw).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child declaration is not established"),
+                )
+            })?;
+            no_code &= child.no_code_affine_cleanup;
+            descriptor_cleanup &= child.descriptor_cleanup;
+        }
+        let nominal_cleanup =
+            record
+                .cleanup
+                .as_ref()
+                .map(|cleanup| terminal_psi::NominalCleanupSelection {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        identities.intern(&cleanup.declaration_identity),
+                    ),
+                    cleanup_machine: cleanup.machine,
+                });
         structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: record.requires.clone(),
@@ -335,8 +384,9 @@ pub(crate) fn declare<'a>(
             identity: identities.intern(&record.identity),
             owns_linear_claim: record.owns_linear_claim,
             copyable: record.copyable,
-            no_code_affine_cleanup: !record.owns_linear_claim,
-            descriptor_cleanup: !record.owns_linear_claim,
+            no_code_affine_cleanup: no_code,
+            descriptor_cleanup,
+            nominal_cleanup,
             shape,
             scalar_restriction: None,
         });
@@ -584,6 +634,7 @@ fn append_scalar_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: true,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
         scalar_restriction: None,
     });
@@ -604,6 +655,7 @@ fn statement_homes<'b>(
 ) {
     match statement {
         Statement::Bind { value, .. }
+        | Statement::Decompose { subject: value }
         | Statement::Evaluate {
             expression: value, ..
         } => expression_homes(value, homes),
@@ -683,6 +735,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::ArrayView { base: operand, .. }
+        | ExpressionKind::RepresentationView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -1139,6 +1192,27 @@ fn owned_result(
 }
 
 impl<'a> Lowering<'a> {
+    /// A complete pattern ends the wrapper at its captured place. It neither
+    /// acquires another home nor copies or moves any component's contents.
+    pub(super) fn decompose(&mut self, subject: &Expression) -> Evaluation<()> {
+        let (root, steps, _, _) = continuing!(self.capture_place(subject));
+        let operation = self.operation_identity(subject.source);
+        let path =
+            self.storage_path(&steps, ExecutionSite::Operation(operation), subject.source)?;
+        self.emit(
+            operation,
+            None,
+            OperationKind::DecomposeStructuralValue {
+                subject: StructuralArgument {
+                    place: root,
+                    path,
+                    access: StructuralAccess::Owned,
+                },
+            },
+        )?;
+        Ok(Reached::Value(()))
+    }
+
     pub(super) fn record_type(&self, record: StructuralTypeId) -> Checked<&'a RecordType> {
         terminal_check_tables::row(self.records.types, record, self.id, Construct::Machine)
     }
@@ -1265,6 +1339,39 @@ impl<'a> Lowering<'a> {
                 Ok(())
             }
         }
+    }
+
+    /// Register every leaf a `requires` clause names, for each data type a
+    /// field access passes through on its way from `root` down `steps`. A
+    /// clause such as `self.i <= 5 && self.j <= 4` is stated over all of
+    /// its fields at once: the goal of a store into `i` names what `j`
+    /// holds there, and what a formal held at entry is known under the
+    /// clause only when each field it names has an entry value
+    /// (`terminal-psi-to-terminal-psi`, `Storage::entry_type_premises`).
+    /// The names stop at a runtime index or a case payload: neither has a
+    /// fixed place an entry value could belong to.
+    fn name_passed_clauses(&mut self, root: PlaceId, steps: &[Step]) -> Checked<()> {
+        let subject = terminal_check_tables::program::self_place()
+            .ok_or_else(|| self.internal("data subject identity"))?;
+        let mut place = self.exact_root(root)?;
+        for step in steps {
+            let owner = match *step {
+                Step::Field { owner, .. }
+                | Step::Referent { owner }
+                | Step::Index {
+                    owner,
+                    fixed: Some(_),
+                    ..
+                } => owner,
+                Step::Index { fixed: None, .. } | Step::Payload { .. } => break,
+            };
+            let data = self.record_type(owner)?;
+            for clause in &data.requires {
+                self.name_clause_contents(clause, &[(subject, place)], None)?;
+            }
+            place = self.step(place, *step)?;
+        }
+        Ok(())
     }
 
     /// The declared field or payload field a step selects.
@@ -2012,6 +2119,110 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
+            ExpressionKind::RepresentationView { base, element } => {
+                // byte_views.md, `WholeRepresentation`: the re-view lends the
+                // source descriptor's complete captured window, as an
+                // `ArrayView` of that descriptor lends it whole. Measure that
+                // exact descriptor directly before the formation; the count
+                // obligation the formation owns (`source_length` times the
+                // tiling factor fits `u64`) is judged against this measurement.
+                let Some(ValueType::Record(viewed, _, _)) = base.result else {
+                    return Err(self.internal("a re-view has no source view"));
+                };
+                let captured = continuing!(self.capture_place(base));
+                let lent = self.captured_loan(
+                    base,
+                    language_core::ReferenceAccess::Shared,
+                    captured,
+                    None,
+                )?;
+                let count = ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 is valid"),
+                );
+                let measurement = self.operation_identity(expression.source);
+                let source = StructuralArgument {
+                    place: lent.argument.0,
+                    path: self.storage_path(
+                        &lent.argument.1,
+                        ExecutionSite::Operation(measurement),
+                        expression.source,
+                    )?,
+                    access: lent.argument.2,
+                };
+                self.project(lent.place, Segment::Extent)?;
+                let reads_length = self
+                    .record_type(viewed)?
+                    .shape
+                    .length_operation()
+                    .ok_or_else(|| self.internal("a re-view has no readable source descriptor"))?;
+                let Value::Scalar(source_length) =
+                    self.emit(measurement, Some(count), reads_length(source.clone()))?
+                else {
+                    return Err(self.internal("a re-view's source length is not scalar"));
+                };
+                let operation = self.operation_identity(expression.source);
+                let before = self.here()?;
+                self.obligation(
+                    ObligationKind::Loan {
+                        captured: lent.place,
+                        access: language_core::ReferenceAccess::Shared,
+                        lender: lent.lender,
+                    },
+                    before,
+                    expression.source,
+                );
+                let obligation = self.obligation(
+                    ObligationKind::OperationSafety {
+                        site: ExecutionSite::Operation(operation),
+                    },
+                    before,
+                    expression.source,
+                );
+                let (root, place) = self.root(
+                    StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: record,
+                    },
+                    record,
+                )?;
+                let multiplicity = self.records.multiplicity(record, self.id)?;
+                let memberships = self.memberships(record, Qualification::NONE)?;
+                self.draft()?.operations.push(Operation::unsuspended(
+                    operation,
+                    OperationResult::Structural(owned_result(
+                        root,
+                        record,
+                        multiplicity,
+                        memberships,
+                    )),
+                    OperationKind::EstablishElementView {
+                        destination: root,
+                        source,
+                        element: *element,
+                        region: terminal_psi::ElementViewRegion::WholeRepresentation {
+                            source_length,
+                            obligation,
+                        },
+                    },
+                ));
+                self.point = Some(ProgramPoint::AfterOperation(operation));
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
             ExpressionKind::CollectionSubslice { base, start, end } => {
                 // Capture the descriptor before evaluating either endpoint.
                 // A later call may replace the original descriptor home.
@@ -2047,6 +2258,10 @@ impl<'a> Lowering<'a> {
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
+                    // A window of a descriptor reads it as the descriptor
+                    // measurement does. A mutable byte formal has no access in
+                    // its carrier (its slot holds the permission), so its
+                    // window observes the bytes shared, like `measured_view`.
                     access: match self.record_type(record)?.shape {
                         StorageShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -2057,6 +2272,9 @@ impl<'a> Lowering<'a> {
                             access: Some(access),
                             ..
                         } => access,
+                        StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                        ) => StructuralAccess::SharedBorrow,
                         _ => return Err(self.internal("a range lost its descriptor access")),
                     },
                 };
@@ -3359,6 +3577,7 @@ impl<'a> Lowering<'a> {
             }
         }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
+        self.name_passed_clauses(root, steps)?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -3825,6 +4044,7 @@ impl<'a> Lowering<'a> {
             };
             owed += self.record_type(owner)?.requires.len();
         }
+        self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
             return Err(self.internal("a replacement has another type than its destination"));
         }
@@ -4182,6 +4402,7 @@ mod tests {
         let wrapping_id = types.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity: "wrapping-u32".into(),
             shape: StorageShape::PrimitiveScalar {
                 scalar_type: scalar,
@@ -4193,6 +4414,7 @@ mod tests {
         types.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity: "wrapping-elements".into(),
             shape: StorageShape::FixedArray {
                 element: wrapping_id,

@@ -122,18 +122,18 @@ public boundary trait PosixFilesystemHost {
     // Darwin and x86-64 Linux, 128 on arm64 Linux) with the target record that
     // `StatLayout` decodes. Undersized output returns EINVAL before the OS call;
     // only the native record is written, not the rest of a larger caller view.
-    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8; 144]) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `fstat`, the same record for an open descriptor.
-    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery
+    machine read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `lstat`: like `read_metadata` but a final symlink reports its own record.
-    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery
+    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8; 144]) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `fstatat`: query a trusted listing component relative to its open
     // directory. Flags are native; no-follow classification must request the
     // target's AT_SYMLINK_NOFOLLOW. Refuse undersized output before the OS call.
-    machine read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32 reaches FilesystemMetadataQuery
+    machine read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32 reaches FilesystemMetadataQuery
     crashes none;
     // `ftruncate`.
     machine set_len(fd: i32, length: i64) -> i32 reaches FilesystemContentWrite + FilesystemMetadataMutation
@@ -141,7 +141,7 @@ public boundary trait PosixFilesystemHost {
     // `futimens`: `times` holds two packed `struct timespec` values (access, then
     // modification), 32 bytes on the supported POSIX targets. Undersized input
     // returns EINVAL before the OS call. The byte view itself need not be aligned.
-    machine set_file_times(fd: i32, times: &[u8]) -> i32 reaches FilesystemMetadataMutation
+    machine set_file_times(fd: i32, times: &[u8; 32]) -> i32 reaches FilesystemMetadataMutation
     crashes none;
     // `fsync`.
     machine sync(fd: i32) -> i32 reaches none

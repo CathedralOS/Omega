@@ -286,6 +286,7 @@ mod tests {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             shape: StructuralTypeShape::Record {
                 fields: Vec::new(),
                 storage: StructuralRecordStorage::Packed,
@@ -330,7 +331,6 @@ mod tests {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: MachineId::new(1).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: vec![
                 StructuralPlaceDeclaration {

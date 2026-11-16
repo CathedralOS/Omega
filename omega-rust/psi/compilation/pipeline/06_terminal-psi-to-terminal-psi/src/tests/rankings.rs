@@ -526,7 +526,10 @@ fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
         .find(|machine| machine.name.as_str() == "Nat::Descending")
         .unwrap()
         .clone();
-    program.machine_states_mut(&declaration)[0].parameters = Default::default();
+    program
+        .machine_states
+        .get_mut(declaration.states.handle_at(0))
+        .parameters = Default::default();
     let verdicts = super::boundary_calls::compilation_results_of(&program);
     assert!(verdicts.iter().any(|verdict| matches!(verdict,
         Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains("exactly one subject")

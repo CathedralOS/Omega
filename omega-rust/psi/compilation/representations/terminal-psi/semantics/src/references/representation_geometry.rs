@@ -264,6 +264,7 @@ mod tests {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             requires: Vec::new(),
         }
@@ -285,7 +286,6 @@ mod tests {
             entry: BlockId::new(1).unwrap(),
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
                 id: place,

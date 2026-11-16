@@ -661,6 +661,7 @@ impl Program<'_> {
             owns_linear_claim: false,
             copyable: self.typed.stored_value_multiplicity(reference)
                 == language_semantics::Multiplicity::Unrestricted,
+            cleanup: None,
             identity,
             shape,
             requires: Vec::new(),
@@ -723,6 +724,7 @@ impl Program<'_> {
         let id = self.records.push(RecordType {
             owns_linear_claim,
             copyable,
+            cleanup: None,
             identity,
             shape,
             requires: Vec::new(),
@@ -792,6 +794,7 @@ impl Program<'_> {
         let id = self.records.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity,
             shape: StorageShape::PrimitiveScalar {
                 scalar_type,

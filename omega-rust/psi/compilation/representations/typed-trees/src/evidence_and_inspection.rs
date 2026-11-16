@@ -113,8 +113,8 @@ pub mod evidence {
             {
                 return None;
             }
-            let [crate::domain::ProofFact::Expression(expression)] =
-                program.proof_facts.span_or_empty(domain.facts)
+            let Some([crate::domain::ProofFact::Expression(expression)]) =
+                program.proof_facts.span_or_empty(domain.facts).as_array()
             else {
                 return None;
             };

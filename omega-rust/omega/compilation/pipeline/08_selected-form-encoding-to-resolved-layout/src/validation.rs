@@ -5,9 +5,9 @@ We validate retained function-relative layouts when explicitly requested, not on
 use std::collections::BTreeMap;
 
 use machine_code::{
-    DeferredControlEncodingReason, SelectedFormEncodedRowStore, SelectedFormEncoding,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
-    resolved_machine_layout_identity as layout_identity,
+    DeferredControlEncodingReason, ResolvedMachineLayout, SelectedFormEncodedRowStore,
+    SelectedFormEncoding, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition, resolved_machine_layout_identity as layout_identity,
 };
 use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineInstruction,
@@ -27,8 +27,7 @@ use crate::ordinary::{
 use crate::{
     OptimizedResolvedSelectedFormLayoutError as Error, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
-    StagedOptimizedResolvedSelectedFormLayout, declared_size_matches,
+    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, declared_size_matches,
 };
 
 type PreLayoutRows<'a> = std::slice::Iter<'a, SelectedFormEncodingRow>;
@@ -38,7 +37,7 @@ pub(crate) fn validate(
     machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &SelectedFormEncoding,
-    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+    artifact: &ResolvedMachineLayout,
 ) -> Result<(), Error> {
     let selected_plan = selected.plan;
     let machine_plan = machine;
@@ -77,7 +76,7 @@ fn validate_roots(
     pre_layout: &SelectedFormEncoding,
     optimization: Option<PostAllocationMachineOptimizationCustody>,
     policy: SelectedFunctionLayoutPolicy,
-    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+    artifact: &ResolvedMachineLayout,
 ) -> Result<(), Error> {
     if artifact.selected() != selected.identity
         || artifact.machine() != machine.identity
@@ -91,7 +90,7 @@ fn validate_roots(
     Ok(())
 }
 
-fn validate_identity(artifact: &StagedOptimizedResolvedSelectedFormLayout) -> Result<(), Error> {
+fn validate_identity(artifact: &ResolvedMachineLayout) -> Result<(), Error> {
     let identity = layout_identity(
         artifact.selected(),
         artifact.machine(),
@@ -113,7 +112,7 @@ fn validate_ordinary(
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &SelectedFormEncoding,
     policy: SelectedFunctionLayoutPolicy,
-    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+    artifact: &ResolvedMachineLayout,
 ) -> Result<(), Error> {
     let selected_plan = selected.plan;
     let machine_plan = machine;

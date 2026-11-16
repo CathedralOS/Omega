@@ -158,6 +158,14 @@ pub(crate) mod identity_encoding {
         site: InvocationSite,
     ) {
         match site {
+            InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } => {
+                bytes.identity_bytes(&[3]);
+                bytes.identity_bytes(&edge.get().to_le_bytes());
+                bytes.identity_bytes(&action_ordinal.to_le_bytes());
+            }
             InvocationSite::Operation(operation) => {
                 bytes.identity_bytes(&[0]);
                 bytes.identity_bytes(&operation.get().to_le_bytes());
@@ -388,9 +396,9 @@ pub mod provenance {
     pub fn semantic_code_site(site: InvocationSite) -> SemanticCodeSite {
         match site {
             InvocationSite::Operation(operation) => SemanticCodeSite::Operation(operation),
-            InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
-                SemanticCodeSite::Edge(edge)
-            }
+            InvocationSite::InvokeNoNormal(edge)
+            | InvocationSite::ExternalCompletion(edge)
+            | InvocationSite::Cleanup { edge, .. } => SemanticCodeSite::Edge(edge),
         }
     }
 
@@ -410,6 +418,7 @@ pub mod encoding;
 pub mod fragments;
 pub mod functions;
 pub mod layout;
+mod machine_forms;
 pub mod storage;
 
 #[doc(hidden)]
@@ -478,6 +487,9 @@ pub use layout::{
     ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
     ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
     resolved_machine_layout_identity,
+};
+pub use machine_forms::{
+    EncodedMachineSource, FramedMachineProgram, FramedMachineSource, ResolvedLayoutSource,
 };
 pub use ownership::*;
 pub use provenance::*;

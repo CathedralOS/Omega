@@ -9,6 +9,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
         records.push(RecordType {
             owns_linear_claim: false,
             copyable,
+            cleanup: None,
             identity: identity.to_owned(),
             shape,
             requires: Vec::new(),

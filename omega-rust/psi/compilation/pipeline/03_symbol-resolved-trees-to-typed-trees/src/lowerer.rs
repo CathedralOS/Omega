@@ -54,7 +54,7 @@ pub(crate) mod progress {
     pub(crate) fn normalize_trait_progress_premises(
         program: &mut typed::TypedTrees,
     ) -> Result<(), Diagnostic> {
-        let signature_updates = program
+        let mut signature_updates = program
             .traits()
             .iter()
             .flat_map(|trait_definition| program.trait_machine_signatures(trait_definition))
@@ -74,17 +74,35 @@ pub(crate) mod progress {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-        program
+        // Several retained rosters may name the same symbol. Keep the first
+        // authored update, as before, and copy only signatures that change.
+        signature_updates.sort_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+        signature_updates.dedup_by_key(|(symbol, _)| *symbol);
+        let changes = program
             .tables
             .trait_machine_signatures
-            .for_each_mut(|_, signature| {
-                if let Some((_, guarantee)) = signature_updates
-                    .iter()
-                    .find(|(symbol, _)| *symbol == signature.symbol)
-                {
-                    signature.termination_guarantee = guarantee.clone();
-                }
-            });
+            .iter()
+            .filter_map(|(handle, signature)| {
+                let position = signature_updates
+                    .binary_search_by_key(
+                        &(
+                            signature.symbol.arena_index(),
+                            signature.symbol.generation(),
+                        ),
+                        |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+                    )
+                    .ok()?;
+                let guarantee = &signature_updates[position].1;
+                (signature.termination_guarantee != *guarantee).then_some((handle, guarantee))
+            })
+            .collect::<Vec<_>>();
+        for (handle, guarantee) in changes {
+            program
+                .tables
+                .trait_machine_signatures
+                .get_mut(handle)
+                .termination_guarantee = guarantee.clone();
+        }
 
         Ok(())
     }
@@ -321,8 +339,8 @@ pub(crate) mod progress {
 
     fn authored_premises(
         program: &typed::TypedTrees,
-        contracts: &[typed::signature::SignatureContract],
-        parameters: &[typed::signature::StateParameter],
+        contracts: arena::RootRows<'_, typed::signature::SignatureContract>,
+        parameters: arena::RootRows<'_, typed::signature::StateParameter>,
     ) -> Result<Vec<ProgressPremise>, Diagnostic> {
         let mut premises = Vec::new();
         for contract in contracts
@@ -362,7 +380,7 @@ pub(crate) mod progress {
     fn subject_path(
         program: &typed::TypedTrees,
         expression: typed::expression::ExpressionHandle,
-        parameters: &[typed::signature::StateParameter],
+        parameters: arena::RootRows<'_, typed::signature::StateParameter>,
     ) -> Option<ProgressSubject> {
         match program.expression_table.expression(expression) {
             typed::expression::ExpressionNode::Name(path)
@@ -414,7 +432,7 @@ pub(crate) mod progress {
         program: &typed::TypedTrees,
         subject: &ProgressSubject,
         member_name: &str,
-        parameters: &[typed::signature::StateParameter],
+        parameters: arena::RootRows<'_, typed::signature::StateParameter>,
     ) -> Option<symbols::SymbolHandle> {
         let parameter = parameters
             .iter()
@@ -512,6 +530,92 @@ pub(crate) mod progress {
                     program.data_payload_field_by_symbol(variant, symbol)
                 }
             })
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn progress_normalization_copies_only_changed_signatures_and_keeps_first_symbol_update() {
+            let mut program = typed::TypedTrees::default();
+            let changed_symbol = symbols::SymbolHandle::from_parts(3, 1);
+            let unchanged_symbol = symbols::SymbolHandle::from_parts(4, 1);
+            let stale = TerminationGuarantee::Terminates {
+                premises: vec![ProgressPremise {
+                    profile: language_semantics::SemanticDomainId::NULL,
+                    subject: ProgressSubject {
+                        root: changed_symbol,
+                        projections: Vec::new(),
+                    },
+                }],
+            };
+            let signatures = program.trait_machine_signatures.insert_many([
+                typed::signature::StateSignature {
+                    symbol: changed_symbol,
+                    termination_guarantee: stale.clone(),
+                    ..Default::default()
+                },
+                typed::signature::StateSignature {
+                    symbol: unchanged_symbol,
+                    ..Default::default()
+                },
+                typed::signature::StateSignature {
+                    symbol: changed_symbol,
+                    ..Default::default()
+                },
+            ]);
+            // The old loop updates every stored row with the first matching
+            // symbol, including rows no longer selected by a trait roster.
+            let detached =
+                program
+                    .trait_machine_signatures
+                    .insert(typed::signature::StateSignature {
+                        symbol: changed_symbol,
+                        ..Default::default()
+                    });
+            program.push_trait_definition(typed::trait_definition::TraitDefinition {
+                machines: signatures,
+                ..Default::default()
+            });
+            let predecessor = program.clone();
+            normalize_trait_progress_premises(&mut program).unwrap();
+            let normalized = TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            };
+            for handle in [signatures.start(), signatures.handle_at(2), detached] {
+                assert_eq!(
+                    program
+                        .trait_machine_signatures
+                        .get(handle)
+                        .termination_guarantee,
+                    normalized
+                );
+                assert!(!std::ptr::eq(
+                    program.trait_machine_signatures.get(handle),
+                    predecessor.trait_machine_signatures.get(handle)
+                ));
+            }
+            assert_eq!(
+                predecessor
+                    .trait_machine_signatures
+                    .get(signatures.start())
+                    .termination_guarantee,
+                stale
+            );
+            let unchanged = signatures.handle_at(1);
+            assert!(std::ptr::eq(
+                program.trait_machine_signatures.get(unchanged),
+                predecessor.trait_machine_signatures.get(unchanged)
+            ));
+            let settled = program.clone();
+            normalize_trait_progress_premises(&mut program).unwrap();
+            for (handle, signature) in settled.trait_machine_signatures.iter() {
+                assert!(std::ptr::eq(
+                    signature,
+                    program.trait_machine_signatures.get(handle)
+                ));
+            }
+        }
     }
 }
 pub(crate) mod seeded_continuation {

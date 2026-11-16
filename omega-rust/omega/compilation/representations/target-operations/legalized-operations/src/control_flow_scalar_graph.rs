@@ -27,7 +27,6 @@ use terminal_psi::CrashRouteBucket;
 pub struct LegalizedScalarFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>, // Exact owner-designated cleanup subject, independent of attachment or call sites.
     pub provenance: TerminalPsiProvenance,
     pub call_plan: CallPlan,
     pub parameters: Vec<LegalizedScalarParameter>,
@@ -58,6 +57,65 @@ impl LegalizedScalarFunction {
 
     pub fn instructions(&self) -> impl Iterator<Item = &LegalizedScalarInstruction> + '_ {
         self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+
+    /// Every closed scalar type the function states: its parameters, block
+    /// arrivals, case payloads, instruction results, the operand types its
+    /// instructions carry, and its returned values. Preparation closed each
+    /// one against the accepted module; a validator walks them to check that
+    /// they still belong to it.
+    pub fn visit_closed_types(&self, mut visit: impl FnMut(ClosedScalarType)) {
+        self.parameters
+            .iter()
+            .for_each(|parameter| visit(parameter.scalar_type));
+        for block in &self.blocks {
+            block
+                .parameters
+                .iter()
+                .for_each(|parameter| visit(parameter.scalar_type));
+            for instruction in &block.instructions {
+                if let Some(result) = &instruction.result {
+                    visit(result.scalar_type);
+                }
+                match &instruction.kind {
+                    LegalizedScalarInstructionKind::AtomicAccess { scalar_type, .. }
+                    | LegalizedScalarInstructionKind::IntegerWiden {
+                        source_type: scalar_type,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::IntegerExactCast {
+                        source_type: scalar_type,
+                        ..
+                    } => visit(ClosedScalarType::Integer(*scalar_type)),
+                    LegalizedScalarInstructionKind::ScalarRepresentationView {
+                        source_type,
+                        ..
+                    } => visit(*source_type),
+                    LegalizedScalarInstructionKind::Compare {
+                        operand_type,
+                        right_operand_type,
+                        ..
+                    } => {
+                        visit(*operand_type);
+                        visit(*right_operand_type);
+                    }
+                    _ => {}
+                }
+            }
+            match &block.terminator {
+                LegalizedScalarTerminator::Return(returned)
+                | LegalizedScalarTerminator::ReturnCleanup { returned, .. } => {
+                    if let LegalizedScalarReturnValue::Value { scalar_type, .. } = returned.value {
+                        visit(scalar_type);
+                    }
+                }
+                LegalizedScalarTerminator::StructuralCase { cases, .. } => cases
+                    .iter()
+                    .flat_map(|case| &case.payloads)
+                    .for_each(|payload| visit(payload.parameter.scalar_type)),
+                _ => {}
+            }
+        }
     }
 
     pub fn block_parameters(&self) -> impl Iterator<Item = &LegalizedValueDefinition> + '_ {
@@ -287,6 +345,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::SelectImplementation { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
+            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
@@ -710,6 +769,10 @@ pub enum LegalizedScalarInstructionKind {
         shape: calling_conventions::ValueShape,
         indices: Vec<LegalizedRuntimeIndexOperand>, // Resolved operands for `RuntimeIndex` segments in path order.
     },
+    /// A checked custody partition; selection emits no machine instruction.
+    DecomposeStructuralValue {
+        subject: terminal_psi::StructuralArgument,
+    },
     EstablishTrivialAffineLocal {
         place: terminal_psi::StructuralPlaceDeclaration,
         structural_type: terminal_psi::StructuralTypeDeclaration,
@@ -729,6 +792,9 @@ pub enum LegalizedScalarInstructionKind {
     },
     HostedWriteByteI32 {
         boundary: semantic_vocabulary::BoundaryMachineId,
+        /// Who performs the write: the admitted provider or the compiler's
+        /// built-in host byte output. Emission publishes it with the settlement.
+        execution: target_vocabulary::BoundaryExecutionBinding,
         source: ValueId,
     },
     StructuralScalarFieldStore {
@@ -1024,6 +1090,7 @@ impl LegalizedScalarInstructionKind {
             | Self::StructuralByteSequenceFieldByteStore { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::StoreStructuralField { .. }
+            | Self::DecomposeStructuralValue { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::WriteOnlyPrimitiveStore { .. }
             | Self::HostedWriteByteI32 { .. }

@@ -37,7 +37,7 @@ impl CanonicalCallingSignature {
     pub fn native_application(
         self,
         validated: &ValidatedBoundaryEntryPlan,
-        dispatch_only_parameter_count: u32,
+        dispatch_only_formal: Option<u32>,
     ) -> Result<BoundaryCallingApplication, String> {
         let CallingPolicySignature {
             target,
@@ -52,7 +52,7 @@ impl CanonicalCallingSignature {
             report_fingerprint: 0,
             commitment: [0; 32],
             plan: validated.clone(),
-            dispatch_only_parameter_count,
+            dispatch_only_formal,
             signature: geometry,
             opaque_applications: self
                 .opaque_uses

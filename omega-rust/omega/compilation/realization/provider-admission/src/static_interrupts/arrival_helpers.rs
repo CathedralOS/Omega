@@ -811,8 +811,10 @@ impl<'a> Calls<'a> {
                         site: Some(invocation.site),
                         callees: vec![callee.id],
                         arguments: invocation.inputs.structural_arguments,
-                        normal_return: matches!(invocation.site, InvocationSite::Operation(_))
-                            && callee.result == TerminalMachineResult::Unit
+                        normal_return: matches!(
+                            invocation.site,
+                            InvocationSite::Operation(_) | InvocationSite::Cleanup { .. }
+                        ) && callee.result == TerminalMachineResult::Unit
                             && invocation.inputs.crash_continuations.is_empty(),
                     });
                 }
@@ -882,7 +884,7 @@ impl<'a> Calls<'a> {
                 }
                 for (_, actions) in block.terminator.cleanup_rosters() {
                     for action in actions {
-                        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                        if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
                             calls.push(Call {
                                 site: None,
                                 callees: vec![cleanup.cleanup_machine],

@@ -2954,7 +2954,10 @@ pub(crate) mod native_code_layout_input {
         let StructuralFieldType::Scalar(address) = fields[0].field_type else {
             return false;
         };
-        if !matches!(source.closed_scalar(address), Some(semantic_vocabulary::ClosedScalarType::Integer(ty)) if ty.is_address() && ty.bits() == 64)
+        if address
+            != semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::address(64).expect("64-bit address type"),
+            )
             || geometry::field_read(result.structural_type, &[], fields[0].id, address, types)
                 != Some((0, 8))
         {
@@ -3010,7 +3013,14 @@ pub(crate) mod native_code_layout_input {
             return false;
         };
         base == address
-            && matches!(source.closed_scalar(length), Some(semantic_vocabulary::ClosedScalarType::Integer(ty)) if !ty.is_address() && ty.bits() == 64 && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+            && length
+                == semantic_vocabulary::ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 type"),
+                )
             && geometry::field_read(element, &[], region[0].id, base, types) == Some((0, 8))
             && geometry::field_read(element, &[], region[1].id, length, types) == Some((8, 8))
     }
@@ -4375,6 +4385,7 @@ pub(crate) mod reference_input {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             }

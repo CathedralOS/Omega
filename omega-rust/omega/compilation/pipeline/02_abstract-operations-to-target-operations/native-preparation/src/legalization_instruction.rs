@@ -15,7 +15,7 @@ use target_operations::{
 pub(crate) fn project(
     machine: MachineId,
     facts: &[optimization_unit::AcceptedObligationFact],
-    types: &legalized_operations::RetainedIntegerTypes,
+    types: &crate::native_geometry::ModuleTypes,
     native: &target_operations::TargetOperationPlan,
     geometry: &crate::native_geometry::NativeGeometry<'_>,
     instruction: &target_operations::TargetInstruction,
@@ -382,6 +382,16 @@ pub(crate) fn project(
             destination: *destination,
             value: *value,
         },
+        Operation::DecomposeStructuralValue { subject, .. } => {
+            if source.result.is_some() {
+                return Err(Error::instruction_metadata(
+                    "decomposition unexpectedly defines a scalar result",
+                ));
+            }
+            Kind::DecomposeStructuralValue {
+                subject: subject.clone(),
+            }
+        }
         Operation::EstablishTrivialAffineLocal {
             place,
             structural_type,
@@ -489,6 +499,7 @@ pub(crate) fn project(
         }
         Operation::BoundarySettlement {
             boundary,
+            execution,
             result: boundary_result,
             realization,
             runtime_scalar_arguments,
@@ -511,6 +522,7 @@ pub(crate) fn project(
                 };
                 Kind::HostedWriteByteI32 {
                     boundary: *boundary,
+                    execution: *execution,
                     source: argument.source.source_value(),
                 }
             }
@@ -665,7 +677,7 @@ fn boolean_operand(expression: &Boolean) -> Result<ValueId, Error> {
 fn scalar(
     machine: MachineId,
     facts: &[optimization_unit::AcceptedObligationFact],
-    types: &legalized_operations::RetainedIntegerTypes,
+    types: &crate::native_geometry::ModuleTypes,
     operation: OperationId,
     scalar_type: ScalarType,
     expression: &Scalar,

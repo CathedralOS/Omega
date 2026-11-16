@@ -117,7 +117,6 @@ pub(crate) mod construction {
 
         #[allow(clippy::too_many_arguments)]
         pub(crate) fn snapshot(
-            native_input: &crate::native_geometry::NativeFunction<'_>,
             function: usize,
             successor: &mut SelectedSuccessor,
             registers: &mut Vec<VirtualRegister>,
@@ -324,9 +323,7 @@ pub(crate) mod construction {
                     byte_count,
                     role: SelectedMemoryAccessRole::ReadPlace,
                 });
-                let closed_scalar = native_input
-                    .closed_scalar(destination.scalar_type)
-                    .ok_or_else(invalid)?;
+                let closed_scalar = payload.semantic.parameter.scalar_type;
                 let loaded = if matches!(closed_scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
                     if integer.sign() == IntegerSign::Signed && matches!(integer.bits(), 8 | 16 | 32))
                 {
@@ -370,7 +367,6 @@ pub(crate) mod construction {
     }
 
     pub(crate) fn prepare(
-        native_input: &crate::native_geometry::NativeFunction<'_>,
         function_index: usize,
         function: &mut SelectedFunction,
         constraints: &SelectedSelectionConstraints,
@@ -388,6 +384,7 @@ pub(crate) mod construction {
         let mut unbridged_fallthroughs = Vec::new();
         let mut fallthrough_next = Vec::<(SelectedBlockId, SelectedBlockId)>::new();
         let entry_block = function.entry_block;
+        let contracts = std::sync::Arc::make_mut(&mut function.contracts);
         for source in &mut function.blocks {
             let conditional = matches!(
                 source.terminator,
@@ -514,12 +511,11 @@ pub(crate) mod construction {
                 let mut instructions = preparation;
                 if continuation.structural_case.is_some() {
                     structural_case::snapshot(
-                        native_input,
                         function_index,
                         &mut continuation,
-                        &mut function.virtual_registers,
-                        &mut function.memory_accesses,
-                        &function.local_storage_slots,
+                        &mut contracts.virtual_registers,
+                        &mut contracts.memory_accesses,
+                        &contracts.local_storage_slots,
                         &mut next_instruction,
                         constraints,
                         catalog,
@@ -541,8 +537,8 @@ pub(crate) mod construction {
                     if phase == 1 {
                         let mut emission = Emission {
                             function: function_index,
-                            registers: &mut function.virtual_registers,
-                            memory: &mut function.memory_accesses,
+                            registers: &mut contracts.virtual_registers,
+                            memory: &mut contracts.memory_accesses,
                             instructions: &mut instructions,
                             next_instruction: &mut next_instruction,
                             edge: psi_edge,
@@ -552,7 +548,7 @@ pub(crate) mod construction {
                         };
                         descriptors = super::descriptors::snapshot(
                             &mut emission,
-                            &mut function.local_storage_slots,
+                            &mut contracts.local_storage_slots,
                             &successor.structural_bindings,
                         )?;
                         scalar_references = super::scalar_references::snapshot(
@@ -567,20 +563,20 @@ pub(crate) mod construction {
                         } else {
                             snapshots[position]
                         };
-                        let source_register = function
+                        let source_register = contracts
                             .virtual_registers
                             .get(argument.0 as usize)
                             .cloned()
                             .ok_or_else(|| invalid(function_index))?;
                         let output = VirtualRegisterId(
-                            u32::try_from(function.virtual_registers.len())
+                            u32::try_from(contracts.virtual_registers.len())
                                 .map_err(|_| invalid(function_index))?,
                         );
                         let instruction_id = SelectedInstructionId(
                             u32::try_from(next_instruction).map_err(|_| invalid(function_index))?,
                         );
                         next_instruction += 1;
-                        function.virtual_registers.push(VirtualRegister {
+                        contracts.virtual_registers.push(VirtualRegister {
                             id: output,
                             scalar_type: source_register.scalar_type,
                             class: source_register.class,
@@ -609,8 +605,8 @@ pub(crate) mod construction {
                 {
                     let mut emission = Emission {
                         function: function_index,
-                        registers: &mut function.virtual_registers,
-                        memory: &mut function.memory_accesses,
+                        registers: &mut contracts.virtual_registers,
+                        memory: &mut contracts.memory_accesses,
                         instructions: &mut instructions,
                         next_instruction: &mut next_instruction,
                         edge: psi_edge,

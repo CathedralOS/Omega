@@ -401,10 +401,16 @@ mod ownership {
                     discard.structural_type.get().to_le_bytes(),
                 );
             }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                bytes.push(if cleanup.retains_descendants { 5 } else { 3 });
-                crate::codec_bytes::push_encoded(bytes, cleanup.place.get().to_le_bytes());
-                encode_path(bytes, &cleanup.path);
+            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                bytes.push(6);
+                crate::codec_bytes::push_encoded(bytes, cleanup.subject.place.get().to_le_bytes());
+                encode_path(bytes, &cleanup.subject.path);
+                bytes.push(match cleanup.subject.access {
+                    terminal_psi::StructuralAccess::Owned => 1,
+                    terminal_psi::StructuralAccess::SharedBorrow => 2,
+                    terminal_psi::StructuralAccess::MutableBorrow => 3,
+                    terminal_psi::StructuralAccess::WriteOnlyBorrow => 4,
+                });
                 crate::codec_bytes::push_encoded(
                     bytes,
                     cleanup.structural_type.get().to_le_bytes(),
@@ -413,16 +419,11 @@ mod ownership {
                     bytes,
                     cleanup.cleanup_machine.get().to_le_bytes(),
                 );
-                encode_ids(
-                    bytes,
-                    cleanup.consumed_claims.iter().map(|claim| claim.get()),
-                );
-                match cleanup.cleanup_receiver {
-                    None => bytes.push(0),
-                    Some(place) => {
-                        bytes.push(1);
-                        crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
-                    }
+                encode_len(bytes, cleanup.claim_transfers.len());
+                for transfer in &cleanup.claim_transfers {
+                    crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
+                    encode_path(bytes, &transfer.path);
                 }
                 encode_ids(
                     bytes,
@@ -517,7 +518,7 @@ pub use values::encode_ids;
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v36\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v37\0")
 }
 
 fn identity_with_domain(

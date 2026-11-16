@@ -486,3 +486,71 @@ fn an_empty_generic_schema_retains_its_real_binder_without_an_entry() {
         Err(crate::PublicationError::GenericCheckForm)
     ));
 }
+
+/// These calls publish ordinary contracts without executable bodies in the
+/// generic form. Their scalar and owned-record results have no borrowed
+/// frontier; the byte-view input must nevertheless retain its exact backing.
+#[test]
+fn generic_calls_without_borrowed_results_keep_their_public_storage_contract() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Choice [copy] { selected: bool; }
+        machine length<T>(bytes: &[u8]) -> u64 { bytes.len }
+        machine choose<T>() -> Choice { Choice { selected: true } }
+        machine entry<T>(bytes: &[u8]) -> u64 {
+            let choice: Choice = choose<T>();
+            length<T>(bytes)
+        }
+    "#,
+    );
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    )
+    .unwrap();
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+/// A contract-only call with mutable access still writes. Its caller may
+/// prove the published postcondition, but cannot retain the old scalar fact.
+#[test]
+fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
+    for promised in [1, 0] {
+        let source = super::boundary_calls::typed(&format!(
+            r#"
+            machine update<T>(value: &mut u32) ensures value == 1u32 {{ value = 1u32; }}
+            machine entry<T>(value: &mut u32) requires value == 0u32
+                ensures value == {promised}u32 {{ update<T>(value); }}
+        "#
+        ));
+        let mut form = typed_trees_to_terminal_psi::elaborate_generic(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .unwrap();
+        // The callee's guarantee is proved with its own implementation, not
+        // as the caller's obligation. Inspect this body's proofs independently.
+        let found = discharge(&mut form).unwrap();
+        let root = found.machines.get(id(1)).unwrap();
+        assert!(root.conflicts.is_empty(), "{:?}", root.conflicts);
+        let (_, guarantee) = verdicts(&form, &found, 1, guarantee)[0];
+        if promised == 1 {
+            assert!(
+                root.verdicts.values().all(Result::is_ok),
+                "{:?}",
+                root.verdicts
+            );
+            assert!(root.unestablished().next().is_none());
+            assert!(guarantee.is_ok(), "{guarantee:?}");
+        } else {
+            assert!(
+                matches!(
+                    guarantee.as_ref().unwrap_err().reason,
+                    RefusalReason::Unproved(_)
+                ),
+                "{guarantee:?}"
+            );
+        }
+    }
+}

@@ -24,7 +24,6 @@ fn fixture(count: usize, edges: &[(usize, usize)]) -> (TerminalMachine, MachineT
         assembly_target_requirement: Default::default(),
         id: MachineId::new(1).unwrap(),
         attachment: None,
-        nominal_cleanup_subject: None,
         ranked_scc: None,
         structural_places: Vec::new(),
         block_entry_claims: Vec::new(),
@@ -484,4 +483,57 @@ fn traversal_order_and_a_nonfirst_entry_keep_their_meaning() {
             .unwrap()
     );
     assert_eq!(graph.entry(), block(2));
+}
+
+#[test]
+fn cleanup_proof_points_are_ordered_only_on_their_selected_edge() {
+    let (mut lowered, tables) = fixture(3, &[(0, 1), (0, 2)]);
+    let actions = || {
+        vec![
+            terminal_psi::TerminalAffineCleanupAction::RetireHome(
+                semantic_vocabulary::PlaceId::new(1).unwrap(),
+            ),
+            terminal_psi::TerminalAffineCleanupAction::RetireHome(
+                semantic_vocabulary::PlaceId::new(2).unwrap(),
+            ),
+        ]
+    };
+    let successor = |raw, target| terminal_psi::SuccessorEdge {
+        edge: EdgeId::new(raw).unwrap(),
+        target: block(target),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        cleanup_actions: actions(),
+    };
+    lowered.blocks[0].terminator = Terminator::Conditional {
+        condition: semantic_vocabulary::ValueId::new(1).unwrap(),
+        when_true: successor(1, 1),
+        when_false: successor(2, 2),
+    };
+    let graph = Graph::new(lowered.id, &lowered, &tables).unwrap();
+    let before = |raw, action_ordinal| ProgramPoint::BeforeCleanup {
+        edge: EdgeId::new(raw).unwrap(),
+        action_ordinal,
+    };
+    let after = |raw, action_ordinal| ProgramPoint::AfterCleanup {
+        edge: EdgeId::new(raw).unwrap(),
+        action_ordinal,
+    };
+    assert!(graph.dominates(before(1, 0), after(1, 0)).unwrap());
+    assert!(graph.dominates(after(1, 0), before(1, 1)).unwrap());
+    assert!(!graph.dominates(after(1, 1), before(1, 1)).unwrap());
+    assert!(!graph.dominates(after(1, 0), before(2, 1)).unwrap());
+    assert!(
+        !graph
+            .dominates(ProgramPoint::Edge(EdgeId::new(1).unwrap()), before(1, 1))
+            .unwrap()
+    );
+    assert!(
+        graph
+            .dominates(after(1, 1), ProgramPoint::BlockEntry(block(1)))
+            .unwrap()
+    );
+    assert!(graph.dominates(before(1, 2), before(1, 2)).is_err());
 }

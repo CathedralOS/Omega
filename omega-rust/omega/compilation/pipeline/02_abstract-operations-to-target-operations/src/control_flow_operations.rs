@@ -792,6 +792,20 @@ pub(crate) mod operations {
             AbstractOperation::MoveStructuralField { .. } => {
                 super::borrowed_windows::move_field(operation, site, prepared)
             }
+            AbstractOperation::DecomposeStructuralValue {
+                psi_operation,
+                subject,
+            } => {
+                // Keep one row per source operation so the checked partition,
+                // its exact subject and its annotations survive without bytes.
+                site.operations
+                    .push(TargetUnitOperation::DecomposeStructuralValue {
+                        psi_operation: *psi_operation,
+                        subject: subject.clone(),
+                    });
+                site.provenance.operations.push(*psi_operation);
+                Ok(())
+            }
             AbstractOperation::StoreStructuralField { .. } => {
                 super::borrowed_windows::store_field(operation, site, prepared)
             }

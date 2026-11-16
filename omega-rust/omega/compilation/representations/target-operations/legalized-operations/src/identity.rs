@@ -2,8 +2,8 @@
 Canonical identity construction for `LegalizedOperationPlan` and its subordinate representations.
 
 We compute collision-resistant SHA-256 identity digests (`LegalizedOperationPlanIdentity`) over
-the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v84\0` and
-`ordinary-scalar-graph.v43\0`). Every optional field uses a tagged `0` / `1 + payload` frame
+the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v88\0` and
+`ordinary-scalar-graph.v46\0`). Every optional field uses a tagged `0` / `1 + payload` frame
 (`encode_option`) so an absent row and an empty payload never share bytes.
 */
 
@@ -15,6 +15,7 @@ borrow a unit's identity.
 */
 
 mod calling;
+mod function_abi;
 mod normalized_foreign;
 mod scalar_graph;
 mod structural;
@@ -48,7 +49,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v84\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v88\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -60,21 +61,19 @@ pub fn legalized_operation_plan_identity(
         bytes.extend_from_slice(name);
     });
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
-    match &plan.retained_integers {
-        crate::RetainedIntegerTypes::Unsealed => bytes.push(0),
-        crate::RetainedIntegerTypes::Module(retained) => {
-            bytes.push(1);
-            encode_len(&mut bytes, retained.len());
-            for integer in retained {
-                encode_integer_type(&mut bytes, integer.as_checking());
-            }
-        }
-    }
     encode_len(&mut bytes, plan.installation_operations.len());
     for operation in &plan.installation_operations {
         crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
     }
-    bytes.extend_from_slice(b"ordinary-scalar-graph.v43\0");
+    encode_len(&mut bytes, plan.function_abis.len());
+    for abi in &plan.function_abis {
+        function_abi::encode_function_abi(&mut bytes, abi);
+    }
+    encode_len(&mut bytes, plan.borrowed_storage_layouts.len());
+    for layout in &plan.borrowed_storage_layouts {
+        function_abi::encode_borrowed_storage_layout(&mut bytes, layout);
+    }
+    bytes.extend_from_slice(b"ordinary-scalar-graph.v46\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
     for function in &plan.scalar_functions {
@@ -91,14 +90,14 @@ fn encode_access_view_catalog(
     bytes: &mut Vec<u8>,
     catalog: &native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
 ) {
-    let views = terminal_codec::encode_access_view_catalog(catalog.access_views())
+    let views = terminal_wire::encode_access_view_catalog(catalog.access_views())
         .expect("canonical access-view plans");
     encode_len(bytes, views.len());
     bytes.extend_from_slice(&views);
     let lifecycles = catalog.access_lifecycle_identity_bytes();
     encode_len(bytes, lifecycles.len());
     bytes.extend_from_slice(lifecycles);
-    let inputs = terminal_codec::encode_access_view_input_catalog(catalog.access_view_inputs())
+    let inputs = terminal_wire::encode_access_view_input_catalog(catalog.access_view_inputs())
         .expect("canonical placed-formal demands");
     encode_len(bytes, inputs.len());
     bytes.extend_from_slice(&inputs);
@@ -399,6 +398,15 @@ mod tests {
         for other in [fixed, parameter(2, 1), parameter(1, 2)] {
             assert_ne!(encode(parameter(1, 1)), encode(other));
         }
+    }
+
+    #[test]
+    fn prepared_plan_identity_binds_installations() {
+        let mut plan = crate::tests::scalar_call_unit_plan();
+        let original = super::legalized_operation_plan_identity(&plan);
+        plan.installation_operations
+            .push(semantic_vocabulary::OperationId::new(99).unwrap());
+        assert_ne!(original, super::legalized_operation_plan_identity(&plan));
     }
 
     #[test]

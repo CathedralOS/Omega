@@ -61,7 +61,7 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         machine: &'t Machine,
-    ) -> Checked<&'t [typed_trees::data::TypeParameter]> {
+    ) -> Checked<arena::RootRows<'t, typed_trees::data::TypeParameter>> {
         let own = self.typed.machine_type_parameters(machine);
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         if own.is_empty() != machine.type_parameters.is_empty() {
@@ -138,16 +138,52 @@ impl<'t> Program<'t> {
                 )
             })? = true;
         }
+        let mut subjects = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
+            *subjects.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("verification subject without a machine"),
+                )
+            })? = true;
+        }
+        // A nested helper can be named only from its declaring machine's
+        // scope. An unchecked dependency body can hide a caller there, so
+        // mark every lexical scope that still contains a deferred body.
+        let mut incomplete_scopes = symbols::SymbolMap::default();
+        for machine in self.typed.machines().iter() {
+            if machine.body_status != MachineBodyStatus::Deferred {
+                continue;
+            }
+            let mut scope = self.typed.symbols.get(machine.symbol).parent;
+            while let Some(enclosing) = self.typed.machine_by_symbol(scope) {
+                if incomplete_scopes.insert(scope, ()).is_some() {
+                    break;
+                }
+                scope = self.typed.symbols.get(enclosing.symbol).parent;
+            }
+        }
+        for (id, symbol) in self.symbols.iter() {
             if fixed.get(id) == Some(&true) {
                 continue;
             }
-            let symbol = terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
             let Some(machine) = self.typed.machine_by_symbol(*symbol) else {
                 continue;
             };
+            if subjects.get(id) != Some(&true) {
+                let scope = self.typed.symbols.get(*symbol).parent;
+                if incomplete_scopes.contains_key(&scope)
+                    || self
+                        .typed
+                        .machine_by_symbol(scope)
+                        .is_none_or(|owner| owner.body_status != MachineBodyStatus::Complete)
+                {
+                    continue;
+                }
+            }
             let contracts = span(
-                &self.typed.signature_contracts,
+                |span| self.typed.signature_contracts.span(span),
                 machine.contracts,
                 id,
                 "contract span",
@@ -287,7 +323,7 @@ impl<'t> Program<'t> {
         Ok(local)
     }
 
-    fn next_identity(&self) -> Checked<MachineId> {
+    pub(super) fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
                 MachineId::new(1).expect("1 is nonzero"),
@@ -373,10 +409,17 @@ impl<'t> Program<'t> {
             None
         };
         let reading = match alternative {
-            Some(arguments) => Reading::Alternative(
-                arguments
+            Some(alternative) => Reading::Alternative(
+                alternative
+                    .arguments
                     .into_iter()
-                    .map(|argument| self.value_type(id, argument))
+                    .enumerate()
+                    .map(|(position, argument)| match argument {
+                        Some(argument) => self.value_type(id, argument),
+                        None => Ok(ValueType::Rigid(terminal_check_tables::values::RigidType(
+                            position as u32,
+                        ))),
+                    })
                     .collect::<Checked<_>>()?,
             ),
             None if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
@@ -774,7 +817,7 @@ impl<'t> Program<'t> {
     /// value facts. A fact about another value or domain still needs checking.
     fn fact_restates_formal_domain(
         &self,
-        formals: &[StateParameter],
+        formals: arena::RootRows<'_, StateParameter>,
         fact: &typed_trees::domain::ProofFact,
     ) -> bool {
         use typed_trees::domain::ProofFact;
@@ -944,8 +987,13 @@ impl<'t> Program<'t> {
                 "a data declaration cannot own a machine; declare an ordinary static machine",
             ));
         }
-        let states = span(&typed.machine_states, machine.states, id, "state span")?;
-        let [state] = states else {
+        let states = span(
+            |span| typed.machine_states.span(span),
+            machine.states,
+            id,
+            "state span",
+        )?;
+        let Some([state]) = states.as_array() else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1198,7 +1246,7 @@ impl<'t> Program<'t> {
 
         let typed = self.typed;
         let formals = span(
-            &typed.state_parameters,
+            |span| typed.state_parameters.span(span),
             state.parameters,
             id,
             "parameter span",
@@ -1375,13 +1423,18 @@ impl<'t> Program<'t> {
         if self.premise_reading {
             let mut requirements = Vec::new();
             for contract in span(
-                &self.typed.signature_contracts,
+                |span| self.typed.signature_contracts.span(span),
                 machine.contracts,
                 id,
                 "contract span",
             )? {
                 if contract.kind == SignatureContractKind::Requires {
-                    for fact in span(&self.typed.proof_facts, contract.facts, id, "fact span")? {
+                    for fact in span(
+                        |span| self.typed.proof_facts.span(span),
+                        contract.facts,
+                        id,
+                        "fact span",
+                    )? {
                         if let typed_trees::domain::ProofFact::Expression(expression) = fact {
                             requirements.push(*expression);
                         }
@@ -1518,7 +1571,14 @@ impl<'t> Program<'t> {
         machine: &'t Machine,
     ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        // Name the conformer: the refusal is raised before its signature is read.
+        let unserved = |what| {
+            self.read_failure_at(
+                refuse(id, Construct::Machine, Unserved::Machine(what)),
+                machine.symbol,
+                "the requirement it satisfies",
+            )
+        };
         let context = match self.declared_requirement_origin(id, machine)? {
             Some(context) => context,
             None => {
@@ -1556,7 +1616,7 @@ impl<'t> Program<'t> {
                         .flatten()
                     })
                     .ok_or_else(|| unserved("conformer lost its prepared owning requirement"))?;
-                let [entry] = typed.machine_states(machine) else {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
                     return Err(unserved("conformer without one owned entry state"));
                 };
                 if !typed.instantiated_machine_state_matches(
@@ -1576,11 +1636,10 @@ impl<'t> Program<'t> {
             .trait_definition_by_symbol(owner)
             .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
         self.requirement_termination(id, requirement)?;
-        if !definition.lifetime_parameters.is_empty()
-            || !definition.conformance_bounds.is_empty()
-            || !definition.requires.is_empty()
-            || definition.refines.is_some()
-            || !definition.refinement_clauses.is_empty()
+        // A parent edge leaves the requirement's own contract as declared;
+        // its application is judged with the trait (`served_trait_header`).
+        if !definition.conformance_bounds.is_empty()
+            || super::subjects::served_trait_header(typed, definition).is_err()
         {
             return Err(unserved(
                 "declared requirement needs its complete trait application",
@@ -1590,7 +1649,7 @@ impl<'t> Program<'t> {
         // storage, multiplicity or static-value obligations. Only ordinary
         // unconstrained type parameters are served by this applied context.
         if span(
-            &typed.data_type_parameters,
+            |span| typed.data_type_parameters.span(span),
             definition.type_parameters,
             id,
             "trait type parameter span",
@@ -1616,7 +1675,14 @@ impl<'t> Program<'t> {
         if machine.satisfies.is_empty() {
             return Ok(None);
         }
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        // Name the conformer: the refusal is raised before its signature is read.
+        let unserved = |what| {
+            self.read_failure_at(
+                refuse(id, Construct::Machine, Unserved::Machine(what)),
+                machine.symbol,
+                "the requirement it satisfies",
+            )
+        };
         let [edge] = self.typed.machine_trait_conformances(machine) else {
             return Err(unserved(
                 "conformer without exactly one declared requirement",
@@ -1698,7 +1764,7 @@ impl<'t> Program<'t> {
             signature.termination = self.requirement_termination(id, requirement)?;
         }
         let clauses = span(
-            &self.typed.signature_contracts,
+            |span| self.typed.signature_contracts.span(span),
             machine.contracts,
             id,
             "contract span",
@@ -1780,7 +1846,7 @@ impl<'t> Program<'t> {
             .machine_by_symbol(application.template())
             .ok_or_else(|| unserved("member application lost its template"))?;
         let parameters = self.typed.machine_callable_parameters(template);
-        let binders = self.value_binder_correspondence(id, &required, &parameters)?;
+        let binders = self.value_binder_correspondence(id, &required, (&parameters).into())?;
         let binding = application.binding_application();
         if !self
             .typed
@@ -1804,7 +1870,7 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         required: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
-        parameters: &[typed_trees::data::TypeParameter],
+        parameters: arena::RootRows<'_, typed_trees::data::TypeParameter>,
     ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         if parameters.len() != required.len() {
@@ -2151,7 +2217,12 @@ impl<'t> Program<'t> {
         bound: &[(SymbolHandle, semantic_vocabulary::ScalarTerm)],
     ) -> Checked<(Signature, MachineNames)> {
         let typed = self.typed;
-        let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
+        let formals = span(
+            |span| typed.state_parameters.span(span),
+            formals,
+            id,
+            "parameter span",
+        )?;
         let mut parameters = Vec::with_capacity(formals.len());
         let mut erased = Vec::new();
         let mut borrowed = Vec::new();
@@ -2275,7 +2346,12 @@ impl<'t> Program<'t> {
         let mut ensures_text = Vec::new();
         let mut routes = Vec::new();
         let mut crash_clauses = false;
-        for contract in span(&typed.signature_contracts, contracts, id, "contract span")? {
+        for contract in span(
+            |span| typed.signature_contracts.span(span),
+            contracts,
+            id,
+            "contract span",
+        )? {
             if contract.binding.is_some() {
                 return Err(refuse(
                     id,
@@ -2283,7 +2359,12 @@ impl<'t> Program<'t> {
                     Unserved::Contract("result binding"),
                 ));
             }
-            let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
+            let facts = span(
+                |span| typed.proof_facts.span(span),
+                contract.facts,
+                id,
+                "fact span",
+            )?;
             match contract.kind {
                 // A literal `true` asks nothing of a caller and promises
                 // nothing, so it adds no hypothesis. A written `requires`
@@ -2891,7 +2972,7 @@ impl<'t> Program<'t> {
     // own, so the diagnostic leads to the file, line and column even inside
     // a dependency. The innermost declaration read places the refusal; an
     // outer one only adds its name.
-    fn read_failure_at(
+    pub(super) fn read_failure_at(
         &self,
         mut refusal: terminal_check_tables::Refusal,
         declaration: SymbolHandle,
@@ -2926,7 +3007,7 @@ impl<'t> Program<'t> {
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
         self.width_scope = self.width_scopes.get(id).cloned().unwrap_or_default();
         let formals = span(
-            &typed.state_parameters,
+            |span| typed.state_parameters.span(span),
             state.parameters,
             id,
             "parameter span",
@@ -3111,11 +3192,18 @@ impl<'t> Program<'t> {
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::RecordPattern =>
                 {
-                    // The marker reads nothing and binds nothing, so it
-                    // leaves no statement; only the cursor moves on.
-                    self.record_pattern(id, &slots, local)?;
-                    position += 1;
-                    continue;
+                    // A nominal owned pattern ends its wrapper before the
+                    // following field bindings. Other markers bind nothing.
+                    let decomposition = self.record_pattern(id, &slots, local)?;
+                    if let Some(statement) = decomposition {
+                        // The common tail advances this real event. The next
+                        // statement is the first component binding, not part
+                        // of the marker, and must still enter the slot scope.
+                        statement
+                    } else {
+                        position += 1;
+                        continue;
+                    }
                 }
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
@@ -3378,6 +3466,7 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
             }
         }
         Statement::CaptureReference { .. }
+        | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
@@ -3397,6 +3486,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
         Statement::CaptureReference { .. }
+        | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Bind { .. }
@@ -3468,6 +3558,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
         | ExpressionKind::ArrayView { base, .. }
+        | ExpressionKind::RepresentationView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
@@ -3585,7 +3676,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
         }
     };
     match statement {
-        Statement::Bind { value, .. } => expression_slot_uses(value, uses),
+        Statement::Bind { value, .. } | Statement::Decompose { subject: value } => {
+            expression_slot_uses(value, uses)
+        }
         Statement::Store {
             destination, value, ..
         } => {
@@ -3662,6 +3755,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
         | ExpressionKind::ArrayView { base, .. }
+        | ExpressionKind::RepresentationView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }

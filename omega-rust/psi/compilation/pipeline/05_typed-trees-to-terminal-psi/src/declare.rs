@@ -452,10 +452,11 @@ fn declaration(
     let declared = typed
         .machine_by_symbol(symbol)
         .ok_or("the machine has no typed-tree declaration")?;
-    let [state] = typed
+    let Some([state]) = typed
         .machine_states
         .span(declared.states)
         .ok_or("the machine's state span does not resolve")?
+        .as_array()
     else {
         return Err("the machine does not have exactly one state");
     };
@@ -586,7 +587,35 @@ fn application(
         );
     }
     let (parameters, enclosing_capture) = match row {
-        MachineInstantiation::Specialization(_) => (typed.machine_type_parameters(declared), false),
+        MachineInstantiation::Specialization(specialization) => {
+            // An enclosing application binds the inherited prefix of a nested
+            // helper. The helper's own binders survive under fresh symbols;
+            // authenticate both parts rather than inventing bindings for them.
+            let parameters = typed
+                .data_type_parameters
+                .span(specialization.template_parameters)
+                .ok_or("a specialization lost its retained binder roster")?;
+            let source = typed.machine_type_parameters(declared);
+            let remaining = typed
+                .machine_by_symbol(instance)
+                .map(|machine| typed.machine_type_parameters(machine))
+                .ok_or("a specialization lost its instance declaration")?;
+            if source.len() != parameters.len() + remaining.len()
+                || !source.iter().take(parameters.len()).eq(parameters.iter())
+                || !source
+                    .iter()
+                    .skip(parameters.len())
+                    .zip(remaining)
+                    .all(|(original, copied)| {
+                        typed.symbols.get(copied.symbol).generated_from == original.symbol
+                            && original.kind == copied.kind
+                            && original.bounds == copied.bounds
+                    })
+            {
+                return Err("a specialization changed its bound or remaining binder roster");
+            }
+            (parameters, false)
+        }
         MachineInstantiation::Capture(capture) => {
             let (owner, _) = typed
                 .owned_conformance_realization(template)
@@ -1342,7 +1371,6 @@ pub(crate) fn boundary(
     if !owner.type_parameters.is_empty()
         || !owner.lifetime_parameters.is_empty()
         || !requirement.type_parameters.is_empty()
-        || !requirement.lifetime_parameters.is_empty()
     {
         return Err(Diagnostic::error(
             "boundary declaration needs its complete applied telescope",
@@ -1468,7 +1496,7 @@ fn top_level_boundary(
     let (entry, formals, return_type, callable, operational) = if let Some(machine) =
         typed.machine_by_symbol(symbol)
     {
-        let [state] = typed.machine_states(machine) else {
+        let Some([state]) = typed.machine_states(machine).as_array() else {
             return Err(Diagnostic::error("primitive has no exact entry state"));
         };
         let callable = typed
@@ -1591,17 +1619,10 @@ pub(crate) fn trait_requirement(
         .state_parameters
         .span(requirement.parameters)
         .ok_or("boundary requirement lost its complete parameter span")?;
-    let type_text = |reference| {
-        typed
-            .type_identity_text(typed.package_qualified_type_identity(reference))
-            .filter(|text| !text.is_empty())
-            .ok_or("boundary signature type has no exact identity")
-    };
-    let parameter_types = formals
-        .iter()
-        .map(|formal| type_text(formal.type_reference))
-        .collect::<Result<Vec<_>, _>>()?;
-    let result_type = type_text(requirement.return_type)?;
+    let scope = typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner);
+    let (parameter_types, result_type, _) = typed
+        .requirement_definition_types(&scope, requirement)
+        .ok_or("boundary requirement has no complete declared signature identity")?;
     let callable = typed.trait_requirement_callable_identity_text(owner, requirement);
     if callable.is_empty() {
         return Err("boundary requirement has no canonical callable identity");
@@ -1753,7 +1774,7 @@ fn requirement_application(
 #[allow(clippy::too_many_arguments)]
 fn declaration_contract_commitment<'a>(
     callable: &str,
-    formals: &[typed_trees::signature::StateParameter],
+    formals: arena::RootRows<'_, typed_trees::signature::StateParameter>,
     parameter_types: &[String],
     result_type: &str,
     requires: &[semantic_vocabulary::Proposition],

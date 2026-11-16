@@ -71,6 +71,7 @@ pub(crate) mod compute {
                     ..Default::default()
                 },
             };
+            let contracts = std::sync::Arc::make_mut(&mut function.contracts);
             let block = function
                 .blocks
                 .iter_mut()
@@ -95,7 +96,7 @@ pub(crate) mod compute {
             if let Some(index) = block.instruction_index(first.instruction) {
                 let insertion_index = u32::try_from(index)
                     .map_err(|_| PressureRematerializationError::WorkOverflow)?;
-                for settlement in &mut function.boundary_settlements {
+                for settlement in &mut contracts.boundary_settlements {
                     if settlement.block == block.id
                         && settlement.instruction_index >= insertion_index
                     {
@@ -116,7 +117,7 @@ pub(crate) mod compute {
                 }
                 let insertion_index = u32::try_from(block.instructions.len())
                     .map_err(|_| PressureRematerializationError::WorkOverflow)?;
-                for settlement in &mut function.boundary_settlements {
+                for settlement in &mut contracts.boundary_settlements {
                     if settlement.block == block.id
                         && settlement.instruction_index >= insertion_index
                     {

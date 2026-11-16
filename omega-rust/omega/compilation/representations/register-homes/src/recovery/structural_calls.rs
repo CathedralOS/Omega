@@ -187,7 +187,7 @@ pub(super) fn decode_argument_source(
 pub(super) fn encode_call(
     bytes: &mut Vec<u8>,
     row: &SelectedCallContract,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     match row.owner {
         target_vocabulary::CallSiteOwner::Operation(operation) => {
@@ -290,7 +290,7 @@ pub(super) fn encode_call(
         bytes,
         call.requirement_obligations.iter().map(|id| id.get()),
     );
-    let crash = terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
+    let crash = terminal_wire::encode_crash_route_buckets(&call.crash_continuations)
         .expect("canonical call crash routes");
     length(bytes, crash.len());
     bytes.extend_from_slice(&crash);
@@ -406,7 +406,7 @@ pub(super) fn decode_call(
     }
     let requirement_obligations = decode_ids(cursor, ObligationId::new)?;
     let length = cursor.length()?;
-    let crash_continuations = terminal_codec::decode_crash_route_buckets(cursor.take(length)?)
+    let crash_continuations = terminal_wire::decode_crash_route_buckets(cursor.take(length)?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidCrashContinuations)?;
     Ok(SelectedCallContract {
         instruction,
@@ -432,7 +432,7 @@ pub(super) fn decode_call(
 pub(super) fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     length(bytes, indices.len());
     for index in indices {
         crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
@@ -664,7 +664,7 @@ fn decode_nominal<T>(
 pub(super) fn encode_normalized_foreign_call(
     bytes: &mut Vec<u8>,
     row: &SelectedNormalizedForeignCall,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     row.invocation_site.encode_identity(bytes);
     let call = &row.call;
@@ -1198,7 +1198,7 @@ fn decode_state_set(cursor: &mut Cursor<'_>) -> Result<MachineStateSet, FixedVie
 fn encode_scalar_home(
     bytes: &mut Vec<u8>,
     home: &TargetUnitScalarHomeRequirement,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, home.defining_operation.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, home.source_value.get().to_le_bytes());
     encode_scalar(bytes, home.scalar_type)?;
@@ -1220,7 +1220,7 @@ fn decode_scalar_home(
 pub(super) fn encode_scalar_source(
     bytes: &mut Vec<u8>,
     source: TargetUnitScalarArgumentSource,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     match source {
         TargetUnitScalarArgumentSource::IeeeFloatImmediate {
             defining_operation,

@@ -6,9 +6,9 @@ therefore means exactly: every declaration of the subject packages is valid,
 and every declaration they depend on is valid", and the closure "starts from
 every declaration of every subject, including unused ones".
 
-So every subject declaration is a root here, used or not. A generic machine
+So every authored subject declaration is a root here, used or not. A generic machine
 is set aside for its own check form (`Elaboration::generic_templates`). Any
-other machine becomes a `MachineId` and is read, lowered and judged like a
+other authored machine becomes a `MachineId` and is read, lowered and judged like a
 called one; its callees
 follow as they do from an entry, whichever package declares them. A data
 declaration is resolved as a record. A plain trait has each requirement's
@@ -313,6 +313,18 @@ impl Program<'_> {
         // read (`keep`).
         for machine in typed.machines() {
             let read = (|| -> Checked<()> {
+                // An application is demanded by its actual uses. Its authored
+                // generic declaration still has its own check form below.
+                // Copying an enclosing declaration also copies lexical helpers
+                // excluded by that type world's static branches; those copies
+                // are not additional authored subject declarations.
+                if typed
+                    .machine_instantiation(machine.symbol)
+                    .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Machine(reason)))?
+                    .is_some()
+                {
+                    return Ok(());
+                }
                 if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
                     return Ok(());
                 }
@@ -373,7 +385,9 @@ impl Program<'_> {
         for declared in typed.traits() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
-                    self.subject_trait(entry, declared)?;
+                    self.subject_trait(entry, declared).map_err(|refusal| {
+                        self.read_failure_at(refusal, declared.symbol, "the trait")
+                    })?;
                 }
                 Ok(())
             })();
@@ -382,7 +396,10 @@ impl Program<'_> {
         for declared in typed.conformances() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
-                    self.subject_implementation(entry, declared)?;
+                    self.subject_implementation(entry, declared)
+                        .map_err(|refusal| {
+                            self.read_failure_at(refusal, declared.symbol, "the implementation")
+                        })?;
                 }
                 Ok(())
             })();
@@ -581,7 +598,9 @@ impl Program<'_> {
         }
         for member in typed.data_members(data) {
             let fields = match member {
-                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Field(field) => {
+                    arena::RootRows::from_slice(std::slice::from_ref(field))
+                }
                 DataMember::Variant(variant) => typed.data_payload_fields(variant),
             };
             for field in fields {
@@ -599,7 +618,7 @@ impl Program<'_> {
     fn template_member_type(
         &mut self,
         entry: MachineId,
-        parameters: &[typed_trees::data::TypeParameter],
+        parameters: arena::RootRows<'_, typed_trees::data::TypeParameter>,
         reference: typed_trees::types::TypeReferenceHandle,
         depth: usize,
     ) -> Checked<()> {
@@ -711,24 +730,121 @@ impl Program<'_> {
     }
 }
 
-/// Whether a trait is a list of requirements and nothing else: no
-/// parameter, bound, schema clause or refinement of another trait. A boundary
-/// declares contracts too; checking those contracts does not supply a provider.
-fn lists_requirements_only(
+/// Whether a trait's header is one whose meaning the route reads: what it
+/// adds to its own requirements is judged here or where it is applied, and
+/// nothing it says is passed over. `Ok` means the header is served; the
+/// error names the first part that is not.
+///
+/// - A type parameter is unbounded; a generic check form holds it rigid.
+/// - An implementation parameter (`Calling<Policy satisfies CallingPolicy>`)
+///   has exactly one closed nominal bound. It changes no requirement
+///   contract; each application must name an implementation of that bound,
+///   which `served_parent` checks where a header applies the trait.
+/// - Each parent edge (`boundary trait Data: Calling<ByteViews>`) is served
+///   by `served_parent`.
+///
+/// Lifetime parameters, other binder kinds and transparent refinements stay
+/// unserved, so a trait with them is refused, never accepted unread.
+pub(super) fn served_trait_header(
     typed: &typed_trees::TypedTrees,
     declared: &typed_trees::trait_definition::TraitDefinition,
-) -> bool {
+) -> Result<(), &'static str> {
+    served_trait_parameters(typed, declared)?;
+    if declared.refines.is_some() || !declared.refinement_clauses.is_empty() {
+        return Err("trait with a transparent refinement");
+    }
+    let parents = typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declared)
+        .parent_scopes(typed)?;
+    for parent in &parents {
+        served_parent(typed, declared, parent)?;
+    }
+    Ok(())
+}
+
+/// The binder telescope of a trait: unbounded types and implementation
+/// binders with exactly one closed bound each, and nothing else.
+fn served_trait_parameters(
+    typed: &typed_trees::TypedTrees,
+    declared: &typed_trees::trait_definition::TraitDefinition,
+) -> Result<(), &'static str> {
+    use typed_trees::data::TypeParameterKind;
     let parameters = typed.trait_type_parameters(declared);
-    declared.lifetime_parameters.is_empty()
-        && parameters.len() == declared.type_parameters.len()
-        && parameters.iter().all(|parameter| {
-            parameter.kind == typed_trees::data::TypeParameterKind::Type
-                && parameter.bounds == typed_trees::data::DataProperties::default()
-        })
-        && declared.conformance_bounds.is_empty()
-        && declared.requires.is_empty()
-        && declared.refines.is_none()
-        && declared.refinement_clauses.is_empty()
+    if !declared.lifetime_parameters.is_empty() {
+        return Err("trait with lifetime parameters");
+    }
+    if parameters.len() != declared.type_parameters.len() {
+        return Err("trait lost its parameter telescope");
+    }
+    let mut implementations = 0;
+    for parameter in parameters {
+        if parameter.bounds != typed_trees::data::DataProperties::default() {
+            return Err("trait with a bounded type parameter");
+        }
+        match parameter.kind {
+            TypeParameterKind::Type => {}
+            TypeParameterKind::Implementation => {
+                implementations += 1;
+                let mut bounds = declared
+                    .conformance_bounds
+                    .iter()
+                    .filter(|bound| bound.binder == parameter.symbol);
+                let (Some(bound), None) = (bounds.next(), bounds.next()) else {
+                    return Err("implementation parameter without one exact bound");
+                };
+                if !bound.arguments.is_empty()
+                    || !bound.lifetime_arguments.is_empty()
+                    || typed
+                        .trait_definition_by_symbol(bound.trait_symbol)
+                        .is_none()
+                {
+                    return Err("implementation parameter bounded by an applied trait");
+                }
+            }
+            _ => return Err("trait with a value, machine or proposition parameter"),
+        }
+    }
+    if declared.conformance_bounds.len() != implementations {
+        return Err("trait with a conformance bound on no implementation parameter");
+    }
+    Ok(())
+}
+
+/// One parent application of a trait header. conformances.md, "Complete row
+/// identity": header composition `: Parent` is an inherited requirement edge;
+/// boundary parents contribute service reach and ordinary parents contribute
+/// contracts without service identity (calling_plans.md: "Ordinary policy
+/// parents contribute contract identity without service reach"). The
+/// inherited requirements keep the parent's declaration and are judged
+/// with it; what the edge itself owes is an application the parent's
+/// telescope admits:
+///
+/// - a boundary parent only under a boundary trait (an ordinary trait cannot
+///   inherit a boundary parent);
+/// - each implementation argument names an implementation of the binder's
+///   bound (`Calling<DarwinArm64ByteViewCalling>` names a `CallingPolicy`);
+/// - a parent with requirements takes no argument, since a substituted
+///   requirement contract would need its own reading here.
+fn served_parent(
+    typed: &typed_trees::TypedTrees,
+    child: &typed_trees::trait_definition::TraitDefinition,
+    parent: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+) -> Result<(), &'static str> {
+    use typed_trees::data::TypeParameterKind;
+    let declaration = parent.declaration;
+    if declaration.is_boundary && !child.is_boundary {
+        return Err("ordinary trait inheriting a boundary parent");
+    }
+    served_trait_parameters(typed, declaration)?;
+    let parameters = typed.trait_type_parameters(declaration);
+    if !parameters.is_empty() && !typed.trait_machine_signatures(declaration).is_empty() {
+        return Err("parent application whose requirements are substituted");
+    }
+    for parameter in parameters {
+        if parameter.kind == TypeParameterKind::Implementation {
+            parent.named_implementation_argument(typed, parameter.symbol)?;
+        }
+    }
+    Ok(())
 }
 
 impl<'t> Program<'t> {
@@ -741,11 +857,11 @@ impl<'t> Program<'t> {
         entry: MachineId,
         declared: &'t typed_trees::trait_definition::TraitDefinition,
     ) -> Checked<()> {
-        if !lists_requirements_only(self.typed, declared) {
+        if let Err(unserved) = served_trait_header(self.typed, declared) {
             return Err(refuse(
                 entry,
                 Construct::Machine,
-                Unserved::Declaration("trait with parameters, schema clauses or a refinement"),
+                Unserved::Declaration(unserved),
             ));
         }
         if !declared.type_parameters.is_empty()
@@ -768,11 +884,11 @@ impl<'t> Program<'t> {
         declared: &'t typed_trees::trait_definition::TraitDefinition,
     ) -> Checked<()> {
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
-        if !lists_requirements_only(self.typed, declared) {
+        if let Err(unserved) = served_trait_header(self.typed, declared) {
             return Err(refuse(
                 diagnostic,
                 Construct::Machine,
-                Unserved::Declaration("generic trait with an unserved telescope or schema clause"),
+                Unserved::Declaration(unserved),
             ));
         }
         self.generic_binders.extend(
@@ -787,6 +903,9 @@ impl<'t> Program<'t> {
             .trait_type_parameters(declared)
             .iter()
             .enumerate()
+            // An implementation binder is no type: a requirement that calls
+            // through it is refused where the call is read.
+            .filter(|(_, parameter)| parameter.kind == typed_trees::data::TypeParameterKind::Type)
             .map(|(position, parameter)| {
                 (
                     parameter.symbol,
@@ -860,7 +979,17 @@ impl<'t> Program<'t> {
         let Some(application) = plain
             .then(|| AppliedTraitScope::from_conformance(typed, declared))
             .flatten()
-            .filter(|application| lists_requirements_only(typed, application.declaration))
+            // Parent edges add no row to an implementation of a trait whose
+            // parents have no requirements; an inherited row is refused below.
+            .filter(|application| {
+                served_trait_header(typed, application.declaration).is_ok()
+                    && typed
+                        .trait_type_parameters(application.declaration)
+                        .iter()
+                        .all(|parameter| {
+                            parameter.kind == typed_trees::data::TypeParameterKind::Type
+                        })
+            })
         else {
             return Err(unserved(
                 "implementation with parameters or of a trait that has them",

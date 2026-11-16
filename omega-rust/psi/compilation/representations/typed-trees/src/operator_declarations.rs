@@ -669,7 +669,7 @@ pub mod operator {
             program: &TypedTrees,
             actual: TypeReferenceHandle,
             expected: TypeReferenceHandle,
-            type_parameters: &[TypeParameter],
+            type_parameters: arena::RootRows<'_, TypeParameter>,
             bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
             const_bindings: &mut Vec<OperatorConstBinding>,
         ) -> bool {
@@ -1275,7 +1275,7 @@ pub mod operator {
         }
 
         pub(crate) fn normalized_operand_parameters(
-            parameters: &[crate::signature::StateParameter],
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
         ) -> impl Iterator<Item = &crate::signature::StateParameter> {
             parameters.iter()
         }
@@ -1406,9 +1406,7 @@ pub mod operator {
             if operator.spelling != operation_spelling(operation) {
                 return None;
             }
-            let [left, right] = typed.operator_parameters(operator) else {
-                return None;
-            };
+            let [left, right] = typed.operator_parameters(operator).as_array()?;
             let primitive = typed.primitive_type_reference(left.type_reference)?;
             if typed.primitive_type_reference(right.type_reference) != Some(primitive) {
                 return None;
@@ -2119,7 +2117,7 @@ pub mod operator {
 
         fn bindings_satisfy_known_multiplicities(
             program: &TypedTrees,
-            parameters: &[crate::data::TypeParameter],
+            parameters: arena::RootRows<'_, crate::data::TypeParameter>,
             bindings: &[(SymbolHandle, TypeReferenceHandle)],
         ) -> bool {
             parameters.iter().all(|parameter| {
@@ -2206,7 +2204,7 @@ pub mod operator {
 
         fn closed_multiplicity_arguments(
             program: &TypedTrees,
-            parameters: &[crate::data::TypeParameter],
+            parameters: arena::RootRows<'_, crate::data::TypeParameter>,
             arguments: &[TypeReferenceHandle],
             depth: usize,
         ) -> bool {
@@ -2272,7 +2270,7 @@ pub mod operator {
             applies: bool,
             actual: TypeReferenceHandle,
             expected: TypeReferenceHandle,
-            type_parameters: &[crate::data::TypeParameter],
+            type_parameters: arena::RootRows<'_, crate::data::TypeParameter>,
             bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
             const_bindings: &mut Vec<OperatorConstBinding>,
         ) -> bool {
@@ -3077,7 +3075,7 @@ pub mod operator {
                             actual,
                             expected.type_reference,
                             None,
-                            &type_parameters,
+                            (&type_parameters).into(),
                             &mut bindings,
                             &mut const_bindings,
                             false,
@@ -3517,7 +3515,7 @@ pub mod operator {
             actual: TypeReferenceHandle,
             expected: TypeReferenceHandle,
             bindable_owner: Option<SymbolHandle>,
-            type_parameters: &[TypeParameter],
+            type_parameters: arena::RootRows<'_, TypeParameter>,
             bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
             const_bindings: &mut Vec<OperatorConstBinding>,
         ) -> bool {
@@ -3538,7 +3536,7 @@ pub mod operator {
             actual: TypeReferenceHandle,
             expected: TypeReferenceHandle,
             bindable_owner: Option<SymbolHandle>,
-            type_parameters: &[TypeParameter],
+            type_parameters: arena::RootRows<'_, TypeParameter>,
             bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
             const_bindings: &mut Vec<OperatorConstBinding>,
             allow_name_fallback: bool,
@@ -3568,7 +3566,7 @@ pub mod operator {
             actual: TypeReferenceHandle,
             expected: TypeReferenceHandle,
             bindable_owner: Option<SymbolHandle>,
-            type_parameters: &[TypeParameter],
+            type_parameters: arena::RootRows<'_, TypeParameter>,
             bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
             const_bindings: &mut Vec<OperatorConstBinding>,
             allow_name_fallback: bool,
@@ -3638,7 +3636,7 @@ pub mod operator {
                         actual,
                         *bound_actual,
                         None,
-                        &[],
+                        Default::default(),
                         &mut Vec::new(),
                         &mut Vec::new(),
                         allow_name_fallback,
@@ -3775,7 +3773,7 @@ pub mod operator {
             actual: HandleSpan<TypeReferenceHandle>,
             expected: HandleSpan<TypeReferenceHandle>,
             bindable_owner: Option<SymbolHandle>,
-            type_parameters: &[TypeParameter],
+            type_parameters: arena::RootRows<'_, TypeParameter>,
             bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
             const_bindings: &mut Vec<OperatorConstBinding>,
             allow_name_fallback: bool,
@@ -3798,7 +3796,7 @@ pub mod operator {
         }
 
         fn find_type_parameter<'a>(
-            type_parameters: &'a [TypeParameter],
+            type_parameters: arena::RootRows<'a, TypeParameter>,
             symbol: &SymbolHandle,
             name: &crate::name::Identifier,
             allow_name_fallback: bool,
@@ -3813,7 +3811,7 @@ pub mod operator {
             program: &TypedTrees,
             actual: &FixedArrayLength,
             expected: &FixedArrayLength,
-            type_parameters: &[TypeParameter],
+            type_parameters: arena::RootRows<'_, TypeParameter>,
             const_bindings: &mut Vec<OperatorConstBinding>,
             allow_name_fallback: bool,
         ) -> bool {
@@ -3903,7 +3901,7 @@ pub mod operator {
             program: &TypedTrees,
             expected: TypeReferenceHandle,
             bindable_owner: Option<SymbolHandle>,
-            type_parameters: &[TypeParameter],
+            type_parameters: arena::RootRows<'_, TypeParameter>,
             allow_name_fallback: bool,
         ) -> Option<SymbolHandle> {
             let (symbol, _) = match program.type_reference_table.type_reference(expected) {
@@ -3925,7 +3923,7 @@ pub mod operator {
         fn expected_type_parameter<'a>(
             program: &TypedTrees,
             expected: TypeReferenceHandle,
-            type_parameters: &'a [TypeParameter],
+            type_parameters: arena::RootRows<'a, TypeParameter>,
             allow_name_fallback: bool,
         ) -> Option<&'a TypeParameter> {
             match program.type_reference_table.type_reference(expected) {

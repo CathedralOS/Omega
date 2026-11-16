@@ -142,7 +142,7 @@ pub(crate) mod access_views {
                 {
                     return Err(malformed("lost its canonical declaration envelope"));
                 }
-                let [state] = program.machine_states(machine) else {
+                let Some([state]) = program.machine_states(machine).as_array() else {
                     return Err(malformed("must retain one entry state"));
                 };
                 if symbol != machine.symbol && symbol != state.symbol {
@@ -234,10 +234,11 @@ pub(crate) mod access_views {
                         operation.operation(),
                     ))
                 };
-                let [accessor, value] = program.machine_type_parameters(machine) else {
+                let Some([accessor, value]) = program.machine_type_parameters(machine).as_array()
+                else {
                     return Err(invalid());
                 };
-                let [state] = program.machine_states(machine) else {
+                let Some([state]) = program.machine_states(machine).as_array() else {
                     return Err(invalid());
                 };
                 if machine.body_is_present
@@ -553,7 +554,7 @@ pub(crate) mod access_views {
                 let machine = typed
                     .machine(target.machine_symbol)
                     .ok_or_else(|| invalid("generated machine is absent"))?;
-                let [state] = typed.machine_states(machine) else {
+                let Some([state]) = typed.machine_states(machine).as_array() else {
                     return Err(invalid("generated machine has no unique entry"));
                 };
                 if state.symbol != target.state_symbol

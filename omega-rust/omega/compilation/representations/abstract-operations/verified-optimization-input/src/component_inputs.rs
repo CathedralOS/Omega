@@ -256,7 +256,7 @@ impl RetainedComponentNativeInputs {
                 "component import",
             )?;
             for application in [producer, receiver] {
-                if application.dispatch_only_parameter_count != 0 {
+                if application.dispatch_only_formal.is_some() {
                     return Err(
                         "component calling application cannot omit dispatch-only formals".into(),
                     );

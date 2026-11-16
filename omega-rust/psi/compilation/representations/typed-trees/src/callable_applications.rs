@@ -2815,7 +2815,7 @@ pub(crate) mod namespaces {
             let machine = self
                 .machine_by_symbol(row.realization_machine)
                 .ok_or("named public view lost its selected machine")?;
-            let [entry] = self.machine_states(machine) else {
+            let Some([entry]) = self.machine_states(machine).as_array() else {
                 return Err("named public view needs one exact selected entry");
             };
             if entry.symbol != row.realization_state {
@@ -4264,7 +4264,7 @@ mod declaration_invocations {
                 .machine_states
                 .span(machine.states)
                 .ok_or("bodyless declaration has a stale state roster")?;
-            let [state] = states else {
+            let Some([state]) = states.as_array() else {
                 return Err("bodyless declaration needs one exact entry state");
             };
             if (target != machine.symbol && target != state.symbol)
@@ -4400,7 +4400,7 @@ pub(crate) mod requirement_instances {
         pub trait_scope: crate::trait_definition::RetainedTraitScope,
         pub trait_arguments: &'program [types::TypeReferenceHandle],
         pub local_arguments: &'program [RequirementLocalArgument],
-        pub invocation_contract_parameters: &'program [data::TypeParameter],
+        pub invocation_contract_parameters: arena::RootRows<'program, data::TypeParameter>,
         pub application: static_applications::StaticMachineApplicationHandle,
         pub signature: &'program signature::StateSignature,
     }
@@ -4409,7 +4409,7 @@ pub(crate) mod requirement_instances {
         pub fn requirement_invocation_contract_parameters<'program>(
             &'program self,
             signature: &'program signature::StateSignature,
-        ) -> &'program [data::TypeParameter] {
+        ) -> arena::RootRows<'program, data::TypeParameter> {
             self.closed_requirement_application(signature.symbol)
                 .map(|application| application.invocation_contract_parameters)
                 .unwrap_or_else(|| self.state_signature_type_parameters(signature))
@@ -5619,7 +5619,7 @@ pub(crate) mod signatures {
             &'program self,
             declared: &signature::StateSignature,
             applied: &'program signature::StateSignature,
-        ) -> Option<&'program [signature::StateParameter]> {
+        ) -> Option<arena::RootRows<'program, signature::StateParameter>> {
             let count = self.state_signature_parameters(declared).len();
             let parameters = self.state_signature_parameters(applied);
             if count == parameters.len() {
@@ -5640,15 +5640,18 @@ pub(crate) mod signatures {
                     )
                     .then_some(binder.symbol)
                 });
+            if count > parameters.len() {
+                return None;
+            }
             if !parameters
-                .get(count..)?
+                .slice(count..parameters.len())
                 .iter()
                 .map(|parameter| parameter.symbol)
                 .eq(runtime)
             {
                 return None;
             }
-            parameters.get(..count)
+            Some(parameters.slice(0..count))
         }
 
         pub fn applied_signature_parameter(
@@ -5784,7 +5787,7 @@ pub(crate) mod signatures {
                         .map(|argument| self.type_reference(program, *argument))
                         .collect::<Result<Vec<_>, _>>()?;
                 }
-                applied.parameters = self.parameters(program, &parameters)?;
+                applied.parameters = self.parameters(program, (&parameters).into())?;
                 for (declared, applied_parameter) in program
                     .state_signature_type_parameters(declared)
                     .iter()
@@ -5932,7 +5935,7 @@ pub(crate) mod signatures {
                         .state_parameters
                         .span_or_empty(contract.parameters)
                         .to_vec();
-                    contract.parameters = self.parameters(program, &parameters)?;
+                    contract.parameters = self.parameters(program, (&parameters).into())?;
                     data::TypeParameterKind::Proposition { contract }
                 }
                 data::TypeParameterKind::Type => data::TypeParameterKind::Type,
@@ -5943,7 +5946,7 @@ pub(crate) mod signatures {
         fn parameters(
             &mut self,
             program: &mut TypedTrees,
-            declared: &[signature::StateParameter],
+            declared: arena::RootRows<'_, signature::StateParameter>,
         ) -> Result<HandleSpan<signature::StateParameter>, &'static str> {
             let mut parameters = HandleSpan::empty();
             let previous_symbols = self.symbols.len();
@@ -6115,7 +6118,7 @@ pub(crate) mod table {
 
     use super::{AppliedCallableOwner, AppliedCallableSignature};
     use crate::static_applications::StaticMachineApplicationHandle;
-    use arena::{Arena, Handle};
+    use arena::{Arena, Handle, RootedArena};
     use symbols::SymbolHandle;
 
     type CallableRow = Handle<AppliedCallableSignature>;
@@ -6160,7 +6163,9 @@ pub(crate) mod table {
 
     #[derive(Clone, Default)]
     pub(crate) struct AppliedCallableTable {
-        arena: Arena<AppliedCallableSignature>,
+        // Continuations share unchanged signatures, but keep their invocation
+        // links private so replacement and slot reuse cannot change a predecessor.
+        arena: RootedArena<AppliedCallableSignature>,
         invocation_heads: Vec<Handle<InvocationGroup>>,
         invocation_groups: Arena<InvocationGroup>,
         row_links: Vec<RowLink>,
@@ -6168,6 +6173,7 @@ pub(crate) mod table {
 
     impl From<Arena<AppliedCallableSignature>> for AppliedCallableTable {
         fn from(arena: Arena<AppliedCallableSignature>) -> Self {
+            let arena = RootedArena::from(arena);
             let layout = AssociationLayout::measure(&arena)
                 .expect("produced callable association must fit the host's storage sizes");
             Self::recover(arena, layout)
@@ -6186,7 +6192,7 @@ pub(crate) mod table {
         }
     }
     impl std::ops::Deref for AppliedCallableTable {
-        type Target = Arena<AppliedCallableSignature>;
+        type Target = RootedArena<AppliedCallableSignature>;
         fn deref(&self) -> &Self::Target {
             &self.arena
         }
@@ -6204,7 +6210,9 @@ pub(crate) mod table {
         ) -> Result<Self, compiler_storage::RecordError> {
             input.record(|input| {
                 let arena =
-                    <Arena<AppliedCallableSignature> as compiler_storage::Record>::read(input)?;
+                    <RootedArena<AppliedCallableSignature> as compiler_storage::Record>::read(
+                        input,
+                    )?;
                 let layout = AssociationLayout::measure(&arena)
                     .ok_or_else(|| input.error("applied callable association size overflow"))?;
                 let allocation = layout.allocation_bytes().ok_or_else(|| {
@@ -6223,7 +6231,7 @@ pub(crate) mod table {
     }
 
     impl AssociationLayout {
-        fn measure(arena: &Arena<AppliedCallableSignature>) -> Option<Self> {
+        fn measure(arena: &RootedArena<AppliedCallableSignature>) -> Option<Self> {
             let mut layout = Self {
                 invocation_slots: 0,
                 row_slots: 0,
@@ -6259,7 +6267,10 @@ pub(crate) mod table {
     }
 
     impl AppliedCallableTable {
-        fn recover(arena: Arena<AppliedCallableSignature>, layout: AssociationLayout) -> Self {
+        fn recover(
+            arena: RootedArena<AppliedCallableSignature>,
+            layout: AssociationLayout,
+        ) -> Self {
             let mut rows = Vec::with_capacity(layout.associated_rows);
             for (handle, row) in arena.iter() {
                 if invocation_owner(row).is_some() {
@@ -6293,7 +6304,7 @@ pub(crate) mod table {
                 return Err("applied callable replacement names a retired row");
             }
             self.remove_row(handle);
-            *self.arena.get_mut(handle) = row;
+            self.arena.set(handle, row);
             self.publish_row(handle);
             Ok(())
         }
@@ -6571,7 +6582,7 @@ pub(crate) mod table {
                 arena: Arena<AppliedCallableSignature>,
             }
             let prior = PriorTableRecord {
-                arena: table.arena.clone(),
+                arena: compiler_storage::decode(&encoded, Default::default()).unwrap(),
             };
             assert_eq!(
                 compiler_storage::encode(&prior, compiler_storage::RecordLimits::default())
@@ -6673,6 +6684,8 @@ pub(crate) mod table {
             let other = StaticMachineApplicationHandle::from_parts(1, 2);
             let mut table = AppliedCallableTable::default();
             let handle = table.insert(selection(invocation));
+            let predecessor = table.clone();
+            assert!(std::ptr::eq(table.get(handle), predecessor.get(handle)));
             let signature = StateSignature {
                 symbol: symbols::SymbolHandle::from_arena_index(9),
                 ..Default::default()
@@ -6683,6 +6696,8 @@ pub(crate) mod table {
             assert_eq!(rows(&table, invocation), [handle]);
             assert!(rows(&table, other).is_empty());
             assert_eq!(table.get(handle).signature, signature);
+            assert_eq!(predecessor.get(handle).signature, StateSignature::default());
+            assert_eq!(rows(&predecessor, invocation), [handle]);
         }
 
         #[test]
@@ -6723,6 +6738,7 @@ pub(crate) mod table {
         fn small_record_recovery_charges_every_preallocated_association_buffer() {
             let mut arena = Arena::default();
             arena.insert(selection(StaticMachineApplicationHandle::from_parts(1, 1)));
+            let arena = RootedArena::from(arena);
             let bytes = compiler_storage::encode(&arena, compiler_storage::RecordLimits::default())
                 .unwrap();
             let mut low = 0;
@@ -6733,7 +6749,7 @@ pub(crate) mod table {
                     allocation: middle,
                     ..Default::default()
                 };
-                if compiler_storage::decode::<Arena<AppliedCallableSignature>>(&bytes, limits)
+                if compiler_storage::decode::<RootedArena<AppliedCallableSignature>>(&bytes, limits)
                     .is_ok()
                 {
                     high = middle;
@@ -6751,7 +6767,8 @@ pub(crate) mod table {
                 ..Default::default()
             };
             assert!(
-                compiler_storage::decode::<Arena<AppliedCallableSignature>>(&bytes, tight).is_ok()
+                compiler_storage::decode::<RootedArena<AppliedCallableSignature>>(&bytes, tight)
+                    .is_ok()
             );
             let error =
                 compiler_storage::decode::<AppliedCallableTable>(&bytes, tight).unwrap_err();

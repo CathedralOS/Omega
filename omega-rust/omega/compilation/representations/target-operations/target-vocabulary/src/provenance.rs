@@ -1,9 +1,7 @@
-// Terminal Psi provenance, call-site ownership, and admitted boundary origin facts.
+// Terminal Psi provenance, call-site ownership, and the program entry origin.
 // Ordinary calls belong to Terminal operations, nominal cleanup calls retain their ownership edge and action ordinal, external completions own their terminal edge, and static-interrupt installation helpers keep the source operation alongside their distinct `Validate` or `Work` role.
 
-use installation_evidence::InstalledAssumedBindingEvidence;
 use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
-use terminal_installation::TerminalTargetContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TerminalPsiProvenance {
@@ -68,16 +66,15 @@ impl From<InvocationSite> for CallSiteOwner {
             InvocationSite::InvokeNoNormal(edge) => Self::InvokeNoNormal(edge),
             InvocationSite::Operation(operation) => Self::Operation(operation),
             InvocationSite::ExternalCompletion(edge) => Self::ExternalCompletion(edge),
+            InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } => Self::CleanupAction {
+                edge,
+                action_ordinal,
+            },
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct BoundaryOriginFacts<'input> {
-    pub program_entry: Option<ProgramEntryOrigin>,
-    pub assumed_bindings: &'input [InstalledAssumedBindingEvidence],
-    pub target_context: Option<&'input TerminalTargetContext>,
-    pub module: &'input terminal_psi::TerminalModule,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,6 +107,20 @@ mod tests {
         assert_eq!(edge_owner.cleanup_action_ordinal(), Some(3));
         assert_eq!(operation_owner.cleanup_action_ordinal(), None);
         assert_ne!(operation_owner, edge_owner);
+        assert_eq!(
+            CallSiteOwner::from(semantic_vocabulary::InvocationSite::Cleanup {
+                edge,
+                action_ordinal: 3,
+            }),
+            edge_owner,
+        );
+        assert_ne!(
+            CallSiteOwner::from(semantic_vocabulary::InvocationSite::Cleanup {
+                edge,
+                action_ordinal: 4,
+            }),
+            edge_owner,
+        );
     }
 
     #[test]

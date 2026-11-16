@@ -1302,8 +1302,8 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
                     target.lowering_facts().closed_module(),
                 )
             };
-            verify(target.target_operations(), optimized.plan(), optimized.unit()).unwrap();
-            let mut changed_target = target.target_operations().clone();
+            verify(target.working_program_for_validation(), optimized.plan(), optimized.unit()).unwrap();
+            let mut changed_target = target.working_program_for_validation().clone();
             let mut mutated_boundary = None;
             for operation in changed_target.functions.iter_mut().flat_map(|function| &mut function.graph.blocks)
                 .flat_map(|block| &mut block.operations)
@@ -1331,7 +1331,7 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
                 assert!(!result.qualifications.is_empty());
                 result.qualifications = ScalarQualificationSetId::ZERO;
             }
-            assert!(verify(target.target_operations(), &changed_abstract, &changed_unit).is_err());
+            assert!(verify(target.working_program_for_validation(), &changed_abstract, &changed_unit).is_err());
             let invalid = repository()
                 .join("tests/fixtures/fail/float/saturating_integer_conversion/main.omg");
             let diagnostics = orchestration::check_source(

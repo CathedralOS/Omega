@@ -159,7 +159,7 @@ fn binding_snapshot_controls(extra: usize) {
         ..Default::default()
     });
     assert_ne!(incoming.revision(), program.state_parameters.revision());
-    program.tables.state_parameters = incoming;
+    program.tables.state_parameters = incoming.into();
     matches_scan(&program, &state, &binders);
     matches_scan(&snapshot, &state, &binders);
     let mut incoming = crate::statement::StatementTable::new();
@@ -434,7 +434,7 @@ fn published_rows_refresh_same_shape_storage_and_state_span_edits() {
     let mut incoming = arena::Arena::default();
     incoming.insert_many([other.clone(), state.clone()]);
     assert_ne!(incoming.revision(), program.machine_states.revision());
-    program.tables.machine_states = incoming;
+    program.tables.machine_states = incoming.into();
     matches_global_roster(&program, &binders);
     assert_eq!(program.unique_local_data_for_symbol(binders[1]), None);
     assert!(program.unique_local_data_for_symbol(binders[3]).is_some());
@@ -550,7 +550,7 @@ fn legacy_named_value_and_signature_queries_keep_source_order() {
     let mut requested = program.state_parameters(&state).to_vec();
     requested[0].type_reference = other;
     assert_eq!(
-        program.state_position_for_parameter_symbols(&requested),
+        program.state_position_for_parameter_symbols((&requested).into()),
         Some((0, 0))
     );
     assert_eq!(program.unique_local_data_for_symbol(binders[1]), None);
@@ -893,7 +893,7 @@ fn field_lookup_preserves_payload_uniqueness_and_storage_changes() {
         }),
     ]);
     assert_ne!(incoming.revision(), program.data_members.revision());
-    program.tables.data_members = incoming;
+    program.tables.data_members = incoming.into();
     assert_fields(&program);
     assert_fields(&snapshot);
     program.data_payload_fields.get_mut(payload.start()).symbol = fields[2];

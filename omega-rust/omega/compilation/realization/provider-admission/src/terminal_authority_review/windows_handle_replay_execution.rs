@@ -471,8 +471,7 @@ impl<'a, 'module> Execution<'a, 'module> {
         // receipt. It remains conditional on the runtime's independently
         // delegated containing-domain authority; this replay grants none.
         // Ordinary returns still check every acquired handle below.
-        let CallSite::Invocation(InvocationSite::ExternalCompletion(edge)) = call.caller.site
-        else {
+        let InvocationSite::ExternalCompletion(edge) = call.caller.site else {
             return Err("process exit has no original external-completion occurrence".into());
         };
         let body = self.body(work.activation)?;
@@ -488,9 +487,7 @@ impl<'a, 'module> Execution<'a, 'module> {
         else {
             return Err("process exit substitutes another original terminator".into());
         };
-        let RuntimeArguments::Explicit { scalar, structural } = call.arguments else {
-            return Err("process exit substitutes implicit cleanup operands".into());
-        };
+        let RuntimeArguments { scalar, structural } = call.arguments;
         if scalar != arguments.as_slice()
             || structural != structural_arguments.as_slice()
             || call.caller.machine != body.id
@@ -564,7 +561,7 @@ impl<'a, 'module> Execution<'a, 'module> {
             };
             if matches!(
                 action,
-                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
             ) {
                 return self.call(
                     work,
@@ -572,7 +569,12 @@ impl<'a, 'module> Execution<'a, 'module> {
                         machine: body.id,
                         block: block.id,
                         operation_index: position.1 as usize,
-                        site: CallSite::Cleanup { edge, ordinal },
+                        site: InvocationSite::Cleanup {
+                            edge,
+                            action_ordinal: u32::try_from(ordinal).map_err(
+                                |_| "handle cleanup action ordinal exceeds its canonical identity",
+                            )?,
+                        },
                     },
                     next,
                 );
@@ -702,7 +704,7 @@ impl<'a, 'module> Execution<'a, 'module> {
                 machine: body.id,
                 block: block.id,
                 operation_index: position.1 as usize,
-                site: CallSite::Invocation(InvocationSite::Operation(operation.id)),
+                site: InvocationSite::Operation(operation.id),
             };
             let next = Control::Position((
                 position.0,
@@ -749,7 +751,7 @@ impl<'a, 'module> Execution<'a, 'module> {
                         machine: body.id,
                         block: block.id,
                         operation_index: position.1 as usize,
-                        site: CallSite::Invocation(site),
+                        site,
                     },
                     Control::Position(position),
                 )
@@ -1013,9 +1015,7 @@ pub(super) fn derive(
         .map(|occurrence| (occurrence.machine, occurrence.site))
         .collect::<BTreeSet<_>>();
     for caller in inputs.close_sites.iter().chain(&inputs.duplicate_sites) {
-        let CallSite::Invocation(site) = caller.site else {
-            return Err("handle release candidate has no original invocation identity".into());
-        };
+        let site = caller.site;
         if !reached.contains(&(caller.machine, site)) {
             return Err("handle release candidate has no checked reachable occurrence".into());
         }
@@ -1066,7 +1066,6 @@ mod tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: MachineId::new(1).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),
@@ -1129,9 +1128,7 @@ mod tests {
                             machine: MachineId::new(1).unwrap(),
                             block: BlockId::new(1).unwrap(),
                             operation_index: 0,
-                            site: CallSite::Invocation(InvocationSite::Operation(
-                                OperationId::new(1).unwrap(),
-                            )),
+                            site: InvocationSite::Operation(OperationId::new(1).unwrap()),
                         },
                         callee: MachineId::new(2).unwrap(),
                     },
@@ -1222,7 +1219,7 @@ mod tests {
             .frame
             .invocation
             .caller
-            .site = CallSite::Invocation(InvocationSite::Operation(OperationId::new(2).unwrap()));
+            .site = InvocationSite::Operation(OperationId::new(2).unwrap());
         variants.push(sibling);
         let mut continuation = base.clone();
         Arc::make_mut(&mut continuation.frames[0]).continuation =
@@ -1362,7 +1359,7 @@ mod tests {
             .frame
             .invocation
             .caller
-            .site = CallSite::Invocation(InvocationSite::Operation(OperationId::new(9).unwrap()));
+            .site = InvocationSite::Operation(OperationId::new(9).unwrap());
         assert!(ResourceWork(Arc::new(original.clone())) != ResourceWork(Arc::new(sibling)));
         let mut case = original.clone();
         case.state.cases.insert(

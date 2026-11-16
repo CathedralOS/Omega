@@ -43,6 +43,7 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub use crate::AdmittedInstalledInterruptCohort;
+pub use crate::installed_interrupt_helpers::bind_installations;
 pub use crate::native_bindings::{
     NativeBindingInput, RetainedNativeBinding, RetainedNativeBindings,
     validate_native_binding_execution, validate_native_binding_realization,

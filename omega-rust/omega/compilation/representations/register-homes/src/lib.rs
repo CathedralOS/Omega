@@ -329,6 +329,11 @@ pub struct AllocatedProgramFacts<'program> {
     pub manifest: &'program PostAllocationOptimizationManifest, // Post-allocation manifest
 }
 
+/// Keeps the allocation available to later forms without copying its plans.
+pub trait AllocatedProgramSource {
+    fn allocation_facts(&self) -> AllocatedProgramFacts<'_>;
+}
+
 identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }
 identity_newtype! { pub struct AbstractSpillAccessConstraintPlanIdentity([u8; 32]); }
 

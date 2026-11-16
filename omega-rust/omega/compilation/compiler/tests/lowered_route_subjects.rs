@@ -890,7 +890,11 @@ fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
 /// Every part `judge_compilation` judges of `declaration` and an empty
 /// entry: the closure first, then each generic check form.
 fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
-    let frontier = staged_unused(name, declaration);
+    judged_frontier(name, &staged_unused(name, declaration))
+}
+
+/// Every part `judge_compilation` judges of a staged program.
+fn judged_frontier(name: &str, frontier: &compiler::TypedFrontier) -> Vec<Verdict> {
     terminal_psi_to_terminal_psi::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
@@ -917,6 +921,58 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
         other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
     })
     .collect()
+}
+
+/// A trait header that takes a named implementation and a boundary trait
+/// that inherits an application of it are read, as std's
+/// `Calling<Policy satisfies CallingPolicy>` and
+/// `boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling>` are
+/// (calling_plans.md: "Ordinary policy parents contribute contract identity
+/// without service reach"). The parameterized trait has no requirement to
+/// prove; the boundary trait's own requirements are read as any boundary's;
+/// the parent edge owes an argument that names an implementation of the
+/// parameter's bound. Naming an implementation of another trait there is
+/// never accepted.
+#[test]
+fn a_parent_naming_a_policy_implementation_is_judged() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let declaration = |argument: &str| {
+        format!(
+            "trait Plan {{ machine plan(value: u64) -> u64; }}
+         trait Other {{ machine other(value: u64) -> u64; }}
+         Fast satisfies Plan {{ machine plan(value: u64) -> u64 {{ value }} }}
+         Slow satisfies Other {{ machine other(value: u64) -> u64 {{ value }} }}
+         trait Convention<Selected satisfies Plan> {{ }}
+         public boundary trait Leaf: Convention<{argument}> {{
+             machine read(value: u64) -> u64 reaches none crashes none;
+         }}
+machine main() {{}}
+"
+        )
+    };
+    let accepted = judged_frontier(
+        "policy_parent_named",
+        &unbuilt_frontier::staged_frontier("policy_parent_named", &declaration("Fast")),
+    );
+    assert!(!accepted.is_empty());
+    assert!(
+        accepted
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{accepted:?}"
+    );
+    // The earlier stages leave this to the checker, which refuses it.
+    let frontier =
+        unbuilt_frontier::staged_frontier("policy_parent_other_trait", &declaration("Slow"));
+    let refused = judged_frontier("policy_parent_other_trait", &frontier);
+    assert!(
+        refused.iter().any(|verdict| matches!(verdict,
+            Verdict::FallsBack(detail)
+            if detail.contains("implementation argument supplies another nominal trait"))),
+        "{refused:?}"
+    );
 }
 
 #[test]

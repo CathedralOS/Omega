@@ -146,7 +146,7 @@ pub mod calls {
         }
 
         pub fn state_parameter_position(
-            parameters: &[StateParameter],
+            parameters: arena::RootRows<'_, StateParameter>,
             symbol: SymbolHandle,
         ) -> Option<usize> {
             parameters
@@ -887,11 +887,17 @@ pub mod control_flow {
             pub statement_nodes: HandleSpan<StatementNode>,
         }
 
-        pub fn state_by_symbol(states: &[State], symbol: SymbolHandle) -> Option<&State> {
+        pub fn state_by_symbol<'arena>(
+            states: arena::RootRows<'arena, State>,
+            symbol: SymbolHandle,
+        ) -> Option<&'arena State> {
             states.iter().find(|state| state.symbol == symbol)
         }
 
-        pub fn state_position(states: &[State], symbol: SymbolHandle) -> Option<usize> {
+        pub fn state_position(
+            states: arena::RootRows<'_, State>,
+            symbol: SymbolHandle,
+        ) -> Option<usize> {
             states.iter().position(|state| state.symbol == symbol)
         }
 
