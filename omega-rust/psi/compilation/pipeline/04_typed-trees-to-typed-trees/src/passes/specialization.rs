@@ -843,6 +843,8 @@ enum Identity {
     /// A closed scalar value, by its canonical spelling. The parameter it is
     /// given to fixes its type.
     Scalar(String),
+    /// A structural static value, keyed by its complete canonical encoding.
+    Value(String),
 }
 
 /// Applications are indexed in sorted order ([`GeneratedMachines`]). The
@@ -854,7 +856,9 @@ impl Ord for Identity {
             (Self::Declaration(left), Self::Declaration(right)) => {
                 symbol_order(*left).cmp(&symbol_order(*right))
             }
-            (Self::Scalar(left), Self::Scalar(right)) => left.cmp(right),
+            (Self::Scalar(left), Self::Scalar(right)) | (Self::Value(left), Self::Value(right)) => {
+                left.cmp(right)
+            }
             _ => self.rank().cmp(&other.rank()),
         }
     }
@@ -872,6 +876,7 @@ impl Identity {
             Self::Type(_) => 0,
             Self::Declaration(_) => 1,
             Self::Scalar(_) => 2,
+            Self::Value(_) => 3,
         }
     }
 }
@@ -920,19 +925,47 @@ impl Operand {
                 StaticMachineBindingValue::Conformance(argument.clone()),
             ),
             TypeParameterKind::Const { type_reference }
-                if static_record_schema(
-                    program,
-                    *type_reference,
-                    program.symbols.get(parameter).parent,
-                )
-                .is_some() =>
+                if program
+                    .static_record_schema(*type_reference, program.symbols.get(parameter).parent)
+                    .is_some() =>
             {
                 let selected = named_static_record(program, parameter, *type_reference, argument)?;
                 let reference = program
                     .static_operand_type_reference(argument)
                     .map_err(|reason| Stop::Unserved(Some(reason)))?;
+                let identity = if program.symbols.get(selected).kind == SymbolKind::TypeParameter {
+                    Identity::Declaration(selected)
+                } else {
+                    let sources = source::source_identity::toolchain_source_identities(
+                        program.symbols.source_files(),
+                    )
+                    .map_err(|_| unserved("a static record lost its exact source registry"))?;
+                    let value = program
+                        .canonical_operation_record_value(selected, &sources)
+                        .map_err(unserved)?;
+                    Identity::Value(value.index_identity().ok_or(unserved(
+                        "a static record lost its canonical value identity",
+                    ))?)
+                };
+                (identity, StaticMachineBindingValue::Const(reference))
+            }
+            TypeParameterKind::Const { type_reference }
+                if program.primitive_type_reference(*type_reference).is_none()
+                    && argument.symbol.is_valid()
+                    && program
+                        .const_declaration_by_symbol(argument.symbol)
+                        .is_some() =>
+            {
+                let value = program
+                    .canonical_aggregate_argument(*type_reference, argument)
+                    .map_err(unserved)?;
+                let reference = program
+                    .static_operand_type_reference(argument)
+                    .map_err(|reason| Stop::Unserved(Some(reason)))?;
                 (
-                    Identity::Declaration(selected),
+                    Identity::Value(value.index_identity().ok_or(unserved(
+                        "a static aggregate lost its canonical value identity",
+                    ))?),
                     StaticMachineBindingValue::Const(reference),
                 )
             }
@@ -987,6 +1020,11 @@ impl Operand {
     fn declaration(&self) -> Option<SymbolHandle> {
         match &self.identity {
             Identity::Declaration(symbol) => Some(*symbol),
+            Identity::Value(_) => self
+                .argument
+                .symbol
+                .is_valid()
+                .then_some(self.argument.symbol),
             Identity::Scalar(_) | Identity::Type(_) => None,
         }
     }
@@ -1009,6 +1047,7 @@ impl Operand {
         match &self.identity {
             Identity::Declaration(symbol) => program.symbols.name(*symbol).to_owned(),
             Identity::Scalar(value) => value.clone(),
+            Identity::Value(_) => "value".to_owned(),
             Identity::Type(identity) => program.type_identity_text(*identity).unwrap_or_default(),
         }
     }
@@ -1165,26 +1204,6 @@ fn named_implementation(
     }
 }
 
-/// A const operation record is a value of its authored schema. This query
-/// supplies no alternate binder category or callable refinement evidence.
-fn static_record_schema(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    owner: SymbolHandle,
-) -> Option<typed_trees::trait_definition::AppliedTraitScope<'_>> {
-    if !program
-        .type_reference_table
-        .contains_type_reference(reference)
-        || !matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-        )
-    {
-        return None;
-    }
-    typed_trees::trait_definition::AppliedTraitScope::from_type_reference(program, reference, owner)
-}
-
 fn named_static_record(
     program: &TypedTrees,
     parameter: SymbolHandle,
@@ -1199,14 +1218,11 @@ fn named_static_record(
             "a static record operand needs its exact named value",
         ));
     }
-    let required = static_record_schema(
-        program,
-        declared_type,
-        program.symbols.get(parameter).parent,
-    )
-    .ok_or(unserved(
-        "a static record parameter lost its exact declared schema",
-    ))?;
+    let required = program
+        .static_record_schema(declared_type, program.symbols.get(parameter).parent)
+        .ok_or(unserved(
+            "a static record parameter lost its exact declared schema",
+        ))?;
     let symbol = argument.symbol;
     if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
         let declaration = program
@@ -1216,11 +1232,11 @@ fn named_static_record(
         else {
             return Err(unserved("a forwarded static record is not a const value"));
         };
-        let actual =
-            static_record_schema(program, type_reference, program.symbols.get(symbol).parent)
-                .ok_or(unserved(
-                    "a forwarded static record lost its declared schema",
-                ))?;
+        let actual = program
+            .static_record_schema(type_reference, program.symbols.get(symbol).parent)
+            .ok_or(unserved(
+                "a forwarded static record lost its declared schema",
+            ))?;
         if !required.same_application(program, &actual) {
             return Err(Stop::Rejected(
                 "a forwarded static record has another declared schema".into(),

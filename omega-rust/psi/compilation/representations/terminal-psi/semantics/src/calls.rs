@@ -1338,7 +1338,7 @@ pub mod closed_conformances {
                 ClosedReachParameter::Proposition { argument },
             ) => module.identities.text(*identity) == Some(argument.as_str()),
             (ClosedReachArgument::Const(identity), ClosedReachParameter::Const { argument }) => {
-                argument.scalar_index_identity().as_deref() == module.identities.text(*identity)
+                argument.index_identity().as_deref() == module.identities.text(*identity)
             }
             (
                 ClosedReachArgument::Machine {
@@ -2038,6 +2038,14 @@ pub mod closed_reach {
         {
             return Err("closed reach arguments differ from their complete declaration telescope");
         }
+        if telescope.iter().any(|parameter| {
+            matches!(
+                parameter,
+                ClosedReachParameter::Const { argument } if !argument.is_canonical_static_value()
+            )
+        }) {
+            return Err("closed reach telescope has no canonical static carrier and value");
+        }
         Ok(())
     }
 
@@ -2321,13 +2329,6 @@ pub mod closed_reach {
                         if argument.is_empty() =>
                     {
                         return Err("closed reach telescope has an empty argument");
-                    }
-                    ClosedReachParameter::Const { argument }
-                        if argument.type_name.is_empty() || !argument.is_scalar() =>
-                    {
-                        return Err(
-                            "closed reach telescope has no canonical scalar carrier and value",
-                        );
                     }
                     ClosedReachParameter::Machine(binding) => {
                         identity(binding.selected_identity)?;
