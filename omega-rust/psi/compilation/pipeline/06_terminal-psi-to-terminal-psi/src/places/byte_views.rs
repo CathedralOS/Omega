@@ -38,22 +38,16 @@ impl Storage<'_> {
             return Ok(None);
         };
         let root_type = self.root_type(operand.source(), concerns)?;
-        let Some(Proposition::Equal(
-            result,
-            ScalarTerm::ByteSequencePredicate {
-                predicate,
-                root,
-                path,
-            },
-        )) = terminal_semantics::byte_predicate_equation(
-            &observation,
-            root_type,
-            &self.module.structural_types,
-        )
+        let Some(Proposition::Equal(result, ScalarTerm::ByteSequencePredicate { predicate, .. })) =
+            terminal_semantics::byte_predicate_equation(
+                &observation,
+                root_type,
+                &self.module.structural_types,
+            )
         else {
             return Ok(None);
         };
-        let actual = self.stored_at(root, &path, concerns)?;
+        let actual = self.argument(&self.byte_operand_argument(operand, concerns)?, concerns)?;
         let subject = match self.byte_source(predicate, &actual, concerns) {
             Ok(subject) => subject,
             Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
