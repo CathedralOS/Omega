@@ -695,10 +695,7 @@ impl<'t> Program<'t> {
                 return self.record_literal(id, slots, handle, literal, source);
             }
             ExpressionNode::String(bytes) => return self.byte_literal(id, bytes, expected, source),
-            ExpressionNode::ZeroValue(reference) => {
-                let value_type = self.value_type(id, *reference)?;
-                return self.zero_value(id, value_type, source);
-            }
+            ExpressionNode::ZeroValue(_) => return unserved("zero value"),
         };
         Ok(Expression {
             call_context: None,

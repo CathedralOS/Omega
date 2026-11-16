@@ -949,3 +949,49 @@ fn rebuilding_a_record_from_a_lent_governed_field_is_not_accepted() {
         "owned extraction from borrowed storage",
     );
 }
+
+#[test]
+fn omitted_zero_payloads_prove_predicates_and_require_the_actual_issuer() {
+    let source = r#"
+domain u32::ZeroOnly requires self == 0u32;
+domain u32::IssuedZero established by mint_zero;
+data ZeroChoice {
+    case First(value: u32 in ZeroOnly);
+    case Other(value: u32 in IssuedZero);
+}
+data ZeroHolder { choice: ZeroChoice; }
+data IssuedLeaf { value: u32 in IssuedZero; }
+data IssuedHolder { leaf: IssuedLeaf; }
+machine make_zero() -> ZeroHolder { ZeroHolder { .. } }
+machine mint_zero() -> IssuedHolder { IssuedHolder { .. } }
+"#;
+    let accepted = verdicts("omitted-qualified-zero", source);
+    assert!(!accepted.is_empty());
+    assert!(
+        accepted.iter().all(|result| result == "accepted"),
+        "{accepted:?}"
+    );
+
+    // Zero must establish the first case's actual predicate, rather than
+    // finding another case or assuming the new membership as a premise.
+    let nonzero = source.replace("self == 0u32", "self != 0u32");
+    let rejected = verdicts("omitted-nonzero-first-payload", &nonzero);
+    assert!(
+        rejected
+            .iter()
+            .any(|result| result.starts_with("rejected:")),
+        "{rejected:?}"
+    );
+
+    // The same bits are not authority. The declaring issuer can construct
+    // this value; an unrelated machine cannot issue the nested field.
+    let unauthorized =
+        format!("{source}\nmachine not_issuer() -> IssuedHolder {{ IssuedHolder {{ .. }} }}");
+    let rejected = verdicts("omitted-nested-issuer", &unauthorized);
+    assert!(
+        rejected
+            .iter()
+            .any(|result| result.contains("not one of the domain's establishment routes")),
+        "{rejected:?}"
+    );
+}

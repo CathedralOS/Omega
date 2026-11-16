@@ -693,6 +693,10 @@ mod tests {
                 "expression range",
             ),
             (
+                ExpressionNode::ZeroValue(TypeReferenceHandle::invalid()),
+                "expression zero value",
+            ),
+            (
                 ExpressionNode::TypeExpression(TypeReferenceHandle::invalid()),
                 "expression type expression",
             ),
@@ -776,13 +780,10 @@ mod tests {
                 .unwrap_err();
             assert!(refusal.detail.contains(expected), "{}", refusal.detail);
         }
-        let mut malformed = typed.clone();
-        let zero = malformed
-            .expression_table
-            .insert(ExpressionNode::ZeroValue(TypeReferenceHandle::invalid()));
+        let missing = semantic_vocabulary::StructuralTypeId::new(999).unwrap();
         assert!(
-            Program::new(&malformed, false)
-                .expression(machine(), &[], zero, None)
+            program
+                .zero_value(machine(), ValueType::record(missing), source)
                 .is_err()
         );
     }

@@ -703,7 +703,7 @@ impl Program<'_> {
     /// Authorization proves no predicate ("Policy authorization cannot
     /// prove those predicates"): the cast owes the domain's predicates of
     /// its operand whoever issues it (`domain_entry`, `predicates`).
-    fn issue(
+    pub(super) fn issue(
         &mut self,
         id: MachineId,
         domain: crate::body::DomainInstance,

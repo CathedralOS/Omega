@@ -1284,7 +1284,7 @@ impl Program<'_> {
                     Unserved::Expression("zero of a rigid type"),
                 )
             })?;
-        self.zero_established(id, plain)?;
+        self.zero_established(id, plain, source)?;
         let mut operand = Expression {
             call_context: None,
             kind: ExpressionKind::Zero,

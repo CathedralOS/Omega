@@ -399,7 +399,7 @@ impl Program<'_> {
                 return unserved("uninitialized local without a declared type");
             }
             let value_type = self.local_type(id, local.type_reference)?;
-            self.zero_established(id, value_type)?;
+            self.zero_established(id, value_type, SourceOrigin::of(local.name.source_span()))?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a
