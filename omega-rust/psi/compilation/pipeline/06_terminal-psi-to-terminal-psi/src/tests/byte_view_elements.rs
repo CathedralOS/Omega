@@ -348,6 +348,35 @@ fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
 
     let direct = source.replace("window(&mut bytes[..], 2);", "write(&mut bytes[1..2]);");
     assert_eq!(verdict(&direct), "accepted");
+
+    let shared = r#"
+        machine read(bytes: &[u8]) -> u8 requires bytes.len > 0 { bytes[0] }
+        machine window(bytes: &[u8]) -> u8 requires bytes.len > 0 {
+            read(&bytes[0..1])
+        }
+        machine build_entry(bytes: &[u8]) requires bytes.len > 0 { use_byte(window(bytes)); }
+        machine use_byte(byte: u8) {}
+    "#;
+    assert_eq!(verdict(shared), "accepted");
+
+    let cohort = r#"
+        machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 {
+            let selected: &[u8] = &bytes[0..1];
+            use_byte(selected[0]);
+            bytes[0] = 9;
+        }
+        machine use_byte(byte: u8) {}
+    "#;
+    assert_eq!(verdict(cohort), "accepted");
+    let conflict = cohort.replace(
+        "use_byte(selected[0]);\n            bytes[0] = 9;",
+        "bytes[0] = 9;\n            use_byte(selected[0]);",
+    );
+    let refusal = verdict(&conflict);
+    assert!(
+        refusal.contains("changed while a conflicting reference"),
+        "{refusal}"
+    );
 }
 
 #[test]

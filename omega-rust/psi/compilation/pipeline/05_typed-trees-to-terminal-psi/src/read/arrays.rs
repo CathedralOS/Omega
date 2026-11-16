@@ -288,6 +288,18 @@ impl Program<'_> {
             return Err(unavailable("array view without a plain closed u8 array"));
         };
         let byte_view = typed_element.is_none() && self.is_readable_byte_view(machine, backing)?;
+        // A shared descriptor can snapshot its unrestricted value. A child
+        // of an exclusive descriptor instead keeps a persistent payload loan,
+        // including when that child only observes the bytes.
+        if byte_view
+            && requested == StructuralAccess::SharedBorrow
+            && self.data_type(machine, backing)?.copyable
+        {
+            self.authorized(machine, backing_type, Access::Read)?;
+            return self
+                .byte_subslice(machine, slots, base, range, borrow.target, source)
+                .map(Some);
+        }
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
         // window's `start <= end <= N` legs are checked against that loan's
