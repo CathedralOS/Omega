@@ -1720,10 +1720,6 @@ mod staging {
     }
 
     impl StagedOptimizedLiveRanges {
-        pub const fn liveness_stage(&self) -> &StagedOptimizedLiveness {
-            &self.liveness
-        }
-
         staged_producer_accessors!(
             liveness; liveness, selected, register_environment, selections, budget_per_pass
         );

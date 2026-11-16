@@ -30,11 +30,3 @@ pub fn project_checked_package_policy<'a>(
 ) -> Result<crate::record::PackagePolicyBaseline, Vec<Diagnostic>> {
     policy::project(input.into_review_input()?, target, package)
 }
-
-pub fn project_checked_terminal_permission_policy<'a>(
-    input: impl IntoPackageReviewInput<'a>,
-    target: target::TargetProfile,
-    package: semantic_vocabulary::PackageKeyIdentity,
-) -> Result<crate::record::PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
-    Ok(policy::project(input.into_review_input()?, target, package)?.terminal_permissions)
-}

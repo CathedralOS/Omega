@@ -1,10 +1,8 @@
-//! An owned record sequence such as `[Ticket { number: 11u32 }]` keeps its exact elements when it
-//! is held in a local, returned from the machine that built it and passed by value to another
-//! machine. Native code backs the sequence with read-only image storage, so its descriptor stays
-//! valid after the building machine's frame is gone; the Psi interpreter and the native program
-//! must agree on the result. Psi also preserves a runtime-valued sequence across both calls.
-//! Native realization of that fixture still needs an owned backing that survives the return.
+//! Owned sequence values preserve their elements across native and Psi calls.
+//! Runtime fields, two simultaneously live results, record containment and a
+//! shorter live length exercise backing that moves with the aggregate.
 
+use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
@@ -16,12 +14,15 @@ fn fixture(tier: &str, name: &str) -> PathBuf {
         .join(name)
 }
 
-fn run(project: &Path, engine: &[&str]) -> (Output, String) {
+fn invoke(project: &Path, arguments: &[&str]) -> (Output, String) {
+    let scratch = TemporaryDirectory::create("owned-sequence", false).unwrap();
+    for name in ["main.omg", "build.omg"] {
+        std::fs::copy(project.join(name), scratch.path().join(name)).unwrap();
+    }
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("run")
-        .args(engine)
+        .args(arguments)
         .arg("main.omg")
-        .current_dir(project)
+        .current_dir(scratch.path())
         .stdin(Stdio::null())
         .output()
         .expect("omega runs on the hosted target");
@@ -33,11 +34,10 @@ fn run(project: &Path, engine: &[&str]) -> (Output, String) {
     (output, report)
 }
 
-#[test]
-fn an_owned_record_sequence_survives_return_and_by_value_transfer_natively() {
-    let project = fixture("run", "owned_record_sequence");
+fn assert_both(name: &str) {
+    let project = fixture("run", name);
     let expected = std::fs::read_to_string(project.join("expected_native_exit.txt")).unwrap();
-    let (output, report) = run(&project, &["--both"]);
+    let (output, report) = invoke(&project, &["run", "--both"]);
     assert!(output.status.success(), "{report}");
     let code = expected.trim();
     for receipt in [
@@ -49,9 +49,25 @@ fn an_owned_record_sequence_survives_return_and_by_value_transfer_natively() {
 }
 
 #[test]
-fn a_runtime_valued_record_sequence_survives_return_and_by_value_transfer_in_psi() {
-    let project = fixture("pending", "runtime_record_sequence");
-    let (output, report) = run(&project, &["--engine", "psi"]);
-    assert!(output.status.success(), "{report}");
-    assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
+fn an_owned_record_sequence_survives_return_and_by_value_transfer_natively() {
+    assert_both("owned_record_sequence");
+}
+
+#[test]
+fn a_runtime_valued_record_sequence_survives_return_and_by_value_transfer() {
+    assert_both("runtime_record_sequence");
+}
+
+#[test]
+fn runtime_sequence_fields_survive_separate_results_and_containing_records() {
+    assert_both("runtime_sequence_values");
+}
+
+#[test]
+fn an_insufficient_live_length_guard_still_refuses_the_second_element() {
+    let project = fixture("fail", "runtime_sequence_values");
+    let expected = std::fs::read_to_string(project.join("expected.txt")).unwrap();
+    let (output, report) = invoke(&project, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(report.contains(expected.trim()), "{report}");
 }

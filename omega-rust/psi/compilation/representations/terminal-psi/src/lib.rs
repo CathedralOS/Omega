@@ -189,6 +189,9 @@ pub mod prepared_roots {
                             .is_none_or(|specialization| {
                                 !identities.is_invocation_local(specialization.template.identity())
                                     && !identities.is_invocation_local(
+                                        specialization.template_entry.identity(),
+                                    )
+                                    && !identities.is_invocation_local(
                                         specialization.template_semantic_declaration,
                                     )
                             });
@@ -259,6 +262,9 @@ pub mod prepared_roots {
                 published_may_block: false,
                 specialization: Some(CheckedMachineSpecialization {
                     capture: None,
+                    template_entry: NominalDeclarationIdentity::new(
+                        table.intern("package::Template::entry"),
+                    ),
                     template: NominalDeclarationIdentity::new(table.intern("package::Template")),
                     template_callable: table.intern("template-callable"),
                     template_semantic_declaration: table.intern("template-signature"),
@@ -296,7 +302,7 @@ pub mod prepared_roots {
 
         #[test]
         fn every_invocation_local_declaration_owner_is_refused_at_the_boundary() {
-            for owner in 0..5 {
+            for owner in 0..6 {
                 let mut table = TerminalIdentityTableBuilder::for_invocation();
                 let mut declaration = declaration(&mut table);
                 let local = table.intern_invocation_local("private-coordinate").unwrap();
@@ -314,6 +320,10 @@ pub mod prepared_roots {
                             .as_mut()
                             .unwrap()
                             .template_semantic_declaration = local
+                    }
+                    5 => {
+                        declaration.specialization.as_mut().unwrap().template_entry =
+                            NominalDeclarationIdentity::new(local)
                     }
                     _ => unreachable!(),
                 }

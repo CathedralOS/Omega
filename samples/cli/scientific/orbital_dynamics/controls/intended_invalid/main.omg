@@ -2,4 +2,4 @@
 data Control { observed: f64; }
 machine coordinate(value: f64) -> f64
 requires value == value && value >= -1000000.0 && value <= 1000000.0 { value }
-machine Control::main(control: &mut Control) { control.observed = coordinate(1000001.0); }
+machine main(control: &mut Control) { control.observed = coordinate(1000001.0); }

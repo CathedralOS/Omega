@@ -554,6 +554,51 @@ fn imported_provider_review_keeps_reach_and_invocation_separate() {
 }
 
 #[test]
+fn selected_affine_provider_reopens_with_its_published_authority() {
+    use review_evidence::record::PackageReviewSynchronousInvocation;
+
+    let sample = fixture_package_inputs::repo_root()
+        .join("samples/cli/facts/foreign_indirect_float_record_result/target_body/main.omg");
+    let package = reviewed_and_recovered(&sample, "macos_arm64");
+    let plan = package
+        .selected_providers()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema_declaration().path() == "AffineObservation")
+        .expect("the selected AffineObservation implementation");
+    let [method] = plan.methods() else {
+        panic!("the selected service has exactly one method");
+    };
+    assert_eq!(method.requirement().path(), "AffineObservation::observe");
+    assert_eq!(
+        method.service_reach(),
+        ["AffineObservation", "AffineTransforms"]
+    );
+    assert_eq!(method.synchronous_invocations(), ["AffineTransforms"]);
+    let [invocation] = method.authority().synchronous_invocations() else {
+        panic!("the selected requirement publishes one synchronous entry");
+    };
+    let PackageReviewSynchronousInvocation::Service(service) = invocation else {
+        panic!("the authored entry names a service");
+    };
+    assert_eq!(service.path(), "AffineTransforms");
+    let requirement = package
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity() == method.requirement())
+        .expect("the exact callable declaration");
+    assert_eq!(
+        requirement.declared_service_reach(),
+        Some(std::slice::from_ref(service))
+    );
+    assert_eq!(
+        requirement.declared_synchronous_invocations(),
+        Some(std::slice::from_ref(invocation)),
+    );
+}
+
+#[test]
 fn build_service_audit_rejects_an_ordinary_trait() {
     let fixture = kept_fixture("fail/build/service_audit_requires_boundary/main.omg");
     let expected = std::fs::read_to_string(fixture.with_file_name("expected.txt")).unwrap();

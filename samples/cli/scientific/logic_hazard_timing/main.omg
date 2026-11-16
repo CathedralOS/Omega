@@ -25,13 +25,13 @@ data Main {
     expected_trace: u64;
 }
 
-machine Main::number(main: &mut Main, value: u64) reaches Console {
+machine number(main: &mut Main, value: u64) reaches Console {
     // All reports are below 100; two ASCII decimal digits are emitted directly.
     Console::write_byte((((value % 100) / 10) as i32) + 48);
     Console::write_byte(((value % 10) as i32) + 48);
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("logic_hazard_timing: mode 0=transport1 1=transport4 2=inertial4");
     let input: ByteRead = block Console::read_byte();
     transition input {
@@ -48,7 +48,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine setup(main: &mut Main, delay: u64, inertial: bool, changes: u64, trace: u64) {
-        Network::configure(&mut main.network, delay);
+        configure(&mut main.network, delay);
         main.inertial = inertial;
         main.expected_changes = changes;
         main.expected_trace = trace;
@@ -96,7 +96,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine truth_compute(main: &mut Main) {
-        let result: bool = Network::evaluate(&main.network, main.gate);
+        let result: bool = evaluate(&main.network, main.gate);
         main.network.values[main.gate] = result;
         main.gate = (main.gate % 9) + 1;
         transition { _ -> truth_gates(main) }
@@ -110,7 +110,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine truth_report(main: &mut Main) {
         Console::write("truth row=");
-        let reported_row: u64 = main.row; Main::number(main, reported_row);
+        let reported_row: u64 = main.row; number(main, reported_row);
         Console::write(" value=");
         transition main.network.values[6] {
             true -> truth_one(main)
@@ -134,7 +134,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine initialize_gate(main: &mut Main) {
-        let result: bool = Network::evaluate(&main.network, main.gate);
+        let result: bool = evaluate(&main.network, main.gate);
         main.network.values[main.gate] = result;
         main.network.desired[main.gate] = result;
         main.gate = (main.gate % 9) + 1;
@@ -179,8 +179,8 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine changed(main: &mut Main, value: bool) {
         main.network.values[main.node] = value;
-        Console::write("wave t="); let reported_time: u64 = main.time; Main::number(main, reported_time);
-        Console::write(" node="); let reported_node: u64 = main.node; Main::number(main, reported_node);
+        Console::write("wave t="); let reported_time: u64 = main.time; number(main, reported_time);
+        Console::write(" node="); let reported_node: u64 = main.node; number(main, reported_node);
         Console::write(" value=");
         transition value { true -> emit_one(main) false -> emit_zero(main) }
     }
@@ -196,9 +196,9 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine pulse_start(main: &mut Main) { main.fall = main.time; transition { _ -> reschedule(main) } }
     machine pulse_end(main: &mut Main) {
         main.glitches = (main.glitches % 64) + 1;
-        Console::write("glitch node=06 start="); let reported_fall: u64 = main.fall; Main::number(main, reported_fall);
-        Console::write(" end="); let reported_time: u64 = main.time; Main::number(main, reported_time);
-        Console::write(" width="); let reported_width: u64 = ((main.time % 64) + 64 - (main.fall % 64)) % 64; Main::number(main, reported_width);
+        Console::write("glitch node=06 start="); let reported_fall: u64 = main.fall; number(main, reported_fall);
+        Console::write(" end="); let reported_time: u64 = main.time; number(main, reported_time);
+        Console::write(" width="); let reported_width: u64 = ((main.time % 64) + 64 - (main.fall % 64)) % 64; number(main, reported_width);
         Console::write_line("");
         transition { _ -> reschedule(main) }
     }
@@ -207,7 +207,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition main.gate < 9 { true -> desired(main) false -> next_node(main) }
     }
     machine desired(main: &mut Main) {
-        let value: bool = Network::evaluate(&main.network, main.gate);
+        let value: bool = evaluate(&main.network, main.gate);
         transition value != main.network.desired[main.gate] {
             true -> schedule(main, value)
             false -> next_gate(main)
@@ -255,5 +255,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

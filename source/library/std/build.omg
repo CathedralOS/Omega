@@ -4,6 +4,7 @@ use omega::language::core::ProcessExit;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
+    configure_filesystem_providers(builder);
     configure_macos_image(builder);
     configure_time_host(builder);
     configure_windows_filesystem(builder);
@@ -75,6 +76,25 @@ machine build(builder: &mut Build) {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPop"
         }
     });
+}
+
+// Each target's filesystem implementations are ordinary named maps; these rows
+// say which one backs each requirement on which target. The portable
+// `FilesystemService` sits on the POSIX or Windows raw service, and each
+// POSIX target supplies its own kernel adapters and record layouts.
+machine configure_filesystem_providers(builder: &mut Build) {
+    Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, linux_x86_64);
+    Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, linux_arm64);
+    Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, macos_arm64);
+    Build::select_provider<FilesystemService, FilesystemWindowsProvider>(builder, windows_x86_64);
+    Build::select_provider<PosixFilesystemHost, LinuxX8664PosixFilesystem>(builder, linux_x86_64);
+    Build::select_provider<PosixFilesystemHost, LinuxArm64PosixFilesystem>(builder, linux_arm64);
+    Build::select_provider<PosixFilesystemHost, MacosArm64PosixFilesystem>(builder, macos_arm64);
+    Build::select_provider<PosixFilesystemTarget, LinuxX8664PosixFilesystemTarget>(builder, linux_x86_64);
+    Build::select_provider<PosixFilesystemTarget, LinuxArm64PosixFilesystemTarget>(builder, linux_arm64);
+    Build::select_provider<PosixFilesystemTarget, MacosArm64PosixFilesystemTarget>(builder, macos_arm64);
+    Build::select_provider<WindowsFilesystemHost, NativeWindowsFilesystem>(builder, windows_x86_64);
+    Build::select_provider<WindowsGuiHost, NativeWindowsGui>(builder, windows_x86_64);
 }
 
 // Package-local raw supply follows the checked provider closure. Applications
@@ -743,7 +763,6 @@ machine configure_windows_gui(builder: &mut Build) {
             library: "gdi32.dll", export: "StretchDIBits"
         } });
 }
-
 
 machine configure_macos_gui(builder: &mut Build) {
     Build::bind<AppKit::load>(builder, macos_arm64,

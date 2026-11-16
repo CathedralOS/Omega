@@ -15,8 +15,8 @@ data Main {
 // First line: two ASCII digits followed by LF, variant 0..5 and horizon 0..8.
 // Processing ends after this line; trailing input is ignored.
 // The bounded line API distinguishes EOF, full buffers and complete lines.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let result: LineReadResult = block Console::read_line(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let result: LineReadResult = block Console::read_line(&mut main.input[..]);
     transition result {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> invalid(main)
@@ -52,17 +52,17 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         let failed: u64 in Wrapping = main.process.failed;
         let survival: u64 in Wrapping = main.process.healthy + main.process.degraded;
         let denominator: u64 in Wrapping = main.process.denominator;
-        Main::decimal(main, step);
+        decimal(main, step);
         Console::write_byte(32);
-        Main::decimal(main, healthy);
+        decimal(main, healthy);
         Console::write_byte(32);
-        Main::decimal(main, degraded);
+        decimal(main, degraded);
         Console::write_byte(32);
-        Main::decimal(main, failed);
+        decimal(main, failed);
         Console::write_byte(32);
-        Main::decimal(main, survival);
+        decimal(main, survival);
         Console::write_byte(32);
-        Main::decimal(main, denominator);
+        decimal(main, denominator);
         Console::write_byte(10);
         transition main.step < main.horizon { true -> next(main) _ -> finish(main) }
     }
@@ -75,9 +75,9 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         let lifetime: u64 in Wrapping = main.process.lifetime;
         let denominator: u64 in Wrapping = main.process.denominator;
         Console::write("expected_min_lifetime ");
-        Main::decimal(main, lifetime);
+        decimal(main, lifetime);
         Console::write_byte(32);
-        Main::decimal(main, denominator);
+        decimal(main, denominator);
         Console::write_byte(10);
         ProcessExit::exit_process(0);
     }
@@ -91,7 +91,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
 }
 // Private decimal formatting over the established byte console provider.
-machine Main::decimal(main: &mut Main, number: u64 in Wrapping) reaches Console {
+machine decimal(main: &mut Main, number: u64 in Wrapping) reaches Console {
     main.number = number;
     main.divisor = 1;
     transition { _ -> scale(main) }
@@ -120,5 +120,5 @@ machine Main::decimal(main: &mut Main, number: u64 in Wrapping) reaches Console 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

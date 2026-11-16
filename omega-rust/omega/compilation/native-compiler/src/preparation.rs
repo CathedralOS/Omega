@@ -32,10 +32,6 @@ impl<'input> PreparedNativeCompilation<'input> {
             )
             .filter(|completion| completion.is_required())
     }
-
-    pub fn into_image_request(self) -> ExecutableImageEmissionRequest {
-        self.recovery
-    }
 }
 
 pub fn prepare<'input>(

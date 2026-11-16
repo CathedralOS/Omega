@@ -207,6 +207,32 @@ fn rejected_source(text: &str) {
 }
 
 #[test]
+fn source_contract_integer_casts_form_before_their_clauses() {
+    const SOURCE: &str = r#"
+machine widen(value: u32) -> u64
+ensures result == (value as u64)
+{ value as u64 }
+machine narrow(value: u64) -> u32
+requires value <= 4294967295
+ensures result == (value as u32)
+{ value as u32 }
+machine build_entry() { let roundtrip: u32 = narrow(widen(37)); }
+"#;
+    executed_source(SOURCE);
+
+    let unbounded = SOURCE.replace("requires value <= 4294967295", "");
+    let RouteVerdict::Rejected { violations, .. } = source_result(&unbounded) else {
+        panic!("the narrowing clause must be rejected at formation");
+    };
+    assert!(
+        violations.iter().any(|row| row
+            .statement
+            .contains("contract arithmetic is not proved total before its condition")),
+        "{violations:?}",
+    );
+}
+
+#[test]
 fn source_contract_alternatives_keep_both_inputs_and_refuse_a_third() {
     const SOURCE: &str = r#"
 machine choose(flags: u32) -> u32

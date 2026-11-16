@@ -3,7 +3,7 @@ use omega_language_std::Console;
 data Main { symbols: [i32; 4]; }
 // Complete program deliberately attempts a fifth symbol in a four-symbol frame.
 // The documented bounds rule must reject this access, before any execution.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     main.symbols[4] = 2;
     ProcessExit::exit_process(0);
 }
@@ -11,5 +11,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

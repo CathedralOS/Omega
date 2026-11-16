@@ -855,7 +855,7 @@ impl Program<'_> {
         Ok(after)
     }
 
-    fn qualified_scalar_type(
+    pub(super) fn qualified_scalar_type(
         &self,
         id: MachineId,
         handle: TypeReferenceHandle,

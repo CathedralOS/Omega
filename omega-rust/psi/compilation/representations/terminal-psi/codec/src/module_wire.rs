@@ -316,6 +316,7 @@ pub(crate) mod boundary_application_wire {
                 None,
                 Some(terminal_psi::CheckedMachineSpecialization {
                     capture: None,
+                    template_entry: nominal("owner::template::entry"),
                     template: nominal("owner::template"),
                     template_callable: TerminalIdentityIndex(8),
                     template_semantic_declaration: TerminalIdentityIndex(9),
@@ -2525,6 +2526,7 @@ pub(crate) mod closed_conformance_wire {
     }
 }
 pub(crate) mod declaration_wire {
+    use access_plans::{AccessPermissions, AtomicPermissions as DomainAtomicPermissions};
 
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
@@ -2546,10 +2548,12 @@ pub(crate) mod declaration_wire {
             complete_predicate_theory: Flag,
             identity: Index,
             carrier: Id,
+            subject_identity: Index,
             predicate: Optional<DomainPredicate>,
             byte_predicate: OptionalBytePredicate,
             content_projection: Optional<ContentProjection>,
             establishment_routes: Optional<List<Route>>,
+            access_policy: Optional<DomainAccess>,
         }
         DomainPredicate: StructuralDomainPredicate { subject: Id, proposition: Proposition }
         Service: ServiceDeclaration { id: Id, identity: Index, parents: Ids }
@@ -2561,6 +2565,164 @@ pub(crate) mod declaration_wire {
             4 => CheckedRequirement { declaration: Nominal, requirement_identity: Index },
             5 => ExactMachine { declaration: Nominal, machine_identity: Index },
             6 => BoundaryRequirement { declaration: Nominal, requirement_identity: Index },
+        }
+    }
+
+    type Policy = terminal_psi::StructuralDomainAccessPlan;
+    type Region = (
+        language_semantics::reflection::SchemaNodeHandle,
+        Option<Vec<terminal_psi::StructuralPathSegment>>,
+    );
+    type Caller = (
+        language_semantics::reflection::CallableDescription,
+        StructuralEstablishmentRoute,
+    );
+    type Observation = Option<(
+        access_plans::ObservationModel,
+        access_plans::AccessPermissions,
+        access_plans::AccessExposure,
+    )>;
+
+    wire_record! {
+        Permissions: AccessPermissions {
+            read: Flag, take: Flag, write: Flag, atomic: AtomicPermissions,
+        }
+        AtomicPermissions: DomainAtomicPermissions {
+            load: Flag, store: Flag, fetch_add: Flag, fetch_sub: Flag,
+            fetch_xor: Flag, fetch_or: Flag, fetch_and: Flag, swap: Flag,
+            compare_exchange: Flag, compare_exchange_once: Flag,
+            try_exchange: Flag, try_exchange_once: Flag,
+        }
+    }
+
+    struct DomainRegion;
+    impl Field<Region> for DomainRegion {
+        fn write(writer: &mut Writer, value: &Region) -> Result<(), CodecError> {
+            writer.u32(value.0.index() as u32);
+            <Optional<super::super::wire_fields::Path> as Field<_>>::write(writer, &value.1)
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<Region, CodecError> {
+            Ok((
+                language_semantics::reflection::SchemaNodeHandle::from_index(reader.u32()?),
+                <Optional<super::super::wire_fields::Path> as Field<_>>::read(reader)?,
+            ))
+        }
+    }
+    struct DomainCaller;
+    impl Field<Caller> for DomainCaller {
+        fn write(writer: &mut Writer, value: &Caller) -> Result<(), CodecError> {
+            writer.boolean(value.0.0);
+            for bytes in &value.0.1 {
+                <super::super::wire_fields::Bytes as Field<_>>::write(writer, bytes)?;
+            }
+            Route::write(writer, &value.1)
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<Caller, CodecError> {
+            let required = reader.boolean()?;
+            let mut bytes = [Vec::new(), Vec::new(), Vec::new()];
+            for value in &mut bytes {
+                *value = <super::super::wire_fields::Bytes as Field<_>>::read(reader)?;
+            }
+            Ok(((required, bytes), Route::read(reader)?))
+        }
+    }
+    struct DomainObservation;
+    impl Field<Observation> for DomainObservation {
+        fn write(writer: &mut Writer, value: &Observation) -> Result<(), CodecError> {
+            writer.boolean(value.is_some());
+            if let Some((model, permissions, exposure)) = value {
+                writer.u8(match model {
+                    access_plans::ObservationModel::Stable => 0,
+                    access_plans::ObservationModel::External => 1,
+                    access_plans::ObservationModel::Atomic => 2,
+                });
+                Permissions::write(writer, permissions)?;
+                writer.u8(match exposure {
+                    access_plans::AccessExposure::Exported => 0,
+                    access_plans::AccessExposure::BindingPrivate => 1,
+                });
+            }
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<Observation, CodecError> {
+            if !reader.boolean()? {
+                return Ok(None);
+            }
+            let model = match reader.u8()? {
+                0 => access_plans::ObservationModel::Stable,
+                1 => access_plans::ObservationModel::External,
+                2 => access_plans::ObservationModel::Atomic,
+                tag => return Err(CodecError::InvalidTag("domain observation", tag)),
+            };
+            let permissions = Permissions::read(reader)?;
+            let exposure = match reader.u8()? {
+                0 => access_plans::AccessExposure::Exported,
+                1 => access_plans::AccessExposure::BindingPrivate,
+                tag => return Err(CodecError::InvalidTag("domain observation exposure", tag)),
+            };
+            Ok(Some((model, permissions, exposure)))
+        }
+    }
+    struct DomainAccess;
+    impl Field<Policy> for DomainAccess {
+        fn write(writer: &mut Writer, value: &Policy) -> Result<(), CodecError> {
+            <super::super::wire_fields::Bytes as Field<_>>::write(
+                writer,
+                &value.schema.runtime_image(),
+            )?;
+            <Optional<List<DomainCaller>> as Field<_>>::write(writer, &value.issuance)?;
+            for rows in [&value.readers, &value.writers] {
+                writer.len("domain caller rules", rows.len())?;
+                for (region, callers) in rows {
+                    DomainRegion::write(writer, region)?;
+                    <List<DomainCaller> as Field<_>>::write(writer, callers)?;
+                }
+            }
+            writer.len("domain observations", value.observations.len())?;
+            for (region, observation) in &value.observations {
+                DomainRegion::write(writer, region)?;
+                DomainObservation::write(writer, observation)?;
+            }
+            writer.len("domain reach", value.reach.services().len())?;
+            for service in value.reach.services() {
+                writer.u64(service.normalized_identity());
+            }
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<Policy, CodecError> {
+            let image = <super::super::wire_fields::Bytes as Field<_>>::read(reader)?;
+            let schema =
+                language_semantics::reflection::SemanticSchemaGraph::from_runtime_image(&image)
+                    .map_err(CodecError::AccessPlan)?;
+            let issuance = <Optional<List<DomainCaller>> as Field<_>>::read(reader)?;
+            let mut rules = || {
+                super::super::wire::decode_counted(reader, |reader| {
+                    Ok((
+                        DomainRegion::read(reader)?,
+                        <List<DomainCaller> as Field<_>>::read(reader)?,
+                    ))
+                })
+            };
+            let readers = rules()?;
+            let writers = rules()?;
+            let observations = super::super::wire::decode_counted(reader, |reader| {
+                Ok((
+                    DomainRegion::read(reader)?,
+                    DomainObservation::read(reader)?,
+                ))
+            })?;
+            let services = super::super::wire::decode_counted(reader, |reader| {
+                access_plans::BoundaryServiceReachId::from_normalized_identity(reader.u64()?)
+                    .map_err(|error| CodecError::AccessPlan(error.to_string()))
+            })?;
+            Ok(access_plans::AccessPlan {
+                schema,
+                issuance,
+                readers,
+                writers,
+                observations,
+                reach: access_plans::BoundaryReach::from_services(services),
+            })
         }
     }
 

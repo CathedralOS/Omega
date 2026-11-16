@@ -9,8 +9,8 @@ use domain::model;
 use domain::quality;
 use domain::report;
 data Main { input: Input; analysis: Analysis; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
- block Input::read(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+ block read(&mut main.input);
  transition main.input.valid && main.input.count >= 3 { true -> header(main) false -> invalid(main) }
  machine header(main: &mut Main) {
   transition (main.input.values[0] == 0.0 || main.input.values[0] == 1.0) && main.input.values[1] >= 3.0 && main.input.values[1] <= 16.0 && main.input.values[2] >= 2.0 && main.input.values[2] <= 4.0 { true -> dimensions(main) false -> invalid(main) }
@@ -58,5 +58,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

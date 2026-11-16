@@ -2,7 +2,7 @@ use omega::language::core::ProcessExit;
 // Complete intended-invalid application: element 4 is outside a four-element extent.
 use omega_language_std::Console;
 data Invalid { weights: [i32; 4]; }
-machine Invalid::main(program: &mut Invalid) reaches ProcessExit + Console {
+machine main(program: &mut Invalid) reaches ProcessExit + Console {
     program.weights[4] = 1;
     Console::write_line("UNREACHABLE: out-of-bounds write admitted");
     ProcessExit::exit_process(0);
@@ -11,5 +11,5 @@ machine Invalid::main(program: &mut Invalid) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Invalid;
-    Invalid::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

@@ -7,8 +7,8 @@ use omega::language::core::I32::from_f64;
 data Main {
  protocol: Protocol; model: Model; best_time: f64; best_branch: i32 in Wrapping;
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
- let valid: bool = block Protocol::read(&mut main.protocol);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+ let valid: bool = block read(&mut main.protocol);
  transition valid && main.protocol.position >= 2 { true -> header(main) false -> syntax(main) }
  machine header(main: &mut Main) {
   let layers: f64 = main.protocol.fields[0]; let offsets: f64 = main.protocol.fields[1];
@@ -72,9 +72,9 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
  machine compute_branch(main: &mut Main, refractor: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
   branch(&mut main.model, refractor);
-  Console::write("B "); Protocol::integer(&mut main.protocol, refractor);
-  Console::write(" "); Protocol::number(&mut main.protocol, main.model.critical[refractor]);
-  Console::write(" "); Protocol::number(&mut main.protocol, main.model.intercept[refractor]);
+  Console::write("B "); integer(&mut main.protocol, refractor);
+  Console::write(" "); number(&mut main.protocol, main.model.critical[refractor]);
+  Console::write(" "); number(&mut main.protocol, main.model.intercept[refractor]);
   Console::write_line("");
   transition { _ -> prepare(main, refractor + 1) }
  }
@@ -136,15 +136,15 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
  machine range(main: &mut Main) { Console::write_line("ERROR range"); ProcessExit::exit_process(65); }
 }
 machine emit(main: &mut Main, prefix: &[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches Console {
- Console::write(prefix); Protocol::integer(&mut main.protocol, index);
- Console::write(" "); Protocol::integer(&mut main.protocol, identifier);
- Console::write(" "); Protocol::number(&mut main.protocol, distance);
- Console::write(" "); Protocol::number(&mut main.protocol, time);
+ Console::write(prefix); integer(&mut main.protocol, index);
+ Console::write(" "); integer(&mut main.protocol, identifier);
+ Console::write(" "); number(&mut main.protocol, distance);
+ Console::write(" "); number(&mut main.protocol, time);
  Console::write_line("");
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

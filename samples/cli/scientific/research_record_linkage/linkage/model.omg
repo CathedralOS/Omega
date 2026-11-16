@@ -106,7 +106,7 @@ public machine pair_score(left: Record, right: Record) -> u64 {
     machine year_match(score: u64) -> u64 { score % 1000 + 1 }
 }
 
-public machine Linkage::solve(linkage: &mut Linkage) {
+public machine solve(linkage: &mut Linkage) {
     linkage.cursor = 0;
     transition { _ -> matrix(linkage) }
     machine matrix(linkage: &mut Linkage) {

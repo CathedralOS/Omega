@@ -8,7 +8,7 @@ use omega_language_std::Console;
 
 data Application { reader: Reader; }
 
-machine Application::main(application: &mut Application) reaches ProcessExit + Console {
+machine main(application: &mut Application) reaches ProcessExit + Console {
     let value_0: Number = block number(&mut application.reader);
     let value_1: Number = block number(&mut application.reader);
     let value_2: Number = block number(&mut application.reader);
@@ -79,5 +79,5 @@ machine Application::main(application: &mut Application) reaches ProcessExit + C
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -27,7 +27,9 @@ framework or a list of unimplemented features.
 - Name one category from the list below on its `Category` line.
 - Keep it to the lines of the template. Link the file and line.
 - Add it in the pull request you are already landing; never open one for it.
-- Merge overlapping reports into one entry for the defect that remains; do not keep duplicates.
+- Merge overlapping reports into one entry for the defect that remains. If an
+  active `TASKS.md` item already owns the repair and its acceptance checks,
+  add the structural evidence there.
 - Whoever fixes it removes the entry when the fix lands. Remove a stale report
   after checking that its code or premise is gone; keep no log of finished
   work, and do not mistake deleting a report for implementing its feature.
@@ -74,17 +76,10 @@ framework or a list of unimplemented features.
 ## Entries
 
 
-### Literal declaration validation still judges selected predicates in syntax
-- Category: one idea, several implementations
-- Where: [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)
-- Saw: Record/case and nested constrained-member predicates still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. Computed initializers use checked evaluation. The duplicate judgment was identified by inspection.
-- Cost: Literal and computed initializers use separate judgments for the same declaration-dependent obligations. The [EARLY-TERMINAL-JOBS handoff](TASKS.md#early-terminal-jobs) owns the repair and its acceptance checks.
-- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
-
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
-- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L554), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
-- Saw: Empty activation still copies declaration and side-record storage before projection. On the scalar-contract and borrowed-root Build routes, each zero-body activation cloned 63 arenas and requested 5,072,323 bytes on Windows x86-64 at opt-level 1. The [measurement in #3634](https://github.com/CathedralOS/Omega/pull/3634) also covers the landed primary-body storage repair. Child-list rewrites still use completion-batch boundaries.
-- Cost: Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
-- Reported: 2026-11-15, Codex, while measuring retained type and body storage.
+- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L553), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1283), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
+- Saw: Empty activation still copies declaration and side-record storage before projection. On the [scalar-contract and borrowed-root Build routes](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), continuation construction requested 4,136,141 bytes across 12,802 allocations and 58 arena clones. Matching-symbol preparation added 958,615 bytes across eight allocations and five clones. Both measurements used Windows x86-64 at opt-level 1. The [measurement in #3646](https://github.com/CathedralOS/Omega/pull/3646) also covers nonempty completion. Child-list rewrites still use completion-batch boundaries.
+- Cost: A zero-body selection pays to copy unrelated storage. Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
+- Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 

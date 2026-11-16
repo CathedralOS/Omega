@@ -12,7 +12,7 @@ public data Input {
     index: u64;
 }
 
-public machine Input::read(input: &mut Input)
+public machine read(input: &mut Input)
 invokes Console
 reaches Console
 blocks
@@ -59,15 +59,15 @@ crashes Trap
         }
     }
     machine separator(input: &mut Input) {
-        Input::flush(input);
+        flush(input);
         transition input.valid { true -> scan(input) false -> done() }
     }
-    machine finish(input: &mut Input) { Input::flush(input); }
+    machine finish(input: &mut Input) { flush(input); }
     machine invalid(input: &mut Input) { input.valid = false; }
     machine done() {}
 }
 
-machine Input::flush(input: &mut Input) {
+machine flush(input: &mut Input) {
     transition input.active && input.count < 40 {
         true -> store(input)
         false -> other(input)

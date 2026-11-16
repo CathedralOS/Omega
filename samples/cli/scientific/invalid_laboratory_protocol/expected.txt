@@ -1,1 +1,1 @@
-cannot prove requires contract for call release from Main::main
+cannot prove requires contract for call release from main

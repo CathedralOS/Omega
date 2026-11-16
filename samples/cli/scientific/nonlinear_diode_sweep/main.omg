@@ -18,8 +18,8 @@ data Main {
     failed: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let valid: bool = block Protocol::read(&mut main.protocol);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let valid: bool = block read(&mut main.protocol);
     transition valid { true -> validate(main) false -> bad_syntax(main) }
     machine bad_syntax(main: &mut Main) {
         Console::write_line("ERROR syntax: expected nine integers, maximum 160 bytes");
@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         let offset: f64 = main.source_step * main.source_index;
         let source: f64 = main.source_start + offset;
         solve(&main.circuit, &mut main.solver, source, main.budget);
-        Protocol::integer(&mut main.protocol, main.position);
+        integer(&mut main.protocol, main.position);
         Console::write(",");
         transition main.solver.status == 3 {
             true -> absent(main)
@@ -85,7 +85,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine absent(main: &mut Main) {
         main.failed = main.failed + 1;
         Console::write("no_bracket,");
-        Protocol::number(&mut main.protocol, main.solver.source);
+        number(&mut main.protocol, main.solver.source);
         Console::write(",NA,NA,NA,NA,");
         transition { _ -> diagnostics(main) }
     }
@@ -106,22 +106,22 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> values(main) }
     }
     machine values(main: &mut Main) {
-        Protocol::number(&mut main.protocol, main.solver.source);
+        number(&mut main.protocol, main.solver.source);
         Console::write(",");
-        Protocol::number(&mut main.protocol, main.solver.voltage);
+        number(&mut main.protocol, main.solver.voltage);
         Console::write(",");
-        Protocol::number(&mut main.protocol, main.solver.current);
+        number(&mut main.protocol, main.solver.current);
         Console::write(",");
-        Protocol::number(&mut main.protocol, main.solver.residual);
+        number(&mut main.protocol, main.solver.residual);
         Console::write(",");
-        Protocol::number(&mut main.protocol, main.solver.width);
+        number(&mut main.protocol, main.solver.width);
         Console::write(",");
         transition { _ -> diagnostics(main) }
     }
     machine diagnostics(main: &mut Main) {
-        Protocol::integer(&mut main.protocol, main.solver.iterations);
+        integer(&mut main.protocol, main.solver.iterations);
         Console::write(",");
-        Protocol::integer(&mut main.protocol, main.solver.evaluations);
+        integer(&mut main.protocol, main.solver.evaluations);
         Console::write_line("");
         main.position = main.position + 1;
         main.source_index = main.source_index + 1.0;
@@ -129,9 +129,9 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine done(main: &mut Main) {
         Console::write("summary,");
-        Protocol::integer(&mut main.protocol, main.converged);
+        integer(&mut main.protocol, main.converged);
         Console::write(",");
-        Protocol::integer(&mut main.protocol, main.failed);
+        integer(&mut main.protocol, main.failed);
         Console::write_line("");
         ProcessExit::exit_process(0);
     }
@@ -140,5 +140,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

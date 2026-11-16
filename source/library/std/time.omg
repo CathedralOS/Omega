@@ -910,29 +910,29 @@ public machine system_time_saturating_subtract(time: &SystemTime, duration: Dura
 // `TimeHost` reach each declares (D9). Callers acknowledge that reach; no
 // capability value is passed, and the value types carry no clock access.
 
+// A host that reports zero degrades to one tick per second. The published
+// bound lets each normalization divide safely by the same calibrated value.
+machine nonzero_clock_frequency(raw: u64) -> u64
+ensures result > 0
+{
+    transition raw > 0 {
+        true -> raw
+        _ -> 1
+    }
+}
+
 // Read the monotonic clock and normalize ONCE (D6): raw ticks + calibration
 // in, (seconds, subsecond_nanoseconds) out. All conversion math lives here,
 // per D11 -- the lowering layer only delivers raw u64s.
 //
-// Saturating arithmetic is the calibration guard: subtracting one and adding
-// it back raises a zero frequency to one, so the divisor is nonzero, and
-// `remainder * 1_000_000_000` saturates instead of wrapping. Every real
-// host passes through unchanged (windows QPF 10^7 or 10^6-ish, POSIX 10^9,
-// the interpreter's virtual 1000); a host reporting 0 or an absurd frequency
-// measures degraded instead of faulting. Re-read per call: the reads stay
-// stateless (no capture-once field machinery) until a profile says otherwise.
+// The calibration is read on each call. An absurdly large frequency can make
+// the scaled remainder saturate, so the reading degrades without faulting.
 public machine instant_now() -> Instant
 reaches
     TimeHost
-invokes
-    TimeHost
 {
     let ticks: u64 = TimeHost::monotonic_ticks();
-    let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
-    // Saturating subtract-then-add leaves every value but zero unchanged and
-    // turns zero into one, which is the nonzero divisor the reads below need.
-    let frequency_floor: u64 in Saturating = ((frequency_raw as u64 in Saturating) - 1) + 1;
-    let frequency: u64 = frequency_floor as u64;
+    let frequency: u64 = nonzero_clock_frequency(TimeHost::monotonic_ticks_per_second());
     let whole_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
     // A remainder this large means an absurd frequency; the product saturates
@@ -956,17 +956,10 @@ invokes
 public machine system_time_now() -> SystemTime
 reaches
     TimeHost
-invokes
-    TimeHost
 {
     let raw: u64 = TimeHost::wall_clock_raw();
-    let units_raw: u64 = TimeHost::wall_clock_units_per_second();
+    let units: u64 = nonzero_clock_frequency(TimeHost::wall_clock_units_per_second());
     let offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
-    // The same saturating calibration guard as `now()`.
-    // Saturating subtract-then-add leaves every value but zero unchanged and
-    // turns zero into one, which is the nonzero divisor the reads below need.
-    let units_floor: u64 in Saturating = ((units_raw as u64 in Saturating) - 1) + 1;
-    let units: u64 = units_floor as u64;
     let platform_seconds: u64 = raw / units;
     let remainder: u64 = raw % units;
     let scaled_saturated: u64 in Saturating = (remainder as u64 in Saturating) * 1000000000;
@@ -1005,15 +998,9 @@ invokes
 public machine elapsed_since(start: Instant) -> Duration
 reaches
     TimeHost
-invokes
-    TimeHost
 {
     let ticks: u64 = TimeHost::monotonic_ticks();
-    let frequency_raw: u64 = TimeHost::monotonic_ticks_per_second();
-    // Saturating subtract-then-add leaves every value but zero unchanged and
-    // turns zero into one, which is the nonzero divisor the reads below need.
-    let frequency_floor: u64 in Saturating = ((frequency_raw as u64 in Saturating) - 1) + 1;
-    let frequency: u64 = frequency_floor as u64;
+    let frequency: u64 = nonzero_clock_frequency(TimeHost::monotonic_ticks_per_second());
     let now_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
     let scaled_saturated: u64 in Saturating = (remainder as u64 in Saturating) * 1000000000;
@@ -1068,8 +1055,6 @@ invokes
 // maximum.
 public machine sleep_for(duration: Duration) -> u32
 reaches
-    TimeHost
-invokes
     TimeHost
 blocks
 {

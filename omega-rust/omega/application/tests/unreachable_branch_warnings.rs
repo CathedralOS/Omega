@@ -9,6 +9,7 @@ still succeeds (`exit 0`). We run `omega --check` on the contract fixtures under
   warns once.
 - A contradiction inside a generic machine warns once for the authored machine
   rather than once per instantiation.
+- A `_` arm after arms naming every declared case warns once.
 - Consistent branches and branches pruned only after generic specialization stay
   quiet.
 
@@ -117,5 +118,22 @@ fn specialization_and_consistent_branches_stay_quiet() {
         "consistent_branches_quiet_exit",
     ] {
         assert_eq!(warnings(name), Vec::<String>::new(), "{name}");
+    }
+}
+
+/// A `_` arm after arms naming every declared case can never run: the
+/// program is accepted and each such arm warns once, in a transition and in
+/// a value `match`. A `_` arm some case reaches stays quiet.
+#[test]
+fn a_wildcard_after_every_declared_case_warns() {
+    let reported = warnings("dead_wildcard_arm_exit");
+    assert_eq!(reported.len(), 2, "{reported:?}");
+    for (warning, machine) in reported.iter().zip(["`next`", "`weight`"]) {
+        assert!(
+            warning.contains("the `_` arm in machine ")
+                && warning.contains(machine)
+                && warning.contains("an earlier arm names every declared case"),
+            "{reported:?}"
+        );
     }
 }

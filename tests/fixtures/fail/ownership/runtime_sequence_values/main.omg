@@ -1,0 +1,29 @@
+data Ticket [copy] { kind: u8; number: u32; }
+data Envelope { marker: u8; tickets: [Ticket]; }
+machine issued(left: u32, right: u32) -> [Ticket] {
+    [Ticket { kind: 2u8, number: left }, Ticket { kind: 3u8, number: right }]
+}
+machine wrapped(left: u32, right: u32) -> Envelope {
+    Envelope { marker: 7u8, tickets: issued(left, right) }
+}
+machine relay(value: Envelope) -> Envelope { value }
+public machine valid(value: Envelope, left: u32, right: u32) -> bool
+requires true
+{
+    transition value.tickets.len >= 1u64 {
+        true -> (value.marker == 7u8 && value.tickets[0u64].number == left && value.tickets[1u64].number == right)
+        false -> false
+    }
+}
+machine main() crashes Trap {
+    let first: Envelope = wrapped(11u32, 29u32);
+    let second: Envelope = wrapped(37u32, 43u32);
+    let first_ok: bool = valid(relay(first), 11u32, 29u32);
+    let second_ok: bool = valid(relay(second), 37u32, 43u32);
+    let empty: [Ticket] = [];
+    let empty_length: u64 = empty.len;
+    let empty_ok: bool = valid(Envelope { marker: 7u8, tickets: empty }, 0u32, 0u32) == false;
+    transition first_ok && second_ok && empty_length == 0u64 && empty_ok { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

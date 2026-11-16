@@ -1942,6 +1942,7 @@ pub(crate) mod arrival_storage {
             })
         else {
             return Some(terminal_psi::OperationProjection {
+                field: None,
                 root: place,
                 path: &[],
             });
@@ -1953,6 +1954,7 @@ pub(crate) mod arrival_storage {
             }
             let argument = binding.structural_arguments.get(position as usize)?;
             let projection = terminal_psi::OperationProjection {
+                field: None,
                 root: argument.place,
                 path: &argument.path,
             };
@@ -3135,6 +3137,7 @@ pub(crate) mod calling_storage {
 
         fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: identity(value),
                 identity: TerminalIdentityIndex::ABSENT,
@@ -3240,6 +3243,7 @@ pub(crate) mod calling_storage {
                 3,
                 StructuralTypeShape::Record {
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         id: field,
                         identity: TerminalIdentityIndex::ABSENT,
                         inline_carrier: None,
@@ -4119,7 +4123,7 @@ pub(crate) mod storage_dependencies {
                     format!("malformed declaration-ID storage projection at {root:?}: {path:?}")
                 })?;
             }
-            StructuralStorageUse::ObservedField { root, path } => {
+            StructuralStorageUse::ObservedField { root, path, .. } => {
                 let carrier = place_type(root)?;
                 roots.insert(carrier);
                 let observed = match declarations.get(&carrier).map(|row| &row.shape) {

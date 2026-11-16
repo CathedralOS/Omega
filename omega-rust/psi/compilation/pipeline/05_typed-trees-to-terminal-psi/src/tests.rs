@@ -3634,7 +3634,9 @@ fn a_dispatch_lists_every_declared_case_and_binds_scalar_payloads_as_block_param
         missing.detail,
         "a dispatch selects no arm for a declared case"
     );
-    // A wildcard no case reaches would never be lowered: refused by name.
+    // A wildcard after arms naming every declared case is an unreachable
+    // branch: accepted, left out of the lowered form, and recorded for its
+    // advisory warning (state_contracts.md, "Unreachable branches").
     let dead = try_lower_sums(
         weigh(
             vec![
@@ -3647,9 +3649,27 @@ fn a_dispatch_lists_every_declared_case_and_binds_scalar_payloads_as_block_param
         ),
         weighs(),
     )
-    .unwrap_err();
-    assert_eq!(dead.reason, RefusalReason::Unsupported);
-    assert_eq!(dead.detail, "transition wildcard arm that no case reaches");
+    .unwrap();
+    assert_module_and_tables_agree(&dead.machine, &dead.tables);
+    assert_eq!(dead.sources.dead_wildcards.len(), 1);
+    let entered: Vec<BlockId> = dead
+        .machine
+        .blocks
+        .iter()
+        .flat_map(|block| match &block.terminator {
+            Terminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| case.target).collect::<Vec<_>>()
+            }
+            _ => Vec::new(),
+        })
+        .collect();
+    // Four declared cases, each entering its own named arm; the wildcard's
+    // value `5` is lowered nowhere.
+    assert_eq!(entered.len(), 4);
+    entered.iter().enumerate().for_each(|(at, block)| {
+        assert!(!entered[..at].contains(block));
+    });
+    assert_eq!(dead.machine.blocks.len(), 5);
 }
 
 #[test]

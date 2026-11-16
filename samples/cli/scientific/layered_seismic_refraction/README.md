@@ -25,7 +25,7 @@ or surplus fields and non-whitespace bytes reject. The complete stream is
 at most 1023 bytes; EOF must be observable within the 1024-read budget.
 Input acknowledges host blocking and traps; fixtures always have finite EOF.
 
-The explicit Linux x86_64 entry is `Main::main` in `build.omg`. Exit 0 means
+The explicit Linux x86_64 entry is `main` in `build.omg`. Exit 0 means
 valid input, 64 malformed syntax/record shape, 65 invalid physical range or
 ordering, and 66 a nonfinite report value. Host/provider traps and package
 admission failures are separate refusals. An invalid late offset may follow

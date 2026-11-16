@@ -213,6 +213,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
             claims: Vec::new(),
         },
         declaration: StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
@@ -225,14 +226,17 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
             shape: StructuralTypeShape::Sum {
                 cases: vec![
                     StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralCaseId::new(1).unwrap(),
                         identity: terminal_psi::TerminalIdentityIndex(3),
                         fields: Vec::new(),
                     },
                     StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralCaseId::new(2).unwrap(),
                         identity: terminal_psi::TerminalIdentityIndex(4),
                         fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
                             inline_carrier: None,
                             storage: None,
                             id: StructuralFieldId::new(1).unwrap(),
@@ -365,6 +369,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         argument: argument.clone(),
         literal_operation: OperationId::new(47).unwrap(),
         structural_type: StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
@@ -376,6 +381,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
             identity: terminal_psi::TerminalIdentityIndex(7),
             shape: StructuralTypeShape::Sum {
                 cases: vec![StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: StructuralCaseId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(7),
                     fields: Vec::new(),

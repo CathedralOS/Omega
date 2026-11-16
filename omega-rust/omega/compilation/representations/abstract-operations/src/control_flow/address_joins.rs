@@ -318,6 +318,7 @@ mod tests {
         field_type: StructuralFieldType,
     ) -> StructuralFieldDeclaration {
         StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             inline_carrier: None,
             id: StructuralFieldId::new(raw).unwrap(),
             identity,
@@ -329,6 +330,7 @@ mod tests {
 
     fn catalog() -> Vec<StructuralTypeDeclaration> {
         let declaration = |raw, shape| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
