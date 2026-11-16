@@ -1679,6 +1679,33 @@ pub mod types {
                 ];
                 assert!(structural_type_contains_reference(&types, reference));
                 assert!(!structural_type_contains_reference(&types, array));
+                let mut inspected = Vec::new();
+                let found = structural_type_contains_by(
+                    |id| {
+                        inspected.push(id);
+                        find_structural_type(&types, id)
+                            .map(Some)
+                            .ok_or("missing declaration")
+                    },
+                    [element, element],
+                    |_| false,
+                    |_| false,
+                )
+                .unwrap();
+                assert!(!found);
+                assert_eq!(inspected, [element, reference]);
+                let missing = StructuralTypeId::new(5).unwrap();
+                assert_eq!(
+                    structural_type_contains_by(
+                        |id| find_structural_type(&types, id)
+                            .map(Some)
+                            .ok_or("missing declaration"),
+                        [missing],
+                        |_| false,
+                        |_| false,
+                    ),
+                    Err("missing declaration")
+                );
             }
         }
     }
@@ -1700,9 +1727,9 @@ pub mod types {
         StructuralTypeShape, field_by_identity, find_structural_case, find_structural_type,
         live_field, live_field_by_id, live_field_by_identity, live_field_entry,
         structural_case_by_identity, structural_case_initializer_path, structural_case_position,
-        structural_children, structural_type_by_identity, structural_type_contains_reference,
-        structural_type_contains_reference_by, structural_type_has_borrowed_storage_by,
-        unique_structural_declaration,
+        structural_children, structural_type_by_identity, structural_type_contains_by,
+        structural_type_contains_reference, structural_type_contains_reference_by,
+        structural_type_has_borrowed_storage_by, unique_structural_declaration,
     };
 }
 
