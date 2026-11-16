@@ -116,16 +116,11 @@ fn trapping_float_integer_conversions_retain_the_guarded_crash_contract() {
             .result
             .expect_err("a crashes-none helper must exclude the conversion's Trap guard")
             .into_diagnostics();
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
             assert!(
-                diagnostics.iter().any(|diagnostic| {
-                    diagnostic.message.to_ascii_lowercase().contains("crash")
-                }),
-                "{diagnostics:?}"
-            );
-            assert!(
-                diagnostics
-                    .iter()
-                    .all(|diagnostic| !diagnostic.message.contains("not supported yet")),
+                diagnostics[0].message.starts_with(
+                    "machine `signed32` has an uncovered Trap crash; publish a same-cause `crashes` route whose guard covers this site."
+                ),
                 "{diagnostics:?}"
             );
         })
