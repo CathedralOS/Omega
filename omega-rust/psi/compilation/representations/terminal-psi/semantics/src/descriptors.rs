@@ -11293,7 +11293,7 @@ pub mod descriptor_results {
                         caller.structural_parameters[0].multiplicity =
                             StructuralMultiplicity::Unrestricted;
                     }
-                    let mut helper = machine(2);
+                    let mut helper = machine(u64::MAX);
                     helper.contract.id = ContractId::new(2).unwrap();
                     helper.parameter_order = caller.parameter_order.clone();
                     helper.structural_parameters = caller.structural_parameters.clone();
@@ -11354,12 +11354,18 @@ pub mod descriptor_results {
                     module.machines = vec![caller, helper];
                     let caller = module.machines[0].id;
                     let helper = module.machines[1].id;
+                    module.machines.reverse();
                     let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
                         &module,
                         [caller],
                         &[],
                     )
                     .unwrap();
+                    assert_eq!(
+                        graph.iter().map(|row| row.id).collect::<Vec<_>>(),
+                        [helper, caller],
+                        "a sorted sparse lookup must preserve module output order"
+                    );
                     let body = graph.iter().find(|row| row.id == caller).unwrap();
                     let cut = (BlockId::new(1).unwrap(), 0);
                     let call = body
@@ -11419,14 +11425,21 @@ pub mod descriptor_results {
                         )]
                     );
                     let mut duplicate = module.clone();
-                    duplicate.machines.push(module.machines[1].clone());
+                    duplicate.machines.push(
+                        module
+                            .machines
+                            .iter()
+                            .find(|row| row.id == helper)
+                            .unwrap()
+                            .clone(),
+                    );
                     assert!(matches!(
                         crate::descriptor_results::terminal_borrowed_storage_graph_from(&duplicate, [caller], &[]),
                         Err(crate::descriptor_results::DescriptorGraphError::MissingOrAmbiguousMachine(id)) if id == helper
                     ));
                     assert!(terminal_borrowed_storage_graph(&duplicate).is_empty());
                     let mut missing = module.clone();
-                    missing.machines.pop();
+                    missing.machines.retain(|row| row.id != helper);
                     let missing_graph =
                         crate::descriptor_results::terminal_borrowed_storage_graph_from(
                             &missing,
@@ -14400,14 +14413,14 @@ pub mod descriptor_results {
             pub(crate) fn direct_invocation(
                 &self,
                 module: &TerminalModule,
-                machines: &BTreeMap<MachineId, &TerminalMachine>,
+                machines: &[&TerminalMachine],
                 slot_kind: DescriptorSlotKind,
                 invocation: terminal_psi::ModuleInvocation<'_>,
                 result: Option<&terminal_psi::StructuralOperationResult>,
                 selector: impl Fn(ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
             ) -> Option<DescriptorInvocation> {
                 let inputs = invocation.inputs;
-                let callee = machines.get(&inputs.callee).copied()?;
+                let callee = super::terminal_graph_machine(machines, inputs.callee)?;
                 if callee.structural_parameters.len() != inputs.structural_arguments.len() {
                     return None;
                 }
@@ -15093,7 +15106,7 @@ pub mod descriptor_results {
 
         pub(crate) fn adapt(
             module: &TerminalModule,
-            machines: &BTreeMap<MachineId, &TerminalMachine>,
+            machines: &[&TerminalMachine],
             machine: &TerminalMachine,
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
@@ -15120,7 +15133,7 @@ pub mod descriptor_results {
 
         fn adapt_flow(
             module: &TerminalModule,
-            machines: &BTreeMap<MachineId, &TerminalMachine>,
+            machines: &[&TerminalMachine],
             machine: &TerminalMachine,
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
@@ -18246,16 +18259,27 @@ pub mod descriptor_results {
             .collect()
     }
 
+    // Saved modules can use sparse identities. Sort declarations once;
+    // do not reserve storage up to the largest identity.
     fn terminal_machine_roster(
         module: &TerminalModule,
-    ) -> Result<BTreeMap<MachineId, &TerminalMachine>, DescriptorGraphError> {
-        let mut machines = BTreeMap::new();
-        for machine in &module.machines {
-            if machines.insert(machine.id, machine).is_some() {
-                return Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine.id));
-            }
+    ) -> Result<Vec<&TerminalMachine>, DescriptorGraphError> {
+        let mut machines = module.machines.iter().collect::<Vec<_>>();
+        machines.sort_unstable_by_key(|machine| machine.id);
+        if let Some(pair) = machines.windows(2).find(|pair| pair[0].id == pair[1].id) {
+            return Err(DescriptorGraphError::MissingOrAmbiguousMachine(pair[1].id));
         }
         Ok(machines)
+    }
+
+    fn terminal_graph_machine<'a>(
+        machines: &[&'a TerminalMachine],
+        identity: MachineId,
+    ) -> Option<&'a TerminalMachine> {
+        let position = machines
+            .binary_search_by_key(&identity, |machine| machine.id)
+            .ok()?;
+        Some(machines[position])
     }
 
     // An unsupported body must not erase useful analyses of independent
@@ -18277,7 +18301,7 @@ pub mod descriptor_results {
             if reached.contains_key(&identity) {
                 continue;
             }
-            let Some(body) = machines.get(&identity).copied() else {
+            let Some(body) = terminal_graph_machine(&machines, identity) else {
                 reached.insert(
                     identity,
                     Err(DescriptorGraphError::MissingOrAmbiguousMachine(identity)),
@@ -18320,7 +18344,7 @@ pub mod descriptor_results {
             .iter()
             .filter_map(|row| row.as_ref().ok())
             .any(|graph| {
-                machines.get(&graph.id).is_some_and(|body| {
+                terminal_graph_machine(&machines, graph.id).is_some_and(|body| {
                     body.operations().any(|operation| {
                         matches!(operation.kind, OperationKind::CallDynamic { .. })
                     })
@@ -18340,7 +18364,7 @@ pub mod descriptor_results {
         let mut rows = Vec::with_capacity(initial.len() + failures.len());
         for graph in &initial {
             let identity = graph.id;
-            let Some(body) = machines.get(&identity).copied() else {
+            let Some(body) = terminal_graph_machine(&machines, identity) else {
                 rows.push(Err(DescriptorGraphError::MissingOrAmbiguousMachine(
                     identity,
                 )));
