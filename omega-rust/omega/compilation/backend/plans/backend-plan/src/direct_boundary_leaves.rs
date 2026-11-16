@@ -259,10 +259,7 @@ impl DirectBoundaryLeaf {
             return Err("direct foreign execution changed its callable coordinate".into());
         }
         let expected = source.calling_for_requirement(original.requirement_identity);
-        if !expected.is_empty()
-            && row.calling_signature.is_none()
-            && expected.len() != binding.calling_applications.len()
-        {
+        if !expected.is_empty() && expected.len() != binding.calling_applications.len() {
             return Err(
                 "direct foreign execution changed its complete selected calling roster".into(),
             );

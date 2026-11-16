@@ -601,7 +601,13 @@ fn direct_leaves(
             return Err("plain native requirement lost its exact complete service method".into());
         };
         let mut schema_value = ServiceSchema::from_declaration(Arc::clone(&schema.surface));
-        attach_calling(&mut schema_value, target, calling)?;
+        let abi = signature.identity(&module.identities)?;
+        let selected_calling = calling
+            .iter()
+            .filter(|application| application.abi == abi)
+            .cloned()
+            .collect::<Vec<_>>();
+        attach_calling(&mut schema_value, target, &selected_calling)?;
         let mut identities = ProviderIdentityTable::default();
         let requirement_id = identities.intern(requirement);
         let declared_requirement_id = identities.intern(declared_requirement);
