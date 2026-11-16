@@ -44,7 +44,8 @@ reaches FilesystemContentWrite
     }
     machine write(file: File, bytes: &[u8], position: u64, end: u64) -> UnitResult
     requires position < end && end <= bytes.len {
-        let count: i64 = block WindowsFilesystemHost::write_file(file.handle, bytes[position..end]);
+        let window: &[u8] = &bytes[position..end];
+        let count: i64 = block WindowsFilesystemHost::write_file(file.handle, window);
         transition count > 0 {
             true -> block progressed(file, bytes, position, end, count)
             false -> stopped(count)

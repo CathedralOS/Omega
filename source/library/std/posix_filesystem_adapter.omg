@@ -733,7 +733,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     machine write(filesystem: &mut PosixFilesystem, descriptor: i32, buffer: &mut [u8], count: u64, mode: u32) -> IoResult
     requires count <= buffer.len
     {
-        let outcome: UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, &buffer[0..count]);
+        let bytes: &[u8] = &buffer[0..count];
+        let outcome: UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, bytes);
         transition outcome { UnitResult::Ok -> permissions(filesystem, descriptor, count, mode) UnitResult::Error { kind } -> write_failed(descriptor, kind) }
     }
     machine permissions(filesystem: &mut PosixFilesystem, descriptor: i32, count: u64, mode: u32) -> IoResult {
@@ -906,7 +907,8 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
         true -> mkall_at(filesystem, path, i)
         false -> mkall_noop(filesystem)
     }
-    machine mkall_at(filesystem: &mut PosixFilesystem, path: &[u8] in Path, i: u64) -> i32 {
+    machine mkall_at(filesystem: &mut PosixFilesystem, path: &[u8] in Path, i: u64) -> i32
+    requires i < path.len {
         transition path[i] == 47 {
             true -> mkall_mk(filesystem, path, i)
             false -> mkall_noop(filesystem)
@@ -945,13 +947,15 @@ machine posix_filesystem_mkall_put(filesystem: &mut PosixFilesystem, path: &[u8]
             false -> put_done(filesystem)
         }
     }
-    machine put_byte_bounded(filesystem: &mut PosixFilesystem, path: &[u8] in Path, j: u64) {
+    machine put_byte_bounded(filesystem: &mut PosixFilesystem, path: &[u8] in Path, j: u64)
+    requires j < path.len {
         transition j < 255 {
             true -> put_byte_write(filesystem, path, j)
             false -> put_done(filesystem)
         }
     }
-    machine put_byte_write(filesystem: &mut PosixFilesystem, path: &[u8] in Path, j: u64) {
+    machine put_byte_write(filesystem: &mut PosixFilesystem, path: &[u8] in Path, j: u64)
+    requires j < path.len, j < 255 {
 
         filesystem.mkall_byte = path[j];
         filesystem.mkall_scratch[j] = filesystem.mkall_byte;
@@ -963,7 +967,8 @@ machine posix_filesystem_mkall_put(filesystem: &mut PosixFilesystem, path: &[u8]
             false -> put_done(filesystem)
         }
     }
-    machine put_nul_write(filesystem: &mut PosixFilesystem, j: u64) {
+    machine put_nul_write(filesystem: &mut PosixFilesystem, j: u64)
+    requires j < 255 {
         filesystem.mkall_scratch[j] = 0;
         transition { _ -> put_done(filesystem) }
     }
@@ -978,7 +983,8 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
         true -> issue_mk(filesystem, i)
         false -> issue_skip(filesystem)
     }
-    machine issue_mk(filesystem: &mut PosixFilesystem, i: u64) -> i32 {
+    machine issue_mk(filesystem: &mut PosixFilesystem, i: u64) -> i32
+    requires i < 255 {
 
         let rc: i32 = PosixFilesystemHost::create_dir_name(&filesystem.mkall_scratch[0..i], filesystem.dir_mode);
         rc
@@ -1061,7 +1067,7 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
         Permissions::Readonly { value } -> inspect(filesystem, value)
     }
     machine inspect(filesystem: &mut PosixFilesystem, readonly: bool) -> UnitResult {
-        let result: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf[..]);
+        let result: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf);
         transition result == 0 { true -> derive(filesystem, readonly) false -> err(filesystem, result) }
     }
     machine derive(filesystem: &mut PosixFilesystem, readonly: bool) -> UnitResult {
@@ -1159,7 +1165,7 @@ machine posix_filesystem_metadata(filesystem: &mut PosixFilesystem, file: File) 
 reaches FilesystemMetadataQuery
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf[..]);
+    let rc: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
     machine decode(filesystem: &mut PosixFilesystem) -> MetadataResult { PosixFilesystemTarget::decode_metadata(filesystem) }
     machine err(filesystem: &mut PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
@@ -1419,7 +1425,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         requires name_length <= 255
     {
         let outcome: i32 = PosixFilesystemHost::read_metadata_at(filesystem.directory_descriptor,
-            &filesystem.entry_name[0..name_length], &mut filesystem.stat_buf[..],
+            &filesystem.entry_name[0..name_length], &mut filesystem.stat_buf,
             PosixFilesystemTarget::metadata_no_follow_flag());
         transition outcome == 0 { true -> rdef_classify(filesystem) _ -> rdef_err(filesystem, outcome as i64) }
     }
