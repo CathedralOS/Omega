@@ -53,7 +53,7 @@ pub(crate) mod block_views {
         block: &legalized_operations::LegalizedScalarBlock,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
-        for parameter in &block.structural_parameters {
+        for parameter in block.structural_parameters.iter() {
             let joined =
                 crate::selection::address_join_input::join(source, parameter.place).is_some();
             let shape = if joined {

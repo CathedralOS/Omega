@@ -270,6 +270,7 @@ mod tests {
             entry: machine_id,
             functions: vec![SelectedFunction {
                 contracts: Arc::new(SelectedFunctionContracts {
+                    structural_block_parameters: Vec::new(),
                     machine: machine_id,
                     attachment: None,
                     provenance: Default::default(),

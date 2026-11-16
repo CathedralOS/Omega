@@ -231,6 +231,27 @@ fn validate_byte_writer_rows(
     Ok(())
 }
 
+fn validate_block_parameter_rows(
+    expected: &[(
+        semantic_vocabulary::BlockId,
+        &[terminal_psi::StructuralParameterDeclaration],
+    )],
+    actual: &[selected_instructions::SelectedStructuralBlockParameters],
+) -> Result<(), Error> {
+    if expected.len() != actual.len()
+        || expected.iter().zip(actual).any(
+            |((block, parameters), (current_block, current_parameters))| {
+                block != current_block || *parameters != current_parameters.as_ref()
+            },
+        )
+    {
+        return Err(Error::Mismatch(
+            "current block parameters differ from their original declarations",
+        ));
+    }
+    Ok(())
+}
+
 pub(in crate::function_fragments) fn admit(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     original: &crate::RetainedTargetOperations,
@@ -265,6 +286,36 @@ pub(in crate::function_fragments) fn admit(
         ));
     }
     validate_image_selection_origins(source)?;
+    let mut original_functions: Vec<_> = original
+        .target()
+        .optimized()
+        .plan()
+        .functions
+        .iter()
+        .collect();
+    original_functions.sort_by_key(|function| function.machine);
+    if original_functions
+        .windows(2)
+        .any(|pair| pair[0].machine == pair[1].machine)
+    {
+        return Err(Error::Mismatch(
+            "block declarations have no unique original function",
+        ));
+    }
+    for function in current.physical_program().functions.iter() {
+        let index = original_functions
+            .binary_search_by_key(&function.machine, |function| function.machine)
+            .map_err(|_| Error::Mismatch("block declarations have no unique original function"))?;
+        let original_function = original_functions[index];
+        let mut original_rows: Vec<_> = original_function
+            .blocks
+            .iter()
+            .filter(|block| !block.structural_parameters.is_empty())
+            .map(|block| (block.block, block.structural_parameters.as_slice()))
+            .collect();
+        original_rows.sort_by_key(|(block, _)| *block);
+        validate_block_parameter_rows(&original_rows, &function.structural_block_parameters)?;
+    }
     validate_byte_writers(published, current.physical_program())?;
     let abstract_plan = original.target().optimized().plan();
     placed_reference::backing_geometry::validate_activation_residence(
@@ -762,12 +813,45 @@ pub(in crate::function_fragments) fn admit(
 }
 
 #[cfg(test)]
-mod byte_writer_tests {
+mod current_contract_tests {
     use super::*;
     use target_vocabulary::{
         BoundaryExecutionBinding, CompilerBuiltinExecution, ProviderExecutionBinding,
         ProviderPlanReportIdentity,
     };
+
+    #[test]
+    fn block_declarations_are_compared_independently_of_current_identity() {
+        let block = semantic_vocabulary::BlockId::new(1).unwrap();
+        let parameter = terminal_psi::StructuralParameterDeclaration {
+            place: semantic_vocabulary::PlaceId::new(2).unwrap(),
+            position: 0,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(3).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        };
+        let original = [parameter.clone()];
+        let expected = [(block, original.as_slice())];
+        let row = (block, std::sync::Arc::from(original.as_slice()));
+        assert!(validate_block_parameter_rows(&expected, std::slice::from_ref(&row)).is_ok());
+        let mut changed = parameter;
+        changed.access = terminal_psi::StructuralAccess::MutableBorrow;
+        for actual in [
+            Vec::new(),
+            vec![row.clone(), row],
+            vec![(block, vec![changed].into())],
+        ] {
+            assert!(matches!(
+                validate_block_parameter_rows(&expected, &actual),
+                Err(Error::Mismatch(
+                    "current block parameters differ from their original declarations"
+                ))
+            ));
+        }
+    }
 
     #[test]
     fn a_current_writer_must_keep_its_exact_source_execution_and_occurrence() {

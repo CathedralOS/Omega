@@ -6487,6 +6487,7 @@ mod source {
                 SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: MachineId::new(1).unwrap(),
                             attachment: None,
                             provenance: Default::default(),
@@ -10869,6 +10870,7 @@ mod source {
                     let selected = selected_instructions::SelectedFunction {
                         contracts: std::sync::Arc::new(
                             selected_instructions::SelectedFunctionContracts {
+                                structural_block_parameters: Vec::new(),
                                 machine: source.machine,
                                 attachment: None,
                                 provenance: Default::default(),
@@ -15473,6 +15475,7 @@ mod source {
                 SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: MachineId::new(1).unwrap(),
                             attachment: None,
                             provenance: Default::default(),
@@ -22038,6 +22041,7 @@ mod source {
                 SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: MachineId::new(machine).unwrap(),
                             attachment: None,
                             provenance: Default::default(),
@@ -22564,6 +22568,7 @@ mod structural {
                 let mut selected = SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine,
                             attachment: None,
                             provenance: target_operations::TerminalPsiProvenance {
@@ -23079,14 +23084,9 @@ mod structural {
             place: PlaceId,
         ) -> Result<StructuralSourceLocation, Error> {
             let invalid = || Error::Mismatch("block view differs from current descriptor custody");
-            let abstracted = source::abstract_function(source, selected.machine)?;
-            let mut declarations = abstracted
-                .blocks
-                .iter()
-                .filter(|entry| entry.block == block)
-                .flat_map(|entry| &entry.structural_parameters)
-                .filter(|parameter| parameter.place == place);
-            let parameter = declarations.next().ok_or_else(invalid)?;
+            let parameter = selected
+                .structural_block_parameter(block, place)
+                .ok_or_else(invalid)?;
             let signature = selected.structural.as_ref().ok_or_else(invalid)?;
             let access = terminal_semantics::descriptor_parameter_access(
                 parameter,
@@ -23101,8 +23101,7 @@ mod structural {
                     argument.structural_type,
                     parameter.multiplicity,
                 );
-            if declarations.next().is_some()
-                || place != argument.place
+            if place != argument.place
                 || parameter.structural_type != argument.root_structural_type
                 || !(owned_transfer
                     || matches!(
@@ -23803,6 +23802,7 @@ mod structural {
                 let selected = SelectedFunction {
                     contracts: std::sync::Arc::new(
                         selected_instructions::SelectedFunctionContracts {
+                            structural_block_parameters: Vec::new(),
                             machine: function.machine,
                             attachment: None,
                             provenance: Default::default(),
@@ -24617,7 +24617,6 @@ mod structural {
             let invalid =
                 || Error::Mismatch("structural object differs from current ABI or call evidence");
             let selected = selected(source, function.machine)?;
-            let abstracted = source::abstract_function(source, function.machine)?;
             let fragment = fragment(source, function.machine)?;
             let parameters = selected
                 .structural
@@ -24652,7 +24651,7 @@ mod structural {
                     != selected
                         .calls
                         .iter()
-                        .filter(|row| published_call(abstracted, selected, row))
+                        .filter(|row| published_call(selected, row))
                         .count()
             {
                 return Err(invalid());
@@ -24690,7 +24689,7 @@ mod structural {
                 selected
                     .calls
                     .iter()
-                    .filter(|row| published_call(abstracted, selected, row)),
+                    .filter(|row| published_call(selected, row)),
             ) {
                 let expected = &contract.call;
                 let span = rows
@@ -25595,7 +25594,6 @@ mod structural {
     }
 
     pub(super) fn published_call(
-        abstracted: &abstract_operations::AbstractFunction,
         selected: &SelectedFunction,
         contract: &selected_instructions::SelectedCallContract,
     ) -> bool {
@@ -25635,19 +25633,13 @@ mod structural {
                         let Some(signature) = &selected.structural else {
                             return true;
                         };
-                        let mut parameters = abstracted
-                            .blocks
-                            .iter()
-                            .filter(|entry| entry.block == *block)
-                            .flat_map(|entry| &entry.structural_parameters)
-                            .filter(|parameter| parameter.place == *place);
-                        let Some(parameter) = parameters.next() else {
+                        let Some(parameter) = selected.structural_block_parameter(*block, *place)
+                        else {
                             return true;
                         };
-                        parameters.next().is_some()
-                            || parameter.place != target.place
+                        parameter.place != target.place
                             || parameter.structural_type != target.root_structural_type
-                            || abstract_operations::control_flow::address_joins::is_address_join_in(
+                            || native_vocabulary::address_joins::is_address_join_in(
                                 parameter,
                                 signature.structural_types.as_slice(),
                             )
@@ -25676,12 +25668,11 @@ mod structural {
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
     ) -> Result<bool, Error> {
-        let abstracted = source::abstract_function(source, machine)?;
         let selected = selected(source, machine)?;
         Ok(selected
             .calls
             .iter()
-            .any(|contract| !published_call(abstracted, selected, contract)))
+            .any(|contract| !published_call(selected, contract)))
     }
 
     pub(super) fn inline_owned_placement(
@@ -25884,7 +25875,6 @@ mod structural {
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
         let selected = selected(source, function.machine)?;
-        let abstracted = source::abstract_function(source, function.machine)?;
         let fragment = fragment(source, function.machine)?;
         if let Some(contract) = &selected.structural {
             let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
@@ -25925,7 +25915,7 @@ mod structural {
         for contract in selected
             .calls
             .iter()
-            .filter(|contract| published_call(abstracted, selected, contract))
+            .filter(|contract| published_call(selected, contract))
         {
             let call = &contract.call;
             let span = rows

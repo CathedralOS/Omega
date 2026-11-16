@@ -146,6 +146,7 @@ mod tests {
         let class = register_model::RegisterClassId(0);
         let function = PhysicalFunction {
             contracts: Arc::new(SelectedFunctionContracts {
+                structural_block_parameters: Vec::new(),
                 machine,
                 attachment: None,
                 provenance: Default::default(),

@@ -1014,6 +1014,7 @@ pub enum FixedViewCopyDecodeError {
         cause: terminal_wire::CodecError,
     },
     InvalidProgramContracts(&'static str),
+    InvalidStructuralBlockParameters,
     InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
     InvalidQuotientCatalog,
     InvalidAccessLifecycleCatalog {
