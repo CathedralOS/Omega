@@ -106,7 +106,7 @@ struct RetainedHeaderKey {
     attachment: Option<semantic_vocabulary::StructuralTypeId>,
     entry_block: crate::SelectedBlockId,
     provenance: target_vocabulary::TerminalPsiProvenance,
-    structural: Option<legalized_operations::LegalizedStructuralContract>,
+    structural: Option<target_vocabulary::LegalizedStructuralContract>,
     outgoing_arguments: Vec<crate::SelectedOutgoingArgumentSlot>,
     calls: Vec<crate::SelectedCallContract>,
     normalized_foreign_calls: Vec<crate::SelectedNormalizedForeignCall>,
@@ -1200,7 +1200,7 @@ mod ordinary {
                         },
                     },
                     transport: crate::SelectedStructuralTransport::Unused,
-                    source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
+                    source_indices: vec![target_vocabulary::LegalizedRuntimeIndexOperand {
                         operand: native_vocabulary::values::AbstractResult {
                             value: ValueId::new(6).unwrap(),
                             scalar_type: ScalarType::Integer(

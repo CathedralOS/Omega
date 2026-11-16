@@ -138,12 +138,6 @@ framework or a list of unimplemented features.
 - Cost: Share immutable storage where measurements still show copies. Limit writes to changed records or new batches. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
-### Later machine forms embed records from the prepared plan
-- Category: knowledge crossing a boundary
-- Where: [selected dependencies](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register-home dependencies](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13), [selected call records](omega-rust/omega/compilation/representations/selected-instructions/src/calls.rs#L1397), [register-home recovery](omega-rust/omega/compilation/representations/register-homes/src/recovery/structural_calls.rs#L31), [shared vocabulary owners](omega-rust/omega/compilation/representations/README.md#program-families-and-pipeline-boundaries)
-- Saw: `selected-instructions` and `register-homes` use call records, structural contracts, call-site owners and encoders from `legalized-operations`. That crate owns the prepared plan.
-- Cost: Changes to the prepared plan can alter later forms and codecs. Give unchanged records one vocabulary owner and keep form-specific records with their forms. Remove both plan dependencies and check call and contract identities through selection, allocation and recovery.
-- Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
 
 ### Image publication still reads the prepared plan after selection
 - Category: knowledge crossing a boundary
