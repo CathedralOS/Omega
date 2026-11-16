@@ -343,7 +343,7 @@ pub mod calling_vocabulary {
         calling: &TraitDefinition,
         policy: &TraitDefinition,
     ) -> bool {
-        let [parameter] = program.trait_type_parameters(calling) else {
+        let Some([parameter]) = program.trait_type_parameters(calling).as_array() else {
             return false;
         };
         let [bound] = calling.conformance_bounds.as_slice() else {
@@ -509,7 +509,9 @@ pub mod data {
     }
 
     impl DataDefinition {
-        pub fn shape_kind_from_members(members: &[DataMember]) -> DataShapeKind {
+        pub fn shape_kind_from_members<'a>(
+            members: impl IntoIterator<Item = &'a DataMember>,
+        ) -> DataShapeKind {
             let mut has_fields = false;
             let mut has_variants = false;
 
@@ -987,7 +989,7 @@ pub mod domain {
     pub fn indexed_domain_instance_name(
         program: &TypedTrees,
         domain: &DomainDefinition,
-        parameters: &[crate::data::TypeParameter],
+        parameters: arena::RootRows<'_, crate::data::TypeParameter>,
         arguments: &[TypeReferenceHandle],
     ) -> Result<String, Diagnostic> {
         indexed_domain_instance_name_with_substitutions(program, domain, parameters, arguments, &[])
@@ -996,7 +998,7 @@ pub mod domain {
     pub fn indexed_domain_instance_name_with_substitutions(
         program: &TypedTrees,
         domain: &DomainDefinition,
-        parameters: &[crate::data::TypeParameter],
+        parameters: arena::RootRows<'_, crate::data::TypeParameter>,
         arguments: &[TypeReferenceHandle],
         substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
     ) -> Result<String, Diagnostic> {
@@ -1074,10 +1076,10 @@ pub mod domain {
     pub fn index_parameters<'program>(
         program: &'program TypedTrees,
         domain: &DomainDefinition,
-    ) -> &'program [crate::data::TypeParameter] {
+    ) -> arena::RootRows<'program, crate::data::TypeParameter> {
         let parameters = program.domain_type_parameters(domain);
         if has_generic_carrier(program, domain) {
-            &parameters[1..]
+            parameters.slice(1..parameters.len())
         } else {
             parameters
         }
@@ -2016,9 +2018,7 @@ pub mod layout_storage {
                 return None;
             }
             let constructor = self.data_definition_by_symbol(*base_symbol)?;
-            let [semantic, policy] = self.data_type_parameters(constructor) else {
-                return None;
-            };
+            let [semantic, policy] = self.data_type_parameters(constructor).as_array()?;
             if semantic.kind != crate::data::TypeParameterKind::Type
                 || policy.kind != crate::data::TypeParameterKind::Implementation
             {

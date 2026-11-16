@@ -126,20 +126,32 @@ use crate::product_operand::ProductOperandApplication;
 pub(crate) use typed_tree_table;
 
 macro_rules! declaration_columns {
-    ($( $(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> &[$ty:ty]
-        = $column:ident.$span:ident $( [ $push:ident ] )? ; )*) => {
+    () => {};
+    (@column $(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty)
+        -> $rows:ty, $ty:ty = $column:ident.$span:ident $( [ $push:ident ] )? ) => {
+        $(#[$attr])*
+        pub fn $name(&self, $node: &$node_ty) -> $rows {
+            self.$column.span_or_empty($node.$span)
+        }
         $(
-            $(#[$attr])*
-            pub fn $name(&self, $node: &$node_ty) -> &[$ty] {
-                self.$column.span_or_empty($node.$span)
+            pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                self.$column.append_to_span(&mut $node.$span, value);
             }
+        )?
+    };
 
-            $(
-                pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
-                    self.$column.append_to_span(&mut $node.$span, value);
-                }
-            )?
-        )*
+    ($(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> rows[$ty:ty]
+        = $column:ident.$span:ident $( [ $push:ident ] )? ; $($rest:tt)*) => {
+            $crate::declaration_columns!(@column $(#[$attr])* $name($node: $node_ty)
+                -> arena::RootRows<'_, $ty>, $ty = $column.$span $( [ $push ] )?);
+            $crate::declaration_columns!($($rest)*);
+    };
+
+    ($(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> &[$ty:ty]
+        = $column:ident.$span:ident $( [ $push:ident ] )? ; $($rest:tt)*) => {
+            $crate::declaration_columns!(@column $(#[$attr])* $name($node: $node_ty)
+                -> &[$ty], $ty = $column.$span $( [ $push ] )?);
+            $crate::declaration_columns!($($rest)*);
     };
 
     ($( append $push:ident($node:ident: $node_ty:ty, $ty:ty)
@@ -1384,12 +1396,12 @@ pub struct TypedTreeTables {
     pub const_declarations: arena::RootedArena<crate::constant::ConstDeclaration>,
     pub data_definitions: DataDefinitionTable,
     pub type_aliases: arena::RootedArena<crate::type_aliases::TypeAliasDefinition>,
-    pub data_application_definitions: Arena<DataApplicationView>,
+    pub data_application_definitions: arena::RootedArena<DataApplicationView>,
     pub data_type_parameters: TypeParameterTable,
     pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
     pub static_type_contexts: crate::type_system::type_predicates::StaticTypeContexts,
-    pub data_members: Arena<data::DataMember>,
-    pub data_payload_fields: Arena<data::DataField>,
+    pub data_members: arena::RootedArena<data::DataMember>,
+    pub data_payload_fields: arena::RootedArena<data::DataField>,
     pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
@@ -1937,6 +1949,134 @@ mod continuation_storage_tests {
         let mut builder = SymbolTableBuilder::new();
         builder.insert_root(SymbolKind::Machine, SymbolNameRef::Borrowed(name));
         builder.finish()
+    }
+
+    #[test]
+    fn selected_continuation_shares_data_children_and_replaces_only_its_application() {
+        use crate::data::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
+        use crate::name::Identifier;
+        use crate::types::TypeReferenceNode;
+
+        let mut original = TypedTrees::default();
+        let parameters = original.data_type_parameters.insert_many([
+            TypeParameter {
+                name: Identifier::generated("first"),
+                ..Default::default()
+            },
+            TypeParameter {
+                name: Identifier::generated("other"),
+                ..Default::default()
+            },
+        ]);
+        let payload = original.data_payload_fields.insert_many([DataField {
+            name: Identifier::generated("payload"),
+            ..Default::default()
+        }]);
+        let members = original.data_members.insert_many([
+            DataMember::Field(DataField {
+                name: Identifier::generated("field"),
+                ..Default::default()
+            }),
+            DataMember::Variant(DataVariant {
+                payload,
+                ..Default::default()
+            }),
+        ]);
+        let mut applications = Vec::new();
+        for name in ["first", "other"] {
+            let reference = original
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: Default::default(),
+                    name: Identifier::generated(name),
+                });
+            original.retain_data_application_definition(
+                reference,
+                DataDefinition {
+                    name: Identifier::generated(name),
+                    type_parameters: parameters,
+                    members,
+                    ..Default::default()
+                },
+                true,
+            );
+            applications.push(reference);
+        }
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let mut successor = original.with_replaced_symbols(symbols("successor"));
+        let fork = Arc::get_mut(&mut successor).unwrap();
+        assert!(std::ptr::eq(
+            predecessor.data_type_parameters.get(parameters.start()),
+            fork.data_type_parameters.get(parameters.start())
+        ));
+        assert!(std::ptr::eq(
+            predecessor.data_members.get(members.start()),
+            fork.data_members.get(members.start())
+        ));
+        assert!(std::ptr::eq(
+            predecessor.data_payload_fields.get(payload.start()),
+            fork.data_payload_fields.get(payload.start())
+        ));
+        let row =
+            arena::Handle::from_parts(applications[0].arena_index(), applications[0].generation());
+        assert!(std::ptr::eq(
+            predecessor.data_application_definitions.get(row),
+            fork.data_application_definitions.get(row)
+        ));
+
+        fork.data_type_parameters.get_mut(parameters.start()).name =
+            Identifier::generated("changed");
+        fork.data_payload_fields.get_mut(payload.start()).name =
+            Identifier::generated("changed payload");
+        let DataMember::Field(field) = fork.data_members.get_mut(members.start()) else {
+            panic!("authored field")
+        };
+        field.name = Identifier::generated("changed field");
+        fork.forget_data_application_definition(applications[0]);
+        assert!(fork.data_application_definition(applications[0]).is_none());
+        assert!(
+            predecessor
+                .data_application_definition(applications[0])
+                .is_some()
+        );
+        assert!(std::ptr::eq(
+            predecessor
+                .data_application_definition(applications[1])
+                .unwrap(),
+            fork.data_application_definition(applications[1]).unwrap()
+        ));
+        assert!(std::ptr::eq(
+            predecessor
+                .data_type_parameters
+                .get(parameters.handle_at(1)),
+            fork.data_type_parameters.get(parameters.handle_at(1))
+        ));
+        assert_eq!(
+            predecessor
+                .data_type_parameters
+                .get(parameters.start())
+                .name
+                .as_str(),
+            "first"
+        );
+        assert_eq!(
+            predecessor
+                .data_payload_fields
+                .get(payload.start())
+                .name
+                .as_str(),
+            "payload"
+        );
+        let DataMember::Field(field) = predecessor.data_members.get(members.start()) else {
+            panic!("authored field")
+        };
+        assert_eq!(field.name.as_str(), "field");
+        let old = predecessor
+            .data_application_definition(applications[1])
+            .unwrap();
+        assert_eq!(fork.data_members(old).len(), 2);
+        assert!(matches!(fork.data_members(old)[1], DataMember::Variant(_)));
     }
 
     #[test]

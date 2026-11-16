@@ -56,7 +56,6 @@ mod subjects;
 mod transitions;
 mod types;
 
-use arena::Arena;
 use semantic_vocabulary::{
     BoundaryMachineId, CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId,
 };
@@ -323,15 +322,13 @@ fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
 
 /// Reads a span of a typed-tree arena, refusing an invalid span instead of
 /// reading it as empty.
-fn span<'a, T: Default>(
-    arena: &'a Arena<T>,
+fn span<T, Rows>(
+    read: impl FnOnce(arena::HandleSpan<T>) -> Option<Rows>,
     span: arena::HandleSpan<T>,
     machine: MachineId,
     what: &'static str,
-) -> Checked<&'a [T]> {
-    arena
-        .span(span)
-        .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
+) -> Checked<Rows> {
+    read(span).ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
     pub fn typed(&self) -> &'t TypedTrees {

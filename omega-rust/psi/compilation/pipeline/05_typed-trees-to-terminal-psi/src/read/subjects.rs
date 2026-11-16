@@ -581,7 +581,9 @@ impl Program<'_> {
         }
         for member in typed.data_members(data) {
             let fields = match member {
-                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Field(field) => {
+                    arena::RootRows::from_slice(std::slice::from_ref(field))
+                }
                 DataMember::Variant(variant) => typed.data_payload_fields(variant),
             };
             for field in fields {
@@ -599,7 +601,7 @@ impl Program<'_> {
     fn template_member_type(
         &mut self,
         entry: MachineId,
-        parameters: &[typed_trees::data::TypeParameter],
+        parameters: arena::RootRows<'_, typed_trees::data::TypeParameter>,
         reference: typed_trees::types::TypeReferenceHandle,
         depth: usize,
     ) -> Checked<()> {

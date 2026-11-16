@@ -435,7 +435,7 @@ impl Program<'_> {
             }),
         };
         let facts = super::span(
-            &typed.proof_facts,
+            |span| typed.proof_facts.span(span),
             data.requires_facts,
             id,
             "data requires span",
@@ -530,7 +530,11 @@ impl Program<'_> {
     /// in declaration order. Fields and cases are read first and identities
     /// minted after, so a nested data type resolves, and takes its
     /// identities, before its owner and each type's fields are consecutive.
-    fn declared_members(&mut self, id: MachineId, members: &[DataMember]) -> Checked<Members> {
+    fn declared_members(
+        &mut self,
+        id: MachineId,
+        members: arena::RootRows<'_, DataMember>,
+    ) -> Checked<Members> {
         let typed = self.typed;
         let mut fields = Vec::new();
         let mut field_symbols = Vec::new();
@@ -1319,7 +1323,9 @@ fn record_shape<'m>(
     members: &'m [DataMember],
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
 ) -> Checked<()> {
-    record_shape_for(id, data, application, false, members, payload)
+    record_shape_for(id, data, application, false, members.into(), |variant| {
+        payload(variant).into()
+    })
 }
 
 fn record_shape_for<'m>(
@@ -1327,8 +1333,8 @@ fn record_shape_for<'m>(
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
     descriptor_storage: bool,
-    members: &'m [DataMember],
-    payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
+    members: arena::RootRows<'m, DataMember>,
+    payload: impl Fn(&'m typed_trees::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
     if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque && !members.is_empty()
