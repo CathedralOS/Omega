@@ -9,7 +9,7 @@ use domain::inference;
 use domain::report;
 
 data Main { reader: Reader; bins: [f64; 33]; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     main.reader.consumed = 0;
     let mut input: Input;
     let valid: bool = block read_input(&mut main.reader, &mut input);
@@ -49,5 +49,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

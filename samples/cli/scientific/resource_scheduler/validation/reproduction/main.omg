@@ -3,7 +3,7 @@ use omega::language::core::ProcessExit;
 // fixed byte array. The same source is required to print the actual bytes.
 use omega_language_std::Console;
 data Main { choice: i32; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let bytes: [u8; 4] = "TEST";
     transition main.choice {
         0 -> show(main, &bytes)

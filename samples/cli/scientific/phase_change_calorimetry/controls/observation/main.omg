@@ -7,7 +7,7 @@ use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use omega_language_std::Console;
 data Application { reader: Reader; parameters: [f64; 20]; observations: [f64; 8]; index: i32; count: i32; problem: Problem; time: f64; energy: f64; }
-machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     application.index = 0;
     transition { _ -> read_parameters(application) }
     machine read_parameters(application: &mut Application) {
@@ -101,5 +101,5 @@ machine valid_material(material: &Material) -> bool {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -14,7 +14,7 @@ public data Laboratory [copy] {
 // Decisions: 0 acquired, 1 loaded, 2 started, 3 advanced, 4 completed,
 // 5 cancelled, 6 recovered, 7 lid changed, 8 conflict, 9 wrong phase,
 // 10 open interlock, 11 timeout, 12 invalid input, 13 emergency interlock.
-public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+public machine apply(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
     transition argument >= 0 && argument <= 9 {
         true -> dispatch(laboratory, operation, argument)
         false -> invalid()
@@ -47,7 +47,7 @@ public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, ar
     machine reserve(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
         laboratory.owner = argument as i32;
         laboratory.phase = 1;
-        laboratory.elapsed = 0;
+        laboratory.elapsed = 0 as +Saturating;
         transition { _ -> 0 }
     }
     machine owned(laboratory: &mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
@@ -95,7 +95,7 @@ public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, ar
     }
     machine running(laboratory: &mut Laboratory) -> i32 {
         laboratory.phase = 3;
-        laboratory.elapsed = 0;
+        laboratory.elapsed = 0 as +Saturating;
         transition { _ -> 2 }
     }
     machine finish(laboratory: &mut Laboratory) -> i32 {
@@ -125,7 +125,7 @@ public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, ar
     machine recovered(laboratory: &mut Laboratory) -> i32 {
         laboratory.owner = 0;
         laboratory.phase = 0;
-        laboratory.elapsed = 0;
+        laboratory.elapsed = 0 as +Saturating;
         transition { _ -> 6 }
     }
     machine tick(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {
@@ -149,7 +149,7 @@ public machine Laboratory::apply(laboratory: &mut Laboratory, operation: i32, ar
     }
     machine expire(laboratory: &mut Laboratory) -> i32 {
         // Time is clipped at the exact deadline, even for a nine-tick command.
-        laboratory.elapsed = 5;
+        laboratory.elapsed = 5 as +Saturating;
         transition { _ -> abort(laboratory, 11) }
     }
     machine lid(laboratory: &mut Laboratory, argument: i32 in Saturating) -> i32 {

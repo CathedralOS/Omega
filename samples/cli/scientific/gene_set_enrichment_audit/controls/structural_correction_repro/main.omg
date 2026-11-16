@@ -3,7 +3,7 @@ use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use exact;
 data Main { }
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
         ByteRead::Eof -> calculate(context, 0)
@@ -33,5 +33,5 @@ machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, othe
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -6,7 +6,7 @@ use omega_language_std::Console;
 public machine number(value: i32 in Wrapping) reaches Console
 invokes Console
 {
-    transition { _ -> digits(value, 10000, false) }
+    transition { _ -> digits(value, 10000 as +Wrapping, false) }
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
             true -> select(value, divisor, started)

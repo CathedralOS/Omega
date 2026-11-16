@@ -25,7 +25,7 @@ classifies cells and owns a bounded eight-segment graph; `terrain/stitch.omg`
 consumes each segment once, preferring boundary starts before cycles.
 `reporting/report.omg` prints topology, per-cell segments and paths. Closed
 paths repeat their first vertex. Storage is bounded to twelve edges, eight
-segments/paths and sixteen path vertices. The public entry is `Main::main`,
+segments/paths and sixteen path vertices. The public entry is `main`,
 explicitly bound to the existing linux_x86_64 program-entry provider.
 
 Examples:

@@ -48,7 +48,7 @@ requested cap. `limiting_mask` uses bit 1 for reactant 0 and bit 2 for reactant 
 it identifies tied integer reagent capacities before applying the cap.
 `cap_limited` indicates a stricter cap. All products are proposed before any
 inventory mutation; an i32 inventory overflow reports the unchanged inventory.
-`Main::main` independently checks total elemental conservation before reporting.
+`main` independently checks total elemental conservation before reporting.
 
 All arithmetic uses i64 carriers with bounds that exclude wrapping: each
 balance side is at most 256, product proposals at most 9*INT32_MAX, and elemental

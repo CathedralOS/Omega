@@ -7,7 +7,7 @@ machine accepted(probe:&Probe,choice:i32)->bool {
  machine test(probe:&Probe)->bool {abs_f64(probe.reading-1.0) <= 0.000000001}
  machine rejected()->bool {false}
 }
-machine Probe::main(probe:&mut Probe) {
+machine main(probe:&mut Probe) {
  probe.reading=1.0;probe.selected=0;
  transition { _ -> check(probe) }
  machine check(probe:&mut Probe) {
@@ -22,5 +22,5 @@ machine Probe::main(probe:&mut Probe) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Probe;
-    Probe::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

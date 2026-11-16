@@ -12,7 +12,7 @@ data Main {
     assembly: Assembly;
     audit: Audit;
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)");
     block read_integer(&mut main.input);
     transition main.input.valid && main.input.value >= 1 && main.input.value <= 6 {
@@ -107,5 +107,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

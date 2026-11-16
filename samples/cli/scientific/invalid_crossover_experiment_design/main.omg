@@ -6,7 +6,7 @@ machine unchecked_period(cells: &[i32; 3], period: u64) -> i32 {
     transition { _ -> (cells[period]) }
 }
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let cells: [i32; 3] = [0, 1, 2];
     let observed: i32 = unchecked_period(&cells, 4);
     ProcessExit::exit_process(observed);
@@ -15,5 +15,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

@@ -17,7 +17,7 @@ data Protocol {
 }
 // Fixed decimal notation, bounded to 512 bytes, exactly seven tokens and EOF.
 // Accumulator envelope prevents nonfinite values before any model operation.
-machine Protocol::read(protocol: &mut Protocol) -> bool reaches ProcessExit + Console blocks crashes Trap {
+machine read(protocol: &mut Protocol) -> bool reaches ProcessExit + Console blocks crashes Trap {
     protocol.position = 0; protocol.length = 0;
     protocol.accumulator = 0.0; protocol.scale = 1.0;
     protocol.fraction = false; protocol.fractional_digits = 0; protocol.negative = false;
@@ -121,7 +121,7 @@ machine Protocol::read(protocol: &mut Protocol) -> bool reaches ProcessExit + Co
     machine rejected() -> bool { false }
 }
 
-machine Protocol::integer(protocol: &mut Protocol, value: i32 in Wrapping)
+machine integer(protocol: &mut Protocol, value: i32 in Wrapping)
 reaches ProcessExit + Console {
     transition value < 0 {
         true -> negative(protocol, value)
@@ -171,7 +171,7 @@ reaches ProcessExit + Console {
     machine done() { }
 }
 
-machine Protocol::wide_integer(protocol: &mut Protocol, value: i64 in Wrapping)
+machine wide_integer(protocol: &mut Protocol, value: i64 in Wrapping)
 reaches ProcessExit + Console {
     transition value < 0 {
         true -> negative(protocol, value)
@@ -234,7 +234,7 @@ reaches ProcessExit + Console {
 
 // Sixteen significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
-machine Protocol::number(protocol: &mut Protocol, value: f64)
+machine number(protocol: &mut Protocol, value: f64)
 reaches ProcessExit + Console {
     transition value == 0.0 {
         true -> zero(protocol)
@@ -274,9 +274,9 @@ reaches ProcessExit + Console {
     requires scaled == scaled && scaled >= 0.0 && scaled < 10000000000000000.0
     {
         let mantissa: i64 = I64::from_f64(scaled);
-        Protocol::wide_integer(protocol, mantissa as i64 in Wrapping);
+        wide_integer(protocol, mantissa as i64 in Wrapping);
         Console::write("e");
-        Protocol::integer(protocol, exponent - 15);
+        integer(protocol, exponent - 15);
     }
     machine invalid(protocol: &mut Protocol) {
         Console::write_line("ERROR numeric: reporting value outside finite model envelope");

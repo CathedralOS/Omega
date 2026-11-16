@@ -10,7 +10,7 @@ public data Reader {
     digits: i32 in Wrapping;
 }
 
-public machine Reader::next(reader: &mut Reader) reaches Console
+public machine next(reader: &mut Reader) reaches Console
 invokes Console
 blocks
 crashes Trap

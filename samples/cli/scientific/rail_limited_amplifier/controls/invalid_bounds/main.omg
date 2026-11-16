@@ -3,7 +3,7 @@ use omega::language::core::ProcessExit;
 // selecting slot two violates the documented exclusive upper bound.
 use omega_language_std::Console;
 data Main { history: [f64; 2]; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     main.history[2] = 1.0;
     Console::write_line("unreachable invalid rail history write");
     ProcessExit::exit_process(0);
@@ -12,5 +12,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }
