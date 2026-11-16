@@ -184,13 +184,10 @@ pub(crate) mod input {
             if installations.psi != plan.psi {
                 return Err(InstallationBindingError::InterruptCohortProgram);
             }
-            if let Some(entry) = &installations.installed_entry {
-                if entry.psi != plan.psi
-                    || entry.target != plan.target
-                    || entry.machine != plan.entry
-                {
-                    return Err(InstallationBindingError::EntryExecution);
-                }
+            if installations.installed_entry.is_some_and(|entry| {
+                entry.psi != plan.psi || entry.target != plan.target || entry.machine != plan.entry
+            }) {
+                return Err(InstallationBindingError::EntryExecution);
             }
             if installations
                 .stack_requirements
