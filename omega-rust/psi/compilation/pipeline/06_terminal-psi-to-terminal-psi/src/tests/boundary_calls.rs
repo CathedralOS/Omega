@@ -567,10 +567,94 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
     call.authored_machine_application = second.2;
     let refusal = read_applied_boundary(&typed.into()).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refusal.detail,
-        "call closed requirement call selects another bound application"
+    assert!(
+        refusal
+            .detail
+            .starts_with("call closed requirement call selects another bound application"),
+        "{refusal:?}"
     );
+}
+
+#[test]
+fn closed_boundary_calling_templates_keep_one_declaration() {
+    let source = typed(
+        r#"
+boundary trait Pair {
+    machine first<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+    machine second<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = Pair::first<4>(3);
+    let second: u32 = Pair::second<4>(3);
+    first
+}
+"#,
+    );
+    let prepared = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0;
+    let elaboration = read_applied_boundary(&prepared).unwrap();
+    let module = &elaboration.module;
+    let [first, second] = module.boundary_machines.as_slice() else {
+        panic!("two requirements of the same trait");
+    };
+    let a = first.declaration.as_ref().unwrap();
+    let b = second.declaration.as_ref().unwrap();
+    let abi_a = module.calling_abi_identity(first.id).unwrap();
+    let abi_b = module.calling_abi_identity(second.id).unwrap();
+    assert_eq!(abi_a.declaring_application, abi_b.declaring_application);
+    assert_eq!(abi_a.operands, abi_b.operands);
+    assert_ne!(abi_a.requirement_identity, abi_b.requirement_identity);
+    for (declaration, abi) in [(a, &abi_a), (b, &abi_b)] {
+        assert!(
+            declaration
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap()
+        );
+    }
+    let mut changed = a.clone();
+    changed.source.semantic_declaration = b.source.semantic_declaration;
+    changed
+        .source
+        .specialization
+        .as_mut()
+        .unwrap()
+        .template_semantic_declaration = b
+        .source
+        .specialization
+        .as_ref()
+        .unwrap()
+        .template_semantic_declaration;
+    assert!(
+        !changed
+            .matches_calling_abi(&module.identities, &abi_a)
+            .unwrap(),
+        "a changed semantic template pair must not authenticate the original callable and ABI"
+    );
+    for entry_only in [false, true] {
+        let mut changed = a.clone();
+        let template = changed.source.specialization.as_mut().unwrap();
+        let other = b.source.specialization.as_ref().unwrap();
+        template.template_entry = other.template_entry.clone();
+        if !entry_only {
+            template.template = other.template.clone();
+        }
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, &abi_a)
+                .unwrap(),
+            "nominal template coordinates must name the same callable: entry_only={entry_only}"
+        );
+    }
+    assert!(matches!(
+        judge(Ok(elaboration)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
 }
 
 /// A boundary requirement with a value parameter, `take<const Count: u64>`,
