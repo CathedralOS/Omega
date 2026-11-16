@@ -1286,6 +1286,8 @@ pub(super) enum Step {
 /// the dispatch selected on, the case, and for each payload field in
 /// declaration order the block parameter it arrived as, `None` for a data
 /// payload field, which has no value identity. The wildcard arm has no case.
+/// The parameters are cleared once a write or exclusive loan in the arm may
+/// change the subject, since they hold its payload at dispatch time.
 /// control_flow.md: "Selected payload fields become scalar parameters on
 /// that case's edge before cleanup."
 #[derive(Debug, Clone)]
@@ -1435,7 +1437,85 @@ impl<'a> Lowering<'a> {
             &mut self.tables.places,
             &mut self.tables.writes,
             WriteRow { place, at, content },
-        )
+        )?;
+        self.touch_selected(place)
+    }
+
+    /// A store, move or exclusive loan reaching `place` may change any
+    /// enclosing dispatch subject it overlaps, so that arm's payload block
+    /// parameters no longer hold the subject's current payload. Later reads
+    /// of the payload are ordinary `Case` reads the checker judges.
+    /// structural_access.md: "A read is not equality with the initializer or
+    /// a previous read: intervening stores and calls can change storage".
+    fn touch_selected(&mut self, place: ExactPlaceId) -> Checked<()> {
+        for position in 0..self.selected.len() {
+            let chosen = &self.selected[position];
+            if !chosen.parameters.is_empty() && self.may_overlap(chosen.place, place)? {
+                self.selected[position].parameters.clear();
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether `a` and `b` can name some of the same storage. Distinct roots
+    /// are distinct storage; a reference capture shares its original's root.
+    /// Below the common ancestor, different fields or literal indexes are
+    /// disjoint, unless a shallower step selects different cases of one sum,
+    /// whose payloads share storage. Runtime indexes may be equal, and a
+    /// place behind a stored reference may alias anything.
+    fn may_overlap(&self, a: ExactPlaceId, b: ExactPlaceId) -> Checked<bool> {
+        let parent = |place: ExactPlaceId| -> Checked<Option<(ExactPlaceId, Segment)>> {
+            let row = self
+                .tables
+                .places
+                .get(place)
+                .ok_or_else(|| self.internal("an exact place has no row"))?;
+            Ok(match row.origin {
+                PlaceOrigin::Root(_) => None,
+                PlaceOrigin::Projection { parent, segment } => Some((parent, segment)),
+            })
+        };
+        let depth = |mut place: ExactPlaceId| -> Checked<usize> {
+            let mut depth = 0;
+            while let Some((up, _)) = parent(place)? {
+                place = up;
+                depth += 1;
+            }
+            Ok(depth)
+        };
+        let (mut a, mut b) = (a, b);
+        let (mut a_depth, mut b_depth) = (depth(a)?, depth(b)?);
+        let mut disjoint = false;
+        while a_depth != b_depth {
+            let deeper = if a_depth > b_depth { &mut a } else { &mut b };
+            let Some((up, segment)) = parent(*deeper)? else {
+                return Err(self.internal("an exact place is shallower than its depth"));
+            };
+            if segment == Segment::Referent {
+                return Ok(true);
+            }
+            *deeper = up;
+            if a_depth > b_depth {
+                a_depth -= 1;
+            } else {
+                b_depth -= 1;
+            }
+        }
+        while a != b {
+            let (Some((a_up, a_segment)), Some((b_up, b_segment))) = (parent(a)?, parent(b)?)
+            else {
+                return Ok(false);
+            };
+            match (a_segment, b_segment) {
+                (Segment::Referent, _) | (_, Segment::Referent) => return Ok(true),
+                (Segment::Field(x), Segment::Field(y)) if x != y => disjoint = true,
+                (Segment::FixedIndex(x), Segment::FixedIndex(y)) if x != y => disjoint = true,
+                (Segment::Case(x), Segment::Case(y)) if x != y => disjoint = false,
+                _ => {}
+            }
+            (a, b) = (a_up, b_up);
+        }
+        Ok(!disjoint)
     }
 
     /// Register a demanded scalar leaf. Logical identities are allocated in
@@ -2919,6 +2999,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a loan has another type than its captured place"));
         }
         self.name_contents(exact, value_type)?;
+        if lent_access != StructuralAccess::SharedBorrow {
+            self.touch_selected(exact)?;
+        }
         let lender = if self.borrowed_roots.contains(&root) {
             Lender::Incoming
         } else {
@@ -3606,7 +3689,8 @@ impl<'a> Lowering<'a> {
 
     /// The scalar payload field `field` of case `case` of the sum `base`
     /// names. Inside the arm of a dispatch on that same place and case it
-    /// is the arm block's parameter. Anywhere else it is a read whose
+    /// is the arm block's parameter, until a write or exclusive loan touches
+    /// the subject (`touch_selected`). Anywhere else it is a read whose
     /// carrier ends in the `Case` step (structural_access.md: "One `Case`
     /// step may end the carrier when the preceding carrier steps reach a
     /// sum. The final field is then a relevant scalar payload field of that
