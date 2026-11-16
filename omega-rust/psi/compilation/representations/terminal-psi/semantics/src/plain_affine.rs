@@ -396,6 +396,7 @@ struct Residence {
 struct Analysis<'a> {
     module: Option<&'a terminal_psi::TerminalModule>,
     types: &'a [StructuralTypeDeclaration],
+    dispositions: Vec<Option<bool>>,
     roots: Vec<Option<Root>>,
     borrowed_headers: Vec<PlaceId>,
     unavailable: Vec<Unavailable>,
@@ -1326,13 +1327,6 @@ fn analyze(
             &mut active_dispositions,
         )?;
     }
-    for root in roots.iter().flatten().filter(|root| root.affine) {
-        if dispositions[index(root.structural_type.get())?] != Some(true) {
-            return Err(Error::unsupported(
-                "affine storage with nontrivial disposition",
-            ));
-        }
-    }
     // Access is independent of whether the referent has affine contents.
     // Check every successor telescope before the copyable-storage fast path.
     for block in &machine.blocks {
@@ -1429,6 +1423,7 @@ fn analyze(
     let mut analysis = Analysis {
         module,
         types,
+        dispositions,
         roots,
         borrowed_headers,
         unavailable: Vec::new(),
@@ -2954,6 +2949,23 @@ impl Analysis<'_> {
             .root(place)?
             .ok_or(Error::malformed("missing affine owner"))?;
         let declaration = &self.types[index(info.structural_type.get())?];
+        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !self.can_dispose(info.structural_type)?
+        {
+            // Moving every component can leave an allocated, empty home.
+            // Retirement never settles a declaration-owned root claim; its
+            // complete value must instead be transferred or consumed explicitly.
+            // The independent claim owner still checks any RetireHome action.
+            if !declaration.owns_linear_claim
+                && !region.whole
+                && self.vacant_region(place, region, &[])?
+            {
+                return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
+            }
+            return Err(Error::unsupported(
+                "normal edge cannot implicitly dispose storage without an authorized disposition",
+            ));
+        }
         if region.contains_partition(&[])
             || declaration.nominal_cleanup.is_some()
             || !declaration.no_code_affine_cleanup
@@ -3051,6 +3063,16 @@ impl Analysis<'_> {
                 "a partially rebuilt home at a reconvergence",
             ));
         }
+        if held == joined {
+            return Ok(Vec::new());
+        }
+        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !self.can_dispose(info.structural_type)?
+        {
+            return Err(Error::unsupported(
+                "reconvergence cannot implicitly dispose storage without an authorized disposition",
+            ));
+        }
         let missing = |region: &Region| {
             let mut paths = Vec::new();
             region.vacancies(&mut Vec::new(), &mut paths);
@@ -3130,6 +3152,14 @@ impl Analysis<'_> {
                 )
             })
             .collect())
+    }
+
+    fn can_dispose(&self, ty: StructuralTypeId) -> Result<bool, Error> {
+        self.dispositions
+            .get(index(ty.get())?)
+            .copied()
+            .flatten()
+            .ok_or(Error::malformed("disposition type was not prepared"))
     }
 
     fn root(&self, root: PlaceId) -> Result<Option<&Root>, Error> {
@@ -3556,6 +3586,241 @@ mod tests {
             )],
             access: StructuralAccess::Owned,
         }
+    }
+
+    fn transfer_only_types(linear: bool) -> [StructuralTypeDeclaration; 3] {
+        let mut types = reconvergence_types();
+        for declaration in &mut types {
+            declaration.owns_linear_claim = linear;
+            declaration.no_code_affine_cleanup = false;
+            declaration.descriptor_cleanup = false;
+        }
+        types
+    }
+
+    fn returning_relay(linear: bool) -> TerminalMachine {
+        use terminal_psi::{
+            EntryClaim, StructuralMultiplicity, StructuralPlaceDeclaration,
+            StructuralResultClaimBinding, StructuralResultDeclaration, TerminalMachineResult,
+            Terminator,
+        };
+        let mut machine = transferring(
+            &[id(3)],
+            &[id(3)],
+            vec![StructuralArgument::whole(id(1), StructuralAccess::Owned)],
+        );
+        let multiplicity = if linear {
+            StructuralMultiplicity::Linear
+        } else {
+            StructuralMultiplicity::Affine
+        };
+        machine.contract.structural_parameters[0].multiplicity = multiplicity;
+        machine.blocks[1].structural_parameters[0].multiplicity = multiplicity;
+        machine.contract.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: id(3),
+            structural_type: id(3),
+            multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            reference_sources: Vec::new(),
+        });
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: id(3),
+            kind: StructuralPlaceKind::Result,
+        });
+        let returned_claims = if linear {
+            machine.contract.entry_claims.push(EntryClaim {
+                claim: id(1),
+                input: id(1),
+                path: Vec::new(),
+            });
+            machine.block_entry_claims.push(EntryClaim {
+                claim: id(2),
+                input: id(2),
+                path: Vec::new(),
+            });
+            vec![StructuralResultClaimBinding {
+                claim: id(2),
+                path: Vec::new(),
+            }]
+        } else {
+            Vec::new()
+        };
+        machine.blocks[1].terminator = Terminator::ReturnStructural {
+            edge: id(2),
+            source: id(2),
+            returned_claims,
+            cleanup_actions: Vec::new(),
+        };
+        machine
+    }
+
+    #[test]
+    fn complete_linear_and_nondroppable_values_can_relay_and_return_without_cleanup() {
+        for linear in [false, true] {
+            let types = transfer_only_types(linear);
+            let machine = returning_relay(linear);
+            let planned = verify(&machine, &types).unwrap();
+            assert!(planned.unavailable.is_empty());
+            assert!(planned.cleanup.is_empty());
+            if linear {
+                // The region planner neither issues nor settles these claims.
+                // The ordinary claim owner checks their edge/return transport.
+                assert_eq!(machine.entry_claims[0].claim, id(1));
+                assert_eq!(machine.block_entry_claims[0].claim, id(2));
+                let terminal_psi::Terminator::ReturnStructural {
+                    returned_claims, ..
+                } = &machine.blocks[1].terminator
+                else {
+                    unreachable!()
+                };
+                assert_eq!(returned_claims[0].claim, id(2));
+            }
+        }
+    }
+
+    #[test]
+    fn a_complete_linear_call_transfers_custody_once_without_implicit_disposal() {
+        use terminal_psi::{ClaimTransfer, Operation, OperationKind, OperationResult, Terminator};
+        let types = transfer_only_types(true);
+        let mut machine = returning_relay(true);
+        machine.contract.result = terminal_psi::TerminalMachineResult::Unit;
+        assert!(matches!(
+            machine.structural_places.pop().unwrap().kind,
+            StructuralPlaceKind::Result
+        ));
+        let call = Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument::whole(
+                    id(2),
+                    StructuralAccess::Owned,
+                )],
+                claim_transfers: vec![ClaimTransfer {
+                    claim: id(2),
+                    argument_index: 0,
+                    path: Vec::new(),
+                }],
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        );
+        machine.blocks[1].operations.push(call.clone());
+        machine.blocks[1].terminator = Terminator::ReturnUnit {
+            edge: id(2),
+            cleanup_actions: Vec::new(),
+        };
+        let planned = verify(&machine, &types).unwrap();
+        assert!(planned.unavailable.is_empty());
+        assert!(planned.cleanup.is_empty());
+        let mut duplicate = call;
+        duplicate.id = id(2);
+        machine.blocks[1].operations.push(duplicate);
+        assert!(!plan(&machine, &types).unwrap().unavailable.is_empty());
+    }
+
+    #[test]
+    fn a_normal_return_cannot_forget_a_transfer_only_value() {
+        for linear in [false, true] {
+            let types = transfer_only_types(linear);
+            let mut machine = returning_relay(linear);
+            machine.contract.result = terminal_psi::TerminalMachineResult::Unit;
+            assert!(matches!(
+                machine.structural_places.pop().unwrap().kind,
+                StructuralPlaceKind::Result
+            ));
+            machine.blocks[1].terminator = terminal_psi::Terminator::ReturnUnit {
+                edge: id(2),
+                cleanup_actions: Vec::new(),
+            };
+            assert!(matches!(
+                plan(&machine, &types),
+                Err(Error::Unsupported {
+                    detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
+                    ..
+                })
+            ));
+        }
+    }
+
+    #[test]
+    fn partial_moves_cannot_retire_an_intrinsic_linear_claim_even_after_all_fields_move() {
+        use terminal_psi::{EntryClaim, StructuralMultiplicity};
+        let types = transfer_only_types(true);
+        for fields in [
+            vec![field_argument(3)],
+            vec![field_argument(3), field_argument(4)],
+        ] {
+            let destinations = vec![id(3); fields.len()];
+            let mut machine = transferring(&[id(2)], &destinations, fields);
+            machine.contract.structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+            machine.contract.entry_claims.push(EntryClaim {
+                claim: id(1),
+                input: id(1),
+                path: Vec::new(),
+            });
+            for parameter in &mut machine.blocks[1].structural_parameters {
+                parameter.multiplicity = StructuralMultiplicity::Linear;
+            }
+            assert!(
+                matches!(
+                    plan(&machine, &types),
+                    Err(Error::Unsupported {
+                        detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
+                        ..
+                    })
+                ),
+                "moving fields cannot settle the independent root obligation"
+            );
+        }
+    }
+
+    #[test]
+    fn a_join_cannot_discard_a_live_transfer_only_residual() {
+        let types = transfer_only_types(true);
+        let mut analysis = owned_analysis(&types);
+        analysis.dispositions.fill(Some(false));
+        let held = Region::new(true);
+        let mut joined = held.clone();
+        joined.set(&[Segment::Field(id(1))], false);
+        assert!(
+            analysis
+                .equalize(id(1), &held, &held, 0)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(
+            analysis.equalize(id(1), &held, &joined, 1),
+            Err(Error::Unsupported {
+                detail: "reconvergence cannot implicitly dispose storage without an authorized disposition",
+                ..
+            })
+        ));
+        assert!(analysis.dispose(id(1), &joined, 1).is_err());
+    }
+
+    #[test]
+    fn only_an_empty_nondroppable_home_can_retire_without_disposing_a_value() {
+        let types = transfer_only_types(false);
+        let mut analysis = owned_analysis(&types);
+        analysis.dispositions.fill(Some(false));
+        let mut region = Region::new(true);
+        assert!(analysis.dispose(id(1), &region, 0).is_err());
+        region.set(&[Segment::Field(id(1))], false);
+        assert!(analysis.dispose(id(1), &region, 0).is_err());
+        region.set(&[Segment::Field(id(2))], false);
+        assert_eq!(
+            analysis.dispose(id(1), &region, 0).unwrap(),
+            vec![TerminalAffineCleanupAction::RetireHome(id(1))]
+        );
+        analysis.roots[0].as_mut().unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
+        assert!(analysis.dispose(id(1), &region, 0).is_err());
     }
 
     #[test]
@@ -4151,6 +4416,7 @@ mod tests {
         Analysis {
             module: None,
             types,
+            dispositions: vec![Some(true); types.len()],
             borrowed_headers: Vec::new(),
             roots: vec![Some(Root {
                 structural_type: StructuralTypeId::new(1).unwrap(),
