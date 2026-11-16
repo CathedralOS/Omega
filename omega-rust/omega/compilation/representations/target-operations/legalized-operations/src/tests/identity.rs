@@ -62,7 +62,7 @@ fn call_identity_binds_both_runtime_selector_rosters() {
 
     let mut plan = call_aware_plan();
     let index = LegalizedRuntimeIndexOperand {
-        operand: abstract_operations::AbstractResult {
+        operand: native_vocabulary::values::AbstractResult {
             value: id(21),
             scalar_type: target_operations::selector_carrier_type(),
         },
@@ -187,7 +187,8 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
                     .result
                     .as_mut()
                     .unwrap()
-                    .definition_site = optimization_unit::ValueDefinitionSite::FunctionParameter(0)
+                    .definition_site =
+                    native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(0)
             }
             15 => call_mut(function, 0)
                 .result_placement
@@ -212,7 +213,9 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             scalar_type: semantic_vocabulary::ClosedScalarType::Integer(
                 semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             ),
-            definition_site: optimization_unit::ValueDefinitionSite::FunctionParameter(0),
+            definition_site: native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(
+                0,
+            ),
             placement: call_mut(&mut plan.clone().scalar_functions[0], 0).arguments[0]
                 .placement()
                 .clone(),
@@ -230,7 +233,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             }
             2 => {
                 parameter.definition_site =
-                    optimization_unit::ValueDefinitionSite::FunctionParameter(1)
+                    native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(1)
             }
             _ => parameter.placement.locations.clear(),
         }
@@ -440,11 +443,11 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
     let identity = legalized_operation_plan_identity(&plan);
     assert!(plan.scalar_functions[0].ownership_frontier_facts.is_empty());
     let fact = |site| {
-        optimization_unit::OwnershipFrontierFact::new(
+        native_vocabulary::ownership_frontier::OwnershipFrontierFact::new(
             plan.psi,
             id(1),
             site,
-            optimization_unit::OwnershipFrontierSnapshot {
+            native_vocabulary::ownership_frontier::OwnershipFrontierSnapshot {
                 claims: Vec::new(),
                 owned_places: Vec::new(),
                 partial_custody: Vec::new(),
@@ -453,8 +456,8 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
     };
     let mut retained = plan.clone();
     retained.scalar_functions[0].ownership_frontier_facts = vec![
-        fact(optimization_unit::OwnershipFrontierSite::BlockEntry(id(1))),
-        fact(optimization_unit::OwnershipFrontierSite::EdgeEntry(id(1))),
+        fact(native_vocabulary::ownership_frontier::OwnershipFrontierSite::BlockEntry(id(1))),
+        fact(native_vocabulary::ownership_frontier::OwnershipFrontierSite::EdgeEntry(id(1))),
     ];
     let retained_identity = legalized_operation_plan_identity(&retained);
     assert_identity_drift(identity, &retained);
@@ -465,7 +468,7 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
     assert_identity_drift(retained_identity, &reordered);
     let mut substituted = retained.clone();
     substituted.scalar_functions[0].ownership_frontier_facts[1] =
-        fact(optimization_unit::OwnershipFrontierSite::EdgeEntry(id(2)));
+        fact(native_vocabulary::ownership_frontier::OwnershipFrontierSite::EdgeEntry(id(2)));
     assert_identity_drift(retained_identity, &substituted);
     let mut dropped = retained.clone();
     dropped.scalar_functions[0].ownership_frontier_facts.pop();
@@ -608,7 +611,7 @@ fn primitive_store_plan() -> LegalizedOperationPlan {
             additional_input_qualifications: Vec::new(),
         }
         .into(),
-        value: abstract_operations::AbstractResult {
+        value: native_vocabulary::values::AbstractResult {
             value: id(503),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
         },
@@ -627,7 +630,9 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination:
-                abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+                native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(
+                    destination,
+                ),
             path,
             value,
             byte_offset,
@@ -706,7 +711,10 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
     assert_identity_drift(legalized_operation_plan_identity(&plan), &field);
     let field_identity = legalized_operation_plan_identity(&field);
     let LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+        destination:
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(
+                destination,
+            ),
         ..
     } = &mut field.scalar_functions[0].blocks[0].instructions[0].kind
     else {
@@ -730,26 +738,30 @@ fn primitive_store_identity_binds_owned_producer_and_home() {
     else {
         panic!("primitive store fixture");
     };
-    *destination = abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-        producer: id(505),
-        result: terminal_psi::StructuralOperationResult {
-            place: id(501),
-            structural_type: id(502),
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            additional_input_qualifications: Vec::new(),
-            qualification_establishments: Vec::new(),
-            claims: Vec::new(),
-        },
-    };
+    *destination =
+        native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
+            producer: id(505),
+            result: terminal_psi::StructuralOperationResult {
+                place: id(501),
+                structural_type: id(502),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+        };
     assert_identity_drift(borrowed_identity, &plan);
     let identity = legalized_operation_plan_identity(&plan);
     for mutation in 0..3 {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination:
-                abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result },
+                native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
+                    producer,
+                    result,
+                },
             ..
         } = &mut changed.scalar_functions[0].blocks[0].instructions[0].kind
         else {
@@ -769,7 +781,7 @@ fn runtime_index(
     stride: u32,
 ) -> crate::LegalizedRuntimeIndexOperand {
     crate::LegalizedRuntimeIndexOperand {
-        operand: abstract_operations::AbstractResult {
+        operand: native_vocabulary::values::AbstractResult {
             value: operand,
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         },
@@ -784,7 +796,7 @@ fn runtime_index(
 
 #[test]
 fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
-    use abstract_operations::StructuralScalarStoreDestination as Destination;
+    use native_vocabulary::structural_stores::StructuralScalarStoreDestination as Destination;
 
     let plan = primitive_store_plan();
     let field_store = |destination: Destination| {

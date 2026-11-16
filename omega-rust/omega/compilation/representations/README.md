@@ -48,8 +48,13 @@ Three more representation packages sit inside their program families:
 - [`native-vocabulary/`](native-vocabulary/src/lib.rs) owns the leaf types
   every native form carries unchanged: provenance and work records,
   structural store destinations, access-reference backings, and the pure
-  predicates over structural declarations. It holds no program, so a later
-  stage can name these without being able to read an earlier one.
+  predicates over structural declarations, integer arithmetic policies, call
+  targets and formals, completion claim sources, ownership-frontier facts,
+  and the canonical scalar and integer type encoders. It holds no program, so
+  a later stage can name these without being able to read an earlier one.
+  `check-boundary` proves that `target-operations`, `legalized-operations`,
+  `selected-instructions` and its analyses cannot reach `abstract-operations`
+  through any production dependency.
 
 Nesting keeps each package separate. It shows an intermediate form's family;
 it does not make the package a module of its parent or producing stage.

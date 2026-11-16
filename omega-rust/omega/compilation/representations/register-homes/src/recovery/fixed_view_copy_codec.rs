@@ -25,10 +25,10 @@ use ::selected_instructions::{
     SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin, selected_instruction_plan_identity,
 };
-use optimization_core::AcceptedObligationFactIdentity;
-use optimization_unit::{
+use native_vocabulary::provenance::{
     PsiProvenance, ValueDefinitionSite, WorkSettlement, encode_value_definition_site_identity,
 };
+use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     RegisterViewId, TargetRegisterEnvironmentIdentity, encode_constraint_key,

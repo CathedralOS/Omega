@@ -20,9 +20,10 @@ provenance (`provenance`), boundary realizations (`boundary`), ordered unit oper
 (`operations`), value expressions (`values`), and durable home requirements (`storage`).
 */
 
-pub use abstract_operations::{AbstractResult, CompletionClaimSource, ValueBinding};
 pub use calling_conventions::MachineRegister;
 pub use installation_evidence::InstalledAssumedBindingEvidence;
+pub use native_vocabulary::completion_claims::CompletionClaimSource;
+pub use native_vocabulary::values::{AbstractResult, ValueBinding};
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;

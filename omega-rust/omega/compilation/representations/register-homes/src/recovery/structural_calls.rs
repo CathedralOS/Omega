@@ -450,7 +450,7 @@ pub(super) fn decode_runtime_indices(
 ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, FixedViewCopyDecodeError> {
     decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(legalized_operations::LegalizedRuntimeIndexOperand {
-            operand: abstract_operations::AbstractResult {
+            operand: native_vocabulary::values::AbstractResult {
                 value: decode_id(cursor, ValueId::new)?,
                 scalar_type: decode_scalar(cursor)?,
             },
@@ -1608,7 +1608,7 @@ mod tests {
     use crate::recovery::structural_declarations::encode_string;
     use calling_conventions::{CallSignature, encode_state_plan_identity};
     use legalized_operations::encode_locator;
-    use optimization_unit::EffectLink;
+    use native_vocabulary::provenance::EffectLink;
     use semantic_vocabulary::{IntegerSign, IntegerType};
     use target::ForeignLocatorCandidate;
     use target_operations::ProviderPlanReportIdentity;
@@ -1853,7 +1853,9 @@ mod tests {
                 input: 11,
                 output: 12,
             },
-            ownership: vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())],
+            ownership: vec![
+                native_vocabulary::provenance::OwnershipEvent::ClaimTransfer(Vec::new()),
+            ],
         }
     }
 
@@ -2031,7 +2033,7 @@ mod tests {
             .into_iter()
             .map(|(value, width, stride, extent, obligation)| {
                 legalized_operations::LegalizedRuntimeIndexOperand {
-                    operand: abstract_operations::AbstractResult {
+                    operand: native_vocabulary::values::AbstractResult {
                         value: ValueId::new(value).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, width).unwrap(),

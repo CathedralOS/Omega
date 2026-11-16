@@ -15,12 +15,15 @@ use super::{
     LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedStructuralContract,
     LegalizedValueDefinition, NativeCallOrigin, legalized_operation_plan_identity,
 };
-pub(super) use abstract_operations::CompletionClaimSource;
 pub(super) use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
 };
+pub(super) use native_vocabulary::completion_claims::CompletionClaimSource;
+pub(super) use native_vocabulary::provenance::EffectLink;
+use native_vocabulary::provenance::OwnershipEvent;
+use native_vocabulary::provenance::PsiProvenance;
+use native_vocabulary::provenance::WorkSettlement;
 pub(super) use optimization_core::OptimizationUnitIdentity;
-pub(super) use optimization_unit::{EffectLink, OwnershipEvent, PsiProvenance, WorkSettlement};
 pub(super) use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId,
     ScalarType, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
@@ -418,7 +421,8 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let operations = [id(105), id(106), id(107), id(108), id(109)];
     let values = [id(110), id(111), id(112), id(113), id(114)];
     let edge = id(115);
-    let definition = |node| optimization_unit::ValueDefinitionSite::Node { block, node };
+    let definition =
+        |node| native_vocabulary::provenance::ValueDefinitionSite::Node { block, node };
     let work = |operation| {
         vec![WorkSettlement {
             site: PsiProvenance::Operation(operation),

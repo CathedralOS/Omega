@@ -10,9 +10,12 @@
 // without conferring producer admission or storage permission.
 
 use super::SaturatingCarrier;
-use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, ValuePlacement};
-use optimization_unit::{EffectLink, OwnershipEvent, ValueDefinitionSite, WorkSettlement};
+use native_vocabulary::provenance::EffectLink;
+use native_vocabulary::provenance::OwnershipEvent;
+use native_vocabulary::provenance::ValueDefinitionSite;
+use native_vocabulary::provenance::WorkSettlement;
+use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClosedIntegerType, ClosedScalarType, EdgeId, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId,
@@ -31,7 +34,7 @@ pub struct LegalizedScalarFunction {
     pub structural: Option<crate::LegalizedStructuralContract>,
     pub entry_block: BlockId,
     pub blocks: Vec<LegalizedScalarBlock>,
-    pub ownership_frontier_facts: Vec<optimization_unit::OwnershipFrontierFact>, // Verifier-owned ownership-frontier facts projected byte-exact from the source unit.
+    pub ownership_frontier_facts: Vec<native_vocabulary::ownership_frontier::OwnershipFrontierFact>, // Verifier-owned ownership-frontier facts projected byte-exact from the source unit.
 }
 
 impl LegalizedScalarFunction {
@@ -427,7 +430,7 @@ pub enum LegalizedScalarInstructionKind {
     },
     AccessLifecycle {
         boundary: BoundaryMachineId,
-        operands: abstract_operations::AccessLifecycleOperands,
+        operands: native_vocabulary::access_lifecycles::AccessLifecycleOperands,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         result: terminal_psi::StructuralOperationResult,
     },
@@ -602,7 +605,7 @@ pub enum LegalizedScalarInstructionKind {
     EstablishAccessReference {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
-        correspondence: abstract_operations::AccessReferenceBacking,
+        correspondence: native_vocabulary::access_references::AccessReferenceBacking,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         shape: calling_conventions::ValueShape,
     },
@@ -619,12 +622,12 @@ pub enum LegalizedScalarInstructionKind {
     },
     EstablishPrimitiveLocal {
         result: terminal_psi::StructuralOperationResult,
-        value: abstract_operations::AbstractResult,
+        value: native_vocabulary::values::AbstractResult,
         shape: calling_conventions::ValueShape,
     },
     PrimitiveLocalStore {
         destination: semantic_vocabulary::PlaceId,
-        value: abstract_operations::AbstractResult,
+        value: native_vocabulary::values::AbstractResult,
     },
     PrimitiveScalarRead {
         source: semantic_vocabulary::PlaceId,
@@ -693,13 +696,13 @@ pub enum LegalizedScalarInstructionKind {
     StructuralLeafCopy {
         result: terminal_psi::StructuralOperationResult,
         source: semantic_vocabulary::PlaceId,
-        path: abstract_operations::StructuralCopyPath,
+        path: native_vocabulary::structural_stores::StructuralCopyPath,
         byte_offset: u32,
         shape: calling_conventions::ValueShape,
         indices: Vec<LegalizedRuntimeIndexOperand>, // Resolved operands for `RuntimeIndex` segments in path order.
     },
     StoreStructuralField {
-        destination: abstract_operations::StructuralWindowRoot,
+        destination: native_vocabulary::structural_stores::StructuralWindowRoot,
         path: Vec<terminal_psi::StructuralPathSegment>,
         field: Option<semantic_vocabulary::StructuralFieldId>,
         value: semantic_vocabulary::PlaceId,
@@ -717,9 +720,9 @@ pub enum LegalizedScalarInstructionKind {
         layout: calling_conventions::ConventionalSumLayout,
     },
     WriteOnlyPrimitiveStore {
-        destination: abstract_operations::StructuralScalarStoreDestination,
+        destination: native_vocabulary::structural_stores::StructuralScalarStoreDestination,
         path: Vec<terminal_psi::StructuralPathSegment>,
-        value: abstract_operations::AbstractResult,
+        value: native_vocabulary::values::AbstractResult,
         byte_offset: u32,
         byte_size: u8,
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -729,10 +732,10 @@ pub enum LegalizedScalarInstructionKind {
         source: ValueId,
     },
     StructuralScalarFieldStore {
-        destination: abstract_operations::StructuralScalarStoreDestination,
+        destination: native_vocabulary::structural_stores::StructuralScalarStoreDestination,
         path: Vec<terminal_psi::StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
-        value: abstract_operations::AbstractResult,
+        value: native_vocabulary::values::AbstractResult,
         byte_offset: u32,
         byte_size: u32, // Physical access envelope, not the semantic register width.
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -1163,7 +1166,7 @@ mod structural_result_tests {
             .push(semantic_vocabulary::StructuralDomainId::new(9).expect("domain"));
         let instruction = LegalizedScalarInstructionKind::AccessLifecycle {
             boundary: semantic_vocabulary::BoundaryMachineId::new(1).expect("boundary"),
-            operands: abstract_operations::AccessLifecycleOperands::MoveOut {
+            operands: native_vocabulary::access_lifecycles::AccessLifecycleOperands::MoveOut {
                 storage: StructuralArgument {
                     place: PlaceId::new(8).expect("original owner"),
                     path: vec![],
@@ -1191,7 +1194,7 @@ pub enum LegalizedScalarComparison {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalizedRuntimeIndexOperand {
-    pub operand: abstract_operations::AbstractResult,
+    pub operand: native_vocabulary::values::AbstractResult,
     pub stride: u32,
     pub extent: Option<u64>,
     pub obligation: semantic_vocabulary::ObligationId,
@@ -1213,7 +1216,7 @@ impl LegalizedRuntimeIndexOperand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralBinding {
-    pub semantic: abstract_operations::AbstractStructuralBinding, // Source custody and destination identity.
+    pub semantic: native_vocabulary::values::AbstractStructuralBinding, // Source custody and destination identity.
     pub indices: Vec<LegalizedRuntimeIndexOperand>, // Address selectors with accepted facts owned by this exact edge.
 }
 
@@ -1280,7 +1283,7 @@ pub enum LegalizedScalarTerminator {
     InvokeNoNormal {
         psi_edge: EdgeId,
         call: LegalizedScalarCall,
-        declared_result: abstract_operations::AbstractFunctionResult, // Declared ABI result mechanics without a semantic receiving value.
+        declared_result: native_vocabulary::values::AbstractFunctionResult, // Declared ABI result mechanics without a semantic receiving value.
         work: Vec<WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
@@ -1303,7 +1306,7 @@ pub enum LegalizedScalarTerminator {
         cause: terminal_psi::CrashCause,
         site_guard: Vec<terminal_psi::CrashPredicateTerm>,
         frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
-        work: Vec<optimization_unit::WorkSettlement>,
+        work: Vec<native_vocabulary::provenance::WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
     },
@@ -1550,7 +1553,7 @@ impl LegalizedScalarSuccessor {
     pub fn structural_binding(
         &self,
         parameter: PlaceId,
-    ) -> Option<&abstract_operations::AbstractStructuralBinding> {
+    ) -> Option<&native_vocabulary::values::AbstractStructuralBinding> {
         self.structural_bindings
             .iter()
             .map(|binding| &binding.semantic)
