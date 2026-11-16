@@ -220,6 +220,7 @@ struct Capture<'a> {
     completed_operators: &'a CompletedOperators,
     signature_views: &'a [typed_trees::signature::StateSignature],
     closed_signature_templates: Vec<SymbolHandle>,
+    required_generic_forms: &'a [SymbolHandle],
     output: RawSelectionQuestions,
     owner: SymbolHandle,
     scopes: Vec<SymbolHandle>,
@@ -686,6 +687,16 @@ impl TypedReferences for Capture<'_> {
         if !self.valid_symbol(symbol, "visited declaration") {
             return false;
         }
+        if self
+            .required_generic_forms
+            .binary_search_by_key(&(symbol.arena_index(), symbol.generation()), |symbol| {
+                (symbol.arena_index(), symbol.generation())
+            })
+            .is_ok()
+        {
+            self.seen_declarations.insert(symbol);
+            return false;
+        }
         self.owner = symbol;
         self.scopes.clear();
         self.expressions.clear();
@@ -924,10 +935,10 @@ impl TypedReferences for Capture<'_> {
                             {
                                 match self.completed_operators.reads.iter().find(|read| read.occurrence == occurrence) {
                                     Some(read) if read.owner != self.owner => format!(
-                                        "; the operation was checked only in `{}`",
+                                        "; a checked copy of the operation exists in `{}`",
                                         self.typed.symbols.display_path(read.owner, "::"),
                                     ),
-                                    Some(_) => "; only another copy of the operation was checked in this declaration".to_owned(),
+                                    Some(_) => "; a different checked copy of the operation exists in this declaration".to_owned(),
                                     None => "; no checked read of this operation was retained".to_owned(),
                                 }
                             } else {
@@ -1017,6 +1028,7 @@ pub(crate) fn capture(
     admitted: &DeclarationSelection,
     completed_operators: &CompletedOperators,
     signature_views: &[typed_trees::signature::StateSignature],
+    required_generic_forms: &[SymbolHandle],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
     let roots = admitted.explicit_symbols().ok_or_else(|| {
         SelectionCaptureError(
@@ -1039,12 +1051,31 @@ pub(crate) fn capture(
     closed_signature_templates
         .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     closed_signature_templates.dedup();
+    // The main form keeps these declarations' identities. Their questions
+    // belong to their own mandatory generic forms, whose source descriptions
+    // and judgments are assembled with the main form before publication.
+    let mut required_generic_forms = required_generic_forms.to_vec();
+    required_generic_forms
+        .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    required_generic_forms.dedup();
+    for &symbol in &required_generic_forms {
+        if !admitted.contains(symbol)
+            || !typed
+                .machine_by_symbol(symbol)
+                .is_some_and(|machine| crate::is_generic_template(typed, machine))
+        {
+            return Err(SelectionCaptureError(
+                "a deferred source declaration has no required generic form".into(),
+            ));
+        }
+    }
     let mut capture = Capture {
         typed,
         admitted,
         completed_operators,
         signature_views,
         closed_signature_templates,
+        required_generic_forms: &required_generic_forms,
         output: RawSelectionQuestions {
             declarations: roots.to_vec(),
             ..RawSelectionQuestions::default()
@@ -1255,6 +1286,7 @@ mod tests {
             &DeclarationSelection::from_symbols([a]),
             &CompletedOperators::default(),
             &[],
+            &[],
         )
         .unwrap();
         assert_eq!(captured.declarations, vec![a]);
@@ -1356,7 +1388,7 @@ mod tests {
         });
         let admitted = DeclarationSelection::from_symbols([owner]);
         let operators = CompletedOperators::default();
-        let ordinary = capture(&typed, &admitted, &operators, &[]).unwrap();
+        let ordinary = capture(&typed, &admitted, &operators, &[], &[]).unwrap();
         assert!(ordinary.dependencies.iter().all(|dependency| {
             dependency.target != domain && dependency.target != SymbolHandle::invalid()
         }));
@@ -1370,7 +1402,7 @@ mod tests {
         };
         node.semantic_domain = domain_name;
         node.semantic_domain_id = domain_id;
-        let refusal = capture(&typed, &admitted, &operators, &[]).unwrap_err();
+        let refusal = capture(&typed, &admitted, &operators, &[], &[]).unwrap_err();
         assert!(
             refusal
                 .to_string()
@@ -1382,7 +1414,7 @@ mod tests {
             unreachable!()
         };
         node.semantic_domain_symbol = domain;
-        let selected = capture(&typed, &admitted, &operators, &[]).unwrap();
+        let selected = capture(&typed, &admitted, &operators, &[], &[]).unwrap();
         assert!(selected.dependencies.contains(&RawSelectionDependency {
             lexical_owner: owner,
             target: domain,
@@ -1394,7 +1426,7 @@ mod tests {
             unreachable!()
         };
         node.semantic_domain_symbol = SymbolHandle::from_parts(u32::MAX, 1);
-        let refusal = capture(&typed, &admitted, &operators, &[]).unwrap_err();
+        let refusal = capture(&typed, &admitted, &operators, &[], &[]).unwrap_err();
         assert!(
             refusal
                 .to_string()
@@ -1410,6 +1442,7 @@ mod tests {
             &typed,
             &DeclarationSelection::from_symbols([a, b]),
             &CompletedOperators::default(),
+            &[],
             &[],
         )
         .unwrap_err();
@@ -1528,6 +1561,7 @@ mod tests {
                 &DeclarationSelection::from_symbols([a]),
                 &CompletedOperators::default(),
                 &[],
+                &[],
             )
             .unwrap();
             let calls = captured
@@ -1571,6 +1605,7 @@ mod tests {
             &DeclarationSelection::from_symbols([a]),
             &CompletedOperators::default(),
             &[],
+            &[],
         )
         .unwrap_err();
         assert!(refused.to_string().contains("CheckedCall"), "{refused}");
@@ -1585,6 +1620,7 @@ mod tests {
             &typed,
             &DeclarationSelection::from_symbols([a]),
             &CompletedOperators::default(),
+            &[],
             &[],
         )
         .unwrap_err();
@@ -1637,6 +1673,7 @@ mod tests {
                 &typed,
                 &DeclarationSelection::from_symbols([owner]),
                 &CompletedOperators::default(),
+                &[],
                 &[],
             );
             if fault == 0 {
@@ -1694,24 +1731,24 @@ mod tests {
         let admitted = DeclarationSelection::from_symbols([a]);
         let mut answers = CompletedOperators::default();
         assert!(
-            capture(&typed, &admitted, &answers, &[])
+            capture(&typed, &admitted, &answers, &[], &[])
                 .unwrap_err()
                 .to_string()
                 .contains("CheckedOperator")
         );
         answers.record_builtin(&typed, b, expression).unwrap();
         answers.finish();
-        let refusal = capture(&typed, &admitted, &answers, &[])
+        let refusal = capture(&typed, &admitted, &answers, &[], &[])
             .unwrap_err()
             .to_string();
         assert!(refusal.contains("CheckedOperator"));
         assert!(
-            refusal.contains("the operation was checked only in `B`"),
+            refusal.contains("a checked copy of the operation exists in `B`"),
             "{refusal}"
         );
         answers.record_builtin(&typed, a, expression).unwrap();
         answers.finish();
-        let captured = capture(&typed, &admitted, &answers, &[]).unwrap();
+        let captured = capture(&typed, &admitted, &answers, &[], &[]).unwrap();
         assert!(
             captured
                 .questions
@@ -1734,14 +1771,14 @@ mod tests {
             .insert_statements([StatementNode::Expression(copied)]);
         typed.machine_states.get_mut(state).statement_nodes = copied_body;
         assert!(
-            capture(&typed, &admitted, &answers, &[])
+            capture(&typed, &admitted, &answers, &[], &[])
                 .unwrap_err()
                 .to_string()
                 .contains("CheckedOperator")
         );
         answers.record_builtin(&typed, a, copied).unwrap();
         answers.finish();
-        capture(&typed, &admitted, &answers, &[]).unwrap();
+        capture(&typed, &admitted, &answers, &[], &[]).unwrap();
 
         // Neither a new occurrence nor an explicit declaration choice inherits it.
         let other = typed
@@ -1757,7 +1794,7 @@ mod tests {
             .expression_table
             .attach_authored_selection_occurrences(copied, [other]);
         assert!(
-            capture(&typed, &admitted, &answers, &[])
+            capture(&typed, &admitted, &answers, &[], &[])
                 .unwrap_err()
                 .to_string()
                 .contains("CheckedOperator")

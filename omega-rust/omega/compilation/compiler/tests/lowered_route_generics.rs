@@ -558,6 +558,14 @@ fn a_type_parameter_body_is_checked_once_and_carried() {
     // Two types, each with both machines.
     assert_eq!(count(&rows, "carried", "accepted"), 8);
     assert_eq!(count(&rows, "carried", "refused"), 0);
+    let verdicts = source_verdicts("tests/fixtures/run/generics/type_parameter_contract");
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+        )),
+        "{verdicts:#?}"
+    );
 }
 
 /// Its twin differs only in the bound `relay` promises, `result <= 10`,
@@ -581,6 +589,23 @@ fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
             ("carried", "guarantee"),
             ("carried", "guarantee")
         ]
+    );
+    let verdicts =
+        source_verdicts("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee");
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+                | terminal_psi_to_terminal_psi::RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:#?}"
+    );
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:#?}"
     );
 }
 
