@@ -1,89 +1,22 @@
-// Explicit scalar demand between native selection and the first Omega stage.
-// The application sponsors evaluation; `NativeScalarCompletion` retains only
-// the deduplicated `ScalarApplicationId` demand and the completed
-// `AdmittedScalarApplications` judgment, never an evaluator or a callback into
-// Psi.
+// The scalar values native compilation reads arrive complete in its request
+// (`build_settings::scalar_completion::complete_native`), so the native
+// pipeline never pauses for evaluation. This keeps them only where the selected
+// work needs them and refuses work that needs them when they are missing.
 
 use diagnostics::Diagnostic;
-use std::sync::Arc;
-use terminal_psi_to_abstract_operations::{
-    NativeScalarApplications, TerminalNativeRealizationProposal,
-};
+use terminal_installation::AdmittedScalarApplications;
 
-pub struct NativeScalarCompletion<'input> {
-    artifact: &'input Arc<terminal_codec::CanonicalTerminalArtifact>,
-    proposal: &'input TerminalNativeRealizationProposal,
-    demand: Vec<semantic_vocabulary::ScalarApplicationId>,
-    completed: Option<terminal_installation::AdmittedScalarApplications>,
-}
-
-impl<'input> NativeScalarCompletion<'input> {
-    pub(crate) fn new(
-        artifact: &'input Arc<terminal_codec::CanonicalTerminalArtifact>,
-        proposal: &'input TerminalNativeRealizationProposal,
-        applications: impl IntoIterator<Item = semantic_vocabulary::ScalarApplicationId>,
-    ) -> Self {
-        let mut demand = Vec::new();
-        for application in applications {
-            if !demand.contains(&application) {
-                demand.push(application);
-            }
-        }
-        Self {
-            artifact,
-            proposal,
-            demand,
-            completed: None,
-        }
+pub(crate) fn required_scalars<'input>(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    demand: &[semantic_vocabulary::ScalarApplicationId],
+    supplied: Option<&'input AdmittedScalarApplications>,
+) -> Result<Option<&'input AdmittedScalarApplications>, Vec<Diagnostic>> {
+    if !verified_optimization_input::requires_scalar_values(artifact, demand) {
+        return Ok(None);
     }
-
-    pub fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
-        self.artifact
-    }
-
-    pub fn target(&self) -> &str {
-        self.proposal.target_profile().target_name()
-    }
-
-    pub fn demand(&self) -> &[semantic_vocabulary::ScalarApplicationId] {
-        &self.demand
-    }
-
-    pub(crate) fn is_required(&self) -> bool {
-        !self.demand.is_empty()
-            || !self
-                .artifact
-                .semantic_module()
-                .scalar_applications
-                .conditions
-                .is_empty()
-    }
-
-    pub fn provider_proposals(&self) -> &[backend_plan::TerminalTargetProviderProposal] {
-        self.proposal.target_provider_proposals()
-    }
-
-    pub fn complete(
-        &mut self,
-        completed: terminal_installation::AdmittedScalarApplications,
-    ) -> Result<(), String> {
-        if self.completed.is_some() {
-            return Err("native scalar work was completed more than once".into());
-        }
-        self.completed = Some(completed);
-        Ok(())
-    }
-
-    pub(crate) fn native_input(
-        &self,
-    ) -> Result<Option<NativeScalarApplications<'_>>, Vec<Diagnostic>> {
-        if !self.is_required() {
-            return Ok(None);
-        }
-        let completed = self
-            .completed
-            .as_ref()
-            .ok_or_else(|| vec![Diagnostic::error("native scalar work has not completed")])?;
-        Ok(Some(NativeScalarApplications { completed }))
-    }
+    supplied.map(Some).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "native compilation needs the scalar values its program reads, completed before it starts",
+        )]
+    })
 }

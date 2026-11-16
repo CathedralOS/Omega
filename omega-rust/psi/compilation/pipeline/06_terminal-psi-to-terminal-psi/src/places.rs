@@ -1058,8 +1058,22 @@ impl<'a> Storage<'a> {
         else {
             return Err(unresolved());
         };
-        let path = projection.captured_storage_path().ok_or_else(unresolved)?;
-        let mut resolved = self.stored_at(root, &path, concerns)?;
+        let mut resolved = match projection.captured_storage_path() {
+            Some(path) => self.stored_at(root, &path, concerns)?,
+            // A reference this machine received names storage it cannot see
+            // past, so its projection is indirect: `carrier.cell` of a
+            // borrowed `carrier`. The replay's unique location still names
+            // that referent exactly, by the path through the reference.
+            None => {
+                let unique = references
+                    .location(self.machine, (block, before), &location)
+                    .ok_or_else(unresolved)?;
+                Lineage {
+                    root: unique.root,
+                    segments: unique.path,
+                }
+            }
+        };
         resolved.segments.extend_from_slice(suffix);
         self.shape(&resolved, concerns)?;
         Ok(resolved)
@@ -2181,66 +2195,16 @@ impl<'a> Storage<'a> {
         path: &[StructuralPathSegment],
         concerns: Construct,
     ) -> Checked<Lineage> {
-        let mut segments = Vec::with_capacity(path.len());
-        if !path.is_empty() {
-            let root_type = self.root_type(root, concerns)?;
-            for (position, segment) in path.iter().enumerate() {
-                // A case step carries its identity; a field step is resolved
-                // by the lowered form against the prefix before it, which
-                // may end in the case whose payload holds the field.
-                match segment {
-                    StructuralPathSegment::Case(case) => {
-                        segments.push(Segment::Case(*case));
-                        continue;
-                    }
-                    StructuralPathSegment::FixedIndex(index) => {
-                        segments.push(Segment::FixedIndex(*index));
-                        continue;
-                    }
-                    StructuralPathSegment::RuntimeIndex { index, .. } => {
-                        segments.push(Segment::RuntimeIndex { selector: *index });
-                        continue;
-                    }
-                    StructuralPathSegment::Referent => {
-                        segments.push(Segment::Referent);
-                        continue;
-                    }
-                    StructuralPathSegment::RepresentationView {
-                        structural_type,
-                        stored_scalar,
-                    } => {
-                        // The view keeps the same backing and changes how
-                        // later fields are resolved. Retain it for the shared
-                        // shape and overlap judgments, rather than erasing it.
-                        segments.push(Segment::RepresentationView {
-                            structural_type: *structural_type,
-                            stored_scalar: *stored_scalar,
-                        });
-                        continue;
-                    }
-                    StructuralPathSegment::Field(_) => {}
-                    StructuralPathSegment::AllElements
-                    | StructuralPathSegment::FixedRange { .. } => {
-                        return Err(self.unsupported(
-                            concerns,
-                            "storage projection outside plain records and fixed array elements",
-                        ));
-                    }
-                }
-                let field = terminal_semantics::runtime_structural_field(
-                    self.types.iter(),
-                    root_type,
-                    &path[..=position],
-                )
-                .ok_or_else(|| {
-                    self.unsupported(
-                        concerns,
-                        "a storage path that is not a path of fields and cases",
-                    )
-                })?;
-                segments.push(Segment::Field(field.id));
-            }
-        }
+        let segments = if path.is_empty() {
+            Vec::new()
+        } else {
+            terminal_semantics::resolved_structural_path(
+                self.types.iter(),
+                self.root_type(root, concerns)?,
+                path,
+            )
+            .map_err(|detail| self.unsupported(concerns, detail))?
+        };
         let place = Lineage { root, segments };
         // Resolving the shape checks each case against the sum it is
         // applied to.

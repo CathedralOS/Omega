@@ -209,10 +209,11 @@ crashes Trap
     }
 }
 
-// A witness's view with its default elaborated by its subjects' carriers:
-// one unsigned integer descends, one slice ranks by its length, and two
-// subjects rank by their bounded distance. `Default` stays for a witness
-// none of these fit.
+// A witness's view with its default elaborated by its subject's carrier:
+// one unsigned integer descends and one slice ranks by its length. Two or
+// more subjects form a tuple, which is not a carrier and declares no
+// default (termination.md, "Ranking"), so the author names the view.
+// `Default` stays for a witness none of these fit.
 public machine elaborated_view(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, termination: TerminationClause) -> RankingView
 crashes Trap
 {
@@ -229,7 +230,6 @@ crashes Trap
         let natural: bool = natural_row(row);
         transition written.argument_count {
             1 -> single(natural, row.kind == TypeKind::Slice)
-            2 -> chosen(RankingView::BoundedDistance)
             _ -> chosen(RankingView::Default)
         }
     }
