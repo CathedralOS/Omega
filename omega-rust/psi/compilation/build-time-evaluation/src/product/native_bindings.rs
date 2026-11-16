@@ -42,6 +42,26 @@ pub struct NativeBindingSelection {
     pub source_span: source::SourceSpan,
 }
 
+impl NativeBindingSelection {
+    /// Publication needs the same boundary and closed arguments that Build
+    /// selected. The evaluation receipt separately authenticates the locator.
+    pub fn require_canonical_requirement(&self, typed: &TypedTrees) -> Result<(), String> {
+        let (subject, requirement) = requirement_owner(typed, self.requirement)?;
+        if subject != self.subject {
+            return Err("native binding changes its declaring boundary trait".into());
+        }
+        if let Some(application) = self.application {
+            let closed = typed.product_requirement_application(application)?;
+            if closed.declaring_trait != subject || closed.signature.symbol != requirement {
+                return Err("native binding application selects another closed requirement".into());
+            }
+        } else if typed.closed_requirement_application(requirement).is_some() {
+            return Err("native binding lost its complete requirement application".into());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedNativeDeclaration {
     pub application: Option<crate::provider_declarations::RetainedProductApplication>,

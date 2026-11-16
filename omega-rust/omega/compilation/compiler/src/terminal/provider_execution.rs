@@ -96,11 +96,10 @@ pub fn prepare_provider_execution_inputs(
                 "Build native binding has competing exact boundary occurrences".into(),
             ));
         }
-        if supply.selection.application.is_some() {
-            return Err(refuse(
-                "native binding retains an unrepresented applied requirement".into(),
-            ));
-        }
+        supply
+            .selection
+            .require_canonical_requirement(accepted.source())
+            .map_err(refuse)?;
         let schema =
             backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refuse)?;
         let declaration = module

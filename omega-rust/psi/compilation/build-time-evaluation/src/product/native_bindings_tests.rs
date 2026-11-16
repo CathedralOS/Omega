@@ -253,6 +253,15 @@ fn closed_native_requirements_rejoin_the_same_complete_argument() {
         panic!("one binding must rejoin")
     };
     assert!(selection.application.is_some());
+    selection.require_canonical_requirement(&receiving).unwrap();
+    let mut missing = selection.clone();
+    missing.application = None;
+    assert_eq!(
+        missing
+            .require_canonical_requirement(&receiving)
+            .unwrap_err(),
+        "native binding lost its complete requirement application"
+    );
     let closed = receiving
         .closed_requirement_application(selection.requirement)
         .unwrap();
@@ -263,6 +272,21 @@ fn closed_native_requirements_rejoin_the_same_complete_argument() {
     let mut eight = make("Raw::read<8>");
     prepare(&mut eight).unwrap();
     let (other, _) = capture(&eight);
+    let other_selections = collect_captured(&mut receiving, &other, &intents).unwrap();
+    let [other_selection] = other_selections.as_slice() else {
+        panic!("one other closed binding must rejoin")
+    };
+    other_selection
+        .require_canonical_requirement(&receiving)
+        .unwrap();
+    let mut changed_handle = selection.clone();
+    changed_handle.application = other_selection.application;
+    assert_eq!(
+        changed_handle
+            .require_canonical_requirement(&receiving)
+            .unwrap_err(),
+        "native binding application selects another closed requirement"
+    );
     assert_ne!(
         declarations[0].requirement_identity,
         other[0].requirement_identity
@@ -310,6 +334,7 @@ fn captured_public_toolchain_product_binding_keeps_its_supplier() {
     let [selection] = selections.as_slice() else {
         panic!("one executed binding must survive")
     };
+    selection.require_canonical_requirement(&receiving).unwrap();
     assert_eq!(
         receiving
             .symbols
