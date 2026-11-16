@@ -11,11 +11,11 @@ operation as the corresponding policy-qualified operands. domains.md,
 */
 
 use numerics::arithmetic::ArithmeticDomain;
-use semantic_vocabulary::{IntegerType, ScalarTerm, ValueId};
+use semantic_vocabulary::{IntegerType, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::OperationKind;
 use typed_trees::expression::BinaryOperator;
 
-use crate::body::{Policy, Strict};
+use crate::body::{Policy, Strict, ValueType};
 
 /// What the suffix written on one operator selects.
 pub(crate) enum Suffix {
@@ -77,6 +77,19 @@ pub(crate) const QUALIFIED_OPERAND: &str =
 /// own" type and is never the operand a policy is matched against.
 pub(crate) const fn shifts(operation: Strict) -> bool {
     matches!(operation, Strict::ShiftLeft | Strict::ShiftRight)
+}
+
+/// Both the contract and executable forms of complement retain the exact
+/// operand type. Only a bare carrier or one core policy has this operation.
+pub(crate) fn bitwise_not_type(operand: ValueType) -> Option<ValueType> {
+    match operand {
+        ValueType::Scalar(ScalarType::Integer(integer), qualification)
+            if !integer.is_address() && qualification.domains.is_empty() =>
+        {
+            Some(operand)
+        }
+        _ => None,
+    }
 }
 
 /// The Terminal operation `operation` is under `policy` when that operation
@@ -148,7 +161,9 @@ pub(crate) fn term(
         let count = right.scalar_type().as_integer()?;
         let constructor = match (operation, policy) {
             (Strict::ShiftLeft, None) => ScalarTerm::exact_integer_shift_left,
-            (Strict::ShiftRight, None) => ScalarTerm::exact_integer_shift_right,
+            (Strict::ShiftRight, None | Some(Policy::Saturating)) => {
+                ScalarTerm::exact_integer_shift_right
+            }
             (Strict::ShiftLeft, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_shift_left,
             (Strict::ShiftRight, Some(Policy::Wrapping)) => {
                 ScalarTerm::wrapping_integer_shift_right
@@ -227,7 +242,7 @@ mod tests {
     }
 
     /// A policy supplies its exact computation, but supplies no operation
-    /// for a Saturating shift or a policy-qualified comparison.
+    /// for a Saturating left shift or a policy-qualified comparison.
     #[test]
     fn an_operation_without_a_policy_meaning_is_no_term() {
         let carrier = u32_type();

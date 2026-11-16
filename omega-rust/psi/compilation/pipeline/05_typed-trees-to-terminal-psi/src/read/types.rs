@@ -780,22 +780,14 @@ impl Program<'_> {
         for constraint in typed.type_reference_table.constraints(constraints) {
             match constraint {
                 TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => {}
-                TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Trapping) => {
-                    return unserved("constrained by Trapping");
-                }
-                TypeConstraintNode::ArithmeticDomain(
-                    policy @ (ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating),
-                ) => {
+                TypeConstraintNode::ArithmeticDomain(policy) => {
                     if qualification.policy.is_some() {
                         return unserved("constrained by more than one arithmetic policy");
                     }
                     if !matches!(carrier, ValueType::Scalar(ScalarType::Integer(_), _)) {
                         return unserved("arithmetic policy on a type that is not an integer");
                     }
-                    qualification.policy = Some(match policy {
-                        ArithmeticDomain::Wrapping => Policy::Wrapping,
-                        _ => Policy::Saturating,
-                    });
+                    qualification.policy = Policy::of_domain(*policy);
                 }
                 TypeConstraintNode::Domain(domain)
                     if domain.subject == DomainConstraintSubject::Declared =>
