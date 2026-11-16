@@ -334,15 +334,26 @@ mod tests {
             read(&text, package(), context(), &mut Budget::new(limits)),
             Err(Error::AllocationLimitExceeded)
         );
+        // Name the tampered rows from the sample's own tags, so a renumbered
+        // role or class cannot turn a corruption into an unchanged copy.
+        let role = format!(
+            "role {}",
+            semantic_binding_role_tag(AcceptedSemanticBindingRole::ConsoleIo)
+        );
+        let class = format!(
+            "class {}",
+            TerminalAuthorityClass::ProcessOutput.canonical_tag()
+        );
         for changed in [
             text.replace("bindings 2", "bindings 999999999"),
             text.replace("permissions 1", "permissions 999999999"),
             text.replace("classes 1", "classes 99"),
-            text.replace("role 0", "role 99"),
-            text.replace("class 7", "class 99"),
+            text.replace(&format!("{role}\n"), "role 99\n"),
+            text.replace(&format!("{class}\n"), "class 99\n"),
             format!("{text}trailing\n"),
             text[..text.len() - 1].to_owned(),
         ] {
+            assert_ne!(changed, text);
             assert!(recover(&changed).is_err());
         }
     }
