@@ -298,6 +298,7 @@ pub(crate) mod optimized {
         pub(super) optimized: OptimizedAbstractProgram,
         lowering_facts: AdmittedLoweringFacts,
         current_program: Arc<TargetOperationPlan>,
+        prepared: legalized_operations::PreparedExecutionPlan,
         installed_stack_requirements:
             Vec<installation_evidence::InstalledInterruptStackRequirement>,
         installed_entry_execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
@@ -370,9 +371,6 @@ pub(crate) mod optimized {
             &self.installed_stack_requirements
         }
 
-        pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
-            &self.current_program.borrowed_storage_layouts
-        }
         pub const fn optimized(&self) -> &OptimizedAbstractProgram {
             &self.optimized
         }
@@ -381,36 +379,48 @@ pub(crate) mod optimized {
             &self.lowering_facts
         }
 
-        pub fn boundary_origins(&self) -> target_operations::BoundaryOriginFacts<'_> {
-            let input = &self.lowering_facts;
-            target_operations::BoundaryOriginFacts {
-                program_entry: input.program_entry().map(|call| {
-                    target_operations::ProgramEntryOrigin {
-                        boundary: call.boundary(),
-                        entry: call.entry(),
-                        source_signature: call.source_signature(),
-                    }
-                }),
-                assumed_bindings: input.assumed_bindings(),
-                target_context: input.target_context(),
-                module: input.module(),
-            }
+        pub fn boundary_origins(&self) -> native_preparation::BoundaryOriginFacts<'_> {
+            boundary_origins(&self.lowering_facts)
         }
 
         pub fn target(&self) -> NativeTarget {
             self.current_program.target
         }
 
-        pub fn target_operations(&self) -> &TargetOperationPlan {
-            &self.current_program
+        /// The execution plan this stage publishes for instruction selection.
+        pub const fn execution_plan(&self) -> &legalized_operations::PreparedExecutionPlan {
+            &self.prepared
         }
 
-        pub fn shared_program(&self) -> Arc<TargetOperationPlan> {
-            Arc::clone(&self.current_program)
+        /// Stage 02's working program, for explicit validators only.
+        ///
+        /// Ordinary compilation reads what this stage publishes, the execution
+        /// plan. A validator that checks the plan, or checks a later stage
+        /// against what this stage lowered, needs the working program too;
+        /// `mbx xtask check-boundary` keeps every other caller out.
+        pub fn working_program_for_validation(&self) -> &TargetOperationPlan {
+            &self.current_program
         }
 
         pub fn provider_installation(&self) -> Option<&AdmittedProviderInstallation> {
             self.provider_installation.as_deref()
+        }
+    }
+
+    fn boundary_origins(
+        input: &AdmittedLoweringFacts,
+    ) -> native_preparation::BoundaryOriginFacts<'_> {
+        native_preparation::BoundaryOriginFacts {
+            program_entry: input.program_entry().map(|call| {
+                target_operations::ProgramEntryOrigin {
+                    boundary: call.boundary(),
+                    entry: call.entry(),
+                    source_signature: call.source_signature(),
+                }
+            }),
+            assumed_bindings: input.assumed_bindings(),
+            target_context: input.target_context(),
+            module: input.module(),
         }
     }
 
@@ -448,14 +458,52 @@ pub(crate) mod optimized {
                 Some(&lowering_facts),
             )
             .map_err(|error| error.with_boundary_context(optimized.plan()))?;
+        let prepared = prepare(&optimized, &lowering_facts, &program)?;
         Ok(ValidatedOptimizedTargetOperations {
             optimized,
             lowering_facts,
             current_program: Arc::new(program),
+            prepared,
             installed_stack_requirements: Vec::new(),
             installed_entry_execution: None,
             provider_installation: installation.map(Box::new),
         })
+    }
+
+    /// Finish the stage: join the lowered target operations to the optimized
+    /// program's facts, the admitted origins and installations, and the sealed
+    /// module's retained types. Everything read here is this stage's own input
+    /// or output, so nothing has to reach instruction selection separately.
+    fn prepare(
+        optimized: &OptimizedAbstractProgram,
+        lowering_facts: &AdmittedLoweringFacts,
+        program: &TargetOperationPlan,
+    ) -> Result<legalized_operations::PreparedExecutionPlan, LoweringError> {
+        let custody = || {
+            LoweringError::Preparation(Box::new(
+                native_preparation::TargetOperationAuditError::custody(),
+            ))
+        };
+        let unit = optimized.unit();
+        let types = native_preparation::accepted_types(
+            lowering_facts.closed_module(),
+            program.psi,
+            lowering_facts.module(),
+        )
+        .ok_or_else(custody)?;
+        native_preparation::prepare_execution_plan(
+            program,
+            native_preparation::PreparationEvidence {
+                optimization_unit: unit.identity,
+                work_schedule: unit.work_schedule,
+                accepted_obligation_facts: &unit.accepted_obligation_facts,
+                ownership_frontier_facts: &unit.ownership_frontier_facts,
+            },
+            boundary_origins(lowering_facts),
+            lowering_facts.installed_interrupts(),
+            &types,
+        )
+        .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }
 
     /// The host bridge needs the admitted storage geometry before it can
@@ -489,6 +537,12 @@ pub(crate) mod optimized {
         lowering_facts
             .require_lowering_context(plan, target)
             .map_err(LoweringError::ForeignLoweringFacts)?;
+        optimization_unit::validate_runtime_evidence_context(
+            optimized.unit(),
+            plan.psi,
+            lowering_facts.module(),
+        )
+        .map_err(LoweringError::ForeignLoweringFacts)?;
         if lowering_facts.native_callbacks().psi() != plan.psi {
             return Err(LoweringError::ForeignNativeCallbackCohort);
         }

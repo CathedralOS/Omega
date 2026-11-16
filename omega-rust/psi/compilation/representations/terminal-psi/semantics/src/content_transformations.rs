@@ -472,82 +472,69 @@ pub(crate) mod ancestry {
             machine: &TerminalMachine,
             actions: &[TerminalAffineCleanupAction],
             frontier: &mut Vec<ClaimLocation>,
+            projection: ContentProjectionIdentity,
+            traversal: &mut OriginTraversal,
         ) -> Result<(), &'static str> {
             for action in actions {
                 match action {
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        let selected = frontier
-                            .iter()
-                            .filter(|claim| cleanup.consumed_claims.contains(&claim.identity))
-                            .cloned()
-                            .collect::<Vec<_>>();
-                        if selected.is_empty() {
-                            continue;
+                    TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                        let root = super::super::place_type(machine, cleanup.subject.place)
+                            .ok_or("owned cleanup current root has no structural type")?;
+                        if crate::runtime_structural_path_tip(
+                            module.structural_types.iter(),
+                            root,
+                            &cleanup.subject.path,
+                        )
+                        .map(|selected| selected.id)
+                            != Some(cleanup.structural_type)
+                        {
+                            return Err("owned cleanup changes its current typed subject");
                         }
-                        crate::structural::nominal_cleanup::target(
+                        let callee = crate::nominal_cleanup::owned_target(
                             module.structural_types.iter(),
                             module.machines.iter(),
                             cleanup,
                         )?;
-                        if cleanup.retains_descendants {
-                            return Err(
-                                "nominal retirement needs the completed descendant partition, not a retaining hook",
-                            );
-                        }
-                        let declaration = module
-                            .structural_types
+                        let selected = frontier
                             .iter()
-                            .find(|declaration| declaration.id == cleanup.structural_type)
-                            .ok_or("nominal retirement subject type is absent")?;
-                        if !declaration.owns_linear_claim
-                            || cleanup.consumed_claims.len() != 1
-                            || selected.len() != 1
-                        {
-                            return Err("nominal retirement requires an exact whole leaf claim");
-                        }
-                        let claim = &selected[0];
-                        if claim.place != cleanup.place || claim.path != cleanup.path {
-                            return Err(
-                                "nominal retirement cleanup names different current storage",
-                            );
-                        }
-                        let root = super::super::place_type(machine, cleanup.place)
-                            .ok_or("nominal retirement current root has no structural type")?;
-                        let selected = crate::runtime_structural_path_tip(
-                            module.structural_types.iter(),
-                            root,
-                            &cleanup.path,
-                        )
-                        .ok_or("nominal retirement current path has no structural type")?;
-                        if selected.id != cleanup.structural_type {
-                            return Err(
-                                "nominal retirement cleanup differs from its current typed subject",
-                            );
-                        }
-                        let terminal_psi::StructuralTypeShape::Record { fields, .. } =
-                            &declaration.shape
-                        else {
-                            return Err(
-                                "nominal retirement subject has an unsupported descendant shape",
-                            );
-                        };
-                        if fields
-                            .iter()
-                            .filter(|field| !field.relevance.is_erased())
-                            .any(|field| {
-                                matches!(
-                                    field.field_type,
-                                    terminal_psi::StructuralFieldType::Structural(_)
-                                        | terminal_psi::StructuralFieldType::ByteSequence(_)
-                                        | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
-                                )
+                            .filter(|claim| {
+                                claim.place == cleanup.subject.place
+                                    && claim.path.starts_with(&cleanup.subject.path)
                             })
-                        {
-                            return Err(
-                                "nominal retirement subject has an unaccounted structural descendant",
-                            );
+                            .cloned()
+                            .collect::<Vec<_>>();
+                        for claim in selected {
+                            traversal.visit()?;
+                            let mut transfers = cleanup
+                                .claim_transfers
+                                .iter()
+                                .filter(|transfer| transfer.claim == claim.identity);
+                            let transfer = transfers
+                                .next()
+                                .ok_or("owned cleanup omits a live independent claim")?;
+                            if transfers.next().is_some() || transfer.argument_index != 0 {
+                                return Err(
+                                    "owned cleanup duplicates or misroutes its input claim",
+                                );
+                            }
+                            let mut path = cleanup.subject.path.clone();
+                            path.extend_from_slice(&transfer.path);
+                            if path != claim.path {
+                                return Err(
+                                    "owned cleanup transfers a different current claim subject",
+                                );
+                            }
+                            if !entry_claim_is_retired(
+                                module,
+                                callee,
+                                transferred_entry_claim(callee, transfer)?,
+                                projection,
+                                traversal,
+                            )? {
+                                return Err("owned cleanup does not retire its transferred claim");
+                            }
+                            frontier.retain(|current| current.identity != claim.identity);
                         }
-                        frontier.retain(|current| current.identity != claim.identity);
                     }
                     TerminalAffineCleanupAction::DiscardRoot(place)
                     | TerminalAffineCleanupAction::RetireHome(place) => {
@@ -713,6 +700,8 @@ pub(crate) mod ancestry {
                                 machine,
                                 cleanup_actions,
                                 &mut frontier,
+                                projection,
+                                traversal,
                             )?;
                             normal = true;
                             if !frontier.is_empty() {
@@ -730,6 +719,8 @@ pub(crate) mod ancestry {
                                 machine,
                                 cleanup_actions,
                                 &mut frontier,
+                                projection,
+                                traversal,
                             )?;
                             bind_successor_claims(
                                 machine,
@@ -751,6 +742,8 @@ pub(crate) mod ancestry {
                                     machine,
                                     &edge.cleanup_actions,
                                     &mut selected,
+                                    projection,
+                                    traversal,
                                 )?;
                                 bind_successor_claims(
                                     machine,
@@ -769,6 +762,8 @@ pub(crate) mod ancestry {
                                     machine,
                                     &edge.cleanup_actions,
                                     &mut selected,
+                                    projection,
+                                    traversal,
                                 )?;
                                 bind_successor_claims(
                                     machine,
@@ -2650,6 +2645,7 @@ pub mod domain_preservation {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 shape,
                 scalar_restriction: None,
             };

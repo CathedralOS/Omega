@@ -4,10 +4,6 @@
 
 use std::sync::Arc;
 
-use build_time_evaluation::{
-    InvocationTarget, PreparedBuildMachineProgram, SourceCompletionAccounting,
-};
-use calling_conventions::BoundaryCallingApplication;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ServiceCallingApplication,
@@ -18,10 +14,7 @@ use program_entry_plan::{
     ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan,
     SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan,
 };
-use provider_planning::calling_policy_plans::{
-    CanonicalCallingSignature, decode_boundary_plan_result, encode_calling_policy_signature,
-    validate_calling_policy_result,
-};
+use provider_planning::calling_policy_plans::{CallingProgram, CanonicalCallingSignature};
 use provider_planning::program_entry::SelectedProgramEntryCallingPlans;
 use semantic_vocabulary::{CallingSignatureId, callback_nominal_report_fingerprint};
 use source_compiler::PortableTerminalProgram;
@@ -37,7 +30,6 @@ pub(crate) fn prepare(
     program: &PortableTerminalProgram,
     inputs: Option<&PackageCompilationInputs>,
     signature: &SelectedProgramEntrySignature,
-    accounting: &mut SourceCompletionAccounting,
 ) -> Result<SelectedProgramEntryCallingPlans, Vec<Diagnostic>> {
     let owner = checked.source_inspection().program();
     checked
@@ -103,7 +95,7 @@ pub(crate) fn prepare(
             "selected target entry needs one actual Calling policy instance",
         ));
     };
-    let policy = *instance
+    let selected_policy = *instance
         .policy
         .as_ref()
         .map_err(|reason| failure(reason.clone()))?;
@@ -242,51 +234,94 @@ pub(crate) fn prepare(
             "materialized entry signature differs from its exact accepted ABI",
         ));
     }
-    let source_program = PreparedBuildMachineProgram::prepare(
-        owner,
-        inputs.map(|inputs| {
-            Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-        }),
-    )?;
-    let layout = profile
-        .layout_target_facts()
-        .ok_or_else(|| failure("entry Calling policy target has no retained layout facts"))?;
-    let address_model = target::TargetSemantics::close_address_model(profile).map(|model| {
-        terminal_installation::ScalarAddressModel {
-            target: profile.target_name().to_owned(),
-            carrier: model.carrier(),
-            semantics_version: model.semantics_version(),
-            commitment: model.commitment(),
-        }
-    });
-    let invocation_target = InvocationTarget {
-        name: Some(profile.target_name()),
-        layout_target: Some(&layout),
-        carrier_layout: profile
-            .native_realization()
-            .map(runtime_abi::target_carrier_layout),
-        address_model: address_model.as_ref(),
+    let mut policies = module
+        .calling_policy_requests
+        .iter()
+        .flat_map(|request| request.instances.as_ref().into_iter().flatten())
+        .filter(|instance| {
+            module.identities.text(instance.declaring_application) == Some(root_application)
+                && instance.signatures.as_ref().is_ok_and(|signatures| {
+                    signatures.contains(&semantic_id) && signatures.contains(&physical_id)
+                })
+        });
+    let policy = policies
+        .next()
+        .filter(|_| policies.next().is_none())
+        .ok_or_else(|| failure("entry has no unique policy in its shared checked module"))?;
+    let selected_machine = selected_policy
+        .realization(owner, selected_policy.slot)
+        .map_err(failure)?;
+    let expected_policy = owner
+        .machine_callable_identity_text(selected_machine)
+        .ok_or_else(|| failure("entry policy lost its complete selected callable identity"))?;
+    let policy_machine = policy
+        .policy
+        .as_ref()
+        .map_err(|reason| failure(reason.clone()))?;
+    let terminal_psi::TargetMachineCallable::Machine(policy_machine) = *policy_machine else {
+        return Err(failure("entry Calling policy has no checked machine body"));
     };
-    let semantic_calling_application = evaluate(
-        &source_program,
-        boundary,
-        policy,
-        invocation_target,
-        semantic,
-        root_application,
-        accounting,
-    )
-    .map_err(|reason| failure(format!("semantic entry Calling policy: {reason}")))?;
-    let physical_calling_application = evaluate(
-        &source_program,
-        boundary,
-        policy,
-        invocation_target,
-        physical,
-        root_application,
-        accounting,
-    )
-    .map_err(|reason| failure(format!("physical entry Calling policy: {reason}")))?;
+    let published = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == policy_machine)
+        .and_then(|machine| machine.declaration.as_ref())
+        .ok_or_else(|| failure("entry Calling policy lost its checked declaration"))?;
+    if module.identities.text(published.callable) != Some(expected_policy.as_str())
+        || policy.policy_declaration.as_ref().ok().copied()
+            != module
+                .scalar_applications
+                .proof_scope
+                .callable_declaration(terminal_psi::TargetMachineCallable::Machine(policy_machine))
+    {
+        return Err(failure(
+            "entry Calling policy differs from its exact selected declaration",
+        ));
+    }
+    let requester = match (
+        owner.symbols.symbol_package_identity(boundary),
+        owner.symbols.symbol_source_origin(boundary),
+    ) {
+        (Some(package), _) => {
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(package)
+        }
+        (_, Some(source::SourceOrigin::Toolchain)) => {
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain
+        }
+        (_, Some(source::SourceOrigin::ToolchainContract)) => {
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract
+        }
+        _ => {
+            return Err(failure(
+                "entry Calling policy has no retained declaration custody",
+            ));
+        }
+    };
+    let calling = CallingProgram {
+        artifact: Arc::clone(program.artifact()),
+        evaluator: build_settings::CALLING_POLICY_EVALUATOR,
+    };
+    let authority = inputs.map(|inputs| {
+        inputs as &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+    });
+    let evaluate = |id, expected: CanonicalCallingSignature| {
+        let (signature, plan) = calling.evaluate(policy, profile, id, &[], requester, authority)?;
+        if signature.abi != expected.abi {
+            return Err("entry policy evaluated another exact declaration ABI".to_owned());
+        }
+        let mut application = signature.native_application(&plan, None)?;
+        application.calling_owner_application = Some(root_application.to_owned());
+        application.commitment = application.recomputed_commitment()?;
+        application.report_fingerprint = callback_nominal_report_fingerprint(
+            b"omega.boundary-plan-application-report.v3",
+            &[&application.commitment],
+        );
+        Ok(application)
+    };
+    let semantic_calling_application = evaluate(semantic_id, semantic)
+        .map_err(|reason| failure(format!("semantic entry Calling policy: {reason}")))?;
+    let physical_calling_application = evaluate(physical_id, physical)
+        .map_err(|reason| failure(format!("physical entry Calling policy: {reason}")))?;
 
     let mut schema = ServiceSchema::from_declaration(Arc::clone(surface.declaration));
     for application in [&semantic_calling_application, &physical_calling_application] {
@@ -363,31 +398,6 @@ pub(crate) fn prepare(
         physical_calling_application,
         storage_entry,
     })
-}
-
-fn evaluate(
-    program: &PreparedBuildMachineProgram,
-    requester: symbols::SymbolHandle,
-    supply: source_compiler::TerminalSourceSupply,
-    target: InvocationTarget<'_>,
-    signature: CanonicalCallingSignature,
-    owner: &str,
-    accounting: &mut SourceCompletionAccounting,
-) -> Result<BoundaryCallingApplication, String> {
-    let arguments = [encode_calling_policy_signature(&signature.policy)?];
-    let entry = program.entry_for_supply(requester, supply, &arguments)?;
-    let result = entry.invoke_recorded(target, accounting)?;
-    let plan = decode_boundary_plan_result(result.value())?;
-    let validated = validate_calling_policy_result(plan, &signature.policy)?;
-    // These source-declared arrivals have no synthetic dispatch prefix.
-    let mut application = signature.native_application(&validated, 0)?;
-    application.calling_owner_application = Some(owner.to_owned());
-    application.commitment = application.recomputed_commitment()?;
-    application.report_fingerprint = callback_nominal_report_fingerprint(
-        b"omega.boundary-plan-application-report.v3",
-        &[&application.commitment],
-    );
-    Ok(application)
 }
 
 fn physical_type_identities(

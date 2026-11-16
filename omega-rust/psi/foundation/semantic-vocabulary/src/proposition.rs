@@ -1718,6 +1718,15 @@ mod propositions {
                 },
                 ContentConservation(conservation) => ContentConservation(conservation.clone()),
                 FloatMeaningEqual(clause) => FloatMeaningEqual(clause.clone()),
+                FloatIntegerConversion(clause) => FloatIntegerConversion(clause.clone()),
+                IeeeFloatIntegerExact { source, target } => IeeeFloatIntegerExact {
+                    source: source.clone(),
+                    target: *target,
+                },
+                IntegerIeeeFloatExact { source, target } => IntegerIeeeFloatExact {
+                    source: source.clone(),
+                    target: *target,
+                },
                 Conjunction(_) | Disjunction(_) | Implication { .. } => {
                     unreachable!("the logical clone continuation owns these children")
                 }
@@ -1863,6 +1872,21 @@ mod propositions {
                         }
                         ContentConservation(a) => matches!(right, ContentConservation(b) if a == b),
                         FloatMeaningEqual(a) => matches!(right, FloatMeaningEqual(b) if a == b),
+                        FloatIntegerConversion(a) => {
+                            matches!(right, FloatIntegerConversion(b) if a == b)
+                        }
+                        IeeeFloatIntegerExact {
+                            source: a,
+                            target: at,
+                        } => {
+                            matches!(right, IeeeFloatIntegerExact { source: b, target: bt } if a == b && at == bt)
+                        }
+                        IntegerIeeeFloatExact {
+                            source: a,
+                            target: at,
+                        } => {
+                            matches!(right, IntegerIeeeFloatExact { source: b, target: bt } if a == b && at == bt)
+                        }
                     };
                     if !equal {
                         return false;
@@ -1888,6 +1912,15 @@ mod propositions {
                         Truth | Falsehood => {}
                         Atom(identity) => identity.hash(state),
                         FloatMeaningEqual(clause) => clause.hash(state),
+                        FloatIntegerConversion(clause) => clause.hash(state),
+                        IeeeFloatIntegerExact { source, target } => {
+                            source.hash(state);
+                            target.hash(state);
+                        }
+                        IntegerIeeeFloatExact { source, target } => {
+                            source.hash(state);
+                            target.hash(state);
+                        }
                         Equal(left, right) | LessThan(left, right) | LessOrEqual(left, right) => {
                             left.hash(state);
                             right.hash(state);
@@ -2002,6 +2035,21 @@ mod propositions {
         },
         ContentConservation(ContentConservation),
         FloatMeaningEqual(crate::FloatMeaningClause),
+        /// The total graph of an integer-valued semantic conversion. This
+        /// guarantee remains separate from source exactness and FloatMeaning.
+        FloatIntegerConversion(crate::FloatIntegerConversion),
+        /// The source is finite, integral, fits the destination, and is not
+        /// negative zero. This predicate never invokes a partial conversion.
+        IeeeFloatIntegerExact {
+            source: ScalarTerm,
+            target: IntegerType,
+        },
+        /// The exact integer value is representable in the permanent format.
+        /// It names only the live source, never the conversion's future result.
+        IntegerIeeeFloatExact {
+            source: ScalarTerm,
+            target: crate::IeeeFloatFormat,
+        },
     }
 
     impl Proposition {
@@ -2044,6 +2092,39 @@ mod propositions {
                     Self::FloatMeaningEqual(clause) => clause
                         .validate()
                         .map_err(PropositionError::InvalidFloatMeaningClause)?,
+                    Self::FloatIntegerConversion(clause) => clause.validate().map_err(|error| {
+                        PropositionError::InvalidFloatIntegerConversion(Box::new(error))
+                    })?,
+                    Self::IeeeFloatIntegerExact { source, target } => {
+                        source.validate()?;
+                        if source.scalar_type().as_ieee_float().is_none() {
+                            return Err(PropositionError::InvalidFloatIntegerConversion(Box::new(
+                                crate::FloatIntegerConversionError::Signature(
+                                    "exact integer cast source has no IEEE float format",
+                                ),
+                            )));
+                        }
+                        crate::fixed_integer_type(*target).map_err(|detail| {
+                            PropositionError::InvalidFloatIntegerConversion(Box::new(
+                                crate::FloatIntegerConversionError::Signature(detail),
+                            ))
+                        })?;
+                    }
+                    Self::IntegerIeeeFloatExact { source, .. } => {
+                        source.validate()?;
+                        let Some(carrier) = source.scalar_type().as_integer() else {
+                            return Err(PropositionError::InvalidFloatIntegerConversion(Box::new(
+                                crate::FloatIntegerConversionError::Signature(
+                                    "exact float cast source is not an integer",
+                                ),
+                            )));
+                        };
+                        crate::fixed_integer_type(carrier).map_err(|detail| {
+                            PropositionError::InvalidFloatIntegerConversion(Box::new(
+                                crate::FloatIntegerConversionError::Signature(detail),
+                            ))
+                        })?;
+                    }
                     Self::Equal(left, right) => require_same_type(left, right)?,
                     Self::LessThan(left, right) | Self::LessOrEqual(left, right) => {
                         require_same_integer_type(left, right)?
@@ -2191,6 +2272,14 @@ mod propositions {
                         for source in clause.sources() {
                             self.validate_term(source)?;
                         }
+                    }
+                    Proposition::FloatIntegerConversion(clause) => {
+                        self.validate_term(&clause.source)?;
+                        self.validate_term(&clause.result)?;
+                    }
+                    Proposition::IeeeFloatIntegerExact { source, .. }
+                    | Proposition::IntegerIeeeFloatExact { source, .. } => {
+                        self.validate_term(source)?
                     }
                     crate::ordered_comparison_operands!(left, right) => {
                         self.validate_term(left)?;
@@ -2448,6 +2537,7 @@ mod propositions {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum PropositionError {
         InvalidFloatMeaningClause(&'static str),
+        InvalidFloatIntegerConversion(Box<crate::FloatIntegerConversionError>),
         StructuralIdentityTypeMismatch,
         NonCanonicalStructuralIdentityOperands,
         EmptyStructuralReadPath,
@@ -2602,6 +2692,14 @@ mod value_ids {
                                     source.remap_value_ids(&mut map);
                                     source
                                 });
+                            }
+                            Self::FloatIntegerConversion(clause) => {
+                                pending.push(Pending::Scalar(&mut clause.result));
+                                pending.push(Pending::Scalar(&mut clause.source));
+                            }
+                            Self::IeeeFloatIntegerExact { source, .. }
+                            | Proposition::IntegerIeeeFloatExact { source, .. } => {
+                                pending.push(Pending::Scalar(source))
                             }
                             Self::Equal(left, right)
                             | Self::LessThan(left, right)
@@ -2758,6 +2856,14 @@ mod value_ids {
                         for source in clause.sources().rev() {
                             pending.push(Pending::Scalar(source));
                         }
+                    }
+                    Proposition::FloatIntegerConversion(clause) => {
+                        pending.push(Pending::Scalar(&clause.result));
+                        pending.push(Pending::Scalar(&clause.source));
+                    }
+                    Proposition::IeeeFloatIntegerExact { source, .. }
+                    | Proposition::IntegerIeeeFloatExact { source, .. } => {
+                        pending.push(Pending::Scalar(source))
                     }
                     crate::scalar_comparison_operands!(left, right) => {
                         pending.push(Pending::Scalar(right));

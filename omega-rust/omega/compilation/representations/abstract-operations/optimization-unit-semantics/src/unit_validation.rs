@@ -113,6 +113,9 @@ mod activation_storage {
                 source: source.clone(),
                 claim: *claim,
             },
+            A::DecomposeStructuralValue { subject, .. } => T::DecomposeStructuralValue {
+                subject: subject.clone(),
+            },
             A::MoveStructuralValue { source, .. } => T::MoveStructuralValue {
                 source: source.clone(),
             },
@@ -563,7 +566,7 @@ mod activation_storage {
             .filter(|f| f.block_nodes().any(|n| {
                 may(&n.operation, &machines) || n.operation.cleanup_rosters()
                     .flat_map(|(_, actions)| actions).any(|action| {
-                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup)
                             if !known.contains(&cleanup.cleanup_machine) || machines.contains(&cleanup.cleanup_machine))
                     })
             }))
@@ -718,7 +721,7 @@ pub(crate) mod affine_authority {
                         partition
                     }
                     _ if matches!(group, [TerminalAffineCleanupAction::DiscardRoot(_)])
-                        || matches!(group, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.path.is_empty()) =>
+                        || matches!(group, [TerminalAffineCleanupAction::InvokeOwned(cleanup)] if cleanup.subject.path.is_empty()) =>
                     {
                         group
                     }
@@ -728,13 +731,10 @@ pub(crate) mod affine_authority {
                     if matches!(action, TerminalAffineCleanupAction::RetireHome(_)) {
                         return None;
                     }
-                    if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
-                        for consumed in &cleanup.consumed_claims {
-                            let position = frontier.claims.iter().position(|claim| {
-                                claim.claim == *consumed && claim.input == Some(place)
-                            })?;
-                            frontier.claims.remove(position);
-                        }
+                    if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                        && !cleanup.claim_transfers.is_empty()
+                    {
+                        return None;
                     }
                 }
                 if frontier
@@ -1023,6 +1023,7 @@ pub(crate) mod affine_authority {
                         copyable: false,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         requires: Vec::new(),
                         shape: if raw == 1 {
@@ -1045,7 +1046,6 @@ pub(crate) mod affine_authority {
                 let function = PsiOptimizationFunction {
                     machine: id(1),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: id(1),
                     parameters: Vec::new(),
                     structural_parameters: vec![StructuralParameterDeclaration {
@@ -1078,6 +1078,7 @@ pub(crate) mod affine_authority {
                 let first = vec![Segment::FixedIndex(0), Segment::FixedIndex(0)];
                 let second = vec![Segment::FixedIndex(0), Segment::FixedIndex(1)];
                 let entry = OwnershipFrontierSnapshot {
+                    nominal_partitions: Vec::new(),
                     claims: Vec::new(),
                     owned_places: vec![OwnershipFrontierOwnedPlace {
                         place: id(1),
@@ -1429,6 +1430,10 @@ mod catalogs {
         unit: &'unit PsiOptimizationUnit,
         cycle_policy: &function_structure::ControlCyclePolicy,
     ) -> Result<UnitIndexes<'unit>, OptimizationUnitValidationError> {
+        // Authenticate carried cleanup requirements before deriving any
+        // ownership frontier or call effect from the current functions.
+        optimization_unit::validate_owned_cleanup_evidence(unit)
+            .map_err(|reason| OptimizationUnitValidationError::InvalidRuntimeEvidence { reason })?;
         if let Some(pair) = unit
             .functions
             .windows(2)
@@ -2869,7 +2874,10 @@ pub(crate) mod derived_metadata {
                 O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
                 O::EstablishReference { source, .. }
                 | O::EstablishAccessReference { source, .. } => require(source.place, known)?,
-                O::MoveStructuralValue { source, .. } => require(source.place, known)?,
+                O::DecomposeStructuralValue {
+                    subject: source, ..
+                }
+                | O::MoveStructuralValue { source, .. } => require(source.place, known)?,
                 O::TransformContent {
                     source, parents, ..
                 } => {
@@ -3044,7 +3052,6 @@ pub(crate) mod derived_metadata {
     }
 }
 pub(crate) mod function_structure {
-    use crate::unit_validation::catalog_mismatch;
     use crate::unit_validation::derived_metadata::validate_places_and_claims;
     use crate::unit_validation::operation_contracts::validate_values_and_bindings;
     use crate::unit_validation::services::valid_service_ceiling;
@@ -7045,6 +7052,7 @@ pub(crate) mod function_structure {
 
             pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
                 match operation {
+                    O::DecomposeStructuralValue { subject, .. } => vec![subject.place],
                     O::ActivateTaskRegister {
                         gdt,
                         task_state,
@@ -9860,17 +9868,6 @@ pub(crate) mod function_structure {
         ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
         reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
     ) -> Result<(), OptimizationUnitValidationError> {
-        if let Some(subject) = function.nominal_cleanup_subject
-            && (function.attachment != Some(subject)
-                || !structural_types.contains_key(&subject)
-                || functions
-                    .values()
-                    .filter(|candidate| candidate.nominal_cleanup_subject == Some(subject))
-                    .count()
-                    != 1)
-        {
-            return Err(catalog_mismatch(function));
-        }
         if !valid_service_ceiling(&function.published_service_ceiling, services) {
             return Err(
                 OptimizationUnitValidationError::InvalidFunctionServiceCeiling(function.machine),
@@ -10668,6 +10665,14 @@ pub(crate) mod operation_contracts {
                     Proposition::StructuralIdentity { left, right } => {
                         roots.insert(left.root());
                         roots.insert(right.root());
+                    }
+                    Proposition::FloatIntegerConversion(clause) => {
+                        scalar_term_roots(&clause.source, roots);
+                        scalar_term_roots(&clause.result, roots);
+                    }
+                    Proposition::IeeeFloatIntegerExact { source, .. }
+                    | Proposition::IntegerIeeeFloatExact { source, .. } => {
+                        scalar_term_roots(source, roots)
                     }
                     Proposition::FloatMeaningEqual(clause) => {
                         for source in clause.sources() {
@@ -12335,6 +12340,7 @@ pub(crate) mod operation_contracts {
                 | O::StructuralByteViewFieldStore { .. }
                 | O::StructuralLeafCopy { .. }
                 | O::MoveStructuralValue { .. }
+                | O::DecomposeStructuralValue { .. }
                 | O::TransformContent { .. }
                 | O::PortWrite { .. }
                 | O::StructuralCase { .. }
@@ -15779,6 +15785,7 @@ mod runtime_evidence {
             .map_err(|reason| OptimizationUnitValidationError::InvalidRuntimeEvidence { reason })
     }
     fn validate_current(unit: &PsiOptimizationUnit) -> Result<(), &'static str> {
+        optimization_unit::validate_owned_cleanup_evidence(unit)?;
         let Some(catalog) = &unit.runtime_evidence else {
             if unit
                 .functions
@@ -16219,7 +16226,7 @@ pub(crate) mod services {
                         .cleanup_rosters()
                         .flat_map(|(_, actions)| actions)
                         .filter_map(|action| match action {
-                            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
                                 Some(cleanup.cleanup_machine)
                             }
                             _ => None,
@@ -17439,135 +17446,8 @@ pub(crate) mod structural_catalog {
             )
         }
 
-        pub(crate) fn structural_projection_type<'types>(
-            declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-            structural_type: StructuralTypeId,
-            path: &[StructuralPathSegment],
-        ) -> Option<StructuralTypeId> {
-            resolve_path(
-                declarations.clone(),
-                |identity| {
-                    declarations
-                        .clone()
-                        .find(|declaration| declaration.id == identity)
-                },
-                structural_type,
-                path,
-                abstract_operations::control_flow::owner_loans::loaned_field_type,
-            )
-            .or_else(|| primitive_projection_declaration(declarations, structural_type, path))
-        }
-
-        fn resolve_path<'types>(
-            declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-            declaration: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
-            mut structural_type: StructuralTypeId,
-            path: &[StructuralPathSegment],
-            field_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
-        ) -> Option<StructuralTypeId> {
-            declaration(structural_type)?;
-            let mut payload_fields = None;
-            for (ordinal, segment) in path.iter().enumerate() {
-                let declaration = declaration(structural_type)?;
-                if let StructuralPathSegment::FixedRange { start, end } = segment {
-                    let terminal_psi::StructuralTypeShape::FixedArray {
-                        length: terminal_psi::ArrayExtent::Literal(length),
-                        ..
-                    } = declaration.shape
-                    else {
-                        return None;
-                    };
-                    if payload_fields.is_some()
-                        || start > end
-                        || *end > length
-                        || !matches!(
-                            path.get(ordinal + 1),
-                            Some(StructuralPathSegment::RepresentationView { .. })
-                        )
-                    {
-                        return None;
-                    }
-                    continue;
-                }
-                if let StructuralPathSegment::Case(case) = segment {
-                    if payload_fields.is_some() {
-                        return None;
-                    }
-                    let (terminal_psi::StructuralTypeShape::Sum { cases }
-                    | terminal_psi::StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
-                    else {
-                        return None;
-                    };
-                    payload_fields = Some(
-                        cases
-                            .iter()
-                            .find(|candidate| candidate.id == *case)?
-                            .fields
-                            .as_slice(),
-                    );
-                    continue;
-                }
-                if payload_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
-                    return None;
-                }
-                structural_type = match (segment, &declaration.shape) {
-                    (
-                        StructuralPathSegment::RepresentationView {
-                            structural_type: view,
-                            stored_scalar,
-                        },
-                        shape,
-                    ) => {
-                        if matches!(shape, terminal_psi::StructuralTypeShape::Reference { .. }) {
-                            return None;
-                        }
-                        terminal_semantics::representation_view_declaration(
-                            declarations.clone(),
-                            *view,
-                            *stored_scalar,
-                        )?
-                        .id
-                    }
-                    (StructuralPathSegment::Field(identity), shape) => {
-                        let fields = match payload_fields.take() {
-                            Some(fields) => fields,
-                            None => match shape {
-                                terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                                    fields.as_slice()
-                                }
-                                _ => return None,
-                            },
-                        };
-                        let field = terminal_psi::live_field_by_identity(fields, *identity)?;
-                        match &field.field_type {
-                            StructuralFieldType::Structural(next) => *next,
-                            leaf => field_type(leaf)?.leaf_declaration(declarations.clone())?.id,
-                        }
-                    }
-                    (
-                        StructuralPathSegment::FixedIndex(index),
-                        terminal_psi::StructuralTypeShape::FixedArray {
-                            element,
-                            length: terminal_psi::ArrayExtent::Literal(length),
-                        },
-                    ) if index < length => *element,
-                    (
-                        StructuralPathSegment::RuntimeIndex { .. },
-                        terminal_psi::StructuralTypeShape::FixedArray { element, .. },
-                    ) => *element,
-                    (
-                        StructuralPathSegment::FixedIndex(_),
-                        terminal_psi::StructuralTypeShape::ElementView { element, .. },
-                    ) => *element,
-                    (
-                        StructuralPathSegment::RuntimeIndex { .. },
-                        terminal_psi::StructuralTypeShape::ElementView { element, .. },
-                    ) => *element,
-                    _ => return None,
-                };
-            }
-            payload_fields.is_none().then_some(structural_type)
-        }
+        use native_vocabulary::storage_projection::resolve_path;
+        pub(crate) use native_vocabulary::storage_projection::structural_projection_type;
 
         pub(crate) fn byte_carrier_leaf_window(
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -17660,334 +17540,10 @@ pub(crate) mod structural_catalog {
         }
     }
     mod storage_projection {
-        use super::paths::structural_projection_type;
-        use semantic_vocabulary::StructuralTypeId;
-        use terminal_psi::{
-            ByteSequenceCarrier, ByteSequencePredicateSet, StructuralPathSegment,
-            StructuralTypeDeclaration, StructuralTypeShape,
+        pub use native_vocabulary::storage_projection::{
+            StructuralStorageProjection, shared_view_declaration,
+            structural_borrowed_storage_projection, structural_storage_projection,
         };
-        use terminal_semantics::borrowed_referent_matches;
-
-        #[cfg(test)]
-        mod tests {
-            use super::{StructuralStorageProjection, structural_storage_projection};
-            use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, StructuralTypeId};
-            use terminal_psi::{
-                BindingRelevance, ByteSequenceCarrier, ByteSequencePredicateSet, StructuralAccess,
-                StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-                StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-            };
-
-            const OWNER: ByteSequenceCarrier = ByteSequenceCarrier::BoundedOwned { capacity: 16 };
-            const VIEW: ByteSequenceCarrier = ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            };
-
-            fn type_id(raw: u64) -> StructuralTypeId {
-                StructuralTypeId::new(raw).unwrap()
-            }
-
-            fn utf8() -> ByteSequencePredicateSet {
-                ByteSequencePredicateSet::from_bits(1).unwrap()
-            }
-
-            fn field(
-                raw: u64,
-                identity: terminal_psi::TerminalIdentityIndex,
-                relevance: BindingRelevance,
-                field_type: StructuralFieldType,
-            ) -> StructuralFieldDeclaration {
-                StructuralFieldDeclaration {
-                    declaration_identity: Default::default(),
-                    inline_carrier: None,
-                    id: StructuralFieldId::new(raw).unwrap(),
-                    identity,
-                    relevance,
-                    field_type,
-                    storage: None,
-                }
-            }
-
-            fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
-                StructuralTypeDeclaration {
-                    declaration_identity: Default::default(),
-                    requires: Vec::new(),
-                    quotient_carrier: None,
-                    owns_linear_claim: false,
-                    no_code_affine_cleanup: false,
-                    copyable: false,
-                    descriptor_cleanup: false,
-                    scalar_restriction: None,
-                    id: type_id(raw),
-                    identity: terminal_psi::TerminalIdentityIndex(10 + raw as u32),
-                    shape,
-                }
-            }
-
-            fn catalog() -> Vec<StructuralTypeDeclaration> {
-                let qualified = |carrier| StructuralFieldType::PredicateByteSequence {
-                    carrier,
-                    predicates: utf8(),
-                };
-                vec![
-                    declaration(
-                        1,
-                        StructuralTypeShape::Record {
-                            fields: vec![
-                                field(1, idx("text"), BindingRelevance::Relevant, qualified(OWNER)),
-                                field(2, idx("name"), BindingRelevance::Relevant, qualified(VIEW)),
-                                field(
-                                    3,
-                                    idx("proof"),
-                                    BindingRelevance::Erased,
-                                    StructuralFieldType::ByteSequence(OWNER),
-                                ),
-                            ],
-                            storage: terminal_psi::StructuralRecordStorage::Packed,
-                        },
-                    ),
-                    declaration(
-                        2,
-                        StructuralTypeShape::Sum {
-                            cases: vec![
-                                StructuralCaseDeclaration {
-                                    declaration_identity: Default::default(),
-                                    id: StructuralCaseId::new(1).unwrap(),
-                                    identity: idx("Empty"),
-                                    fields: Vec::new(),
-                                },
-                                StructuralCaseDeclaration {
-                                    declaration_identity: Default::default(),
-                                    id: StructuralCaseId::new(2).unwrap(),
-                                    identity: idx("Full"),
-                                    fields: vec![field(
-                                        4,
-                                        idx("bytes"),
-                                        BindingRelevance::Relevant,
-                                        StructuralFieldType::ByteSequence(OWNER),
-                                    )],
-                                },
-                            ],
-                        },
-                    ),
-                ]
-            }
-
-            fn idx(name: &str) -> terminal_psi::TerminalIdentityIndex {
-                let index = match name {
-                    "text" => 1,
-                    "name" => 2,
-                    "bytes" => 3,
-                    "proof" => 4,
-                    "Empty" => 5,
-                    "Full" => 6,
-                    _ => 0,
-                };
-                terminal_psi::TerminalIdentityIndex(index)
-            }
-
-            fn named(identity: terminal_psi::TerminalIdentityIndex) -> StructuralPathSegment {
-                StructuralPathSegment::Field(identity)
-            }
-
-            #[test]
-            fn byte_fields_without_a_declared_carrier_name_their_field_storage() {
-                let types = catalog();
-                let owner =
-                    structural_storage_projection(types.iter(), type_id(1), &[named(idx("text"))]);
-                let view =
-                    structural_storage_projection(types.iter(), type_id(1), &[named(idx("name"))]);
-                assert_eq!(
-                    owner,
-                    Some(StructuralStorageProjection::ByteField {
-                        carrier: OWNER,
-                        predicates: utf8(),
-                    })
-                );
-                assert_eq!(
-                    view,
-                    Some(StructuralStorageProjection::ByteField {
-                        carrier: VIEW,
-                        predicates: utf8(),
-                    })
-                );
-                let (owner, view) = (owner.unwrap(), view.unwrap());
-                assert!(owner.matches(types.iter(), owner));
-                assert!(!owner.matches(types.iter(), view));
-                assert_eq!(
-                    structural_storage_projection(types.iter(), type_id(1), &[named(idx("proof"))]),
-                    None
-                );
-            }
-
-            #[test]
-            fn a_selected_payload_byte_field_names_its_case_storage() {
-                let types = catalog();
-                let full = StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap());
-                assert_eq!(
-                    structural_storage_projection(
-                        types.iter(),
-                        type_id(2),
-                        &[full, named(idx("bytes"))]
-                    ),
-                    Some(StructuralStorageProjection::ByteField {
-                        carrier: OWNER,
-                        predicates: ByteSequencePredicateSet::EMPTY,
-                    })
-                );
-                let empty = StructuralPathSegment::Case(StructuralCaseId::new(1).unwrap());
-                assert_eq!(
-                    structural_storage_projection(
-                        types.iter(),
-                        type_id(2),
-                        &[empty, named(idx("bytes"))]
-                    ),
-                    None
-                );
-            }
-
-            #[test]
-            fn a_declared_owner_carrier_keeps_its_endpoint_spelling() {
-                let mut types = catalog();
-                types.push(declaration(3, StructuralTypeShape::ByteSequence(OWNER)));
-                assert_eq!(
-                    structural_storage_projection(types.iter(), type_id(1), &[named(idx("text"))]),
-                    Some(StructuralStorageProjection::Endpoint(type_id(3)))
-                );
-                assert!(matches!(
-                    structural_storage_projection(types.iter(), type_id(1), &[named(idx("name"))]),
-                    Some(StructuralStorageProjection::ByteField { carrier: VIEW, .. })
-                ));
-            }
-        }
-        pub(crate) fn shared_view_declaration(declaration: &StructuralTypeDeclaration) -> bool {
-            declaration.shape.is_borrowed_byte_view()
-                || matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
-        }
-
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum StructuralStorageProjection {
-            Endpoint(StructuralTypeId),
-            CollectionWindow {
-                backing: StructuralTypeId,
-                offset: u64,
-                length: u64,
-            },
-            ByteField {
-                carrier: ByteSequenceCarrier,
-                predicates: ByteSequencePredicateSet,
-            },
-        }
-
-        impl StructuralStorageProjection {
-            pub fn matches<'types>(
-                self,
-                declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-                expected: Self,
-            ) -> bool {
-                match (self, expected) {
-                    (Self::Endpoint(actual), Self::Endpoint(expected)) => {
-                        borrowed_referent_matches(declarations, actual, expected)
-                    }
-                    (
-                        Self::CollectionWindow {
-                            backing: actual,
-                            offset,
-                            length,
-                        },
-                        Self::CollectionWindow {
-                            backing: expected,
-                            offset: expected_offset,
-                            length: expected_length,
-                        },
-                    ) => {
-                        offset == expected_offset
-                            && length == expected_length
-                            && borrowed_referent_matches(declarations, actual, expected)
-                    }
-                    (actual @ Self::ByteField { .. }, expected @ Self::ByteField { .. }) => {
-                        actual == expected
-                    }
-                    _ => false,
-                }
-            }
-        }
-
-        pub fn structural_storage_projection<'types>(
-            declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-            root: StructuralTypeId,
-            path: &[StructuralPathSegment],
-        ) -> Option<StructuralStorageProjection> {
-            if matches!(path.last(), Some(StructuralPathSegment::FixedRange { .. })) {
-                let window = terminal_semantics::fixed_collection_storage_window(
-                    declarations.clone(),
-                    root,
-                    path,
-                )?;
-                Some(StructuralStorageProjection::CollectionWindow {
-                    backing: structural_projection_type(declarations, root, window.backing_path)?,
-                    offset: window.offset,
-                    length: window.length,
-                })
-            } else {
-                structural_projection_type(declarations.clone(), root, path)
-                    .map(StructuralStorageProjection::Endpoint)
-                    .or_else(|| byte_field(declarations, root, path))
-            }
-        }
-
-        pub fn structural_borrowed_storage_projection<'types>(
-            declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-            root: StructuralTypeId,
-            path: &[StructuralPathSegment],
-            access: terminal_psi::StructuralAccess,
-        ) -> Option<StructuralStorageProjection> {
-            if access != terminal_psi::StructuralAccess::Owned
-                && let Some(endpoint) =
-                    terminal_semantics::borrowed_primitive_projection_declaration(
-                        declarations.clone(),
-                        root,
-                        path,
-                        None,
-                    )
-            {
-                return Some(StructuralStorageProjection::Endpoint(endpoint));
-            }
-            structural_storage_projection(declarations, root, path)
-        }
-
-        fn byte_field<'types>(
-            declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-            root: StructuralTypeId,
-            path: &[StructuralPathSegment],
-        ) -> Option<StructuralStorageProjection> {
-            let (StructuralPathSegment::Field(identity), container) = path.split_last()? else {
-                return None;
-            };
-            let (container, case) = match container.split_last() {
-                Some((StructuralPathSegment::Case(case), container)) => (container, Some(case)),
-                _ => (container, None),
-            };
-            let owner = structural_projection_type(declarations.clone(), root, container)?;
-            let shape = &declarations
-                .into_iter()
-                .find(|declaration| declaration.id == owner)?
-                .shape;
-            let fields = match case {
-                Some(case) => shape
-                    .sum_cases()?
-                    .iter()
-                    .find(|candidate| candidate.id == *case)?
-                    .fields
-                    .as_slice(),
-                None => shape.direct_fields()?,
-            };
-            let field = terminal_psi::live_field_by_identity(fields, *identity)?;
-            Some(StructuralStorageProjection::ByteField {
-                carrier: field.field_type.byte_sequence_carrier()?,
-                predicates: field.field_type.byte_predicates(),
-            })
-        }
     }
     mod type_declarations {
         use crate::OptimizationUnitValidationError;

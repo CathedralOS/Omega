@@ -109,7 +109,7 @@ pub(super) fn source_free_application(
         report_fingerprint: 0,
         commitment: [0; 32],
         plan: validated.clone(),
-        dispatch_only_parameter_count: 0,
+        dispatch_only_formal: None,
         signature: policy.geometry,
         opaque_applications: signature
             .opaque_representation_uses()

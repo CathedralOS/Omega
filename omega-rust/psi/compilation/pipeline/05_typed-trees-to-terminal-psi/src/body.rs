@@ -205,6 +205,16 @@ pub enum Policy {
 }
 
 impl Policy {
+    pub const fn domain(policy: Option<Self>) -> numerics::arithmetic::ArithmeticDomain {
+        use numerics::arithmetic::ArithmeticDomain;
+        match policy {
+            None => ArithmeticDomain::Exact,
+            Some(Self::Wrapping) => ArithmeticDomain::Wrapping,
+            Some(Self::Saturating) => ArithmeticDomain::Saturating,
+            Some(Self::Trapping) => ArithmeticDomain::Trapping,
+        }
+    }
+
     /// The policy a written arithmetic domain names; `Exact` names none.
     pub const fn of_domain(domain: numerics::arithmetic::ArithmeticDomain) -> Option<Self> {
         use numerics::arithmetic::ArithmeticDomain;
@@ -318,6 +328,7 @@ pub struct RecordType {
     /// Actual source linear custody, including owned nested claims.
     pub owns_linear_claim: bool,
     pub copyable: bool,
+    pub cleanup: Option<RecordCleanup>,
     pub identity: String,
     pub shape: StorageShape,
     /// The clauses of the declaration's `requires`, in authored order: the
@@ -340,6 +351,14 @@ pub struct RecordType {
     /// is left without contents (constants.md: "Semantically unobservable
     /// padding is emitted as zero").
     pub authored_layout: bool,
+}
+
+/// The source declaration's selected ordinary consumer. Discovery closes its
+/// body with the other callees before this record is lowered to Terminal Psi.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordCleanup {
+    pub declaration_identity: String,
+    pub machine: MachineId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -906,6 +925,9 @@ pub enum Statement {
         home: Option<String>,
         source: SourceOrigin,
     },
+    /// End the nominal wrapper at a complete consuming pattern. The following
+    /// field bindings transfer its components under ordinary ownership rules.
+    Decompose { subject: Expression },
     /// Capture the existing destination expression as a place, then evaluate
     /// `value` and store it there. Field and index expressions retain the
     /// same meaning as in a read or loan; no second destination path exists.

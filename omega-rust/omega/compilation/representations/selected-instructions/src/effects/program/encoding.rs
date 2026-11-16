@@ -111,7 +111,9 @@ mod v6 {
         SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
         SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
     };
-    use optimization_unit::{OwnershipEvent, PsiProvenance, WorkSettlement};
+    use native_vocabulary::provenance::OwnershipEvent;
+    use native_vocabulary::provenance::PsiProvenance;
+    use native_vocabulary::provenance::WorkSettlement;
     use register_model::{
         RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
         RegisterUnitId, TargetRegisterEnvironmentIdentity,
@@ -336,6 +338,40 @@ mod v6 {
             })
         }
 
+        fn decode_invocation_site(
+            cursor: &mut Cursor<'_>,
+        ) -> Result<semantic_vocabulary::InvocationSite, PreAllocationMachineEffectDecodeError>
+        {
+            let tag = cursor.byte()?;
+            let identity = cursor.u64()?;
+            if tag == 3 {
+                let edge = semantic_vocabulary::EdgeId::new(identity)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
+                return Ok(semantic_vocabulary::InvocationSite::Cleanup {
+                    edge,
+                    action_ordinal: cursor.u32()?,
+                });
+            }
+            semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)
+        }
+
+        #[cfg(test)]
+        #[test]
+        fn cleanup_invocation_identity_retains_edge_and_action() {
+            for (edge, action_ordinal) in [(1, 0), (1, 2), (2, 0)] {
+                let site = semantic_vocabulary::InvocationSite::Cleanup {
+                    edge: semantic_vocabulary::EdgeId::new(edge).unwrap(),
+                    action_ordinal,
+                };
+                let mut bytes = Vec::new();
+                site.encode_identity(&mut bytes);
+                let mut cursor = Cursor::new(&bytes);
+                assert_eq!(decode_invocation_site(&mut cursor).unwrap(), site);
+                assert_eq!(cursor.remaining(), 0);
+            }
+        }
+
         fn decode_kind(
             cursor: &mut Cursor<'_>,
             allow_i64_less_than: bool,
@@ -491,12 +527,7 @@ mod v6 {
                             } else {
                                 crate::OutgoingArgumentSlotRole::ValueCopy
                             },
-                            invocation_site:
-                                semantic_vocabulary::InvocationSite::from_tagged_identity(
-                                    cursor.byte()?,
-                                    cursor.u64()?,
-                                )
-                                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                            invocation_site: decode_invocation_site(cursor)?,
                             argument_index: cursor.u32()?,
                         }),
                         1 => crate::FrameStorageSlotId::Local(decode_local_storage_slot(cursor)?),
@@ -1550,7 +1581,7 @@ mod v6 {
             PreAllocationMachineEffectDecodeError, StructuralTypeId, decode_ids, decode_machine,
         };
         use terminal_psi::StructuralPathSegment::Field;
-        use terminal_psi::TerminalAffineCleanupAction::{DiscardResidual, InvokeNominal};
+        use terminal_psi::TerminalAffineCleanupAction::{DiscardResidual, InvokeOwned};
         pub fn decode_ownership(
             cursor: &mut Cursor<'_>,
         ) -> Result<Vec<OwnershipEvent>, PreAllocationMachineEffectDecodeError> {
@@ -1609,26 +1640,38 @@ mod v6 {
                     path: decode_path(cursor)?,
                     structural_type: decode_structural_type(cursor)?,
                 }),
-                tag @ (3 | 5) => {
+                6 => {
                     let place = decode_place(cursor)?;
                     let path = decode_path(cursor)?;
-                    let structural_type = decode_structural_type(cursor)?;
-                    let cleanup_machine = decode_machine(cursor)?;
-                    let consumed_claims = decode_claim_ids(cursor)?;
-                    let cleanup_receiver = match cursor.byte()? {
-                        0 => None,
-                        1 => Some(decode_place(cursor)?),
+                    let access = match cursor.byte()? {
+                        1 => terminal_psi::StructuralAccess::Owned,
+                        2 => terminal_psi::StructuralAccess::SharedBorrow,
+                        3 => terminal_psi::StructuralAccess::MutableBorrow,
+                        4 => terminal_psi::StructuralAccess::WriteOnlyBorrow,
                         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
                     };
+                    let structural_type = decode_structural_type(cursor)?;
+                    let cleanup_machine = decode_machine(cursor)?;
+                    let count = cursor.length()?;
+                    let mut claim_transfers = Vec::with_capacity(count.min(cursor.remaining()));
+                    for _ in 0..count {
+                        claim_transfers.push(terminal_psi::ClaimTransfer {
+                            claim: ClaimId::new(cursor.u64()?)
+                                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                            argument_index: cursor.u32()?,
+                            path: decode_path(cursor)?,
+                        });
+                    }
                     let requirement_obligations = decode_ids(cursor, ObligationId::new)?;
-                    InvokeNominal(terminal_psi::NominalAffineCleanup {
-                        retains_descendants: tag == 5,
-                        place,
-                        path,
+                    InvokeOwned(terminal_psi::OwnedCleanupInvocation {
+                        subject: terminal_psi::StructuralArgument {
+                            place,
+                            path,
+                            access,
+                        },
                         structural_type,
                         cleanup_machine,
-                        consumed_claims,
-                        cleanup_receiver,
+                        claim_transfers,
                         requirement_obligations,
                     })
                 }
@@ -1697,7 +1740,7 @@ mod v6 {
             };
 
             #[test]
-            fn nominal_cleanup_round_trip_retains_projected_path() {
+            fn owned_cleanup_round_trip_retains_projected_path_and_claims() {
                 let mut previous_encoding = None;
                 for path in [
                     Vec::new(),
@@ -1707,15 +1750,20 @@ mod v6 {
                         StructuralPathSegment::FixedIndex(1),
                     ],
                 ] {
-                    let action = TerminalAffineCleanupAction::InvokeNominal(
-                        terminal_psi::NominalAffineCleanup {
-                            retains_descendants: false,
-                            place: PlaceId::new(1).unwrap(),
-                            path,
+                    let action = TerminalAffineCleanupAction::InvokeOwned(
+                        terminal_psi::OwnedCleanupInvocation {
+                            subject: terminal_psi::StructuralArgument {
+                                place: PlaceId::new(1).unwrap(),
+                                path,
+                                access: terminal_psi::StructuralAccess::Owned,
+                            },
                             structural_type: StructuralTypeId::new(2).unwrap(),
                             cleanup_machine: semantic_vocabulary::MachineId::new(3).unwrap(),
-                            consumed_claims: vec![ClaimId::new(4).unwrap()],
-                            cleanup_receiver: Some(PlaceId::new(5).unwrap()),
+                            claim_transfers: vec![terminal_psi::ClaimTransfer {
+                                claim: ClaimId::new(4).unwrap(),
+                                argument_index: 0,
+                                path: vec![StructuralPathSegment::FixedIndex(2)],
+                            }],
                             requirement_obligations: vec![ObligationId::new(6).unwrap()],
                         },
                     );
@@ -1741,6 +1789,16 @@ mod v6 {
                     ))
                 );
             }
+            #[test]
+            fn borrowed_cleanup_tags_reject() {
+                for tag in [3, 5] {
+                    assert_eq!(
+                        decode_cleanup(&mut Cursor::new(&[tag])),
+                        Err(PreAllocationMachineEffectDecodeError::InvalidField),
+                    );
+                }
+            }
+
             #[test]
             fn cleanup_action_round_trip_retains_every_path_segment() {
                 let action =
@@ -1902,7 +1960,7 @@ mod v6 {
     pub use values::{decode_target, decode_units};
 
     const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-    const VERSION: u32 = 49;
+    const VERSION: u32 = 50;
 }
 
 pub use cursor::Cursor;

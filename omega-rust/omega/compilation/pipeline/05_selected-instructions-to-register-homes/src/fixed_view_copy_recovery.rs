@@ -1214,6 +1214,7 @@ pub(crate) mod fixed_view_copy {
                     })?
                     .virtual_register = copy.result_virtual_register;
             }
+            let contracts = std::sync::Arc::make_mut(&mut function.contracts);
             let block = function
                 .blocks
                 .iter_mut()
@@ -1235,7 +1236,7 @@ pub(crate) mod fixed_view_copy {
                         },
                     )?
                 };
-            function
+            contracts
                 .virtual_registers
                 .push(selected_instructions::VirtualRegister {
                     id: copy.result_virtual_register,
@@ -1250,7 +1251,7 @@ pub(crate) mod fixed_view_copy {
                 });
             let insertion_index =
                 u32::try_from(insertion_index).map_err(|_| FixedViewCopyError::WorkOverflow)?;
-            for settlement in &mut function.boundary_settlements {
+            for settlement in &mut contracts.boundary_settlements {
                 if settlement.block == block.id && settlement.instruction_index >= insertion_index {
                     settlement.instruction_index = settlement
                         .instruction_index

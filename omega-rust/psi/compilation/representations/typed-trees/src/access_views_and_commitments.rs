@@ -234,7 +234,8 @@ pub(crate) mod access_views {
                         operation.operation(),
                     ))
                 };
-                let [accessor, value] = program.machine_type_parameters(machine) else {
+                let Some([accessor, value]) = program.machine_type_parameters(machine).as_array()
+                else {
                     return Err(invalid());
                 };
                 let [state] = program.machine_states(machine) else {

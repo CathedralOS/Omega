@@ -11,7 +11,6 @@ use omega::language::core::FilesystemNamespaceMutation;
 
 machine windows_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     transition cap <= buffer.len && cap <= 4294967295 {
         true -> block acquire(from, to, buffer, cap)

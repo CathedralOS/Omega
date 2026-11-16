@@ -2,8 +2,9 @@
 // refine runtime index selectors whose current SSA producer is an exact integer
 // constant.
 
-use semantic_vocabulary::{ScalarType, ValueId};
-use terminal_psi::StructuralResultDeclaration;
+pub use native_vocabulary::values::{
+    AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
+};
 
 pub fn resolve_constant_runtime_indexes<'operation>(
     operations: impl Iterator<Item = &'operation crate::AbstractOperation> + Clone,
@@ -38,55 +39,4 @@ pub fn resolve_constant_runtime_indexes<'operation>(
                 .unwrap_or_else(|| segment.clone())
         })
         .collect()
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AbstractParameter {
-    pub value: ValueId,
-    pub scalar_type: ScalarType,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AbstractResult {
-    pub value: ValueId,
-    pub scalar_type: ScalarType,
-}
-
-impl From<terminal_psi::ValueDeclaration> for AbstractResult {
-    fn from(declaration: terminal_psi::ValueDeclaration) -> Self {
-        Self {
-            value: declaration.id,
-            scalar_type: declaration.scalar_type,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractFunctionResult {
-    Unit,
-    Scalar(AbstractResult),
-    Structural(StructuralResultDeclaration),
-}
-
-impl AbstractFunctionResult {
-    pub const fn scalar(&self) -> Option<AbstractResult> {
-        match self {
-            Self::Unit => None,
-            Self::Scalar(result) => Some(*result),
-            Self::Structural(_) => None,
-        }
-    }
-
-    optimization_core::structural_variant_accessor!(StructuralResultDeclaration; Self::Unit | Self::Scalar(_));
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ValueBinding {
-    pub parameter: ValueId,
-    pub argument: ValueId,
-    pub scalar_type: ScalarType,
-}
-
-pub fn binding_arguments(bindings: &[ValueBinding]) -> impl Iterator<Item = ValueId> + '_ {
-    bindings.iter().map(|binding| binding.argument)
 }

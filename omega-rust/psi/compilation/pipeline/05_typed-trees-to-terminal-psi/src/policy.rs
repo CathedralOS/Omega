@@ -11,11 +11,11 @@ operation as the corresponding policy-qualified operands. domains.md,
 */
 
 use numerics::arithmetic::ArithmeticDomain;
-use semantic_vocabulary::{IntegerType, ScalarTerm, ValueId};
+use semantic_vocabulary::{IntegerType, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::OperationKind;
 use typed_trees::expression::BinaryOperator;
 
-use crate::body::{Policy, Strict};
+use crate::body::{Policy, Strict, ValueType};
 
 /// What the suffix written on one operator selects.
 pub(crate) enum Suffix {
@@ -79,6 +79,19 @@ pub(crate) const fn shifts(operation: Strict) -> bool {
     matches!(operation, Strict::ShiftLeft | Strict::ShiftRight)
 }
 
+/// Both the contract and executable forms of complement retain the exact
+/// operand type. Only a bare carrier or one core policy has this operation.
+pub(crate) fn bitwise_not_type(operand: ValueType) -> Option<ValueType> {
+    match operand {
+        ValueType::Scalar(ScalarType::Integer(integer), qualification)
+            if !integer.is_address() && qualification.domains.is_empty() =>
+        {
+            Some(operand)
+        }
+        _ => None,
+    }
+}
+
 /// The Terminal operation `operation` is under `policy` when that operation
 /// owes nothing: an add, subtract or multiply under Wrapping or Saturating,
 /// and a Wrapping shift. `None` for the rest: a divide or remainder "still
@@ -134,6 +147,119 @@ pub(crate) fn total(
     })
 }
 
+/// The same finite computation constructs runtime operations and contract
+/// terms. Each adapter keeps the ordinary formation obligations of its nodes.
+pub(crate) trait IntegerComputation {
+    type Value: Clone;
+    type Error;
+
+    fn constant(
+        &mut self,
+        carrier: IntegerType,
+        value: semantic_vocabulary::IntegerValue,
+    ) -> Result<Self::Value, Self::Error>;
+    fn binary(
+        &mut self,
+        operation: Strict,
+        policy: Option<Policy>,
+        carrier: IntegerType,
+        left: Self::Value,
+        right: Self::Value,
+    ) -> Result<Self::Value, Self::Error>;
+}
+
+/// A left shift fits exactly when shifting its wrapped word back restores the
+/// original. For a nonzero difference d, d | -d has its highest bit set; its
+/// right shift yields a full signed mask, or an unsigned bit negated to a mask.
+/// That mask selects the original sign's saturation endpoint on overflow.
+///
+/// The reverse shift consumes the original count and owes the Exact count
+/// proof. Wrapping the first shift therefore never admits an invalid count.
+/// All other nodes are total or have the fixed, valid count width - 1.
+pub(crate) fn saturating_shift_left<C: IntegerComputation>(
+    computation: &mut C,
+    closed: semantic_vocabulary::ClosedIntegerType,
+    value: C::Value,
+    count: C::Value,
+) -> Result<C::Value, C::Error> {
+    use semantic_vocabulary::{IntegerSign, IntegerValue};
+    let carrier = closed.as_checking();
+    let zero = computation.constant(carrier, carrier.zero())?;
+    let count_carrier =
+        IntegerType::new(IntegerSign::Unsigned, 64).expect("fixed u64 count carrier");
+    let highest = computation.constant(
+        count_carrier,
+        IntegerValue::Unsigned(u128::from(closed.bits() - 1)),
+    )?;
+    let shifted = computation.binary(
+        Strict::ShiftLeft,
+        Some(Policy::Wrapping),
+        carrier,
+        value.clone(),
+        count.clone(),
+    )?;
+    let restored = computation.binary(Strict::ShiftRight, None, carrier, shifted.clone(), count)?;
+    let difference =
+        computation.binary(Strict::BitwiseXor, None, carrier, value.clone(), restored)?;
+    let negative = computation.binary(
+        Strict::Subtract,
+        Some(Policy::Wrapping),
+        carrier,
+        zero.clone(),
+        difference.clone(),
+    )?;
+    let either = computation.binary(Strict::BitwiseOr, None, carrier, difference, negative)?;
+    let sign = computation.binary(Strict::ShiftRight, None, carrier, either, highest.clone())?;
+    let mask = if closed.sign() == IntegerSign::Signed {
+        sign
+    } else {
+        computation.binary(
+            Strict::Subtract,
+            Some(Policy::Wrapping),
+            carrier,
+            zero,
+            sign,
+        )?
+    };
+    let maximum = computation.constant(carrier, closed.maximum_value())?;
+    let endpoint = if closed.sign() == IntegerSign::Signed {
+        let sign = computation.binary(Strict::ShiftRight, None, carrier, value, highest)?;
+        computation.binary(Strict::BitwiseXor, None, carrier, maximum, sign)?
+    } else {
+        maximum
+    };
+    let difference =
+        computation.binary(Strict::BitwiseXor, None, carrier, shifted.clone(), endpoint)?;
+    let correction = computation.binary(Strict::BitwiseAnd, None, carrier, difference, mask)?;
+    computation.binary(Strict::BitwiseXor, None, carrier, shifted, correction)
+}
+
+struct Terms;
+
+impl IntegerComputation for Terms {
+    type Value = ScalarTerm;
+    type Error = ();
+
+    fn constant(
+        &mut self,
+        carrier: IntegerType,
+        value: semantic_vocabulary::IntegerValue,
+    ) -> Result<ScalarTerm, ()> {
+        ScalarTerm::integer(carrier, value).map_err(|_| ())
+    }
+
+    fn binary(
+        &mut self,
+        operation: Strict,
+        policy: Option<Policy>,
+        carrier: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<ScalarTerm, ()> {
+        term(operation, policy, carrier, left, right).ok_or(())
+    }
+}
+
 /// Contract arithmetic retains its selected canonical computation. Whether
 /// that computation is total is decided later by declaration formation,
 /// using CanonicalScalarGoal; an overflow policy does not erase divisor goals.
@@ -144,11 +270,16 @@ pub(crate) fn term(
     left: ScalarTerm,
     right: ScalarTerm,
 ) -> Option<ScalarTerm> {
+    if operation == Strict::ShiftLeft && policy == Some(Policy::Saturating) {
+        return saturating_shift_left(&mut Terms, carrier.try_into().ok()?, left, right).ok();
+    }
     if shifts(operation) {
         let count = right.scalar_type().as_integer()?;
         let constructor = match (operation, policy) {
             (Strict::ShiftLeft, None) => ScalarTerm::exact_integer_shift_left,
-            (Strict::ShiftRight, None) => ScalarTerm::exact_integer_shift_right,
+            (Strict::ShiftRight, None | Some(Policy::Saturating)) => {
+                ScalarTerm::exact_integer_shift_right
+            }
             (Strict::ShiftLeft, Some(Policy::Wrapping)) => ScalarTerm::wrapping_integer_shift_left,
             (Strict::ShiftRight, Some(Policy::Wrapping)) => {
                 ScalarTerm::wrapping_integer_shift_right
@@ -226,8 +357,8 @@ mod tests {
         );
     }
 
-    /// A policy supplies its exact computation, but supplies no operation
-    /// for a Saturating shift or a policy-qualified comparison.
+    /// Arithmetic and shifts retain their exact computation. Comparisons
+    /// use the ordinary stored-value relation and no arithmetic policy.
     #[test]
     fn an_operation_without_a_policy_meaning_is_no_term() {
         let carrier = u32_type();
@@ -253,15 +384,15 @@ mod tests {
             )
             .is_some()
         );
-        assert_eq!(
+        assert!(
             term(
                 Strict::ShiftLeft,
                 Some(Policy::Saturating),
                 carrier,
                 formal(1),
                 formal(2)
-            ),
-            None
+            )
+            .is_some()
         );
     }
 
@@ -274,6 +405,52 @@ mod tests {
                     .unwrap()
                     .unwrap();
                 assert!(goal.kernel_proposition().is_ok());
+            }
+        }
+    }
+    #[test]
+    fn saturating_shift_computation_matches_mathematical_clamping() {
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            for bits in [1, 8, 13, 32, 64] {
+                let carrier = IntegerType::new(sign, bits).unwrap();
+                let convert = |value: i128| match sign {
+                    IntegerSign::Signed => IntegerValue::Signed(value),
+                    IntegerSign::Unsigned => IntegerValue::Unsigned(u128::try_from(value).unwrap()),
+                };
+                let (low, high) = match sign {
+                    IntegerSign::Signed => (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1),
+                    IntegerSign::Unsigned => (0, (1i128 << bits) - 1),
+                };
+                let values = if bits <= 8 {
+                    (low..=high).collect::<Vec<_>>()
+                } else {
+                    vec![low, low + 1, 0, high - 1, high]
+                };
+                for value in values {
+                    for count in 0..bits {
+                        let value_term = ScalarTerm::integer(carrier, convert(value)).unwrap();
+                        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+                        let count_term = ScalarTerm::integer(
+                            count_type,
+                            IntegerValue::Unsigned(u128::from(count)),
+                        )
+                        .unwrap();
+                        let computation = term(
+                            Strict::ShiftLeft,
+                            Some(Policy::Saturating),
+                            carrier,
+                            value_term,
+                            count_term,
+                        )
+                        .unwrap();
+                        let expected = convert((value << count).clamp(low, high));
+                        assert_eq!(
+                            computation.integer_value(),
+                            Some((carrier, expected)),
+                            "{sign:?} {bits} value {value} count {count}"
+                        );
+                    }
+                }
             }
         }
     }

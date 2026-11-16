@@ -19,7 +19,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let result: WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
-        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as i64));
+        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
         transition released == 0 { true -> (result) false -> failed_close(result) }
     }
     machine failed_close(result: WindowsDirectoryEntryResult) -> WindowsDirectoryEntryResult {

@@ -110,7 +110,7 @@ impl BoundaryOpaqueMovementGeometry<'_> {
         &self,
         shape_root: u16,
         validated: &ValidatedBoundaryEntryPlan,
-        dispatch_only_parameter_count: usize,
+        dispatch_only_formal: Option<u32>,
     ) -> Result<BoundaryOpaqueRepresentationMovement, String> {
         let mut carrying_parameters = Vec::new();
         for (formal_ordinal, root) in self.parameters.iter().copied().enumerate() {
@@ -155,8 +155,7 @@ impl BoundaryOpaqueMovementGeometry<'_> {
             let projection = calling_conventions::NativeCallProjection::new(
                 self.native_parameters,
                 self.parameters.len(),
-                u32::try_from(dispatch_only_parameter_count)
-                    .map_err(|_| "dispatch prefix exceeds u32")?,
+                dispatch_only_formal,
             )?;
             let wire_ordinal = projection
                 .parameter_ordinal(native.native_ordinal)?
@@ -339,7 +338,7 @@ mod tests {
                 result: None,
                 native_parameters: &native,
             };
-            let movement = geometry.movement(1, &plan, 1).unwrap();
+            let movement = geometry.movement(1, &plan, Some(0)).unwrap();
             assert_eq!(
                 movement.role(),
                 BoundaryOpaqueRepresentationMovementRole::Parameter {
@@ -353,7 +352,7 @@ mod tests {
             );
             assert!(
                 geometry
-                    .movement(0, &plan, 1)
+                    .movement(0, &plan, Some(0))
                     .unwrap_err()
                     .contains("dispatch-only formal")
             );

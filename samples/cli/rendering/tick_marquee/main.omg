@@ -12,6 +12,7 @@ use omega_language_std::Console;
 use omega_language_std::Clock;
 use omega_language_std::Duration;
 use omega_language_std::Instant;
+use omega_language_std::TimeHost;
 use omega_language_std::elapsed_since;
 use omega_language_std::instant_now;
 data Main {
@@ -21,7 +22,7 @@ data Main {
     t_start: Instant;
     pause: [u8; 256];
 }
-machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console + TimeHost {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     main.t_start = instant_now();
     main.frame = 0u32 as +Wrapping;
@@ -34,7 +35,9 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         main.pos = main.frame % 12;
         transition main.pos < 12 { true -> block put(main) _ -> block finish(main) }
     }
-    machine put(main: &mut Main) {
+    machine put(main: &mut Main)
+    requires main.pos < 12
+    {
         main.line[main.pos] = 35;
         Console::write_line(&main.line[..]);
         Clock::sleep(15);
@@ -66,7 +69,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + Console + TimeHost {
     let mut entry_storage: Main;
     block main(&mut entry_storage);
 }

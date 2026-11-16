@@ -7,6 +7,7 @@ name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
  "language-core",
+ "native-vocabulary",
  "optimization-core",
  "semantic-vocabulary",
  "terminal-codec",
@@ -47,6 +48,8 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "language-semantics",
+ "legalized-operations",
+ "native-preparation",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
@@ -140,6 +143,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "bound-installations"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -396,6 +412,7 @@ dependencies = [
  "mimalloc",
  "native-artifact",
  "native-compiler",
+ "native-preparation",
  "numerics",
  "object-file",
  "optimization",
@@ -726,6 +743,7 @@ dependencies = [
  "legalized-operations",
  "machine-code",
  "machine-emission",
+ "native-preparation",
  "object-file",
  "optimization-core",
  "optimization-unit",
@@ -994,18 +1012,19 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 name = "legalized-operations"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "calling-conventions",
  "function-identity",
  "language-core",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
+ "runtime-abi",
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
- "terminal-codec",
+ "target-vocabulary",
  "terminal-psi",
+ "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1033,11 +1052,10 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 name = "machine-code"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "calling-conventions",
  "function-identity",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
  "post-allocation-machine",
  "register-homes",
  "register-model",
@@ -1045,7 +1063,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-psi",
 ]
@@ -1169,6 +1187,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "arena",
  "backend-plan",
+ "bound-installations",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1177,10 +1196,13 @@ dependencies = [
  "function-identity",
  "image-emission",
  "installation-evidence",
+ "legalized-operations",
  "machine-code",
  "machine-emission",
  "native-artifact",
+ "native-preparation",
  "optimization-core",
+ "optimization-unit",
  "post-allocation-machine-to-selected-form-encoding",
  "register-environment",
  "register-homes-to-post-allocation-machine",
@@ -1201,6 +1223,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-preparation"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "calling-conventions",
+ "installation-evidence",
+ "language-core",
+ "legalized-operations",
+ "optimization-core",
+ "optimization-unit",
+ "optimization-unit-semantics",
+ "provider-admission",
+ "register-environment",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "target-operations-to-selected-instructions",
+ "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "native-provider-runtime"
 version = "0.1.0"
 dependencies = [
@@ -1214,6 +1261,17 @@ dependencies = [
  "sha2",
  "target",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "native-vocabulary"
+version = "0.1.0"
+dependencies = [
+ "optimization-core",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1253,12 +1311,12 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "legalized-operations",
- "optimization-unit",
+ "native-vocabulary",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-psi",
 ]
@@ -1356,6 +1414,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "language-core",
+ "native-vocabulary",
  "numerics",
  "optimization-core",
  "semantic-vocabulary",
@@ -1370,6 +1429,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "language-semantics",
+ "native-vocabulary",
  "optimization-core",
  "optimization-unit",
  "semantic-vocabulary",
@@ -1493,7 +1553,6 @@ name = "post-allocation-machine"
 version = "0.1.0"
 dependencies = [
  "optimization-core",
- "optimization-unit",
  "register-homes",
  "register-model",
  "selected-instructions",
@@ -1501,6 +1560,7 @@ dependencies = [
  "sha2",
  "target",
  "target-operations",
+ "target-vocabulary",
  "terminal-psi",
 ]
 
@@ -1611,6 +1671,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "backend-plan",
+ "bound-installations",
  "calling-conventions",
  "component-description",
  "diagnostics",
@@ -1721,27 +1782,26 @@ dependencies = [
 name = "register-environment"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
  "isa-aarch64",
  "isa-x86_64",
  "mimalloc",
  "register-model",
  "selected-instructions",
  "target",
- "target-operations",
 ]
 
 [[package]]
 name = "register-homes"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "access-plans",
  "calling-conventions",
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -1749,11 +1809,11 @@ dependencies = [
  "sha2",
  "symbols",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
- "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1906,11 +1966,9 @@ dependencies = [
 name = "selected-form-encoding-to-resolved-layout"
 version = "0.1.0"
 dependencies = [
- "calling-conventions",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
- "optimization-core",
  "post-allocation-machine",
  "register-model",
  "selected-instructions",
@@ -1927,15 +1985,15 @@ dependencies = [
  "isa-aarch64",
  "isa-x86_64",
  "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
  "register-environment",
  "register-homes",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
  "terminal-psi",
 ]
 
@@ -1943,33 +2001,27 @@ dependencies = [
 name = "selected-instructions"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "arena",
  "calling-conventions",
  "function-identity",
  "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
  "register-model",
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
- "terminal-codec",
+ "target-vocabulary",
  "terminal-psi",
+ "terminal-wire",
 ]
 
 [[package]]
 name = "selected-instructions-to-register-homes"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
- "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
- "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
  "register-environment",
  "register-homes",
  "register-model",
@@ -1977,8 +2029,6 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
- "terminal-codec",
  "terminal-psi",
 ]
 
@@ -1986,14 +2036,8 @@ dependencies = [
 name = "selected-instructions-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
- "arena",
- "calling-conventions",
- "isa-aarch64",
- "isa-x86_64",
- "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
  "register-environment",
  "register-homes",
  "register-model",
@@ -2002,8 +2046,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-operations",
- "task-plans",
- "terminal-codec",
  "terminal-psi",
 ]
 
@@ -2307,17 +2349,16 @@ dependencies = [
 name = "target-operations"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "calling-conventions",
  "function-identity",
  "installation-evidence",
  "language-core",
- "optimization-unit",
+ "native-vocabulary",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
+ "target-vocabulary",
  "task-plans",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2326,26 +2367,39 @@ dependencies = [
 name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "access-plans",
+ "bound-installations",
  "calling-conventions",
  "installation-evidence",
  "language-core",
  "layout-plans",
  "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
- "optimization-unit",
- "optimization-unit-semantics",
- "proof-admission",
- "provider-admission",
  "register-environment",
  "register-model",
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
- "terminal-codec",
+ "target-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
+name = "target-vocabulary"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "native-vocabulary",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "task-plans",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2382,17 +2436,10 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
- "access-plans",
- "arena",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
  "optimization",
- "proof-admission",
  "semantic-vocabulary",
  "terminal-psi",
- "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -2591,6 +2638,23 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "terminal-psi",
+]
+
+[[package]]
+name = "terminal-wire"
+version = "0.1.0"
+dependencies = [
+ "access-plans",
+ "arena",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "optimization",
+ "proof-admission",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

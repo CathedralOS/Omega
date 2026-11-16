@@ -12,7 +12,7 @@ use register_model::{
     RegisterConstraintKey, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
 };
 use semantic_vocabulary::{MachineId, ValueId};
-use target_operations::MachineRegister;
+use target_vocabulary::MachineRegister;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstraintKeys {

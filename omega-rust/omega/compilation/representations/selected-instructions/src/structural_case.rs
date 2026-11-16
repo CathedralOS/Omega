@@ -12,7 +12,7 @@
 use super::{LocalStorageSlotId, VirtualRegisterId};
 use crate::codec_bytes::push_encoded;
 use legalized_operations::{LegalizedStructuralCasePayload, encode_scalar_type};
-use optimization_unit::encode_value_definition_site_identity;
+use native_vocabulary::provenance::encode_value_definition_site_identity;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,7 +102,7 @@ impl SelectedStructuralCaseEdge {
             push_encoded(bytes, payload.semantic.field.get().to_le_bytes());
             push_encoded(bytes, payload.semantic.field_byte_offset.to_le_bytes());
             push_encoded(bytes, payload.semantic.parameter.value.get().to_le_bytes());
-            encode_scalar_type(bytes, payload.semantic.parameter.scalar_type);
+            encode_scalar_type(bytes, payload.semantic.parameter.scalar_type.as_checking());
             encode_value_definition_site_identity(
                 bytes,
                 payload.semantic.parameter.definition_site,

@@ -148,7 +148,7 @@ machine Main::main(main: &mut Main) reaches
         transition { _ -> render(main, window) }
     }
     machine draw(main: &mut Main, window: Window) {
-        let copied: u32 = macos_window_present(&window, FRAME_WIDTH, FRAME_HEIGHT, &mut main.pixels[..FRAME_PIXELS]);
+        let copied: u32 = macos_window_present(&window, FRAME_WIDTH, FRAME_HEIGHT, &main.pixels[..FRAME_PIXELS]);
         macos_sleep(FRAME_DELAY_MILLISECONDS);
         transition copied == FRAME_HEIGHT { true -> frame(main, window) _ -> close(main, window) }
     }

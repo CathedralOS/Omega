@@ -1591,7 +1591,6 @@ mod tests {
         TerminalMachine {
             id: machine_id(identity),
             attachment: None,
-            nominal_cleanup_subject: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),
             block_entry_claims: Vec::new(),
@@ -1682,6 +1681,7 @@ mod tests {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             });

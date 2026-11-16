@@ -97,7 +97,8 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
     {
         return false;
     }
-    let Some([entry]) = schema_span(&program.machine_states, machine.states) else {
+    let Some([entry]) = schema_span(|span| program.machine_states.span(span), machine.states)
+    else {
         return false;
     };
     if entry.statement_nodes != arena::HandleSpan::empty()
@@ -105,7 +106,8 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
     {
         return false;
     }
-    let Some([formal]) = schema_span(&program.state_parameters, entry.parameters) else {
+    let Some([formal]) = schema_span(|span| program.state_parameters.span(span), entry.parameters)
+    else {
         return false;
     };
     if formal.is_const
@@ -226,13 +228,16 @@ impl Spelled for Tag {
 }
 
 // Complete signatures must not silently lose a malformed retained roster.
-// Arena::span validates nonempty ownership; only the canonical empty handle
+// Storage span lookups validate nonempty ownership; only the canonical empty handle
 // represents a genuinely absent roster here.
-fn schema_span<T: Default>(arena: &arena::Arena<T>, span: arena::HandleSpan<T>) -> Option<&[T]> {
+fn schema_span<T, Rows>(
+    read: impl FnOnce(arena::HandleSpan<T>) -> Option<Rows>,
+    span: arena::HandleSpan<T>,
+) -> Option<Rows> {
     if span.is_empty() && span != arena::HandleSpan::empty() {
         return None;
     }
-    arena.span(span)
+    read(span)
 }
 
 fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<NormalizedTypeIdentity> {
@@ -307,14 +312,17 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         // normalization before this query can describe them.
         return None;
     };
-    let [entry] = schema_span(&program.machine_states, machine.states)? else {
+    let [entry] = schema_span(|span| program.machine_states.span(span), machine.states)? else {
         return None;
     };
     if !entry.symbol.is_valid() {
         return None;
     }
-    let types = schema_span(&program.data_type_parameters, machine.type_parameters)?;
-    let parameters = schema_span(&program.state_parameters, entry.parameters)?;
+    let types = schema_span(
+        |span| program.data_type_parameters.span(span),
+        machine.type_parameters,
+    )?;
+    let parameters = schema_span(|span| program.state_parameters.span(span), entry.parameters)?;
     let binders = types
         .iter()
         .enumerate()
@@ -397,9 +405,15 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         .collect::<Option<Vec<_>>>()?;
     let contracts = contracts(
         program,
-        schema_span(&program.signature_contracts, machine.contracts)?
-            .iter()
-            .chain(schema_span(&program.signature_contracts, entry.contracts)?),
+        schema_span(
+            |span| program.signature_contracts.span(span),
+            machine.contracts,
+        )?
+        .iter()
+        .chain(schema_span(
+            |span| program.signature_contracts.span(span),
+            entry.contracts,
+        )?),
         &context,
     )?;
     let identity = compound(
@@ -439,7 +453,7 @@ fn contracts<'a>(
                 SignatureContractKind::Crashes { cause } => atom(Tag::Crash, &format!("{cause:?}")),
                 SignatureContractKind::EnsuresForResultCase { .. } => return None,
             };
-            let facts = schema_span(&program.proof_facts, contract.facts)?
+            let facts = schema_span(|span| program.proof_facts.span(span), contract.facts)?
                 .iter()
                 .map(|fact| {
                     let ProofFact::Expression(expression) = fact else {
@@ -774,7 +788,7 @@ mod tests {
             .substitute_node(output, replacement);
         assert_ne!(Some(&original), lifetime.text().as_ref());
         let mut ceiling = Fixture::ordinary();
-        ceiling.program.machines_mut()[0].declares_no_crash_route = true;
+        ceiling.program.machine_mut(0).declares_no_crash_route = true;
         assert_ne!(Some(&original), ceiling.text().as_ref());
     }
 
@@ -877,7 +891,7 @@ mod tests {
             ..Default::default()
         };
         let contracts = extra.program.signature_contracts.insert_many([contract]);
-        extra.program.machines_mut()[0].contracts = contracts;
+        extra.program.machine_mut(0).contracts = contracts;
         assert_ne!(Some(&original), extra.text().as_ref());
     }
 
@@ -914,7 +928,7 @@ mod tests {
                 facts,
                 ..Default::default()
             }]);
-        exact.program.machines_mut()[0].contracts = contracts;
+        exact.program.machine_mut(0).contracts = contracts;
         let original = exact.text().unwrap();
         let ExpressionNode::Binary(binary) =
             exact.program.expression_table.expression_mut(expression)
@@ -979,11 +993,11 @@ mod tests {
     fn malformed_signature_rosters_are_unavailable_instead_of_disappearing() {
         for count in [0, 1] {
             let mut states = Fixture::ordinary();
-            states.program.machines_mut()[0].states = broken_span(count);
+            states.program.machine_mut(0).states = broken_span(count);
             assert!(states.text().is_none(), "states, count={count}");
 
             let mut types = Fixture::ordinary();
-            types.program.machines_mut()[0].type_parameters = broken_span(count);
+            types.program.machine_mut(0).type_parameters = broken_span(count);
             assert!(types.text().is_none(), "type parameters, count={count}");
 
             let mut parameters = Fixture::ordinary();
@@ -992,7 +1006,7 @@ mod tests {
             assert!(parameters.text().is_none(), "parameters, count={count}");
 
             let mut machine_contracts = Fixture::ordinary();
-            machine_contracts.program.machines_mut()[0].contracts = broken_span(count);
+            machine_contracts.program.machine_mut(0).contracts = broken_span(count);
             assert!(
                 machine_contracts.text().is_none(),
                 "machine contracts, count={count}"

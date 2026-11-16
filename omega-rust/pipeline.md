@@ -155,8 +155,8 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 | Accepted closure → sealed Terminal artifact | [accepted source factory](psi/compilation/terminal-production/src/accepted.rs) and [codec](psi/compilation/representations/terminal-psi/codec/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
-| Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
-| Target operations → selected instructions | [target-operations-to-selected-instructions](omega/compilation/pipeline/03_target-operations-to-selected-instructions/README.md) |
+| Abstract → target operations → prepared execution plan | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
+| Prepared execution plan → selected instructions | [target-operations-to-selected-instructions](omega/compilation/pipeline/03_target-operations-to-selected-instructions/README.md) |
 | Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/lib.rs) |
 | Selected instructions → register homes | [selected-instructions-to-register-homes](omega/compilation/pipeline/05_selected-instructions-to-register-homes/README.md) |
 | Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/compilation/pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) |
@@ -589,8 +589,12 @@ callbacks tied to the same program and target. Omega 00 publishes `VerifiedPsiOp
 `verified-optimization-input` representation. Omega 01 consumes it and passes
 its sealed `AdmittedLoweringFacts` to Omega 02. The representation keeps the
 entry, native function selection, provider choices, callbacks and interrupts in
-private fields. Later stages borrow and check that same record without calling
-an earlier stage or rebuilding missing facts. This needs no exception to the
+private fields. Omega 02 borrows and checks that same record without calling
+an earlier stage or rebuilding missing facts, and ends by publishing the
+execution plan: target operations joined to their accepted proofs, concrete
+types and surviving installations. Omega 03 reads that plan and the
+installations the driver bound to it; it cannot name the abstract program,
+the optimization unit or the sealed module. This needs no exception to the
 stage dependency rules; `check-boundary` enforces them unchanged.
 
 Consumers ask for a meaningful outcome: checking, Build or helper Terminal
@@ -1630,8 +1634,12 @@ and `flow-effects`, for example). Within both halves:
   implementation refuses.
 - Psi `compilation/proof-admission/` — the independent mathematical checker.
 - Terminal companion packages live under `compilation/representations/terminal-psi/`:
-  `codec/`, `semantics/` and `work/`. Representation data and candidate
-  production stay independent of checking.
+  `wire/`, `codec/`, `semantics/` and `work/`. `wire/` holds the canonical
+  encoding and the vocabulary encoders native forms use for their identities;
+  `codec/` adds the sealed module (`ClosedTerminalModule`) and the artifact
+  envelope and re-exports `wire/`. No form after stage 02's preparation may
+  reach `codec/` (`mbx xtask check-boundary`). Representation data and
+  candidate production stay independent of checking.
 - Psi `compilation/terminal-production/` — keeps the exact frozen source from
   before checking and publishes the accepted module, its evidence and its real
   companions. Omega consumers supply product policy and observation, read the

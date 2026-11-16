@@ -10,8 +10,8 @@ use crate::selection::construction::scalar_graph::structural::{
     SelectedInstructionKind, VirtualRegisterId, fragmented_scalar, record,
 };
 use crate::structural_inputs::structural_reference_input;
-use abstract_operations::AccessLifecycleOperands;
 use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
+use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
 use semantic_vocabulary::{
     AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, StructuralTypeId,
 };
@@ -42,7 +42,7 @@ pub(crate) mod initialization {
         use super::resource_profile::compatibility;
         use crate::selection::construction::scalar_graph::operation_control;
         use crate::selection::construction::scalar_graph::structural::{leaf_copy, record};
-        use abstract_operations::AccessLifecycleOperands;
+        use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
         use terminal_psi::TerminalAccessLifecycleExecution;
         let super::LegalizedScalarInstructionKind::AccessLifecycle {
             operands:
@@ -2307,7 +2307,6 @@ pub(crate) mod resource_profile {
 
         pub(crate) mod initialization {
             use super::*;
-            use abstract_operations::{AccessLifecycleOperands, StructuralTypeCatalog};
             use calling_conventions::{
                 CallPlan, CallingPolicy, EntryControl, RegisterSet, ValuePlacement,
             };
@@ -2315,6 +2314,8 @@ pub(crate) mod resource_profile {
                 LegalizedCallUnitParameter, LegalizedScalarInstructionKind,
                 LegalizedStructuralContract,
             };
+            use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
+            use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
             use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
             use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
             use terminal_psi::{
@@ -2453,7 +2454,7 @@ pub(crate) mod resource_profile {
                             };
                             let index = |number, stride, extent| {
                                 legalized_operations::LegalizedRuntimeIndexOperand {
-                                    operand: abstract_operations::AbstractResult {
+                                    operand: native_vocabulary::values::AbstractResult {
                                         value: semantic_vocabulary::ValueId::new(number).unwrap(),
                                         scalar_type: ScalarType::Integer(
                                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -2553,7 +2554,7 @@ pub(crate) mod resource_profile {
                                         additional_input_qualifications: Vec::new(),
                                     };
                                     LegalizedCallUnitParameter {
-                                        target: target_operations::TargetStructuralParameter {
+                                        target: target_vocabulary::TargetStructuralParameter {
                                             place,
                                             structural_type,
                                             multiplicity: semantic.multiplicity,
@@ -2572,8 +2573,7 @@ pub(crate) mod resource_profile {
                             let source = legalized_operations::LegalizedScalarFunction {
                                 machine: MachineId::new(1).unwrap(),
                                 attachment: None,
-                                nominal_cleanup_subject: None,
-                                provenance: target_operations::TerminalPsiProvenance {
+                                provenance: target_vocabulary::TerminalPsiProvenance {
                                     operations: vec![row.operation],
                                     edges: vec![],
                                 },
@@ -2612,10 +2612,13 @@ pub(crate) mod resource_profile {
                                 builder.definitions.push((
                                     selector.operand.value,
                                     register,
-                                    optimization_unit::ValueDefinitionSite::FunctionParameter(
+                                    native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(
                                         position as u32,
                                     ),
-                                    selector.operand.scalar_type,
+                                    semantic_vocabulary::ClosedScalarType::try_from(
+                                        selector.operand.scalar_type,
+                                    )
+                                    .unwrap(),
                                 ));
                             }
                             let arena = (u64::from(profile_layout.bytes) + 255) & !255;
@@ -2999,6 +3002,7 @@ pub(crate) mod resource_profile {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     shape,
                 });
@@ -4640,24 +4644,18 @@ pub(crate) mod tests {
             profile: None,
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
+            installation_operations: Vec::new(),
+            function_abis: Vec::new(),
+            borrowed_storage_layouts: Vec::new(),
         };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
             &program,
             &geometries,
-            None,
         );
-        let installed_interrupts =
-            provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
-        let interrupt_helpers =
-            crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
+        let installations = bound_installations::BoundInstallations::empty(program.psi);
         let mut builder = Builder {
-            // This standalone emitter fixture has no published source owner.
-            closed_types: None,
-            installed_interrupts: &installed_interrupts,
-            installed_stack_requirements: &[],
-            installed_entry_execution: None,
-            interrupt_helpers: &interrupt_helpers,
+            installations: &installations,
             backings: &backings,
             environment: &environment,
             pending_provenance: SelectedInstructionProvenance::default(),
@@ -4681,7 +4679,7 @@ pub(crate) mod tests {
             result: None,
             kind: LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(0)),
             work: vec![],
-            effect: optimization_unit::EffectLink {
+            effect: native_vocabulary::provenance::EffectLink {
                 input: 0,
                 output: 1,
             },
@@ -4701,6 +4699,7 @@ pub(crate) mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape,
         }
@@ -5036,8 +5035,10 @@ pub(crate) mod tests {
                     let preceding = OperationId::new(70).unwrap();
                     builder.pending_provenance = SelectedInstructionProvenance {
                         operations: vec![preceding],
-                        work: vec![optimization_unit::WorkSettlement {
-                            site: optimization_unit::PsiProvenance::Operation(preceding),
+                        work: vec![native_vocabulary::provenance::WorkSettlement {
+                            site: native_vocabulary::provenance::PsiProvenance::Operation(
+                                preceding,
+                            ),
                             units: 3,
                         }],
                         ..Default::default()
@@ -5959,7 +5960,8 @@ pub(crate) mod view {
         use crate::selection::construction::scalar_graph::operation_control;
         use crate::selection::construction::scalar_graph::structural::{leaf_copy, record};
         let LegalizedScalarInstructionKind::AccessLifecycle {
-            operands: abstract_operations::AccessLifecycleOperands::View { storage, profile },
+            operands:
+                native_vocabulary::access_lifecycles::AccessLifecycleOperands::View { storage, profile },
             indices,
             result,
             ..

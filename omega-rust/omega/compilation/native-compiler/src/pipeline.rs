@@ -3,9 +3,10 @@ Sequence the native representation transformations for both application entries
 and separately emitted callable bodies.
 
 `lower_to_target` drives abstract optimization (`Omega 01`) and target lowering
-(`Omega 02`). The caller captures runtime layout and installed-callback stack
-companions from that result before `emit_target` runs instruction selection
-(`Omega 03`), selected-instruction optimization (`Omega 04`), register
+(`Omega 02`), which ends by publishing the prepared execution plan. The caller
+resolves the installations that plan lists (callback bodies, handler stacks)
+and attaches them before `emit_target` hands the plan and those bound
+installations to instruction selection (`Omega 03`), selected-instruction optimization (`Omega 04`), register
 allocation (`Omega 05`), post-allocation machine planning (`Omega 06`),
 layout-independent encoding (`Omega 07`), resolved layout (`Omega 08`), layout
 optimization (`Omega 09`), and fragment object emission.
@@ -27,12 +28,12 @@ use register_homes_to_post_allocation_machine::{
 };
 use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
-use selected_instructions_to_register_homes::{SelectedProgramView, stage_register_allocation};
+use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::{
     SelectedInstructionOptimizationError, SelectedOptimizationInput, optimize_selected_instructions,
 };
 use target_operations_to_selected_instructions::{
-    OptimizedSelectionPipelineError, TargetSelectionInput, stage_optimized_instruction_selection,
+    OptimizedSelectionPipelineError, SelectionInput, stage_optimized_instruction_selection,
 };
 
 pub(crate) enum TargetLoweringError {
@@ -106,6 +107,18 @@ pub(crate) fn optimize_abstract(
     )
 }
 
+/// Project the installation authority admission checked into the plain
+/// record instruction selection reads beside the plan.
+pub(crate) fn bound_installations(
+    target: &ValidatedOptimizedTargetOperations,
+) -> target_operations_to_selected_instructions::BoundInstallations {
+    terminal_psi_to_abstract_operations::provider_admission::bind_installations(
+        target.lowering_facts().installed_interrupts(),
+        target.installed_entry_execution(),
+        target.installed_stack_requirements(),
+    )
+}
+
 pub(crate) fn emit_target(
     optimized_target: ValidatedOptimizedTargetOperations,
     observation: &NativePipelineObservation,
@@ -113,23 +126,14 @@ pub(crate) fn emit_target(
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
     let target_input = std::sync::Arc::new(optimized_target);
+    let installations = bound_installations(&target_input);
     let selected = {
         observation.enter(NativePipelineStage::InstructionSelection);
         let optimized = target_input.optimized();
         stage_optimized_instruction_selection(
-            TargetSelectionInput {
-                target: target_input.target_operations(),
-                evidence: target_operations_to_selected_instructions::TargetSelectionEvidence {
-                    optimization_unit: optimized.unit().identity,
-                    work_schedule: optimized.unit().work_schedule,
-                    accepted_obligation_facts: &optimized.unit().accepted_obligation_facts,
-                    ownership_frontier_facts: &optimized.unit().ownership_frontier_facts,
-                },
-                closed_module: target_input.lowering_facts().closed_module(),
-                origins: target_input.boundary_origins(),
-                installed_interrupts: target_input.lowering_facts().installed_interrupts(),
-                installed_entry_execution: target_input.installed_entry_execution(),
-                installed_stack_requirements: target_input.installed_stack_requirements(),
+            SelectionInput {
+                plan: target_input.execution_plan(),
+                installations: &installations,
                 optimization: optimized.identity_bundle().identity(),
                 projection: optimized.projection(),
                 manifest: optimized.pre_physical_manifest().identity,
@@ -151,73 +155,56 @@ pub(crate) fn emit_target(
         })
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     }?;
-    let allocation = {
-        observation.enter(NativePipelineStage::RegisterAllocation);
-        stage_register_allocation(selected.into_selected_output())
-            .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
-    }?;
     let machine = {
+        let allocation = {
+            observation.enter(NativePipelineStage::RegisterAllocation);
+            stage_register_allocation(selected.into_selected_output())
+                .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
+        }?;
         observation.enter(NativePipelineStage::PostAllocationMachine);
         let current = allocation.current();
         stage_optimized_post_allocation_machine_plan(
-            allocation.facts(),
+            allocation.clone(),
             current.register_environment(),
             current.selections(),
             current.budget_per_pass(),
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
     }?;
-    let current = allocation.current();
-    let selected = current.selected();
-    let registers = current.register_environment().physical();
-    let frame = machine_emission::stage_function_frame(
-        &current,
-        &machine,
+    // Stage 09's selections and the work budget are configuration the
+    // allocation carries; read them through stage 06 before framing takes it.
+    let selections = machine
+        .source()
+        .current()
+        .selections()
+        .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+    let budget = machine.source().current().budget_per_pass();
+    let framed = machine_emission::stage_function_frame(
+        machine,
         machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-        current.budget_per_pass(),
     )?;
     let encoding = {
         observation.enter(NativePipelineStage::SelectedFormEncoding);
-        stage_optimized_layout_independent_selected_form_encoding(
-            selected.current_program(),
-            machine.machine().plan(),
-            registers,
-            Some(frame.layout().plan()),
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::Encoding)
+        stage_optimized_layout_independent_selected_form_encoding(framed)
+            .map_err(FunctionRelativeOptimizationRealizationError::Encoding)
     }?;
     let layout = {
         observation.enter(NativePipelineStage::ResolvedLayout);
-        stage_optimized_resolved_selected_form_layout(
-            selected.current_program(),
-            machine.machine().plan(),
-            registers,
-            encoding.program(),
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::Layout)
+        stage_optimized_resolved_selected_form_layout(encoding)
+            .map_err(FunctionRelativeOptimizationRealizationError::Layout)
     }?;
     let optimized_layout = {
         observation.enter(NativePipelineStage::LayoutOptimization);
-        execute_resolved_layout_optimization(
-            registers,
-            &layout.shared_program(),
-            &current
-                .selections()
-                .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-            current.budget_per_pass(),
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
+        execute_resolved_layout_optimization(layout, &selections, budget)
+            .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
     }?;
-    let realization = machine_emission::assemble_fixed_frame_realization(
-        allocation,
-        target_input,
-        machine,
-        frame,
-        encoding,
-        layout,
-        optimized_layout,
-    )?;
-    let physical = StagedOptimizedFunctionFragmentEmissionSource::from(realization);
+    let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?;
+    let physical = StagedOptimizedFunctionFragmentEmissionSource::new(realization, target_input)
+        .map_err(|error| {
+            BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
+                "native artifact function-fragment emission failed: {error}"
+            ))])
+        })?;
     observation.enter(NativePipelineStage::FragmentEmission);
     native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
 }

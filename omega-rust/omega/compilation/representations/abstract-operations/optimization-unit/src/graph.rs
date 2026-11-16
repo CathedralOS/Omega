@@ -11,67 +11,15 @@ use super::MachineId;
 use super::{
     AbstractFunctionResult, AbstractOperation, BTreeSet, BlockId, ClaimId, ContentEntryClaim,
     EdgeId, EntryClaim, EvidenceContractLane, IntegerType, IntegerValue, MachineContract,
-    ObligationId, OperationId, PlaceId, ScalarType, ServiceId, StructuralParameterDeclaration,
+    ObligationId, OperationId, PlaceId, ServiceId, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralTypeId, TerminalAffineCleanupAction, ValueBinding,
     ValueId,
 };
+pub use native_vocabulary::provenance::{
+    EffectLink, OwnershipEvent, PsiProvenance, ValueDefinition, ValueDefinitionSite,
+    WorkSettlement, encode_value_definition_site_identity,
+};
 use semantic_vocabulary::StructuralPlaceKind;
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PsiProvenance {
-    Operation(OperationId),
-    Edge(EdgeId),
-}
-
-impl From<OperationId> for PsiProvenance {
-    fn from(operation: OperationId) -> Self {
-        Self::Operation(operation)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WorkSettlement {
-    pub site: PsiProvenance,
-    pub units: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct EffectLink {
-    pub input: u64,
-    pub output: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ValueDefinitionSite {
-    FunctionParameter(u32),
-    BlockParameter { block: BlockId, position: u32 },
-    Node { block: BlockId, node: u32 },
-}
-
-pub fn encode_value_definition_site_identity(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
-    match site {
-        ValueDefinitionSite::FunctionParameter(position) => {
-            bytes.push(0);
-            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
-        }
-        ValueDefinitionSite::BlockParameter { block, position } => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
-        }
-        ValueDefinitionSite::Node { block, node } => {
-            bytes.push(2);
-            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, node.to_le_bytes());
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ValueDefinition {
-    pub value: ValueId,
-    pub scalar_type: ScalarType,
-    pub site: ValueDefinitionSite,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValueUse {
@@ -89,16 +37,6 @@ pub struct OptimizationEdge {
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
     pub provenance: Vec<PsiProvenance>,
     pub work: Vec<WorkSettlement>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OwnershipEvent {
-    ClaimTransfer(Vec<ClaimId>),
-    ClaimCompletion(Vec<terminal_psi::CompletionReceipt>),
-    Cleanup(Vec<TerminalAffineCleanupAction>),
-    StructuralReturn(Vec<ClaimId>),
-    CrashFrontier(Vec<ClaimId>),
-    ExternalCompletionFrontier(Vec<ClaimId>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,7 +135,6 @@ impl OptimizationBlock {
 pub struct PsiOptimizationFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub entry: BlockId,
     pub parameters: Vec<ValueDefinition>,
     pub structural_parameters: Vec<StructuralParameterDeclaration>,

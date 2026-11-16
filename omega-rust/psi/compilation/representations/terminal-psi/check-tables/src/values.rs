@@ -65,8 +65,8 @@ pub enum ValueOrigin {
     /// The result of an operation, including reads and call results.
     Operation(OperationId),
     /// The value one scalar leaf holds at an established storage boundary:
-    /// invocation entry (`None`), or the normal return of an exact call.
-    /// Different calls supply different immutable snapshots of the same leaf.
+    /// its owner's invocation or block entry (`None`), or the normal return
+    /// of an exact call. A block formal is bound anew on each arrival.
     /// This logical name is not an executable scalar operand. The storage
     /// checker authenticates the boundary and follows later writes separately.
     StorageContent {
@@ -109,6 +109,15 @@ pub enum Justification {
     /// established at every invocation under exact actual-argument
     /// substitution."
     EntryRequirement { clause: u32 },
+    /// A `requires` clause of a data type that a formal's scalar leaf lies
+    /// in, stated on the value that leaf held at entry, or over the entry
+    /// values of every leaf it names when it relates several fields. A
+    /// block formal's (a nested machine's) entry is each arrival at its
+    /// block.
+    /// `wiki/spec/language/dependent_values.md`: "no consumption sees the
+    /// value outside its required domain", so the caller proved it where it
+    /// passed the formal.
+    FormalType,
     /// One normal-return guarantee of a callee, by position, on the normal
     /// continuation of that invocation. calls_and_outcomes.md: "They apply
     /// only on normal return".

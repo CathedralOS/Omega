@@ -49,13 +49,13 @@ accepted on it.
 
 use semantic_vocabulary::{
     BlockId, CrashCause, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition,
-    PsiSemanticId, ScalarType, StructuralTypeId, ValueId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
-    Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
+    Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
     BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
@@ -251,11 +251,13 @@ fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
 struct Minted<'a> {
     machine: MachineId,
     module: &'a terminal_psi::TerminalModule,
+    lowered: &'a TerminalMachine,
+    cleanup_catalog: crate::owned_cleanup::Catalog<'a>,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
-    /// The same for each invocation row.
-    invocations: Vec<bool>,
+    /// The exact invocation row and claim state, sorted by source site once.
+    invocations: Vec<(InvocationSite, InvocationId, bool)>,
 }
 
 impl Minted<'_> {
@@ -357,14 +359,22 @@ impl Minted<'_> {
         before: ProgramPoint,
         concerns: Construct,
     ) -> Checked<()> {
-        let mut rows = self
-            .tables
+        let position = self
             .invocations
-            .iter()
-            .filter(|(_, row)| row.site == site);
-        let (Some((invocation, row)), None) = (rows.next(), rows.next()) else {
-            return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
-        };
+            .binary_search_by_key(&site, |(site, _, _)| *site)
+            .map_err(|_| {
+                self.foreign(concerns, "a call does not have exactly one invocation row")
+            })?;
+        let (_, invocation, claimed) = self.invocations[position];
+        if claimed {
+            return Err(self.foreign(concerns, "two constructs claim the same invocation row"));
+        }
+        let row = terminal_check_tables::row(
+            &self.tables.invocations,
+            invocation,
+            self.machine,
+            Construct::Invocation(invocation),
+        )?;
         let concerns = Construct::Invocation(invocation);
         if row.callee != Callee::Declared(inputs.callee)
             || row.required_contract != inputs.required_contract
@@ -382,8 +392,20 @@ impl Minted<'_> {
                 // against the place where loans are judged (`places::loans`).
                 Actual::Place(place) => records.next().is_some_and(|argument| {
                     if argument.access == terminal_psi::StructuralAccess::Owned {
-                        argument.path.is_empty()
-                            && self.tables.roots.get(argument.place) == Some(place)
+                        if matches!(site, InvocationSite::Cleanup { .. }) {
+                            crate::owned_cleanup::exact_place(
+                                self.module,
+                                self.lowered,
+                                self.tables,
+                                argument,
+                            )
+                            .ok()
+                            .as_ref()
+                                == Some(place)
+                        } else {
+                            argument.path.is_empty()
+                                && self.tables.roots.get(argument.place) == Some(place)
+                        }
                     } else {
                         self.root_of(*place) == Some(argument.place)
                     }
@@ -432,9 +454,7 @@ impl Minted<'_> {
                 before,
             )?;
         }
-        if let Some(claimed) = self.invocations.get_mut(index(invocation.get())) {
-            *claimed = true;
-        }
+        self.invocations[position].2 = true;
         Ok(())
     }
 }
@@ -459,12 +479,35 @@ pub(crate) fn follow_the_lowered_form(
                 detail,
             )
         })?;
+    let mut invocations = tables
+        .invocations
+        .iter()
+        .map(|(invocation, row)| (row.site, invocation, false))
+        .collect::<Vec<_>>();
+    invocations.sort_unstable_by_key(|(site, _, _)| *site);
+    if let Some(repeated) = invocations.windows(2).find(|rows| rows[0].0 == rows[1].0) {
+        return Err(refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Invocation(repeated[1].1),
+            "a call does not have exactly one invocation row",
+        ));
+    }
     let mut minted = Minted {
         machine: id,
         module,
+        lowered,
+        cleanup_catalog: crate::owned_cleanup::Catalog::new(module).map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?,
         tables,
         obligations: vec![false; tables.obligations.len()],
-        invocations: vec![false; tables.invocations.len()],
+        invocations,
     };
 
     // The whole-module prepass already reconstructed this family's exact
@@ -656,6 +699,37 @@ pub(crate) fn follow_the_lowered_form(
         if let Some((site, inputs)) = block.terminator.declared_invocation() {
             minted.call(site, inputs, before, Construct::Block(block.id))?;
         }
+        for (edge, actions) in block.terminator.cleanup_rosters() {
+            for (ordinal, action) in actions.iter().enumerate() {
+                if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                    let action_ordinal = crate::position(ordinal, id)?;
+                    let target = minted
+                        .cleanup_catalog
+                        .target(cleanup)
+                        .map_err(|detail| minted.foreign(Construct::Edge(edge), detail))?;
+                    if !target.erased_scalar_formals.is_empty()
+                        || !target.erased_proof_formals.is_empty()
+                    {
+                        return Err(minted.foreign(
+                            Construct::Edge(edge),
+                            "owned cleanup has no explicit erased argument correspondence",
+                        ));
+                    }
+                    minted.call(
+                        InvocationSite::Cleanup {
+                            edge,
+                            action_ordinal,
+                        },
+                        crate::owned_cleanup::inputs(cleanup),
+                        ProgramPoint::BeforeCleanup {
+                            edge,
+                            action_ordinal,
+                        },
+                        Construct::Edge(edge),
+                    )?;
+                }
+            }
+        }
         // A crashing terminator owes coverage at the point before it: its one
         // cause, or each cause among a no-normal call's continuations.
         let site = CrashSite::Block(block.id);
@@ -753,11 +827,14 @@ pub(crate) fn follow_the_lowered_form(
     // An invocation row is where a callee's `ensures` becomes knowledge
     // after a call, so one that restates no call would be a premise nothing
     // established.
-    for ((invocation, row), claimed) in tables.invocations.iter().zip(&minted.invocations) {
-        if *claimed {
-            continue;
-        }
-        let concerns = Construct::Invocation(invocation);
+    if let Some((_, invocation, _)) = minted
+        .invocations
+        .iter()
+        .filter(|(_, _, claimed)| !claimed)
+        .min_by_key(|(_, invocation, _)| *invocation)
+    {
+        let concerns = Construct::Invocation(*invocation);
+        let row = terminal_check_tables::row(&tables.invocations, *invocation, id, concerns)?;
         return Err(match row.callee {
             Callee::Selected { .. } => refusal(
                 RefusalReason::Unsupported,

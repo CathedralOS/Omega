@@ -98,6 +98,7 @@ fn case_plan() -> AbstractOperationPlan {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             shape: StructuralTypeShape::Sum { cases },
             scalar_restriction: None,
             requires: Vec::new(),
@@ -110,7 +111,6 @@ fn case_plan() -> AbstractOperationPlan {
         functions: vec![AbstractFunction {
             machine: MachineId::new(1).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             entry: block(1),
             parameters: vec![AbstractParameter {
                 value: ValueId::new(1).unwrap(),

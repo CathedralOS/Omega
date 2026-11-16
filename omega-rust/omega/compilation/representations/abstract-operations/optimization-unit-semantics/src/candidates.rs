@@ -1889,9 +1889,9 @@ pub(crate) mod control_flow_cleanup {
                             .cleanup_rosters()
                             .flat_map(|(_, actions)| actions)
                             .filter_map(|action| match action {
-                                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                                    cleanup,
-                                ) => Some(cleanup.cleanup_machine),
+                                terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                                    Some(cleanup.cleanup_machine)
+                                }
                                 _ => None,
                             }),
                     );
@@ -2583,6 +2583,7 @@ pub(crate) mod dead_scalar_elimination {
                 | abstract_operations::move_or_store_structural_field_pattern!()
                 | O::StructuralLeafCopy { .. }
                 | O::MoveStructuralValue { .. }
+                | O::DecomposeStructuralValue { .. }
                 | O::TransformContent { .. }
                 | O::TrappingInteger { .. }
                 | abstract_operations::jump_or_conditional_pattern!()
@@ -10426,6 +10427,7 @@ mod value_operand_rewrites {
             | abstract_operations::move_or_store_structural_field_pattern!()
             | O::StructuralLeafCopy { .. }
             | O::MoveStructuralValue { .. }
+            | O::DecomposeStructuralValue { .. }
             | O::TransformContent { .. }
             | O::ReturnUnit { .. }
             | abstract_operations::return_structural_or_crash_pattern!() => {}

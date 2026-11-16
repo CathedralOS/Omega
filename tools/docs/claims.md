@@ -65,7 +65,10 @@ every claim that worktree took; repeat `--ticket` to name claims instead.
 renews that claim. A note lasts only as long as its claim, so it is a status
 line, not a record: put findings and what the next session needs in the pull
 request, the commits, `TASKS.md` or `OWNER_CODE_CONCERNS.md`. `release` removes the claim and forgets its ticket. Release
-your claim when the work completes or the session stops. Expiry does not mean
+your claim when the original outcome completes; a checkpoint merge keeps its
+owner and claim. If the session stops, first record the unfinished outcome and
+handoff under [the law of completion](../../AGENTS.md#law-of-completion), then
+release the lease. Expiry does not mean
 the work finished or its owner stopped; check what is actually in flight
 before taking it over, and never release another session's claim just for
 overlap.

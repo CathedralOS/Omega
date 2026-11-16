@@ -653,11 +653,11 @@ pub(crate) mod capabilities {
         };
         use std::collections::BTreeMap;
         use terminal_psi::{
-            Block, BoundaryCompletion, MachineContract, NominalAffineCleanup,
-            NominalDeclarationIdentity, Operation, OperationResult, StructuralAccess,
-            StructuralArgument, StructuralMultiplicity, StructuralReferenceResultSource,
-            StructuralResultDeclaration, TerminalAffineCleanupAction, TerminalDynamicSlot,
-            TerminalMachine, TerminalMachineResult, TerminalModule,
+            Block, BoundaryCompletion, MachineContract, NominalDeclarationIdentity, Operation,
+            OperationResult, OwnedCleanupInvocation, StructuralAccess, StructuralArgument,
+            StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
+            TerminalAffineCleanupAction, TerminalDynamicSlot, TerminalMachine,
+            TerminalMachineResult, TerminalModule,
         };
         fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
             let result = if selected_origins == 0 {
@@ -719,7 +719,6 @@ pub(crate) mod capabilities {
                 assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                 id: MachineId::new(1).unwrap(),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 structural_places: if selected_origins > 0 {
                     vec![terminal_psi::StructuralPlaceDeclaration {
                         id: PlaceId::new(1).unwrap(),
@@ -767,6 +766,7 @@ pub(crate) mod capabilities {
                 copyable: false,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 shape,
                 scalar_restriction: None,
             };
@@ -914,6 +914,7 @@ pub(crate) mod capabilities {
                 copyable: false,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 shape,
                 scalar_restriction: None,
             };
@@ -1437,14 +1438,15 @@ pub(crate) mod capabilities {
                     }],
                 ),
             );
-            let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                retains_descendants: false,
-                place: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
+            let action = TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
+                subject: terminal_psi::StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                },
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 cleanup_machine,
-                consumed_claims: Vec::new(),
-                cleanup_receiver: None,
+                claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
             });
             (program, action)
@@ -1637,12 +1639,9 @@ pub(crate) mod content_transformations {
                 .structural_types
                 .iter()
                 .filter_map(|declaration| declaration.owns_linear_claim.then_some(declaration.id))
-                .chain(
-                    module
-                        .machines
-                        .iter()
-                        .filter_map(|machine| machine.nominal_cleanup_subject),
-                )
+                .chain(module.structural_types.iter().filter_map(|declaration| {
+                    declaration.nominal_cleanup.as_ref().map(|_| declaration.id)
+                }))
                 .collect::<std::collections::BTreeSet<_>>();
             for parent in parents {
                 if parent.access != terminal_psi::StructuralAccess::Owned {
@@ -1794,9 +1793,8 @@ pub(crate) mod execution {
     };
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{
-        NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralMultiplicity,
-        StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-        TerminalAccessViewInput, Terminator,
+        OperationKind, StructuralAffineDiscard, StructuralMultiplicity, StructuralOperationResult,
+        StructuralPathSegment, StructuralTypeDeclaration, TerminalAccessViewInput, Terminator,
     };
     use terminal_semantics::validate_empty_erased_invocation_inputs;
     use terminal_work::WorkMeter;
@@ -2024,8 +2022,7 @@ pub(crate) mod execution {
             profile_completion:
                 Option<crate::storage::provider_storage::profiles::PendingResourceProfile>,
         },
-        NominalCleanups {
-            completed: (NominalAffineCleanup, TerminalStructuralValue),
+        OwnedCleanups {
             remaining: std::vec::IntoIter<terminal_psi::TerminalAffineCleanupAction>,
             continuation: CleanupContinuation,
         },
@@ -2911,6 +2908,7 @@ pub(crate) mod execution {
                                         StructuralScalarFieldStore => flow execute_structural_scalar_field_store,
                                         MoveStructuralField => advance execute_move_structural_field,
                                         MoveStructuralValue | TransformContent => advance execute_move_structural_value,
+                                        DecomposeStructuralValue => advance execute_decompose_structural_value,
                                         StoreStructuralField => advance execute_store_structural_field,
                                         ByteSequenceStore => advance execute_byte_sequence_store,
                                         StructuralByteSequenceFieldStore => advance execute_structural_byte_sequence_field_store,

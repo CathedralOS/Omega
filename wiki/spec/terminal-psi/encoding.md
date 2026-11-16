@@ -433,7 +433,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
 | trivial discard | place id; appears only inside a counted roster |
 | residual discard | place id + structural path + structural type id |
-| affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list; 4 + place id |
+| affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 4 + place id; 6 + structural argument + structural type id + machine id + counted claim transfers + obligation id list; retired tags 3 and 5 reject |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
 
 Additional input qualifications distinguish facts supplied for a call from
@@ -708,6 +708,9 @@ integer math and content operands are their own encodings inside the row.
 | 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
 | 18 | StructuralIdentity | structural type id + canonical structural field + structural type id + canonical structural field |
 | 19 | FloatMeaningEqual | counted float-meaning clause rows + `u32` left slot + `u32` right slot |
+| 20 | FloatIntegerConversion | scalar source + scalar integer result + projection contract + semantic application contract |
+| 21 | IeeeFloatIntegerExact | scalar source + integer type |
+| 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
 
 A `FloatMeaningEqual` clause records structural meaning equality before a
 call supplies its actual arguments and result. Its slots index only its own
@@ -732,6 +735,16 @@ results. Storage bindings resolve Entry/Current fields to their exact captured
 observations first. A bodyless contract does not invent a machine owner.
 This equality keeps NaN meanings reflexive and distinguishes signed zeros;
 it grants neither IEEE comparison facts nor raw representation identity.
+
+`FloatIntegerConversion` records a total graph of an authenticated integer-result
+catalog row: undefined conversion makes the relation false rather than forming
+a partial integer term. The artifact checker validates both scalar terms, the
+float projection, the full catalog commitment and its integer result carrier.
+Calls bind the source and normal-completion result independently.
+`IeeeFloatIntegerExact` names only an existing source and destination carrier.
+It requires a finite integral value within the exact integer bounds and
+preserves the positive-zero meaning; negative zero is not silently erased.
+Neither relation is a meaning-valued catalog application or raw identity.
 
 Each `StructuralIdentity` subject denotes the complete value at its path in
 the enclosing predicate's invocation frame. The two endpoint types must match
@@ -880,6 +893,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 130 | MergeActivationClaim | lower structural argument + upper structural argument + lower claim id + upper claim id + covered case id + rejected case id |
 | 131 | AtomicAccess | resident obligation id, then tag 93's fields; restricted-resident form |
 | 132 | ReadScalarApplication | scalar application id |
+| 138 | DecomposeStructuralValue | structural argument naming the owned subject; unit result |
 
 An element descriptor source in tags 81 and 92 is encoded as the existing
 nonzero place ID when selecting a whole descriptor. A zero `u64` introduces
@@ -982,8 +996,12 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 | --- | --- | --- |
 | 1 | DiscardRoot | place id |
 | 2 | DiscardResidual | residual discard |
-| 3 | InvokeNominal | place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list |
 | 4 | RetireHome | place id |
+| 6 | InvokeOwned | structural argument + structural type id + machine id + counted claim transfers + obligation id list |
+
+Retired borrowed-cleanup tags 3 and 5 reject. The owned subject keeps its exact
+access and path; receiving checks its selected machine, claim transfers and
+requirements at the cleanup edge and action ordinal.
 
 ## Machine rows
 
@@ -1050,9 +1068,10 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 256 + `u16` vocabulary
-marker 133 + a Boolean default-entry presence flag, followed by the entry
-callable when present and the module tables in the declaration order below.
+Module bytes are `PSITERM\0` + `u16` format marker + `u16` vocabulary
+marker (see [Section identities](#section-identities)) + a Boolean default-entry
+presence flag, followed by the entry
+callable when present and module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
 encoding. An absent default entry requires empty root-service reach; it does
 not authorize implicit selection of another retained machine.
@@ -1505,6 +1524,25 @@ it discharges arithmetic through the ordinary scalar-operation proof rules.
 These rows are definitions, not callable machines or evidence of their bodies.
 Earlier semantic formats reject before table decoding.
 
+Semantic format marker 283 combines the predicate definitions and proposition
+tags 20 and 21 for integer-result conversion graphs and source-only exact cast
+eligibility with by-value nominal cleanup. A structural declaration retains its
+optional exact cleanup selection; action tag 6 carries the owned invocation and
+operation tag 138 ends the wrapper by consuming decomposition. Cleanup
+invocation sites retain both the edge identity and action ordinal. The two
+preceding layouts independently used marker 282; neither supplies this
+combined schema, and both reject before payload interpretation.
+
+Vocabulary marker 138 distinguishes the new predicates. The native terminal-input
+record uses `OMGNTI35` and rejects `OMGNTI34` and earlier schemas. Calling
+applications retain an optional exact semantic formal for dispatch-only table
+use, replacing the former omitted-prefix count. Version 35 distinguishes that
+layout from incompatible version 34 records that stored a prefix count. The
+separate in-memory proof-system marker is 8; its conversion rule fingerprints every checked child,
+without adding a stored certificate decoder or changing the `PSICORE` envelope.
+
+Semantic format marker 282 adds proposition tag 22, `IntegerIeeeFloatExact`. Its source retains the complete integer scalar term, including signedness, width, value or storage version; its target is a permanent IEEE format. Vocabulary marker 139 distinguishes this predicate. The native terminal-input record uses `OMGNTI35`; old records reject. Proof-system marker 9 separately records the provisional representability rule and its fingerprint tag 32.
+
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
 parameter-type identity indices; `u32` callable and result-type identity indices;
@@ -1751,7 +1789,8 @@ roster, and its counted telescope.
 Dependency positions traverse capture slots before method-local invocation slots;
 method invocation tuple comparisons use only the latter. A call row is an
 invocation site (`u8` namespace: 0 operation, 1 external completion, 2 no-normal
-invocation; followed by its nonzero `u64` identity), a `u32` binder, and a `bool`
+invocation, 3 cleanup; followed by its nonzero `u64` identity, then a `u32`
+action ordinal for cleanup only), a `u32` binder, and a `bool`
 application presence flag followed,
 when present, by the call application.
 
@@ -1868,7 +1907,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
+| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `u32` declaration identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + `bool` nominal cleanup presence + optional selected declaration identity (`u32`) and cleanup machine id + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
 | structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role + `bool` boundary-opaque declaration role; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
@@ -2824,14 +2863,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (137). A receiver rejects an unknown magic or stale marker
+vocabulary marker (139). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 280 | yes |
+| semantic module | `PSITERM\0` | 283 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

@@ -132,7 +132,7 @@ fn an_add_under_a_policy_is_total_and_the_exact_add_is_not() {
 }
 
 #[test]
-fn a_policy_result_requires_a_matching_qualified_operand() {
+fn a_policy_result_uses_an_explicit_membership_edge() {
     use terminal_semantics::scalar_qualifications::{ScalarQualificationError, validate};
 
     for (policy, other_policy) in [
@@ -165,24 +165,41 @@ fn a_policy_result_requires_a_matching_qualified_operand() {
             assert!(!matching.is_empty());
             assert!(unqualified.is_empty());
             assert_ne!(matching, other);
-            assert_eq!(result.qualifications, matching);
+            assert!(result.qualifications.is_empty());
+            let primitive = result.id;
+            let edge = module
+                .scalar_qualifications
+                .coercions
+                .iter()
+                .find(|edge| edge.machine == machine.id && edge.source == primitive)
+                .expect("core operator results use an ordinary qualification change");
+            let established = terminal_semantics::scalar_qualifications::values(machine)
+                .find(|value| value.id == edge.destination)
+                .unwrap();
+            assert_eq!(established.qualifications, matching);
             assert!(validate(module).is_ok());
 
-            let rejects_forged_result = |module: &terminal_psi::TerminalModule| {
+            // A primitive cannot mint either the selected policy or another
+            // one directly. Membership belongs to the checked same-value edge.
+            for forged in [matching, other] {
+                for operation in module.machines[0]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                {
+                    if let terminal_psi::OperationResult::Scalar(result) = &mut operation.result
+                        && result.id == primitive
+                    {
+                        result.qualifications = forged;
+                    }
+                }
                 assert!(matches!(
                     validate(module),
                     Err(ScalarQualificationError::MalformedStructuralFoundation(
                         "ordinary scalar operation cannot establish a declared domain"
                     ))
                 ));
-            };
-
-            module.machines[0].parameters[carried].qualifications = unqualified;
-            rejects_forged_result(module);
-
-            module.machines[0].parameters[carried].qualifications = matching;
-            module.machines[0].parameters[1 - carried].qualifications = other;
-            rejects_forged_result(module);
+            }
         }
     }
 }
@@ -284,10 +301,9 @@ fn a_wrapped_sum_is_not_the_mathematical_sum() {
 }
 
 #[test]
-fn a_saturating_shift_is_refused_by_name() {
-    // A Saturating shift "still owes the Exact count proof" under an
-    // operation the lowering does not emit; a Wrapping shift reduces its
-    // count and is total.
+fn a_saturating_shift_must_prove_its_count_even_if_the_shifted_bits_can_be_reduced() {
+    // Saturation covers the result, and the original count still needs its
+    // width check. Wrapping uses the total reducing primitive directly.
     let shift = |policy| {
         unit(
             vec![qualified(policy), plain()],
@@ -304,7 +320,20 @@ fn a_saturating_shift_is_refused_by_name() {
         operations(&closure.elaboration).as_slice(),
         [OperationKind::WrappingIntegerShiftLeft { .. }]
     ));
-    let refusal = lower_lending(vec![shift(Policy::Saturating)]).unwrap_err();
-    assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(refusal.detail, "expression saturating shift");
+    let saturated = lower_lending(vec![shift(Policy::Saturating)]).unwrap();
+    let kinds = operations(&saturated);
+    assert!(
+        kinds
+            .iter()
+            .any(|kind| matches!(kind, OperationKind::ExactIntegerShiftRight { .. }))
+    );
+    let unproved = match judge(Ok(saturated)).unwrap() {
+        RouteVerdict::Incomplete(unproved) | RouteVerdict::Rejected { unproved, .. } => unproved,
+        verdict => panic!("the count requires a proof: {verdict:?}"),
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|obligation| matches!(obligation.kind, ObligationKind::OperationSafety { .. }))
+    );
 }

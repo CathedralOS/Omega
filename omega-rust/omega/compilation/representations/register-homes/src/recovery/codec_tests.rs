@@ -1,18 +1,20 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v102), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v104), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
-use abstract_operations::StructuralTypeCatalog;
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
+use native_vocabulary::provenance::{
+    EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement,
+};
+use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
 };
-use optimization_unit::{EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement};
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     RegisterViewId, TargetRegisterEnvironmentIdentity,
@@ -113,42 +115,43 @@ fn shared_function() -> SelectedFunction {
     let to = RegisterViewId(2);
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     SelectedFunction {
-        machine: MachineId::new(1).unwrap(),
-        attachment: None,
-        nominal_cleanup_subject: None,
-        provenance: Default::default(),
-        structural: None,
-        outgoing_arguments: Vec::new(),
-        local_storage_slots: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            local_storage_slots: Vec::new(),
+            calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            virtual_registers: vec![
+                VirtualRegister {
+                    id: VirtualRegisterId(0),
+                    scalar_type: scalar,
+                    class,
+                    origin: VirtualRegisterOrigin::EntryParameter {
+                        source_value: ValueId::new(1).unwrap(),
+                        parameter_index: 0,
+                    },
+                    definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+                    entry_fixed_view: None,
+                },
+                VirtualRegister {
+                    id: VirtualRegisterId(1),
+                    scalar_type: scalar,
+                    class,
+                    origin: VirtualRegisterOrigin::EntryParameter {
+                        source_value: ValueId::new(2).unwrap(),
+                        parameter_index: 1,
+                    },
+                    definition_site: Some(ValueDefinitionSite::FunctionParameter(1)),
+                    entry_fixed_view: Some(from),
+                },
+            ],
+        }),
         entry_block: SelectedBlockId(0),
-        virtual_registers: vec![
-            VirtualRegister {
-                id: VirtualRegisterId(0),
-                scalar_type: scalar,
-                class,
-                origin: VirtualRegisterOrigin::EntryParameter {
-                    source_value: ValueId::new(1).unwrap(),
-                    parameter_index: 0,
-                },
-                definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
-                entry_fixed_view: None,
-            },
-            VirtualRegister {
-                id: VirtualRegisterId(1),
-                scalar_type: scalar,
-                class,
-                origin: VirtualRegisterOrigin::EntryParameter {
-                    source_value: ValueId::new(2).unwrap(),
-                    parameter_index: 1,
-                },
-                definition_site: Some(ValueDefinitionSite::FunctionParameter(1)),
-                entry_fixed_view: Some(from),
-            },
-        ],
         blocks: (vec![
             SelectedBlock {
                 id: SelectedBlockId(0),
@@ -227,7 +230,7 @@ pub(super) fn successor_parameter_function() -> SelectedFunction {
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
             bindings: vec![selected_instructions::SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: native_vocabulary::values::ValueBinding {
                     parameter: ValueId::new(3).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -326,19 +329,20 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         provenance: SelectedInstructionProvenance::default(),
     };
     SelectedFunction {
-        machine: MachineId::new(1).unwrap(),
-        attachment: None,
-        nominal_cleanup_subject: None,
-        provenance: Default::default(),
-        structural: None,
-        outgoing_arguments: Vec::new(),
-        local_storage_slots: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            local_storage_slots: Vec::new(),
+            calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            virtual_registers: Vec::new(),
+        }),
         entry_block: SelectedBlockId(0),
-        virtual_registers: Vec::new(),
         blocks: (vec![SelectedBlock {
             id: SelectedBlockId(0),
             origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
@@ -436,7 +440,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &103_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &104_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }
@@ -701,12 +705,13 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
         panic!("conditional fixture");
     };
     instruction.kind = SelectedInstructionKind::HostedExitProcessI32;
+    let contracts = std::sync::Arc::make_mut(&mut function.contracts);
     let block = &mut function.blocks[0];
     block.terminator = SelectedTerminator::HostedExitProcess {
         instruction,
         completion_edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
     };
-    function
+    contracts
         .boundary_settlements
         .push(selected_instructions::SelectedBoundarySettlement {
             block: block.id,
@@ -714,8 +719,8 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
             settlement:
                 selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
                     edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
-                    execution: target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                    execution: target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                     ),
                     boundary: semantic_vocabulary::BoundaryMachineId::new(317).unwrap(),
                     source: semantic_vocabulary::ValueId::new(331).unwrap(),
@@ -879,7 +884,7 @@ fn bindings_mut(plan: &mut FixedViewCopyPlan) -> &mut Vec<SelectedValueBinding> 
 fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     bindings_mut(&mut original).push(SelectedValueBinding {
-        semantic: abstract_operations::ValueBinding {
+        semantic: native_vocabulary::values::ValueBinding {
             parameter: ValueId::new(40).unwrap(),
             argument: ValueId::new(41).unwrap(),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
@@ -963,13 +968,13 @@ fn structural_function() -> SelectedFunction {
     });
     function.calls = vec![SelectedCallContract {
         instruction: SelectedInstructionId(0),
-        owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
+        owner: target_vocabulary::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
         call: LegalizedScalarCall {
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             structural_result: None,
             source: NativeCallOrigin::Authored,
-            target: target_operations::NativeCallTarget::Machine(MachineId::new(42).unwrap()),
+            target: target_vocabulary::NativeCallTarget::Machine(MachineId::new(42).unwrap()),
             call_plan: call_plan(&[MachineRegister::X86Rax, MachineRegister::X86Rcx], 0x4567),
             arguments: Vec::new(),
             result_placement: None,
@@ -1031,7 +1036,7 @@ fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_ro
 fn dynamic_call_target_round_trips_selector_and_requirement_identity() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let mut function = structural_function();
-    function.calls[0].call.target = target_operations::NativeCallTarget::Dynamic {
+    function.calls[0].call.target = target_vocabulary::NativeCallTarget::Dynamic {
         selector: semantic_vocabulary::ValueId::new(47).unwrap(),
         interface: 13,
         slot: 29,
@@ -1487,22 +1492,22 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut original.transformed).functions[0] = structural_function();
     let function = &mut std::sync::Arc::make_mut(&mut original.transformed).functions[0];
-    function.calls[0].owner = target_operations::CallSiteOwner::CleanupAction {
+    function.calls[0].owner = target_vocabulary::CallSiteOwner::CleanupAction {
         edge: semantic_vocabulary::EdgeId::new(41).unwrap(),
         action_ordinal: 7,
     };
     eq!(FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap() => original);
     let identity = selected_instructions::selected_instruction_plan_identity(&original.transformed);
     for owner in [
-        target_operations::CallSiteOwner::CleanupAction {
+        target_vocabulary::CallSiteOwner::CleanupAction {
             edge: semantic_vocabulary::EdgeId::new(43).unwrap(),
             action_ordinal: 7,
         },
-        target_operations::CallSiteOwner::CleanupAction {
+        target_vocabulary::CallSiteOwner::CleanupAction {
             edge: semantic_vocabulary::EdgeId::new(41).unwrap(),
             action_ordinal: 8,
         },
-        target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
+        target_vocabulary::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
     ] {
         let mut changed = original.clone();
         std::sync::Arc::make_mut(&mut changed.transformed).functions[0].calls[0].owner = owner;
@@ -1535,7 +1540,7 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
         },
         Origin::Empty,
     ];
-    let target_operations::CallSiteOwner::Operation(producer) = function.calls[0].owner else {
+    let target_vocabulary::CallSiteOwner::Operation(producer) = function.calls[0].owner else {
         unreachable!("fixture call is operation-owned")
     };
     function.memory_accesses.push(SelectedMemoryAccess {
@@ -1623,7 +1628,7 @@ fn scalar_result_buffer_round_trips_separately_from_boundary_controls() {
 
 #[test]
 fn installation_call_owner_round_trips_and_identity_keeps_operation_and_role() {
-    use target_operations::{CallSiteOwner, InstallationCallRole};
+    use target_vocabulary::{CallSiteOwner, InstallationCallRole};
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut original.transformed).functions[0] = structural_function();
     std::sync::Arc::make_mut(&mut original.transformed).functions[0].calls[0].owner =
@@ -1860,30 +1865,30 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
 fn standalone_catalogs_reject_truncation_and_trailing_bytes() {
     let catalog = catalog();
     let lifecycle =
-        terminal_codec::encode_access_lifecycle_catalog(catalog.access_lifecycles()).unwrap();
-    let views = terminal_codec::encode_access_view_catalog(catalog.access_views()).unwrap();
+        terminal_wire::encode_access_lifecycle_catalog(catalog.access_lifecycles()).unwrap();
+    let views = terminal_wire::encode_access_view_catalog(catalog.access_views()).unwrap();
     for end in 0..lifecycle.len() {
         assert!(
-            terminal_codec::decode_access_lifecycle_catalog(&lifecycle[..end]).is_err(),
+            terminal_wire::decode_access_lifecycle_catalog(&lifecycle[..end]).is_err(),
             "truncated lifecycle catalog accepted at {end}"
         );
     }
     for end in 0..views.len() {
         assert!(
-            terminal_codec::decode_access_view_catalog(&views[..end]).is_err(),
+            terminal_wire::decode_access_view_catalog(&views[..end]).is_err(),
             "truncated view catalog accepted at {end}"
         );
     }
     let mut trailing = lifecycle;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_access_lifecycle_catalog(&trailing),
-        Err(terminal_codec::CodecError::TrailingBytes(1))
+        terminal_wire::decode_access_lifecycle_catalog(&trailing),
+        Err(terminal_wire::CodecError::TrailingBytes(1))
     );
     let mut trailing = views;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_access_view_catalog(&trailing),
-        Err(terminal_codec::CodecError::TrailingBytes(1))
+        terminal_wire::decode_access_view_catalog(&trailing),
+        Err(terminal_wire::CodecError::TrailingBytes(1))
     );
 }

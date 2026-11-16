@@ -279,11 +279,11 @@ fn target_audit_rejoins_compiled_foreign_operands() {
 fn target_audit_checks_the_retained_indirect_result_register() {
     use calling_conventions::MachineRegister::{Aarch64X, X86Rcx, X86Rdi, X86Rdx};
     use calling_conventions::{IndirectPointerLocation, ValueLocation, ValueShape};
-    use target::TargetProfile::{LinuxArm64, LinuxX64, MacosArm64, WindowsX64};
-    use target_operations::{NativeCallOrigin, TargetCallResult, TargetUnitOperation};
-    use target_operations_to_selected_instructions::{
+    use native_preparation::{
         TargetOperationAuditError, verify_target_operation_plan_with_closed_module,
     };
+    use target::TargetProfile::{LinuxArm64, LinuxX64, MacosArm64, WindowsX64};
+    use target_operations::{NativeCallOrigin, TargetCallResult, TargetUnitOperation};
 
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root =
@@ -336,9 +336,9 @@ fn target_audit_checks_the_retained_indirect_result_register() {
                 target.lowering_facts().closed_module(),
             )
         };
-        verify(target.target_operations())
+        verify(target.working_program_for_validation())
             .unwrap_or_else(|error| panic!("{profile:?} aggregate target audit: {error:?}"));
-        let mut mismatched = target.target_operations().clone();
+        let mut mismatched = target.working_program_for_validation().clone();
         let mut results = mismatched.functions.iter_mut().flat_map(|function| {
             let caller = function.machine;
             function

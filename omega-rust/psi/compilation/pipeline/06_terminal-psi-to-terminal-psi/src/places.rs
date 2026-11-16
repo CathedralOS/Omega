@@ -96,6 +96,7 @@ use crate::{StorageUse, refusal};
 
 mod byte_payloads;
 mod byte_views;
+mod cleanup;
 mod contents;
 mod loans;
 mod log;
@@ -236,8 +237,8 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
 
-/// Logical values indexed by exact place at entry and by (call, place) on
-/// return. The producer lists snapshots in (place, boundary) order, so
+/// Logical values indexed by exact place at its owner's entry and by
+/// (call, place) on return. The producer lists snapshots in (place, boundary) order, so
 /// duplicate or exchanged identities cannot change which leaf a clause names.
 struct Contents {
     entry: Vec<Option<ValueId>>,
@@ -293,15 +294,13 @@ fn initial_contents(
     Ok(contents)
 }
 
-/// Only invocation formals have invocation-wide initial contents. A call
-/// result's fresh contents cannot become a block predicate's entry premise.
-/// An unavailable owner remains outside scope; storage validation independently
-/// refuses malformed owner tables.
-pub(crate) fn input_content(
+/// The declaration says which entry binds the snapshot. Joins apply that
+/// entry's scope; storage validation independently checks the owner and leaf.
+pub(crate) fn content_root_kind(
     lowered: &TerminalMachine,
     tables: &MachineTables,
     place: ExactPlaceId,
-) -> bool {
+) -> Option<StructuralPlaceKind> {
     lineage(lowered.id, &tables.places, place)
         .ok()
         .and_then(|source| {
@@ -310,7 +309,7 @@ pub(crate) fn input_content(
                 .get(index(source.root.get()))
                 .filter(|root| root.id == source.root)
         })
-        .is_some_and(|root| matches!(root.kind, StructuralPlaceKind::Parameter { .. }))
+        .map(|root| root.kind)
 }
 
 /// What one scalar leaf holds on every path to a point.
@@ -372,9 +371,9 @@ impl Reached {
     }
 }
 
-/// A read supplies a value snapshot without writing or restoring storage.
+/// A read or block entry observes a value without writing or restoring it.
 struct Observation {
-    operation: OperationId,
+    point: ProgramPoint,
     position: usize,
     value: ValueId,
 }
@@ -451,6 +450,7 @@ struct Reaching {
     keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
     equations: Vec<ReachingEquation>,
     initialization_only: bool,
+    observe_block_entries: bool,
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
@@ -681,6 +681,7 @@ enum Touching<'a> {
 
 /// One operation or terminator that reads storage or names a case payload.
 struct Touch<'a> {
+    cleanup: Option<(EdgeId, u32)>,
     /// The operation, or for a terminator its edge or block.
     at: Construct,
     block: BlockId,
@@ -734,6 +735,7 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    cleanup_writes: Vec<crate::owned_cleanup::Write>,
     observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// Shared descriptor replay owns storage aliasing. This is local checker
     /// scratch over the same canonical machine closure, never source evidence.
@@ -784,13 +786,19 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            cleanup_writes: Vec::new(),
             observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             references,
             domains,
         };
+        // Entry observations occupy position zero. Install them before the
+        // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(tables)?;
         storage.log = storage.stores(value_types)?;
+        storage.cleanup_writes =
+            crate::owned_cleanup::writes(module, lowered, &mut references.borrow_mut())?;
         storage.log_is_stated(tables)?;
+        storage.cleanup_log_is_stated(tables)?;
         // Compare the authored log first. Then every write uses the same
         // captured backing relation as reads and loan compatibility.
         let relocated = storage
@@ -836,7 +844,7 @@ impl<'a> Storage<'a> {
                     .entry(leaf)
                     .or_default()
                     .push(Observation {
-                        operation: operation.id,
+                        point: ProgramPoint::AfterOperation(operation.id),
                         position: before + 1,
                         value,
                     });
@@ -1260,6 +1268,12 @@ impl<'a> Storage<'a> {
                     .ok_or_else(|| self.foreign(concerns, "a call has no point before it"))?;
                 (block, before)
             }
+            InvocationSite::Cleanup { .. } => {
+                return Err(self.unsupported(
+                    concerns,
+                    "cleanup call requires its exact owner-prestate adapter",
+                ));
+            }
             InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
                 let (block, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
                 (block, self.block(block)?.operations.len())
@@ -1516,9 +1530,11 @@ impl<'a> Storage<'a> {
         owner: &Owner,
         block: BlockId,
         up_to: usize,
+        point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Proposition> {
         let mut bindings = Held {
+            point: Some(point),
             storage: self,
             tables,
             place: &owner.place,
@@ -1551,7 +1567,14 @@ impl<'a> Storage<'a> {
     ) -> Checked<Proposition> {
         let owner = self.owner(operation, clause, concerns)?;
         let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-        self.stated(tables, &owner, block, after, concerns)
+        self.stated(
+            tables,
+            &owner,
+            block,
+            after,
+            ProgramPoint::AfterOperation(operation),
+            concerns,
+        )
     }
 
     /// Whether a store writes no storage that a clause reads, so that the
@@ -2746,16 +2769,10 @@ impl<'a> Storage<'a> {
             // Entry crossings discovered anywhere in the query retire reads
             // from an earlier iteration, even if we saw the read first.
             if let Reached::Value(value) = equation.direct
-                && let Some(ValueOrigin::Operation(operation)) =
-                    tables.values.get(value).map(|row| row.origin)
-                && self
-                    .read_leaf(self.operation(operation, concerns)?)?
-                    .is_some()
+                && let Some(owner) = self.observation_block(tables, value, concerns)?
+                && trace.crossed_entries[index(owner.get())]
             {
-                let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-                if trace.crossed_entries[index(owner.get())] {
-                    equation.direct = Reached::Unknown;
-                }
+                equation.direct = Reached::Unknown;
             }
         }
         Ok(match trace.solve(source).within(depth) {
@@ -2791,6 +2808,16 @@ impl<'a> Storage<'a> {
         let address = budget.add_equation();
         if let Some(key) = key {
             budget.keys.insert(key, address);
+        }
+        // A real cleanup epoch can end this observation before operation
+        // stores do. Feed that result into the same equation graph so shared
+        // copy traces and initialization still use the ordinary solver.
+        if up_to >= self.block(block)?.operations.len()
+            && let Some(point) = budget.used
+            && let Some(changed) = self.cleanup_at_point(asked, block, point)?
+        {
+            budget.add_supply(address, Supply::Direct(changed));
+            return Ok(Supply::transfer(address).within(projection));
         }
         // The limit still bounds walks whose projected source keeps changing.
         // Alternative arrivals start with the same remaining depth.
@@ -2846,10 +2873,12 @@ impl<'a> Storage<'a> {
                     let end =
                         observations.partition_point(|observation| observation.position <= up_to);
                     if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
+                        && (budget.observe_block_entries
+                            || !matches!(observation.point, ProgramPoint::BlockEntry(_)))
                         && last.is_none_or(|(_, row)| row.position < observation.position)
                         && !budget.crossed_entries[index(block.get())]
                         && self.graph.dominates(
-                            ProgramPoint::AfterOperation(observation.operation),
+                            observation.point,
                             budget.used.ok_or_else(|| {
                                 self.foreign(concerns, "a storage trace has no use point")
                             })?,
@@ -3005,6 +3034,10 @@ impl<'a> Storage<'a> {
                         continue;
                     }
                     asked_of.push(*predecessor);
+                    if let Some(changed) = self.cleanup_arrival(asked, *predecessor, block)? {
+                        budget.add_supply(address, Supply::Direct(changed));
+                        continue;
+                    }
                     if let Asked::Case(sum) = asked
                         && let Some(selected) =
                             self.edge_selects(tables, sum, *predecessor, block, concerns)?
@@ -3035,6 +3068,7 @@ impl<'a> Storage<'a> {
             keys: BTreeMap::new(),
             equations: Vec::new(),
             initialization_only: false,
+            observe_block_entries: true,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
@@ -3097,7 +3131,7 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         if let Reached::Extent(producer) = reached {
-            return self.extent_equation(operation, producer, &budget);
+            return self.extent_equation(tables, operation, producer, &budget);
         }
         let Reached::Value(held) = reached else {
             return Ok(None);
@@ -3170,7 +3204,10 @@ impl<'a> Storage<'a> {
     ///   the read equation names that value, so a store that broke the
     ///   clause can never lend it to a later read.
     /// - The clause names that one leaf and no other. A clause that relates
-    ///   it to a sibling cannot be stated on one read's value, and a case
+    ///   it to a sibling cannot be stated on one read's value; it is known
+    ///   instead of the values the record arrived with
+    ///   (`Storage::entry_type_premises`), which the read equation reaches
+    ///   while no store intervenes. A case
     ///   the clause tests must be established at `at` by structure, on the
     ///   place the observation goes through (a copy of what arrived, or
     ///   the place it arrived in): by a construction, a dominating true
@@ -3194,7 +3231,12 @@ impl<'a> Storage<'a> {
         // contents retain their original path. With no single name, the
         // trace retains only the part of the current path established on
         // every arrival, inside the value supplied by another machine.
-        let mut budget = self.budget();
+        let mut budget = Reaching {
+            // A block snapshot gives the current value a name. Independently
+            // follow its actual back to an established data type boundary.
+            observe_block_entries: false,
+            ..self.budget()
+        };
         let arrived = match self.reaching(
             tables,
             Asked::Contents(leaf),
@@ -3268,6 +3310,7 @@ impl<'a> Storage<'a> {
             for clause in self.clauses_of(structural_type, concerns)? {
                 let mut bindings = Observed {
                     held: Held {
+                        point: None,
                         storage: self,
                         tables,
                         place: &owner,
@@ -3419,7 +3462,8 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::EstablishReference { source, .. } => {
+            OperationKind::DecomposeStructuralValue { subject: source }
+            | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
             OperationKind::ReleaseReference { source, path } => {
@@ -3579,6 +3623,9 @@ impl<'a> Storage<'a> {
         {
             changes.push(StorageEffect::Storage(self.argument(argument, concerns)?));
         }
+        if let OperationKind::DecomposeStructuralValue { subject } = &operation.kind {
+            changes.push(StorageEffect::Storage(self.argument(subject, concerns)?));
+        }
         if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
             && value.access == terminal_psi::StructuralAccess::Owned
         {
@@ -3659,6 +3706,7 @@ impl<'a> Storage<'a> {
     /// the same root and prefix at the read's observation epoch."). The
     /// case comes from a dispatch edge, the true edge of a membership test,
     /// or the construction that every reaching write is.
+    #[allow(clippy::too_many_arguments)]
     fn judged(
         &self,
         tables: &MachineTables,
@@ -3666,11 +3714,13 @@ impl<'a> Storage<'a> {
         named: &[Lineage],
         block: BlockId,
         up_to: usize,
+        point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
             for leaf in self.leaves(place, concerns)? {
                 let mut budget = self.initialization_budget();
+                budget.used = Some(point);
                 if self.reaching(
                     tables,
                     Asked::Contents(&leaf),
@@ -3699,6 +3749,7 @@ impl<'a> Storage<'a> {
                     segments: place.segments[..length].to_vec(),
                 };
                 let mut budget = self.budget();
+                budget.used = Some(point);
                 if self.reaching(
                     tables,
                     Asked::Case(&sum),
@@ -4017,6 +4068,19 @@ impl<'a> Storage<'a> {
                         Vec::new(),
                     ));
                 }
+                StructuralPlaceKind::BlockParameter { .. }
+                    if self
+                        .declaration(self.root_type(place, concerns).map_err(refused)?, concerns)
+                        .map_err(refused)?
+                        .shape
+                        .is_shared_readable_byte_view() =>
+                {
+                    return Ok(ScalarTerm::byte_sequence_predicate(
+                        predicate,
+                        place,
+                        Vec::new(),
+                    ));
+                }
                 StructuralPlaceKind::OperationResult { producer, .. } => {
                     match &self.operation(producer, concerns).map_err(refused)?.kind {
                         OperationKind::MoveStructuralValue { source } if source.path.is_empty() => {
@@ -4024,6 +4088,33 @@ impl<'a> Storage<'a> {
                         }
                         OperationKind::StructuralLeafCopy { source, path } if path.is_empty() => {
                             place = *source;
+                        }
+                        OperationKind::ByteSequenceSubslice { .. }
+                            if self
+                                .declaration(
+                                    self.root_type(place, concerns).map_err(refused)?,
+                                    concerns,
+                                )
+                                .map_err(refused)?
+                                .shape
+                                .is_shared_readable_byte_view() =>
+                        {
+                            let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                            required.insert(predicate);
+                            if terminal_semantics::byte_sequence_source_predicates(
+                                self.module,
+                                self.lowered,
+                                place,
+                            )
+                            .is_some_and(|known| known.implies(required))
+                            {
+                                return Ok(ScalarTerm::Boolean(true));
+                            }
+                            return Ok(ScalarTerm::byte_sequence_predicate(
+                                predicate,
+                                place,
+                                Vec::new(),
+                            ));
                         }
                         _ => {
                             return Err(crate::Unbound::Unsupported(
@@ -4042,6 +4133,61 @@ impl<'a> Storage<'a> {
         Err(crate::Unbound::Unsupported(
             "a byte predicate of a view copied in a cycle",
         ))
+    }
+
+    /// A shared subslice inherits predicates that hold for every window of
+    /// its source. Name the actual producer's result and keep the source
+    /// condition in the proof so each loop arrival must establish it.
+    pub(crate) fn subslice_predicate_premises(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Vec<Proposition>> {
+        use semantic_vocabulary::ByteSequencePredicate;
+
+        let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Operation(operation.id);
+        let result = operation
+            .result
+            .structural()
+            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no structural result"))?;
+        if !self
+            .declaration(result.structural_type, concerns)?
+            .shape
+            .is_shared_readable_byte_view()
+        {
+            return Ok(Vec::new());
+        }
+        let source = self.argument(source, concerns)?;
+        let mut known = Vec::new();
+        for predicate in ByteSequencePredicate::ALL {
+            if !predicate.is_subslice_preserving() {
+                continue;
+            }
+            let term = match self.byte_source(predicate, &source, concerns) {
+                Ok(term) => term,
+                Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
+                Err(_) => continue,
+            };
+            for inherited in ByteSequencePredicate::ALL {
+                if predicate.implies(inherited) {
+                    let destination =
+                        ScalarTerm::byte_sequence_predicate(inherited, result.place, Vec::new());
+                    known.push(Proposition::Implication {
+                        premise: Box::new(Proposition::Equal(
+                            term.clone(),
+                            ScalarTerm::Boolean(true),
+                        )),
+                        conclusion: Box::new(Proposition::Equal(
+                            destination,
+                            ScalarTerm::Boolean(true),
+                        )),
+                    });
+                }
+            }
+        }
+        Ok(known)
     }
 
     /// The octets of the literal whose home is `place`, when `place` is a
@@ -4114,6 +4260,7 @@ impl<'a> Storage<'a> {
                     Touching::Whole
                 };
                 touches.push(Touch {
+                    cleanup: None,
                     at: Construct::Operation(operation.id),
                     block: block.id,
                     up_to: position,
@@ -4125,11 +4272,32 @@ impl<'a> Storage<'a> {
                     releases,
                 });
             }
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                for (ordinal, action) in actions.iter().enumerate() {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        let used = vec![self.argument(&cleanup.subject, Construct::Edge(edge))?];
+                        touches.push(Touch {
+                            cleanup: Some((edge, crate::position(ordinal, self.machine)?)),
+                            at: Construct::Edge(edge),
+                            block: block.id,
+                            up_to: block.operations.len(),
+                            named: used.clone(),
+                            used,
+                            relied: Vec::new(),
+                            how: Touching::Whole,
+                            judged: true,
+                            releases: true,
+                        });
+                    }
+                }
+            }
             let (edge, used) = match &block.terminator {
                 Terminator::EliminateEmpty { edge, source, path } => {
                     let at = Construct::Edge(*edge);
                     let subject = vec![self.stored_at(*source, path, at)?];
                     touches.push(Touch {
+                        cleanup: None,
                         at,
                         block: block.id,
                         up_to: usize::MAX,
@@ -4162,6 +4330,7 @@ impl<'a> Storage<'a> {
                         }
                     }
                     touches.push(Touch {
+                        cleanup: None,
                         at,
                         block: block.id,
                         up_to: usize::MAX,
@@ -4251,6 +4420,7 @@ impl<'a> Storage<'a> {
                 continue;
             }
             touches.push(Touch {
+                cleanup: None,
                 at: Construct::Edge(edge),
                 block: block.id,
                 up_to: usize::MAX,
@@ -4287,6 +4457,7 @@ impl<'a> Storage<'a> {
                     &touch.named,
                     touch.block,
                     touch.up_to,
+                    self.point(&touch)?,
                     touch.at,
                 )
             };
@@ -4354,6 +4525,7 @@ impl<'a> Storage<'a> {
         touch: &Touch<'_>,
     ) -> Checked<bool> {
         let mut budget = self.budget();
+        budget.used = Some(self.point(touch)?);
         Ok(self.reaching(
             tables,
             Asked::Window {
@@ -4380,7 +4552,15 @@ impl<'a> Storage<'a> {
         let before = after
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
+        let operations = &self.block(block)?.operations;
         let mut budget = self.budget();
+        budget.used = Some(
+            before
+                .checked_sub(1)
+                .map_or(ProgramPoint::BlockEntry(block), |previous| {
+                    ProgramPoint::AfterOperation(operations[previous].id)
+                }),
+        );
         Ok(self.reaching(
             tables,
             Asked::Window {
@@ -4482,6 +4662,12 @@ impl<'a> Storage<'a> {
     /// terminator that has one, and otherwise just before the operation or
     /// at the end of the block.
     fn point(&self, touch: &Touch<'_>) -> Checked<ProgramPoint> {
+        if let Some((edge, action_ordinal)) = touch.cleanup {
+            return Ok(ProgramPoint::BeforeCleanup {
+                edge,
+                action_ordinal,
+            });
+        }
         if let Construct::Edge(edge) = touch.at {
             return Ok(ProgramPoint::Edge(edge));
         }
@@ -4525,6 +4711,7 @@ impl<'a> Storage<'a> {
                         &window.owner,
                         touch.block,
                         touch.up_to,
+                        self.point(&touch)?,
                         Construct::Obligation(window.obligation),
                     ),
                 });
@@ -4545,6 +4732,7 @@ fn position_of(cases: &[StructuralCaseDeclaration], case: StructuralCaseId) -> u
 /// place `place` of that type holds at one point: each field the one value
 /// the walk finds there, each case test whether the walk finds that case.
 struct Held<'s, 'a> {
+    point: Option<ProgramPoint>,
     storage: &'s Storage<'a>,
     tables: &'s MachineTables,
     place: &'s Lineage,
@@ -4650,6 +4838,7 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
             .locate(self.point)
             .map_err(crate::Unbound::Refused)?;
         Ok(Held {
+            point: Some(self.point),
             storage: self.storage,
             tables: self.tables,
             place,
@@ -5003,13 +5192,36 @@ impl<'a> AtCall<'_, 'a> {
         CallObservations {
             call: self,
             readable,
+            extents: None,
             projections: None,
             terms: Vec::new(),
         }
     }
 
+    fn observed_place(&self, origin: ValueOrigin) -> Option<Lineage> {
+        match origin {
+            ValueOrigin::StorageContent { place, .. } => {
+                lineage(self.storage.machine, &self.tables.places, place).ok()
+            }
+            ValueOrigin::Operation(operation) => {
+                let operation = self.storage.operation(operation, self.concerns).ok()?;
+                let leaf = self.storage.read_leaf(operation).ok()??;
+                let (block, after) = self
+                    .storage
+                    .graph
+                    .locate(ProgramPoint::AfterOperation(operation.id))
+                    .ok()?;
+                self.storage
+                    .backing(&leaf, block, after.checked_sub(1)?, self.concerns)
+                    .ok()
+            }
+            _ => None,
+        }
+    }
+
     fn held_at<'p>(&'p self, place: &'p Lineage) -> Held<'p, 'a> {
         Held {
+            point: None,
             storage: self.storage,
             tables: self.tables,
             place,
@@ -5025,7 +5237,8 @@ impl<'a> AtCall<'_, 'a> {
 pub(crate) struct CallObservations<'s, 'a> {
     call: &'s AtCall<'s, 'a>,
     readable: Vec<(&'s Lineage, usize)>,
-    // Keep unvisited and unbound distinct. Only named fields keep a term.
+    extents: Option<Vec<(Lineage, usize, ValueId)>>,
+    // Keep unvisited and unbound distinct. Only named observations keep a term.
     projections: Option<IdTable<ValueId, Option<Option<usize>>>>,
     terms: Vec<ScalarTerm>,
 }
@@ -5041,9 +5254,6 @@ impl CallObservations<'_, '_> {
             return None;
         }
         let row = self.call.tables.values.get(value)?;
-        let ValueOrigin::StorageContent { place, .. } = row.origin else {
-            return None;
-        };
         if row.scalar_type != scalar_type {
             return None;
         }
@@ -5053,30 +5263,73 @@ impl CallObservations<'_, '_> {
             .get_mut(value)?;
         let projection = *slot.get_or_insert_with(|| {
             let call = self.call;
-            let recorded = lineage(call.storage.machine, &call.tables.places, place).ok()?;
-            let (formal, path) = formal_observation_path(&self.readable, &recorded)?;
-            let root = call.callee_formals[formal].place;
-            let held = call
-                .held_at(&recorded)
-                .observation(&recorded, scalar_type)
-                .ok()?;
+            let recorded = call.observed_place(row.origin)?;
+            let (formal, path, held) =
+                if let Some((formal, path)) = formal_observation_path(&self.readable, &recorded) {
+                    let held = call
+                        .held_at(&recorded)
+                        .observation(&recorded, scalar_type)
+                        .ok()?;
+                    (formal, path, held)
+                } else if let (Some(Segment::Extent), ScalarType::Integer(integer)) =
+                    (recorded.segments.last(), scalar_type)
+                {
+                    // A reborrow can carry the observed extent in a new
+                    // descriptor. Match the reaching value of that actual.
+                    let extents = self.extents.get_or_insert_with(|| {
+                        let mut extents: Vec<_> = self
+                            .readable
+                            .iter()
+                            .filter_map(|(actual, formal)| {
+                                let ScalarTerm::Value { id, .. } =
+                                    call.held_at(actual).extent_of(actual, integer).ok()?
+                                else {
+                                    return None;
+                                };
+                                let origin = call.tables.values.get(id)?.origin;
+                                let source = call.observed_place(origin)?;
+                                matches!(source.segments.last(), Some(Segment::Extent))
+                                    .then_some((source, *formal, id))
+                            })
+                            .collect();
+                        extents.sort_unstable();
+                        extents
+                    });
+                    let position = extents.partition_point(|(place, _, _)| place < &recorded);
+                    let (place, formal, held) = extents.get(position)?;
+                    if *place != recorded {
+                        return None;
+                    }
+                    (*formal, Vec::new(), ScalarTerm::value(*held, scalar_type))
+                } else {
+                    return None;
+                };
             if !same(held, ScalarTerm::value(value, scalar_type)) {
                 return None;
             }
+            let root = call.callee_formals[formal].place;
             let version = semantic_vocabulary::ContentPlaceVersion::Entry;
-            let term = match scalar_type {
-                ScalarType::Boolean => ScalarTerm::BooleanField {
+            let term = match (recorded.segments.last(), scalar_type) {
+                (Some(Segment::Extent), ScalarType::Integer(scalar_type)) => {
+                    ScalarTerm::ViewExtent {
+                        root,
+                        path,
+                        scalar_type,
+                    }
+                }
+                (Some(Segment::Extent), _) => return None,
+                (_, ScalarType::Boolean) => ScalarTerm::BooleanField {
                     version,
                     root,
                     path,
                 },
-                ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                (_, ScalarType::Integer(scalar_type)) => ScalarTerm::IntegerField {
                     version,
                     root,
                     path,
                     scalar_type,
                 },
-                ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
+                (_, ScalarType::IeeeFloat(format)) => ScalarTerm::IeeeFloatField {
                     version,
                     root,
                     path,
@@ -5097,6 +5350,12 @@ fn formal_observation_path(
     readable: &[(&Lineage, usize)],
     recorded: &Lineage,
 ) -> Option<(usize, Vec<CanonicalStructuralPathSegment>)> {
+    // A length is observed on the descriptor. Its formal term names that
+    // descriptor, so the final extent marker is not a path projection.
+    let subject = match recorded.segments.split_last() {
+        Some((Segment::Extent, descriptor)) => descriptor,
+        _ => &recorded.segments,
+    };
     let segment = |segment: &Segment| match segment {
         Segment::Field(field) => Some(CanonicalStructuralPathSegment::Field(*field)),
         Segment::Case(case) => Some(CanonicalStructuralPathSegment::Case(*case)),
@@ -5105,21 +5364,20 @@ fn formal_observation_path(
         _ => None,
     };
     // Any segment unavailable in a contract must lie inside the actual.
-    let shortest = recorded
-        .segments
+    let shortest = subject
         .iter()
         .rposition(|step| segment(step).is_none())
         .map_or(0, |position| position + 1);
-    let (formal, prefix) = (shortest..=recorded.segments.len())
+    let (formal, prefix) = (shortest..=subject.len())
         .filter_map(|length| {
-            let prefix = (recorded.root, &recorded.segments[..length]);
+            let prefix = (recorded.root, &subject[..length]);
             let first = readable
                 .partition_point(|(actual, _)| (actual.root, actual.segments.as_slice()) < prefix);
             let (actual, formal) = readable.get(first)?;
             ((actual.root, actual.segments.as_slice()) == prefix).then_some((*formal, length))
         })
         .min()?;
-    let path = recorded.segments[prefix..]
+    let path = subject[prefix..]
         .iter()
         .map(segment)
         .collect::<Option<Vec<_>>>()?;
@@ -5190,6 +5448,12 @@ pub(crate) struct AtJoin<'s, 'a> {
     renaming: &'s [(ValueId, ValueId)],
 }
 
+impl<'a> AtJoin<'_, 'a> {
+    pub(crate) fn observations(&self) -> CallObservations<'_, 'a> {
+        self.inputs.observations()
+    }
+}
+
 impl crate::Bindings for AtJoin<'_, '_> {
     type Error = crate::Unbound;
 
@@ -5218,6 +5482,31 @@ impl crate::Bindings for AtJoin<'_, '_> {
             return Err(crate::Unbound::Unsupported(
                 "join argument has another scalar carrier",
             ));
+        }
+        if let ValueOrigin::StorageContent { place, after: None } = actual.origin {
+            let observed = lineage(
+                self.inputs.storage.machine,
+                &self.inputs.tables.places,
+                place,
+            )
+            .map_err(crate::Unbound::Refused)?;
+            if let Some(formal) = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                self.inputs.callee_formals,
+                observed.root,
+            ) {
+                // Each incoming edge proves the destination predicate about
+                // its own actual. It may not use the destination's snapshot
+                // as if that binding already existed on the edge.
+                let mut leaf = self.inputs.readable_actual(formal)?.clone();
+                if let Some((Segment::Extent, parent)) = observed.segments.split_last()
+                    && let ScalarType::Integer(integer) = scalar_type
+                {
+                    leaf.segments.extend_from_slice(parent);
+                    return self.inputs.held_at(&leaf).extent_of(&leaf, integer);
+                }
+                leaf.segments.extend_from_slice(&observed.segments);
+                return self.inputs.held_at(&leaf).observation(&leaf, scalar_type);
+            }
         }
         Ok(ScalarTerm::value(value, scalar_type))
     }
@@ -5379,6 +5668,7 @@ impl Held<'_, '_> {
             ));
         }
         let mut budget = storage.budget();
+        budget.used = self.point;
         let reached = storage
             .reaching(
                 self.tables,
@@ -5399,7 +5689,7 @@ impl Held<'_, '_> {
                     ProgramPoint::AfterOperation(block.operations[previous].id)
                 });
             return storage
-                .extent_contents(producer, point, scalar_type, &budget)
+                .extent_contents(self.tables, producer, point, scalar_type, &budget)
                 .map_err(crate::Unbound::Refused)?
                 .ok_or(crate::Unbound::Unproved(
                     "the descriptor's extent has no current endpoint correspondence",
@@ -5512,6 +5802,7 @@ impl crate::Bindings for Held<'_, '_> {
         let sum = self.beneath(root, path)?;
         let storage = self.storage;
         let mut budget = storage.budget();
+        budget.used = self.point;
         match storage
             .reaching(
                 self.tables,
@@ -5943,13 +6234,18 @@ mod observation_tests {
         }
         storage.log[row_index].stored = Stored::Moved(source);
 
-        // Remove the invocation's incoming edge from the equation graph.
+        // Disconnect the invocation's incoming edges from the equation graph.
+        // Keep their identities so each cleanup still names its actual source.
         // The remaining backedges can carry contents but cannot initialize them.
         let mut unseeded = tables.clone();
-        unseeded.edges = IdTable::default();
-        for (_, edge) in tables.edges.iter() {
-            if edge.source != graph.entry() {
-                unseeded.edges.push(edge.clone());
+        for (_, edge) in unseeded.edges.iter_mut() {
+            if edge.source == graph.entry()
+                && matches!(
+                    edge.destination,
+                    terminal_check_tables::edges::Destination::Block(_)
+                )
+            {
+                edge.destination = terminal_check_tables::edges::Destination::Return;
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
@@ -6085,6 +6381,7 @@ machine entry() {
                 .unwrap();
             let extent = storage
                 .extent_contents(
+                    tables,
                     producer,
                     point,
                     operation.result.scalar_ref().unwrap().scalar_type,

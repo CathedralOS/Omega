@@ -9,7 +9,6 @@ use omega::language::core::FilesystemNamespaceMutation;
 
 machine windows_filesystem_read_dir_count(path: &[u8] in Path) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-invokes WindowsFilesystemHost
 {
     let result: i64 = block WindowsFilesystemHost::directory_count(path);
     windows_filesystem_transferred(result, 9223372036854775807)
@@ -17,7 +16,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-invokes WindowsFilesystemHost
 {
     let result: IoResult = block windows_filesystem_read_dir_count(path);
     transition result {
@@ -34,7 +32,6 @@ invokes WindowsFilesystemHost
 // querying a child path afterward could classify a replacement object instead.
 machine windows_filesystem_read_dir_nth(path: &[u8] in Path, ordinal: u64) -> DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(path, ordinal);
     transition result {

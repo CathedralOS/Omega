@@ -52,8 +52,9 @@ nothing else: lowering never asks what a place holds.
 - What a formal holds at entry is not a write. It is one value per scalar
   leaf with `ValueOrigin::StorageContent { place, after: None }`. Clauses
   and operations request the leaves; final lowering names them in place order.
-  A call that returns a result or an exclusive argument supplies a distinct
-  `after: Some(call)` version. Later writes do not change either snapshot.
+  A block formal binds a new snapshot on each arrival. A call that returns a
+  result or an exclusive argument supplies a distinct `after: Some(call)`
+  version. Later writes do not change a captured snapshot.
 */
 
 #[path = "places_contents.rs"]
@@ -143,7 +144,7 @@ pub(crate) fn declare<'a>(
     mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
     let mut field_identities = IdTable::default();
-    let mut structural_types = Vec::with_capacity(types.len());
+    let mut structural_types: Vec<StructuralTypeDeclaration> = Vec::with_capacity(types.len());
     let mut native_layouts = NativeLayoutCatalog::default();
     let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
@@ -326,6 +327,55 @@ pub(crate) fn declare<'a>(
                 }
             }
         };
+        let mut children = shape
+            .direct_fields()
+            .unwrap_or(&[])
+            .iter()
+            .chain(
+                shape
+                    .sum_cases()
+                    .unwrap_or(&[])
+                    .iter()
+                    .flat_map(|case| &case.fields),
+            )
+            .filter_map(|field| match field.field_type {
+                StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let StructuralTypeShape::FixedArray { element, .. } = &shape {
+            children.push(*element);
+        }
+        let mut no_code = !record.owns_linear_claim && record.cleanup.is_none();
+        let mut descriptor_cleanup = no_code;
+        for child in children {
+            let raw = usize::try_from(child.get() - 1).map_err(|_| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child identity"),
+                )
+            })?;
+            let child = structural_types.get(raw).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child declaration is not established"),
+                )
+            })?;
+            no_code &= child.no_code_affine_cleanup;
+            descriptor_cleanup &= child.descriptor_cleanup;
+        }
+        let nominal_cleanup =
+            record
+                .cleanup
+                .as_ref()
+                .map(|cleanup| terminal_psi::NominalCleanupSelection {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        identities.intern(&cleanup.declaration_identity),
+                    ),
+                    cleanup_machine: cleanup.machine,
+                });
         structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: record.requires.clone(),
@@ -334,8 +384,9 @@ pub(crate) fn declare<'a>(
             identity: identities.intern(&record.identity),
             owns_linear_claim: record.owns_linear_claim,
             copyable: record.copyable,
-            no_code_affine_cleanup: !record.owns_linear_claim,
-            descriptor_cleanup: !record.owns_linear_claim,
+            no_code_affine_cleanup: no_code,
+            descriptor_cleanup,
+            nominal_cleanup,
             shape,
             scalar_restriction: None,
         });
@@ -583,6 +634,7 @@ fn append_scalar_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: true,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
         scalar_restriction: None,
     });
@@ -603,6 +655,7 @@ fn statement_homes<'b>(
 ) {
     match statement {
         Statement::Bind { value, .. }
+        | Statement::Decompose { subject: value }
         | Statement::Evaluate {
             expression: value, ..
         } => expression_homes(value, homes),
@@ -1139,6 +1192,27 @@ fn owned_result(
 }
 
 impl<'a> Lowering<'a> {
+    /// A complete pattern ends the wrapper at its captured place. It neither
+    /// acquires another home nor copies or moves any component's contents.
+    pub(super) fn decompose(&mut self, subject: &Expression) -> Evaluation<()> {
+        let (root, steps, _, _) = continuing!(self.capture_place(subject));
+        let operation = self.operation_identity(subject.source);
+        let path =
+            self.storage_path(&steps, ExecutionSite::Operation(operation), subject.source)?;
+        self.emit(
+            operation,
+            None,
+            OperationKind::DecomposeStructuralValue {
+                subject: StructuralArgument {
+                    place: root,
+                    path,
+                    access: StructuralAccess::Owned,
+                },
+            },
+        )?;
+        Ok(Reached::Value(()))
+    }
+
     pub(super) fn record_type(&self, record: StructuralTypeId) -> Checked<&'a RecordType> {
         terminal_check_tables::row(self.records.types, record, self.id, Construct::Machine)
     }
@@ -1265,6 +1339,39 @@ impl<'a> Lowering<'a> {
                 Ok(())
             }
         }
+    }
+
+    /// Register every leaf a `requires` clause names, for each data type a
+    /// field access passes through on its way from `root` down `steps`. A
+    /// clause such as `self.i <= 5 && self.j <= 4` is stated over all of
+    /// its fields at once: the goal of a store into `i` names what `j`
+    /// holds there, and what a formal held at entry is known under the
+    /// clause only when each field it names has an entry value
+    /// (`terminal-psi-to-terminal-psi`, `Storage::entry_type_premises`).
+    /// The names stop at a runtime index or a case payload: neither has a
+    /// fixed place an entry value could belong to.
+    fn name_passed_clauses(&mut self, root: PlaceId, steps: &[Step]) -> Checked<()> {
+        let subject = terminal_check_tables::program::self_place()
+            .ok_or_else(|| self.internal("data subject identity"))?;
+        let mut place = self.exact_root(root)?;
+        for step in steps {
+            let owner = match *step {
+                Step::Field { owner, .. }
+                | Step::Referent { owner }
+                | Step::Index {
+                    owner,
+                    fixed: Some(_),
+                    ..
+                } => owner,
+                Step::Index { fixed: None, .. } | Step::Payload { .. } => break,
+            };
+            let data = self.record_type(owner)?;
+            for clause in &data.requires {
+                self.name_clause_contents(clause, &[(subject, place)], None)?;
+            }
+            place = self.step(place, *step)?;
+        }
+        Ok(())
     }
 
     /// The declared field or payload field a step selects.
@@ -1439,28 +1546,24 @@ impl<'a> Lowering<'a> {
     }
 
     fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
+        // A literal index the array's length admits becomes a fixed path
+        // step, which needs no proof. Any other index, a literal outside
+        // the length included, becomes a runtime step that owes the
+        // operation-safety obligation `index < length`; the lowered-form
+        // checker then refuses an out-of-range literal with the same
+        // "cannot prove index is within length" diagnostic as any other
+        // unproved index.
         let (_, _, extent) = self.array_element(owner)?;
-        let fixed = if let CollectionExtent::Fixed(length) = extent {
-            let fixed = match expression.kind {
-                ExpressionKind::Integer(IntegerValue::Unsigned(value)) => {
-                    Some(u64::try_from(value))
-                }
-                ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
-                _ => None,
-            };
-            match fixed {
-                Some(Ok(index)) if index < length => Some(index),
-                Some(_) => {
-                    return Err(refuse(
-                        self.id,
-                        Construct::Machine,
-                        Unserved::Typing("array index outside its declared extent"),
-                    ));
-                }
-                None => None,
-            }
-        } else {
-            None
+        let fixed = match (extent, &expression.kind) {
+            (
+                CollectionExtent::Fixed(length),
+                ExpressionKind::Integer(IntegerValue::Unsigned(value)),
+            ) => u64::try_from(*value).ok().filter(|index| *index < length),
+            (
+                CollectionExtent::Fixed(length),
+                ExpressionKind::Integer(IntegerValue::Signed(value)),
+            ) => u64::try_from(*value).ok().filter(|index| *index < length),
+            _ => None,
         };
         let selector = continuing!(self.scalar(expression));
         Ok(Reached::Value(Step::Index {
@@ -1526,11 +1629,16 @@ impl<'a> Lowering<'a> {
         } else {
             (Vec::new(), Vec::new())
         };
-        if held == whole && shown == displayed {
-            if !clauses.is_empty() {
+        let changes_memberships = held != whole || shown != displayed;
+        if !changes_memberships {
+            if clauses.is_empty() {
+                return self.located(operand);
+            }
+            // A byte view's qualification is a predicate over its backing
+            // bytes. The ordinary predicate edge proves it of the operand.
+            if !self.is_byte_sequence(record) || before == after {
                 return Err(self.internal("a cast that proves predicates adds no domain"));
             }
-            return self.located(operand);
         }
         let added: Vec<_> = whole
             .iter()
@@ -1608,24 +1716,27 @@ impl<'a> Lowering<'a> {
                 arrivals: Vec::new(),
             });
         }
-        let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
-            .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
+        let edge_ordinal = self.tables.edges.len() as u64 + 1;
         self.jump_with_structural(
             cast,
             Vec::new(),
             vec![StructuralArgument::whole(value, StructuralAccess::Owned)],
             expression.source,
         )?;
-        self.qualifications
-            .structural_changes
-            .push(terminal_psi::StructuralQualificationChange {
-                machine: id,
-                edge,
-                argument_ordinal: 0,
-                source: value,
-                destination: place,
-                establishments,
-            });
+        if changes_memberships {
+            let edge = semantic_vocabulary::EdgeId::new(edge_ordinal)
+                .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
+            self.qualifications.structural_changes.push(
+                terminal_psi::StructuralQualificationChange {
+                    machine: id,
+                    edge,
+                    argument_ordinal: 0,
+                    source: value,
+                    destination: place,
+                    establishments,
+                },
+            );
+        }
         self.enter(cast);
         Ok(Reached::Value(Located {
             root: place,
@@ -2043,7 +2154,18 @@ impl<'a> Lowering<'a> {
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
+                    access: match self.record_type(record)?.shape {
+                        StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(access),
+                            },
+                        )
+                        | StorageShape::ElementView {
+                            access: Some(access),
+                            ..
+                        } => access,
+                        _ => return Err(self.internal("a range lost its descriptor access")),
+                    },
                 };
                 let exact = self.exact_root(captured)?;
                 self.name_contents(exact, ValueType::record(record))?;
@@ -3345,6 +3467,7 @@ impl<'a> Lowering<'a> {
             }
         }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
+        self.name_passed_clauses(root, steps)?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -3860,6 +3983,7 @@ impl<'a> Lowering<'a> {
             };
             owed += self.record_type(owner)?.requires.len();
         }
+        self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
             return Err(self.internal("a replacement has another type than its destination"));
         }
@@ -4217,6 +4341,7 @@ mod tests {
         let wrapping_id = types.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity: "wrapping-u32".into(),
             shape: StorageShape::PrimitiveScalar {
                 scalar_type: scalar,
@@ -4228,6 +4353,7 @@ mod tests {
         types.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity: "wrapping-elements".into(),
             shape: StorageShape::FixedArray {
                 element: wrapping_id,

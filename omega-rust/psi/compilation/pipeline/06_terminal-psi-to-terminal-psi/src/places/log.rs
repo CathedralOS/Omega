@@ -42,7 +42,7 @@ returns as `Err`:
 - the place table must hold one place per path, since a place identity
   stands for its path wherever a table names one
   (`places_are_interned`);
-- a storage snapshot must name a scalar leaf at invocation entry or the
+- a storage snapshot must name a scalar leaf at its owner's entry or the
   normal return of its exact establishing call, with the leaf's type
   (`Storage::initial_contents_are_declared`).
 */
@@ -535,7 +535,7 @@ impl Storage<'_> {
             }
             OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::ElementViewSubslice { .. } => {
-                self.shared_subslice(operation)?;
+                self.subslice(operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
             OperationKind::EstablishReference { .. }
@@ -557,6 +557,9 @@ impl Storage<'_> {
                 // Payload writes are tracked by descriptor backing analysis.
                 // The descriptor itself retains its extent and initialization.
             }
+            // A checked decomposition ends the wrapper role, not its bytes.
+            // Shared affine replay authenticates the complete component roster.
+            OperationKind::DecomposeStructuralValue { .. } => {}
             // A comparison observes both views and stores nothing.
             OperationKind::ByteSequenceEqual { .. } => self.compared_byte_views(operation)?,
             // A fence orders observations without replacing any stored value.
@@ -694,6 +697,9 @@ impl Storage<'_> {
         // order.
         let mut stated: Vec<Vec<(Lineage, Content)>> = Vec::new();
         for (_, row) in tables.writes.iter() {
+            if matches!(row.at, ProgramPoint::AfterCleanup { .. }) {
+                continue;
+            }
             let ProgramPoint::AfterOperation(operation) = row.at else {
                 return Err(self.foreign(
                     Construct::Place(row.place),

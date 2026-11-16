@@ -13,16 +13,16 @@ use omega::language::core::FilesystemNamespaceMutation;
 machine windows_removal_open_root(path: &[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let handle: i64 = block windows_removal_acquire_root(path);
-    handle
+    handle as +WindowsPrivateNonalertFileOrAbsent
 }
 
 machine windows_removal_acquire_root(path: &[u8] in Path) -> i64
 ensures result != -1
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut wide: [u16; 4096];
-    let units: i64 = windows_wide_path(path, &mut wide);
+    let units: i64 = windows_wide_path(path as -Path, &mut wide);
     wide[4095] = 0;
-    transition units > 0 { true -> block open(wide) false -> invalid() }
+    transition units > 0 { true -> block open(wide as +WindowsNativePath) false -> invalid() }
     machine invalid() -> i64
     ensures result != -1
     { WindowsFilesystemIo::c_set_last_error(87); 0 }
@@ -71,7 +71,7 @@ machine windows_removal_open_child(parent: i64 in WindowsPrivateNonalertFileOrAb
 requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     let handle: i64 = block windows_removal_acquire_child(parent, entry, length);
-    handle
+    handle as +WindowsPrivateNonalertFileOrAbsent
 }
 
 machine windows_removal_acquire_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
@@ -101,11 +101,14 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
         && (access == 1114240 || access == 1114241) {
         entry.characters[4095] = 0;
+        // The terminated copy carries `WindowsNativePath`; a domain cannot be
+        // added through the borrow of `entry.characters` itself.
+        let native: [u16; 4096] in WindowsNativePath = entry.characters as +WindowsNativePath;
         let name: WindowsNativeUnicodeString = WindowsNativeUnicodeString {
             // length < 4096 makes this explicit narrowing exact; retain the
             // arithmetic expression so the record proves its even byte count.
             length: (length * 2) as u16, capacity: 8192, padding: 0,
-            buffer: &entry.characters
+            buffer: &native
         };
         let attributes: WindowsNativeObjectAttributes = WindowsNativeObjectAttributes {
             // Traversal admits only retained disk-directory parents. The

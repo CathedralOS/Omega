@@ -807,11 +807,13 @@ pub(crate) mod machine {
                 .into_iter()
                 .map(|parameter| lower_type_parameter(lowerer, parameter))
                 .collect::<Result<Vec<_>, _>>()?;
-            parameters.extend_from_slice(
+            parameters.extend(
                 lowerer
                     .typed_trees
                     .data_type_parameters
-                    .span_or_empty(typed_machine.type_parameters),
+                    .span_or_empty(typed_machine.type_parameters)
+                    .iter()
+                    .cloned(),
             );
             typed_machine.type_parameters = lowerer
                 .typed_trees
@@ -1596,9 +1598,13 @@ pub(crate) mod provider_defaults {
     pub(crate) fn finalize_provider_default_calls(
         typed: &mut TypedTrees,
     ) -> Result<(), Diagnostic> {
-        for machine in typed.machines_mut() {
-            if machine.name.as_str().ends_with("::provider_defaults") {
-                machine.purpose = typed_trees::machine::MachinePurpose::ProviderDefaults;
+        for position in 0..typed.machines().len() {
+            let machine = typed.machines().at(position);
+            if machine.name.as_str().ends_with("::provider_defaults")
+                && machine.purpose != typed_trees::machine::MachinePurpose::ProviderDefaults
+            {
+                typed.machine_mut(position).purpose =
+                    typed_trees::machine::MachinePurpose::ProviderDefaults;
             }
         }
         let occurrences = typed

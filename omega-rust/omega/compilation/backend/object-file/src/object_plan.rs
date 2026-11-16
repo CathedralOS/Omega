@@ -402,7 +402,8 @@ pub fn invocation_relocation_origin(
             }
         }
         semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
-        | semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+        | semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
+        | semantic_vocabulary::InvocationSite::Cleanup { edge, .. } => {
             RelocationOrigin::SemanticEdge {
                 function_symbol_handle: symbol,
                 edge_identity: edge.get(),

@@ -1,6 +1,6 @@
 /*
-Range propagation through the operations that have no definition-bound rule
-of their own: divide, remainder, the shifts, bitwise and, bitwise or.
+Range propagation through operations that use the kernel's endpoint chains:
+policy add and subtract, divide, remainder, shifts, bitwise and, bitwise or.
 
 `wiki/spec/proofs/contracts.md`, "Required automatic discharge": "Each integer
 value defined by add, subtract, multiply, divide, remainder, shift or cast
@@ -42,9 +42,10 @@ definition here, so `value / 2 <= value` is this step.
 use std::cmp::Ordering;
 
 use proof_admission::{
-    IntegerAffineWitness, IntegerCastChainWitness, PrimitiveJudgment, ProofRule,
-    check_integer_affine_witness, check_integer_cast_bound_conversion,
-    check_integer_cast_chain_witness, map_integer_affine_bound,
+    IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerCastChainWitness,
+    PrimitiveJudgment, ProofRule, check_integer_affine_witness,
+    check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
+    integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType,
@@ -59,7 +60,11 @@ fn chain_operands(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &ScalarTerm)> {
     match expression {
         ScalarTerm::ExactIntegerDivide { left, right, .. }
         | ScalarTerm::ExactIntegerRemainder { left, right, .. } => vec![(left, right)],
-        ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+        ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => vec![(left, right)],
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
         | ScalarTerm::IntegerBitwiseOr { left, right, .. } => {
             vec![(left, right), (right, left)]
         }
@@ -120,9 +125,39 @@ impl Prover<'_> {
                 let Ok(root_bound) = self.evidence(root, root_direction) else {
                     continue;
                 };
-                let Ok(image) = map_integer_affine_bound(&form, &root_bound.conclusion) else {
-                    continue;
-                };
+                let (image, root_bound) =
+                    match map_integer_affine_bound(&form, &root_bound.conclusion) {
+                        Ok(image) => (image, root_bound),
+                        Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing) => {
+                            // A wrapping endpoint can need headroom on its other side.
+                            // Prove precisely the guards the kernel requests.
+                            let Ok(guards) =
+                                integer_affine_wrapping_evidence(&form, &root_bound.conclusion)
+                            else {
+                                continue;
+                            };
+                            let guard_proofs = guards.iter().map(|guard| self.prove(guard));
+                            let Ok(proofs) = std::iter::once(Ok(root_bound))
+                                .chain(guard_proofs)
+                                .collect::<Result<Vec<_>, _>>()
+                            else {
+                                continue;
+                            };
+                            let premises = Proposition::Conjunction(
+                                proofs
+                                    .iter()
+                                    .map(|proof| proof.conclusion.clone())
+                                    .collect(),
+                            );
+                            let Ok(image) = map_integer_affine_bound(&form, &premises) else {
+                                continue;
+                            };
+                            let root_bound =
+                                node(premises, ProofRule::ConjunctionIntroduction(proofs));
+                            (image, root_bound)
+                        }
+                        Err(_) => continue,
+                    };
                 let literal = match (&image, direction) {
                     (Proposition::LessOrEqual(left, right), Direction::Upper)
                         if left == subject =>

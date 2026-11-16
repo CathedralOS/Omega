@@ -189,38 +189,72 @@ pub(super) fn source_application(
             match parameter.kind {
                 TypeParameterKind::Type => {}
                 TypeParameterKind::Const { type_reference } => {
-                    let TypeReferenceNode::Named { symbol, .. } =
-                        typed.type_reference_table.type_reference(type_reference)
-                    else {
-                        return Err(unavailable(
-                            "record const argument needs its complete carrier obligations",
-                        ));
+                    let carrier = match typed.type_reference_table.type_reference(type_reference) {
+                        TypeReferenceNode::Named { symbol, .. } => {
+                            match typed.symbols.builtin_type_atom(*symbol) {
+                                Some(symbols::BuiltinTypeAtom::Integer(carrier)) => Some(carrier),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
                     };
-                    let Some(symbols::BuiltinTypeAtom::Integer(carrier)) =
-                        typed.symbols.builtin_type_atom(*symbol)
-                    else {
-                        return Err(unavailable(
-                            "record const argument with a noninteger carrier",
-                        ));
-                    };
-                    let literal = typed
-                        .static_const_literal_from_type_reference(*argument)
-                        .ok_or_else(|| {
-                            unavailable("record const argument is not a closed integer")
+                    if let Some(carrier) = carrier {
+                        let literal = typed
+                            .static_const_literal_from_type_reference(*argument)
+                            .ok_or_else(|| {
+                                unavailable("record const argument is not a closed integer")
+                            })?;
+                        let value = literal
+                            .value_i64()
+                            .map(i128::from)
+                            .or_else(|| literal.value_u64().map(i128::from));
+                        let expected = numerics::literals::LandedIntegerType::Fixed(carrier);
+                        if value.is_none_or(|value| !expected.admits_i128(value))
+                            || literal
+                                .landing()
+                                .is_some_and(|landing| landing.landed_type != expected)
+                        {
+                            return Err(unavailable(
+                                "record const argument does not inhabit its declared carrier",
+                            ));
+                        }
+                    } else {
+                        if !typed_trees::canonical_const_carrier_is_supported(typed, type_reference)
+                        {
+                            return Err(unavailable(
+                                "record const argument with an unsupported canonical carrier",
+                            ));
+                        }
+                        let value = typed_trees::canonical_const_argument_value(typed, *argument)
+                            .ok_or_else(|| {
+                            unavailable("record const argument has no canonical value")
                         })?;
-                    let value = literal
-                        .value_i64()
-                        .map(i128::from)
-                        .or_else(|| literal.value_u64().map(i128::from));
-                    let expected = numerics::literals::LandedIntegerType::Fixed(carrier);
-                    if value.is_none_or(|value| !expected.admits_i128(value))
-                        || literal
-                            .landing()
-                            .is_some_and(|landing| landing.landed_type != expected)
-                    {
-                        return Err(unavailable(
-                            "record const argument does not inhabit its declared carrier",
-                        ));
+                        let bindings = parameters
+                            .iter()
+                            .zip(arguments)
+                            .map(|(parameter, argument)| (parameter.symbol, *argument))
+                            .collect::<Vec<_>>();
+                        let expected = typed.type_identity_with_simultaneous_substitutions(
+                            typed_trees::type_identity::TypeIdentityRequest {
+                                substitutions: &bindings,
+                                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                                    type_reference,
+                                )
+                            },
+                        );
+                        let boolean = matches!(typed.type_reference_table.type_reference(type_reference),
+                            TypeReferenceNode::Named { symbol, .. } if typed.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::Bool));
+                        let matches_carrier = if boolean {
+                            value.type_name == "bool" && matches!(value.decode_encoding(), Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(_)))
+                        } else {
+                            typed.type_identity_text(expected).as_deref()
+                                == Some(value.type_name.as_str())
+                        };
+                        if !matches_carrier {
+                            return Err(unavailable(
+                                "record const argument has another declared carrier",
+                            ));
+                        }
                     }
                 }
                 _ => {
@@ -295,9 +329,14 @@ fn validate_applied_members(
 ) -> Checked<()> {
     use typed_trees::data::{DataField, DataMember};
     use typed_trees::type_identity::TypeIdentityRequest;
-    let same_field = |expected: &DataField, actual: &DataField| {
+    // Views keep authored handles; nominal instances own fresh children.
+    // Both must retain the exact source member and its selected owner.
+    let same_field = |expected: &DataField, actual: &DataField, owner| {
         typed.data_constructor_field(reference, template.symbol, expected.symbol) == Some(actual)
-            && expected.symbol == actual.symbol
+            && (selected.symbol != template.symbol || expected.symbol == actual.symbol)
+            && typed.symbols.symbols().nodes().is_valid(actual.symbol)
+            && typed.symbols.get(actual.symbol).kind == symbols::SymbolKind::Field
+            && typed.symbols.get(actual.symbol).parent == owner
             && expected.identity == actual.identity
             && expected.name == actual.name
             && expected.relevance == actual.relevance
@@ -322,12 +361,17 @@ fn validate_applied_members(
             .zip(actual)
             .any(|(expected, actual)| match (expected, actual) {
                 (DataMember::Field(expected), DataMember::Field(actual)) => {
-                    !same_field(expected, actual)
+                    !same_field(expected, actual, selected.symbol)
                 }
                 (DataMember::Variant(expected), DataMember::Variant(actual)) => {
                     let expected_fields = typed.data_payload_fields(expected);
                     let actual_fields = typed.data_payload_fields(actual);
-                    expected.symbol != actual.symbol
+                    typed.data_constructor_case(reference, template.symbol, expected.symbol)
+                        != Some(actual)
+                        || (selected.symbol == template.symbol && expected.symbol != actual.symbol)
+                        || !typed.symbols.symbols().nodes().is_valid(actual.symbol)
+                        || typed.symbols.get(actual.symbol).kind != symbols::SymbolKind::Variant
+                        || typed.symbols.get(actual.symbol).parent != selected.symbol
                         || expected.identity != actual.identity
                         || expected.name != actual.name
                         || expected.requires_facts != actual.requires_facts
@@ -336,7 +380,7 @@ fn validate_applied_members(
                         || expected_fields
                             .iter()
                             .zip(actual_fields)
-                            .any(|(expected, actual)| !same_field(expected, actual))
+                            .any(|(expected, field)| !same_field(expected, field, actual.symbol))
                 }
                 _ => true,
             })
@@ -846,9 +890,11 @@ impl Program<'_> {
                 declaration.shape,
                 crate::StorageShape::FixedArray { .. }
                     | crate::StorageShape::PrimitiveScalar { .. }
+                    | crate::StorageShape::AtomicCell(_)
             ) {
                 // These physical shapes have no nominal declaration or
-                // field schema. Their actual type reference is retained,
+                // field schema; a builtin atomic cell such as `AtomicU32`
+                // is one too. Their actual type reference is retained,
                 // but cannot mint nominal source authority.
                 if source.declaration.is_valid()
                     || !source.fields.is_empty()
@@ -1089,6 +1135,7 @@ mod tests {
         let declaration = RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "source-owned-storage".into(),
             shape: crate::StorageShape::Record(vec![
                 RecordField {

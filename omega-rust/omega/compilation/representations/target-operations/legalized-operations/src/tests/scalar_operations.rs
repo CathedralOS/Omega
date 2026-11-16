@@ -8,12 +8,12 @@ use super::super::{
 };
 use super::identity::assert_identity_drift;
 use super::{
-    EffectLink, IntegerSign, IntegerType, IntegerValue, LegalizedOperationPlan, OwnershipEvent,
-    PsiProvenance, ScalarType, WorkSettlement, id, scalar_call_unit_plan,
+    EffectLink, IntegerSign, IntegerValue, LegalizedOperationPlan, OwnershipEvent, PsiProvenance,
+    WorkSettlement, id, scalar_call_unit_plan,
 };
-use abstract_operations::ValueBinding;
+use native_vocabulary::provenance::ValueDefinitionSite;
+use native_vocabulary::values::ValueBinding;
 use optimization_core::AcceptedObligationFactIdentity;
-use optimization_unit::{ValueDefinition, ValueDefinitionSite};
 
 #[test]
 fn shared_descriptor_return_identity_binds_source_and_transport_kind() {
@@ -70,7 +70,7 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
             bindings: Vec::new(),
             work: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: id(500),
                     argument: terminal_psi::StructuralArgument {
                         place: id(504),
@@ -112,8 +112,8 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
 fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
     let mut plan = scalar_call_unit_plan();
     let function = &mut plan.scalar_functions[0];
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let scalar_type = ScalarType::Integer(integer);
+    let integer = semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type = semantic_vocabulary::ClosedScalarType::Integer(integer);
     let end = function.blocks[0].terminator.clone();
     function.blocks[0]
         .instructions
@@ -121,7 +121,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             operation: id(120),
             result: Some(LegalizedValueDefinition {
                 value: id(121),
-                scalar_type: ScalarType::Boolean,
+                scalar_type: semantic_vocabulary::ClosedScalarType::Boolean,
                 definition_site: ValueDefinitionSite::Node {
                     block: function.entry_block,
                     node: 5,
@@ -129,8 +129,8 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             }),
             kind: LegalizedScalarInstructionKind::Compare {
                 predicate: LegalizedScalarComparison::Equal,
-                operand_type: ScalarType::Integer(integer),
-                right_operand_type: ScalarType::Integer(integer),
+                operand_type: semantic_vocabulary::ClosedScalarType::Integer(integer),
+                right_operand_type: semantic_vocabulary::ClosedScalarType::Integer(integer),
                 left: id(112),
                 right: id(114),
             },
@@ -152,7 +152,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
         bindings: vec![ValueBinding {
             parameter: id(130),
             argument: id(argument),
-            scalar_type,
+            scalar_type: scalar_type.as_checking(),
         }],
         work: vec![WorkSettlement {
             site: PsiProvenance::Edge(id(edge)),
@@ -172,10 +172,10 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
     function.blocks.push(LegalizedScalarBlock {
         id: id(123),
         structural_parameters: Vec::new(),
-        parameters: vec![ValueDefinition {
+        parameters: vec![LegalizedValueDefinition {
             value: id(130),
             scalar_type,
-            site: ValueDefinitionSite::BlockParameter {
+            definition_site: ValueDefinitionSite::BlockParameter {
                 block: id(123),
                 position: 0,
             },
@@ -227,14 +227,20 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             2 => when_true.target = id(999),
             3 => when_true.bindings[0].argument = id(999),
             4 => when_true.bindings[0].parameter = id(999),
-            5 => when_true.bindings[0].scalar_type = ScalarType::Boolean,
+            5 => when_true.bindings[0].scalar_type = semantic_vocabulary::ScalarType::Boolean,
             6 => when_true.work[0].units += 1,
             7 => std::mem::swap(when_true, when_false),
             8 => effect.output += 1,
             9 => ownership.push(OwnershipEvent::Cleanup(vec![])),
             10 => function.blocks[1].parameters[0].value = id(999),
-            11 => function.blocks[1].parameters[0].scalar_type = ScalarType::Boolean,
-            12 => function.blocks[1].parameters[0].site = ValueDefinitionSite::FunctionParameter(0),
+            11 => {
+                function.blocks[1].parameters[0].scalar_type =
+                    semantic_vocabulary::ClosedScalarType::Boolean
+            }
+            12 => {
+                function.blocks[1].parameters[0].definition_site =
+                    ValueDefinitionSite::FunctionParameter(0)
+            }
             13..=17 => {
                 let LegalizedScalarInstructionKind::Compare {
                     predicate,
@@ -250,8 +256,10 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
                     13 => *predicate = LegalizedScalarComparison::LessThan,
                     14 => *predicate = LegalizedScalarComparison::LessOrEqual,
                     15 => {
-                        *operand_type =
-                            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
+                        *operand_type = semantic_vocabulary::ClosedScalarType::Integer(
+                            semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 64)
+                                .unwrap(),
+                        )
                     }
                     16 => *left = id(999),
                     _ => *right = id(999),
@@ -290,7 +298,9 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
 #[test]
 fn structural_edge_identity_and_liveness_retain_selector_evidence() {
     let mut plan = scalar_call_unit_plan();
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let scalar_type = semantic_vocabulary::ClosedScalarType::Integer(
+        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+    );
     plan.scalar_functions[0].blocks[0].terminator = LegalizedScalarTerminator::Jump {
         successor: LegalizedScalarSuccessor {
             edge: id(502),
@@ -299,7 +309,7 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
             work: Vec::new(),
             cleanup_calls: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: id(500),
                     argument: terminal_psi::StructuralArgument {
                         place: id(504),
@@ -308,9 +318,9 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
                     },
                 },
                 indices: vec![crate::LegalizedRuntimeIndexOperand {
-                    operand: abstract_operations::AbstractResult {
+                    operand: native_vocabulary::values::AbstractResult {
                         value: id(510),
-                        scalar_type,
+                        scalar_type: scalar_type.as_checking(),
                     },
                     stride: 16,
                     extent: Some(4),
@@ -356,13 +366,15 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
 #[test]
 fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence() {
     let mut plan = scalar_call_unit_plan();
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let scalar_type = semantic_vocabulary::ClosedScalarType::Integer(
+        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+    );
     let instruction = LegalizedScalarInstruction {
         operation: id(400),
         result: None,
         kind: LegalizedScalarInstructionKind::AccessLifecycle {
             boundary: id(401),
-            operands: abstract_operations::AccessLifecycleOperands::MoveOut {
+            operands: native_vocabulary::access_lifecycles::AccessLifecycleOperands::MoveOut {
                 storage: terminal_psi::StructuralArgument {
                     place: id(402),
                     path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
@@ -378,9 +390,9 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
                 },
             },
             indices: vec![crate::LegalizedRuntimeIndexOperand {
-                operand: abstract_operations::AbstractResult {
+                operand: native_vocabulary::values::AbstractResult {
                     value: id(403),
-                    scalar_type,
+                    scalar_type: scalar_type.as_checking(),
                 },
                 stride: 16,
                 extent: Some(4),
@@ -424,8 +436,10 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
         match mutation {
             0 => *boundary = id(407),
             1 => {
-                let abstract_operations::AccessLifecycleOperands::MoveOut { storage, .. } =
-                    operands
+                let native_vocabulary::access_lifecycles::AccessLifecycleOperands::MoveOut {
+                    storage,
+                    ..
+                } = operands
                 else {
                     panic!("extraction fixture");
                 };
@@ -444,19 +458,19 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
 fn operation_plan() -> LegalizedOperationPlan {
     let mut plan = scalar_call_unit_plan();
     let function = &mut plan.scalar_functions[0];
-    let narrow = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let wide = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let narrow = semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let wide = semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let rows = [
         (
-            ScalarType::Integer(narrow),
+            semantic_vocabulary::ClosedScalarType::Integer(narrow),
             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(7)),
         ),
         (
-            ScalarType::Integer(narrow),
+            semantic_vocabulary::ClosedScalarType::Integer(narrow),
             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(9)),
         ),
         (
-            ScalarType::Integer(narrow),
+            semantic_vocabulary::ClosedScalarType::Integer(narrow),
             LegalizedScalarInstructionKind::ExactBinary {
                 operator: LegalizedExactIntegerOperator::Add,
                 left: id(200),
@@ -466,24 +480,24 @@ fn operation_plan() -> LegalizedOperationPlan {
             },
         ),
         (
-            ScalarType::Integer(wide),
+            semantic_vocabulary::ClosedScalarType::Integer(wide),
             LegalizedScalarInstructionKind::IntegerWiden {
                 operand: id(202),
                 source_type: narrow,
             },
         ),
         (
-            ScalarType::Boolean,
+            semantic_vocabulary::ClosedScalarType::Boolean,
             LegalizedScalarInstructionKind::Compare {
                 predicate: LegalizedScalarComparison::Equal,
-                operand_type: ScalarType::Integer(wide),
-                right_operand_type: ScalarType::Integer(wide),
+                operand_type: semantic_vocabulary::ClosedScalarType::Integer(wide),
+                right_operand_type: semantic_vocabulary::ClosedScalarType::Integer(wide),
                 left: id(203),
                 right: id(203),
             },
         ),
         (
-            ScalarType::Boolean,
+            semantic_vocabulary::ClosedScalarType::Boolean,
             LegalizedScalarInstructionKind::BooleanNot { operand: id(204) },
         ),
     ];
@@ -561,8 +575,9 @@ fn ieee_comparison_identity_binds_relation_format_and_ordered_operands() {
 fn wrapping_remainder_identity_binds_policy_width_operands_and_nonzero_fact() {
     let mut plan = operation_plan();
     let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
-    row.result.as_mut().unwrap().scalar_type =
-        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    row.result.as_mut().unwrap().scalar_type = semantic_vocabulary::ClosedScalarType::Integer(
+        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 32).unwrap(),
+    );
     row.kind = LegalizedScalarInstructionKind::WrappingRemainder {
         left: id(200),
         right: id(201),
@@ -589,7 +604,10 @@ fn wrapping_remainder_identity_binds_policy_width_operands_and_nonzero_fact() {
             3 => *accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
             4 => {
                 row.result.as_mut().unwrap().scalar_type =
-                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
+                    semantic_vocabulary::ClosedScalarType::Integer(
+                        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 64)
+                            .unwrap(),
+                    )
             }
             _ => {
                 row.kind = LegalizedScalarInstructionKind::ExactBinary {
@@ -609,8 +627,9 @@ fn wrapping_remainder_identity_binds_policy_width_operands_and_nonzero_fact() {
 fn wrapping_divide_identity_binds_operands_and_nonzero_fact() {
     let mut plan = operation_plan();
     let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
-    row.result.as_mut().unwrap().scalar_type =
-        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    row.result.as_mut().unwrap().scalar_type = semantic_vocabulary::ClosedScalarType::Integer(
+        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 64).unwrap(),
+    );
     row.kind = LegalizedScalarInstructionKind::WrappingDivide {
         left: id(200),
         right: id(201),
@@ -637,7 +656,10 @@ fn wrapping_divide_identity_binds_operands_and_nonzero_fact() {
             3 => *accepted_fact = AcceptedObligationFactIdentity::from_bytes([4; 32]),
             4 => {
                 row.result.as_mut().unwrap().scalar_type =
-                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+                    semantic_vocabulary::ClosedScalarType::Integer(
+                        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 32)
+                            .unwrap(),
+                    )
             }
             _ => {
                 row.kind = LegalizedScalarInstructionKind::WrappingRemainder {
@@ -752,7 +774,10 @@ fn scalar_operation_identity_binds_each_authored_row_envelope_and_order() {
                 1 => row.result.as_mut().unwrap().value = id(999),
                 2 => {
                     row.result.as_mut().unwrap().scalar_type =
-                        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+                        semantic_vocabulary::ClosedScalarType::Integer(
+                            semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 32)
+                                .unwrap(),
+                        )
                 }
                 3 => {
                     row.result.as_mut().unwrap().definition_site =
@@ -823,7 +848,9 @@ fn scalar_operation_identity_binds_narrow_proof_widening_and_boolean_sources() {
                 if mutation == 6 {
                     *operand = id(999);
                 } else {
-                    *source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+                    *source_type =
+                        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 16)
+                            .unwrap();
                 }
             }
             8..=10 => {
@@ -850,7 +877,8 @@ fn scalar_operation_identity_binds_narrow_proof_widening_and_boolean_sources() {
     role.scalar_functions[0].blocks[0].instructions[5].kind =
         LegalizedScalarInstructionKind::IntegerWiden {
             operand: id(204),
-            source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            source_type: semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 8)
+                .unwrap(),
         };
     assert_identity_drift(identity, &role);
 }

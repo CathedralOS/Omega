@@ -20,9 +20,6 @@ provenance (`provenance`), boundary realizations (`boundary`), ordered unit oper
 (`operations`), value expressions (`values`), and durable home requirements (`storage`).
 */
 
-pub use abstract_operations::{AbstractResult, CompletionClaimSource, ValueBinding};
-pub use calling_conventions::MachineRegister;
-pub use installation_evidence::InstalledAssumedBindingEvidence;
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
@@ -48,64 +45,15 @@ impl TargetOperationPlan {
     }
 }
 
-pub mod calls;
-pub use calls::{
-    MixedStructuralScalarFunctionAbi, NativeCallTarget, ScalarAbiValue, ScalarFunctionAbi,
-    TargetAccessCallAssociation, TargetAccessCallBinding, TargetAccessInterpretation,
-    TargetAccessViewInput, TargetBoundaryResult, TargetCallResult, TargetDescriptorOrigin,
-    TargetNativeCallbackArgument, TargetStructuralResultContract, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, selector_carrier_type,
-};
+pub use target_vocabulary::*;
+pub use target_vocabulary::{boundary, calls, provenance, storage, values};
+
 pub mod control_flow;
 pub use control_flow::{
-    TargetCasePointerSlot, TargetControlBlock, TargetControlCasePayload,
-    TargetControlCaseSuccessor, TargetControlGraph, TargetControlSuccessor,
-    TargetControlTerminator, TargetFunction, TargetOperationMetadata, TargetScalarBlockParameter,
-    TargetStructuralCaseSource, TargetStructuralContract, TargetStructuralReturnSource,
-};
-pub mod provenance;
-pub use provenance::{
-    BoundaryOriginFacts, CallSiteOwner, InstallationCallRole, ProgramEntryOrigin,
-    TerminalPsiProvenance,
-};
-pub mod boundary;
-mod descriptor_input;
-pub use boundary::{
-    AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
-    BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,
-    BoundarySettlementRealization, ClaimCompletionOnlyRealization, CompilerBuiltinExecution,
-    DirectPortReadU8Realization, ExternalCompletionBinding, ExternalExecutionBinding,
-    ForeignCallOperands, HostedExitProcessI32Realization, HostedReadByteRealization,
-    HostedWriteByteI32Realization, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
-    IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
-    LinuxWriteLineRealization, MetadataOnlyPortRealization, NativeBindingExecution,
-    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
-    NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, conventional_atomic_once_layout,
-    conventional_atomic_once_layout_closed, conventional_float_class_layout,
-};
-pub use descriptor_input::{
-    DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
-    descriptor_input_guard_for_call_with_closed_scalars,
-    descriptor_input_guard_with_closed_scalars,
+    TargetControlBlock, TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
+    TargetControlSuccessor, TargetControlTerminator, TargetFunction, TargetOperationMetadata,
+    TargetScalarBlockParameter, TargetStructuralCaseSource, TargetStructuralContract,
+    TargetStructuralReturnSource,
 };
 pub mod operations;
-pub use operations::{
-    NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall, TargetInstruction,
-    TargetInstructionSource, TargetStructuralRuntimeIndex, TargetUnitOperation,
-};
-pub mod values;
-pub use values::{
-    ReferenceRoot, TargetBooleanExpression, TargetByteView, TargetElementView,
-    TargetElementViewRegion, TargetIntegerExpression, TargetReferenceOrigin,
-    TargetReferenceOriginBase, TargetReferenceResult, TargetScalarBlockValue,
-    TargetScalarExpression, TargetScalarImmediate, TargetStructuralArgument,
-    TargetStructuralArgumentSource, TargetStructuralParameter, TargetViewExtent,
-};
-pub mod storage;
-pub use storage::{
-    ScalarParameterLocation, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
-    TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement,
-    TargetUnitWriteOnlyPrimitiveStoreSource,
-};
+pub use operations::{TargetInstruction, TargetInstructionSource, TargetUnitOperation};

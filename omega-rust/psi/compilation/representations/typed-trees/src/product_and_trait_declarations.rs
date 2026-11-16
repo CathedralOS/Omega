@@ -1507,7 +1507,7 @@ pub mod product_operand {
         machine_symbol: SymbolHandle,
         pub name: &'program str,
         pub attached_data_symbol: SymbolHandle,
-        pub type_parameters: &'program [crate::data::TypeParameter],
+        pub type_parameters: arena::RootRows<'program, crate::data::TypeParameter>,
         pub entry: Option<ProductEntrySignature<'program>>,
     }
 

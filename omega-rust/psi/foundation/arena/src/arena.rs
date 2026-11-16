@@ -523,6 +523,19 @@ pub struct Arena<T> {
     rewrite_revision: u64, // Monotonic counter bumped on non-append rewrites and frees.
 }
 
+impl<T> From<Arena<T>> for crate::RootedArena<T> {
+    fn from(arena: Arena<T>) -> Self {
+        Self::from_storage_parts(
+            arena.dummy,
+            arena.items,
+            (!arena.implicit_slot_metadata)
+                .then(|| *arena.slot_metadata.expect("explicit arena slots")),
+            arena.fresh_generation,
+            arena.fresh,
+        )
+    }
+}
+
 impl<T> Arena<T> {
     pub fn storage_view(&self) -> ArenaStorageView<'_, T> {
         ArenaStorageView {
@@ -532,6 +545,17 @@ impl<T> Arena<T> {
             fresh_generation: self.fresh_generation,
             fresh: self.fresh,
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn storage_allocation_bytes(&self) -> usize {
+        self.items.capacity() * std::mem::size_of::<T>()
+            + self.slot_metadata.as_ref().map_or(0, |slots| {
+                std::mem::size_of::<ArenaSlotStorage>()
+                    + slots.generations.capacity() * std::mem::size_of::<u32>()
+                    + slots.occupied.capacity() * std::mem::size_of::<bool>()
+                    + slots.free_indices.capacity() * std::mem::size_of::<u32>()
+            })
     }
 
     pub fn from_storage(
@@ -1176,6 +1200,14 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn free(&mut self, handle: Handle<T>) -> bool {
+        self.retire_with_replacement(handle, T::default)
+    }
+
+    pub(super) fn retire_with_replacement(
+        &mut self,
+        handle: Handle<T>,
+        replacement: impl FnOnce() -> T,
+    ) -> bool {
         let index = self.index_from_valid_handle(handle);
 
         if index == invalid_index() {
@@ -1183,7 +1215,7 @@ impl<T: Default> Arena<T> {
         }
         self.bump_rewrite_revision();
 
-        let replacement = T::default();
+        let replacement = replacement();
         self.materialize_slot_metadata();
         self.items[index] = replacement;
         self.slot_metadata_mut().occupied[index] = false;
@@ -1628,18 +1660,67 @@ pub trait HierarchyNode: Clone + Default + Sized {
     fn set_children(&mut self, children: HandleSpan<Self>);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HierarchyArena<T: HierarchyNode> {
-    nodes: Arena<T>,
+/// Row storage for a hierarchy. Storage owns handle validation; the hierarchy
+/// owns parent relationships, child publication and decoded graph validation.
+/// Every iterated handle must resolve within `storage_len` physical slots.
+/// A contained span must enumerate only live rows without overflowing its slots.
+pub trait HierarchyStorage<T: HierarchyNode>: Default {
+    fn get(&self, handle: Handle<T>) -> &T;
+    fn get_mut(&mut self, handle: Handle<T>) -> &mut T;
+    fn is_valid(&self, handle: Handle<T>) -> bool;
+    fn append(&mut self, value: T) -> Handle<T>;
+    fn insert_many(&mut self, values: impl IntoIterator<Item = T>) -> HandleSpan<T>;
+    fn contains_span(&self, span: HandleSpan<T>) -> bool;
+    fn iter<'rows>(&'rows self) -> impl Iterator<Item = (Handle<T>, &'rows T)>
+    where
+        T: 'rows;
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn storage_len(&self) -> usize;
 }
 
-impl<T: HierarchyNode> HierarchyArena<T> {
-    pub fn new() -> Self {
-        Self {
-            nodes: Arena::new(),
-        }
+impl<T: HierarchyNode> HierarchyStorage<T> for Arena<T> {
+    fn get(&self, handle: Handle<T>) -> &T {
+        self.get(handle)
     }
+    fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        self.get_mut(handle)
+    }
+    fn is_valid(&self, handle: Handle<T>) -> bool {
+        self.is_valid(handle)
+    }
+    fn append(&mut self, value: T) -> Handle<T> {
+        self.append(value)
+    }
+    fn insert_many(&mut self, values: impl IntoIterator<Item = T>) -> HandleSpan<T> {
+        self.insert_many(values)
+    }
+    fn contains_span(&self, span: HandleSpan<T>) -> bool {
+        self.span(span).is_some()
+    }
+    fn iter<'rows>(&'rows self) -> impl Iterator<Item = (Handle<T>, &'rows T)>
+    where
+        T: 'rows,
+    {
+        self.iter()
+    }
+    fn len(&self) -> usize {
+        self.len()
+    }
+    fn storage_len(&self) -> usize {
+        self.storage_slice().len()
+    }
+}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HierarchyArena<T: HierarchyNode, Storage = Arena<T>> {
+    nodes: Storage,
+    marker: PhantomData<fn() -> T>,
+}
+
+impl<T: HierarchyNode, Storage: HierarchyStorage<T>> HierarchyArena<T, Storage> {
     #[inline]
     pub fn get(&self, node: Handle<T>) -> &T {
         self.nodes.get(node)
@@ -1690,10 +1771,6 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.append(node)
     }
 
-    pub fn children(&self, parent: Handle<T>) -> Option<&[T]> {
-        self.nodes.span(self.get(parent).children())
-    }
-
     pub fn child_handles(&self, parent: Handle<T>) -> Option<SpanHandles<T>> {
         let children = self.get(parent).children();
 
@@ -1701,7 +1778,9 @@ impl<T: HierarchyNode> HierarchyArena<T> {
             return Some(SpanHandles::empty());
         }
 
-        self.nodes.span(children)?;
+        if !self.nodes.contains_span(children) {
+            return None;
+        }
 
         Some(children.handles())
     }
@@ -1723,18 +1802,33 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.is_empty()
     }
 
-    pub fn nodes(&self) -> &Arena<T> {
+    pub fn nodes(&self) -> &Storage {
         &self.nodes
     }
 }
 
-impl<T: HierarchyNode> Default for HierarchyArena<T> {
-    fn default() -> Self {
-        Self::new()
+impl<T: HierarchyNode> HierarchyArena<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn children(&self, parent: Handle<T>) -> Option<&[T]> {
+        self.nodes.span(self.get(parent).children())
     }
 }
 
-impl<T: HierarchyNode + compiler_storage::Record> compiler_storage::Record for HierarchyArena<T> {
+impl<T: HierarchyNode, Storage: HierarchyStorage<T>> Default for HierarchyArena<T, Storage> {
+    fn default() -> Self {
+        Self {
+            nodes: Storage::default(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<T: HierarchyNode, Storage: HierarchyStorage<T> + compiler_storage::Record>
+    compiler_storage::Record for HierarchyArena<T, Storage>
+{
     fn write(
         &self,
         output: &mut compiler_storage::RecordWriter,
@@ -1744,22 +1838,33 @@ impl<T: HierarchyNode + compiler_storage::Record> compiler_storage::Record for H
     fn read<Context>(
         input: &mut compiler_storage::RecordReader<'_, Context>,
     ) -> Result<Self, compiler_storage::RecordError> {
-        let nodes = Arena::<T>::read(input)?;
+        let nodes = Storage::read(input)?;
         for (handle, node) in nodes.iter() {
             if node.parent().is_valid() && !nodes.is_valid(node.parent()) {
                 return Err(input.error("hierarchy parent does not name live storage"));
             }
-            let children = nodes
-                .span(node.children())
-                .ok_or_else(|| input.error("hierarchy child range does not name live storage"))?;
-            if children.iter().any(|child| child.parent() != handle) {
+            if !nodes.contains_span(node.children()) {
+                return Err(input.error("hierarchy child range does not name live storage"));
+            }
+            if node
+                .children()
+                .handles()
+                .any(|child| nodes.get(child).parent() != handle)
+            {
                 return Err(input.error("hierarchy child range disagrees with its parent"));
             }
         }
-        let mut completed = vec![false; nodes.storage_slice().len()];
+        input.allocate(
+            nodes
+                .storage_len()
+                .checked_mul(2 + std::mem::size_of::<usize>())
+                .ok_or_else(|| input.error("hierarchy validation allocation overflow"))?,
+        )?;
+        let mut completed = vec![false; nodes.storage_len()];
         let mut visiting = vec![false; completed.len()];
+        let mut chain = Vec::with_capacity(completed.len());
         for (handle, _) in nodes.iter() {
-            let mut chain = Vec::new();
+            chain.clear();
             let mut current = handle;
             while current.is_valid() {
                 let position = current.arena_index() as usize - 1;
@@ -1773,12 +1878,15 @@ impl<T: HierarchyNode + compiler_storage::Record> compiler_storage::Record for H
                 chain.push(position);
                 current = nodes.get(current).parent();
             }
-            for position in chain {
+            for &position in &chain {
                 visiting[position] = false;
                 completed[position] = true;
             }
         }
-        Ok(Self { nodes })
+        Ok(Self {
+            nodes,
+            marker: PhantomData,
+        })
     }
 }
 

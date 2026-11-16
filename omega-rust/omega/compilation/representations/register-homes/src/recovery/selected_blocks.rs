@@ -18,7 +18,7 @@ use ::selected_instructions::{
     SelectedScalarReferenceSource, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
     SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
-use abstract_operations::ValueBinding;
+use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, ValueId};
 
 use crate::FixedViewCopyDecodeError;
@@ -36,7 +36,7 @@ use super::structural_contracts::{
 pub(super) fn encode_block(
     bytes: &mut Vec<u8>,
     block: &SelectedBlock,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, block.id.0.to_le_bytes());
     match block.origin {
         SelectedBlockOrigin::Source(source) => {
@@ -119,9 +119,8 @@ pub(super) fn decode_block(
             };
             let site_guard = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
                 let length = cursor.length()?;
-                let proposition =
-                    terminal_codec::decode_canonical_proposition(cursor.take(length)?)
-                        .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
+                let proposition = terminal_wire::decode_canonical_proposition(cursor.take(length)?)
+                    .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
                 Ok(terminal_psi::CrashPredicateTerm::new(proposition))
             })?;
             let frontier_lower_bound = decode_list(cursor, |cursor| {
@@ -179,7 +178,7 @@ pub(super) fn decode_block(
 pub(super) fn encode_successor(
     bytes: &mut Vec<u8>,
     successor: &SelectedSuccessor,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     bytes.push(match successor.role {
         SelectedSuccessorRole::Semantic => 0,
         SelectedSuccessorRole::EdgeTransferContinuation => 1,
@@ -337,7 +336,7 @@ pub(super) fn decode_successor(
     let structural_case = decode_case(cursor)?;
     let structural_bindings = decode_list(cursor, |cursor| {
         let source_indices = decode_runtime_indices(cursor)?;
-        let semantic = abstract_operations::AbstractStructuralBinding {
+        let semantic = native_vocabulary::values::AbstractStructuralBinding {
             parameter: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
             argument: decode_semantic_argument(cursor)?,
         };
@@ -471,7 +470,9 @@ fn decode_case(
         let field_byte_offset = cursor.u32()?;
         let parameter = legalized_operations::LegalizedValueDefinition {
             value: decode_id(cursor, ValueId::new)?,
-            scalar_type: decode_scalar(cursor)?,
+            // A payload parameter is a value of the prepared plan, which carries closed types.
+            scalar_type: semantic_vocabulary::ClosedScalarType::try_from(decode_scalar(cursor)?)
+                .map_err(|_| FixedViewCopyDecodeError::InvalidIntegerType)?,
             definition_site: decode_definition_site(cursor)?,
         };
         let transport = match cursor.byte()? {
@@ -552,7 +553,7 @@ mod tests {
         );
         assert!(matches!(
             encode_successor(&mut Vec::new(), &successor),
-            Err(terminal_codec::CodecError::IntegerWidthClosure(
+            Err(terminal_wire::CodecError::IntegerWidthClosure(
                 semantic_vocabulary::IntegerWidthClosureError::Parameter(actual)
             )) if actual == parameter
         ));
@@ -574,7 +575,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
-                    operand: abstract_operations::AbstractResult {
+                    operand: native_vocabulary::values::AbstractResult {
                         value: ValueId::new(14).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -586,7 +587,7 @@ mod tests {
                     obligation: semantic_vocabulary::ObligationId::new(15).unwrap(),
                     accepted_fact: AcceptedObligationFactIdentity::from_bytes([16; 32]),
                 }],
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: PlaceId::new(31).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(9).unwrap(),
@@ -797,8 +798,8 @@ mod tests {
                         clobbers: Vec::new(),
                         provenance: SelectedInstructionProvenance {
                             edges: vec![edge],
-                            work: vec![optimization_unit::WorkSettlement {
-                                site: optimization_unit::PsiProvenance::Edge(edge),
+                            work: vec![native_vocabulary::provenance::WorkSettlement {
+                                site: native_vocabulary::provenance::PsiProvenance::Edge(edge),
                                 units: 2,
                             }],
                             ..Default::default()
@@ -874,7 +875,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: Vec::new(),
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: PlaceId::new(31).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(37).unwrap(),
@@ -1055,11 +1056,12 @@ mod tests {
                     field_byte_offset: 4,
                     parameter: legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(9).unwrap(),
-                        scalar_type: ScalarType::Boolean,
-                        definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
-                            block: original.source_target,
-                            position: 1,
-                        },
+                        scalar_type: semantic_vocabulary::ClosedScalarType::Boolean,
+                        definition_site:
+                            native_vocabulary::provenance::ValueDefinitionSite::BlockParameter {
+                                block: original.source_target,
+                                position: 1,
+                            },
                     },
                 },
                 transport: SelectedCasePayloadTransport::Unused,
@@ -1124,7 +1126,7 @@ mod tests {
                 }
                 _ => {
                     case.payloads[0].semantic.parameter.definition_site =
-                        optimization_unit::ValueDefinitionSite::FunctionParameter(1)
+                        native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(1)
                 }
             }
             let mut encoded = Vec::new();
@@ -1147,7 +1149,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: Vec::new(),
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: semantic_vocabulary::PlaceId::new(12).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: semantic_vocabulary::PlaceId::new(11).unwrap(),
@@ -1236,7 +1238,7 @@ mod tests {
                 .structural_bindings
                 .push(SelectedStructuralBinding {
                     source_indices: Vec::new(),
-                    semantic: abstract_operations::AbstractStructuralBinding {
+                    semantic: native_vocabulary::values::AbstractStructuralBinding {
                         parameter: join,
                         argument: terminal_psi::StructuralArgument {
                             place: semantic_vocabulary::PlaceId::new(11).unwrap(),
@@ -1296,7 +1298,7 @@ mod tests {
             ClaimId, MachineId, ObligationId, PlaceId, StructuralCaseId, StructuralTypeId,
         };
         use terminal_psi::{
-            NominalAffineCleanup, StructuralAffineDiscard, StructuralPathSegment,
+            OwnedCleanupInvocation, StructuralAffineDiscard, StructuralPathSegment,
             TerminalAffineCleanupAction,
         };
 
@@ -1312,17 +1314,22 @@ mod tests {
             payloads: Vec::new(),
             cleanup_actions: vec![
                 TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(13).unwrap()),
-                TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                    retains_descendants: false,
-                    place: PlaceId::new(14).unwrap(),
-                    path: vec![
-                        StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(3)),
-                        StructuralPathSegment::FixedIndex(1),
-                    ],
+                TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
+                    subject: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(14).unwrap(),
+                        path: vec![
+                            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(3)),
+                            StructuralPathSegment::FixedIndex(1),
+                        ],
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
                     structural_type: StructuralTypeId::new(15).unwrap(),
                     cleanup_machine: MachineId::new(16).unwrap(),
-                    consumed_claims: vec![ClaimId::new(17).unwrap()],
-                    cleanup_receiver: Some(PlaceId::new(18).unwrap()),
+                    claim_transfers: vec![terminal_psi::ClaimTransfer {
+                        claim: ClaimId::new(17).unwrap(),
+                        argument_index: 0,
+                        path: vec![StructuralPathSegment::FixedIndex(2)],
+                    }],
                     requirement_obligations: vec![ObligationId::new(19).unwrap()],
                 }),
                 TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {

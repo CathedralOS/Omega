@@ -2773,7 +2773,7 @@ pub mod signatures {
             // operand by declaration identity. This is nomination, not a legacy
             // checked-application receipt; invocation checks the actual policy
             // with its concrete input before any calling promise is published.
-            let [parameter] = typed.trait_type_parameters(calling_trait) else {
+            let Some([parameter]) = typed.trait_type_parameters(calling_trait).as_array() else {
                 return Err("Calling must declare one exact implementation parameter".into());
             };
             let conformance = calling_scope

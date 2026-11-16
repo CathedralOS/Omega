@@ -9,6 +9,8 @@ name = "abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+native-preparation = { path = "native-preparation" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 language-core = { path = "../../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }

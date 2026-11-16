@@ -1,6 +1,6 @@
 // Materialize default ABI applications from canonical Terminal declarations
-// and validate their actual physical plans. Source calling-request preparation
-// is unavailable; it cannot be replaced by an empty request roster.
+// and validate their actual physical plans. Authored policies are evaluated
+// separately by CallingProgram; this helper cannot replace a missing policy.
 
 use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
@@ -10,19 +10,17 @@ pub(crate) fn evaluate_default_calling_applications(
     declarations: &[semantic_vocabulary::CallingAbiIdentity],
     target: target::TargetProfile,
     policy: CallingPolicy,
-    dispatch_only_parameter_count: usize,
+    dispatch_only_formal: Option<u32>,
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
     let mut applications = Vec::with_capacity(declarations.len());
     for declaration in declarations {
         let canonical = program.materialize_default(declaration, target)?;
         let signature = &canonical.policy;
         let geometry = &signature.geometry;
-        let dispatch_only_parameter_count = u32::try_from(dispatch_only_parameter_count)
-            .map_err(|_| "default dispatch prefix exceeds u32")?;
         let projection = calling_conventions::NativeCallProjection::new(
             signature.native_parameters()?,
             geometry.parameters.len(),
-            dispatch_only_parameter_count,
+            dispatch_only_formal,
         )?;
         let graph = calling_conventions::BoundaryValueGraph {
             shapes: &geometry.shapes,
@@ -86,14 +84,9 @@ pub(crate) fn evaluate_default_calling_applications(
             native_parameters: signature.native_parameters()?,
         };
         for representation in &canonical.opaque_uses {
-            movement.movement(
-                representation.shape_root,
-                &validated,
-                usize::try_from(dispatch_only_parameter_count)
-                    .map_err(|_| "default dispatch prefix exceeds usize")?,
-            )?;
+            movement.movement(representation.shape_root, &validated, dispatch_only_formal)?;
         }
-        applications.push(canonical.native_application(&validated, dispatch_only_parameter_count)?);
+        applications.push(canonical.native_application(&validated, dispatch_only_formal)?);
     }
     Ok(applications)
 }

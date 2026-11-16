@@ -90,7 +90,7 @@ pub(crate) fn emit_realization_object(
                 }
             })
         });
-    if physical_entry.is_some_and(|entry| entry.adapter != target.target_operations().entry) {
+    if physical_entry.is_some_and(|entry| entry.adapter != target.execution_plan().plan().entry) {
         return Err(realization_error(
             "installed arrival stack",
             "physical adapter differs from the emitted root",
@@ -101,7 +101,11 @@ pub(crate) fn emit_realization_object(
     let target = target
         .with_installed_stack_requirements(requirements)
         .map_err(|reason| realization_error("installed handler stack", reason))?;
-    let borrowed_storage_layouts = target.borrowed_storage_layouts().to_vec();
+    let borrowed_storage_layouts = target
+        .execution_plan()
+        .plan()
+        .borrowed_storage_layouts
+        .clone();
     let projection =
         pipeline::emit_target(target, request.observation).map_err(|error| match error {
             BodyEmissionError::Physical(error) => selected_physical_pipeline_failed(

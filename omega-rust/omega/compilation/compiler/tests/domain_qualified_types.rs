@@ -89,24 +89,17 @@ const ACCEPTED_PARTS: [&str; 2] = ["accepted", "accepted"];
 /// The verdict of each judged part of `DOMAINS` followed by `machines`,
 /// staged as a standalone `main.omg`: one word, and what a refusal names.
 fn verdicts(name: &str, machines: &str) -> Vec<String> {
+    verdicts_beside(name, machines, &[])
+}
+
+/// `verdicts`, with each `(file, source)` of `beside` staged next to
+/// `main.omg` as its own module of the same package.
+fn verdicts_beside(name: &str, machines: &str, beside: &[(&str, &str)]) -> Vec<String> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let root =
-        std::env::temp_dir().join(format!("omega-domain-types-{}-{name}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("staging directory");
-    let main = root.join("main.omg");
-    std::fs::write(&main, format!("{DOMAINS}{machines}")).expect("staged source");
-    let frontier = compiler::CompilationSession::default().typed_frontier_without_build(
-        compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
-        None,
-    );
-    let _ = std::fs::remove_dir_all(&root);
-    let frontier = frontier.unwrap_or_else(|failure| {
-        panic!(
-            "{name}: Psi 00 through 04 must complete: {:?}",
-            failure.into_diagnostics()
-        )
+    let frontier = typed_frontier(name, machines, beside).unwrap_or_else(|diagnostics| {
+        panic!("{name}: Psi 00 through 04 must complete: {diagnostics:?}")
     });
     terminal_psi_to_terminal_psi::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
@@ -162,6 +155,38 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
     .collect()
 }
 
+/// `DOMAINS` followed by `machines`, staged as a standalone `main.omg` and
+/// compiled through typing, or the messages typing refused it with. The
+/// caller holds `COMPILATIONS`.
+/// Psi 00 through 04 over `DOMAINS` followed by `machines` as `main.omg`,
+/// with each `(file, source)` of `beside` staged next to it.
+fn typed_frontier(
+    name: &str,
+    machines: &str,
+    beside: &[(&str, &str)],
+) -> Result<Box<compiler::TypedFrontier>, Vec<String>> {
+    let root =
+        std::env::temp_dir().join(format!("omega-domain-types-{}-{name}", std::process::id()));
+    std::fs::create_dir_all(&root).expect("staging directory");
+    let main = root.join("main.omg");
+    std::fs::write(&main, format!("{DOMAINS}{machines}")).expect("staged source");
+    for (file, source) in beside {
+        std::fs::write(root.join(file), source).expect("staged module");
+    }
+    let frontier = compiler::CompilationSession::default().typed_frontier_without_build(
+        compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+        None,
+    );
+    let _ = std::fs::remove_dir_all(&root);
+    frontier.map_err(|failure| {
+        failure
+            .into_diagnostics()
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect()
+    })
+}
+
 #[test]
 fn a_value_keeps_its_domain_through_parameters_results_and_entries() {
     assert_eq!(verdicts("accepted", ACCEPTED), ACCEPTED_PARTS);
@@ -187,6 +212,43 @@ fn violates(name: &str, machines: &str, expected: &str) {
             && verdicts[0].starts_with("rejected: 0 unestablished; ")
             && verdicts[0].contains(expected),
         "{name}: {verdicts:#?}"
+    );
+}
+
+/// `domain<T [copy]> T::Plain` admits only a `copy` carrier, judged by the
+/// `data` declaration the type names. A same-named `data` in another module
+/// never answers for it, in either direction: the local `copy` `Token` is
+/// accepted beside a module's plain `Token`, and the local plain `Token` is
+/// rejected beside a module's `copy` one.
+const COPY_BOUNDED: &str = "\
+domain<T [copy]> T::Plain;
+machine keep(token: Token in Plain) -> Token in Plain {
+    token
+}
+";
+
+#[test]
+fn a_domain_carrier_bound_reads_the_selected_data_not_a_same_named_one() {
+    let plain = "public data Token { v: u8; }\n";
+    let copy = "public data Token [copy] { v: u8; }\n";
+    assert_eq!(
+        verdicts_beside(
+            "copy_bound_met",
+            &format!("data Token [copy] {{ v: u8; }}\n{COPY_BOUNDED}"),
+            &[("other.omg", plain)],
+        ),
+        ACCEPTED_PARTS
+    );
+    let verdicts = verdicts_beside(
+        "copy_bound_unmet",
+        &format!("data Token {{ v: u8; }}\n{COPY_BOUNDED}"),
+        &[("other.omg", copy)],
+    );
+    assert!(
+        verdicts.len() == 1
+            && verdicts[0].starts_with("rejected: 0 unestablished; ")
+            && verdicts[0].contains("the domain `Plain` admits only a `copy` carrier"),
+        "{verdicts:#?}"
     );
 }
 
@@ -263,12 +325,29 @@ fn a_carrier_cast_of_a_qualified_value_is_rejected() {
     );
 }
 
+/// A builtin operator takes unqualified operands only
+/// (`wiki/spec/language/domains.md`, "Operands"), so typing rejects the
+/// comparison and names the cast that fixes it; `compared` above is the
+/// accepted twin.
 #[test]
 fn a_builtin_comparison_of_qualified_operands_is_not_accepted() {
-    refused_with(
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let Err(diagnostics) = typed_frontier(
         "qualified_operands",
         "machine wrong(left: i32 in Km, right: i32 in Km) -> bool {\n    left > right\n}\n",
-        "operator on an operand that is not a plain or policy-qualified scalar",
+        &[],
+    ) else {
+        panic!("qualified_operands: typing accepted a builtin comparison of qualified operands");
+    };
+    assert_eq!(
+        diagnostics,
+        [
+            "builtin operator `>` takes unqualified operands only, but `left` has type \
+          `i32 in Km` and no operator `>` is declared for it; remove the domain with a cast \
+          first, such as `(left as -Km)`"
+        ],
     );
 }
 
@@ -592,25 +671,49 @@ fn a_zeroed_record_whose_record_field_predicate_fails_at_zero_is_not_accepted() 
     );
 }
 
-/// A result or a formal whose data type carries the domain has no owning
-/// type whose clauses its predicates join, so each is refused by name.
+/// A formal or result whose data type carries a domain with predicates
+/// states them in its machine's contract (`requires` over the formal,
+/// `ensures` over the result). A `Gauge` formal's reading satisfies its
+/// field's clause from entry, so that reading can be returned as, or
+/// passed for, `Reading in Valid` without being read first.
+const ACCEPTED_RECORD_SIGNATURES: &str = "\
+machine positive(reading: Reading in Valid) -> i32 ensures result > 0 {
+    reading.value
+}
+machine returned(gauge: Gauge) -> Reading in Valid {
+    gauge.reading
+}
+machine passed(gauge: Gauge) -> i32 ensures result > 0 {
+    positive(gauge.reading)
+}
+";
+
 #[test]
-fn a_record_result_or_formal_in_a_domain_with_predicates_is_refused_by_name() {
+fn a_record_formal_or_result_in_a_domain_with_predicates_carries_them() {
+    assert_eq!(
+        record_predicate_verdicts("record_predicate_signatures", ACCEPTED_RECORD_SIGNATURES),
+        ACCEPTED_PARTS
+    );
+    // Each twin changes one input of an accepted machine: the formal
+    // promises more than its domain gives, and the returned reading comes
+    // from a formal with no domain.
     for (name, machines, expected) in [
         (
-            "record_predicate_result",
-            "machine wrong(gauge: Gauge) -> Reading in Valid {\n    gauge.reading\n}\n",
-            "result of a data type in a domain with predicates",
+            "record_predicate_formal",
+            "machine wrong(reading: Reading in Valid) -> i32 ensures result > 1 {\n    \
+             reading.value\n}\n",
+            "cannot prove ensures contract for exit from wrong at statement 0: result > 1",
         ),
         (
-            "record_predicate_formal",
-            "machine wrong(reading: Reading in Valid) -> i32 {\n    0\n}\n",
-            "formal of a data type in a domain with predicates",
+            "record_predicate_result",
+            "machine wrong(reading: Reading) -> Reading in Valid {\n    reading as +Valid\n}\n",
+            "cannot prove the value of this cast is in the domain it adds in machine `wrong`",
         ),
     ] {
         let verdicts = record_predicate_verdicts(name, machines);
         assert!(
-            verdicts.len() == 1 && verdicts[0].contains(expected),
+            verdicts[0].starts_with("rejected: 0 unestablished; ")
+                && verdicts[0].contains(expected),
             "{name}: {verdicts:#?}"
         );
     }

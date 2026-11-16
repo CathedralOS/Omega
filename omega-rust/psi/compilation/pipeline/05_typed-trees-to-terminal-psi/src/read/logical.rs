@@ -387,7 +387,7 @@ impl LogicalScope<'_> {
         };
         let root = self.subject_root(root);
         let prefix = span(
-            self.members,
+            |span| self.members.span(span),
             root.members,
             self.machine,
             "logical source subject members",
@@ -448,7 +448,7 @@ impl LogicalScope<'_> {
             )
         {
             span(
-                logical.members,
+                |span| logical.members.span(span),
                 path.members,
                 machine,
                 "logical input source members",
@@ -498,7 +498,7 @@ impl LogicalScope<'_> {
         }
         for theory in &inputs.theory {
             let facts = span(
-                &program.typed.proof_facts,
+                |span| program.typed.proof_facts.span(span),
                 theory.facts,
                 machine,
                 "logical premise theory span",
@@ -546,7 +546,7 @@ impl LogicalScope<'_> {
                 ));
             }
             for fact in span(
-                &program.typed.proof_facts,
+                |span| program.typed.proof_facts.span(span),
                 contract.facts,
                 machine,
                 "logical contract fact span",
@@ -1071,7 +1071,7 @@ impl Inputs {
             .ok_or_else(|| unserved("logical membership without an exact input path"))?;
         let root = logical.subject_root(root);
         let prefix = span(
-            logical.members,
+            |span| logical.members.span(span),
             root.members,
             machine,
             "logical membership subject members",
@@ -1150,7 +1150,7 @@ impl Inputs {
             ..*scope
         };
         for fact in span(
-            &program.typed.proof_facts,
+            |span| program.typed.proof_facts.span(span),
             definition.facts,
             machine,
             "logical membership theory span",
@@ -1182,7 +1182,7 @@ pub(crate) fn projected_arrival(
     projection: &[ParameterOccurrence],
     model: Option<&CallableAddressModel>,
     source: SourceOrigin,
-    captures: crate::NamedCaptures,
+    captures: crate::SharedReading,
 ) -> Checked<CallableArrivalWitness> {
     let entry = MachineId::new(1).expect("nonzero identity");
     let callee = MachineId::new(2).expect("nonzero identity");

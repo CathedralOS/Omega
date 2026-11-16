@@ -248,13 +248,39 @@ fn prepare_and_judge(
         .inspection
         .map(|name| inspection_root(&typed, subject, name))
         .transpose()?;
+    // Entry policies are executable dependencies of the source program. All
+    // Build-bound entry contracts join its one roster before targets settle.
+    let exact_sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let mut declaration_metadata = Vec::new();
+    for profile in target::TargetProfile::ALL {
+        let slot = profile.program_entry_slot();
+        let slot_name = format!("{}::ProgramEntry", profile.root_slot_owner_name());
+        if !build
+            .root_bindings
+            .iter()
+            .any(|binding| binding.slot == slot_name)
+        {
+            continue;
+        }
+        let declaration = package_compilation::selected_program_entry_boundary(
+            &typed,
+            slot,
+            pass.package_inputs,
+            &exact_sources,
+        )?;
+        if !declaration_metadata.contains(&declaration) {
+            declaration_metadata.push(declaration);
+        }
+    }
     if inspection_root.is_some() {
         // The artifact names the inspected machine. Still check the Build's
         // bound entries and arrivals, and settle supply from those entries.
         selected.extend(external_roots.iter().copied());
     }
     let roster = products::ProductRoster {
-        declaration_metadata: Vec::new(),
+        declaration_metadata,
         entries: external_roots,
         inspection_root,
         subject,

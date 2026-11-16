@@ -136,11 +136,7 @@ pub(crate) fn prepare_checked_source(
         &mut timings,
         &mut *preparation.catalogue()?,
     )?;
-    Ok(PreparedCheckedSource::from_parsed(
-        sources,
-        timings,
-        preparation,
-    ))
+    PreparedCheckedSource::from_parsed(sources, timings, preparation)
 }
 
 fn prepare_typed_frontier(

@@ -25,7 +25,7 @@ pub(crate) use legalized_operations::{
     LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm, TrappingOperation,
 };
 #[allow(unused_imports)]
-pub(crate) use optimization_unit::ValueDefinitionSite;
+pub(crate) use native_vocabulary::provenance::ValueDefinitionSite;
 #[allow(unused_imports)]
 pub(crate) use register_model::{
     PreparedRegisterConstraintCatalog, RegisterClassId, RegisterConstraintKey,
@@ -136,14 +136,23 @@ pub(crate) mod accessor_scalar_access {
         let mut registers = vec![pointer];
         if let Some(value) = operand {
             let (_, register, _, scalar) = builder.resolve(*value).ok_or_else(invalid)?;
-            if scalar != demand.scalar {
+            if scalar.as_checking() != demand.scalar {
                 return Err(invalid());
             }
             registers.push(register);
         }
+        // Preparation closed the result's type; it must be the accessor's declared scalar.
+        if row
+            .result
+            .is_some_and(|result| result.scalar_type.as_checking() != demand.scalar)
+        {
+            return Err(invalid());
+        }
         let output = row
             .result
-            .map(|result| builder.register(result.value, result.definition_site, demand.scalar))
+            .map(|result| {
+                builder.register(result.value, result.definition_site, result.scalar_type)
+            })
             .transpose()?;
         if let Some(output) = output {
             registers.push(output);
@@ -179,15 +188,13 @@ pub(crate) mod accessor_scalar_access {
         )?;
         if let (Some(raw), Some(result)) = (output, row.result) {
             let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
-                builder
-                    .closed_scalar(demand.scalar)
-                    .ok_or_else(SelectedInstructionError::custody)?,
+                result.scalar_type,
             );
             let output = if normalization == SelectedInstructionKind::CopyI64 {
                 raw
             } else {
                 let output =
-                    builder.register(result.value, result.definition_site, demand.scalar)?;
+                    builder.register(result.value, result.definition_site, result.scalar_type)?;
                 builder.emit(
                     normalization,
                     builder.constraints.keys.copy_i64,
@@ -196,9 +203,12 @@ pub(crate) mod accessor_scalar_access {
                 )?;
                 output
             };
-            builder
-                .definitions
-                .push((result.value, output, result.definition_site, demand.scalar));
+            builder.definitions.push((
+                result.value,
+                output,
+                result.definition_site,
+                result.scalar_type,
+            ));
         }
         Ok(true)
     }
@@ -216,22 +226,22 @@ pub(crate) mod aggregate_argument {
         operation: &impl super::call_arguments::InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
         builder: &mut Builder<'_>,
     ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
         let place = semantic.place;
         let slot = match target.source {
-            target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
                 Some(LocalStorageSlotId::Structural {
                     operation: psi_operation,
                     place,
                 })
             }
-            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place } => {
                 Some(LocalStorageSlotId::StructuralBlockParameter { block, place })
             }
-            target_operations::TargetStructuralArgumentSource::Placement(_) => None,
+            target_vocabulary::TargetStructuralArgumentSource::Placement(_) => None,
             _ => return Err(SelectedInstructionError::custody()),
         };
         if empty_aggregate_placement(&target.destination)
@@ -317,7 +327,7 @@ pub(crate) mod aggregate_argument {
     pub(crate) fn transport(
         operation: &impl super::call_arguments::InvocationArgumentSource,
         argument_index: usize,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
         pointer: Option<VirtualRegisterId>,
         pointer_byte_offset: u32,
@@ -804,12 +814,13 @@ pub(crate) mod aggregate_return {
     use selected_instructions::SelectedTerminator;
 
     pub(crate) fn build(
+        function: usize,
         source: &crate::native_geometry::NativeFunction<'_>,
         block: &legalized_operations::LegalizedScalarBlock,
         returned: &legalized_operations::LegalizedScalarReturn,
         builder: &mut Builder<'_>,
         cleanup_calls: &[(
-            target_operations::CallSiteOwner,
+            target_vocabulary::CallSiteOwner,
             legalized_operations::LegalizedScalarCall,
         )],
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
@@ -870,6 +881,7 @@ pub(crate) mod aggregate_return {
         };
         if indirect_result(placement).is_some() {
             super::structural::indirect_results::returned(
+                function,
                 source,
                 block,
                 returned,
@@ -973,7 +985,15 @@ pub(crate) mod aggregate_return {
             }
         }
         for (owner, call) in cleanup_calls {
-            super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
+            super::cleanup_call::emit(
+                function,
+                source,
+                *owner,
+                call,
+                returned.effect,
+                builder,
+                environment,
+            )?;
         }
 
         if !cleanup_calls.is_empty() {
@@ -1091,8 +1111,9 @@ pub(crate) mod atomic_access {
             }
             registers.push(register);
         }
+        let closed_type = scalar_type;
         let raw = if let Some(result) = row.result {
-            let register = builder.register(result.value, result.definition_site, scalar_type)?;
+            let register = builder.register(result.value, result.definition_site, closed_type)?;
             registers.push(register);
             Some(register)
         } else if let Some((result, layout)) = outcome {
@@ -1147,15 +1168,12 @@ pub(crate) mod atomic_access {
             ),
         )?;
         if let (Some(raw), Some(result)) = (raw, row.result) {
-            let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
-                builder
-                    .closed_scalar(scalar_type)
-                    .ok_or_else(SelectedInstructionError::custody)?,
-            );
+            let normalization =
+                crate::selection::scalar_call_abi::integer_carrier_normalization(closed_type);
             let output = if normalization == SelectedInstructionKind::CopyI64 {
                 raw
             } else {
-                let output = builder.register(result.value, result.definition_site, scalar_type)?;
+                let output = builder.register(result.value, result.definition_site, closed_type)?;
                 builder.emit(
                     normalization,
                     builder.constraints.keys.copy_i64,
@@ -1166,7 +1184,7 @@ pub(crate) mod atomic_access {
             };
             builder
                 .definitions
-                .push((result.value, output, result.definition_site, scalar_type));
+                .push((result.value, output, result.definition_site, closed_type));
         }
         if outcome.is_some() {
             let raw = raw.ok_or(SelectedInstructionError::custody())?;
@@ -1178,7 +1196,7 @@ pub(crate) mod atomic_access {
 }
 pub(crate) mod boolean_value {
     use super::{
-        Builder, IntegerSign, IntegerValue, LegalizedScalarInstructionKind, ScalarType,
+        Builder, IntegerSign, IntegerValue, LegalizedScalarInstructionKind,
         SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
     };
     use crate::SelectedInstructionError;
@@ -1194,7 +1212,7 @@ pub(crate) mod boolean_value {
         let result = operation
             .result
             .ok_or(SelectedInstructionError::custody())?;
-        if result.scalar_type != ScalarType::Boolean {
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean {
             return Err(SelectedInstructionError::custody());
         }
         let (comparison, comparison_key, operands, values, materialize) = match operation.kind {
@@ -1225,10 +1243,7 @@ pub(crate) mod boolean_value {
                         predicate,
                     );
                 }
-                let signed = match state
-                    .closed_scalar(operand_type)
-                    .ok_or_else(SelectedInstructionError::custody)?
-                {
+                let signed = match operand_type {
                     semantic_vocabulary::ClosedScalarType::Boolean
                         if predicate == LegalizedScalarComparison::Equal =>
                     {
@@ -1272,7 +1287,7 @@ pub(crate) mod boolean_value {
                 let (_, input, _, carrier) = state
                     .resolve(operand)
                     .ok_or(SelectedInstructionError::custody())?;
-                if carrier != ScalarType::Boolean {
+                if carrier != semantic_vocabulary::ClosedScalarType::Boolean {
                     return Err(SelectedInstructionError::custody());
                 }
                 (
@@ -1296,7 +1311,11 @@ pub(crate) mod boolean_value {
                 ..Default::default()
             },
         )?;
-        let output = state.register(result.value, result.definition_site, ScalarType::Boolean)?;
+        let output = state.register(
+            result.value,
+            result.definition_site,
+            semantic_vocabulary::ClosedScalarType::Boolean,
+        )?;
         state.emit(
             materialize,
             state.constraints.keys.materialize_boolean,
@@ -1330,9 +1349,9 @@ pub(crate) mod boolean_value {
         if operand_type != right_operand_type {
             return Err(invalid());
         }
-        if !matches!(source.closed_scalar(*operand_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+        if !matches!(*operand_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
             if (integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && matches!(integer.bits(), 8 | 16 | 32 | 64)) || (integer.is_address() && integer.bits() == 64))
-            && !(*operand_type == ScalarType::Boolean
+            && !(*operand_type == semantic_vocabulary::ClosedScalarType::Boolean
                 && *predicate == legalized_operations::LegalizedScalarComparison::Equal)
         {
             return Err(invalid());
@@ -1347,7 +1366,9 @@ pub(crate) mod boolean_value {
                 *left
             };
             let (_, register, _, actual_type) = builder.resolve(input).ok_or_else(invalid)?;
-            if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
+            if actual_type != *operand_type
+                || scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
+            {
                 return Err(invalid());
             }
             builder.emit(
@@ -1374,7 +1395,9 @@ pub(crate) mod boolean_value {
                 *left
             };
             let (_, register, _, actual_type) = builder.resolve(input).ok_or_else(invalid)?;
-            if actual_type != *operand_type || scalar_type != ScalarType::Boolean {
+            if actual_type != *operand_type
+                || scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
+            {
                 return Err(invalid());
             }
             builder.emit(
@@ -1405,7 +1428,7 @@ pub(crate) mod boolean_value {
         let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
         if left_type != *operand_type
             || right_type != left_type
-            || scalar_type != ScalarType::Boolean
+            || scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
         {
             return Err(invalid());
         }
@@ -1431,21 +1454,17 @@ pub(crate) mod boolean_value {
         state: &mut Builder<'_>,
         left_register: VirtualRegisterId,
         right_register: VirtualRegisterId,
-        left_type: ScalarType,
-        right_type: ScalarType,
+        left_type: semantic_vocabulary::ClosedScalarType,
+        right_type: semantic_vocabulary::ClosedScalarType,
         predicate: LegalizedScalarComparison,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        let (ScalarType::Integer(left_type), ScalarType::Integer(right_type)) =
-            (left_type, right_type)
+        let (
+            semantic_vocabulary::ClosedScalarType::Integer(left_type),
+            semantic_vocabulary::ClosedScalarType::Integer(right_type),
+        ) = (left_type, right_type)
         else {
             return Err(SelectedInstructionError::custody());
         };
-        let left_type = state
-            .closed_integer(left_type)
-            .ok_or_else(SelectedInstructionError::custody)?;
-        let right_type = state
-            .closed_integer(right_type)
-            .ok_or_else(SelectedInstructionError::custody)?;
         if left_type.is_address()
             || right_type.is_address()
             || !matches!(left_type.bits(), 8 | 16 | 32 | 64)
@@ -1500,7 +1519,7 @@ pub(crate) mod boolean_value {
     struct IntegerComparisonSequence<'state, 'catalog> {
         state: &'state mut Builder<'catalog>,
         value: semantic_vocabulary::ValueId,
-        site: optimization_unit::ValueDefinitionSite,
+        site: native_vocabulary::provenance::ValueDefinitionSite,
         provenance: SelectedInstructionProvenance,
     }
 
@@ -1526,11 +1545,13 @@ pub(crate) mod boolean_value {
                 (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
                 _ => return Err(SelectedInstructionError::custody()),
             };
-            let carrier = semantic_vocabulary::IntegerType::new(carrier.sign(), 64)
+            let carrier = semantic_vocabulary::ClosedIntegerType::new(carrier.sign(), 64)
                 .map_err(|_| SelectedInstructionError::custody())?;
-            let output =
-                self.state
-                    .register(self.value, self.site, ScalarType::Integer(carrier))?;
+            let output = self.state.register(
+                self.value,
+                self.site,
+                semantic_vocabulary::ClosedScalarType::Integer(carrier),
+            )?;
             let provenance = self.provenance();
             self.state.emit(
                 kind,
@@ -1542,11 +1563,13 @@ pub(crate) mod boolean_value {
         }
 
         fn zero(&mut self) -> Result<VirtualRegisterId, SelectedInstructionError> {
-            let carrier = semantic_vocabulary::IntegerType::new(IntegerSign::Signed, 64)
+            let carrier = semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 64)
                 .map_err(|_| SelectedInstructionError::custody())?;
-            let output =
-                self.state
-                    .register(self.value, self.site, ScalarType::Integer(carrier))?;
+            let output = self.state.register(
+                self.value,
+                self.site,
+                semantic_vocabulary::ClosedScalarType::Integer(carrier),
+            )?;
             let provenance = self.provenance();
             self.state.emit_materialize_i64(
                 semantic_vocabulary::IntegerValue::Signed(0),
@@ -1587,9 +1610,11 @@ pub(crate) mod boolean_value {
                     SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
                 }
             };
-            let output = self
-                .state
-                .register(self.value, self.site, ScalarType::Boolean)?;
+            let output = self.state.register(
+                self.value,
+                self.site,
+                semantic_vocabulary::ClosedScalarType::Boolean,
+            )?;
             let provenance = self.provenance();
             self.state.emit(
                 materialize,
@@ -1629,7 +1654,7 @@ pub(crate) mod byte_input {
         };
         if !row.has_valid_hosted_read_byte_shape()
             || row.result.is_some()
-            || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+            || !matches!(row.ownership.as_slice(), [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         {
             return Err(SelectedInstructionError::custody());
         }
@@ -1706,7 +1731,9 @@ pub(crate) mod byte_output {
         block_start: usize,
         builder: &mut Builder<'_>,
     ) -> Result<bool, SelectedInstructionError> {
-        let LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } = row.kind
+        let LegalizedScalarInstructionKind::HostedWriteByteI32 {
+            boundary, source, ..
+        } = row.kind
         else {
             return Ok(false);
         };
@@ -1714,8 +1741,8 @@ pub(crate) mod byte_output {
             .resolve(source)
             .ok_or_else(|| SelectedInstructionError::custody())?;
         if row.result.is_some()
-            || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
-            || !matches!(builder.closed_scalar(scalar_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+            || !matches!(row.ownership.as_slice(), [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+            || !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                 if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
         {
             return Err(SelectedInstructionError::custody());
@@ -1781,8 +1808,8 @@ pub(crate) mod call_arguments {
     pub(crate) trait InvocationArgumentSource {
         fn invocation_site(&self) -> semantic_vocabulary::InvocationSite;
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan>;
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent];
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement];
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent];
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement];
         fn invocation_argument_place(
             &self,
             position: usize,
@@ -1804,10 +1831,10 @@ pub(crate) mod call_arguments {
                 _ => None,
             }
         }
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
             &self.ownership
         }
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
             &self.work
         }
         fn invocation_argument_place(
@@ -1838,23 +1865,23 @@ pub(crate) mod call_arguments {
     }
 
     pub(crate) struct TerminalInvocation<'a> {
-        pub edge: semantic_vocabulary::EdgeId,
+        pub site: semantic_vocabulary::InvocationSite,
         pub call: &'a LegalizedScalarCall,
-        pub ownership: &'a [optimization_unit::OwnershipEvent],
-        pub work: &'a [optimization_unit::WorkSettlement],
+        pub ownership: &'a [native_vocabulary::provenance::OwnershipEvent],
+        pub work: &'a [native_vocabulary::provenance::WorkSettlement],
     }
 
     impl InvocationArgumentSource for TerminalInvocation<'_> {
         fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(self.edge)
+            self.site
         }
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
         }
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
             self.ownership
         }
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
             self.work
         }
         fn invocation_argument_place(
@@ -1881,7 +1908,8 @@ pub(crate) mod call_arguments {
                 }
             }
             semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
-            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+            | semantic_vocabulary::InvocationSite::Cleanup { edge, .. } => {
                 SelectedInstructionProvenance {
                     edges: vec![edge],
                     ..Default::default()
@@ -1898,7 +1926,8 @@ pub(crate) mod call_arguments {
                 selected_instructions::SelectedMemoryAccessOrigin::Operation(operation)
             }
             semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
-            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+            | semantic_vocabulary::InvocationSite::Cleanup { edge, .. } => {
                 selected_instructions::SelectedMemoryAccessOrigin::Edge(edge)
             }
         }
@@ -1907,8 +1936,8 @@ pub(crate) mod call_arguments {
     pub(crate) fn argument_slot(
         source: &impl InvocationArgumentSource,
         argument_index: u32,
-    ) -> selected_instructions::LocalStorageSlotId {
-        match source.invocation_site() {
+    ) -> Result<selected_instructions::LocalStorageSlotId, SelectedInstructionError> {
+        Ok(match source.invocation_site() {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 selected_instructions::LocalStorageSlotId::StructuralCallArgument {
                     operation,
@@ -1922,7 +1951,12 @@ pub(crate) mod call_arguments {
                     argument_index,
                 }
             }
-        }
+            semantic_vocabulary::InvocationSite::Cleanup { .. } => {
+                // Owned cleanup uses exact per-action outgoing slots. This
+                // borrowed descriptor scratch lane has no action owner.
+                return Err(SelectedInstructionError::custody());
+            }
+        })
     }
 
     pub(crate) fn marshal(
@@ -2021,7 +2055,7 @@ pub(crate) mod call_arguments {
         }
         let output = if let Some((kind, key)) =
             crate::selection::scalar_call_abi::outgoing_float_transfer(
-                scalar_type,
+                scalar_type.as_checking(),
                 &builder.constraints.keys,
             ) {
             let output = builder.register(value, site, scalar_type)?;
@@ -2043,7 +2077,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
         builder: &mut Builder<'_>,
     ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
@@ -2125,7 +2159,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
         let pointer = referent_pointer(
@@ -2158,7 +2192,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Result<PreparedReferent, SelectedInstructionError> {
         let reference =
@@ -2293,7 +2327,7 @@ pub(crate) mod call_arguments {
                         argument_index
                             .try_into()
                             .map_err(|_| SelectedInstructionError::custody())?,
-                    ),
+                    )?,
                     pointer,
                     codec_register,
                 )?
@@ -2350,7 +2384,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         pointer_place: semantic_vocabulary::PlaceId,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         pointer: VirtualRegisterId,
     ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
         let Some(stack_byte_offset) = stack_pointer_offset(&target.destination) else {
@@ -2393,7 +2427,7 @@ pub(crate) mod call_arguments {
         function: usize,
         source: &crate::native_geometry::NativeFunction<'_>,
         call: &LegalizedScalarCall,
-        owner: target_operations::CallSiteOwner,
+        owner: target_vocabulary::CallSiteOwner,
         builder: &Builder<'_>,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
         invalid: impl Fn() -> SelectedInstructionError,
@@ -2415,10 +2449,10 @@ pub(crate) mod call_arguments {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn emit_call(
         builder: &mut Builder<'_>,
-        owner: target_operations::CallSiteOwner,
+        owner: target_vocabulary::CallSiteOwner,
         call: &LegalizedScalarCall,
-        effect: optimization_unit::EffectLink,
-        ownership: Vec<optimization_unit::OwnershipEvent>,
+        effect: native_vocabulary::provenance::EffectLink,
+        ownership: Vec<native_vocabulary::provenance::OwnershipEvent>,
         kind: SelectedInstructionKind,
         key: RegisterConstraintKey,
         operands: &[VirtualRegisterId],
@@ -2436,102 +2470,70 @@ pub(crate) mod call_arguments {
     }
 }
 pub(crate) mod cleanup_call {
-    use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
+    use super::{Builder, SelectedInstructionKind};
     use crate::SelectedInstructionError;
-    use calling_conventions::ValueClass;
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
-    use optimization_unit::EffectLink;
-    use target_operations::{CallSiteOwner, NativeCallOrigin};
+    use native_vocabulary::provenance::EffectLink;
+    use semantic_vocabulary::InvocationSite;
+    use target_vocabulary::{CallSiteOwner, NativeCallOrigin};
 
     pub(crate) fn emit(
+        function: usize,
+        source: &crate::native_geometry::NativeFunction<'_>,
         owner: CallSiteOwner,
         call: &LegalizedScalarCall,
         effect: EffectLink,
         builder: &mut Builder<'_>,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ) -> Result<(), SelectedInstructionError> {
-        let edge = owner.edge().ok_or(SelectedInstructionError::custody())?;
+        let CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } = owner
+        else {
+            return Err(SelectedInstructionError::custody());
+        };
+        let site = InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        };
+        let [LegalizedScalarArgument::Structural { semantic, .. }] = call.arguments.as_slice()
+        else {
+            return Err(SelectedInstructionError::custody());
+        };
         if call.source != NativeCallOrigin::Authored
+            || semantic.access != terminal_psi::StructuralAccess::Owned
             || call.result_placement.is_some()
             || call.structural_result.is_some()
             || !call.claim_transfers.is_empty()
-            || !call.requirement_obligations.is_empty()
             || !call.crash_continuations.is_empty()
-            || call.arguments.len() > 1
+            || crate::selection::scalar_call_abi::input_site::cleanup_call(source, site)
+                != Some(call)
         {
             return Err(SelectedInstructionError::custody());
         }
-        for argument in &call.arguments {
-            let LegalizedScalarArgument::Structural {
-                semantic,
-                target,
-                indices,
-            } = argument
-            else {
-                return Err(SelectedInstructionError::custody());
-            };
-            if !matches!(
-                semantic.access,
-                terminal_psi::exclusive_borrow_pair_pattern!()
-            ) || target.access != semantic.access
-                || target.place != semantic.place
-                || target.path != semantic.path
-                || indices.len() != target.indices.len()
-                || indices
-                    .iter()
-                    .zip(&target.indices)
-                    .any(|(selected, target)| !selected.matches_target(target))
-                || !matches!(
-                    target.shape.class,
-                    ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
-                )
-                || target.destination.shape != target.shape
-            {
-                return Err(SelectedInstructionError::custody());
-            }
-        }
-        // The stored plan is the calling-convention result. Match the arguments
-        // about to be encoded to that plan instead of computing it again.
-        if call.arguments.len() != call.call_plan.parameters.len()
-            || call
-                .arguments
-                .iter()
-                .zip(&call.call_plan.parameters)
-                .any(|(argument, placement)| argument.placement() != placement)
-        {
-            return Err(SelectedInstructionError::custody());
-        }
-        let key = crate::selection::scalar_call_abi::unit_key(call, environment)
-            .ok_or(SelectedInstructionError::custody())?;
-        let provenance = SelectedInstructionProvenance {
-            edges: vec![edge],
-            ..Default::default()
+        let invocation = super::call_arguments::TerminalInvocation {
+            site,
+            call,
+            ownership: &[],
+            work: &[],
         };
-        let mut operands = Vec::new();
-        for argument in &call.arguments {
-            let LegalizedScalarArgument::Structural {
-                semantic,
-                target,
-                indices,
-            } = argument
-            else {
-                return Err(SelectedInstructionError::custody());
-            };
-            let pointer = super::structural::place_pointer_at_site(
-                builder,
-                provenance.clone(),
-                semantic.place,
-                target.source_byte_offset,
-            )?;
-            operands.push(super::structural::runtime_address::scale_at_site(
-                builder,
-                provenance.clone(),
-                semantic.place,
-                target.source_byte_offset,
-                pointer,
-                indices,
-            )?);
-        }
+        let key = super::call_arguments::validated_call_key(
+            function,
+            source,
+            call,
+            owner,
+            builder,
+            environment,
+            SelectedInstructionError::custody,
+        )?;
+        let operands = super::call_arguments::marshal(
+            source,
+            &invocation,
+            call,
+            builder,
+            SelectedInstructionError::custody,
+        )?;
         super::call_arguments::emit_call(
             builder,
             owner,
@@ -2543,14 +2545,14 @@ pub(crate) mod cleanup_call {
             },
             key,
             &operands,
-            provenance,
+            super::call_arguments::invocation_provenance(&invocation),
         )?;
         Ok(())
     }
 }
 pub(crate) mod control {
     use super::{
-        Builder, IntegerSign, LegalizedScalarInstructionKind, RegisterConstraintKey, ScalarType,
+        Builder, IntegerSign, LegalizedScalarInstructionKind, RegisterConstraintKey,
         SelectedBlockId, SelectedInstruction, SelectedInstructionKind,
         SelectedInstructionProvenance, ValueLocation, VirtualRegisterId,
     };
@@ -2594,6 +2596,7 @@ pub(crate) mod control {
                         | LegalizedScalarReturnValue::SharedDescriptor { .. }
                 ) {
                     return super::aggregate_return::build(
+                        function,
                         source,
                         block,
                         returned,
@@ -2603,7 +2606,15 @@ pub(crate) mod control {
                     );
                 }
                 for (owner, call) in calls {
-                    super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
+                    super::cleanup_call::emit(
+                        function,
+                        source,
+                        *owner,
+                        call,
+                        returned.effect,
+                        builder,
+                        environment,
+                    )?;
                 }
                 let mut normal = block.clone();
                 normal.terminator = LegalizedScalarTerminator::Return(returned.clone());
@@ -2664,6 +2675,7 @@ pub(crate) mod control {
                     | LegalizedScalarReturnValue::StructuralParameter { .. }
                     | LegalizedScalarReturnValue::SharedDescriptor { .. } => {
                         return super::aggregate_return::build(
+                            function,
                             source,
                             block,
                             returned,
@@ -2701,7 +2713,10 @@ pub(crate) mod control {
                         {
                             return Err(invalid());
                         }
-                        let keys_for_result = if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+                        let keys_for_result = if matches!(
+                            scalar_type,
+                            semantic_vocabulary::ClosedScalarType::IeeeFloat(_)
+                        ) {
                             keys.return_float.as_slice()
                         } else {
                             std::slice::from_ref(&keys.return_i64)
@@ -2709,7 +2724,8 @@ pub(crate) mod control {
                         let key = keys_for_result.iter().copied().find(|key| row(builder.catalog, *key).is_ok_and(|row| matches!(row.operands.as_slice(), [operand] if operand.fixed_view.is_some() && operand.fixed_view == environment.fixed_register_view(*register)))).ok_or_else(invalid)?;
                         let output = if let Some((kind, transfer_key)) =
                             crate::selection::scalar_call_abi::outgoing_float_transfer(
-                                value_type, keys,
+                                value_type.as_checking(),
+                                keys,
                             ) {
                             let output = builder.register(value, site, value_type)?;
                             builder.registers[output.0 as usize].class =
@@ -2789,7 +2805,8 @@ pub(crate) mod control {
                         break;
                     };
                     if previous.result.as_ref().is_none_or(|result| {
-                        result.value != base || result.scalar_type != ScalarType::Boolean
+                        result.value != base
+                            || result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
                     }) {
                         return Err(invalid());
                     }
@@ -2820,7 +2837,7 @@ pub(crate) mod control {
                     (predicate, operand_type)
                 } else {
                     let (_, input, _, scalar_type) = builder.resolve(base).ok_or_else(invalid)?;
-                    if scalar_type != ScalarType::Boolean {
+                    if scalar_type != semantic_vocabulary::ClosedScalarType::Boolean {
                         return Err(invalid());
                     }
                     builder.emit(
@@ -2830,7 +2847,10 @@ pub(crate) mod control {
                         super::value_provenance(base),
                     )?;
                     inverted = !inverted;
-                    (Comparison::Equal, ScalarType::Boolean)
+                    (
+                        Comparison::Equal,
+                        semantic_vocabulary::ClosedScalarType::Boolean,
+                    )
                 };
                 let branch_provenance =
                     SelectedInstructionProvenance {
@@ -2857,7 +2877,7 @@ pub(crate) mod control {
                 } else {
                     (when_true, when_false)
                 };
-                let signed = matches!(operand_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed);
+                let signed = matches!(operand_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed);
                 let kind = match predicate {
                     Comparison::Equal => SelectedInstructionKind::ConditionalBranchNonZero,
                     _ if signed => SelectedInstructionKind::ConditionalBranchI64LessThan,
@@ -2998,8 +3018,8 @@ pub(crate) mod control {
                         let (_, parameter, _, parameter_type) = builder
                             .resolve(semantic.parameter)
                             .ok_or(SelectedInstructionError::custody())?;
-                        if argument_type != semantic.scalar_type
-                            || parameter_type != semantic.scalar_type
+                        if argument_type.as_checking() != semantic.scalar_type
+                            || parameter_type.as_checking() != semantic.scalar_type
                         {
                             return Err(SelectedInstructionError::custody());
                         }
@@ -3133,9 +3153,9 @@ pub(crate) mod control {
         let mut value = result.value;
         for row in &block.instructions[index + 1..] {
             if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
-                || row
-                    .result
-                    .is_none_or(|result| result.scalar_type != ScalarType::Boolean)
+                || row.result.is_none_or(|result| {
+                    result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
+                })
             {
                 return false;
             }
@@ -3208,9 +3228,11 @@ pub(crate) mod float_result_policy {
             return Err(SelectedInstructionError::custody());
         };
         let scalar_type = ScalarType::IeeeFloat(format);
-        if result.scalar_type != scalar_type
+        if result.scalar_type.as_checking() != scalar_type
             || !policy.accepts_operand_types(format, |value| {
-                state.resolve(value).map(|(_, _, _, kind)| kind)
+                state
+                    .resolve(value)
+                    .map(|(_, _, _, kind)| kind.as_checking())
             })
         {
             return Err(SelectedInstructionError::custody());
@@ -3237,7 +3259,7 @@ pub(crate) mod float_result_policy {
             .keys
             .for_semantic(MachineSemanticKind::FloatResultPolicy(form))
             .ok_or(SelectedInstructionError::custody())?;
-        let output = state.register(result.value, result.definition_site, scalar_type)?;
+        let output = state.register(result.value, result.definition_site, result.scalar_type)?;
         registers.push(output);
         state.emit(
             SelectedInstructionKind::FloatResultPolicy { form },
@@ -3253,15 +3275,13 @@ pub(crate) mod float_result_policy {
 }
 pub(crate) mod ieee_comparison {
     use super::{
-        Builder, IntegerSign, IntegerValue, LegalizedScalarInstructionKind, ScalarType,
+        Builder, IntegerSign, IntegerValue, LegalizedScalarInstructionKind,
         SelectedInstructionKind, SelectedInstructionProvenance, ValueDefinitionSite, ValueId,
         VirtualRegisterId,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::operation_provenance;
-    use semantic_vocabulary::{
-        IeeeFloatComparisonOperation as Relation, IeeeFloatFormat, IntegerType,
-    };
+    use semantic_vocabulary::{IeeeFloatComparisonOperation as Relation, IeeeFloatFormat};
 
     pub(crate) fn emit(
         operation: &legalized_operations::LegalizedScalarInstruction,
@@ -3285,8 +3305,8 @@ pub(crate) mod ieee_comparison {
         let (_, mut right_register, _, right_type) = state
             .resolve(right)
             .ok_or_else(|| SelectedInstructionError::custody())?;
-        if result.scalar_type != ScalarType::Boolean
-            || left_type != ScalarType::IeeeFloat(format)
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
+            || left_type != semantic_vocabulary::ClosedScalarType::IeeeFloat(format)
             || right_type != left_type
         {
             return Err(SelectedInstructionError::custody());
@@ -3369,8 +3389,8 @@ pub(crate) mod ieee_comparison {
             let output = self.state.register(
                 self.value,
                 self.site,
-                ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64)
+                semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
                         .map_err(|_| SelectedInstructionError::custody())?,
                 ),
             )?;
@@ -3395,9 +3415,11 @@ pub(crate) mod ieee_comparison {
                 &[left, right],
                 provenance,
             )?;
-            let output = self
-                .state
-                .register(self.value, self.site, ScalarType::Boolean)?;
+            let output = self.state.register(
+                self.value,
+                self.site,
+                semantic_vocabulary::ClosedScalarType::Boolean,
+            )?;
             let provenance = self.provenance();
             self.state.emit(
                 materialize,
@@ -3451,9 +3473,11 @@ pub(crate) mod ieee_comparison {
                 &[value],
                 provenance,
             )?;
-            let output = self
-                .state
-                .register(self.value, self.site, ScalarType::Boolean)?;
+            let output = self.state.register(
+                self.value,
+                self.site,
+                semantic_vocabulary::ClosedScalarType::Boolean,
+            )?;
             let provenance = self.provenance();
             self.state.emit(
                 SelectedInstructionKind::MaterializeBooleanEqual,
@@ -3511,8 +3535,8 @@ pub(crate) mod ieee_comparison {
             let output = self.state.register(
                 self.value,
                 self.site,
-                ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Signed, 64)
+                semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Signed, 64)
                         .map_err(|_| SelectedInstructionError::custody())?,
                 ),
             )?;
@@ -3575,7 +3599,7 @@ pub(crate) mod ieee_float_arithmetic {
         if !realization.supports_target(state.environment.target()) {
             return Err(SelectedInstructionError::custody());
         }
-        if result.scalar_type != scalar || values.len() != form.operand_count() {
+        if result.scalar_type.as_checking() != scalar || values.len() != form.operand_count() {
             return Err(SelectedInstructionError::custody());
         }
         let mut registers = Vec::with_capacity(values.len() + 1);
@@ -3583,7 +3607,7 @@ pub(crate) mod ieee_float_arithmetic {
             let (_, register, _, value_type) = state
                 .resolve(*value)
                 .ok_or(SelectedInstructionError::custody())?;
-            if value_type != operand {
+            if value_type.as_checking() != operand {
                 return Err(SelectedInstructionError::custody());
             }
             registers.push(register);
@@ -3594,7 +3618,7 @@ pub(crate) mod ieee_float_arithmetic {
                 selected_instructions::MachineSemanticKind::NearestIeeeFloatArithmetic(form),
             )
             .ok_or(SelectedInstructionError::custody())?;
-        let output = state.register(result.value, result.definition_site, scalar)?;
+        let output = state.register(result.value, result.definition_site, result.scalar_type)?;
         registers.push(output);
         state.emit(
             SelectedInstructionKind::NearestIeeeFloatArithmetic { form },
@@ -3647,23 +3671,27 @@ pub(crate) mod integer_arithmetic {
         };
         Ok(match &operation.kind {
             LegalizedScalarInstructionKind::Constant(value) => {
-                if scalar_type == ScalarType::Boolean
+                if scalar_type == semantic_vocabulary::ClosedScalarType::Boolean
                     && !matches!(value, IntegerValue::Unsigned(0 | 1))
                 {
                     return Err(invalid());
                 }
                 if matches!(
                     scalar_type,
-                    ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32)
+                    semantic_vocabulary::ClosedScalarType::IeeeFloat(
+                        semantic_vocabulary::IeeeFloatFormat::Binary32
+                    )
                 ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u32::MAX))
                     || matches!(
                         scalar_type,
-                        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64)
+                        semantic_vocabulary::ClosedScalarType::IeeeFloat(
+                            semantic_vocabulary::IeeeFloatFormat::Binary64
+                        )
                     ) && !matches!(value, IntegerValue::Unsigned(bits) if *bits <= u128::from(u64::MAX))
                 {
                     return Err(invalid());
                 }
-                if scalar_type == ScalarType::Boolean
+                if scalar_type == semantic_vocabulary::ClosedScalarType::Boolean
                     && !matches!(value, IntegerValue::Unsigned(0 | 1))
                 {
                     return Err(invalid());
@@ -3685,7 +3713,7 @@ pub(crate) mod integer_arithmetic {
                     builder.resolve(*right).ok_or_else(invalid)?;
                 if left_type != scalar_type
                     || right_type != scalar_type
-                    || !matches!(builder.closed_scalar(scalar_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+                    || !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                             && matches!(integer.bits(), 8 | 16 | 32 | 64))
                 {
@@ -3711,7 +3739,7 @@ pub(crate) mod integer_arithmetic {
             LegalizedScalarInstructionKind::BitwiseNot { operand } => {
                 let (_, input, _, operand_type) = builder.resolve(*operand).ok_or_else(invalid)?;
                 if operand_type != scalar_type
-                    || !matches!(builder.closed_scalar(scalar_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+                    || !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                             && matches!(integer.bits(), 8 | 16 | 32 | 64))
                 {
@@ -3724,14 +3752,10 @@ pub(crate) mod integer_arithmetic {
                     &[input, raw],
                     operation_provenance(operation, vec![*operand, result.value]),
                 )?;
-                let normalization = if matches!(scalar_type, ScalarType::Integer(integer)
+                let normalization = if matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                         if integer.sign() == IntegerSign::Unsigned)
                 {
-                    crate::selection::scalar_call_abi::integer_carrier_normalization(
-                        builder
-                            .closed_scalar(scalar_type)
-                            .ok_or_else(SelectedInstructionError::custody)?,
-                    )
+                    crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
                 } else {
                     SelectedInstructionKind::CopyI64
                 };
@@ -3935,9 +3959,7 @@ pub(crate) mod integer_arithmetic {
                     builder.resolve(*left).ok_or_else(invalid)?;
                 let (_, right_register, _, right_type) =
                     builder.resolve(*right).ok_or_else(invalid)?;
-                let Some(semantic_vocabulary::ClosedScalarType::Integer(integer)) =
-                    builder.closed_scalar(scalar_type)
-                else {
+                let semantic_vocabulary::ClosedScalarType::Integer(integer) = scalar_type else {
                     return Err(invalid());
                 };
                 if left_type != scalar_type
@@ -3992,9 +4014,7 @@ pub(crate) mod integer_arithmetic {
                         builder.register(result.value, result.definition_site, scalar_type)?;
                     builder.emit_integer(
                         crate::selection::scalar_call_abi::integer_carrier_normalization(
-                            builder
-                                .closed_scalar(scalar_type)
-                                .ok_or_else(SelectedInstructionError::custody)?,
+                            scalar_type,
                         ),
                         constraints.keys.copy_i64,
                         &[raw, output],
@@ -4012,7 +4032,7 @@ pub(crate) mod integer_arithmetic {
                     builder.resolve(*right).ok_or_else(invalid)?;
                 if left_type != scalar_type
                     || right_type != scalar_type
-                    || !matches!(builder.closed_scalar(scalar_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+                    || !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                                 && matches!(integer.bits(), 8 | 16 | 32 | 64))
                 {
@@ -4046,11 +4066,7 @@ pub(crate) mod integer_arithmetic {
                     operation_provenance(operation, vec![*left, *right, result.value]),
                 )?;
                 let normalization =
-                    crate::selection::scalar_call_abi::integer_carrier_normalization(
-                        builder
-                            .closed_scalar(scalar_type)
-                            .ok_or_else(SelectedInstructionError::custody)?,
-                    );
+                    crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type);
                 normalized_result(builder, normalization, raw)?
             }
             LegalizedScalarInstructionKind::WrappingShiftLeft { value, count }
@@ -4061,13 +4077,11 @@ pub(crate) mod integer_arithmetic {
                     builder.resolve(*value).ok_or_else(invalid)?;
                 let (_, mut count_register, count_site, count_type) =
                     builder.resolve(*count).ok_or_else(invalid)?;
-                let Some(semantic_vocabulary::ClosedScalarType::Integer(value_integer)) =
-                    builder.closed_scalar(scalar_type)
+                let semantic_vocabulary::ClosedScalarType::Integer(value_integer) = scalar_type
                 else {
                     return Err(invalid());
                 };
-                let Some(semantic_vocabulary::ClosedScalarType::Integer(count_integer)) =
-                    builder.closed_scalar(count_type)
+                let semantic_vocabulary::ClosedScalarType::Integer(count_integer) = count_type
                 else {
                     return Err(invalid());
                 };
@@ -4088,8 +4102,8 @@ pub(crate) mod integer_arithmetic {
                     let mask = builder.register(
                         *count,
                         count_site,
-                        ScalarType::Integer(
-                            semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+                        semantic_vocabulary::ClosedScalarType::Integer(
+                            semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
                                 .map_err(|_| invalid())?,
                         ),
                     )?;
@@ -4185,11 +4199,7 @@ pub(crate) mod integer_arithmetic {
                 let normalization = if exact {
                     SelectedInstructionKind::CopyI64
                 } else {
-                    crate::selection::scalar_call_abi::integer_carrier_normalization(
-                        builder
-                            .closed_scalar(scalar_type)
-                            .ok_or_else(SelectedInstructionError::custody)?,
-                    )
+                    crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
                 };
                 normalized_result(builder, normalization, raw)?
             }
@@ -4208,13 +4218,13 @@ pub(crate) mod integer_arithmetic {
                     == legalized_operations::LegalizedExactIntegerOperator::Add
                 {
                     matches!((scalar_type, left_type, right_type),
-                        (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
-                            if result.admits_exact_add_operands(left, right))
+                        (semantic_vocabulary::ClosedScalarType::Integer(result), semantic_vocabulary::ClosedScalarType::Integer(left), semantic_vocabulary::ClosedScalarType::Integer(right))
+                            if result.as_checking().admits_exact_add_operands(left.as_checking(), right.as_checking()))
                 } else if *operator == legalized_operations::LegalizedExactIntegerOperator::Subtract
                 {
                     matches!((scalar_type, left_type, right_type),
-                        (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
-                            if result.admits_exact_subtract_operands(left, right))
+                        (semantic_vocabulary::ClosedScalarType::Integer(result), semantic_vocabulary::ClosedScalarType::Integer(left), semantic_vocabulary::ClosedScalarType::Integer(right))
+                            if result.as_checking().admits_exact_subtract_operands(left.as_checking(), right.as_checking()))
                 } else {
                     left_type == scalar_type && right_type == scalar_type
                 };
@@ -4227,9 +4237,7 @@ pub(crate) mod integer_arithmetic {
                         | legalized_operations::LegalizedExactIntegerOperator::Remainder
                 );
                 if divide_operator
-                    && !matches!(
-                        builder.closed_scalar(scalar_type),
-                        Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+                    && !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                             if integer.carrier()
                                 == semantic_vocabulary::IntegerCarrier::Fixed
                                 && matches!(integer.bits(), 8 | 16 | 32 | 64)
@@ -4239,8 +4247,8 @@ pub(crate) mod integer_arithmetic {
                 }
                 let unsigned_divide = divide_operator
                     && scalar_type
-                        == ScalarType::Integer(
-                            semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+                        == semantic_vocabulary::ClosedScalarType::Integer(
+                            semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
                                 .map_err(|_| invalid())?,
                         );
                 let (kind, key) = match operator {
@@ -4395,9 +4403,12 @@ pub(crate) mod integer_arithmetic {
         }
     }
 
-    fn carries(scalar_type: ScalarType, carrier: SaturatingCarrier) -> bool {
-        matches!(scalar_type, ScalarType::Integer(integer)
-            if SaturatingCarrier::from_integer(integer) == Some(carrier))
+    fn carries(
+        scalar_type: semantic_vocabulary::ClosedScalarType,
+        carrier: SaturatingCarrier,
+    ) -> bool {
+        matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
+            if SaturatingCarrier::from_integer(integer.as_checking()) == Some(carrier))
     }
 
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -4567,13 +4578,13 @@ pub(crate) mod integer_arithmetic {
 
     fn trapping_right_type(
         form: TrappingForm,
-        scalar_type: ScalarType,
-        right_type: ScalarType,
+        scalar_type: semantic_vocabulary::ClosedScalarType,
+        right_type: semantic_vocabulary::ClosedScalarType,
     ) -> bool {
         match form.operation {
             TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => {
-                matches!(right_type, ScalarType::Integer(count)
-                    if SaturatingCarrier::from_integer(count).is_some())
+                matches!(right_type, semantic_vocabulary::ClosedScalarType::Integer(count)
+                    if SaturatingCarrier::from_integer(count.as_checking()).is_some())
             }
             _ => right_type == scalar_type,
         }
@@ -4621,13 +4632,13 @@ pub(crate) mod integer_arithmetic {
     }
 }
 pub(crate) mod integer_conversion {
-    use super::{Builder, LegalizedScalarInstructionKind, ScalarType, VirtualRegisterId};
+    use super::{Builder, LegalizedScalarInstructionKind, VirtualRegisterId};
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::operation_provenance;
     use legalized_operations::LegalizedScalarInstruction;
 
     pub(crate) fn emit(
-        source: &crate::native_geometry::NativeFunction<'_>,
+        _source: &crate::native_geometry::NativeFunction<'_>,
         operation: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         function: usize,
@@ -4645,7 +4656,10 @@ pub(crate) mod integer_conversion {
                 operand,
                 source_type,
                 ..
-            } => (operand, ScalarType::Integer(*source_type)),
+            } => (
+                operand,
+                semantic_vocabulary::ClosedScalarType::Integer(*source_type),
+            ),
             LegalizedScalarInstructionKind::ScalarRepresentationView {
                 operand,
                 source_type,
@@ -4656,12 +4670,9 @@ pub(crate) mod integer_conversion {
         if actual_type != source_type {
             return Err(invalid());
         }
-        let normalization = crate::selection::integer_conversion::normalization(
-            source,
-            &operation.kind,
-            scalar_type,
-        )
-        .ok_or_else(invalid)?;
+        let normalization =
+            crate::selection::integer_conversion::normalization(&operation.kind, scalar_type)
+                .ok_or_else(invalid)?;
         let output = builder.register(result.value, result.definition_site, scalar_type)?;
         builder.emit(
             normalization,
@@ -4723,7 +4734,7 @@ pub(crate) mod no_normal {
         else {
             return Err(SelectedInstructionError::custody());
         };
-        let owner = target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge);
+        let owner = target_vocabulary::CallSiteOwner::InvokeNoNormal(*psi_edge);
         call.validate_no_normal_shape()
             .map_err(|_| SelectedInstructionError::custody())?;
         call.validate_source(ownership)
@@ -4736,7 +4747,7 @@ pub(crate) mod no_normal {
         let row = super::row(builder.catalog, key)?;
         validate(function, source, call, owner, key, row, environment)?;
         let site = super::call_arguments::TerminalInvocation {
-            edge: *psi_edge,
+            site: semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
             call,
             ownership,
             work,
@@ -4784,7 +4795,7 @@ pub(crate) mod no_normal {
                 operands.push(pointer);
             } else {
                 let scalar_type = match declared_result {
-                    abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                    native_vocabulary::values::AbstractFunctionResult::Scalar(result) => {
                         result.scalar_type
                     }
                     _ => integer,
@@ -4877,7 +4888,7 @@ pub(crate) mod normalized_foreign {
             let (_, count_register, _, scalar) = builder
                 .resolve(count)
                 .ok_or_else(SelectedInstructionError::custody)?;
-            if scalar != ScalarType::Integer(guard.count_type) {
+            if scalar.as_checking() != ScalarType::Integer(guard.count_type) {
                 return Err(SelectedInstructionError::custody());
             }
             let provenance = || SelectedInstructionProvenance {
@@ -4886,14 +4897,14 @@ pub(crate) mod normalized_foreign {
                 ..Default::default()
             };
             let bound = instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
-            builder.registers[bound.0 as usize].scalar_type = scalar;
+            builder.registers[bound.0 as usize].scalar_type = scalar.as_checking();
             builder.emit_materialize_i64(
                 IntegerValue::Unsigned(u128::from(guard.max_bytes)),
                 bound,
                 provenance(),
             )?;
             let output = instruction_scratch(builder, 2, IntegerSign::Unsigned)?;
-            builder.registers[output.0 as usize].scalar_type = scalar;
+            builder.registers[output.0 as usize].scalar_type = scalar.as_checking();
             let scratch = instruction_scratch(builder, 3, IntegerSign::Unsigned)?;
             let form = legalized_operations::TrappingForm {
                 operation: legalized_operations::TrappingOperation::Subtract,
@@ -5027,9 +5038,9 @@ pub(crate) mod normalized_foreign {
         Operation(&'source LegalizedScalarInstruction),
         ExternalCompletion {
             edge: semantic_vocabulary::EdgeId,
-            effect: optimization_unit::EffectLink,
-            ownership: &'source [optimization_unit::OwnershipEvent],
-            work: &'source [optimization_unit::WorkSettlement],
+            effect: native_vocabulary::provenance::EffectLink,
+            ownership: &'source [native_vocabulary::provenance::OwnershipEvent],
+            work: &'source [native_vocabulary::provenance::WorkSettlement],
         },
     }
 
@@ -5162,17 +5173,18 @@ pub(crate) mod normalized_foreign {
             let (_, input, site, scalar_type) = builder
                 .resolve(value)
                 .ok_or_else(|| SelectedInstructionError::custody())?;
-            if scalar_type != argument.source.scalar_type()
+            if scalar_type.as_checking() != argument.source.scalar_type()
                 || scalar_shape(scalar_type) != Some(argument.placement.shape)
             {
                 return Err(SelectedInstructionError::custody());
             }
             let output = builder.register(value, site, scalar_type)?;
             let (kind, transfer_key) =
-                outgoing_float_transfer(scalar_type, &builder.constraints.keys).unwrap_or((
-                    SelectedInstructionKind::CopyI64,
-                    builder.constraints.keys.copy_i64,
-                ));
+                outgoing_float_transfer(scalar_type.as_checking(), &builder.constraints.keys)
+                    .unwrap_or((
+                        SelectedInstructionKind::CopyI64,
+                        builder.constraints.keys.copy_i64,
+                    ));
             builder.registers[output.0 as usize].class = row(builder.catalog, transfer_key)?
                 .operands
                 .get(1)
@@ -5389,14 +5401,10 @@ pub(crate) mod normalized_foreign {
             let floating_transfer = if indirect_scalar {
                 None
             } else {
-                incoming_float_transfer(result.scalar_type, &builder.constraints.keys)
+                incoming_float_transfer(result.scalar_type.as_checking(), &builder.constraints.keys)
             };
             let (kind, transfer_key) = floating_transfer.unwrap_or((
-                integer_carrier_normalization(
-                    builder
-                        .closed_scalar(result.scalar_type)
-                        .ok_or_else(SelectedInstructionError::custody)?,
-                ),
+                integer_carrier_normalization(result.scalar_type),
                 builder.constraints.keys.copy_i64,
             ));
             builder.emit(
@@ -5422,7 +5430,9 @@ pub(crate) mod normalized_foreign {
     fn completion_edges(site: InvocationSite) -> Vec<semantic_vocabulary::EdgeId> {
         match site {
             InvocationSite::Operation(_) => Vec::new(),
-            InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
+            InvocationSite::ExternalCompletion(edge)
+            | InvocationSite::InvokeNoNormal(edge)
+            | InvocationSite::Cleanup { edge, .. } => {
                 vec![edge]
             }
         }
@@ -5847,7 +5857,7 @@ pub(crate) mod process_exit {
             .ok_or(SelectedInstructionError::custody())?;
         if *kind != semantic_vocabulary::ExternalCompletionKind::ProcessExit
             || !structural_arguments.is_empty()
-            || !matches!(builder.closed_scalar(scalar_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer)) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
+            || !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
         {
             return Err(SelectedInstructionError::custody());
         }
@@ -5858,7 +5868,7 @@ pub(crate) mod process_exit {
                 function,
                 source_function,
                 &call,
-                target_operations::CallSiteOwner::ExternalCompletion(*psi_edge),
+                target_vocabulary::CallSiteOwner::ExternalCompletion(*psi_edge),
                 builder,
                 environment,
                 SelectedInstructionError::custody,
@@ -5887,7 +5897,7 @@ pub(crate) mod process_exit {
             )?;
             super::call_arguments::emit_call(
                 builder,
-                target_operations::CallSiteOwner::ExternalCompletion(*psi_edge),
+                target_vocabulary::CallSiteOwner::ExternalCompletion(*psi_edge),
                 &call,
                 *effect,
                 ownership.clone(),
@@ -5906,32 +5916,32 @@ pub(crate) mod process_exit {
             )?;
             return exit_after(builder, *psi_edge).map(Some);
         }
-        let target_operations::ExternalCompletionBinding::Boundary(binding) = binding else {
+        let target_vocabulary::ExternalCompletionBinding::Boundary(binding) = binding else {
             return Err(SelectedInstructionError::custody());
         };
         if binding.boundary != *boundary
             || !matches!(
                 binding.execution,
-                target_operations::BoundaryExecutionBinding::AdmittedProvider(_)
-                    | target_operations::BoundaryExecutionBinding::NativeBinding(_)
-                    | target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32
+                target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(_)
+                    | target_vocabulary::BoundaryExecutionBinding::NativeBinding(_)
+                    | target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32
                     )
             )
         {
             return Err(SelectedInstructionError::custody());
         }
-        if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign) =
+        if let target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(foreign) =
             &binding.realization
         {
             let provider_execution = match binding.execution {
-                target_operations::BoundaryExecutionBinding::AdmittedProvider(execution) => {
-                    target_operations::ExternalExecutionBinding::Provider(execution)
+                target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(execution) => {
+                    target_vocabulary::ExternalExecutionBinding::Provider(execution)
                 }
-                target_operations::BoundaryExecutionBinding::NativeBinding(execution) => {
-                    target_operations::ExternalExecutionBinding::NativeBinding(execution)
+                target_vocabulary::BoundaryExecutionBinding::NativeBinding(execution) => {
+                    target_vocabulary::ExternalExecutionBinding::NativeBinding(execution)
                 }
-                target_operations::BoundaryExecutionBinding::CompilerBuiltin(_) => {
+                target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(_) => {
                     return Err(SelectedInstructionError::custody());
                 }
             };
@@ -5942,7 +5952,7 @@ pub(crate) mod process_exit {
                 scalar_arguments: arguments.clone(),
                 structural_arguments: Vec::new(),
                 structural_indices: Vec::new(),
-                result: target_operations::TargetBoundaryResult::Unit,
+                result: target_vocabulary::TargetBoundaryResult::Unit,
                 callbacks: Vec::new(),
                 descriptor_input: None,
             };
@@ -5963,8 +5973,8 @@ pub(crate) mod process_exit {
         }
         if !matches!(
             binding.realization,
-            target_operations::BoundarySettlementRealization::Builtin(
-                target_operations::BoundaryRealization::HostedExitProcessI32(_)
+            target_vocabulary::BoundarySettlementRealization::Builtin(
+                target_vocabulary::BoundaryRealization::HostedExitProcessI32(_)
             )
         ) {
             return Err(SelectedInstructionError::custody());
@@ -6078,7 +6088,7 @@ pub(crate) mod register_access {
         }
         .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
         let matches_carrier = |scalar, bits| {
-            matches!(builder.closed_scalar(scalar), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+            matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
             if !integer.is_address() && integer.bits() == bits && integer.sign() == IntegerSign::Unsigned)
         };
         let mut registers = Vec::new();
@@ -6168,7 +6178,7 @@ pub(crate) mod scalar_call {
             function,
             source,
             call,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             builder,
             environment,
             invalid,
@@ -6177,7 +6187,7 @@ pub(crate) mod scalar_call {
             super::call_arguments::marshal(source, operation, call, builder, invalid)?;
         if let Some(selector) = call.target.selector() {
             let (_, input, site, scalar_type) = builder.resolve(selector).ok_or_else(invalid)?;
-            if scalar_type != target_operations::selector_carrier_type() {
+            if scalar_type.as_checking() != target_vocabulary::selector_carrier_type() {
                 return Err(invalid());
             }
             operands.push(builder.copy(input, selector, site, scalar_type)?);
@@ -6191,7 +6201,7 @@ pub(crate) mod scalar_call {
         operands.push(short_result);
         super::call_arguments::emit_call(
             builder,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             call,
             operation.effect,
             operation.ownership.clone(),
@@ -6215,15 +6225,12 @@ pub(crate) mod scalar_call {
             },
         )?;
         let output = builder.register(result.value, result.definition_site, scalar_type)?;
-        let (kind, key) = incoming_float_transfer(scalar_type, &builder.constraints.keys)
-            .unwrap_or((
-                integer_carrier_normalization(
-                    builder
-                        .closed_scalar(scalar_type)
-                        .ok_or_else(SelectedInstructionError::custody)?,
-                ),
-                builder.constraints.keys.copy_i64,
-            ));
+        let (kind, key) =
+            incoming_float_transfer(scalar_type.as_checking(), &builder.constraints.keys)
+                .unwrap_or((
+                    integer_carrier_normalization(scalar_type),
+                    builder.constraints.keys.copy_i64,
+                ));
         builder.emit(
             kind,
             key,
@@ -6318,9 +6325,7 @@ pub(crate) mod scalar_stack {
                 &[address, value],
                 provenance.clone(),
             )?;
-            let parameter_type = builder
-                .closed_scalar(parameter.scalar_type)
-                .ok_or_else(SelectedInstructionError::custody)?;
+            let parameter_type = parameter.scalar_type;
             let value = if matches!(parameter_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                 if integer.sign() == IntegerSign::Signed && integer.bits() < 64)
             {
@@ -6331,9 +6336,7 @@ pub(crate) mod scalar_stack {
                 )?;
                 builder.emit(
                     crate::selection::scalar_call_abi::integer_carrier_normalization(
-                        builder
-                            .closed_scalar(parameter.scalar_type)
-                            .ok_or_else(SelectedInstructionError::custody)?,
+                        parameter.scalar_type,
                     ),
                     builder.constraints.keys.copy_i64,
                     &[value, normalized],
@@ -6902,7 +6905,7 @@ pub(crate) mod unit_call {
             function,
             source,
             call,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             builder,
             environment,
             SelectedInstructionError::custody,
@@ -6946,7 +6949,7 @@ pub(crate) mod unit_call {
             let (_, input, site, scalar_type) = builder
                 .resolve(selector)
                 .ok_or(SelectedInstructionError::custody())?;
-            if scalar_type != target_operations::selector_carrier_type() {
+            if scalar_type.as_checking() != target_vocabulary::selector_carrier_type() {
                 return Err(SelectedInstructionError::custody());
             }
             let dispatch = builder.copy(input, selector, site, scalar_type)?;
@@ -6972,7 +6975,7 @@ pub(crate) mod unit_call {
         };
         super::call_arguments::emit_call(
             builder,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             call,
             operation.effect,
             operation.ownership.clone(),
@@ -7110,17 +7113,13 @@ pub(crate) fn block_containing_operation(
 pub(crate) fn build_with_environment(
     function: usize,
     source: &legalized_operations::LegalizedScalarFunction,
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
     geometry: &crate::native_geometry::NativeGeometry<'_>,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-    interrupt_helpers: &crate::installed_interrupts::PreparedHelperCohort<'_>,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
+    installations: &bound_installations::BoundInstallations,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
-    let source = crate::native_geometry::NativeInput::with_types(source, geometry, closed_types);
+    let source = crate::native_geometry::NativeInput::new(source, geometry);
     let mut current_operation = None;
     select_function(
         function,
@@ -7129,10 +7128,7 @@ pub(crate) fn build_with_environment(
         environment,
         &mut current_operation,
         backings,
-        installed_interrupts,
-        installed_stack_requirements,
-        interrupt_helpers,
-        installed_entry_execution,
+        installations,
     )
     .map_err(|error| error.attributed(source.machine, current_operation))
 }
@@ -7144,10 +7140,7 @@ pub(crate) fn select_function(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     current_operation: &mut Option<semantic_vocabulary::OperationId>,
     backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-    interrupt_helpers: &crate::installed_interrupts::PreparedHelperCohort<'_>,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
+    installations: &bound_installations::BoundInstallations,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
     let order = control::block_order(source)?;
@@ -7158,13 +7151,9 @@ pub(crate) fn select_function(
     };
     let class = operand.class;
     let mut builder = Builder {
-        closed_types: source.closed_types(),
         environment,
         backings,
-        installed_interrupts,
-        installed_stack_requirements,
-        interrupt_helpers,
-        installed_entry_execution,
+        installations,
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: crate::selection::value_transport::required_values(source),
         class,
@@ -7201,10 +7190,7 @@ pub(crate) fn select_function(
             return Err(invalid());
         };
         if *byte_size
-            != match source
-                .closed_scalar(parameter.scalar_type)
-                .ok_or_else(invalid)?
-            {
+            != match parameter.scalar_type {
                 semantic_vocabulary::ClosedScalarType::Boolean => 1,
                 semantic_vocabulary::ClosedScalarType::IeeeFloat(
                     semantic_vocabulary::IeeeFloatFormat::Binary32,
@@ -7235,7 +7221,7 @@ pub(crate) fn select_function(
         }
         let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
         let parameter_class = if let Some((_, key)) =
-            incoming_float_transfer(parameter.scalar_type, &constraints.keys)
+            incoming_float_transfer(parameter.scalar_type.as_checking(), &constraints.keys)
         {
             row(catalog, key)?
                 .operands
@@ -7247,7 +7233,7 @@ pub(crate) fn select_function(
         };
         builder.registers.push(VirtualRegister {
             id,
-            scalar_type: parameter.scalar_type,
+            scalar_type: parameter.scalar_type.as_checking(),
             class: parameter_class,
             origin: VirtualRegisterOrigin::EntryParameter {
                 source_value: parameter.value,
@@ -7265,32 +7251,24 @@ pub(crate) fn select_function(
     }
     for index in 0..builder.definitions.len() {
         let (value, input, site, scalar_type) = builder.definitions[index];
-        let output =
-            if let Some((kind, key)) = incoming_float_transfer(scalar_type, &constraints.keys) {
-                let output = builder.register(value, site, scalar_type)?;
-                builder.emit(kind, key, &[input, output], value_provenance(value))?;
-                output
-            } else if integer_carrier_normalization(
-                builder
-                    .closed_scalar(scalar_type)
-                    .ok_or_else(SelectedInstructionError::custody)?,
-            ) != SelectedInstructionKind::CopyI64
-            {
-                let output = builder.register(value, site, scalar_type)?;
-                builder.emit(
-                    integer_carrier_normalization(
-                        builder
-                            .closed_scalar(scalar_type)
-                            .ok_or_else(SelectedInstructionError::custody)?,
-                    ),
-                    constraints.keys.copy_i64,
-                    &[input, output],
-                    value_provenance(value),
-                )?;
-                output
-            } else {
-                builder.copy(input, value, site, scalar_type)?
-            };
+        let output = if let Some((kind, key)) =
+            incoming_float_transfer(scalar_type.as_checking(), &constraints.keys)
+        {
+            let output = builder.register(value, site, scalar_type)?;
+            builder.emit(kind, key, &[input, output], value_provenance(value))?;
+            output
+        } else if integer_carrier_normalization(scalar_type) != SelectedInstructionKind::CopyI64 {
+            let output = builder.register(value, site, scalar_type)?;
+            builder.emit(
+                integer_carrier_normalization(scalar_type),
+                constraints.keys.copy_i64,
+                &[input, output],
+                value_provenance(value),
+            )?;
+            output
+        } else {
+            builder.copy(input, value, site, scalar_type)?
+        };
         builder.definitions[index].1 = output;
     }
     scalar_stack::entry(source, &mut builder)?;
@@ -7305,19 +7283,22 @@ pub(crate) fn select_function(
                 VirtualRegisterId(u32::try_from(builder.registers.len()).map_err(|_| invalid())?);
             builder.registers.push(VirtualRegister {
                 id,
-                scalar_type: parameter.scalar_type,
+                scalar_type: parameter.scalar_type.as_checking(),
                 class,
                 origin: VirtualRegisterOrigin::BlockParameter {
                     source_value: parameter.value,
                     block: block_id,
                     parameter_index,
                 },
-                definition_site: Some(parameter.site),
+                definition_site: Some(parameter.definition_site),
                 entry_fixed_view: None,
             });
-            builder
-                .definitions
-                .push((parameter.value, id, parameter.site, parameter.scalar_type));
+            builder.definitions.push((
+                parameter.value,
+                id,
+                parameter.definition_site,
+                parameter.scalar_type,
+            ));
         }
     }
     let mut blocks = Vec::new();
@@ -7430,11 +7411,11 @@ pub(crate) fn select_function(
                             ),
                             LegalizedScalarInstructionKind::SelectImplementation { table } => (
                                 selected_instructions::SelectedImageAddressReference::ImplementationTable { table: *table },
-                                target_operations::selector_carrier_type(),
+                                target_vocabulary::selector_carrier_type(),
                             ),
                             _ => return Err(invalid()),
                         };
-                        if scalar_type != expected_type {
+                        if scalar_type.as_checking() != expected_type {
                             return Err(invalid());
                         }
                         let output =
@@ -7568,6 +7549,7 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
+                    | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { .. }
@@ -7651,7 +7633,15 @@ pub(crate) fn select_function(
             for (owner, call) in block.terminator.cleanup_calls() {
                 let edge = owner.edge().ok_or_else(invalid)?;
                 let start = builder.instructions.len();
-                cleanup_call::emit(*owner, call, effect, &mut builder, environment)?;
+                cleanup_call::emit(
+                    function,
+                    source,
+                    *owner,
+                    call,
+                    effect,
+                    &mut builder,
+                    environment,
+                )?;
                 let instructions = builder.instructions[start..].to_vec();
                 builder.edge_work_at(edge)?.cleanup.extend(instructions);
             }
@@ -7664,23 +7654,23 @@ pub(crate) fn select_function(
         &mut builder.transport.memory,
     )?;
     let mut selected = SelectedFunction {
-        machine: source.machine,
-        attachment: source.attachment,
-        nominal_cleanup_subject: source.nominal_cleanup_subject,
-        provenance: source.provenance.clone(),
-        structural: source.structural.clone(),
-        outgoing_arguments: builder.transport.slots,
-        local_storage_slots: builder.transport.local_slots,
-        calls: builder.transport.calls,
-        normalized_foreign_calls: builder.transport.normalized_foreign_calls,
-        memory_accesses: builder.transport.memory,
-        boundary_settlements: builder.transport.settlements,
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine: source.machine,
+            attachment: source.attachment,
+            provenance: source.provenance.clone(),
+            structural: source.structural.clone(),
+            outgoing_arguments: builder.transport.slots,
+            local_storage_slots: builder.transport.local_slots,
+            calls: builder.transport.calls,
+            normalized_foreign_calls: builder.transport.normalized_foreign_calls,
+            memory_accesses: builder.transport.memory,
+            boundary_settlements: builder.transport.settlements,
+            virtual_registers: builder.registers,
+        }),
         entry_block: SelectedBlockId(0),
-        virtual_registers: builder.registers,
         blocks: blocks.into(),
     };
     crate::selection::edge_transfers::prepare(
-        source,
         function,
         &mut selected,
         constraints,
@@ -7702,13 +7692,7 @@ pub(crate) fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
 }
 
 pub(crate) struct Builder<'a> {
-    pub(crate) closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
-    pub(crate) installed_entry_execution:
-        Option<&'a provider_admission::AdmittedInstalledEntryExecution>,
-    pub(crate) installed_interrupts: &'a provider_admission::AdmittedInstalledInterruptCohort,
-    pub(crate) installed_stack_requirements:
-        &'a [installation_evidence::InstalledInterruptStackRequirement],
-    pub(crate) interrupt_helpers: &'a crate::installed_interrupts::PreparedHelperCohort<'a>,
+    pub(crate) installations: &'a bound_installations::BoundInstallations,
     pub(crate) backings: &'a crate::selection::foreign_scalar_backings::ForeignScalarBackings<'a>,
     pub(crate) environment: &'a register_environment::ValidatedTargetRegisterEnvironment,
     pub(crate) pending_provenance: SelectedInstructionProvenance,
@@ -7725,29 +7709,20 @@ pub(crate) struct Builder<'a> {
     pub(crate) next_block: u32,
     pub(crate) block_body_end: Option<usize>,
     pub(crate) edge_work: Vec<crate::selection::edge_transfers::EdgeWork>,
-    pub(crate) definitions: Vec<(ValueId, VirtualRegisterId, ValueDefinitionSite, ScalarType)>,
+    pub(crate) definitions: Vec<(
+        ValueId,
+        VirtualRegisterId,
+        ValueDefinitionSite,
+        semantic_vocabulary::ClosedScalarType,
+    )>,
 }
 
 impl Builder<'_> {
-    pub(crate) fn closed_scalar(
-        &self,
-        scalar: ScalarType,
-    ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        crate::native_geometry::closed_scalar(self.closed_types, scalar)
-    }
-
-    pub(crate) fn closed_integer(
-        &self,
-        integer: semantic_vocabulary::IntegerType,
-    ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        crate::native_geometry::closed_integer(self.closed_types, integer)
-    }
-
     pub(crate) fn crash_form(
         &self,
     ) -> Result<(SelectedInstructionKind, RegisterConstraintKey), SelectedInstructionError> {
-        if let Some(execution) = self.installed_entry_execution {
-            if execution.entry().entry().target() != self.environment.target() {
+        if let Some(entry) = &self.installations.installed_entry {
+            if entry.target != self.environment.target() {
                 return Err(SelectedInstructionError::custody());
             }
             let key = self
@@ -7803,7 +7778,12 @@ impl Builder<'_> {
     pub(crate) fn resolve(
         &self,
         value: ValueId,
-    ) -> Option<(ValueId, VirtualRegisterId, ValueDefinitionSite, ScalarType)> {
+    ) -> Option<(
+        ValueId,
+        VirtualRegisterId,
+        ValueDefinitionSite,
+        semantic_vocabulary::ClosedScalarType,
+    )> {
         self.definitions
             .iter()
             .find(|(source, ..)| *source == value)
@@ -7814,12 +7794,12 @@ impl Builder<'_> {
         &mut self,
         value: ValueId,
         site: ValueDefinitionSite,
-        scalar_type: ScalarType,
+        scalar_type: semantic_vocabulary::ClosedScalarType,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         let id = VirtualRegisterId(next_index(self.registers.len())?);
         self.registers.push(VirtualRegister {
             id,
-            scalar_type,
+            scalar_type: scalar_type.as_checking(),
             class: self.class,
             origin: VirtualRegisterOrigin::InstructionResult {
                 instruction: SelectedInstructionId(next_index(self.instructions.len())?),
@@ -8110,7 +8090,9 @@ impl Builder<'_> {
             let site = register
                 .definition_site
                 .ok_or_else(SelectedInstructionError::custody)?;
-            let scalar_type = register.scalar_type;
+            // Registers record the checking form of the closed type they were created with.
+            let scalar_type = semantic_vocabulary::ClosedScalarType::try_from(register.scalar_type)
+                .map_err(|_| SelectedInstructionError::custody())?;
             observed[position] = self.copy(input, value, site, scalar_type)?;
         }
         self.emit(kind, key, &observed, provenance)
@@ -8121,7 +8103,7 @@ impl Builder<'_> {
         input: VirtualRegisterId,
         value: ValueId,
         site: ValueDefinitionSite,
-        scalar_type: ScalarType,
+        scalar_type: semantic_vocabulary::ClosedScalarType,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         let output = self.register(value, site, scalar_type)?;
         self.emit(

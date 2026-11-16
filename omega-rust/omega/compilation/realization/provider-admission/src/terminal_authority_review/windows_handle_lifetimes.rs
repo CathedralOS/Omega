@@ -21,9 +21,8 @@ pub(super) struct NativeOccurrence {
     pub boundary: BoundaryMachineId,
 }
 
-/// A source-level scalar observation is a real operation, but has no foreign
-/// boundary. Keep it distinct so checking a stale integer copy never needs an
-/// invented native call identity.
+/// A scalar observation retains its real operation, edge, or cleanup action.
+/// It has no foreign boundary and cannot invent a native call identity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct ScalarOccurrence {
     pub machine: MachineId,
@@ -35,6 +34,7 @@ pub(super) struct ScalarOccurrence {
 pub(super) enum ScalarUseSite {
     Operation(OperationId),
     Edge(EdgeId),
+    Cleanup { edge: EdgeId, action_ordinal: u32 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

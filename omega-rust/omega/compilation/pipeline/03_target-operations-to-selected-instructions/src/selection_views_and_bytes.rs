@@ -50,7 +50,7 @@ pub(crate) mod byte_concatenation {
         );
         let (_, left_length, _, left_type) = builder.resolve(left.length()).ok_or(invalid())?;
         let (_, right_length, _, right_type) = builder.resolve(right.length()).ok_or(invalid())?;
-        if left_type != integer || right_type != integer {
+        if left_type.as_checking() != integer || right_type.as_checking() != integer {
             return Err(invalid());
         }
         let left_pointer = operand_pointer(function, builder, row, left)?;
@@ -451,11 +451,12 @@ pub(crate) mod byte_field_read {
         let count_type = ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
         );
-        if index_type != count_type
-            || length_type != count_type
+        if index_type.as_checking() != count_type
+            || length_type.as_checking() != count_type
             || definition.scalar_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+                != semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 8)
+                        .map_err(|_| invalid())?,
                 )
         {
             return Err(invalid());
@@ -685,8 +686,9 @@ pub(crate) mod byte_field_store {
         let byte_offset = metadata_offset.checked_add(8).ok_or_else(|| invalid())?;
         let (_, count, _, count_type) = builder.resolve(*length).ok_or_else(|| invalid())?;
         if count_type
-            != ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+            != semantic_vocabulary::ClosedScalarType::Integer(
+                semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                    .map_err(|_| invalid())?,
             )
         {
             return Err(invalid());
@@ -846,11 +848,12 @@ pub(crate) mod byte_field_store {
         let count_type = ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
         );
-        if index_type != count_type
-            || length_type != count_type
+        if index_type.as_checking() != count_type
+            || length_type.as_checking() != count_type
             || value_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+                != semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 8)
+                        .map_err(|_| invalid())?,
                 )
         {
             return Err(invalid());
@@ -1088,12 +1091,14 @@ pub(crate) mod byte_views {
         if readable_byte_type(function, destination).is_none()
             || row.result.is_some()
             || index_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                != semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                        .map_err(|_| invalid())?,
                 )
             || value_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+                != semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 8)
+                        .map_err(|_| invalid())?,
                 )
         {
             return Err(invalid());
@@ -1214,12 +1219,14 @@ pub(crate) mod byte_views {
         let definition = row.result.ok_or_else(|| invalid())?;
         let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(|| invalid())?;
         if definition.scalar_type
-            != ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+            != semantic_vocabulary::ClosedScalarType::Integer(
+                semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 8)
+                    .map_err(|_| invalid())?,
             )
             || index_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                != semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                        .map_err(|_| invalid())?,
                 )
         {
             return Err(invalid());
@@ -1380,8 +1387,9 @@ pub(crate) mod byte_views {
         let result = row.result.ok_or_else(|| invalid())?;
         if !matches!(length_byte_offset, 0 | 8)
             || result.scalar_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                != semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                        .map_err(|_| invalid())?,
                 )
         {
             return Err(invalid());
@@ -1430,7 +1438,9 @@ pub(crate) mod byte_views {
         );
         let (_, count, _, count_type) =
             builder.resolve(operand.length()).ok_or_else(|| invalid())?;
-        if result.scalar_type != ScalarType::Boolean || count_type != integer {
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
+            || count_type.as_checking() != integer
+        {
             return Err(invalid());
         }
         let base = byte_concatenation::operand_pointer(function, builder, row, operand)?;
@@ -1469,9 +1479,9 @@ pub(crate) mod byte_views {
             builder.resolve(left.length()).ok_or_else(|| invalid())?;
         let (_, right_count, _, right_count_type) =
             builder.resolve(right.length()).ok_or_else(|| invalid())?;
-        if result.scalar_type != ScalarType::Boolean
-            || left_count_type != integer
-            || right_count_type != integer
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
+            || left_count_type.as_checking() != integer
+            || right_count_type.as_checking() != integer
         {
             return Err(invalid());
         }
@@ -1649,7 +1659,7 @@ pub(crate) mod element_establishment {
                 .blocks
                 .iter()
                 .any(|block| block.structural_parameters.contains(parameter))
-                && abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                && native_vocabulary::address_joins::is_descriptor_join_in(
                     parameter,
                     &signature.structural_types,
                 )
@@ -1892,8 +1902,8 @@ pub(crate) mod element_establishment {
                 let (_, count, _, count_type) =
                     builder.resolve(*source_length).ok_or_else(invalid)?;
                 if !matches!(count_type,
-                    semantic_vocabulary::ScalarType::Integer(integer)
-                        if Ok(integer) == semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::ClosedScalarType::Integer(integer)
+                        if Ok(integer) == semantic_vocabulary::ClosedIntegerType::new(
                             semantic_vocabulary::IntegerSign::Unsigned, 64))
                 {
                     return Err(invalid());
@@ -1930,7 +1940,10 @@ pub(crate) mod element_establishment {
                     )
                     .map_err(|_| invalid())?,
                 );
-                if start_type != word || end_type != word || geometry.stride == 0 {
+                if start_type.as_checking() != word
+                    || end_type.as_checking() != word
+                    || geometry.stride == 0
+                {
                     return Err(invalid());
                 }
                 let region_provenance = obligation_provenance(row, &[*start, *end], &[*obligation]);
@@ -2089,7 +2102,10 @@ pub(crate) mod element_subslice {
             builder.resolve(*start).ok_or_else(|| invalid())?;
         let (_, end_register, _, end_type) = builder.resolve(*end).ok_or_else(|| invalid())?;
         let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(|| invalid())?;
-        if start_type != integer || end_type != integer || length_type != integer {
+        if start_type.as_checking() != integer
+            || end_type.as_checking() != integer
+            || length_type.as_checking() != integer
+        {
             return Err(invalid());
         }
         let stride =
@@ -2199,8 +2215,8 @@ pub(crate) mod element_view_write {
     use crate::selection::construction::scalar_graph::structural::scaled_element_index;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, ScalarType, SelectedMemoryAccessRole, memory,
+        Builder, IntegerSign, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedMemoryAccessRole, memory,
     };
     use terminal_psi::StructuralTypeShape;
 
@@ -2226,8 +2242,9 @@ pub(crate) mod element_view_write {
         let (_, value_register, _, value_type) = builder.resolve(value).ok_or_else(|| invalid())?;
         if row.result.is_some()
             || index_type
-                != ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                != semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                        .map_err(|_| invalid())?,
                 )
             || crate::structural_inputs::structural_reference_input::scalar_shape(value_type)
                 .is_none()
@@ -2248,7 +2265,7 @@ pub(crate) mod element_view_write {
             crate::structural_inputs::structural_reference_input::element_leaf_geometry(
                 element,
                 path,
-                value_type,
+                value_type.as_checking(),
                 function.geometry(),
             )
             .ok_or_else(|| invalid())?;
@@ -2314,9 +2331,8 @@ pub(crate) mod element_views {
     use crate::selection::construction::scalar_graph::structural::scaled_element_index;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionProvenance,
-        SelectedMemoryAccessRole, VirtualRegisterId, memory,
+        Builder, IntegerSign, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
+        SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
     use crate::selection::scalar_call_abi::load_transfer;
     use crate::structural_inputs::structural_reference_input::element_leaf_geometry;
@@ -2369,8 +2385,9 @@ pub(crate) mod element_views {
         let definition = row.result.ok_or_else(|| invalid())?;
         let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(|| invalid())?;
         if index_type
-            != ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+            != semantic_vocabulary::ClosedScalarType::Integer(
+                semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                    .map_err(|_| invalid())?,
             )
         {
             return Err(invalid());
@@ -2391,9 +2408,13 @@ pub(crate) mod element_views {
         } else {
             descriptor_operands::element_stride(function, descriptor).ok_or_else(invalid)?
         };
-        let (byte_offset, byte_count) =
-            element_leaf_geometry(element, path, definition.scalar_type, function.geometry())
-                .ok_or_else(invalid)?;
+        let (byte_offset, byte_count) = element_leaf_geometry(
+            element,
+            path,
+            definition.scalar_type.as_checking(),
+            function.geometry(),
+        )
+        .ok_or_else(invalid)?;
         if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
             return Err(invalid());
         }
@@ -2465,8 +2486,9 @@ pub(crate) mod element_views {
         }
         let definition = row.result.ok_or_else(|| invalid())?;
         if definition.scalar_type
-            != ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+            != semantic_vocabulary::ClosedScalarType::Integer(
+                semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                    .map_err(|_| invalid())?,
             )
         {
             return Err(invalid());

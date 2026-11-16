@@ -13,8 +13,9 @@ use super::structural_types::{
 };
 use super::{encode_ids, encode_len, encode_option, encode_work};
 use crate::{LegalizedBoundarySettlement, NativeCallOrigin};
-use abstract_operations::CompletionClaimSource;
-use optimization_unit::{EffectLink, OwnershipEvent};
+use native_vocabulary::completion_claims::CompletionClaimSource;
+use native_vocabulary::provenance::EffectLink;
+use native_vocabulary::provenance::OwnershipEvent;
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
 };
@@ -47,14 +48,14 @@ pub(super) fn encode_boundary_settlement(
 
 pub fn encode_external_execution(
     bytes: &mut Vec<u8>,
-    execution: target_operations::ExternalExecutionBinding,
+    execution: target_vocabulary::ExternalExecutionBinding,
 ) {
     match execution {
-        target_operations::ExternalExecutionBinding::Provider(provider) => {
+        target_vocabulary::ExternalExecutionBinding::Provider(provider) => {
             bytes.push(0);
             encode_provider_execution(bytes, provider);
         }
-        target_operations::ExternalExecutionBinding::NativeBinding(native) => {
+        target_vocabulary::ExternalExecutionBinding::NativeBinding(native) => {
             bytes.push(1);
             bytes.extend_from_slice(&native.receipt());
             bytes.extend_from_slice(&native.contract());
@@ -65,7 +66,7 @@ pub fn encode_external_execution(
 
 pub fn encode_provider_execution(
     bytes: &mut Vec<u8>,
-    execution: target_operations::ProviderExecutionBinding,
+    execution: target_vocabulary::ProviderExecutionBinding,
 ) {
     bytes.extend_from_slice(
         &execution
@@ -331,26 +332,20 @@ pub(super) fn encode_cleanup_action(
             encode_structural_path(bytes, &discard.path);
             crate::codec_bytes::push_encoded(bytes, discard.structural_type.get().to_le_bytes());
         }
-        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            bytes.push(if cleanup.retains_descendants { 5 } else { 3 });
-            crate::codec_bytes::push_encoded(bytes, cleanup.place.get().to_le_bytes());
-            encode_structural_path(bytes, &cleanup.path);
+        terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+            bytes.push(6);
+            super::structural_types::encode_structural_argument(bytes, &cleanup.subject);
             crate::codec_bytes::push_encoded(bytes, cleanup.structural_type.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, cleanup.cleanup_machine.get().to_le_bytes());
+            encode_len(bytes, cleanup.claim_transfers.len());
+            for transfer in &cleanup.claim_transfers {
+                crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
+                encode_structural_path(bytes, &transfer.path);
+            }
             encode_ids(
                 bytes,
-                cleanup.consumed_claims.iter().map(|claim| claim.get()),
-            );
-            optimization_core::encode_option_u64(
-                bytes,
-                cleanup.cleanup_receiver.map(|place| place.get()),
-            );
-            encode_ids(
-                bytes,
-                cleanup
-                    .requirement_obligations
-                    .iter()
-                    .map(|obligation| obligation.get()),
+                cleanup.requirement_obligations.iter().map(|id| id.get()),
             );
         }
     }
@@ -397,7 +392,7 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
     use terminal_psi::{
-        NominalAffineCleanup, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        OwnedCleanupInvocation, StructuralAccess, StructuralArgument, StructuralMultiplicity,
         StructuralPathSegment, StructuralReferenceResultSource, TerminalAffineCleanupAction,
     };
 
@@ -414,14 +409,15 @@ mod tests {
                 StructuralPathSegment::FixedIndex(1),
             ],
         ] {
-            let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                retains_descendants: false,
-                place: PlaceId::new(1).unwrap(),
-                path,
+            let action = TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
+                subject: StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path,
+                    access: StructuralAccess::Owned,
+                },
                 structural_type: StructuralTypeId::new(2).unwrap(),
                 cleanup_machine: MachineId::new(3).unwrap(),
-                consumed_claims: Vec::new(),
-                cleanup_receiver: None,
+                claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
             });
             let mut encoded = Vec::new();

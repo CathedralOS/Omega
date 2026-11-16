@@ -1197,7 +1197,7 @@ pub(crate) mod edge_values {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use optimization_unit::WorkSettlement;
+        use native_vocabulary::provenance::WorkSettlement;
         use selected_instructions::{
             SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
             SelectedInstructionProvenance,
@@ -1235,22 +1235,23 @@ pub(crate) mod edge_values {
                 work: Vec::new(),
             };
             SelectedFunction {
-                machine: MachineId::new(1).unwrap(),
-                attachment: None,
-                nominal_cleanup_subject: None,
-                provenance: target_operations::TerminalPsiProvenance {
-                    operations: vec![operation],
-                    edges: vec![returned],
-                },
-                structural: None,
-                local_storage_slots: Vec::new(),
-                outgoing_arguments: Vec::new(),
-                calls: Vec::new(),
-                normalized_foreign_calls: Vec::new(),
-                memory_accesses: Vec::new(),
-                boundary_settlements: Vec::new(),
+                contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    provenance: target_vocabulary::TerminalPsiProvenance {
+                        operations: vec![operation],
+                        edges: vec![returned],
+                    },
+                    structural: None,
+                    local_storage_slots: Vec::new(),
+                    outgoing_arguments: Vec::new(),
+                    calls: Vec::new(),
+                    normalized_foreign_calls: Vec::new(),
+                    memory_accesses: Vec::new(),
+                    boundary_settlements: Vec::new(),
+                    virtual_registers: Vec::new(),
+                }),
                 entry_block: SelectedBlockId(0),
-                virtual_registers: Vec::new(),
                 blocks: vec![
                     SelectedBlock {
                         id: SelectedBlockId(0),
@@ -1318,7 +1319,7 @@ pub(crate) mod edge_values {
                     2 => instruction.provenance.operations.clear(),
                     3 => instruction.kind = SelectedInstructionKind::ReturnUnit,
                     _ => instruction.provenance.work.push(WorkSettlement {
-                        site: optimization_unit::PsiProvenance::Operation(*operation),
+                        site: native_vocabulary::provenance::PsiProvenance::Operation(*operation),
                         units: 1,
                     }),
                 }
@@ -1390,7 +1391,9 @@ pub(crate) mod edge_values {
                     [0]
                 .work
                 .push(WorkSettlement {
-                    site: optimization_unit::PsiProvenance::Operation(OperationId::new(2).unwrap()),
+                    site: native_vocabulary::provenance::PsiProvenance::Operation(
+                        OperationId::new(2).unwrap(),
+                    ),
                     units: 1,
                 })
             });
@@ -1689,9 +1692,9 @@ pub(crate) mod edge_values {
                             call.call.target,
                         ))
                     || call.owner
-                        != (target_operations::CallSiteOwner::Installation {
+                        != (target_vocabulary::CallSiteOwner::Installation {
                             operation: *operation,
-                            role: target_operations::InstallationCallRole::Work,
+                            role: target_vocabulary::InstallationCallRole::Work,
                         })
                     || instruction.provenance.operations.as_slice() != [*operation]
                     || !instruction.provenance.edges.is_empty()
@@ -1866,10 +1869,12 @@ pub(crate) mod edge_values {
             return Ok(destination);
         }
         if destination_register.definition_site
-            != Some(optimization_unit::ValueDefinitionSite::BlockParameter {
-                block: successor.source_target,
-                position: u32::try_from(parameter_index).map_err(|_| mismatch())?,
-            })
+            != Some(
+                native_vocabulary::provenance::ValueDefinitionSite::BlockParameter {
+                    block: successor.source_target,
+                    position: u32::try_from(parameter_index).map_err(|_| mismatch())?,
+                },
+            )
         {
             return Err(mismatch());
         }
@@ -1884,7 +1889,8 @@ pub(crate) mod edge_values {
                         .bindings
                         .iter()
                         .any(|binding| binding.semantic.parameter == source_value)
-                    || payload.semantic.parameter.scalar_type != destination_register.scalar_type
+                    || payload.semantic.parameter.scalar_type.as_checking()
+                        != destination_register.scalar_type
                     || Some(payload.semantic.parameter.definition_site)
                         != destination_register.definition_site
                 {

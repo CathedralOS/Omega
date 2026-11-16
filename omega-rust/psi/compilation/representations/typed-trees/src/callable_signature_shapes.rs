@@ -12,7 +12,7 @@ use symbols::{RetainedDeclaration, SymbolHandle};
 pub(crate) fn realizes_signature(
     program: &crate::TypedTrees,
     machine: &crate::machine::Machine,
-    required_statics: &[crate::data::TypeParameter],
+    required_statics: arena::RootRows<'_, crate::data::TypeParameter>,
     required_parameters: &[StateParameter],
     result: TypeReferenceHandle,
 ) -> bool {
@@ -55,7 +55,7 @@ pub(crate) fn realizes_signature(
 fn realization_static_binders(
     program: &crate::TypedTrees,
     machine: &crate::machine::Machine,
-    required_parameters: &[crate::data::TypeParameter],
+    required_parameters: arena::RootRows<'_, crate::data::TypeParameter>,
 ) -> Option<(Vec<(SymbolHandle, String)>, Vec<(SymbolHandle, String)>)> {
     let machine_parameters = program.machine_type_parameters(machine);
     if machine_parameters.len() != required_parameters.len() {
@@ -178,7 +178,7 @@ impl<'source> CallableDeclaration<'source> {
     pub fn static_parameters(
         self,
         program: &'source crate::TypedTrees,
-    ) -> Result<&'source [crate::data::TypeParameter], &'static str> {
+    ) -> Result<arena::RootRows<'source, crate::data::TypeParameter>, &'static str> {
         match self {
             Self::Signature(signature) => Ok(program.state_signature_type_parameters(signature)),
             Self::Machine(symbol) => program

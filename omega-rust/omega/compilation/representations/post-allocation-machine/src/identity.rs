@@ -1,5 +1,5 @@
 // We compute the domain-separated SHA-256 content identity
-// (`omega.terminal-postallocation-machine.v26\0`) and stream canonical content
+// (`omega.terminal-postallocation-machine.v27\0`) and stream canonical content
 // chunks shared by hashing and wire encoding so hashing never allocates a
 // second whole-plan byte buffer.
 
@@ -25,7 +25,7 @@ pub fn post_allocation_machine_identity(
 ) -> PostAllocationMachineIdentity {
     post_allocation_machine_identity_with_domain(
         plan,
-        b"omega.terminal-postallocation-machine.v26\0",
+        b"omega.terminal-postallocation-machine.v27\0",
     )
 }
 

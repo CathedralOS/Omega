@@ -23,8 +23,8 @@ pub(crate) mod interrupt_installation {
         FrameStorageSlotId, LocalStorageSlotId, SelectedImageAddressReference,
         SelectedLocalStorageSlot, SelectedMemoryAccessRole,
     };
-    use semantic_vocabulary::{IntegerValue, ScalarType};
-    use target_operations::InstallationCallRole;
+    use semantic_vocabulary::IntegerValue;
+    use target_vocabulary::InstallationCallRole;
     pub(crate) mod address {
         use super::{SelectedInstructionError, failure};
         use calling_conventions::InterruptGateAddress;
@@ -59,24 +59,20 @@ pub(crate) mod interrupt_installation {
                 "installation emitter received a different operation",
             ));
         };
-        let cohort = builder.installed_interrupts;
-        let scope = builder
-            .interrupt_helpers
-            .installation_scope(row.operation)
-            .map_err(failure)?;
-        if scope.arguments() != arguments {
+        let installations = builder.installations;
+        let scope = installations.installation(row.operation).map_err(failure)?;
+        if &scope.arguments != arguments {
             return Err(failure("installation has conflicting admitted operands"));
         }
-        let requirements = builder.installed_stack_requirements;
-        let entries = builder
-            .interrupt_helpers
+        let entries = installations
             .installation_entries(row.operation)
             .collect::<Vec<_>>();
         let anchor = scope
-            .context_anchor()
+            .context_anchor
+            .as_ref()
             .ok_or_else(|| failure("installation has no exact acknowledgement context anchor"))?;
-        if entries.len() != scope.fatal_entries().len() + 1
-            || anchor.application() != scope.acknowledgement_application()
+        if entries.len() != scope.fatal_entries.len() + 1
+            || anchor.application != scope.acknowledgement_application
         {
             return Err(failure(
                 "installation entries differ from its complete admitted roster",
@@ -85,7 +81,7 @@ pub(crate) mod interrupt_installation {
         let result = row
             .result
             .ok_or_else(|| failure("installation lost its Boolean refusal result"))?;
-        if result.scalar_type != ScalarType::Boolean {
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean {
             return Err(failure("installation refusal result is not Boolean"));
         }
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
@@ -118,41 +114,32 @@ pub(crate) mod interrupt_installation {
             .ok_or_else(|| failure("installation has no structural layouts"))?;
         let declarations = source.geometry();
         let table_shape = crate::structural_inputs::structural_reference_input::stored_value_shape(
-            scope.table_type(),
+            scope.table_type,
             declarations,
         )
         .ok_or_else(|| failure("installation table has no complete storage shape"))?;
-        if anchor.table_bytes() != table_shape.byte_size {
+        if anchor.table_bytes != table_shape.byte_size {
             return Err(failure(
                 "installation anchor names a different table extent",
             ));
         }
         let mut guards: Vec<GuardEntry<'_>> = Vec::with_capacity(entries.len());
         for entry in entries {
-            let key = (row.operation, entry.placement_index);
-            let position = requirements
-                .binary_search_by_key(&key, |requirement| {
-                    (requirement.operation, requirement.placement_index)
-                })
-                .map_err(|_| failure("arrival body has no measured stack requirement"))?;
-            let requirement = &requirements[position];
-            if requirement.psi != cohort.psi() {
+            let requirement = installations
+                .stack_requirement(row.operation, entry.placement_index)
+                .ok_or_else(|| failure("arrival body has no measured stack requirement"))?;
+            if requirement.psi != installations.psi {
                 return Err(failure(
                     "arrival stack requirement belongs to another program",
                 ));
             }
-            let materialization = entry
-                .placement
-                .private_materialization
+            let placements = entry
+                .table_placements
                 .as_ref()
-                .ok_or_else(|| failure("installed entry has no private table materialization"))?;
-            let placements = materialization
-                .destination_application
-                .placements()
-                .ok_or_else(|| failure("installed entry is not a table field"))?;
+                .ok_or_else(|| failure("installed entry is not a private table field"))?;
             let address_layout = address::prepare(placements.as_slice(), table_shape.byte_size)?;
             if guards.iter().any(|prior| {
-                prior.entry.placement.application_index == entry.placement.application_index
+                prior.entry.application == entry.application
                     || prior.entry.placement_index == entry.placement_index
                     || prior.gate_byte_offset == address_layout.gate_byte_offset
             }) {
@@ -160,9 +147,9 @@ pub(crate) mod interrupt_installation {
                     "installation repeats an application, placement or gate",
                 ));
             }
-            let expected_plan = if entry.placement.application_index == anchor.application() {
-                if entry.callback_function != anchor.function()
-                    || address_layout.gate_byte_offset != anchor.gate_byte_offset()
+            let expected_plan = if entry.application == anchor.application {
+                if entry.callback_function != anchor.function
+                    || address_layout.gate_byte_offset != anchor.gate_byte_offset
                 {
                     return Err(failure(
                         "acknowledgement entry differs from its retained anchor",
@@ -170,10 +157,10 @@ pub(crate) mod interrupt_installation {
                 }
                 InstalledInterruptEntryPlan::new(InstalledInterruptFrame::NoErrorCode)
             } else {
-                let mut matches = scope.fatal_entries().iter().filter(|fatal| {
-                    fatal.application() == entry.placement.application_index
-                        && fatal.machine() == entry.entry().machine()
-                        && fatal.gate_byte_offset() == address_layout.gate_byte_offset
+                let mut matches = scope.fatal_entries.iter().filter(|fatal| {
+                    fatal.application == entry.application
+                        && fatal.machine == entry.callback.machine
+                        && fatal.gate_byte_offset == address_layout.gate_byte_offset
                 });
                 let (Some(fatal), None) = (matches.next(), matches.next()) else {
                     return Err(failure(
@@ -181,9 +168,9 @@ pub(crate) mod interrupt_installation {
                     ));
                 };
                 InstalledInterruptEntryPlan::fatal_context(
-                    anchor.gate_byte_offset(),
-                    fatal.gate_byte_offset(),
-                    anchor.table_bytes(),
+                    anchor.gate_byte_offset,
+                    fatal.gate_byte_offset,
+                    anchor.table_bytes,
                 )
                 .ok_or_else(|| failure("fatal entry has invalid retained gate geometry"))?
             };
@@ -235,7 +222,7 @@ pub(crate) mod interrupt_installation {
         }
         let acknowledgement = guards
             .iter()
-            .find(|entry| entry.entry.placement.application_index == anchor.application())
+            .find(|entry| entry.entry.application == anchor.application)
             .ok_or_else(|| failure("installation omitted its acknowledgement anchor"))?
             .address;
         let valid = crate::selection::construction::scalar_graph::structural::interrupt_installation_calls::emit(
@@ -260,7 +247,7 @@ pub(crate) mod interrupt_installation {
                     builder,
                     row,
                     home,
-                    scope.completion().get(),
+                    scope.completion.get(),
                     acknowledgement,
                     checked,
                 )?;
@@ -483,7 +470,7 @@ pub(crate) mod interrupt_installation_calls {
         Builder, LegalizedScalarInstruction, VirtualRegisterId,
     };
     use legalized_operations::LegalizedScalarCall;
-    use target_operations::{CallSiteOwner, InstallationCallRole};
+    use target_vocabulary::{CallSiteOwner, InstallationCallRole};
 
     struct Invocation<'a> {
         row: &'a LegalizedScalarInstruction,
@@ -498,10 +485,10 @@ pub(crate) mod interrupt_installation_calls {
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
         }
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
             &[]
         }
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
             &[]
         }
         fn invocation_argument_place(
@@ -541,7 +528,7 @@ pub(crate) mod interrupt_installation_calls {
             }
             InstallationCallRole::Work => crate::selection::scalar_call_abi::no_normal_key(
                 call,
-                &abstract_operations::AbstractFunctionResult::Unit,
+                &native_vocabulary::values::AbstractFunctionResult::Unit,
                 environment,
             ),
         }
@@ -624,7 +611,6 @@ pub(crate) mod interrupt_installation_guards {
     };
     use crate::structural_inputs::structural_reference_input as geometry;
     use installation_evidence::InstalledInterruptStackRequirement;
-    use provider_admission::AdmittedInstalledInterruptEntry;
     use runtime_abi::static_interrupts::{InstalledInterruptFrame, InstalledInterruptProtocol};
     use selected_instructions::LocalStorageSlotId;
     pub(crate) mod checks {
@@ -1000,10 +986,10 @@ pub(crate) mod interrupt_installation_guards {
                         return Err(failure("simultaneous placement relation is not reciprocal"));
                     }
                     if !matches!(
-                        left.entry.entry().inbound().state.stack,
+                        left.entry.callback.inbound.state.stack,
                         calling_conventions::EntryStack::Dedicated { .. }
                     ) || !matches!(
-                        right.entry.entry().inbound().state.stack,
+                        right.entry.callback.inbound.state.stack,
                         calling_conventions::EntryStack::Dedicated { .. }
                     ) {
                         return Err(failure(
@@ -1340,7 +1326,7 @@ pub(crate) mod interrupt_installation_guards {
                     checks.load(builder, checks.anchor, table, offset + 12, 4, access)?;
                 checks.equal_constant(builder, reserved, 0)?;
                 let ist = checks.load(builder, checks.anchor, table, offset + 4, 1, access)?;
-                match entry.entry.entry().inbound().state.stack {
+                match entry.entry.callback.inbound.state.stack {
                     calling_conventions::EntryStack::Dedicated { .. } => {
                         checks.require(builder, ist)?;
                         let seven = checks.constant(builder, 7)?;
@@ -1444,7 +1430,7 @@ pub(crate) mod interrupt_installation_guards {
     const STACK_TOP: u32 = 104;
 
     pub(crate) struct GuardEntry<'a> {
-        pub entry: &'a AdmittedInstalledInterruptEntry,
+        pub entry: &'a bound_installations::BoundInterruptEntry,
         pub address: VirtualRegisterId,
         pub requirement: &'a InstalledInterruptStackRequirement,
         pub gate_byte_offset: u32,
@@ -1494,10 +1480,10 @@ pub(crate) mod interrupt_installation_guards {
             if entry.entry.operation != row.operation
                 || entry.requirement.operation != row.operation
                 || entry.requirement.placement_index != entry.entry.placement_index
-                || entry.requirement.psi != entry.entry.entry().psi()
+                || entry.requirement.psi != entry.entry.callback.psi
                 || entry.requirement.target != builder.environment.target()
-                || entry.requirement.target != entry.entry.entry().target()
-                || entry.requirement.entry != entry.entry.entry().machine()
+                || entry.requirement.target != entry.entry.callback.target
+                || entry.requirement.entry != entry.entry.callback.machine
                 || !entry.requirement.entry_plan.has_canonical_geometry()
                 || entry.gate_byte_offset % 16 != 0
                 || entry
@@ -1509,7 +1495,7 @@ pub(crate) mod interrupt_installation_guards {
                     "installed entry lost its exact operation, target, stack or gate association",
                 ));
             }
-            match entry.entry.entry().inbound().state.stack {
+            match entry.entry.callback.inbound.state.stack {
                 calling_conventions::EntryStack::Dedicated { .. } => {}
                 calling_conventions::EntryStack::Interrupted => {
                     let demand = entry.requirement.arrival.as_ref().ok_or_else(|| {
@@ -1655,7 +1641,7 @@ pub(crate) mod interrupt_installation_guards {
                 entry,
             )?;
             if matches!(
-                entry.entry.entry().inbound().state.stack,
+                entry.entry.callback.inbound.state.stack,
                 calling_conventions::EntryStack::Dedicated { .. }
             ) {
                 let gate_ist = checks.load(
@@ -1828,7 +1814,7 @@ pub(crate) mod static_interrupts {
             return Err(failure());
         }
         builder
-            .interrupt_helpers
+            .installations
             .require(row.operation, *operation)
             .map_err(SelectedInstructionError::custody_because)?;
         source.structural.as_ref().ok_or_else(failure)?;

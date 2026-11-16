@@ -262,6 +262,21 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
+    // Instruction selection is handed the execution plan stage 02 prepared.
+    // The abstract program, the optimization unit and its fact tables, and the
+    // sealed module's codec are what that plan was prepared from; selection
+    // must not be able to name them. Leaf vocabulary those forms share lives
+    // in representations/native-vocabulary, below all of them.
+    rules.push(Rule {
+        owners: vec![OMEGA_STAGES[3]],
+        forbidden: vec![
+            "omega-rust/omega/compilation/representations/abstract-operations",
+            "omega-rust/psi/compilation/representations/terminal-psi/codec",
+        ],
+        reason: "instruction selection reads the prepared execution plan, not the abstract program, the optimization unit or the sealed module (omega-rust/pipeline.md); carry what selection needs in the plan",
+        except_owners: vec![],
+        allowed: vec![],
+    });
     // Typing and Terminal stages consume representation-owned handoffs; their
     // drivers, not adjacent stages, coordinate deferred work.
     for (owners, stages) in [
@@ -368,6 +383,165 @@ pub fn stale_allowance_violations(
                 "{} -> {}: edge removed; delete its row from FIREWALL_ALLOWANCES so it cannot return",
                 allowed.owner, allowed.dependency
             ));
+        }
+    }
+    Ok(violations)
+}
+
+/// Earlier executable program forms: the abstract program, the optimization
+/// unit, and the unit's independent semantic checker (all under this path).
+const EARLIER_PROGRAM_FORMS: &str =
+    "omega-rust/omega/compilation/representations/abstract-operations";
+
+/// Stage 02's working program: `TargetOperationPlan` and its control graph.
+/// The records it shares with later forms live in `target-vocabulary`, nested
+/// in this directory as a separate package.
+const STAGE_02_WORKING_FORM: &str =
+    "omega-rust/omega/compilation/representations/target-operations";
+
+/// Instruction selection, the installation record it is handed, and the forms
+/// from the prepared plan onward. None of them is handed stage 02's working
+/// program, so none may be able to name it.
+const AFTER_PREPARATION: &[&str] = &[
+    "omega-rust/omega/compilation/backend/runtime/bound-installations",
+    "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
+    "omega-rust/omega/compilation/representations/target-operations/target-vocabulary",
+    "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+    "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+    "omega-rust/omega/compilation/representations/register-homes",
+    "omega-rust/omega/compilation/representations/post-allocation-machine",
+    "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/backend/register-environment",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+];
+
+/// The crate that defines the sealed Terminal Psi module
+/// (`ClosedTerminalModule`) and the canonical artifact. Native forms use the
+/// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
+/// re-exports; reaching `terminal-codec` would let them name the sealed module.
+const SEALED_TERMINAL_MODULE: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/codec";
+
+/// Instruction selection, the forms from the prepared plan onward, the stages
+/// that turn one into the next, the target setup and installation record they
+/// share, and the leaf vocabulary they carry. Instruction selection is handed
+/// only the prepared execution plan and its bound installations; none of these
+/// crates may reach an earlier program form. The check follows every
+/// production edge, so a new path through a helper crate is caught too.
+const SELECTION_REPRESENTATIONS: &[&str] = &[
+    "omega-rust/omega/compilation/backend/runtime/bound-installations",
+    "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
+    "omega-rust/omega/compilation/representations/native-vocabulary",
+    "omega-rust/omega/compilation/representations/target-operations",
+    "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+    "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+    "omega-rust/omega/compilation/representations/register-homes",
+    "omega-rust/omega/compilation/representations/post-allocation-machine",
+    "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/backend/register-environment",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+];
+
+/// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
+/// once each.
+fn native_forms() -> Vec<&'static str> {
+    let mut forms: Vec<&'static str> = SELECTION_REPRESENTATIONS
+        .iter()
+        .chain(AFTER_PREPARATION)
+        .copied()
+        .collect();
+    forms.sort_unstable();
+    forms.dedup();
+    forms
+}
+
+/// Report each of `roots` that can reach a crate under `forbidden` through
+/// production dependencies, with the chain that reaches it. Dev-dependencies
+/// are ignored; optional dependencies count, since a feature can enable them.
+pub fn transitive_forbidden_violations(
+    metadata: &Metadata,
+    roots: &[&str],
+    forbidden: &str,
+    reason: &str,
+) -> Result<Vec<String>, String> {
+    transitive_violations(
+        metadata,
+        roots,
+        |directory| under(directory, &[forbidden]),
+        reason,
+    )
+}
+
+/// As `transitive_forbidden_violations`, for one crate exactly: crates nested
+/// in its directory are separate packages and stay allowed.
+pub fn transitive_exact_violations(
+    metadata: &Metadata,
+    roots: &[&str],
+    forbidden: &str,
+    reason: &str,
+) -> Result<Vec<String>, String> {
+    transitive_violations(metadata, roots, |directory| directory == forbidden, reason)
+}
+
+fn transitive_violations(
+    metadata: &Metadata,
+    roots: &[&str],
+    forbidden: impl Fn(&str) -> bool,
+    reason: &str,
+) -> Result<Vec<String>, String> {
+    let root = Path::new(&metadata.workspace_root);
+    let mut packages: BTreeMap<String, &Package> = BTreeMap::new();
+    for package in &metadata.packages {
+        if let Some(parent) = Path::new(&package.manifest_path).parent() {
+            packages.insert(normalize_relative(root, parent)?, package);
+        }
+    }
+    let mut violations = Vec::new();
+    for &start in roots {
+        let Some(&first) = packages.get(start) else {
+            return Err(format!("{start} is absent from the workspace"));
+        };
+        let mut pending = vec![(start.to_owned(), vec![first.name.clone()])];
+        let mut visited = BTreeSet::new();
+        while let Some((directory, chain)) = pending.pop() {
+            if !visited.insert(directory.clone()) {
+                continue;
+            }
+            if forbidden(&directory) {
+                violations.push(format!("{}: {reason}", chain.join(" -> ")));
+                continue;
+            }
+            let Some(&package) = packages.get(&directory) else {
+                continue;
+            };
+            for dependency in &package.dependencies {
+                if dependency.kind.as_deref() == Some("dev") {
+                    continue;
+                }
+                let Some(dep_path) = &dependency.path else {
+                    continue;
+                };
+                let rel = normalize_relative(root, Path::new(dep_path))?;
+                let mut next = chain.clone();
+                next.push(
+                    packages
+                        .get(&rel)
+                        .map_or_else(|| dependency.name.clone(), |package| package.name.clone()),
+                );
+                pending.push((rel, next));
+            }
         }
     }
     Ok(violations)
@@ -492,6 +666,201 @@ fn line_has_retired_string_representation_spelling(line: &str) -> bool {
     false
 }
 
+/// The entry points of stage 02's validator.
+const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
+    "verify_execution_plan(",
+    "verify_target_operation_plan_with_closed_module(",
+];
+/// The crate that defines the validator, and the one production caller: the
+/// explicit stage-validator request (`omega --validator ...`).
+const PLAN_VALIDATOR_CALLERS: &[&str] = &[
+    "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs",
+];
+
+/// Stage 02's accessor for its working program.
+const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation("];
+/// Stage 02 and its preparation crate, and the one file through which image
+/// emission's replay validators read the working program.
+const WORKING_PROGRAM_READERS: &[&str] = &[
+    "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
+];
+
+fn is_test_source(relative: &str) -> bool {
+    relative.contains("/tests/") || relative.ends_with("tests.rs")
+}
+
+fn line_calls_any(line: &str, entries: &[&str]) -> bool {
+    let code = line.trim_start();
+    !code.starts_with("//") && entries.iter().any(|entry| code.contains(entry))
+}
+
+/// Report each line under `omega-rust/omega` that calls one of `entries`
+/// outside the files or directories in `allowed` and outside tests.
+fn call_violations(root: &Path, entries: &[&str], allowed: &[&str], reason: &str) -> Vec<String> {
+    let mut violations = Vec::new();
+    let mut files = Vec::new();
+    collect_rs_files(&root.join(OMEGA), &mut files);
+    for path in files {
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if allowed.iter().any(|owner| rel.starts_with(owner)) || is_test_source(&rel) {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        for (index, line) in text.lines().enumerate() {
+            if line_calls_any(line, entries) {
+                violations.push(format!("{rel}:{}: {reason}", index + 1));
+            }
+        }
+    }
+    violations
+}
+
+/// Entry points that read one input form. The frame step and each later stage
+/// keep the form they were computed from in their output,
+/// so the next stage and final assembly reach earlier products through that
+/// one form (omega-rust/pipeline.md, "Representation-to-representation
+/// pipeline"). Each row is a file, the function it defines and how many
+/// parameters it may take; parameters past the first are configuration.
+const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
+    (
+        "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
+        "stage_function_frame",
+        2,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs",
+        "stage_optimized_layout_independent_selected_form_encoding",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs",
+        "validate_optimized_layout_independent_selected_form_encoding",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "stage_optimized_resolved_selected_form_layout",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "validate_optimized_resolved_selected_form_layout",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs",
+        "execute_resolved_layout_optimization",
+        3,
+    ),
+    (
+        "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
+        "assemble_fixed_frame_realization",
+        1,
+    ),
+];
+
+/// The parameters of `pub fn <name>` in `text`, split at top-level commas,
+/// or `None` when the function is not defined there.
+fn public_function_parameters(text: &str, name: &str) -> Option<Vec<String>> {
+    let needle = format!("pub fn {name}");
+    let rest = text.match_indices(&needle).find_map(|(index, _)| {
+        let rest = &text[index + needle.len()..];
+        rest.starts_with(['<', '(']).then_some(rest)
+    })?;
+    // Skip a generic parameter list, which may itself contain parentheses.
+    let mut depth = 0usize;
+    let mut open = None;
+    for (index, character) in rest.char_indices() {
+        match character {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            '(' if depth == 0 => {
+                open = Some(index);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let body = &rest[open? + 1..];
+    let mut parameters = Vec::new();
+    let mut current = String::new();
+    let mut nesting = 0usize;
+    for character in body.chars() {
+        match character {
+            '(' | '<' | '[' | '{' => nesting += 1,
+            ')' if nesting == 0 => break,
+            ')' | '>' | ']' | '}' => nesting = nesting.saturating_sub(1),
+            ',' if nesting == 0 => {
+                parameters.push(std::mem::take(&mut current));
+                continue;
+            }
+            _ => {}
+        }
+        current.push(character);
+    }
+    parameters.push(current);
+    Some(
+        parameters
+            .into_iter()
+            .map(|parameter| parameter.trim().to_owned())
+            .filter(|parameter| !parameter.is_empty())
+            .collect(),
+    )
+}
+
+pub fn single_form_entry_violations(root: &Path) -> Vec<String> {
+    let mut violations = Vec::new();
+    for &(file, name, allowed) in SINGLE_FORM_ENTRIES {
+        let Ok(text) = fs::read_to_string(root.join(file)) else {
+            violations.push(format!("{file}: missing; it should define `{name}`"));
+            continue;
+        };
+        match public_function_parameters(&text, name) {
+            None => violations.push(format!("{file}: `pub fn {name}` is not defined here")),
+            Some(parameters) if parameters.len() != allowed => violations.push(format!(
+                "{file}: `{name}` takes {} parameters, not {allowed}; carry what it needs in its input form",
+                parameters.len()
+            )),
+            Some(_) => {}
+        }
+    }
+    violations
+}
+
+/// Ordinary compilation does not re-verify its own stage output
+/// (omega-rust/pipeline.md, "Verification placement"). Stage 02's validator
+/// derives the execution plan a second time, so a call to it from the default
+/// path would both hide a preparation bug and double the stage's work. Only
+/// the explicit validator request and tests may call it.
+pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        PLAN_VALIDATOR_ENTRIES,
+        PLAN_VALIDATOR_CALLERS,
+        "stage 02's plan validator is called outside the explicit validator request and tests",
+    )
+}
+
+/// Stage 02 publishes the prepared execution plan; its working program is
+/// scratch that only stage 02 and validators of its output may read. A later
+/// stage that read it would depend on a form the plan was meant to replace.
+pub fn working_program_read_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        WORKING_PROGRAM_ACCESSORS,
+        WORKING_PROGRAM_READERS,
+        "stage 02's working program is read outside stage 02, its validators and tests; read the prepared execution plan",
+    )
+}
+
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for owner in [PSI, OMEGA] {
@@ -553,6 +922,27 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = representation_spelling_violations(&root);
+        violations.extend(plan_validator_call_violations(&root));
+        violations.extend(single_form_entry_violations(&root));
+        violations.extend(working_program_read_violations(&root));
+        violations.extend(transitive_forbidden_violations(
+            &metadata,
+            SELECTION_REPRESENTATIONS,
+            EARLIER_PROGRAM_FORMS,
+            "a representation instruction selection reads or writes reaches an earlier program form; move the shared leaf type to native-vocabulary",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            AFTER_PREPARATION,
+            STAGE_02_WORKING_FORM,
+            "a stage or form after the prepared plan reaches stage 02's working program; name the record from target-vocabulary",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            &native_forms(),
+            SEALED_TERMINAL_MODULE,
+            "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
+        )?);
         violations.extend(psi_omega_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
@@ -682,6 +1072,214 @@ mod tests {
                 violations.is_empty(),
                 permitted,
                 "{owner} -> {dependency}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn selection_representations_cannot_reach_earlier_forms_through_any_crate() {
+        let plan =
+            "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        let unit =
+            "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit";
+        let reaches = |kind: Option<&str>| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("legalized-operations", plan, &[("helper", helper, None)]),
+                pkg("helper", helper, &[("optimization-unit", unit, kind)]),
+                pkg("optimization-unit", unit, &[]),
+            ],
+        };
+        let violations =
+            transitive_forbidden_violations(&reaches(None), &[plan], EARLIER_PROGRAM_FORMS, "no")
+                .unwrap();
+        assert_eq!(
+            violations,
+            vec!["legalized-operations -> helper -> optimization-unit: no".to_owned()]
+        );
+        assert!(
+            transitive_forbidden_violations(
+                &reaches(Some("dev")),
+                &[plan],
+                EARLIER_PROGRAM_FORMS,
+                "no"
+            )
+            .unwrap()
+            .is_empty(),
+            "a test-only edge is not a production path"
+        );
+    }
+
+    #[test]
+    fn a_nested_package_is_not_the_crate_it_sits_in() {
+        let form = "omega-rust/omega/compilation/representations/machine-code";
+        let working = STAGE_02_WORKING_FORM;
+        let vocabulary =
+            "omega-rust/omega/compilation/representations/target-operations/target-vocabulary";
+        let metadata = |dependency: &str| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("machine-code", form, &[("dependency", dependency, None)]),
+                pkg("target-operations", working, &[]),
+                pkg("target-vocabulary", vocabulary, &[]),
+            ],
+        };
+        assert!(
+            transitive_exact_violations(&metadata(vocabulary), &[form], working, "no")
+                .unwrap()
+                .is_empty(),
+            "the vocabulary nested under target-operations is its own package"
+        );
+        assert_eq!(
+            transitive_exact_violations(&metadata(working), &[form], working, "no").unwrap(),
+            vec!["machine-code -> target-operations: no".to_owned()]
+        );
+    }
+
+    #[test]
+    fn single_form_entries_count_parameters_at_the_top_level() {
+        let text = "pub fn stage<Source: Into<(u8, u8)>>(\n    source: Source,\n) -> Result<(), ()> {}\n\
+                    pub fn joined(a: &[u8], b: Map<K, (V, W)>, c: impl Fn(u8, u8),) {}";
+        assert_eq!(
+            public_function_parameters(text, "stage"),
+            Some(vec!["source: Source".to_owned()])
+        );
+        assert_eq!(
+            public_function_parameters(text, "joined").map(|parameters| parameters.len()),
+            Some(3)
+        );
+        assert_eq!(public_function_parameters(text, "absent"), None);
+        assert_eq!(public_function_parameters(text, "stag"), None);
+    }
+
+    #[test]
+    fn native_forms_reach_vocabulary_encoders_but_not_the_sealed_module() {
+        let plan =
+            "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        let wire = "omega-rust/psi/compilation/representations/terminal-psi/wire";
+        assert!(native_forms().contains(&plan));
+        let metadata = |dependency: &str, kind: Option<&str>| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("legalized-operations", plan, &[("helper", helper, None)]),
+                pkg("helper", helper, &[("dependency", dependency, kind)]),
+                pkg("terminal-wire", wire, &[]),
+                pkg(
+                    "terminal-codec",
+                    SEALED_TERMINAL_MODULE,
+                    &[("terminal-wire", wire, None)],
+                ),
+            ],
+        };
+        let check = |dependency, kind| {
+            transitive_exact_violations(
+                &metadata(dependency, kind),
+                &[plan],
+                SEALED_TERMINAL_MODULE,
+                "no",
+            )
+            .unwrap()
+        };
+        assert!(
+            check(wire, None).is_empty(),
+            "the encoders alone are allowed"
+        );
+        assert_eq!(
+            check(SEALED_TERMINAL_MODULE, None),
+            vec!["legalized-operations -> helper -> terminal-codec: no".to_owned()]
+        );
+        assert!(
+            check(SEALED_TERMINAL_MODULE, Some("dev")).is_empty(),
+            "a test-only edge is not a production path"
+        );
+    }
+
+    #[test]
+    fn only_requests_and_tests_may_call_the_plan_validator() {
+        assert!(line_calls_any(
+            "    native_preparation::verify_execution_plan(plan, target)?;",
+            PLAN_VALIDATOR_ENTRIES
+        ));
+        assert!(line_calls_any(
+            "let _ = verify_target_operation_plan_with_closed_module(",
+            PLAN_VALIDATOR_ENTRIES
+        ));
+        assert!(!line_calls_any(
+            "    /// (`native_preparation::verify_execution_plan(...)`).",
+            PLAN_VALIDATOR_ENTRIES
+        ));
+        assert!(!line_calls_any(
+            "    native_preparation::prepare_execution_plan(target, evidence)?;",
+            PLAN_VALIDATOR_ENTRIES
+        ));
+        assert!(is_test_source(
+            "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs"
+        ));
+        assert!(line_calls_any(
+            "        .working_program_for_validation()",
+            WORKING_PROGRAM_ACCESSORS
+        ));
+        assert!(!line_calls_any(
+            "    /// `working_program_for_validation()` is for validators.",
+            WORKING_PROGRAM_ACCESSORS
+        ));
+        assert!(is_test_source(
+            "omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs"
+        ));
+        assert!(!is_test_source(
+            "omega-rust/omega/compilation/native-compiler/src/pipeline.rs"
+        ));
+    }
+
+    #[test]
+    fn selection_cannot_reach_the_forms_its_plan_was_prepared_from() {
+        const ABSTRACT: &str = "omega-rust/omega/compilation/representations/abstract-operations";
+        for (dependency, kind, permitted) in [
+            (ABSTRACT, None, false),
+            (
+                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit",
+                None,
+                false,
+            ),
+            (
+                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics",
+                None,
+                false,
+            ),
+            (
+                "omega-rust/psi/compilation/representations/terminal-psi/codec",
+                None,
+                false,
+            ),
+            // Tests may build a plan the way stage 02 does.
+            (ABSTRACT, Some("dev"), true),
+            (
+                "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+                None,
+                true,
+            ),
+            (
+                "omega-rust/omega/compilation/representations/native-vocabulary",
+                None,
+                true,
+            ),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg(
+                    "selection",
+                    OMEGA_STAGES[3],
+                    &[("dependency", dependency, kind)],
+                )],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &forbidden_rules())
+                .expect("fixture paths belong to the test workspace");
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "selection -> {dependency} ({kind:?}): {violations:?}"
             );
         }
     }

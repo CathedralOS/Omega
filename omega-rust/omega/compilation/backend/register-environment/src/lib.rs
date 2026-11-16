@@ -37,6 +37,7 @@ mod tests;
 
 pub use register_model::FrameAbiPreservationConvention;
 
+use calling_conventions::MachineRegister;
 use catalog::{
     conservative_baseline_reservation_profile, prepared_target_constraint_catalog,
     selected_constraint_keys, target_physical_register_model,
@@ -57,7 +58,6 @@ use register_model::{
 };
 use selected_instructions::SelectedConstraintKeys;
 use target::{Architecture, NativeTarget, ObjectFormat};
-use target_operations::MachineRegister;
 
 pub fn baseline_target_register_environment(
     target: NativeTarget,

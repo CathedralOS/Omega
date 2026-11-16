@@ -527,8 +527,8 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Float-result equations retain typed integer operands.
-            137
+            // Float conversions retain integer inputs, results and exactness.
+            139
         }
     }
 }

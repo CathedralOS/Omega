@@ -104,10 +104,11 @@ pub use constraints::{
 };
 pub use control_flow::{
     SelectedAddressBase, SelectedBlock, SelectedBlockOrigin, SelectedFunction,
-    SelectedScalarReferenceSource, SelectedStructuralBinding, SelectedStructuralTransport,
-    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
-    SelectedValueTransport, terminator_instruction, terminator_instruction_mut,
-    terminator_return_edge, terminator_successors, terminator_successors_mut,
+    SelectedFunctionContracts, SelectedScalarReferenceSource, SelectedStructuralBinding,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
+    SelectedValueBinding, SelectedValueTransport, terminator_instruction,
+    terminator_instruction_mut, terminator_return_edge, terminator_successors,
+    terminator_successors_mut,
 };
 pub use effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, IsaCatalogValidation,

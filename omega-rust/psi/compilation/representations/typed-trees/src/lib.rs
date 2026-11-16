@@ -114,7 +114,7 @@ macro_rules! typed_tree_table {
             } )?
 
             $( #[ $inline ] )?
-            pub fn $get(&self) -> &[$ty] {
+            pub fn $get(&self) -> arena::RootRows<'_, $ty> {
                 self.tables
                     .$field
                     .span_or_empty(self.roots.$field)
@@ -126,20 +126,32 @@ use crate::product_operand::ProductOperandApplication;
 pub(crate) use typed_tree_table;
 
 macro_rules! declaration_columns {
-    ($( $(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> &[$ty:ty]
-        = $column:ident.$span:ident $( [ $push:ident ] )? ; )*) => {
+    () => {};
+    (@column $(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty)
+        -> $rows:ty, $ty:ty = $column:ident.$span:ident $( [ $push:ident ] )? ) => {
+        $(#[$attr])*
+        pub fn $name(&self, $node: &$node_ty) -> $rows {
+            self.$column.span_or_empty($node.$span)
+        }
         $(
-            $(#[$attr])*
-            pub fn $name(&self, $node: &$node_ty) -> &[$ty] {
-                self.$column.span_or_empty($node.$span)
+            pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
+                self.$column.append_to_span(&mut $node.$span, value);
             }
+        )?
+    };
 
-            $(
-                pub fn $push(&mut self, $node: &mut $node_ty, value: $ty) {
-                    self.$column.append_to_span(&mut $node.$span, value);
-                }
-            )?
-        )*
+    ($(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> rows[$ty:ty]
+        = $column:ident.$span:ident $( [ $push:ident ] )? ; $($rest:tt)*) => {
+            $crate::declaration_columns!(@column $(#[$attr])* $name($node: $node_ty)
+                -> arena::RootRows<'_, $ty>, $ty = $column.$span $( [ $push ] )?);
+            $crate::declaration_columns!($($rest)*);
+    };
+
+    ($(#[$attr:meta])* $name:ident($node:ident: $node_ty:ty) -> &[$ty:ty]
+        = $column:ident.$span:ident $( [ $push:ident ] )? ; $($rest:tt)*) => {
+            $crate::declaration_columns!(@column $(#[$attr])* $name($node: $node_ty)
+                -> &[$ty], $ty = $column.$span $( [ $push ] )?);
+            $crate::declaration_columns!($($rest)*);
     };
 
     ($( append $push:ident($node:ident: $node_ty:ty, $ty:ty)
@@ -1381,35 +1393,35 @@ pub struct TypedTreeTables {
     pub product_operand_applications: Arena<ProductOperandApplication>,
     authored_declaration_selections:
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
-    pub const_declarations: Arena<crate::constant::ConstDeclaration>,
+    pub const_declarations: arena::RootedArena<crate::constant::ConstDeclaration>,
     pub data_definitions: DataDefinitionTable,
-    pub type_aliases: Arena<crate::type_aliases::TypeAliasDefinition>,
-    pub data_application_definitions: Arena<DataApplicationView>,
+    pub type_aliases: arena::RootedArena<crate::type_aliases::TypeAliasDefinition>,
+    pub data_application_definitions: arena::RootedArena<DataApplicationView>,
     pub data_type_parameters: TypeParameterTable,
     pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
     pub static_type_contexts: crate::type_system::type_predicates::StaticTypeContexts,
-    pub data_members: Arena<data::DataMember>,
-    pub data_payload_fields: Arena<data::DataField>,
+    pub data_members: arena::RootedArena<data::DataMember>,
+    pub data_payload_fields: arena::RootedArena<data::DataField>,
     pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
-    pub propositions: Arena<proposition::PropositionDefinition>,
+    pub propositions: arena::RootedArena<proposition::PropositionDefinition>,
     pub proposition_binders: Arena<proposition::PropositionBinder>,
-    pub mathematical_definitions: Arena<mathematical::MathematicalDefinition>,
+    pub mathematical_definitions: arena::RootedArena<mathematical::MathematicalDefinition>,
     pub mathematical_parameters: Arena<mathematical::MathematicalParameter>,
     pub mathematical_types: Arena<mathematical::MathematicalType>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
     pub machines: MachineDeclarationTable,
-    pub measures: Arena<measure::MeasureDefinition>,
+    pub measures: arena::RootedArena<measure::MeasureDefinition>,
     pub measure_path_members: Arena<crate::name::Identifier>,
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
-    pub traits: Arena<trait_definition::TraitDefinition>,
-    pub conformances: Arena<trait_definition::Conformance>,
+    pub traits: arena::RootedArena<trait_definition::TraitDefinition>,
+    pub conformances: arena::RootedArena<trait_definition::Conformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: callable_applications::AppliedCallableTable,
@@ -1424,7 +1436,7 @@ pub struct TypedTreeTables {
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
-    pub wire_schemas: Arena<wire::WireSchema>,
+    pub wire_schemas: arena::RootedArena<wire::WireSchema>,
     pub wire_members: Arena<wire::WireMember>,
 }
 
@@ -1646,6 +1658,121 @@ pub fn canonical_const_declaration_value(
     ))
 }
 
+/// Read a represented static value without evaluating source or proving its
+/// carrier obligations. Anonymous integer landing remains the caller's work.
+pub fn canonical_const_argument_value(
+    program: &TypedTrees,
+    reference: types::TypeReferenceHandle,
+) -> Option<language_semantics::const_value::CanonicalConstValue> {
+    use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return None;
+    }
+    let value = match program.type_reference_table.type_reference(reference) {
+        types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+            if !program.symbols.symbols().nodes().is_valid(*symbol) {
+                return None;
+            }
+            canonical_const_declaration_value(program, *symbol)?
+        }
+        types::TypeReferenceNode::Named { name, .. } => {
+            CanonicalConstValue::from_atom(name.as_str()).or_else(|| {
+                boolean_literal_spelling(name.as_str()).map(CanonicalConstValue::boolean)
+            })?
+        }
+        types::TypeReferenceNode::ConstExpression(expression) => {
+            let expression::ExpressionNode::Boolean(value) =
+                program.expression_table.expression(*expression)
+            else {
+                return None;
+            };
+            CanonicalConstValue::boolean(*value)
+        }
+        _ => return None,
+    };
+    value.decode_encoding()?;
+    Some(value)
+}
+
+/// Whether this closed carrier has the copyable, address-free structural
+/// shape represented by canonical index values. This proves no value predicate.
+pub fn canonical_const_carrier_is_supported(
+    program: &TypedTrees,
+    reference: types::TypeReferenceHandle,
+) -> bool {
+    use data::DataMember;
+    use types::{FixedArrayLength, TypeReferenceNode};
+    let mut pending = vec![(reference, false)];
+    let mut active = Vec::new();
+    while let Some((reference, exiting)) = pending.pop() {
+        if exiting {
+            active.pop();
+            continue;
+        }
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+            || active.contains(&reference)
+        {
+            return false;
+        }
+        let node = program.type_reference_table.type_reference(reference);
+        if let TypeReferenceNode::Named { symbol, .. } = node
+            && program.symbols.symbols().nodes().is_valid(*symbol)
+            && matches!(
+                program.symbols.builtin_type_atom(*symbol),
+                Some(symbols::BuiltinTypeAtom::Integer(_) | symbols::BuiltinTypeAtom::Bool)
+            )
+        {
+            continue;
+        }
+        active.push(reference);
+        pending.push((reference, true));
+        if let TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(_),
+        } = node
+        {
+            pending.push((*element_type, false));
+            continue;
+        }
+        if !matches!(
+            node,
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+        ) {
+            return false;
+        }
+        let Some(data) = program.closed_data_definition(reference) else {
+            return false;
+        };
+        if !data.lifetime_parameters.is_empty()
+            || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+            || data.properties.carry.is_some()
+            || data.cleanup_selection.is_some()
+            || data.quotient.is_some()
+            || program.stored_value_multiplicity(reference)
+                != language_semantics::Multiplicity::Unrestricted
+        {
+            return false;
+        }
+        for member in program.data_members(data) {
+            match member {
+                DataMember::Field(field) => pending.push((field.type_reference, false)),
+                DataMember::Variant(variant) => pending.extend(
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .map(|field| (field.type_reference, false)),
+                ),
+            }
+        }
+    }
+    true
+}
+
 pub fn integer_const_declaration_extent(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,
@@ -1825,6 +1952,134 @@ mod continuation_storage_tests {
     }
 
     #[test]
+    fn selected_continuation_shares_data_children_and_replaces_only_its_application() {
+        use crate::data::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
+        use crate::name::Identifier;
+        use crate::types::TypeReferenceNode;
+
+        let mut original = TypedTrees::default();
+        let parameters = original.data_type_parameters.insert_many([
+            TypeParameter {
+                name: Identifier::generated("first"),
+                ..Default::default()
+            },
+            TypeParameter {
+                name: Identifier::generated("other"),
+                ..Default::default()
+            },
+        ]);
+        let payload = original.data_payload_fields.insert_many([DataField {
+            name: Identifier::generated("payload"),
+            ..Default::default()
+        }]);
+        let members = original.data_members.insert_many([
+            DataMember::Field(DataField {
+                name: Identifier::generated("field"),
+                ..Default::default()
+            }),
+            DataMember::Variant(DataVariant {
+                payload,
+                ..Default::default()
+            }),
+        ]);
+        let mut applications = Vec::new();
+        for name in ["first", "other"] {
+            let reference = original
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: Default::default(),
+                    name: Identifier::generated(name),
+                });
+            original.retain_data_application_definition(
+                reference,
+                DataDefinition {
+                    name: Identifier::generated(name),
+                    type_parameters: parameters,
+                    members,
+                    ..Default::default()
+                },
+                true,
+            );
+            applications.push(reference);
+        }
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let mut successor = original.with_replaced_symbols(symbols("successor"));
+        let fork = Arc::get_mut(&mut successor).unwrap();
+        assert!(std::ptr::eq(
+            predecessor.data_type_parameters.get(parameters.start()),
+            fork.data_type_parameters.get(parameters.start())
+        ));
+        assert!(std::ptr::eq(
+            predecessor.data_members.get(members.start()),
+            fork.data_members.get(members.start())
+        ));
+        assert!(std::ptr::eq(
+            predecessor.data_payload_fields.get(payload.start()),
+            fork.data_payload_fields.get(payload.start())
+        ));
+        let row =
+            arena::Handle::from_parts(applications[0].arena_index(), applications[0].generation());
+        assert!(std::ptr::eq(
+            predecessor.data_application_definitions.get(row),
+            fork.data_application_definitions.get(row)
+        ));
+
+        fork.data_type_parameters.get_mut(parameters.start()).name =
+            Identifier::generated("changed");
+        fork.data_payload_fields.get_mut(payload.start()).name =
+            Identifier::generated("changed payload");
+        let DataMember::Field(field) = fork.data_members.get_mut(members.start()) else {
+            panic!("authored field")
+        };
+        field.name = Identifier::generated("changed field");
+        fork.forget_data_application_definition(applications[0]);
+        assert!(fork.data_application_definition(applications[0]).is_none());
+        assert!(
+            predecessor
+                .data_application_definition(applications[0])
+                .is_some()
+        );
+        assert!(std::ptr::eq(
+            predecessor
+                .data_application_definition(applications[1])
+                .unwrap(),
+            fork.data_application_definition(applications[1]).unwrap()
+        ));
+        assert!(std::ptr::eq(
+            predecessor
+                .data_type_parameters
+                .get(parameters.handle_at(1)),
+            fork.data_type_parameters.get(parameters.handle_at(1))
+        ));
+        assert_eq!(
+            predecessor
+                .data_type_parameters
+                .get(parameters.start())
+                .name
+                .as_str(),
+            "first"
+        );
+        assert_eq!(
+            predecessor
+                .data_payload_fields
+                .get(payload.start())
+                .name
+                .as_str(),
+            "payload"
+        );
+        let DataMember::Field(field) = predecessor.data_members.get(members.start()) else {
+            panic!("authored field")
+        };
+        assert_eq!(field.name.as_str(), "field");
+        let old = predecessor
+            .data_application_definition(applications[1])
+            .unwrap();
+        assert_eq!(fork.data_members(old).len(), 2);
+        assert!(matches!(fork.data_members(old)[1], DataMember::Variant(_)));
+    }
+
+    #[test]
     fn shared_continuation_moves_replacement_symbols_and_preserves_the_predecessor() {
         let mut original = TypedTrees {
             symbols: symbols("old"),
@@ -1836,10 +2091,10 @@ mod continuation_storage_tests {
         let original = Arc::new(original);
         let predecessor = Arc::clone(&original);
         let replacement = symbols("new");
-        let replacement_rows = replacement.names().storage_slice().as_ptr();
+        let replacement_rows = std::ptr::from_ref(replacement.get(replacement.root()));
         let successor = original.with_replaced_symbols(replacement);
         assert_eq!(
-            successor.symbols.names().storage_slice().as_ptr(),
+            std::ptr::from_ref(successor.symbols.get(successor.symbols.root())),
             replacement_rows
         );
         assert_eq!(predecessor.symbols.name(predecessor.symbols.root()), "old");

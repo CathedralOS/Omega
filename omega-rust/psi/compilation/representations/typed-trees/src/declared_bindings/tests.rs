@@ -462,7 +462,7 @@ fn published_rows_refresh_same_shape_storage_and_state_span_edits() {
         },
     );
     assert_ne!(incoming.revision(), program.machines.revision());
-    *program.tables.machines = incoming;
+    *program.tables.machines = incoming.into();
     matches_global_roster(&program, &binders);
     assert_eq!(program.unique_local_data_for_symbol(binders[1]), None);
     assert!(program.unique_local_data_for_symbol(binders[3]).is_some());
@@ -893,7 +893,7 @@ fn field_lookup_preserves_payload_uniqueness_and_storage_changes() {
         }),
     ]);
     assert_ne!(incoming.revision(), program.data_members.revision());
-    program.tables.data_members = incoming;
+    program.tables.data_members = incoming.into();
     assert_fields(&program);
     assert_fields(&snapshot);
     program.data_payload_fields.get_mut(payload.start()).symbol = fields[2];

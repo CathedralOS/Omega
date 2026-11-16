@@ -1,8 +1,8 @@
 /*
-We encode and decode the version-27 post-allocation machine-plan wire artifact
+We encode and decode the version-28 post-allocation machine-plan wire artifact
 (`OMGPMX\0\0`) and authenticate its content identity.
 
-The wire format prepends the 8-byte magic marker, little-endian version `27`,
+The wire format prepends the 8-byte magic marker, little-endian version `28`,
 and the 32-byte `PostAllocationMachineIdentity` before the canonical content
 stream emitted by `write_terminal_post_allocation_machine_content`. Decoding
 rejects unknown versions, invalid closed-tag bytes, trailing bytes, or any
@@ -34,7 +34,24 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const VERSION: u32 = 27;
+const VERSION: u32 = 28;
+
+fn decode_invocation_site(
+    cursor: &mut effect_codec::Cursor<'_>,
+) -> Result<semantic_vocabulary::InvocationSite, PostAllocationMachineDecodeError> {
+    let tag = byte(cursor)?;
+    let identity = u64_field(cursor)?;
+    if tag == 3 {
+        let edge = semantic_vocabulary::EdgeId::new(identity)
+            .ok_or(PostAllocationMachineDecodeError::InvalidField)?;
+        return Ok(semantic_vocabulary::InvocationSite::Cleanup {
+            edge,
+            action_ordinal: u32_field(cursor)?,
+        });
+    }
+    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity)
+        .ok_or(PostAllocationMachineDecodeError::InvalidField)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationMachineDecodeError {
@@ -191,11 +208,7 @@ fn decode_content(
         for _ in 0..slot_count {
             outgoing_arguments.push(selected_instructions::SelectedOutgoingArgumentSlot {
                 id: selected_instructions::OutgoingArgumentSlotId {
-                    invocation_site: semantic_vocabulary::InvocationSite::from_tagged_identity(
-                        byte(cursor)?,
-                        u64_field(cursor)?,
-                    )
-                    .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                    invocation_site: decode_invocation_site(cursor)?,
                     argument_index: u32_field(cursor)?,
                     role: match byte(cursor)? {
                         0 => selected_instructions::OutgoingArgumentSlotRole::Argument,
@@ -348,11 +361,7 @@ fn decode_instruction(
                         } else {
                             selected_instructions::OutgoingArgumentSlotRole::ValueCopy
                         },
-                        invocation_site: semantic_vocabulary::InvocationSite::from_tagged_identity(
-                            byte(cursor)?,
-                            u64_field(cursor)?,
-                        )
-                        .ok_or(PostAllocationMachineDecodeError::InvalidField)?,
+                        invocation_site: decode_invocation_site(cursor)?,
                         argument_index: u32_field(cursor)?,
                     },
                 ),

@@ -9,8 +9,7 @@ both across the function entrance roster and every non-entry block's ordered
 or entry-block parameter collision.
 */
 
-pub mod address_joins;
-pub mod owner_loans;
+pub use native_vocabulary::{address_joins, owner_loans};
 
 use crate::{AbstractFunctionResult, AbstractOperation, AbstractParameter, ValueBinding};
 use semantic_vocabulary::{
@@ -23,7 +22,6 @@ use terminal_psi::{EntryClaim, StructuralParameterDeclaration as ParameterDeclar
 pub struct AbstractFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>, // Owner-designated cleanup subject, independent of attachment or call sites.
     pub entry: BlockId,
     pub parameters: Vec<AbstractParameter>, // Runtime values supplied by the caller in declared Terminal Psi order.
     pub structural_parameters: Vec<ParameterDeclaration>,
@@ -121,11 +119,7 @@ pub struct AbstractSuccessor {
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>, // Exact Terminal Psi cleanup order for this conditional edge.
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractStructuralBinding {
-    pub parameter: PlaceId,
-    pub argument: terminal_psi::StructuralArgument,
-}
+pub use native_vocabulary::values::AbstractStructuralBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractStructuralCaseSuccessor {

@@ -162,9 +162,7 @@ impl<'a> WindowsHandleInputs<'a> {
                                 "reviewed handle API {boundary:?} has no normal completion"
                             ));
                         }
-                        let RuntimeArguments::Explicit { scalar, .. } = call.arguments else {
-                            return Err("native handle API has no actual explicit arguments".into());
-                        };
+                        let RuntimeArguments { scalar, .. } = call.arguments;
                         let mut scalars = BTreeMap::new();
                         let mut scalar_index = 0;
                         for (ordinal, kind) in

@@ -171,23 +171,23 @@ impl PreparedCheckedSource {
         source_checkpoint: ImmutableSourceParseCheckpoint,
         shared_timings: CompileTimings,
         preparation: SourcePreparation,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let toolchain_capture =
+            source_checkpoint
+                .toolchain_capture()
+                .cloned()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "prepared source lost its admitted core capture",
+                    )]
+                })?;
+        Ok(Self {
             preparation,
             source_checkpoint,
             shared_timings,
-            toolchain_capture: None,
+            toolchain_capture: Some(toolchain_capture),
             frontiers: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    pub fn with_toolchain_capture(
-        mut self,
-        capture: package_compilation::CapturedLocalSource,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        self.source_checkpoint = self.source_checkpoint.with_toolchain_capture(&capture)?;
-        self.toolchain_capture = Some(capture);
-        Ok(self)
+        })
     }
 
     pub fn admit_root(&self, root_path: &Path) -> Result<(), Vec<Diagnostic>> {

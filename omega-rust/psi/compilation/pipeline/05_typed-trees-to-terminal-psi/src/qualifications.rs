@@ -854,13 +854,7 @@ impl Qualifications {
                     };
                     let id = ScalarDomainId::new(self.catalog.domains.len() as u64 + 1)
                         .ok_or_else(|| unavailable("scalar policy identity overflow"))?;
-                    let arithmetic = match policy {
-                        Policy::Wrapping => numerics::arithmetic::ArithmeticDomain::Wrapping,
-                        Policy::Saturating => numerics::arithmetic::ArithmeticDomain::Saturating,
-                        Policy::Trapping => {
-                            return Err(unavailable("trapping arithmetic policy qualification"));
-                        }
-                    };
+                    let arithmetic = Policy::domain(Some(policy));
                     let identity =
                         terminal_semantics::scalar_qualifications::arithmetic_policy_identity(
                             arithmetic,

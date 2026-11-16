@@ -1298,8 +1298,8 @@ pub(crate) mod access_ram_origins {
         DescriptorLocation, DescriptorPosition, descriptor_location,
     };
     use crate::descriptors::descriptor_results::{
-        DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorMachine,
-        DescriptorSourceOrigin,
+        DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorInvocationOwner,
+        DescriptorMachine, DescriptorSourceOrigin,
     };
     use semantic_vocabulary::{
         BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId,
@@ -1309,6 +1309,13 @@ pub(crate) mod access_ram_origins {
         OperationKind, StructuralArgument, StructuralTypeShape, TerminalAccessorKind,
         TerminalModule,
     };
+
+    type OriginQuery = (
+        MachineId,
+        DescriptorPosition,
+        Option<DescriptorInvocationOwner>,
+        DescriptorSourceOrigin,
+    );
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct AccessRamFormation {
@@ -1478,26 +1485,27 @@ pub(crate) mod access_ram_origins {
             machine: MachineId,
             position: DescriptorPosition,
             location: DescriptorLocation,
-            pending: &mut Vec<(MachineId, DescriptorPosition, DescriptorSourceOrigin)>,
+            pending: &mut Vec<OriginQuery>,
         ) -> Option<BTreeSet<AccessRamOrigin>> {
             let origins = self
                 .analysis
                 .symbolic_source_origins(machine, position, &location)?;
-            self.resolve_origins(machine, position, origins, pending)
+            self.resolve_origins(machine, position, None, origins, pending)
         }
         fn resolve_origins(
             &mut self,
             machine: MachineId,
             position: DescriptorPosition,
+            owner: Option<DescriptorInvocationOwner>,
             origins: Vec<DescriptorSourceOrigin>,
-            pending: &mut Vec<(MachineId, DescriptorPosition, DescriptorSourceOrigin)>,
+            pending: &mut Vec<OriginQuery>,
         ) -> Option<BTreeSet<AccessRamOrigin>> {
             if origins.is_empty() {
                 return None;
             }
             let mut complete = BTreeSet::new();
             for origin in origins {
-                let query = (machine, position, origin.clone());
+                let query = (machine, position, owner, origin.clone());
                 if pending.contains(&query) {
                     return None;
                 }
@@ -1617,21 +1625,29 @@ pub(crate) mod access_ram_origins {
                             .filter(|caller| self.reachable.contains(&caller.id))
                             .flat_map(|caller| {
                                 caller
-                                    .calls
-                                    .iter()
+                                    .known_invocations()
                                     .filter(move |(_, call)| call.callee() == Some(machine))
-                                    .map(move |(position, _)| (caller.id, *position))
+                                    .map(move |(position, call)| (caller.id, *position, call.owner))
                             })
                             .collect::<Vec<_>>();
                         if callers.is_empty() {
                             return None;
                         }
-                        for (caller, position) in callers {
+                        for (caller, position, owner) in callers {
+                            // The symbolic result already records the actual
+                            // source at this owner's prestate. Recursive
+                            // incoming substitution needs no reread at the
+                            // containing terminator's earlier state.
                             let actual = self
                                 .analysis
-                                .substitute_call_source(caller, position, &incoming)?;
-                            complete
-                                .extend(self.resolve_origins(caller, position, actual, pending)?);
+                                .substitute_call_source_at(caller, position, owner, &incoming)?;
+                            complete.extend(self.resolve_origins(
+                                caller,
+                                position,
+                                Some(owner),
+                                actual,
+                                pending,
+                            )?);
                         }
                     }
                     _ => return None,

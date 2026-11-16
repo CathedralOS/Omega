@@ -740,17 +740,18 @@ fn a_loop_length_premise_follows_the_sequence_each_arrival_passes() {
 #[test]
 fn a_rebound_sequence_cannot_inherit_the_loop_length_premise() {
     // The guard measured `tickets`; the backedge passes `other` in its place.
-    // The arrivals then pass two different sequences, so the header knows no
-    // one length for its parameter and the requirement has no proof.
-    let result = judged_ranked(&ranked_sequence_loop("count(other, tickets, position + 1)"));
+    // The arrival must prove the required bound against the length of
+    // `other`, even when the header has a name for its incoming length.
+    let result =
+        judged_ranked(&ranked_sequence_loop("count(other, tickets, position + 1)")).unwrap();
+    let super::RouteVerdict::Rejected { unproved, .. } = result else {
+        panic!("{result:?}");
+    };
     assert!(
-        matches!(
-            &result,
-            Err(refusal) if matches!(
-                refusal.reason,
-                terminal_check_tables::RefusalReason::Unproved(_)
-            ) && refusal.detail.contains("no reaching value identity")
-        ),
-        "{result:?}"
+        unproved.iter().any(|row| {
+            matches!(row.kind, super::ObligationKind::ArrivalInvariant { .. })
+                && row.statement.contains("position + 1 <= other.len")
+        }),
+        "{unproved:?}"
     );
 }

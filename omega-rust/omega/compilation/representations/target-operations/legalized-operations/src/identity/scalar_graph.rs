@@ -7,6 +7,7 @@
 // - Atomic accesses take tag `167`, case-qualified scalar field reads take tag `168`
 //   (`TAG_CASE_PAYLOAD_FIELD_READ`), and inline nearest-even IEEE float arithmetic takes tag `169`
 //   (`TAG_NEAREST_IEEE_FLOAT_ARITHMETIC`, appending the optional x86 FMA provider identity).
+// - Custody-only decomposition takes tag `174` and binds the complete owned subject.
 // - Saturating forms (`saturating_tag`) preserve legacy tags for `U64` and `I32` (35, 36, 40, 41,
 //   42) and assign dense per-operation carrier offsets for all other carriers.
 // - Root-window `StoreStructuralField` instructions and whole-slot `StructuralByteViewFieldStore`
@@ -27,7 +28,7 @@ use crate::{
     LegalizedScalarTerminator,
 };
 use crate::{SaturatingCarrier, SaturatingOperation};
-use optimization_unit::encode_value_definition_site_identity;
+use native_vocabulary::provenance::encode_value_definition_site_identity;
 use semantic_vocabulary::{ObligationId, ValueId};
 
 macro_rules! push_bytes {
@@ -39,14 +40,13 @@ macro_rules! push_bytes {
 pub(super) fn encode(
     bytes: &mut Vec<u8>,
     function: &LegalizedScalarFunction,
-    cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
+    cached_catalog: &mut Option<(
+        native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+        Vec<u8>,
+    )>,
 ) {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(bytes, function.attachment.map(|value| value.get()));
-    optimization_core::encode_option_u64(
-        bytes,
-        function.nominal_cleanup_subject.map(|value| value.get()),
-    );
     encode_ids(
         bytes,
         function
@@ -67,7 +67,7 @@ pub(super) fn encode(
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
         crate::codec_bytes::push_encoded(bytes, parameter.value.get().to_le_bytes());
-        encode_scalar_type(bytes, parameter.scalar_type);
+        encode_scalar_type(bytes, parameter.scalar_type.as_checking());
         encode_value_definition_site_identity(bytes, parameter.definition_site);
         encode_placement(bytes, &parameter.placement);
     }
@@ -82,15 +82,15 @@ pub(super) fn encode(
         encode_len(bytes, block.parameters.len());
         for parameter in &block.parameters {
             crate::codec_bytes::push_encoded(bytes, parameter.value.get().to_le_bytes());
-            encode_scalar_type(bytes, parameter.scalar_type);
-            encode_value_definition_site_identity(bytes, parameter.site);
+            encode_scalar_type(bytes, parameter.scalar_type.as_checking());
+            encode_value_definition_site_identity(bytes, parameter.definition_site);
         }
         encode_len(bytes, block.instructions.len());
         for instruction in &block.instructions {
             crate::codec_bytes::push_encoded(bytes, instruction.operation.get().to_le_bytes());
             encode_option(bytes, instruction.result, |bytes, result| {
                 crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
-                encode_scalar_type(bytes, result.scalar_type);
+                encode_scalar_type(bytes, result.scalar_type.as_checking());
                 encode_value_definition_site_identity(bytes, result.definition_site);
             });
             match &instruction.kind {
@@ -299,7 +299,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(167);
                     super::structural_types::encode_structural_argument(bytes, location);
-                    encode_integer_type(bytes, *scalar_type);
+                    encode_integer_type(bytes, scalar_type.as_checking());
                     crate::codec_bytes::push_encoded(bytes, field_byte_offset.to_le_bytes());
                     encode_atomic_event(bytes, *event);
                     bytes.push(u8::from(outcome.is_some()));
@@ -434,7 +434,7 @@ pub(super) fn encode(
                     super::structural::encode_operation_result(bytes, result);
                     super::structural_types::encode_structural_argument(bytes, source);
                     match correspondence {
-                        abstract_operations::AccessReferenceBacking::OrdinaryRam(
+                        native_vocabulary::access_references::AccessReferenceBacking::OrdinaryRam(
                             correspondence,
                         ) => {
                             bytes.push(0);
@@ -459,7 +459,7 @@ pub(super) fn encode(
                                 encode_scalar_type(bytes, field.stored_scalar);
                             }
                         }
-                        abstract_operations::AccessReferenceBacking::Resident(resident) => {
+                        native_vocabulary::access_references::AccessReferenceBacking::Resident(resident) => {
                             bytes.push(1);
                             for identity in [
                                 resident.owner.get(),
@@ -474,7 +474,7 @@ pub(super) fn encode(
                             }
                             bytes.extend_from_slice(&resident.placement_commitment);
                         }
-                        abstract_operations::AccessReferenceBacking::BorrowedExtent(backing) => {
+                        native_vocabulary::access_references::AccessReferenceBacking::BorrowedExtent(backing) => {
                             bytes.push(2);
                             for identity in [
                                 backing.owner.get(),
@@ -566,16 +566,18 @@ pub(super) fn encode(
                     indices,
                 } => {
                     bytes.push(match path {
-                        abstract_operations::StructuralCopyPath::Ordinary(_) => 86,
-                        abstract_operations::StructuralCopyPath::Case(_) => 92,
+                        native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(_) => 86,
+                        native_vocabulary::structural_stores::StructuralCopyPath::Case(_) => 92,
                     });
                     super::structural::encode_operation_result(bytes, result);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                     match path {
-                        abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                        native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(
+                            path,
+                        ) => {
                             super::structural_types::encode_structural_path(bytes, path);
                         }
-                        abstract_operations::StructuralCopyPath::Case(path) => {
+                        native_vocabulary::structural_stores::StructuralCopyPath::Case(path) => {
                             encode_len(bytes, path.len());
                             for segment in path {
                                 use semantic_vocabulary::CanonicalStructuralPathSegment;
@@ -629,6 +631,10 @@ pub(super) fn encode(
                     bytes.push(93);
                     super::structural::encode_operation_result(bytes, result);
                     super::calling::encode_shape(bytes, *shape);
+                }
+                LegalizedScalarInstructionKind::DecomposeStructuralValue { subject } => {
+                    bytes.push(174);
+                    super::structural_types::encode_structural_argument(bytes, subject);
                 }
                 LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
                     place,
@@ -860,9 +866,14 @@ pub(super) fn encode(
                     bytes.push(*byte_size);
                     encode_runtime_indices(bytes, indices);
                 }
-                LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } => {
+                LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                    boundary,
+                    execution,
+                    source,
+                } => {
                     bytes.push(11);
                     crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+                    super::calling::encode_boundary_execution_identity(bytes, *execution);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore {
@@ -1090,7 +1101,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(5);
                     crate::codec_bytes::push_encoded(bytes, operand.get().to_le_bytes());
-                    encode_integer_type(bytes, *source_type);
+                    encode_integer_type(bytes, source_type.as_checking());
                 }
                 LegalizedScalarInstructionKind::ScalarRepresentationView {
                     operand,
@@ -1098,7 +1109,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(171);
                     crate::codec_bytes::push_encoded(bytes, operand.get().to_le_bytes());
-                    encode_scalar_type(bytes, *source_type);
+                    encode_scalar_type(bytes, source_type.as_checking());
                 }
                 LegalizedScalarInstructionKind::IntegerExactCast {
                     operand,
@@ -1108,7 +1119,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(20);
                     crate::codec_bytes::push_encoded(bytes, operand.get().to_le_bytes());
-                    encode_integer_type(bytes, *source_type);
+                    encode_integer_type(bytes, source_type.as_checking());
                     crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
@@ -1299,8 +1310,8 @@ pub(super) fn encode(
                         LegalizedScalarComparison::LessThan => 1,
                         LegalizedScalarComparison::LessOrEqual => 2,
                     });
-                    encode_scalar_type(bytes, *operand_type);
-                    encode_scalar_type(bytes, *right_operand_type);
+                    encode_scalar_type(bytes, operand_type.as_checking());
+                    encode_scalar_type(bytes, right_operand_type.as_checking());
                     crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
                 }
@@ -1443,32 +1454,32 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
 
 fn encode_cleanup_calls(
     bytes: &mut Vec<u8>,
-    calls: &[(target_operations::CallSiteOwner, crate::LegalizedScalarCall)],
+    calls: &[(target_vocabulary::CallSiteOwner, crate::LegalizedScalarCall)],
 ) {
     encode_len(bytes, calls.len());
     for (owner, call) in calls {
         match owner {
-            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+            target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
                 bytes.push(3);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+            target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                 bytes.push(2);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::Operation(operation) => {
+            target_vocabulary::CallSiteOwner::Operation(operation) => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::Installation { operation, role } => {
+            target_vocabulary::CallSiteOwner::Installation { operation, role } => {
                 bytes.push(4);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                 bytes.push(match role {
-                    target_operations::InstallationCallRole::Validate => 0,
-                    target_operations::InstallationCallRole::Work => 1,
+                    target_vocabulary::InstallationCallRole::Validate => 0,
+                    target_vocabulary::InstallationCallRole::Work => 1,
                 });
             }
-            target_operations::CallSiteOwner::CleanupAction {
+            target_vocabulary::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
             } => {
@@ -1515,13 +1526,13 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_len(bytes, invocation.len());
             bytes.extend_from_slice(&invocation);
             match declared_result {
-                abstract_operations::AbstractFunctionResult::Unit => bytes.push(0),
-                abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                native_vocabulary::values::AbstractFunctionResult::Unit => bytes.push(0),
+                native_vocabulary::values::AbstractFunctionResult::Scalar(result) => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
                     encode_scalar_type(bytes, result.scalar_type);
                 }
-                abstract_operations::AbstractFunctionResult::Structural(result) => {
+                native_vocabulary::values::AbstractFunctionResult::Structural(result) => {
                     bytes.push(2);
                     super::structural::encode_result(bytes, result);
                 }
@@ -1550,11 +1561,11 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.push(1),
             }
             match binding {
-                target_operations::ExternalCompletionBinding::Boundary(binding) => {
+                target_vocabulary::ExternalCompletionBinding::Boundary(binding) => {
                     bytes.push(0);
                     super::calling::encode_binding(bytes, binding);
                 }
-                target_operations::ExternalCompletionBinding::Checked {
+                target_vocabulary::ExternalCompletionBinding::Checked {
                     callee,
                     origin,
                     call_plan,
@@ -1612,7 +1623,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_len(bytes, site_guard.len());
             for predicate in site_guard {
                 let encoded =
-                    terminal_codec::canonical_proposition_order_key(predicate.proposition())
+                    terminal_wire::canonical_proposition_order_key(predicate.proposition())
                         .expect("validated crash predicate");
                 encode_len(bytes, encoded.len());
                 bytes.extend_from_slice(&encoded);
@@ -1657,7 +1668,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     crate::codec_bytes::push_encoded(bytes, payload.field.get().to_le_bytes());
                     push_bytes!(bytes, payload.field_byte_offset.to_le_bytes());
                     push_bytes!(bytes, payload.parameter.value.get().to_le_bytes());
-                    encode_scalar_type(bytes, payload.parameter.scalar_type);
+                    encode_scalar_type(bytes, payload.parameter.scalar_type.as_checking());
                     encode_value_definition_site_identity(bytes, payload.parameter.definition_site);
                 }
                 encode_len(bytes, case.structural_bindings.len());
@@ -1699,7 +1710,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
-                    encode_scalar_type(bytes, *scalar_type);
+                    encode_scalar_type(bytes, scalar_type.as_checking());
                 }
             }
             encode_work(bytes, &returned.work);
@@ -1757,9 +1768,9 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
 
 fn encode_store_destination(
     bytes: &mut Vec<u8>,
-    destination: &abstract_operations::StructuralScalarStoreDestination,
+    destination: &native_vocabulary::structural_stores::StructuralScalarStoreDestination,
 ) {
-    use abstract_operations::StructuralScalarStoreDestination as Destination;
+    use native_vocabulary::structural_stores::StructuralScalarStoreDestination as Destination;
     match destination {
         Destination::Parameter(parameter) => {
             bytes.push(0);

@@ -124,7 +124,7 @@ fn calling_application(requirement_identity: &str, callback: bool) -> BoundaryCa
         report_fingerprint: plan.contract_report_fingerprint(),
         commitment: [0; 32],
         plan,
-        dispatch_only_parameter_count: 0,
+        dispatch_only_formal: None,
         signature: BoundarySignatureGeometry {
             shapes: Vec::new(),
             fields: Vec::new(),
