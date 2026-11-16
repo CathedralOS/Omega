@@ -441,4 +441,44 @@ mod tests {
             Err(Error::SourceMismatch)
         );
     }
+
+    #[test]
+    fn rehashed_abi_and_profile_cannot_replace_the_admitted_contracts() {
+        let (selected, original) = fixture();
+        let abi = target_vocabulary::function_abi::LegalizedFunctionAbi {
+            machine: original.entry,
+            call_plan: calling_conventions::evaluate_call_plan(
+                calling_conventions::CallingPolicy::MicrosoftX64,
+                &calling_conventions::CallSignature {
+                    parameters: Vec::new(),
+                    result: None,
+                },
+            )
+            .unwrap(),
+            scalar_parameters: Vec::new(),
+            entry_scalar_codecs: Vec::new(),
+            structural_parameters: Vec::new(),
+            scalar: None,
+            mixed_structural_scalar: None,
+        };
+        for (profile, abis) in [
+            (Some(target::TargetProfile::WindowsX64), Arc::from([])),
+            (None, Arc::from([abi])),
+        ] {
+            let mut changed = original.clone();
+            changed.contracts = Arc::new(
+                selected_instructions::SelectedProgramContracts::new(
+                    Default::default(),
+                    profile,
+                    abis,
+                )
+                .unwrap(),
+            );
+            changed.identity = changed.recomputed_identity();
+            assert_eq!(
+                validate_current_program(&changed, replay(&selected, &original)),
+                Err(Error::SourceMismatch)
+            );
+        }
+    }
 }

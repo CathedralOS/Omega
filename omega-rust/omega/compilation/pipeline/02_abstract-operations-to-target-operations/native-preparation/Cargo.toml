@@ -9,6 +9,8 @@ name = "native_preparation"
 path = "src/lib.rs"
 
 [dependencies]
+native-vocabulary = { path = "../../../representations/native-vocabulary" }
+runtime-abi = { path = "../../../backend/runtime/runtime-abi" }
 provider-admission = { path = "../../../realization/provider-admission" }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 calling-conventions = { path = "../../../backend/calling-conventions" }

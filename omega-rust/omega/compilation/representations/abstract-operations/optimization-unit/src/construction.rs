@@ -996,83 +996,18 @@ pub(super) fn collect_operation_structural_places(
     operation: &AbstractOperation,
     structural_places: &mut Vec<StructuralPlaceDeclaration>,
 ) {
-    match operation {
-        abstract_operations::establish_or_subslice_set_pattern!(psi_operation, result, ..)
-        | abstract_operations::establish_record_or_case_pattern!(psi_operation, result, ..)
-        | AbstractOperation::EstablishNativeCodeLayout {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::EstablishZeroedStructural {
-            psi_operation,
-            result,
-        }
-        | AbstractOperation::EstablishStructuralLocal {
-            psi_operation,
-            result,
-        }
-        | AbstractOperation::EstablishReference {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::EstablishAccessReference {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::MoveStructuralField {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::CallStructural {
-            psi_operation,
-            result: AbstractStructuralCallResult::Structural { result, .. },
-            ..
-        }
-        | AbstractOperation::StructuralLeafCopy {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::MoveStructuralValue {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::TransformContent {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::BoundaryCall {
-            psi_operation,
-            result: abstract_operations::AbstractBoundaryResult::Structural(result),
-            ..
-        } => structural_places.push(StructuralPlaceDeclaration {
+    // The operation owns its result roster. A second list here omitted claim
+    // results and left later storage-flow reconstruction without their places.
+    if let Some((producer, result)) = operation.structural_result() {
+        structural_places.push(StructuralPlaceDeclaration {
             id: result.place,
             kind: StructuralPlaceKind::OperationResult {
-                producer: *psi_operation,
+                producer,
                 structural_type: result.structural_type,
             },
-        }),
-        abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
-            structural_places.push(*place);
-        }
-        AbstractOperation::AtomicEvent {
-            psi_operation,
-            event: abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. },
-            ..
-        } => structural_places.push(StructuralPlaceDeclaration {
-            id: outcome.place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: *psi_operation,
-                structural_type: outcome.structural_type,
-            },
-        }),
-        _ => {}
+        });
+    } else if let abstract_operations::byte_literal_establish_pair_pattern!(place, ..) = operation {
+        structural_places.push(*place);
     }
 }
 

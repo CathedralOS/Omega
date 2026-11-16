@@ -1540,6 +1540,7 @@ pub mod ordinary {
         ClaimCompletion(target_vocabulary::LegalizedBoundarySettlement),
         HostedWriteByteI32 {
             operation: OperationId,
+            execution: target_vocabulary::BoundaryExecutionBinding,
             boundary: semantic_vocabulary::BoundaryMachineId,
             source: semantic_vocabulary::ValueId,
         },
@@ -1587,11 +1588,13 @@ pub mod ordinary {
                 }
                 Self::HostedWriteByteI32 {
                     operation,
+                    execution,
                     boundary,
                     source,
                 } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
+                    encode_boundary_execution_identity(&mut bytes, *execution);
                     crate::codec_bytes::push_encoded(&mut bytes, boundary.get().to_le_bytes());
                     crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
                 }

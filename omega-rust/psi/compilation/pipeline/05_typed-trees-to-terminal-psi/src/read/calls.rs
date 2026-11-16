@@ -218,7 +218,7 @@ impl<'t> Program<'t> {
     /// type bindings happen to be concrete; calls use the same generic
     /// contracts as a form whose binders remain rigid.
     fn checking_generic_entry(&self, id: MachineId) -> bool {
-        (self.rigid || self.alternative.is_some())
+        ((self.rigid || self.alternative.is_some())
             && (id.get() == 1
                 || self
                     .symbols
@@ -229,7 +229,8 @@ impl<'t> Program<'t> {
                             .machine_type_parameters(machine)
                             .iter()
                             .any(|parameter| self.generic_binders.contains(&parameter.symbol))
-                    }))
+                    })))
+            || self.applied.binary_search_by_key(&id, |row| row.0).is_ok()
     }
 
     /// Whether every generic parameter of `declared`, a machine or its entry
@@ -2114,7 +2115,7 @@ impl<'t> Program<'t> {
             }
             other => return unserved(symbol_kind(other)),
         };
-        let callee = self.application(machine, type_arguments)?;
+        let callee = self.application(id, machine, type_arguments)?;
         self.call_of(
             id,
             slots,
@@ -2456,7 +2457,7 @@ impl<'t> Program<'t> {
             self.const_application(target)?
         } else {
             match self.inherited_type_arguments(id, target) {
-                Some(arguments) => self.application(target, arguments)?,
+                Some(arguments) => self.application(id, target, arguments)?,
                 None => self.machine(target)?,
             }
         };

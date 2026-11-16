@@ -732,9 +732,14 @@ pub(crate) mod construction {
             .collect::<Result<Vec<_>, _>>()?;
         functions.sort_by_key(|function| function.machine);
         Ok(SelectedInstructionPlan {
-            contracts: std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
-                borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
-            }),
+            contracts: std::sync::Arc::new(
+                selected_instructions::SelectedProgramContracts::new(
+                    target.borrowed_storage_layouts.clone(),
+                    target.profile,
+                    std::sync::Arc::clone(&target.function_abis),
+                )
+                .map_err(SelectedInstructionError::custody_because)?,
+            ),
             psi: target.psi,
             work_schedule: target.work_schedule,
             target: target.target,

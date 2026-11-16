@@ -48,12 +48,12 @@ impl PostAllocationMachineProgram {
     /// its original checked owner; this digest does not hash that body again.
     pub fn recomputed_identity(&self) -> [u8; 32] {
         let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v1\0");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v2\0");
         digest.raw(self.psi.program_fingerprint.as_bytes());
         digest.raw(&self.psi.vocabulary_marker.get().to_le_bytes());
         digest.raw(&self.work_schedule.marker().to_le_bytes());
         digest.raw(&self.entry.get().to_le_bytes());
-        digest.raw(&self.contracts.borrowed_storage_layouts.identity_bytes());
+        digest.raw(&self.contracts.identity_bytes());
         digest.raw(&self.machine.identity.bytes());
         digest.raw(&self.environment.identity().bytes());
         digest.raw(&self.physical().identity().bytes());
