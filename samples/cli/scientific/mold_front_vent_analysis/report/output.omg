@@ -1,5 +1,9 @@
+module report::output;
 use omega_language_std::Console;
 use model::fill;
+use model::fill::Cavity;
+use model::fill::air_closure;
+use model::fill::cell_count;
 
 machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Console {
     transition divisor > 0 {

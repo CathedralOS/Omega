@@ -1,6 +1,10 @@
+module domain::report;
 use omega_language_std::Console;
 use domain::exact;
+use domain::exact::Fraction;
 use domain::sets;
+use domain::sets::member;
+use domain::sets::size;
 
 public machine number(value: u64 in Wrapping) reaches Console
 invokes Console

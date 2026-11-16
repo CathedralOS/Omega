@@ -1,3 +1,4 @@
+module domain::model;
 // Integer coefficients count labeled samples, not equiprobable species sets.
 // Each species contributes 1 + y*sum_{k=1..a} choose(a,k)*x^k.
 // Bounded convolution retains all depths and richness bins, including zeros.

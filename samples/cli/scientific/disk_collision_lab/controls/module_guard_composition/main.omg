@@ -1,7 +1,10 @@
 use omega::language::core::abs_f64;
 
 use model;
+use model::Measurements;
+use model::Probe;
 use helper;
+use helper::accepted;
 machine observe(lab:&mut Measurements) {lab.events=1;lab.first=0;lab.second=1;lab.time=2.0;lab.impulse=1.5;lab.px=1.0;lab.energy=0.5;lab.initial_x=1.0;lab.initial_energy=0.5;}
 machine main(probe:&mut Probe) {
  transition { _ -> check(probe) }

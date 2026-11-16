@@ -1,3 +1,4 @@
+module domain::model;
 // Synthetic bounded 4PL. Controls observe the low/high dose limits directly;
 // every replicate remains one equally weighted observation.
 public data Observations {

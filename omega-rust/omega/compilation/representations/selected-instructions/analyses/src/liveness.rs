@@ -1884,7 +1884,8 @@ pub(crate) mod edge_values {
                         .bindings
                         .iter()
                         .any(|binding| binding.semantic.parameter == source_value)
-                    || payload.semantic.parameter.scalar_type != destination_register.scalar_type
+                    || payload.semantic.parameter.scalar_type.as_checking()
+                        != destination_register.scalar_type
                     || Some(payload.semantic.parameter.definition_site)
                         != destination_register.definition_site
                 {

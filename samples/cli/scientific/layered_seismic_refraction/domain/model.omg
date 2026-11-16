@@ -1,6 +1,7 @@
-domain f64::SurfaceOffset;
-domain f64::Velocity;
-domain f64::TravelTime;
+module domain::model;
+public domain f64::SurfaceOffset;
+public domain f64::Velocity;
+public domain f64::TravelTime;
 
 // Result context distinguishes a distance observation from its travel time.
 // Arithmetic explicitly erases physical domains before establishing the result.
@@ -13,10 +14,10 @@ machine flight(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 i
  let duration: f64 = distance / speed;
  duration as f64 in TravelTime
 }
-machine direct_time(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 in TravelTime {
+public machine direct_time(offset: f64 in SurfaceOffset, velocity: f64 in Velocity) -> f64 in TravelTime {
  flight(offset, velocity)
 }
-data Model {
+public data Model {
  velocities: [f64; 4]; numerators: [f64; 4]; scales: [f64; 4]; thicknesses: [f64; 3]; critical: [f64; 4]; intercept: [f64; 4];
  layers: i32 in Wrapping; offsets: i32 in Wrapping;
 }
@@ -31,7 +32,7 @@ machine square_root(value: f64) -> f64 {
 }
 // Snell's horizontal slowness is 1 / refractor velocity. The critical
 // offset includes both inclined legs; the half-space leg is nonnegative.
-machine branch(model: &mut Model, refractor: i32 in Wrapping)
+public machine branch(model: &mut Model, refractor: i32 in Wrapping)
 requires refractor >= 1 && refractor < 4 {
  model.critical[refractor] = 0.0; model.intercept[refractor] = 0.0;
  transition { _ -> layer(model, refractor, 0) }

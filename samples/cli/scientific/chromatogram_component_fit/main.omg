@@ -4,10 +4,18 @@ use omega::language::core::ProcessExit;
 // Expected output contains: error=input:
 use omega_language_std::Console;
 use domain::model;
+use domain::model::Chromatogram;
+use domain::model::Fit;
 use domain::input;
+use domain::input::InputReader;
+use domain::input::read_input;
 use domain::fit;
+use domain::fit::fit_components;
 use domain::report;
+use domain::report::report;
 use domain::baseline_window;
+use domain::baseline_window::window;
+use domain::baseline_window::baseline_ready;
 
 data Main { reader: InputReader; }
 machine main(main: &mut Main) reaches ProcessExit + Console {

@@ -1,6 +1,7 @@
+module domain::math;
 
 // Positive bounded inputs only. Binary range reduction and atanh series.
-machine logarithm(value: f64) -> f64 {
+public machine logarithm(value: f64) -> f64 {
     transition { _ -> reduce(value, 0.0) }
     machine reduce(value: f64, offset: f64) -> f64 {
         transition value > 2.0 {
@@ -22,7 +23,7 @@ machine logarithm(value: f64) -> f64 {
  false -> (offset + 2.0 * next) }
     }
 }
-machine exponential(value: f64) -> f64 {
+public machine exponential(value: f64) -> f64 {
     let reduced: f64 = value / 128.0;
     transition { _ -> term(reduced, 1.0, 1.0, 1.0, 0) }
     machine term(value: f64, sum: f64, power: f64, divisor: f64, count: i32 in Wrapping) -> f64 {
@@ -43,7 +44,7 @@ machine magnitude(value: f64) -> f64 {
  false -> value }
 }
 // Abramowitz-Stegun 7.1.26: absolute normal-tail error < 1.5e-7.
-machine probability(z: f64) -> f64 {
+public machine probability(z: f64) -> f64 {
     let absolute: f64 = magnitude(z);
     transition absolute > 12.0 { true -> 0.0
         false -> tail(absolute) }
@@ -55,7 +56,7 @@ machine probability(z: f64) -> f64 {
     }
 }
 // Avoid cancellation in log(1+x) when x is close to zero.
-machine log_one_plus(value: f64) -> f64 {
+public machine log_one_plus(value: f64) -> f64 {
     transition value < 1.0 { true -> series(value / (2.0 + value))
         false -> logarithm(1.0 + value) }
     machine series(z: f64) -> f64 {
@@ -71,7 +72,7 @@ machine log_one_plus(value: f64) -> f64 {
 // Shift positive arguments to >=12, then use Stirling through x^-11.
 // The next asymptotic term there is <7e-17. Shifting preserves log Gamma.
 // This avoids a loop proportional to count size in each NB likelihood row.
-machine log_gamma(value: f64) -> f64 {
+public machine log_gamma(value: f64) -> f64 {
     transition { _ -> shift(value, 0.0) }
     machine shift(value: f64, correction: f64) -> f64 {
         transition value < 12.0 { true -> shift(value + 1.0, correction - logarithm(value))

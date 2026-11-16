@@ -1,4 +1,6 @@
+module input::parser;
 use geometry::model;
+use geometry::model::Problem;
 
 // Exactly 17 small signed decimal fields. No partial record is admitted. The
 // parser bounds magnitude before accumulation, rejects extra fields and any

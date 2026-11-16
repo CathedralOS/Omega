@@ -205,7 +205,7 @@ machine windows_filesystem_create_dir_all(path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes WindowsFilesystemHost
 {
-    let root: u64 = windows_filesystem_root_length(path);
+    let root: u64 = windows_filesystem_root_length(path as -Path);
     transition root < path.len {
         true -> block walk(path, root)
         false -> block root(path)
@@ -248,7 +248,7 @@ invokes WindowsFilesystemHost
     }
     machine inspect(path: &[u8] in Path, position: u64) -> UnitResult
     requires position < path.len {
-        transition position > 0 && windows_filesystem_separator(path, path[position]) {
+        transition position > 0 && windows_filesystem_separator(path as -Path, path[position]) {
             true -> block create(path, position)
             false -> block walk(path, position + 1)
         }

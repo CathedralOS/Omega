@@ -1,3 +1,4 @@
+module io::output;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use omega_language_std::Console;
@@ -66,6 +67,9 @@ public machine real(value: f64) reaches Console invokes Console crashes Trap {
 }
 
 use domain::precision;
+use domain::precision::Precise;
+use domain::precision::precise_sum;
+use domain::precision::multiply;
 public machine precise_real(value: Precise) reaches Console invokes Console crashes Trap {
     transition value.high == 0.0 { true -> zero() _ -> normalize(value, 0) }
     machine zero() { Console::write("0"); }

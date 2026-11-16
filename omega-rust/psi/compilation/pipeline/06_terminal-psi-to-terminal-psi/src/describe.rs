@@ -208,7 +208,9 @@ pub(crate) fn unproved(
 /// call at the arrival's site. `None` for a join, whose predicate the
 /// checker inferred, and for the entry's jump, which no call made.
 /// A cast's conditions were not established on arrival at its continuation.
-/// The same proof step serves domain predicates and exact representability.
+/// The same proof step serves domain predicates and exact representability;
+/// the refusal names which one failed, so a domain cast still says that the
+/// value is not shown to be in the domain it adds.
 /// `None` for an arrival that does not establish a cast predicate.
 fn cast_predicate_arrival(
     elaboration: &Elaboration,
@@ -223,17 +225,26 @@ fn cast_predicate_arrival(
     else {
         return None;
     };
-    let stated = &elaboration
+    use terminal_check_tables::program::CastCondition;
+    let (claim, stated) = match &elaboration
         .sources
         .get(machine)?
         .predicate_establishments
         .iter()
         .find(|(block, _)| *block == established)?
-        .1;
+        .1
+    {
+        CastCondition::DomainMembership(stated) => {
+            ("the value of this cast is in the domain it adds", stated)
+        }
+        CastCondition::ExactRepresentation(stated) => {
+            ("the required condition of this cast", stated)
+        }
+    };
     Some(format!(
-        "cannot prove the required condition of this cast in {}: {stated} (needs \
-         that fact about the operand here; establish it before the cast via a guard, a prior \
-         contract guarantee or a `requires` of this machine)",
+        "cannot prove {claim} in {}: {stated} (needs that fact about the operand here; \
+         establish it before the cast via a guard, a prior contract guarantee or a `requires` \
+         of this machine)",
         owner(names, site)
     ))
 }

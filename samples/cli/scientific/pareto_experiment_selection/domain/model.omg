@@ -1,3 +1,4 @@
+module domain::model;
 // All identities and objective values are input data, never array identities.
 // Twelve rows bound storage and pairwise work; certificates retain original positions.
 

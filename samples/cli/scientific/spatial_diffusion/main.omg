@@ -11,6 +11,7 @@ use omega::language::core::I64::from_f64;
 use domain::grid;
 use domain::solver;
 use platform::decimal;
+use platform::decimal::number;
 
 machine field(value:f64) reaches ProcessExit + Console invokes Console {
  let scaled:f64=value*1000000000000.0;

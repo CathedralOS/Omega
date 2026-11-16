@@ -1,3 +1,4 @@
+module domain::input;
 // Bounded decimal tokens: at most seven whole digits and six fractional digits.
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.

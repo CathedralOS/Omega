@@ -1,3 +1,4 @@
+module model::kriging;
 use omega::language::core::F64::from_u64;
 use omega::language::core::F64::square_root;
 public data Problem {

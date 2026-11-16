@@ -5,8 +5,15 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::F64::from_i64;
 use domain::inference;
+use domain::inference::Model;
+use domain::inference::Inference;
+use domain::inference::infer;
 use domain::viterbi;
+use domain::viterbi::Paths;
+use domain::viterbi::viterbi;
 use io::trace;
+use io::trace::print_integer;
+use io::trace::print_number;
 data Main { model: Model; result: Inference; paths: Paths; line: [u8; 64]; path_bytes: [u8; 32]; }
 // Both lanes hold the observation count. Lane 0 is the printed path; lane 1
 // keeps an equal-length spare so the match publishes that shared runtime length.

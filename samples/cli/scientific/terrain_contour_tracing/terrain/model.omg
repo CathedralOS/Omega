@@ -1,13 +1,14 @@
+module terrain::model;
 // NEW043 scientific model: one piecewise bilinear 3x3 scalar grid.
 // No vertex may equal the level. Edge interpolation is exact at scale 2520.
 // Saddles deliberately use a categorical connectivity policy, not an
 // asymptotic decider. Each shared geometric edge has one canonical identity.
-data Terrain {
+public data Terrain {
     heights: [i32 in Wrapping; 9];
     level: i32 in Wrapping;
     policy: i32 in Wrapping;
 }
-data Contours {
+public data Contours {
     owner: [u64; 8];
     first: [u64; 8];
     second: [u64; 8];

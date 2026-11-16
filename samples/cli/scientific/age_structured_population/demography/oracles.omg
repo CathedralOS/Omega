@@ -1,7 +1,12 @@
+module demography::oracles;
 // Executable startup checks consume independently frozen fixture integers.
 // They attest recurrence values through Terminal's supported exit comparison;
 // they never replace the supplied-input forecast or derive expected results.
 use demography::model;
+use demography::model::Census;
+use demography::model::Schedule;
+use demography::model::Balance;
+use demography::model::advance;
 public machine reference_checks() -> bool {
     let mut verified: bool = true;
     let mut births_census: Census = Census { newborn: 80, juvenile: 40, adult: 20 };

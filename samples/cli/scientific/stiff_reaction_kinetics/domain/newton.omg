@@ -1,8 +1,17 @@
+module domain::newton;
 // Backward Euler solves y-y0-h*f(y)=0 with analytic mass-action Jacobian.
 // Cofactor elimination is the fixed 3x3 linear solve; singular/nonfinite
 // determinants fail the trial. Positivity damping never clips a concentration.
 use domain::model;
+use domain::model::Vector;
+use domain::model::Problem;
+use domain::model::problem;
 use domain::rates;
+use domain::rates::Field;
+use domain::rates::magnitude;
+use domain::rates::evaluate;
+use domain::rates::physical;
+use domain::rates::norm;
 public data Newton [copy] { value: Vector; residual: Vector; delta: Vector; field: Field; success: bool; iteration: u64; damping: f64; backtracks: u64; candidate: Vector; }
 machine linear(newton: &mut Newton, step: f64) -> bool {
     let aa: f64 = 1.0 - step * newton.field.aa;

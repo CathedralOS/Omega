@@ -9,6 +9,7 @@ name = "optimization_unit"
 path = "src/lib.rs"
 
 [dependencies]
+native-vocabulary = { path = "../../native-vocabulary" }
 numerics = { path = "../../../../../psi/foundation/numerics" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 abstract-operations = { path = ".." }

@@ -3,11 +3,20 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::U64::from_f64;
 use domain::model;
+use domain::model::Partition;
 use domain::geometry;
+use domain::geometry::boundary_valid;
+use domain::geometry::sites_valid;
 use domain::clip;
+use domain::clip::construct;
 use domain::verify;
+use domain::verify::verify;
 use platform::input;
+use platform::input::Reader;
+use platform::input::read_integer;
+use platform::input::end_input;
 use platform::output;
+use platform::output::emit;
 data Main { reader: Reader; partition: Partition; }
 machine main(main: &mut Main) reaches ProcessExit + Console {
     main.reader.valid = true;

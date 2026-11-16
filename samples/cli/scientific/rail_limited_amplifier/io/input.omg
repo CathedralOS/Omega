@@ -1,3 +1,4 @@
+module io::input;
 // Ten signed decimal integers, at most 10000 in magnitude, separated by
 // ASCII spaces, tab, CR or LF. No exponent, partial token or numeric wrap.
 use omega::language::core::widen_u8_to_i32;

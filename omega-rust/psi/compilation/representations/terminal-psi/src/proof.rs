@@ -412,8 +412,18 @@ pub(crate) mod contracts {
     }
 }
 pub(crate) mod declarations {
+    use crate::ValueDeclaration;
     use crate::terminal_module::TerminalIdentityIndex;
-    use semantic_vocabulary::{EvidenceTermId, MachineId};
+    use semantic_vocabulary::{EvidenceTermId, MachineId, Proposition};
+
+    /// A transparent scalar predicate, not evidence that its body holds.
+    /// Its terms must form under these arbitrary inputs before any use.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ScalarPredicateDefinition {
+        pub declaration: TerminalIdentityIndex,
+        pub parameters: Vec<ValueDeclaration>,
+        pub body: Proposition,
+    }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct PropositionDeclaration {
@@ -873,7 +883,7 @@ pub use declarations::{
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
     EvidenceTermDeclaration, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence,
+    PropositionDeclaration, PropositionEvidence, ScalarPredicateDefinition,
 };
 pub use operation_crash_contracts::TerminalOperationCrashContract;
 pub use outputs::{

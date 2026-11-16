@@ -1,3 +1,4 @@
+module io::numbers;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 public data Input [copy] { value: i32 in Saturating; valid: bool; }

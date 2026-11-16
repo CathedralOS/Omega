@@ -1,11 +1,12 @@
+module io::input;
 // Strict ASCII grammar: unsigned stimulus, one space, unsigned response, LF.
 // Read-line bounds storage; the accumulator cap prevents long decimal input
 // from wrapping into a valid number. No sign, CR, blank line or suffix accepted.
-data Input {
+public data Input {
     case Invalid;
     case Sample(stimulus: i32 in Wrapping, observed: i32 in Wrapping);
 }
-machine parse_line(text: &[u8]) -> Input {
+public machine parse_line(text: &[u8]) -> Input {
     transition { _ -> stimulus(text, 0, false) }
     machine stimulus(text: &[u8], value: i32 in Wrapping, seen: bool) -> Input {
         transition text.len > 0 {

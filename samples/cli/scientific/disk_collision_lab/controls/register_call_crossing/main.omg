@@ -4,6 +4,7 @@ use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use formatting;
+use formatting::number;
 data Main {}
 machine main(main:&mut Main) reaches ProcessExit + Console {
  let byte:ByteRead=block Console::read_byte();

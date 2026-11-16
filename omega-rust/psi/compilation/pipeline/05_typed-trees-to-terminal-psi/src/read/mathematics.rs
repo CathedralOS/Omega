@@ -19,7 +19,10 @@ use super::{
 use crate::{Unserved, refuse};
 
 impl<'t> Program<'t> {
-    fn mathematical_definition(&self, symbol: SymbolHandle) -> Option<&'t MathematicalDefinition> {
+    fn mathematical_definition(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(usize, &'t MathematicalDefinition)> {
         if !self.typed.symbols.symbols().nodes().is_valid(symbol)
             || self.typed.symbols.get(symbol).kind != symbols::SymbolKind::MathematicalDefinition
         {
@@ -28,7 +31,8 @@ impl<'t> Program<'t> {
         self.typed
             .mathematical_definitions()
             .iter()
-            .find(|definition| definition.symbol == symbol)
+            .enumerate()
+            .find(|(_, definition)| definition.symbol == symbol)
     }
 
     pub(super) fn address_bound(&self, expression: ExpressionHandle) -> bool {
@@ -69,11 +73,12 @@ impl<'t> Program<'t> {
         scope: &ClauseScope<'a>,
         call: &TableCallExpression,
     ) -> Checked<(
+        usize,
         &'t MathematicalDefinition,
         Vec<(SymbolHandle, semantic_vocabulary::ScalarTerm)>,
     )> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let definition = self
+        let (definition_index, definition) = self
             .mathematical_definition(call.target_symbol)
             .ok_or_else(|| {
                 unserved("call in a premise without a transparent mathematical declaration")
@@ -149,7 +154,7 @@ impl<'t> Program<'t> {
             }
             bound.push((parameter.symbol, term));
         }
-        Ok((definition, bound))
+        Ok((definition_index, definition, bound))
     }
 
     pub(super) fn mathematical_clause(
@@ -158,11 +163,12 @@ impl<'t> Program<'t> {
         scope: &ClauseScope<'_>,
         call: &TableCallExpression,
     ) -> Checked<Proposition> {
-        let (definition, bound) = self.mathematical_application(id, scope, call)?;
+        let (definition_index, definition, bound) =
+            self.mathematical_application(id, scope, call)?;
         let model = scope.logical.and_then(|logical| logical.model);
         let expanding = scope.logical.map_or(&[][..], |logical| logical.expanding);
         let expression =
-            self.mathematical_predicate_definition(id, definition, model, expanding)?;
+            self.mathematical_predicate_definition(id, definition_index, model, expanding)?;
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
         let actual_inputs = MathematicalInputs::empty();
@@ -180,17 +186,22 @@ impl<'t> Program<'t> {
         self.clause(id, &scope, expression)
     }
 
-    /// Check a transparent predicate under its own formals before unfolding it
-    /// at any caller. A caller's facts cannot form the declaration's operands,
-    /// and an unused subject declaration owes exactly the same formation.
+    /// Retain a transparent predicate under its own formals before unfolding
+    /// it at a caller. The checker judges these operands independently of
+    /// caller facts, including when the subject never uses the declaration.
     pub(super) fn mathematical_predicate_definition(
         &mut self,
         id: MachineId,
-        definition: &MathematicalDefinition,
+        definition_index: usize,
         model: Option<&typed_trees::callable_signature_shapes::CallableAddressModel>,
         expanding: &[SymbolHandle],
     ) -> Checked<ExpressionHandle> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let definition = self
+            .typed
+            .mathematical_definitions()
+            .get(definition_index)
+            .ok_or_else(|| unserved("mathematical predicate has no source declaration"))?;
         if !self
             .typed
             .symbols
@@ -237,7 +248,28 @@ impl<'t> Program<'t> {
             logical: Some(formal_inputs.scope(id, model, &expanding)),
         };
         let formed = self.clause(id, &declaration_scope, expression)?;
-        formal_inputs.validate(id, &formed)?;
+        let parameters = formal_inputs.validate(id, &formed)?;
+        let output = self
+            .predicate_definitions
+            .get_mut(definition_index)
+            .ok_or_else(|| unserved("mathematical predicate has no declaration output slot"))?;
+        if let Some(retained) = output {
+            if retained.symbol != definition.symbol
+                || retained.parameters != parameters
+                || retained.body != formed
+            {
+                return Err(unserved(
+                    "mathematical definition has inconsistent formal meaning",
+                ));
+            }
+        } else {
+            *output = Some(super::PredicateDefinition {
+                symbol: definition.symbol,
+                diagnostic: id,
+                parameters,
+                body: formed,
+            });
+        }
         Ok(expression)
     }
 

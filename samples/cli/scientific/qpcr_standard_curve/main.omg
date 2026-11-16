@@ -1,8 +1,16 @@
 use omega::language::core::ProcessExit;
 // Expected exit: 0 for input.txt; numerical oracle: validation/oracles.json.
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::report;
+use domain::report::field;
 use domain::math;
+use domain::math::logarithm;
+use domain::math::exponential;
+use domain::math::residual_sum;
 use omega::language::core::F64::from_i32;
 use omega::language::core::F64::is_finite;
 use omega::language::core::I32::from_f64;

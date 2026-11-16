@@ -1,4 +1,6 @@
+module data::fixtures;
 use domain::array;
+use domain::array::Geometry;
 public data Fixtures { }
 public machine fixtures_load(geometry: &mut Geometry, selection: i32) {
     geometry.positions[0] = 0.0;

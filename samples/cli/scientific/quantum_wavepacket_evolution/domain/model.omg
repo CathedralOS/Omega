@@ -1,4 +1,6 @@
+module domain::model;
 use domain::complex;
+use domain::complex::Complex;
 public data Problem {
     cells: i32; spacing: f64; timestep: f64; steps: i32;
     potential: [f64; 32]; amplitude: [Complex; 32]; next: [Complex; 32];

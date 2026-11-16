@@ -1,5 +1,9 @@
+module domain::report;
 use domain::sequence;
+use domain::sequence::Sequence;
+use domain::sequence::sequence_base;
 use domain::normalization;
+use domain::normalization::Variant;
 use omega_language_std::Console;
 use omega::language::core::narrow_u64_to_i32_exact;
 

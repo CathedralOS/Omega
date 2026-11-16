@@ -1,3 +1,4 @@
+module domain::solver;
 // Private exhaustive active-set solution for a two-dimensional convex box.
 // A positive-semidefinite quadratic minimizes either at a stationary point or
 // on an edge. Each edge is minimized analytically and clamped to its segment;
@@ -5,6 +6,10 @@
 // Integer input gives exact Gram products within f64's integer range. A nonzero
 // two-column determinant is an integer >= 1, so the 0.5 rank cutoff is exact.
 use domain::model;
+use domain::model::Ray;
+use domain::model::Problem;
+use domain::model::Fit;
+use domain::model::objective;
 
 public data Normal [copy] { aa: f64; ab: f64; bb: f64; at: f64; bt: f64; }
 machine clamp(value: f64, low: f64, high: f64) -> f64 {

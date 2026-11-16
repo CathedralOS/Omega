@@ -5,9 +5,16 @@ use omega::language::core::ProcessExit;
 // Expected output contains: INVALID INPUT
 use omega_language_std::Console;
 use domain::model;
+use domain::model::Pedigree;
 use domain::input;
+use domain::input::read;
 use domain::solver;
+use domain::solver::Inference;
+use domain::solver::initialize;
+use domain::solver::enumerate;
+use domain::solver::contradiction;
 use domain::report;
+use domain::report::emit;
 
 data Main { }
 

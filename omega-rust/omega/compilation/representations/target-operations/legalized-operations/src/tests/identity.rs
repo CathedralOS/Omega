@@ -176,8 +176,9 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             13 => {
                 scalar_return_mut(function).value = LegalizedScalarReturnValue::Value {
                     value: id(114),
-                    scalar_type: semantic_vocabulary::ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    scalar_type: semantic_vocabulary::ClosedScalarType::Integer(
+                        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64)
+                            .unwrap(),
                     ),
                 }
             }
@@ -208,7 +209,9 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
         .parameters
         .push(LegalizedScalarParameter {
             value: id(700),
-            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            scalar_type: semantic_vocabulary::ClosedScalarType::Integer(
+                semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            ),
             definition_site: optimization_unit::ValueDefinitionSite::FunctionParameter(0),
             placement: call_mut(&mut plan.clone().scalar_functions[0], 0).arguments[0]
                 .placement()
@@ -221,8 +224,9 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
         match mutation {
             0 => parameter.value = id(701),
             1 => {
-                parameter.scalar_type =
-                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
+                parameter.scalar_type = semantic_vocabulary::ClosedScalarType::Integer(
+                    semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                )
             }
             2 => {
                 parameter.definition_site =

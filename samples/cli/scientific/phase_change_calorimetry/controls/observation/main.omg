@@ -1,8 +1,20 @@
 use omega::language::core::ProcessExit;
 // Expected reject: cannot prove index `8` is within length 8.
 use calorimetry::input;
+use calorimetry::input::Reader;
+use calorimetry::input::Number;
+use calorimetry::input::number;
+use calorimetry::input::ended;
 use calorimetry::model;
+use calorimetry::model::Material;
+use calorimetry::model::Problem;
+use calorimetry::model::Evolution;
+use calorimetry::model::temperature;
+use calorimetry::model::fraction;
+use calorimetry::model::magnitude;
+use calorimetry::model::evolve;
 use calorimetry::report;
+use calorimetry::report::field;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use omega_language_std::Console;

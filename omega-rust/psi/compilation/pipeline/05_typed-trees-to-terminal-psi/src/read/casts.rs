@@ -147,12 +147,14 @@ impl Program<'_> {
                     kind: ExpressionKind::Establish {
                         operand: Box::new(operand),
                         clauses: vec![semantic_vocabulary::Proposition::FloatMeaningEqual(clause)],
-                        stated: format!(
-                            "the float value is exactly representable in {}",
-                            match to {
-                                semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
-                                semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
-                            }
+                        stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                            format!(
+                                "the float value is exactly representable in {}",
+                                match to {
+                                    semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
+                                    semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
+                                }
+                            ),
                         ),
                     },
                     call_context: None,
@@ -297,10 +299,12 @@ impl Program<'_> {
         // A literal lands in the carrier of the type the cast gives it
         // (domains.md, "Literals and expected types": "An expected type
         // selects the carrier in which an anonymous literal lands"). A
-        // quoted literal's carrier is the view the cast qualifies.
+        // quoted literal's carrier is the view the cast qualifies, and an
+        // array literal's is the array: `[65u8, 66u8] as +Text` is a plain
+        // `[u8; 2]` given the domain.
         let landing = if self.wholly_anonymous(cast.value) {
             result.scalar().map(ValueType::plain)
-        } else if self.byte_literal_operand(cast.value) {
+        } else if self.byte_literal_operand(cast.value) || self.array_literal_operand(cast.value) {
             result.qualified(Qualification::NONE)
         } else {
             None
@@ -435,7 +439,10 @@ impl Program<'_> {
                             kind: ExpressionKind::Establish {
                                 operand: Box::new(operand),
                                 clauses,
-                                stated,
+                                stated:
+                                    terminal_check_tables::program::CastCondition::DomainMembership(
+                                        stated,
+                                    ),
                             },
                             result: Some(result),
                             source,
@@ -694,6 +701,14 @@ impl Program<'_> {
             && matches!(
                 self.typed.expression_table.expression(expression),
                 typed_trees::expression::ExpressionNode::String(_)
+            )
+    }
+
+    fn array_literal_operand(&self, expression: typed_trees::expression::ExpressionHandle) -> bool {
+        expression.is_valid()
+            && matches!(
+                self.typed.expression_table.expression(expression),
+                typed_trees::expression::ExpressionNode::ArrayLiteral(_)
             )
     }
 

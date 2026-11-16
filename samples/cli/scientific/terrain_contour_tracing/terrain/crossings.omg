@@ -1,8 +1,11 @@
+module terrain::crossings;
 use terrain::model;
+use terrain::model::Terrain;
+use terrain::model::Contours;
 use omega::language::core::narrow_u64_to_i32_wrapping;
 // Global horizontal edges 0..5, then vertical edges 6..11. Increasing
 // coordinates determine interpolation direction regardless of traversal.
-machine crossings(terrain: &Terrain, graph: &mut Contours) {
+public machine crossings(terrain: &Terrain, graph: &mut Contours) {
     transition { _ -> edge(terrain, graph, 0) }
     machine edge(terrain: &Terrain, graph: &mut Contours, edge: u64) {
         transition edge < 12 { true -> locate(terrain, graph, edge) false -> done() }

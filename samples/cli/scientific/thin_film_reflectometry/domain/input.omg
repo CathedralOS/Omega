@@ -1,3 +1,4 @@
+module domain::input;
 // Bounded plain decimal scanner: optional minus, 1–12 digits, optional dot
 // with digits on both sides. No exponent, NaN or infinity spelling is accepted.
 // The total budget includes separators. EOF after a complete token is valid.

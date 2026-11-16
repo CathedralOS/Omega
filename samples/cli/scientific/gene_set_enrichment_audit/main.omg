@@ -2,8 +2,20 @@ use omega::language::core::ProcessExit;
 // Runtime data is supplied through five bounded newline-terminated rows.
 use omega_language_std::Console;
 use domain::sets;
+use domain::sets::Parsed;
+use domain::sets::size;
+use domain::sets::intersection;
+use domain::sets::read_set;
+use domain::sets::end_input;
 use domain::exact;
+use domain::exact::Fraction;
+use domain::exact::tail;
+use domain::exact::less;
+use domain::exact::minimum;
+use domain::exact::scaled;
 use domain::report;
+use domain::report::number;
+use domain::report::result;
 
 data Main { }
 

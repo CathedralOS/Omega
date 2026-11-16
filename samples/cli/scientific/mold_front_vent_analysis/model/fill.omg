@@ -1,3 +1,4 @@
+module model::fill;
 // Integer cellular model. Four-neighbour air closure and synchronous resin
 // batches are distinct: a row-major budget cut never lets new resin advance
 // twice in one tick. Trapped air is excluded forever after losing its vent.

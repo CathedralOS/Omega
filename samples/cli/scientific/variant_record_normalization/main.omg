@@ -3,10 +3,23 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::sequence;
+use domain::sequence::Sequence;
 use domain::input;
+use domain::input::Input;
+use domain::input::parse;
 use domain::normalization;
+use domain::normalization::Variant;
+use domain::normalization::Normalization;
+use domain::normalization::normalize;
 use domain::ledger;
+use domain::ledger::Ledger;
+use domain::ledger::source_mask;
+use domain::ledger::add;
 use domain::report;
+use domain::report::number;
+use domain::report::separator;
+use domain::report::newline;
+use domain::report::variant_row;
 
 data Main { }
 data Application {

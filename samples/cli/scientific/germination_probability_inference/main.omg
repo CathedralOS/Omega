@@ -5,8 +5,15 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use domain::input;
+use domain::input::Reader;
+use domain::input::Input;
+use domain::input::read_input;
 use domain::inference;
+use domain::inference::Posterior;
+use domain::inference::posterior;
+use domain::inference::predict;
 use domain::report;
+use domain::report::field;
 
 data Main { reader: Reader; bins: [f64; 33]; }
 machine main(main: &mut Main) reaches ProcessExit + Console {

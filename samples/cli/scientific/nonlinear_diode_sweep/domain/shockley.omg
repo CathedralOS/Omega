@@ -1,9 +1,10 @@
+module domain::shockley;
 // Scientific model: one ideal Shockley diode in series with one positive
 // resistor. Thermal voltage includes the ideality factor. No breakdown,
 // self-heating, capacitance, or diode series resistance is modeled.
 // Only validated inputs reach this private model: -48 <= voltage/thermal <= 36.
 
-data Circuit [copy] {
+public data Circuit [copy] {
     resistance: f64;
     saturation: f64;
     thermal: f64;
@@ -37,21 +38,21 @@ machine exponential(value: f64) -> f64 {
     }
 }
 
-machine diode_current(circuit: &Circuit, voltage: f64) -> f64 {
+public machine diode_current(circuit: &Circuit, voltage: f64) -> f64 {
     let argument: f64 = voltage / circuit.thermal;
     let factor: f64 = exponential(argument);
     let excess: f64 = factor - 1.0;
     circuit.saturation * excess
 }
 
-machine circuit_residual(circuit: &Circuit, voltage: f64, source: f64) -> f64 {
+public machine circuit_residual(circuit: &Circuit, voltage: f64, source: f64) -> f64 {
     let current: f64 = diode_current(circuit, voltage);
     let drop: f64 = circuit.resistance * current;
     let total: f64 = voltage + drop;
     total - source
 }
 
-machine magnitude(value: f64) -> f64 {
+public machine magnitude(value: f64) -> f64 {
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
     machine negative(value: f64) -> f64 { 0.0 - value }
     machine positive(value: f64) -> f64 { value }

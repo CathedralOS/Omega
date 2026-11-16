@@ -1,3 +1,4 @@
+module domain::logic;
 // Three-event monotone DNF. An event ID is a bit, never a separate occurrence.
 // The full assignment table, rather than products of marginals, owns correlation.
 public machine contains_events(assignment: i32, term: i32) -> bool {

@@ -1,5 +1,9 @@
+module domain::output;
 use domain::input;
+use domain::input::Image;
 use domain::regions;
+use domain::regions::Region;
+use domain::regions::measure;
 use omega_language_std::Console;
 
 // All printed values are nonnegative and <= 448. Centroids are exact

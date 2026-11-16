@@ -2720,7 +2720,7 @@ pub(crate) mod operator {
 
     /*
         A sealed ranking-view signature must match its declaration row exactly:
-        one plain parameter of the row's carrier and the row's result, no type or
+        plain parameters of the row's carrier and the row's result, no type or
         lifetime parameters; a drifted declaration rejects instead of lowering as
         an ordinary (unsupplied) declaration.
     */
@@ -2732,11 +2732,11 @@ pub(crate) mod operator {
     ) -> Result<(), Diagnostic> {
         let name = machine.name.as_str(syntax_trees);
         let drift = |detail: String| {
+            let parameters = vec![declaration.parameter; declaration.subject_count].join(", ");
             Diagnostic::error(format!(
                 "`{name}` names the compiler ranking-view catalog, but {detail}; the sealed \
-             declaration must be exactly `machine {}({}) -> {};`",
+             declaration must have the signature `{}({parameters}) -> {}`",
                 declaration.path(),
-                declaration.parameter,
                 declaration.result
             ))
             .with_source_span(machine.name.source_span())
@@ -2754,22 +2754,28 @@ pub(crate) mod operator {
             TypeReferenceNode::Named(identifier) => Some(identifier.as_str(syntax_trees)),
             _ => None,
         };
-        let [parameter] = syntax_trees.items.state_parameters(entry.parameters) else {
-            return Err(drift("the row ranks exactly one subject".to_owned()));
-        };
-        let parameter = syntax_trees.items.state_parameter(*parameter);
-        if parameter.is_const || parameter.is_mutable {
+        let parameters = syntax_trees.items.state_parameters(entry.parameters);
+        if parameters.len() != declaration.subject_count {
             return Err(drift(format!(
-                "parameter `{}` carries a binding mode the row does not declare",
-                parameter.name.as_str(syntax_trees)
+                "the row ranks exactly {} subjects",
+                declaration.subject_count
             )));
         }
-        if named_spelling(parameter.type_reference) != Some(declaration.parameter) {
-            return Err(drift(format!(
-                "parameter `{}` is not the row's `{}` subject",
-                parameter.name.as_str(syntax_trees),
-                declaration.parameter
-            )));
+        for parameter in parameters {
+            let parameter = syntax_trees.items.state_parameter(*parameter);
+            if parameter.is_const || parameter.is_mutable {
+                return Err(drift(format!(
+                    "parameter `{}` carries a binding mode the row does not declare",
+                    parameter.name.as_str(syntax_trees)
+                )));
+            }
+            if named_spelling(parameter.type_reference) != Some(declaration.parameter) {
+                return Err(drift(format!(
+                    "parameter `{}` is not the row's `{}` subject",
+                    parameter.name.as_str(syntax_trees),
+                    declaration.parameter
+                )));
+            }
         }
         if !entry.return_type.is_valid()
             || named_spelling(entry.return_type) != Some(declaration.result)
@@ -3034,6 +3040,7 @@ pub(crate) mod operator {
                 (FLOAT, "float_operations.omg", "Float::meaning32", 1),
                 (FLOAT, "float_operations.omg", "FloatSemantics::add", 3),
                 (NAT, "nat.omg", "Nat::Descending", 1),
+                (NAT, "nat.omg", "Nat::BoundedDistance", 2),
             ] {
                 let (syntax, sources) = parsed(text, path, SourceOrigin::Toolchain);
                 let authored = syntax

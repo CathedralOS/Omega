@@ -12664,7 +12664,10 @@ mod subtraction {
                 ),
             ) = (smaller, larger)
             else {
-                unreachable!("bounded subtraction antitonicity checker ran first")
+                // The exact-order theorem below does not apply to clamped
+                // subtraction. Its checked rule instance retains the
+                // operand orders and the larger difference's positivity.
+                return Ok(None);
             };
             if low.integer_value().is_some() || high.integer_value().is_some() {
                 return Ok(None);
@@ -13894,6 +13897,61 @@ mod subtraction {
                 |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
             let (assumptions, proof) = antitone(integer, literal(9), literal(4), literal(2));
             assert!(checked(integer, &assumptions, &proof));
+        }
+
+        #[test]
+        fn saturating_subtraction_requires_a_positive_source_for_strict_order() {
+            let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let (smaller, larger) = (value(integer, 1), value(integer, 2));
+            let (before, after) = (value(integer, 3), value(integer, 4));
+            let limit = value(integer, 5);
+            let next_limit = value(integer, 6);
+            let difference = |result, limit, cursor| {
+                Proposition::Equal(
+                    result,
+                    ScalarTerm::saturating_integer_subtract(integer, limit, cursor).unwrap(),
+                )
+            };
+            let mut assumptions = vec![
+                difference(smaller.clone(), next_limit.clone(), after.clone()),
+                difference(larger.clone(), limit.clone(), before.clone()),
+                Proposition::Conjunction(vec![
+                    Proposition::LessOrEqual(next_limit.clone(), limit.clone()),
+                    Proposition::LessThan(before.clone(), after.clone()),
+                    Proposition::LessThan(before.clone(), limit.clone()),
+                ]),
+            ];
+            let strict = ProofNode {
+                conclusion: Proposition::LessThan(smaller.clone(), larger.clone()),
+                rule: ProofRule::IntegerSubtractAntitone {
+                    smaller: cited(assumptions[0].clone(), 0),
+                    larger: cited(assumptions[1].clone(), 1),
+                    order: cited(assumptions[2].clone(), 2),
+                },
+            };
+            assert!(checked(integer, &assumptions, &strict));
+            let Proposition::Conjunction(parts) = &mut assumptions[2] else {
+                unreachable!()
+            };
+            parts.pop();
+            let mut plateau = strict.clone();
+            let ProofRule::IntegerSubtractAntitone { order, .. } = &mut plateau.rule else {
+                unreachable!()
+            };
+            order.conclusion = assumptions[2].clone();
+            rejects(integer, &assumptions, &plateau);
+            plateau.conclusion = Proposition::LessOrEqual(smaller, larger);
+            assert!(checked(integer, &assumptions, &plateau));
+
+            let Proposition::Conjunction(parts) = &mut assumptions[2] else {
+                unreachable!()
+            };
+            parts[0] = Proposition::LessOrEqual(limit, next_limit);
+            let ProofRule::IntegerSubtractAntitone { order, .. } = &mut plateau.rule else {
+                unreachable!()
+            };
+            order.conclusion = assumptions[2].clone();
+            rejects(integer, &assumptions, &plateau);
         }
 
         #[test]

@@ -1,3 +1,4 @@
+module domain::input;
 // Finite signed fixed decimals: at most 320 digits and 17 fractional digits.
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.

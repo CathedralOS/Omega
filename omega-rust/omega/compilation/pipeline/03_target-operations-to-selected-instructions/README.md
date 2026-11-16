@@ -1,11 +1,28 @@
 # Instruction selection
 
-This stage turns target operations into machine instructions.
-[lib.rs](src/lib.rs) runs required legalization and instruction selection. It
-takes the complete admitted target-operation program and the
-validated target register environment, and returns the admitted selected
-program with its semantic, target, projection, work and constraint
+This stage chooses machine instructions for the execution plan stage 02
+prepared. Stage 02 decides what must execute: concrete types, placements,
+proof identities and ownership evidence. This stage decides how the target's
+instructions and registers carry that out.
+
+[`stage_optimized_instruction_selection`](src/optimized.rs) takes a
+`SelectionInput`: the [`PreparedExecutionPlan`](../../representations/target-operations/legalized-operations/src/lib.rs)
+stage 02 published, the installations the driver bound to it, and the
+validated target register environment. It takes no source module, abstract
+program or optimization-unit table, and the crate cannot name them:
+`check-boundary` rejects a dependency on `abstract-operations` (which holds the
+optimization unit) or on the sealed module's codec. It returns the admitted
+selected program with its semantic, target, projection, work and constraint
 identities. Raw selected data or a detached content hash grants no authority.
+
+## Installations are bound, not looked up
+
+Preparation does not compile callbacks or size handler stacks; the driver does
+that after stage 02 and before this stage. `BoundExecutionPlan::bind` checks
+that the interrupt cohort, the installed entry and every stack requirement
+name the plan's program, target and entry, and refuses any that do not.
+Installation authority grants permission and deployment resources. It never
+supplies program meaning the plan lacks.
 
 ## Target setup is not a program stage
 
@@ -18,43 +35,45 @@ supposedly equivalent one.
 
 ## Ordinary selected control flow
 
-[Legalization](src/legalization.rs) and [selection](src/selection.rs) keep
+The prepared plan and [selection](src/selection.rs) keep
 ordered instructions, block parameters, explicit jumps, branches and returns,
 virtual registers, fixed ABI constraints and machine effects. List order is
 not control-flow order. Arithmetic and calls use the same graph; physical
 registers, liveness, frame storage and emission come later.
 
-[Place declarations](src/legalization_scalar_graph.rs) link each runtime place
+Place declarations in the plan link each runtime place
 to the parameter, result or local that produces it. Primitive locals, byte
 literals and aggregate results combine without a whole-function
 storage-family classifier. Declaration ordinals count declarations, not
 instruction positions. The whole unit keeps dominance and ownership;
 selection's function entry captures the incoming ABI, and call and storage
 instructions use the addresses, homes and placements the target stage kept.
-Instruction building does not rebuild reference custody. The explicit
-`verify_target_operation_plan` entry point keeps the independent source/target
-audit; focused native tests run it on the object's retained pipeline input,
-outside the default compile path. `omega --validator TargetOperationCorrespondence`
-(or `--every-validator`) runs it on each published target's object.
+Instruction building does not rebuild reference custody. The independent
+source/target audit belongs to stage 02, which produced the plan:
+[`verify_execution_plan`](../02_abstract-operations-to-target-operations/native-preparation/src/legalization.rs) derives the plan a second
+way and compares it with the one published. Focused native tests and
+`omega --validator TargetOperationCorrespondence` (or `--every-validator`) run
+it; the default compile path does not, and `check-boundary` rejects a call to
+it from anywhere else.
 
 Arguments to direct, normalized foreign and no-normal-return calls use the
-retained target selector rows, including the bound and obligation key. Proof
-lookup uses the admitted immutable fact catalog, not an executable body. The
-independent audit still derives source geometry and available scalar sources,
+retained selector rows, including the bound and the identity of the accepted
+proof. Preparation looked each proof up in the admitted fact catalog and wrote
+its identity on the row, so selection performs no lookup. Stage 02's
+audit still derives source geometry and available scalar sources,
 and rejects changed bounds, proof keys, strides or scalar correspondences.
 Recovery encoding stores these fields with the argument. A direct call is
-built from only its machine ID, target row and admitted fact slice, not earlier
-function or unit bodies.
+built from only its plan row, not earlier function or unit bodies.
 
 Function headers likewise use the retained target storage contract, scalar
 ABI parameters and entry block, and scalar definitions follow their parameter
 ordinals. The audit compares the whole structural contract, claims and
 service ceilings included, to the source. Ordinary instruction building reads
-only target rows and immutable proof facts; it receives no earlier executable
-function or unit.
+only plan rows; it receives no earlier executable function or unit.
 
-[Control-exit construction](src/legalization_control.rs) uses only target
-terminators, retained storage declarations and admitted proof facts. Only the audit uses the earlier body's terminator, as a reference for whole
+[Control-exit construction](../02_abstract-operations-to-target-operations/native-preparation/src/legalization_control.rs), in stage 02's
+preparation, uses only target terminators, retained storage declarations and
+admitted proof facts. Only the audit uses the earlier body's terminator, as a reference for whole
 exits including work, ownership, cleanup and successor bindings. Return,
 branch, sum dispatch, crash and no-normal exits all work this way, with no
 executable bodies recovered during ordinary building.

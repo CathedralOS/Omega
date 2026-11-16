@@ -1,4 +1,6 @@
+module input::parse;
 use routing::model;
+use routing::model::Plan;
 
 // Eleven ASCII digits: C A B RA RB LA(2) LB(2) H(2).
 // Only complete eleven-digit records are admitted by the entrypoint.

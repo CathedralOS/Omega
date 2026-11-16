@@ -1,3 +1,4 @@
+module domain::model;
 use omega::language::core::sqrt_f64;
 
 use omega::language::core::F64::from_u64;

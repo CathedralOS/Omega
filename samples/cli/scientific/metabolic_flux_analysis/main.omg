@@ -1,8 +1,19 @@
 use omega::language::core::ProcessExit;
 // Expected exit: 0 for input.txt; exact rational / HiGHS oracle in validation/.
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::solver;
+use domain::solver::Solver;
+use domain::solver::read_six;
+use domain::solver::write_six;
+use domain::solver::read_matrix;
+use domain::solver::write_matrix;
+use domain::solver::solve;
 use domain::report;
+use domain::report::rational;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega_language_std::Console;
 

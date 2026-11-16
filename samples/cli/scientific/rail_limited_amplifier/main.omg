@@ -4,8 +4,17 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::model;
+use domain::model::Circuit;
+use domain::model::Equilibrium;
+use domain::model::Observation;
+use domain::model::equilibria;
+use domain::model::advance;
 use io::input;
+use io::input::Inputs;
+use io::input::parse;
 use io::output;
+use io::output::voltage;
+use io::output::integer;
 
 data Main {
     bytes: [u8; 192];

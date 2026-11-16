@@ -97,15 +97,6 @@ impl<'input> DescriptorIoImport<'input> {
                 binding,
             );
         }
-        if adapter.as_ref().is_some_and(|adapter| {
-            matches!(adapter.contract.operation, DescriptorOperation::Read)
-                && adapter.input.is_none()
-        }) {
-            return Err(TerminalRuntimeError::missing(
-                "runtime-standard-input",
-                "no finite replay stream was supplied",
-            ));
-        }
         Ok(adapter)
     }
 
@@ -120,6 +111,14 @@ impl<'input> DescriptorIoImport<'input> {
         let Some(contract) = admit_contract(program, declaration, binding, storage_layouts)? else {
             return Ok(None);
         };
+        // Native imports can delegate standard descriptors to this adapter.
+        // Request the replay stream before either route can run guest effects.
+        if matches!(contract.operation, DescriptorOperation::Read) && input.is_none() {
+            return Err(TerminalRuntimeError::missing(
+                "runtime-standard-input",
+                "no finite replay stream was supplied",
+            ));
+        }
         Ok(Some(Self {
             contract,
             input,

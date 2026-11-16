@@ -35,6 +35,22 @@ pub enum LegalizedScalarCallShapeError {
 }
 
 impl LegalizedScalarCall {
+    /// Whether this call follows the calling plan stored on it: the plan uses
+    /// the caller's policy, and every argument and the result sit where the
+    /// plan puts them. This reads the stored plan; it does not compute it
+    /// again. Stage 02's validator compares the stored plan with the callee's.
+    pub fn stored_plan_placements(&self, caller: calling_conventions::CallingPolicy) -> Option<()> {
+        (self.call_plan.policy == caller
+            && self.arguments.len() == self.call_plan.parameters.len()
+            && self
+                .arguments
+                .iter()
+                .zip(&self.call_plan.parameters)
+                .all(|(argument, placement)| argument.placement() == placement)
+            && self.result_placement == self.call_plan.result)
+            .then_some(())
+    }
+
     pub fn validate_source(
         &self,
         ownership: &[OwnershipEvent],

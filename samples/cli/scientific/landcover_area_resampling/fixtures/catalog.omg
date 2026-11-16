@@ -1,4 +1,6 @@
+module fixtures::catalog;
 use landcover::geometry;
+use landcover::geometry::Grid;
 public data Configuration [copy] { grid: Grid; a: i32 in Wrapping; b: i32 in Wrapping; c: i32 in Wrapping; d: i32 in Wrapping; }
 public machine configure(config: &mut Configuration, mode: u8) {
     config.grid.x = 0; config.grid.y = 0;

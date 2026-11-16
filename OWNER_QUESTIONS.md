@@ -64,42 +64,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-1. **Does core declare bitwise operators and policy-qualified shift counts for
-   `Wrapping`, `Saturating` and `Trapping`?** The compiler refuses
-   `bits | mask` when both are `u32 in Wrapping`, and refuses `mask << count`
-   when `count` is `u32 in Wrapping`, as "not supported yet". The
-   specification does not say whether either operation exists, so the refusal
-   cannot become an acceptance or a missing-operator error without a ruling.
-
-   [Policy domains](wiki/spec/language/numeric_values.md#policy-domains) says
-   core declares "each unsuffixed arithmetic operator" and the comparisons for
-   policy-qualified operands. [Policy operators](wiki/spec/language/numeric_values.md#policy-operators)
-   lists the arithmetic operators (`+ - * / %`) separately from the two shifts,
-   and [shift counts](wiki/spec/language/numeric_values.md#shift-counts) says
-   bitwise AND, OR, XOR and complement "add no overflow-policy requirement",
-   which describes their meaning but not whether a policy domain declares them.
-   [Domain composition and operators](wiki/spec/language/domains.md#domain-composition-and-operators)
-   and [operands](wiki/spec/language/domains.md#operands) make an operator on a
-   qualified operand exist only when a declaration names that exact type, so
-   if core declares none, `bits | mask` is a missing operator.
-
-   Two decisions are open:
-   - **Bitwise.** Does each policy domain declare `&`, `|`, `^` and `~` for
-     the same operand shapes as `+` (two qualified operands, or one qualified
-     and one plain operand in either order), returning the qualified carrier?
-     Or must the source cast, as in `((bits as -Wrapping) | (mask as -Wrapping)) as +Wrapping`?
-   - **Shift counts.** The compiler already treats `value << count` with a
-     `Wrapping` value and plain count as `<<%`, reading "a shift's count keeps
-     its own" type. Which count types do the declared shift signatures accept:
-     only a plain count of any integer carrier, or also a count carrying the
-     value's policy domain? If the count may carry a policy, does that policy
-     select anything, for example does a plain value shifted by a
-     `Wrapping` count reduce the count, or is that shape undeclared?
-
-   Authored source already depends on the answer. `omega::core` uses bitwise
-   operators on `Wrapping` values in `source/library/core/sha256.omg` (the
-   message schedule and the `s0`/`s1` rotations) and
-   `source/library/core/wire.omg` (`UnsignedRead::accept`). The samples
-   `samples/cli/collections/bitset` and `samples/cli/collections/bitset_sieve`
-   use both operations and stop at these refusals in the Terminal Psi reader
-   (`read/expressions.rs` in `05_typed-trees-to-terminal-psi`).
+No open questions.

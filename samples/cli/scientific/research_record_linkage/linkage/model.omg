@@ -1,3 +1,4 @@
+module linkage::model;
 public data Record [copy] {
     identifier: u64;
     title: u64;

@@ -1,7 +1,11 @@
+module domain::verify;
 use domain::model;
+use domain::model::Problem;
+use domain::model::Schedule;
+use domain::model::predecessor;
 // A separate postcondition walk distrusts search state: duration, every edge,
 // both capacity sums at every tick, and the reported maximum are recomputed.
-machine verify(problem: &Problem, schedule: &Schedule) -> bool {
+public machine verify(problem: &Problem, schedule: &Schedule) -> bool {
     transition schedule.feasible {
         true -> task(problem, schedule, 0, 0)
         _ -> false

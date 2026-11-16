@@ -14,8 +14,8 @@ use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, ValuePlacement};
 use optimization_unit::{EffectLink, OwnershipEvent, ValueDefinitionSite, WorkSettlement};
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClosedIntegerType, ClosedScalarType, EdgeId, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::CrashRouteBucket;
@@ -57,9 +57,7 @@ impl LegalizedScalarFunction {
         self.blocks.iter().flat_map(|block| &block.instructions)
     }
 
-    pub fn block_parameters(
-        &self,
-    ) -> impl Iterator<Item = &optimization_unit::ValueDefinition> + '_ {
+    pub fn block_parameters(&self) -> impl Iterator<Item = &LegalizedValueDefinition> + '_ {
         self.blocks.iter().flat_map(|block| &block.parameters)
     }
 
@@ -75,7 +73,7 @@ impl LegalizedScalarFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarParameter {
     pub value: ValueId,
-    pub scalar_type: ScalarType,
+    pub scalar_type: ClosedScalarType,
     pub definition_site: ValueDefinitionSite,
     pub placement: ValuePlacement,
 }
@@ -83,7 +81,7 @@ pub struct LegalizedScalarParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarBlock {
     pub id: BlockId,
-    pub parameters: Vec<optimization_unit::ValueDefinition>,
+    pub parameters: Vec<LegalizedValueDefinition>,
     pub structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
     pub instructions: Vec<LegalizedScalarInstruction>,
     pub terminator: LegalizedScalarTerminator,
@@ -113,7 +111,7 @@ pub struct LegalizedScalarInstruction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalizedValueDefinition {
     pub value: ValueId,
-    pub scalar_type: ScalarType,
+    pub scalar_type: ClosedScalarType,
     pub definition_site: ValueDefinitionSite,
 }
 
@@ -539,7 +537,7 @@ pub enum LegalizedScalarInstructionKind {
     },
     AtomicAccess {
         location: terminal_psi::StructuralArgument,
-        scalar_type: semantic_vocabulary::IntegerType,
+        scalar_type: ClosedIntegerType,
         field_byte_offset: u32,
         event: terminal_psi::AtomicAccessEvent,
         outcome: Option<(
@@ -831,15 +829,15 @@ pub enum LegalizedScalarInstructionKind {
     },
     IntegerWiden {
         operand: ValueId,
-        source_type: IntegerType,
+        source_type: ClosedIntegerType,
     },
     ScalarRepresentationView {
         operand: ValueId,
-        source_type: semantic_vocabulary::ScalarType,
+        source_type: ClosedScalarType,
     },
     IntegerExactCast {
         operand: ValueId,
-        source_type: IntegerType,
+        source_type: ClosedIntegerType,
         obligation: ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
@@ -953,8 +951,8 @@ pub enum LegalizedScalarInstructionKind {
     },
     Compare {
         predicate: LegalizedScalarComparison,
-        operand_type: ScalarType, // Boolean operands remain Boolean; only equality shares integer-register comparison.
-        right_operand_type: ScalarType, // Right definition retains its own carrier; comparison does not cast it.
+        operand_type: ClosedScalarType, // Boolean operands remain Boolean; only equality shares integer-register comparison.
+        right_operand_type: ClosedScalarType, // Right definition retains its own carrier; comparison does not cast it.
         left: ValueId,
         right: ValueId,
     },
@@ -1535,7 +1533,7 @@ pub enum LegalizedScalarReturnValue {
     },
     Value {
         value: ValueId,
-        scalar_type: ScalarType,
+        scalar_type: ClosedScalarType,
     },
 }
 

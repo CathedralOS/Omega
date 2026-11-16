@@ -38,7 +38,7 @@ terminates
     machine checksum(bytes: &[u8], header_size: u64, expected_crc: u32) -> bool
     requires header_size <= bytes.len
     {
-        let computed: u32 = table_crc(bytes[..header_size], 0, 0xFFFFFFFF);
+        let computed: u32 = table_crc(bytes[..header_size], 0, 0xFFFFFFFF, header_size);
         computed == expected_crc
     }
 }
@@ -52,11 +52,13 @@ requires bytes.len >= 4
 
 // Do not edit the firmware table to clear its CRC: even a read-only validated
 // borrow is enough. The checksum covers HeaderSize, not backing capacity.
-machine table_crc(bytes: &[u8], position: u64, checksum: u32) -> u32
-terminates by (position, bytes.len) -> Nat::BoundedDistance
+// `remaining` counts the steps left (the distance the cursor may still move);
+// the loop descends it, which is the ranking the checker reads.
+machine table_crc(bytes: &[u8], position: u64, checksum: u32, remaining: u64) -> u32
+terminates by remaining
 {
-    transition position < bytes.len {
-        true -> table_crc(bytes, position + 1, table_byte(bytes, position, checksum))
+    transition position < bytes.len && remaining > 0 {
+        true -> table_crc(bytes, position + 1, table_byte(bytes, position, checksum), remaining - 1)
         _ -> (checksum ^ 0xFFFFFFFF)
     }
 }

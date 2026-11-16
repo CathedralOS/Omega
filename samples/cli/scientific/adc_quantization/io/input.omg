@@ -1,3 +1,4 @@
+module io::input;
 // Tokens are bounded signed decimal integers. 2001 = malformed, 2002 = EOF.
 // Neither sentinel is an admitted physical setting or sample.
 use omega_language_std::ByteRead;

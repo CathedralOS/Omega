@@ -1,5 +1,8 @@
+module domain::paths;
 use domain::model;
+use domain::model::Job;
 use domain::report;
+use domain::report::segment;
 use omega_language_std::Console;
 // Scan maximal occupied runs. Gaps end deposition and cause travel to the next run.
 machine magnitude(value: i32 in Wrapping) -> i32 in Wrapping {
@@ -75,7 +78,7 @@ machine emit_run(job: &mut Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
         job.previous_z = z;
     }
 }
-machine paths(job: &mut Job) -> bool reaches Console {
+public machine paths(job: &mut Job) -> bool reaches Console {
     job.previous_x = 0; job.previous_y = 0; job.previous_z = 0;
     job.deposition = 0; job.travel = 0;
     job.deposition_segments = 0; job.travel_segments = 0;

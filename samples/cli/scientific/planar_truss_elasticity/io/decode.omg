@@ -1,5 +1,8 @@
+module io::decode;
 use io::input;
+use io::input::Input;
 use domain::model;
+use domain::model::Truss;
 public machine decode(input: &Input, truss: &mut Truss) {
     truss.valid = false;
     transition input.count >= 2 && input.tokens[0] >= 2 && input.tokens[0] <= 8 && input.tokens[1] >= 0 && input.tokens[1] <= 16 { true -> dimensions(input, truss) false -> done() }

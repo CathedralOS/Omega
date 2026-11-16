@@ -1,3 +1,4 @@
+module model::audit;
 // Linear micrometre sample model. Named offsets and temperature are shared
 // variables, so their signed coefficients must be summed before endpoint choice.
 // Saturating arithmetic is explicit; validated bounds keep all operations exact:
