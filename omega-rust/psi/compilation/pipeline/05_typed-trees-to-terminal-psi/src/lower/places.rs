@@ -1282,6 +1282,19 @@ pub(super) enum Step {
     },
 }
 
+impl Step {
+    /// The type of the value this step goes into: the record, sum, array or
+    /// reference that holds what the step reaches.
+    pub(super) fn owner(&self) -> StructuralTypeId {
+        match self {
+            Self::Field { owner, .. }
+            | Self::Payload { owner, .. }
+            | Self::Index { owner, .. }
+            | Self::Referent { owner } => *owner,
+        }
+    }
+}
+
 /// One dispatch arm the open block lies in. For a case arm: the sum place
 /// the dispatch selected on, the case, and for each payload field in
 /// declaration order the block parameter it arrived as, `None` for a data
@@ -4166,13 +4179,7 @@ impl<'a> Lowering<'a> {
         }
         let mut owed = 0;
         for step in &steps {
-            let owner = match step {
-                Step::Field { owner, .. }
-                | Step::Payload { owner, .. }
-                | Step::Index { owner, .. }
-                | Step::Referent { owner } => *owner,
-            };
-            owed += self.record_type(owner)?.requires.len();
+            owed += self.record_type(step.owner())?.requires.len();
         }
         self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
@@ -4560,7 +4567,7 @@ impl<'a> Lowering<'a> {
     /// Mints the `DataDomain` obligations of `operation`, one per clause it
     /// owes, at the point before it. data_and_literals.md: "Construction and
     /// every restoring write prove the owning default-domain clauses."
-    fn owe_domains(
+    pub(super) fn owe_domains(
         &mut self,
         operation: OperationId,
         clauses: usize,
