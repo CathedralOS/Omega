@@ -1,4 +1,4 @@
-// Accepted-source comparisons over executed graphs (`admit_locked_source_request`, `admit_locked_issued_source_request`, and `mutable_local_graph_matches`) without performing source acquisition.
+// Accepted-source comparisons over executed graphs (`admit_locked_build_activation`, `admit_locked_source_request`, `admit_locked_issued_source_request`, and `mutable_local_graph_matches`) without performing source acquisition.
 
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
@@ -84,6 +84,42 @@ pub(crate) fn admit_locked_issued_source_request(
     checked_request(graph, expected.key(), purpose, ordinal, request)
         .map(|_| ())
         .map_err(|error| error.to_string())
+}
+
+// The compile route runs a package's Build only for source the lock accepted.
+// A source the lock records under the same lineage and navigation but with other
+// content is stale; one the lock never recorded was never reviewed. Both refuse
+// before the Build executes, so an edited or switched Build cannot run its
+// effects ahead of the refusal ([acceptance](wiki/spec/packages/acceptance.md)).
+pub(crate) fn admit_locked_build_activation(
+    subject: &CanonicalSourceClosureSubject,
+    origin: crate::resolution::source::SourceAcquisitionOrigin<'_>,
+) -> Result<(), String> {
+    let mut recorded = None;
+    for graph in subject.execution_source_graphs() {
+        for package in graph.packages() {
+            if package.key().source_lineage() == origin.lineage
+                && graph.package_navigation(package.key()) == Some(origin.navigation)
+            {
+                if package.resolution() == origin.resolution {
+                    return Ok(());
+                }
+                recorded = Some(package.key());
+            }
+        }
+    }
+    let stale = |package: &str, reason: &str| {
+        format!(
+            "accepted package `{package}` {reason}; run `omega packages update` for fresh review before compiling"
+        )
+    };
+    Err(match recorded {
+        Some(key) => stale(key.name().as_str(), "source identity changed"),
+        None => stale(
+            subject.root().selected().key().name().as_str(),
+            "would run a Build from a source the lock does not record",
+        ),
+    })
 }
 
 fn checked_custody(
