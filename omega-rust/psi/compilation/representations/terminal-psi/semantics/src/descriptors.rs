@@ -11418,6 +11418,28 @@ pub mod descriptor_results {
                             }
                         )]
                     );
+                    let mut duplicate = module.clone();
+                    duplicate.machines.push(module.machines[1].clone());
+                    assert!(matches!(
+                        crate::descriptor_results::terminal_borrowed_storage_graph_from(&duplicate, [caller], &[]),
+                        Err(crate::descriptor_results::DescriptorGraphError::MissingOrAmbiguousMachine(id)) if id == helper
+                    ));
+                    assert!(terminal_borrowed_storage_graph(&duplicate).is_empty());
+                    let mut missing = module.clone();
+                    missing.machines.pop();
+                    let missing_graph =
+                        crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                            &missing,
+                            [caller],
+                            &[],
+                        )
+                        .unwrap();
+                    let mut unknown = DescriptorAnalysis::with_borrowed_storage_slots(
+                        &missing.structural_types,
+                        &missing_graph,
+                    );
+                    assert!(unknown.storage_access_frame(caller).unwrap().is_none());
+                    assert!(unknown.storage_writes(caller, cut).unwrap().is_none());
                 }
             }
 
@@ -14372,22 +14394,21 @@ pub mod descriptor_results {
 
         impl DescriptorMachine {
             // A call that never returns can still read or write its arguments.
-            // Both call forms retain the same exact telescope and pre-call
-            // queries; the canonical site distinguishes an edge from an opcode.
+            // Both call forms retain the complete parameter list and supplied
+            // arguments at the pre-call cut. The site distinguishes an edge
+            // from an operation.
             pub(crate) fn direct_invocation(
                 &self,
                 module: &TerminalModule,
+                machines: &BTreeMap<MachineId, &TerminalMachine>,
                 slot_kind: DescriptorSlotKind,
-                site: semantic_vocabulary::InvocationSite,
-                inputs: terminal_psi::ModuleInvocationInputs<'_>,
+                invocation: terminal_psi::ModuleInvocation<'_>,
                 result: Option<&terminal_psi::StructuralOperationResult>,
                 selector: impl Fn(ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
             ) -> Option<DescriptorInvocation> {
-                let mut matches = module.machines.iter().filter(|row| row.id == inputs.callee);
-                let callee = matches.next()?;
-                if matches.next().is_some()
-                    || callee.structural_parameters.len() != inputs.structural_arguments.len()
-                {
+                let inputs = invocation.inputs;
+                let callee = machines.get(&inputs.callee).copied()?;
+                if callee.structural_parameters.len() != inputs.structural_arguments.len() {
                     return None;
                 }
                 let mut arguments = Vec::with_capacity(inputs.structural_arguments.len());
@@ -14449,7 +14470,7 @@ pub mod descriptor_results {
                         inputs.arguments,
                         selector,
                     ),
-                    site,
+                    site: invocation.site,
                     target: DescriptorInvocationTarget::Machine(callee.id),
                     arguments,
                     argument_contents,
@@ -15072,41 +15093,48 @@ pub mod descriptor_results {
 
         pub(crate) fn adapt(
             module: &TerminalModule,
+            machines: &BTreeMap<MachineId, &TerminalMachine>,
             machine: &TerminalMachine,
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
         ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
-            // A failed closure must name the operation being reconstructed.
-            // Setup has no operation; keep it machine-scoped rather than
-            // attributing it to a previously visited body or instruction.
-            let mut position = None;
-            let mut detail = None;
+            // Setup failures have no operation. Reuse the same typed error
+            // as the reader advances, so a later failure keeps its real site.
+            let mut failure = super::DescriptorGraphError::IncompleteMachine {
+                machine: machine.id,
+                position: None,
+                detail: None,
+            };
             adapt_flow(
                 module,
+                machines,
                 machine,
                 slot_kind,
                 selected_calls,
                 selector_graph,
-                &mut position,
-                &mut detail,
+                &mut failure,
             )
-            .ok_or(super::DescriptorGraphError::IncompleteMachine {
-                machine: machine.id,
-                position,
-                detail,
-            })
+            .ok_or(failure)
         }
 
         fn adapt_flow(
             module: &TerminalModule,
+            machines: &BTreeMap<MachineId, &TerminalMachine>,
             machine: &TerminalMachine,
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
-            failure_position: &mut Option<DescriptorPosition>,
-            failure_detail: &mut Option<&'static str>,
+            failure: &mut super::DescriptorGraphError,
         ) -> Option<DescriptorMachine> {
+            let super::DescriptorGraphError::IncompleteMachine {
+                position: failure_position,
+                detail: failure_detail,
+                ..
+            } = failure
+            else {
+                return None;
+            };
             let scalar_expressions =
                 super::payload_predicates::TerminalScalarExpressions::new(machine);
             let mut scalar_formals = machine
@@ -16436,9 +16464,15 @@ pub mod descriptor_results {
                                 }
                                 let call = graph.direct_invocation(
                                     module,
+                                    machines,
                                     slot_kind,
-                                    semantic_vocabulary::InvocationSite::Operation(operation.id),
-                                    inputs,
+                                    terminal_psi::ModuleInvocation {
+                                        site: semantic_vocabulary::InvocationSite::Operation(
+                                            operation.id,
+                                        ),
+                                        static_reach_binding: operation.static_reach_binding,
+                                        inputs,
+                                    },
                                     result,
                                     selector,
                                 )?;
@@ -16768,11 +16802,21 @@ pub mod descriptor_results {
                             .and_then(|inputs| {
                                 graph.direct_invocation(
                                     module,
+                                    machines,
                                     slot_kind,
-                                    semantic_vocabulary::InvocationSite::InvokeNoNormal(
-                                        block.terminator.edge(),
-                                    ),
-                                    inputs,
+                                    terminal_psi::ModuleInvocation {
+                                        site: semantic_vocabulary::InvocationSite::InvokeNoNormal(
+                                            block.terminator.edge(),
+                                        ),
+                                        static_reach_binding: match block.terminator {
+                                            Terminator::InvokeNoNormal {
+                                                static_reach_binding,
+                                                ..
+                                            } => static_reach_binding,
+                                            _ => None,
+                                        },
+                                        inputs,
+                                    },
                                     None,
                                     selector,
                                 )
@@ -18202,6 +18246,18 @@ pub mod descriptor_results {
             .collect()
     }
 
+    fn terminal_machine_roster(
+        module: &TerminalModule,
+    ) -> Result<BTreeMap<MachineId, &TerminalMachine>, DescriptorGraphError> {
+        let mut machines = BTreeMap::new();
+        for machine in &module.machines {
+            if machines.insert(machine.id, machine).is_some() {
+                return Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine.id));
+            }
+        }
+        Ok(machines)
+    }
+
     // An unsupported body must not erase useful analyses of independent
     // bodies. Keep its failure in the same roster: complete-closure consumers
     // still reject it, while optional summaries retain their unknown ceiling.
@@ -18211,14 +18267,10 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
-        let mut machines = BTreeMap::new();
-        for machine in &module.machines {
-            if machines.insert(machine.id, machine).is_some() {
-                return vec![Err(DescriptorGraphError::MissingOrAmbiguousMachine(
-                    machine.id,
-                ))];
-            }
-        }
+        let machines = match terminal_machine_roster(module) {
+            Ok(machines) => machines,
+            Err(error) => return vec![Err(error)],
+        };
         let mut pending: Vec<_> = roots.into_iter().collect();
         let mut reached = BTreeMap::new();
         while let Some(identity) = pending.pop() {
@@ -18232,13 +18284,14 @@ pub mod descriptor_results {
                 );
                 continue;
             };
-            let graph = match terminal_flow::adapt(module, body, kind, selected_calls, None) {
-                Ok(graph) => graph,
-                Err(error) => {
-                    reached.insert(identity, Err(error));
-                    continue;
-                }
-            };
+            let graph =
+                match terminal_flow::adapt(module, &machines, body, kind, selected_calls, None) {
+                    Ok(graph) => graph,
+                    Err(error) => {
+                        reached.insert(identity, Err(error));
+                        continue;
+                    }
+                };
             for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -18295,6 +18348,7 @@ pub mod descriptor_results {
             };
             rows.push(terminal_flow::adapt(
                 module,
+                &machines,
                 body,
                 kind,
                 selected_calls,
@@ -18339,10 +18393,13 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Option<Vec<DescriptorMachine>> {
+        let machines = terminal_machine_roster(module).ok()?;
         let initial = module
             .machines
             .iter()
-            .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, None).ok())
+            .map(|machine| {
+                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None).ok()
+            })
             .collect::<Option<Vec<_>>>()?;
         if !module.machines.iter().any(|machine| {
             machine
@@ -18355,7 +18412,15 @@ pub mod descriptor_results {
             .machines
             .iter()
             .map(|machine| {
-                terminal_flow::adapt(module, machine, kind, selected_calls, Some(&initial)).ok()
+                terminal_flow::adapt(
+                    module,
+                    &machines,
+                    machine,
+                    kind,
+                    selected_calls,
+                    Some(&initial),
+                )
+                .ok()
             })
             .collect()
     }
