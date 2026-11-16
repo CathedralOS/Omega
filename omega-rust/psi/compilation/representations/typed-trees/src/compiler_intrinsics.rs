@@ -799,7 +799,9 @@ mod tests {
         };
         let original = Fixture::ordinary().text().unwrap();
         let mut unconditional = Fixture::ordinary();
-        unconditional.program.machines_mut()[0]
+        unconditional
+            .program
+            .machine_mut(0)
             .termination_plan
             .interface =
             TerminationInterface::Published(TerminationGuarantee::Terminates { premises: vec![] });
@@ -813,7 +815,7 @@ mod tests {
             let entry = &fixture.program.machine_states(machine)[0];
             let subject = fixture.program.state_parameters(entry)[0].symbol;
             let profile = fixture.program.semantic_domains.intern(profile_name);
-            fixture.program.machines_mut()[0].termination_plan.interface =
+            fixture.program.machine_mut(0).termination_plan.interface =
                 TerminationInterface::Published(TerminationGuarantee::Terminates {
                     premises: vec![ProgressPremise {
                         profile,
@@ -844,7 +846,7 @@ mod tests {
             .text()
         );
         let TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) =
-            &mut first.program.machines_mut()[0].termination_plan.interface
+            &mut first.program.machine_mut(0).termination_plan.interface
         else {
             unreachable!()
         };
@@ -861,12 +863,16 @@ mod tests {
     #[test]
     fn implementation_rankings_and_checked_summaries_are_not_silently_erased() {
         let mut ranking = Fixture::ordinary();
-        ranking.program.machines_mut()[0]
+        ranking
+            .program
+            .machine_mut(0)
             .termination_plan
             .implementation_witness = Some(language_semantics::RankingWitness::default());
         assert!(ranking.text().is_none());
         let mut checked = Fixture::ordinary();
-        checked.program.machines_mut()[0]
+        checked
+            .program
+            .machine_mut(0)
             .termination_plan
             .checked_summary =
             language_semantics::TerminationGuarantee::Terminates { premises: vec![] };
