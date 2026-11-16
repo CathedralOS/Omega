@@ -1520,9 +1520,20 @@ pub(crate) mod catalog {
         catalog: &'catalog Arc<PreparedServiceCatalog>,
     }
 
+    #[derive(Clone)]
     pub struct RetainedServiceSurface {
         catalog: Arc<PreparedServiceCatalog>,
         record: Handle<ServiceRecord>,
+    }
+
+    impl std::fmt::Debug for RetainedServiceSurface {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter
+                .debug_struct("RetainedServiceSurface")
+                .field("owner", &self.catalog.owner_identity)
+                .field("record", &self.record)
+                .finish()
+        }
     }
 
     impl RetainedServiceSurface {
@@ -1546,6 +1557,7 @@ pub(crate) mod catalog {
         pub package: Option<PackageKeyIdentity>,
         pub path: &'catalog str,
         pub declaration: &'catalog Arc<ServiceSurface>,
+        pub nominal_identity: &'catalog Result<String, Diagnostic>,
         pub requirements: &'catalog [PreparedServiceRequirement],
         pub boundary_arguments: &'catalog [TypeReferenceHandle],
         correspondence: &'catalog Result<(), Diagnostic>,
@@ -1806,6 +1818,69 @@ pub(crate) mod catalog {
             })
         }
 
+        /// Join a service namespace's exact applications in one catalog walk.
+        /// Equivalent declaration/application views share the same surface;
+        /// disagreement or missing source metadata cannot supply a schema.
+        pub fn retain_service_applications(
+            self,
+            applications: &[(SymbolHandle, &str)],
+        ) -> Result<Vec<RetainedServiceSurface>, Diagnostic> {
+            let mut wanted = applications
+                .iter()
+                .enumerate()
+                .map(|(position, (symbol, application))| {
+                    (
+                        (symbol.arena_index(), symbol.generation(), *application),
+                        position,
+                    )
+                })
+                .collect::<Vec<_>>();
+            wanted.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+            if wanted.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return Err(Diagnostic::error(
+                    "service namespace repeats an exact schema application",
+                ));
+            }
+            let mut retained = vec![None::<RetainedServiceSurface>; applications.len()];
+            for (handle, record) in self.catalog.records.iter() {
+                let Some(application) = record
+                    .declaration
+                    .as_ref()
+                    .and_then(|surface| surface.root_application_identity())
+                else {
+                    continue;
+                };
+                let symbol = record.schema.symbol();
+                let key = (symbol.arena_index(), symbol.generation(), application);
+                let Ok(position) = wanted.binary_search_by(|candidate| candidate.0.cmp(&key))
+                else {
+                    continue;
+                };
+                let selected = wanted[position].1;
+                let surface = self.catalog.required_surface(record)?;
+                surface.exact_requirements()?;
+                let nominal = surface.nominal_identity.as_ref().map_err(Clone::clone)?;
+                if let Some(previous) = &retained[selected] {
+                    let previous = previous.surface()?;
+                    if previous.declaration != surface.declaration
+                        || previous.nominal_identity.as_ref().map_err(Clone::clone)? != nominal
+                    {
+                        return Err(Diagnostic::error(
+                            "service application has conflicting complete source schemas",
+                        ));
+                    }
+                } else {
+                    retained[selected] = Some(RetainedServiceSurface {
+                        catalog: Arc::clone(self.catalog),
+                        record: handle,
+                    });
+                }
+            }
+            retained.into_iter().map(|surface| surface.ok_or_else(|| {
+                Diagnostic::error("service namespace has no complete prepared schema for its exact application")
+            })).collect()
+        }
+
         pub fn declared_traits(self) -> impl Iterator<Item = PreparedServiceDeclaration<'catalog>> {
             self.catalog.declared_traits()
         }
@@ -1822,6 +1897,7 @@ pub(crate) mod catalog {
                 package: record.package,
                 path: &record.path,
                 declaration: record.declaration.as_ref()?,
+                nominal_identity: &record.nominal_identity,
                 requirements: self.requirements.span_or_empty(record.requirements),
                 boundary_arguments: self.arguments.span_or_empty(record.arguments),
                 correspondence: &record.correspondence,

@@ -23,6 +23,25 @@ pub enum DirectBoundaryExecution {
 }
 
 impl DirectBoundaryLeaf {
+    /// Keep the closed callable tied to its original method and complete ABI
+    /// instance. Sharing a template or physical signature is insufficient.
+    pub fn declared_calling_abi(
+        module: &terminal_psi::TerminalModule,
+        id: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<&terminal_psi::CallingAbiDeclaration, String> {
+        let declaration = module
+            .boundary_machine(id)
+            .and_then(|boundary| boundary.declaration.as_ref())
+            .ok_or("direct binding lost its checked callable declaration")?;
+        let abi = module.boundary_calling_abi(id)?;
+        if !declaration
+            .matches_calling_abi(&module.identities, &abi.identity(&module.identities)?)?
+        {
+            return Err("direct binding has another declaration's calling ABI".into());
+        }
+        Ok(abi)
+    }
+
     /// The complete source-issued application owning a directly bound raw
     /// requirement. A native machine realization uses its conformance instead.
     pub fn declared_schema(
@@ -51,9 +70,10 @@ impl DirectBoundaryLeaf {
             return Err("direct foreign requirement has no unique service application".into());
         };
         let schema = module.service_schema(boundary.owner.identity(), service.identity)?;
+        let abi = Self::declared_calling_abi(module, id)?;
         let requirement = module
             .identities
-            .text(boundary.identity)
+            .text(abi.requirement_identity)
             .filter(|identity| !identity.is_empty())
             .ok_or("direct foreign requirement lost its canonical identity")?;
         let mut methods = schema.surface.methods.iter().filter(|method| {
@@ -89,7 +109,11 @@ impl DirectBoundaryLeaf {
                 && row.receipt().producer_package().is_some()
                 && row.receipt().build_origin().is_some_and(|origin| {
                     identities.text(origin.requirement_identity)
-                        == Some(self.satisfied_requirement_identity.as_str())
+                        == Some(
+                            self.plan
+                                .identities
+                                .text(self.plan.rows[0].requirement_identity),
+                        )
                 })
         });
         let (Some(receipt), None) = (receipts.next(), receipts.next()) else {
@@ -235,7 +259,10 @@ impl DirectBoundaryLeaf {
             return Err("direct foreign execution changed its callable coordinate".into());
         }
         let expected = source.calling_for_requirement(original.requirement_identity);
-        if !expected.is_empty() && expected.len() != binding.calling_applications.len() {
+        if !expected.is_empty()
+            && row.calling_signature.is_none()
+            && expected.len() != binding.calling_applications.len()
+        {
             return Err(
                 "direct foreign execution changed its complete selected calling roster".into(),
             );
@@ -368,8 +395,14 @@ impl DirectBoundaryLeaf {
         }
         if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
             let schema = Self::declared_schema(module, boundary.id)?;
+            let declaration = Self::declared_calling_abi(module, boundary.id)?;
+            let requirement = module
+                .identities
+                .text(declaration.requirement_identity)
+                .ok_or("direct foreign binding lost its declared template")?;
             if self.satisfied_schema.declaration.as_ref() != schema.surface.as_ref()
-                || self.satisfied_requirement_identity != route
+                || self.satisfied_requirement_identity != requirement
+                || self.plan.rows[0].calling_signature != Some(declaration.id)
             {
                 return Err(
                     "direct foreign binding changes its complete declared service contract".into(),
@@ -378,24 +411,15 @@ impl DirectBoundaryLeaf {
             let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
                 return Err("plain foreign requirement has no evaluated foreign execution".into());
             };
-            let declarations = module
-                .calling_abi_signatures
-                .iter()
-                .filter(|row| row.requirement_identity == boundary.identity)
-                .collect::<Vec<_>>();
-            if declarations.is_empty() || declarations.len() != binding.calling_applications.len() {
-                return Err(
-                    "direct foreign binding has no complete declared Calling roster".into(),
-                );
+            if binding.calling_applications.len() != 1 {
+                return Err("direct foreign binding has no exact declared Calling instance".into());
             }
-            for declaration in declarations {
-                let abi = declaration.identity(&module.identities)?;
-                let application = binding
-                    .calling_application(&abi)
-                    .ok_or("direct foreign binding changes its exact declaration ABI")?;
-                if application.recomputed_commitment()? != application.commitment {
-                    return Err("direct foreign binding changes its Calling commitment".into());
-                }
+            let abi = declaration.identity(&module.identities)?;
+            let application = binding
+                .calling_application(&abi)
+                .ok_or("direct foreign binding changes its exact declaration ABI")?;
+            if application.recomputed_commitment()? != application.commitment {
+                return Err("direct foreign binding changes its Calling commitment".into());
             }
         }
         Ok(())

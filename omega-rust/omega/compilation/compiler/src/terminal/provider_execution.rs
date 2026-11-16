@@ -120,16 +120,30 @@ pub fn prepare_provider_execution_inputs(
             &mut binding_identities,
         )
         .map_err(refuse)?;
-        if native_bindings
-            .iter()
-            .any(|(previous, _)| *previous == boundary)
-        {
+        if native_bindings.iter().any(
+            |previous: &provider_planning::target_supply::NormalizedNativeSupply| {
+                previous.boundary == boundary
+            },
+        ) {
             return Err(refuse(
                 "native requirement has competing completed Build supplies".into(),
             ));
         }
-        native_bindings.push((boundary, evaluated));
+        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, boundary)
+            .map_err(refuse)?;
+        requirements.push(
+            module
+                .identities
+                .text(abi.requirement_identity)
+                .ok_or_else(|| refuse("native binding lost its original method template".into()))?,
+        );
+        native_bindings.push(provider_planning::target_supply::NormalizedNativeSupply {
+            boundary,
+            binding: evaluated,
+        });
     }
+    requirements.sort_unstable();
+    requirements.dedup();
     let calling = CallingProgram {
         artifact: Arc::clone(program.artifact()),
         evaluator: build_settings::CALLING_POLICY_EVALUATOR,
@@ -147,9 +161,9 @@ pub fn prepare_provider_execution_inputs(
         .filter(|choice| choice.target == profile.target_name())
         .map(|choice| (choice.schema_declaration, choice.schema_application))
         .collect::<Vec<_>>();
-    for (boundary, _) in &native_bindings {
-        let schema =
-            backend_plan::DirectBoundaryLeaf::declared_schema(module, *boundary).map_err(refuse)?;
+    for supply in &native_bindings {
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+            .map_err(refuse)?;
         schemas.push((schema.declaration, schema.application));
     }
     schemas.sort_unstable();
@@ -232,20 +246,60 @@ pub fn prepare_provider_execution_inputs(
             }
         }
     }
+    // Explicit selections remain authoritative. Only an undeclared policy uses
+    // the existing native default planner; a failed or missing selected result
+    // cannot silently become a default ABI.
+    let mut default_bindings = Vec::new();
+    for supply in &native_bindings {
+        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
+            .map_err(refuse)?
+            .identity(&module.identities)
+            .map_err(refuse)?;
+        if calling_applications
+            .iter()
+            .any(|application| application.abi == abi)
+        {
+            continue;
+        }
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+            .map_err(refuse)?;
+        if module
+            .calling_policy_requests
+            .iter()
+            .any(|request| request.declaration.as_ref().ok() == Some(&schema.declaration))
+        {
+            return Err(refuse(
+                "native binding has no result from its selected Calling policy".into(),
+            ));
+        }
+        default_bindings.push(supply.clone());
+    }
+    calling_applications.extend(
+        provider_planning::calling_policy_plans::native_calling_applications(
+            profile,
+            &calling,
+            &default_bindings,
+        )?,
+    );
     let mut external_bindings = Vec::with_capacity(native_bindings.len());
     let mut evaluated_native_bindings = Vec::with_capacity(native_bindings.len());
-    for (boundary, evaluated) in native_bindings {
-        let schema =
-            backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refuse)?;
+    for supply in native_bindings {
+        let evaluated = supply.binding;
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+            .map_err(refuse)?;
+        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
+            .map_err(refuse)?
+            .identity(&module.identities)
+            .map_err(refuse)?;
         let boundary = module
-            .boundary_machine(boundary)
+            .boundary_machine(supply.boundary)
             .ok_or_else(|| refuse("native binding lost its exact boundary".into()))?;
         let requirement = module
             .identities
             .text(boundary.identity)
             .ok_or_else(|| refuse("native binding lost its exact requirement identity".into()))?;
         let mut methods = schema.surface.methods.iter().filter(|method| {
-            schema.surface.identity_text(method.requirement_identity) == requirement
+            schema.surface.identity_text(method.requirement_identity) == abi.requirement_identity
         });
         let (Some(method), None) = (methods.next(), methods.next()) else {
             return Err(refuse(
@@ -254,7 +308,7 @@ pub fn prepare_provider_execution_inputs(
         };
         let applications = calling_applications
             .iter()
-            .filter(|application| application.requirement_identity == requirement)
+            .filter(|application| application.abi == abi)
             .cloned()
             .collect::<Vec<_>>();
         if applications.is_empty() {

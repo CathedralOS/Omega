@@ -1279,25 +1279,29 @@ impl TerminalModule {
                     })
             })
     }
+    /// Resolve the declaration instance attached to this boundary, rather than
+    /// looking up its template by name. Closed calls can share a template while
+    /// retaining different ordered static arguments.
+    pub fn boundary_calling_abi(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<&crate::CallingAbiDeclaration, String> {
+        let mut declarations = self
+            .calling_signatures
+            .iter()
+            .filter(|row| row.boundary == boundary);
+        let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
+            return Err("boundary has no unique Terminal calling declaration".into());
+        };
+        self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
+            .ok_or_else(|| "boundary lost its exact declaration ABI".into())
+    }
+
     pub fn calling_abi_identity(
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
     ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
-        let declaration = self
-            .calling_signatures
-            .iter()
-            .find(|row| row.boundary == boundary)
-            .ok_or_else(|| {
-                let name = self
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == boundary)
-                    .and_then(|declaration| self.identities.text(declaration.identity))
-                    .unwrap_or("<unknown>");
-                format!("boundary `{name}` has no Terminal calling declaration")
-            })?;
-        self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
-            .ok_or("boundary lost its exact declaration ABI")?
+        self.boundary_calling_abi(boundary)?
             .identity(&self.identities)
     }
     pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {

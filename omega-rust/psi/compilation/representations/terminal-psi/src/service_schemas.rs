@@ -18,6 +18,45 @@ pub struct TerminalServiceSchema {
     pub surface: Arc<ServiceSurface>,
 }
 
+impl TerminalServiceSchema {
+    /// Several source consumers can retain the same application. Coalesce only
+    /// equal complete surfaces; an existing duplicate or a changed contract is
+    /// an inconsistent namespace, not another available implementation.
+    pub fn join(existing: &[Self], incoming: &[Self]) -> Result<Vec<Self>, String> {
+        let mut rows = existing
+            .iter()
+            .map(|row| (true, row))
+            .chain(incoming.iter().map(|row| (false, row)))
+            .collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|(_, row)| (row.declaration, row.application));
+        let mut joined = Vec::with_capacity(rows.len());
+        let mut start = 0;
+        while start < rows.len() {
+            let key = (rows[start].1.declaration, rows[start].1.application);
+            let mut end = start + 1;
+            while end < rows.len() && (rows[end].1.declaration, rows[end].1.application) == key {
+                end += 1;
+            }
+            let group = &rows[start..end];
+            if key.0.is_absent()
+                || key.1.is_absent()
+                || group.iter().filter(|(existing, _)| *existing).count() > 1
+                || group
+                    .iter()
+                    .any(|(_, row)| row.surface != group[0].1.surface)
+            {
+                return Err(
+                    "service schema publication conflicts with its exact declaration application"
+                        .into(),
+                );
+            }
+            joined.push(group[0].1.clone());
+            start = end;
+        }
+        Ok(joined)
+    }
+}
+
 /// The entry source is selected before checking, when its captured bytes are
 /// available. This commitment uses the installed physical contract's existing
 /// digest recipe; it is descriptive and grants no package permission.

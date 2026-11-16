@@ -184,9 +184,6 @@ impl DirectBoundaryInput {
         declaration.trait_package_identity = self.realization_package;
         plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
         plan.rows[0].declared_requirement_identity = plan.rows[0].requirement_identity;
-        if self.callable_identity != requirement {
-            plan.rows[0].calling_signature = None;
-        }
         let [method] = declaration.methods.as_mut_slice() else {
             return Err(Diagnostic::error(
                 "boundary leaf does not bind one exact requirement contract",

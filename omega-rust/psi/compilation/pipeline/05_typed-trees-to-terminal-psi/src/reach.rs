@@ -52,6 +52,7 @@ struct ServiceSource {
     identity: String,
     name: String,
     parents: Vec<ServiceId>,
+    schema: typed_trees::service_declarations::RetainedServiceSurface,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -71,9 +72,10 @@ impl ServiceMap {
             ),
         >,
         bindings: Vec<(ServiceReachId, ServiceId)>,
+        catalog: typed_trees::service_declarations::ServiceCatalog<'_>,
     ) -> Checked<Self> {
-        let mut declarations = Vec::with_capacity(registry.len());
-        for (id, (scope, parents)) in registry.iter() {
+        let mut identities = Vec::with_capacity(registry.len());
+        for (_, (scope, parents)) in registry.iter() {
             if !scope.declaration.is_boundary {
                 return Err(unavailable(
                     context,
@@ -101,24 +103,40 @@ impl ServiceMap {
                         "service has no complete exact application identity",
                     )
                 })?;
-            if declarations
-                .iter()
-                .any(|known: &ServiceSource| known.identity == identity)
-            {
-                return Err(unavailable(
-                    context,
-                    "distinct source services have one application identity",
-                ));
-            }
-            declarations.push(ServiceSource {
-                id,
-                identity,
-                name: scope.declaration.name.as_str().to_owned(),
-                parents: parents.clone(),
-            });
+            identities.push(identity);
         }
+        let mut ordered = identities.iter().map(String::as_str).collect::<Vec<_>>();
+        ordered.sort_unstable();
+        if ordered.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(unavailable(
+                context,
+                "distinct source services have one application identity",
+            ));
+        }
+        let applications = registry
+            .iter()
+            .zip(&identities)
+            .map(|((_, (scope, _)), identity)| (scope.declaration.symbol, identity.as_str()))
+            .collect::<Vec<_>>();
+        let schemas = catalog
+            .retain_service_applications(&applications)
+            .map_err(|error| crate::read::services::unavailable(context, error.message))?;
+        let declarations = registry
+            .iter()
+            .zip(identities)
+            .zip(schemas)
+            .map(
+                |(((id, (scope, parents)), identity), schema)| ServiceSource {
+                    id,
+                    identity,
+                    name: scope.declaration.name.as_str().to_owned(),
+                    parents: parents.clone(),
+                    schema,
+                },
+            )
+            .collect();
         for (_, id) in &bindings {
-            if !declarations.iter().any(|row| row.id == *id) {
+            if registry.get(*id).is_none() {
                 return Err(unavailable(
                     context,
                     "source service binding has no exact registry row",
@@ -193,15 +211,43 @@ impl ServiceMap {
         }
         let mut identities = std::mem::take(&mut module.identities).into_builder();
         let mut names = Vec::with_capacity(self.declarations.len());
-        for source in &self.declarations {
-            module.services.push(ServiceDeclaration {
-                id: source.id,
-                identity: identities.intern(&source.identity),
-                parents: source.parents.clone(),
-            });
-            names.push(source.name.clone());
-        }
+        let mut schemas = Vec::with_capacity(self.declarations.len());
+        let prepared = (|| {
+            for source in &self.declarations {
+                let schema = source
+                    .schema
+                    .surface()
+                    .map_err(|error| crate::read::services::unavailable(context, error.message))?;
+                if schema.declaration.root_application_identity() != Some(source.identity.as_str())
+                {
+                    return Err(unavailable(
+                        context,
+                        "service schema changed its exact namespace application",
+                    ));
+                }
+                let declaration = schema.nominal_identity.as_ref().map_err(|error| {
+                    crate::read::services::unavailable(context, error.message.clone())
+                })?;
+                let application = identities.intern(&source.identity);
+                schemas.push(terminal_psi::TerminalServiceSchema {
+                    declaration: identities.intern(declaration),
+                    application,
+                    surface: std::sync::Arc::clone(schema.declaration),
+                });
+                module.services.push(ServiceDeclaration {
+                    id: source.id,
+                    identity: application,
+                    parents: source.parents.clone(),
+                });
+                names.push(source.name.clone());
+            }
+            Ok(())
+        })();
         module.identities = identities.build();
+        prepared?;
+        module.service_schemas =
+            terminal_psi::TerminalServiceSchema::join(&module.service_schemas, &schemas)
+                .map_err(|reason| crate::read::services::unavailable(context, reason))?;
         Ok(names)
     }
 }

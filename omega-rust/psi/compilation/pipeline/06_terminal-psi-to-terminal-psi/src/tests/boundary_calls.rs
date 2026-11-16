@@ -1112,63 +1112,32 @@ machine entry() -> u32 crashes none {
         ),
         owner,
     );
-    eprintln!(
-        "normalized source surface: {:?}",
-        surface
-            .as_ref()
-            .map(|surface| {
-                surface
-                    .declaration
-                    .methods
-                    .iter()
-                    .map(|method| {
-                        (
-                            method.name.as_str(),
-                            surface
-                                .declaration
-                                .identity_text(method.requirement_identity),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .map_err(|error| &error.message)
+    let surface = surface.unwrap();
+    assert_eq!(
+        surface.declaration.methods.len(),
+        1,
+        "closed occurrences must not add universal provider obligations"
     );
-    eprintln!(
-        "emitted schemas: {:?}",
-        module
-            .service_schemas
-            .iter()
-            .map(|schema| (
-                schema.declaration,
-                schema.application,
-                schema.surface.methods.len(),
-            ))
-            .collect::<Vec<_>>()
-    );
-    eprintln!(
-        "emitted services: {:?}",
-        module
-            .services
-            .iter()
-            .map(|service| (service.id, service.identity,))
-            .collect::<Vec<_>>()
-    );
+    assert_eq!(module.service_schemas.len(), 1);
     for boundary in &module.boundary_machines {
         let service = module
             .services
             .iter()
             .find(|service| Some(service.id) == boundary.owning_service)
             .unwrap();
-        eprintln!(
-            "boundary {:?}: declaration {:?}, application {:?}, requirement {:?}",
-            boundary.id,
-            boundary.owner.identity(),
-            service.identity,
-            module.identities.text(boundary.identity)
-        );
-        module
+        let schema = module
             .service_schema(boundary.owner.identity(), service.identity)
             .expect("each closed boundary retains its complete service schema");
+        assert_eq!(schema.surface.as_ref(), surface.declaration.as_ref());
+        let abi = module.boundary_calling_abi(boundary.id).unwrap();
+        assert_eq!(
+            module.identities.text(abi.requirement_identity),
+            Some(
+                schema
+                    .surface
+                    .identity_text(schema.surface.methods[0].requirement_identity)
+            )
+        );
     }
     let abis = module
         .boundary_machines

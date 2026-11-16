@@ -592,25 +592,19 @@ fn direct_leaves(
         let (Some(receipt), None) = (receipts.next(), receipts.next()) else {
             return Err("plain native requirement has no unique evaluated Build supply".into());
         };
+        let signature = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, id)?;
+        let declared_requirement = text(module, signature.requirement_identity)?;
         let mut methods = schema.surface.methods.iter().filter(|method| {
-            schema.surface.identity_text(method.requirement_identity) == requirement
+            schema.surface.identity_text(method.requirement_identity) == declared_requirement
         });
         let (Some(method), None) = (methods.next(), methods.next()) else {
             return Err("plain native requirement lost its exact complete service method".into());
-        };
-        let mut signatures = module
-            .calling_abi_signatures
-            .iter()
-            .filter(|signature| signature.requirement_identity == boundary.identity);
-        let (Some(signature), None) = (signatures.next(), signatures.next()) else {
-            return Err(
-                "plain native requirement needs its exact published declaration ABI".into(),
-            );
         };
         let mut schema_value = ServiceSchema::from_declaration(Arc::clone(&schema.surface));
         attach_calling(&mut schema_value, target, calling)?;
         let mut identities = ProviderIdentityTable::default();
         let requirement_id = identities.intern(requirement);
+        let declared_requirement_id = identities.intern(declared_requirement);
         let original = ProviderPlan {
             name: format!("direct-build:{target}:{requirement}"),
             target: target.to_owned(),
@@ -619,7 +613,7 @@ fn direct_leaves(
             rows: vec![ProviderPlanRow {
                 method: method.name.clone(),
                 requirement_identity: requirement_id,
-                declared_requirement_identity: requirement_id,
+                declared_requirement_identity: declared_requirement_id,
                 calling_signature: Some(signature.id),
                 requirement_lifetime_partition: Vec::new(),
                 admitted_same_stack_bytes: 0,

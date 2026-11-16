@@ -981,8 +981,37 @@ impl Program<'_> {
 
     pub(crate) fn service_map(&mut self, context: MachineId) -> Checked<crate::reach::ServiceMap> {
         let bindings = self.prepare_service_bindings(context)?;
-        let services =
-            crate::reach::ServiceMap::prepare(self.typed, context, &self.services, bindings)?;
+        let services = if self.services.is_empty() {
+            if !bindings.is_empty() {
+                return Err(unavailable(
+                    context,
+                    "service binding has no namespace declaration",
+                ));
+            }
+            crate::reach::ServiceMap::default()
+        } else {
+            let catalog = self
+                .shared
+                .calling_catalog(self.typed, self.purpose)
+                .as_ref()
+                .map(std::sync::Arc::clone)
+                .map_err(|reason| unavailable(context, reason.clone()))?;
+            let catalog = catalog
+                .bind(
+                    typed_trees::provider_declarations::ProviderPlanningContext::new(
+                        self.typed,
+                        self.purpose,
+                    ),
+                )
+                .map_err(|error| unavailable(context, error.message))?;
+            crate::reach::ServiceMap::prepare(
+                self.typed,
+                context,
+                &self.services,
+                bindings,
+                catalog,
+            )?
+        };
         let contracts = self.callables.contracts.keys().collect::<Vec<_>>();
         for contract in contracts {
             let row = self.callables.contracts.get_mut(contract).ok_or_else(|| {
