@@ -95,3 +95,10 @@ framework or a list of unimplemented features.
 - Saw: `selected-instructions` and `register-homes` embed call records, structural contracts and call-site owners defined in `legalized-operations`, so both depend on the prepared plan's crate.
 - Cost: A change to a legalized-operations record changes the selected and allocated forms without passing through stage 03. Move the embedded records to the form that owns them.
 - Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
+
+### Image publication still reads the prepared plan after selection
+- Category: knowledge crossing a boundary
+- Where: [object evidence](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs)
+- Saw: Object production reads function ABI and byte-output provider rows through `optimized_target().execution_plan().plan()`. It still reaches the complete earlier plan after instruction selection, rather than the contract rows of its current input.
+- Cost: Later publication still depends on earlier program custody. Share the required immutable ABI and provider rows through selected and current native contracts, and read those chunks when publishing the object.
+- Reported: 2026-11-16, Claude Code, while moving the readers of stage 02's output onto the execution plan.

@@ -28,6 +28,8 @@ projections; `proof_applications.rs` owns proof-application verification.
 
 mod declaration_descriptions;
 pub use declaration_descriptions::{FieldInfoDescription, ParameterDescription};
+pub mod identity_encoding;
+pub mod structural_path_encoding;
 
 // Call obligations and runtime lowering use the same two declaration
 // namespaces. Keeping this existing target identity in the shared vocabulary
