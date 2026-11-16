@@ -134,6 +134,11 @@ path = "tests/core_build_activation.rs"
 name = "access_view_calls"
 path = "tests/access_view_calls.rs"
 
+# A guarded field keeps its bound through a mutable state arrival and sibling write.
+[[test]]
+name = "projected_state_guards"
+path = "tests/projected_state_guards.rs"
+
 [[test]]
 name = "product_query_suspension"
 path = "tests/product_query_suspension.rs"

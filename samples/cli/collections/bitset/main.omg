@@ -33,7 +33,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             _ -> block check5(main)
         }
     }
-    machine insert(main: &mut Main) {
+    machine insert(main: &mut Main) requires main.i < 3 {
         main.mask = 1u32 as +Wrapping;
         main.mask = main.mask << main.vals[main.i];
         main.bits = main.bits | main.mask;
