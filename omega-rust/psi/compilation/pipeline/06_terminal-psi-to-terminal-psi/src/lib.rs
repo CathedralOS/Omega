@@ -1049,6 +1049,16 @@ fn fill_knowledge(
             },
         );
     }
+    // Each value a formal's field held at entry satisfies the clauses of
+    // the data types it lies in.
+    for premise in storage.entry_type_premises(tables)? {
+        push_knowledge(
+            tables,
+            premise,
+            ProgramPoint::BlockEntry(lowered.entry),
+            Justification::FormalType,
+        );
+    }
     for block in &lowered.blocks {
         for operation in &block.operations {
             if let Some(equation) = result_equation(id, operation, types)? {
@@ -2307,6 +2317,7 @@ pub(crate) fn hypotheses(
                 axioms.push(proposition.clone());
             }
             Justification::EntryRequirement { .. }
+            | Justification::FormalType
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
             | Justification::DispatchBinding { .. }

@@ -193,6 +193,49 @@ impl Storage<'_> {
         }
     }
 
+    /// A formal arrives as a valid value of its declared type: its caller
+    /// proved the type's `requires` clauses where it passed the value
+    /// (dependent_values.md: "no consumption sees the value outside its
+    /// required domain"). So the clauses of each data type a formal's
+    /// leaf lies in hold of what that leaf held at entry, stated on its
+    /// entry value as a read of it would state them (`Storage::premises`).
+    /// The body then knows them wherever that value goes: copied into the
+    /// result or passed to a call, not only where a scalar read of the
+    /// formal's field observes it. A write-only formal arrives holding
+    /// nothing its caller established, so its entry contents learn nothing.
+    pub(crate) fn entry_type_premises(&self, tables: &MachineTables) -> Checked<Vec<Proposition>> {
+        let entry = (self.graph.entry(), 0);
+        let mut premises = Vec::new();
+        for (value, row) in tables.values.iter() {
+            let ValueOrigin::StorageContent { place, after: None } = row.origin else {
+                continue;
+            };
+            let concerns = Construct::Value(value);
+            let leaf = lineage(self.machine, &tables.places, place)?;
+            let readable = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                &self.lowered.structural_parameters,
+                leaf.root,
+            )
+            .is_some_and(|formal| {
+                terminal_psi::structural_access_covers(
+                    formal.access,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                )
+            });
+            if !readable {
+                continue;
+            }
+            premises.extend(self.premises(
+                tables,
+                &leaf,
+                (value, row.scalar_type),
+                entry,
+                concerns,
+            )?);
+        }
+        Ok(premises)
+    }
+
     /// Type validity is a call guarantee even without an authored `ensures`.
     /// Substitute only types inside each authenticated returned subtree, and
     /// use its post-call versions, never the caller's earlier observations.
