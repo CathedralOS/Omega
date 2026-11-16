@@ -1199,7 +1199,7 @@ mod owned_value_tests {
             let mut writer = Writer::default();
             super::encode_operation_kind(&mut writer, kind.clone()).unwrap();
             let bytes = writer.finish();
-            assert_eq!(bytes[0], 138);
+            assert_eq!(bytes[0], super::operation_tags::DECOMPOSE_STRUCTURAL_VALUE);
             let mut reader = Reader::new(&bytes);
             assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), kind);
             assert_eq!(reader.remaining(), 0);
@@ -1281,10 +1281,6 @@ mod unknown_tag_tests {
         Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration,
     };
 
-    const TAGS_WITHOUT_TABLE_ROWS: [u8; 19] = [
-        0, 48, 49, 51, 52, 53, 54, 55, 57, 61, 67, 71, 72, 73, 74, 76, 80, 82, 87,
-    ];
-
     fn module_with_one_operation() -> (TerminalModule, Vec<u8>, usize) {
         let machine_id = MachineId::new(1).unwrap();
         let operation = Operation {
@@ -1321,8 +1317,8 @@ mod unknown_tag_tests {
     fn an_operation_tag_without_a_table_row_rejects_the_module() {
         let (module, bytes, tag_offset) = module_with_one_operation();
         assert_eq!(decode_module(&bytes).unwrap(), module);
-        let unknown = TAGS_WITHOUT_TABLE_ROWS.into_iter().chain(138..=u8::MAX);
-        for tag in unknown {
+        let listed = crate::spec_tag_tables::listed_tags("operation-tags");
+        for tag in (0..=u8::MAX).filter(|tag| !listed.contains(tag)) {
             let mut changed = bytes.clone();
             changed[tag_offset] = tag;
             assert!(

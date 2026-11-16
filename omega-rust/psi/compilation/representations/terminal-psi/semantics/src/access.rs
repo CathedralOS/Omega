@@ -2078,7 +2078,8 @@ pub(crate) mod access_view_plans {
         // The encoding page fixes one canonical order for this roster; strict
         // order also rejects a second row for the same structural formal.
         if let Some(pair) = module.access_view_inputs.windows(2).find(|pair| {
-            (pair[0].machine, pair[0].runtime_position) >= (pair[1].machine, pair[1].runtime_position)
+            (pair[0].machine, pair[0].runtime_position)
+                >= (pair[1].machine, pair[1].runtime_position)
         }) {
             return Err(AccessViewPlanError::InputOutOfOrder {
                 machine: pair[1].machine,
@@ -2248,7 +2249,10 @@ pub(crate) mod access_view_plans {
         // later; this pins only the order rule from encoding.md.
         #[test]
         fn ordered_inputs_pass_the_order_rule() {
-            assert_eq!(order_refusal(vec![input(1, 0), input(1, 2), input(2, 0)]), None);
+            assert_eq!(
+                order_refusal(vec![input(1, 0), input(1, 2), input(2, 0)]),
+                None
+            );
         }
 
         #[test]

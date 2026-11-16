@@ -12,8 +12,8 @@ matching it cannot be probed this way and are not listed.
 */
 
 use crate::CodecError;
-use crate::wire_fields::wire::Reader;
 use crate::wire_fields::Field;
+use crate::wire_fields::wire::Reader;
 
 const ENCODING_PAGE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -24,7 +24,7 @@ type Probe = fn(&mut Reader<'_>) -> Result<(), CodecError>;
 
 /// Returns the live tags in the table under `<!-- marker -->`. A row named
 /// `retired` records a tag that must reject, so it is not returned.
-fn listed_tags(marker: &str) -> Vec<u8> {
+pub(crate) fn listed_tags(marker: &str) -> Vec<u8> {
     let anchor = format!("<!-- {marker} -->");
     let mut lines = ENCODING_PAGE
         .lines()
@@ -32,11 +32,18 @@ fn listed_tags(marker: &str) -> Vec<u8> {
         .skip(1)
         .skip_while(|line| line.trim().is_empty());
     let header = lines.next().unwrap_or_default();
-    assert!(header.starts_with('|'), "`{anchor}` is not followed by a table");
+    assert!(
+        header.starts_with('|'),
+        "`{anchor}` is not followed by a table"
+    );
     lines
         .skip(1)
         .take_while(|line| line.starts_with('|'))
-        .filter(|row| row.split('|').nth(2).is_none_or(|name| name.trim() != "retired"))
+        .filter(|row| {
+            row.split('|')
+                .nth(2)
+                .is_none_or(|name| name.trim() != "retired")
+        })
         .map(|row| {
             let cell = row.split('|').nth(1).unwrap_or_default().trim();
             cell.parse()
@@ -60,7 +67,10 @@ fn assert_table_matches_decoder(marker: &str, space: &str, probe: Probe) {
             _ => {}
         }
     }
-    assert!(drift.is_empty(), "`{marker}` disagrees with the {space} decoder: {drift:?}");
+    assert!(
+        drift.is_empty(),
+        "`{marker}` disagrees with the {space} decoder: {drift:?}"
+    );
 }
 
 #[test]
@@ -78,10 +88,8 @@ fn ieee_float_comparison_kinds_match_the_page() {
         "ieee-comparison-kind-tags",
         "IeeeFloatComparisonKind",
         |reader| {
-            crate::structural_wire::structural_field_wire::decode_ieee_float_comparison_kind(
-                reader,
-            )
-            .map(drop)
+            crate::structural_wire::structural_field_wire::decode_ieee_float_comparison_kind(reader)
+                .map(drop)
         },
     );
 }
