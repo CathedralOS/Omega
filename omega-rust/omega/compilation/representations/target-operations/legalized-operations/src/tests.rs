@@ -30,7 +30,7 @@ pub(super) use semantic_vocabulary::{
     ValueId, WorkScheduleIdentity,
 };
 pub(super) use target::NativeTarget;
-pub(super) use target_operations::TerminalPsiProvenance;
+pub(super) use target_vocabulary::TerminalPsiProvenance;
 pub(super) use terminal_psi::{
     BindingRelevance, ClaimTransfer, CompletionReceipt, EntryClaim, ProviderCandidateConformance,
     SemanticFingerprint, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
@@ -64,7 +64,7 @@ pub(super) fn structural_argument_mut(
     argument: &mut LegalizedScalarArgument,
 ) -> (
     &mut StructuralArgument,
-    &mut target_operations::TargetStructuralArgument,
+    &mut target_vocabulary::TargetStructuralArgument,
 ) {
     let LegalizedScalarArgument::Structural {
         semantic, target, ..
@@ -110,7 +110,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 projected_qualifications: Vec::new(),
                 additional_input_qualifications: Vec::new(),
             },
-            target: target_operations::TargetStructuralParameter {
+            target: target_vocabulary::TargetStructuralParameter {
                 place,
                 structural_type: extent_type,
                 multiplicity: StructuralMultiplicity::Linear,
@@ -132,7 +132,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     path: Vec::new(),
                     access: StructuralAccess::Owned,
                 },
-                target: target_operations::TargetStructuralArgument {
+                target: target_vocabulary::TargetStructuralArgument {
                     place: parameter.semantic.place,
                     access: StructuralAccess::Owned,
                     path: Vec::new(),
@@ -264,7 +264,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                         call_plan,
                         result_placement: None,
                         source: NativeCallOrigin::Authored,
-                        target: target_operations::NativeCallTarget::Machine(id(2)),
+                        target: target_vocabulary::NativeCallTarget::Machine(id(2)),
                         arguments,
                         claim_transfers: vec![
                             ClaimTransfer {
@@ -452,7 +452,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
             structural_result: None,
             source: NativeCallOrigin::Authored,
             claim_transfers: Vec::new(),
-            target: target_operations::NativeCallTarget::Machine(callee),
+            target: target_vocabulary::NativeCallTarget::Machine(callee),
             call_plan: call_plan.clone(),
             result_placement: call_plan.result.clone(),
             arguments: sources

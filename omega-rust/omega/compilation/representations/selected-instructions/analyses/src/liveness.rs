@@ -1238,7 +1238,7 @@ pub(crate) mod edge_values {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
                 nominal_cleanup_subject: None,
-                provenance: target_operations::TerminalPsiProvenance {
+                provenance: target_vocabulary::TerminalPsiProvenance {
                     operations: vec![operation],
                     edges: vec![returned],
                 },
@@ -1691,9 +1691,9 @@ pub(crate) mod edge_values {
                             call.call.target,
                         ))
                     || call.owner
-                        != (target_operations::CallSiteOwner::Installation {
+                        != (target_vocabulary::CallSiteOwner::Installation {
                             operation: *operation,
-                            role: target_operations::InstallationCallRole::Work,
+                            role: target_vocabulary::InstallationCallRole::Work,
                         })
                     || instruction.provenance.operations.as_slice() != [*operation]
                     || !instruction.provenance.edges.is_empty()

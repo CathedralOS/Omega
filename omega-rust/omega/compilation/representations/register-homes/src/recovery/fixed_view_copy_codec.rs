@@ -672,7 +672,7 @@ pub(super) fn decode_function(
         machine,
         attachment,
         nominal_cleanup_subject,
-        provenance: target_operations::TerminalPsiProvenance { operations, edges },
+        provenance: target_vocabulary::TerminalPsiProvenance { operations, edges },
         entry_block,
         virtual_registers,
         blocks: blocks.into(),

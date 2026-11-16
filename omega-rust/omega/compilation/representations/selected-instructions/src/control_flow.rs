@@ -17,7 +17,7 @@ use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegist
 use native_vocabulary::provenance::WorkSettlement;
 use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFunction {

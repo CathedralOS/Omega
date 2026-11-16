@@ -9,6 +9,7 @@ name = "machine_code"
 path = "src/lib.rs"
 
 [dependencies]
+target-vocabulary = { path = "../target-operations/target-vocabulary" }
 native-vocabulary = { path = "../native-vocabulary" }
 register-homes = { path = "../register-homes" }
 post-allocation-machine = { path = "../post-allocation-machine" }
@@ -18,7 +19,6 @@ optimization-core = { path = "../../../foundation/optimization-core" }
 target = { path = "../../backend/target" }
 register-model = { path = "../../backend/register-model" }
 selected-instructions = { path = "../selected-instructions" }
-target-operations = { path = "../target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

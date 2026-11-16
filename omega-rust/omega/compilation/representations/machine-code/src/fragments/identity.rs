@@ -24,7 +24,7 @@ use native_vocabulary::provenance::{PsiProvenance, WorkSettlement};
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 
 const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v24";
 

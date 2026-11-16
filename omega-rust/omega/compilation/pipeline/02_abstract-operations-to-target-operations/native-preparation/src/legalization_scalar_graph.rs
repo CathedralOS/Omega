@@ -1623,7 +1623,7 @@ pub(crate) mod atomic_access {
         }
         let cell = terminal_semantics::atomic_cell_type(types.iter(), root, &location.path)?;
         let scalar_type = cell.scalar_type();
-        let integer = target_operations::operations::atomic_storage_integer_type_closed(
+        let integer = target_operations::atomic_storage_integer_type_closed(
             event,
             unit.closed_scalar(scalar_type)?,
         )?;

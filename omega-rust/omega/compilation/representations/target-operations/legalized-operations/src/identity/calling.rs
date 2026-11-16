@@ -22,7 +22,7 @@ use calling_conventions::{
     CallPlan, CallbackMaterialization, CallingPolicy, EntryControl, IndirectPointerLocation,
     NativePlace, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
-use target_operations::{
+use target_vocabulary::{
     BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
     BoundarySettlementRealization, CompilerBuiltinExecution,
 };
@@ -338,7 +338,7 @@ pub fn encode_boundary_execution_identity(
             bytes.push(11);
             super::structural::encode_external_execution(
                 bytes,
-                target_operations::ExternalExecutionBinding::NativeBinding(native),
+                target_vocabulary::ExternalExecutionBinding::NativeBinding(native),
             );
         }
         BoundaryExecutionBinding::CompilerBuiltin(
