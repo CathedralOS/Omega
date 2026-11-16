@@ -18,6 +18,10 @@ fn key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
+pub(super) struct BoundaryParentRequirements {
+    inherited_callables: bool,
+}
+
 impl Program<'_> {
     fn static_envelope(
         &self,
@@ -136,7 +140,13 @@ impl Program<'_> {
                         "boundary parent contracts need their complete declaration application",
                     )
                 })?;
-                self.require_boundary_parent_contract(context, &scope)?;
+                let parents = self.require_boundary_parent_contract(context, &scope)?;
+                if parents.inherited_callables {
+                    return Err(services::unavailable(
+                        context,
+                        "boundary schema needs its inherited callable requirement projection",
+                    ));
+                }
             }
         } else {
             schema_shape(typed, context, declaration)?;
@@ -281,7 +291,7 @@ impl Program<'_> {
         &mut self,
         context: MachineId,
         scope: &AppliedTraitScope<'_>,
-    ) -> Checked<()> {
+    ) -> Checked<BoundaryParentRequirements> {
         let typed = self.typed;
         if !scope.declaration.is_boundary {
             return Err(services::unavailable(
@@ -290,6 +300,7 @@ impl Program<'_> {
             ));
         }
         let mut ordinary = false;
+        let mut inherited_callables = false;
         scope
             .try_visit(typed, &mut |view| {
                 if !view.declaration.is_boundary {
@@ -304,9 +315,7 @@ impl Program<'_> {
                 } else if view.declaration.symbol != scope.declaration.symbol
                     && !typed.trait_machine_signatures(view.declaration).is_empty()
                 {
-                    return Err(
-                        "boundary schema needs its inherited callable requirement projection",
-                    );
+                    inherited_callables = true;
                 }
                 Ok(())
             })
@@ -317,7 +326,9 @@ impl Program<'_> {
                 self.boundary_parent_contracts.push(environment);
             }
         }
-        Ok(())
+        Ok(BoundaryParentRequirements {
+            inherited_callables,
+        })
     }
 
     pub(super) fn conformance_declaration(
@@ -785,6 +796,145 @@ mod parent_contract_tests {
     use std::sync::Arc;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::trait_definition::TraitRequirement;
+
+    #[test]
+    fn applied_parent_contract_admission_does_not_form_an_inherited_static_schema() {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                "parents/calling.omg".into(),
+                "Wire Marker Base Mid".into(),
+                "parents".into(),
+                semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [
+                (
+                    SymbolKind::Trait,
+                    SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 4))),
+                ),
+                (
+                    SymbolKind::Trait,
+                    SymbolNameRef::Source(SourceSpan::new(source, Span::new(5, 11))),
+                ),
+                (
+                    SymbolKind::Trait,
+                    SymbolNameRef::Source(SourceSpan::new(source, Span::new(12, 16))),
+                ),
+                (
+                    SymbolKind::Trait,
+                    SymbolNameRef::Source(SourceSpan::new(source, Span::new(17, 20))),
+                ),
+            ],
+        );
+        let boundary = declarations.handle_at(0);
+        let ordinary = declarations.handle_at(1);
+        let inherited = declarations.handle_at(2);
+        let intermediate = declarations.handle_at(3);
+        let method = symbols
+            .insert_children(
+                inherited,
+                [(SymbolKind::Machine, SymbolNameRef::Static("read"))],
+            )
+            .handle_at(0);
+        let mut typed = typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let parents = typed.trait_requirements.insert_many([
+            TraitRequirement {
+                symbol: ordinary,
+                name: typed_trees::name::Identifier::generated("Marker"),
+                ..Default::default()
+            },
+            TraitRequirement {
+                symbol: intermediate,
+                name: typed_trees::name::Identifier::generated("Mid"),
+                ..Default::default()
+            },
+        ]);
+        let machines = typed.trait_machine_signatures.insert_many([StateSignature {
+            symbol: method,
+            name: typed_trees::name::Identifier::generated("read"),
+            ..Default::default()
+        }]);
+        typed.push_trait_definition(TraitDefinition {
+            symbol: ordinary,
+            name: typed_trees::name::Identifier::generated("Marker"),
+            ..Default::default()
+        });
+        typed.push_trait_definition(TraitDefinition {
+            symbol: inherited,
+            name: typed_trees::name::Identifier::generated("Base"),
+            is_boundary: true,
+            machines,
+            ..Default::default()
+        });
+        let base_parent = typed.trait_requirements.insert_many([TraitRequirement {
+            symbol: inherited,
+            name: typed_trees::name::Identifier::generated("Base"),
+            ..Default::default()
+        }]);
+        typed.push_trait_definition(TraitDefinition {
+            symbol: intermediate,
+            name: typed_trees::name::Identifier::generated("Mid"),
+            is_boundary: true,
+            requires: base_parent,
+            ..Default::default()
+        });
+        typed.push_trait_definition(TraitDefinition {
+            symbol: boundary,
+            name: typed_trees::name::Identifier::generated("Wire"),
+            is_boundary: true,
+            requires: parents,
+            ..Default::default()
+        });
+        let declaration = typed.trait_definition_by_symbol(boundary).unwrap();
+        let scope = AppliedTraitScope::new(
+            &typed,
+            declaration,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: boundary,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let context = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        let requirements = program
+            .require_boundary_parent_contract(context, &scope)
+            .unwrap();
+        assert!(requirements.inherited_callables);
+        assert_eq!(program.boundary_parent_contracts.len(), 1);
+        assert!(
+            program
+                .require_complete_boundary_parent_contracts(
+                    context,
+                    &super::super::calling::SourceCallingPolicies::default()
+                )
+                .is_err(),
+            "recording the application grants no completed ordinary contract"
+        );
+        let refusal = program
+            .boundary_trait_declaration(context, declaration)
+            .expect_err("static inherited callable projection remains unsupported");
+        assert!(
+            refusal
+                .detail
+                .contains("inherited callable requirement projection")
+        );
+        assert!(
+            program.static_contracts.schemas.is_empty(),
+            "a refused schema must not leave an accepted cached projection"
+        );
+    }
 
     #[test]
     fn ordinary_boundary_parents_require_a_contract_owner_without_service_reach() {
