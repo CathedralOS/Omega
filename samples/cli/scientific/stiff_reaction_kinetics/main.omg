@@ -4,10 +4,20 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::narrow_u64_to_i64_saturating;
 use domain::input;
+use domain::input::Input;
+use domain::input::read;
 use domain::model;
+use domain::model::Problem;
+use domain::model::valid;
+use domain::model::problem;
 use domain::rates;
+use domain::rates::physical;
 use domain::integrate;
+use domain::integrate::Solution;
+use domain::integrate::integrate;
 use domain::report;
+use domain::report::scaled;
+use domain::report::integer64;
 data Main { input: Input; problem: Problem; solution: Solution; }
 machine main(main: &mut Main) reaches ProcessExit + Console {
     block read(&mut main.input);

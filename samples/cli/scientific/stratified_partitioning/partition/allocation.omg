@@ -1,7 +1,9 @@
+module partition::allocation;
 // Enumerate all eight-bit group masks. Strict improvement preserves the
 // smallest mask on ties; unused bits therefore stay zero. Group membership
 // depends only on the numeric ID, never on input position.
 use data::dataset;
+use data::dataset::Dataset;
 public data Allocation {
     mask: i32 in Saturating;
     score: i32 in Saturating;

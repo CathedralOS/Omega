@@ -1,7 +1,10 @@
+module io::output;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use domain::indexing;
+use domain::indexing::Problem;
+use domain::indexing::allowed;
 use omega::language::core::narrow_i64_to_i32_saturating;
 use omega::language::core::narrow_u64_to_i32_saturating;
 // These exact metadata values are bounded by the search (at most 765
@@ -60,7 +63,7 @@ machine peaks(problem: &Problem, kind: u64, index: u64) reaches ProcessExit + Co
     }
     machine done() { }
 }
-machine families(kind: u64, squared: u64, h: u64, k: u64, l: u64) reaches ProcessExit + Console invokes Console {
+public machine families(kind: u64, squared: u64, h: u64, k: u64, l: u64) reaches ProcessExit + Console invokes Console {
     transition h < 5 && k < 5 && l < 5 { true -> test(kind, squared, h, k, l) false -> done() }
     machine test(kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
         transition h >= k && k >= l && h * h + k * k + l * l == squared && allowed(kind, h, k, l) {
@@ -76,7 +79,7 @@ machine families(kind: u64, squared: u64, h: u64, k: u64, l: u64) reaches Proces
     }
     machine done() { }
 }
-machine missing(problem: &Problem, mask: u64, rank: u64) reaches ProcessExit + Console invokes Console {
+public machine missing(problem: &Problem, mask: u64, rank: u64) reaches ProcessExit + Console invokes Console {
     transition rank < problem.last && rank < 8 { true -> test(problem, mask, rank) false -> done() }
     machine test(problem: &Problem, mask: u64, rank: u64) requires rank < 8 {
         transition mask % 2 == 0 { true -> emit(problem, mask, rank) false -> missing(problem, mask / 2, rank + 1) }

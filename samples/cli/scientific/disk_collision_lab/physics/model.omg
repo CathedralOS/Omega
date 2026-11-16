@@ -1,3 +1,4 @@
+module physics::model;
 // Scientific model: isolated frictionless disks, constant velocity between
 // instantaneous Newton restitution impulses. No walls, gravity or spin.
 public data Disk [copy] { x:f64; y:f64; vx:f64; vy:f64; radius:f64; mass:f64; }

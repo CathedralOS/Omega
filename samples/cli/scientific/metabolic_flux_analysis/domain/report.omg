@@ -1,4 +1,6 @@
+module domain::report;
 use domain::input;
+use domain::input::Reader;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i64;

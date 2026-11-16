@@ -1,6 +1,7 @@
+module model::enumeration;
 // Private IND12 model. Trapping arithmetic remains observable if its documented
 // bound is ever violated; no silent wrap or floating-point accumulation.
-data Lattice {
+public data Lattice {
     sites: u64;
     activity: u64 in Trapping;
     bond: u64 in Trapping;
@@ -12,7 +13,7 @@ data Lattice {
     histogram: [u64; 9] in Trapping;
 }
 
-machine enumerate(lattice: &mut Lattice) {
+public machine enumerate(lattice: &mut Lattice) {
     transition { _ -> capacity(lattice, 0, 1) }
     machine capacity(lattice: &mut Lattice, position: u64, count: u64 in Trapping) {
         transition position < lattice.sites {

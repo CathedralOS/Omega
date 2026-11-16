@@ -1,5 +1,9 @@
+module demography::report;
 use omega_language_std::Console;
 use demography::model;
+use demography::model::Census;
+use demography::model::Balance;
+use demography::model::total;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 // Decimal output uses no allocation and includes a sign for net emigration.
 public machine number(value: i64 in Wrapping) reaches Console

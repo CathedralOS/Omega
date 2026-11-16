@@ -1,3 +1,4 @@
+module exact;
 // Exact combinatorics: admitted N <= 10 bounds every binomial to 252.
 // Wrapping arithmetic is deliberate; application admission gives the stronger range.
 public data Fraction [copy] { numerator: u64 in Wrapping; denominator: u64 in Wrapping; }

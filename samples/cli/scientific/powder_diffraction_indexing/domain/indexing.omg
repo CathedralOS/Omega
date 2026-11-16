@@ -1,9 +1,15 @@
+module domain::indexing;
 use omega::language::core::F64::from_u64;
 use omega::language::core::F64::square_root;
 use omega::language::core::U64::from_f64;
 use omega_language_std::Console;
 use io::input;
+use io::input::Raw;
 use io::output;
+use io::output::integer;
+use io::output::report;
+use io::output::families;
+use io::output::missing;
 public data Problem {
     count: u64; wavelength: f64; tolerance: f64;
     angles: [f64; 6]; vectors: [f64; 6]; lines: [u64; 8];

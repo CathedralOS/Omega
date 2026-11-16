@@ -1,3 +1,4 @@
+module domain::tables;
 // Private fixed-margin model. Every accepted margin is positive; N <= 8.
 // Wrapping marks arithmetic whose full boundedness is established by input validation.
 // No shared numerical package is imported.

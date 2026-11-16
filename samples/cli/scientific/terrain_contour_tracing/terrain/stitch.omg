@@ -1,8 +1,10 @@
+module terrain::stitch;
 use terrain::model;
+use terrain::model::Contours;
 // Consume segments exactly once. Degree-one starts precede cycles; all scans
 // use increasing canonical edge identity. A closed path repeats its first
 // vertex. Eight segments require at most sixteen stored vertices.
-data Paths {
+public data Paths {
     vertices: [u64; 16];
     offsets: [u64; 8];
     lengths: [u64; 8];
@@ -13,7 +15,7 @@ data Paths {
     loops: u64 in Wrapping;
     valid: bool;
 }
-machine stitch(graph: &mut Contours, paths: &mut Paths) {
+public machine stitch(graph: &mut Contours, paths: &mut Paths) {
     paths.valid = true;
     paths.count = 0;
     paths.size = 0;

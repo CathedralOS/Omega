@@ -1,8 +1,13 @@
+module domain::solver;
 use domain::shockley;
+use domain::shockley::Circuit;
+use domain::shockley::diode_current;
+use domain::shockley::circuit_residual;
+use domain::shockley::magnitude;
 
 // status: 1 converged, 2 iteration limit, 3 no sign bracket in the requested
 // interval. Monotonicity follows from R, Is and thermal being positive.
-data Solver {
+public data Solver {
     source: f64;
     lower: f64;
     upper: f64;
@@ -20,7 +25,7 @@ data Solver {
     scan_count: i32 in Wrapping;
 }
 
-machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
+public machine solve(circuit: &Circuit, solver: &mut Solver, source: f64,
     budget: i32 in Wrapping) {
     solver.source = source;
     solver.iterations = 0;

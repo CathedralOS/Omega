@@ -1,4 +1,7 @@
+module domain::input;
 use domain::sequence;
+use domain::sequence::Sequence;
+use domain::sequence::sequence_append;
 // LF-delimited R<contig>:<reference> or V<contig>:<position>:<ref>:<alt>:<source>.
 // Coordinates and source ids are single decimal digits. '-' is an empty allele.
 public data Input {

@@ -1,7 +1,9 @@
+module io::report;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use physics::model;
+use physics::model::ReflectionTree;
 
 // Fixed twelve-digit signed decimal fields avoid a host formatting dependency.
 // All values in this bounded model fit; the validator checks each numeric field.

@@ -1,5 +1,7 @@
+module domain::settings;
 use omega_language_std::Console;
 use io::input;
+use io::input::number;
 public data Settings {
     width: i64 in Wrapping;
     signedness: i64 in Wrapping;

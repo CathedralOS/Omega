@@ -1,3 +1,4 @@
+module domain::phasor;
 // Private bounded cosine: reduce into [-pi, pi], then degree-20 Taylor.
 // Geometry validation bounds phase to 8*pi; the sine shift adds pi/2, requiring <=5 turns.
 // Taylor remainder <= pi^22/22! < 8e-11. No shared numerics imports.

@@ -1,9 +1,19 @@
+module domain::evolve;
 // Crank-Nicolson: (I+i dt H/2) psi_next = (I-i dt H/2) psi.
 // The centred periodic H is real symmetric. Every principal I+i dt H/2
 // has eigenvalues 1+i dt lambda/2, hence LU pivots never vanish.
 // Factor once; forward/back substitution preserves the authored complex state.
 use domain::complex;
+use domain::complex::Complex;
+use domain::complex::add;
+use domain::complex::subtract;
+use domain::complex::multiply;
+use domain::complex::divide;
 use domain::model;
+use domain::model::Problem;
+use domain::model::element;
+use domain::model::store;
+use domain::model::hamiltonian;
 public machine factor(problem: &mut Problem) {
     transition { _ -> rows(problem, 0) }
     machine rows(problem: &mut Problem, row: i32) {

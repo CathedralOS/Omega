@@ -8,9 +8,17 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::model;
+use domain::model::Problem;
+use domain::model::Schedule;
 use domain::input;
+use domain::input::Input;
+use domain::input::Tokens;
+use domain::input::parse;
+use domain::input::decode;
 use domain::solver;
+use domain::solver::solve;
 use domain::verify;
+use domain::verify::verify;
 
 data Main { }
 

@@ -1,8 +1,15 @@
+module domain::filter;
 // Constant-velocity prediction followed by a scalar observation. Joseph form
 // keeps roundoff from subtracting nearly equal covariance matrices. No library
 // numerics or external worker implementation participates in these operations.
 use domain::matrix;
-data Filter {
+use domain::matrix::Matrix;
+use domain::matrix::Vector;
+use domain::matrix::multiply;
+use domain::matrix::transpose;
+use domain::matrix::add;
+use domain::matrix::apply;
+public data Filter {
     estimate: Vector;
     covariance: Matrix;
     interval: f64;
@@ -12,14 +19,14 @@ data Filter {
     innovation_variance: f64;
     updated: bool;
 }
-machine initialize(filter: &mut Filter, interval: f64, process_noise: f64, observation_noise: f64) {
+public machine initialize(filter: &mut Filter, interval: f64, process_noise: f64, observation_noise: f64) {
     filter.estimate = Vector { position: 0.0, velocity: 1.0 };
     filter.covariance = Matrix { a: 1.0, b: 0.0, c: 0.0, d: 1.0 };
     filter.interval = interval;
     filter.process_noise = process_noise;
     filter.observation_noise = observation_noise;
 }
-machine predict(filter: &mut Filter) {
+public machine predict(filter: &mut Filter) {
     let dynamics: Matrix = Matrix { a: 1.0, b: filter.interval, c: 0.0, d: 1.0 };
     let noise: Matrix = Matrix { a: filter.process_noise, b: 0.0, c: 0.0, d: filter.process_noise };
     filter.estimate = apply(dynamics, filter.estimate);
@@ -30,7 +37,7 @@ machine predict(filter: &mut Filter) {
 }
 // A false result is a singular innovation covariance; the predicted estimate
 // remains available and no division or measurement mutation has occurred.
-machine observe(filter: &mut Filter, measurement: f64, position_axis: bool) -> bool {
+public machine observe(filter: &mut Filter, measurement: f64, position_axis: bool) -> bool {
     transition position_axis {
         true -> update(filter, measurement, Vector { position: 1.0, velocity: 0.0 })
         false -> update(filter, measurement, Vector { position: 0.0, velocity: 1.0 })

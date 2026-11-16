@@ -1,3 +1,4 @@
+module platform::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 

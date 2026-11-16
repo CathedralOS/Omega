@@ -1,3 +1,4 @@
+module physics::model;
 // Lossless discrete travelling-wave model. One tick is one pulse-width unit.
 // Four delay calendars store voltages, so coherent arrivals combine before
 // squaring. Terminal resistances are represented by exact limiting coefficients.

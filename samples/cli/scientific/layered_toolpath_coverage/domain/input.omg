@@ -1,4 +1,6 @@
+module domain::input;
 use domain::model;
+use domain::model::Job;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 // A digit is one token. Whitespace is optional; EOF and other bytes are errors.
@@ -42,7 +44,7 @@ machine input_end() -> bool reaches Console {
     }
     machine again() -> bool { transition { _ -> read() } }
 }
-machine load(job: &mut Job) -> bool reaches Console {
+public machine load(job: &mut Job) -> bool reaches Console {
     job.width = block digit();
     job.height = block digit();
     job.layers = block digit();

@@ -1,8 +1,9 @@
+module domain::orbit;
 use omega::language::core::F64::square_root;
 
 // Velocity Verlet keeps the central-force angular momentum. Each drift segment
 // is tested against the collision sphere, including a crossing between endpoints.
-data Orbit {
+public data Orbit {
     parameter: f64; timestep: f64;
     x: f64; y: f64; vx: f64; vy: f64;
     energy: f64; momentum: f64; radial: f64;
@@ -11,10 +12,10 @@ data Orbit {
     collision: bool; periapsis: bool;
 }
 
-machine coordinate(value: f64) -> f64
+public machine coordinate(value: f64) -> f64
 requires value == value && value >= -1000000.0 && value <= 1000000.0 { value }
 
-machine diagnostics(orbit: &mut Orbit) {
+public machine diagnostics(orbit: &mut Orbit) {
     let radius: f64 = F64::square_root(orbit.x * orbit.x + orbit.y * orbit.y);
     let speed_squared: f64 = orbit.vx * orbit.vx + orbit.vy * orbit.vy;
     orbit.energy = 0.5 * speed_squared - orbit.parameter / radius;
@@ -22,7 +23,7 @@ machine diagnostics(orbit: &mut Orbit) {
     orbit.radial = orbit.x * orbit.vx + orbit.y * orbit.vy;
 }
 
-machine step(orbit: &mut Orbit) {
+public machine step(orbit: &mut Orbit) {
     orbit.periapsis = false;
     orbit.previous_radial = orbit.radial;
     let radius_squared: f64 = orbit.x * orbit.x + orbit.y * orbit.y;

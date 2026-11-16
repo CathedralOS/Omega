@@ -4,8 +4,19 @@ use omega::language::core::ProcessExit;
 // Expected output contains: INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]
 use omega_language_std::Console;
 use model::audit;
+use model::audit::Contributor;
+use model::audit::Assembly;
+use model::audit::Audit;
+use model::audit::valid;
+use model::audit::lower_choice;
+use model::audit::upper_choice;
+use model::audit::calculate;
 use data::profiles;
+use data::profiles::load;
 use io::numbers;
+use io::numbers::Input;
+use io::numbers::read_integer;
+use io::numbers::write_integer;
 
 data Main {
     input: Input;

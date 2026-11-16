@@ -1,7 +1,12 @@
 use omega::language::core::ProcessExit;
 // Expected exit: 0 for input.txt; numerical oracle: fixtures.json.
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::report;
+use domain::report::field;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use omega_language_std::Console;

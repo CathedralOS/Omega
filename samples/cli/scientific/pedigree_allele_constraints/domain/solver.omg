@@ -1,4 +1,7 @@
+module domain::solver;
 use domain::model;
+use domain::model::Pedigree;
+use domain::model::transmission;
 
 // Mixed-radix genotype enumeration, separate from the oracle's allele-copy
 // generative enumeration. All arithmetic is bounded by 3^6 and 4^6.

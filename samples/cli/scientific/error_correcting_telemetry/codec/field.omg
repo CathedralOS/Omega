@@ -1,3 +1,4 @@
+module codec::field;
 // Synthetic RS(4,2) over F5, evaluations at x=0,1,2,3.
 // Wrapping arithmetic is private scratch; values are reduced after every
 // bounded operation. It is never used to justify indexing or input validity.

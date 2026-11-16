@@ -1,9 +1,14 @@
+module design::search;
 use design::model;
+use design::model::Request;
+use design::model::Allocation;
+use design::model::treatment;
 use design::certificate;
+use design::certificate::certify;
 
 // Lexicographic multiset successor. Each complete candidate is materialized;
 // admission comes from count-based verification of the actual treatment cells.
-machine solve(request: &Request, allocation: &mut Allocation) -> bool {
+public machine solve(request: &Request, allocation: &mut Allocation) -> bool {
     allocation.sequences = [0, 0, 0, 0, 0, 0];
     transition { _ -> candidate(request, allocation) }
     machine candidate(request: &Request, allocation: &mut Allocation) -> bool {

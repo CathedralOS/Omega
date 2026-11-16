@@ -1,4 +1,6 @@
+module domain::cycles;
 use domain::input;
+use domain::input::Input;
 
 // Declared synthetic four-point rule: close b,c when its range is no larger
 // than either enclosing range a,b or c,d; remove b,c and re-examine the tail.
@@ -33,7 +35,7 @@ public data Audit {
     fourth: u64;
 }
 
-machine prepare(audit: &mut Audit, input: &Input) {
+public machine prepare(audit: &mut Audit, input: &Input) {
     audit.exponent = input.values[0];
     audit.denominator = input.values[1] * 2;
     audit.turning_count = 0;
@@ -131,7 +133,7 @@ machine record(audit: &mut Audit) {
     machine done() {}
 }
 
-machine count(audit: &mut Audit) {
+public machine count(audit: &mut Audit) {
     audit.index = 0;
     audit.stack_count = 0;
     audit.cycle_count = 0;

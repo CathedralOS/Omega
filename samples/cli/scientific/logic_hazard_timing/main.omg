@@ -7,6 +7,10 @@ use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use model::netlist;
+use model::netlist::Gate;
+use model::netlist::Network;
+use model::netlist::configure;
+use model::netlist::evaluate;
 
 data Main {
     network: Network;

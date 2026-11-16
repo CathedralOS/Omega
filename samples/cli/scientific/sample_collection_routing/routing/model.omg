@@ -1,3 +1,4 @@
+module routing::model;
 // Synthetic two-sample mobile laboratory model: integer minutes and unit vials.
 // Travel is distance on a line; pickup windows constrain service START.
 // Every visit consumes one minute. Each drop returns its vial to depot zero.

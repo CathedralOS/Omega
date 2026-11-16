@@ -1,8 +1,20 @@
 use omega::language::core::ProcessExit;
 // Complete supplied-calibration compensation application; see README for units.
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::model;
+use domain::model::Segment;
+use domain::model::Estimate;
+use domain::model::voltage;
+use domain::model::magnitude;
+use domain::model::valid;
+use domain::model::inside;
+use domain::model::enumerate;
 use domain::report;
+use domain::report::field;
 use omega::language::core::F64::from_i32;
 use omega_language_std::Console;
 

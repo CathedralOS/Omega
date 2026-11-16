@@ -3,8 +3,15 @@ use omega::language::core::ProcessExit;
 // Empty stdin is the frozen invalid case; valid histories exit 0.
 use omega_language_std::Console;
 use domain::input;
+use domain::input::Input;
+use domain::input::read;
+use domain::input::validate;
 use domain::cycles;
+use domain::cycles::Audit;
+use domain::cycles::prepare;
+use domain::cycles::count;
 use domain::report;
+use domain::report::write;
 
 data Main {
     input: Input;

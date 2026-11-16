@@ -1,8 +1,10 @@
+module domain::report;
 use omega_language_std::Console;
 use omega::language::core::U64::from_f64;
 use omega::language::core::narrow_i32_to_u64_saturating;
 use omega::language::core::narrow_u64_to_i32_saturating;
 use domain::model;
+use domain::model::Analysis;
 // Scientific output retains twelve significant decimal places at every scale.
 public machine number(value: f64)
 invokes Console reaches Console {

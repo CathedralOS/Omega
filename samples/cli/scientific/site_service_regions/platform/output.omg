@@ -1,7 +1,9 @@
+module platform::output;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use domain::model;
+use domain::model::Partition;
 // Runtime recursion is tail-only. Keep pending decimal digits in private
 // fixed storage: every i64 needs at most 19 digits, including i64::MIN.
 data Digits { bytes: [i32; 20]; count: u64; }

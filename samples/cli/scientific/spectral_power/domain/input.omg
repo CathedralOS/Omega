@@ -1,3 +1,4 @@
+module domain::input;
 // Bounded ASCII signed integer tokens. Each value is unscaled.
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.
