@@ -701,7 +701,7 @@ mod grammar {
         visitor.static_name(&name)
     }
 
-    fn semantic_name(
+    pub(super) fn semantic_name(
         name: &str,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         callable_regions: bool,
@@ -1558,6 +1558,7 @@ pub use lifetime_partition::normalize_requirement_lifetime_partition;
 pub fn closed_requirement_matches_calling_abi(
     declaration: &str,
     template: &str,
+    callable: &str,
     abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<bool, TypeIdentityVisitError> {
     use encoding::CoordinateTag;
@@ -1578,7 +1579,7 @@ pub fn closed_requirement_matches_calling_abi(
         let owner = reader.atom(CoordinateTag::TraitApplication, syntax)?;
         let mut owner_reader = framing::Reader::new(&owner);
         owner_reader.callable_regions = true;
-        grammar::type_identity(&mut owner_reader, syntax)?;
+        trait_application(&mut owner_reader, syntax)?;
         owner_reader.finish()?;
         reader.expect(b',')?;
         reader.expect_tag(CoordinateTag::LocalArguments)?;
@@ -1618,7 +1619,103 @@ pub fn closed_requirement_matches_calling_abi(
         Ok(actual_template == template && owner == abi.declaring_application && operands_match)
     })?;
     reader.finish()?;
-    Ok(matched)
+    Ok(matched && closed_callable_matches(callable, abi, &mut syntax)?)
+}
+
+fn trait_application(
+    reader: &mut framing::Reader<'_>,
+    syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
+) -> Result {
+    use encoding::CoordinateTag;
+    reader.expect_tag(CoordinateTag::TraitApplication)?;
+    grammar::compound(reader, syntax, |reader, syntax| {
+        grammar::name_atom(reader, CoordinateTag::Declaration, syntax)?;
+        for tag in [CoordinateTag::Arguments, CoordinateTag::Lifetimes] {
+            reader.expect(b',')?;
+            reader.expect_tag(tag)?;
+            grammar::compound(reader, syntax, |reader, syntax| {
+                let mut first = true;
+                while !reader.next(b')') {
+                    if !first {
+                        reader.expect(b',')?;
+                    }
+                    first = false;
+                    index::static_argument(reader, syntax)?;
+                }
+                Ok(())
+            })?;
+        }
+        Ok(())
+    })
+}
+
+fn callable_coordinates<'a>(
+    callable: &'a str,
+    syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
+) -> Result<(std::borrow::Cow<'a, str>, std::borrow::Cow<'a, str>)> {
+    use encoding::CoordinateTag;
+    let mut reader = framing::Reader::new(callable);
+    reader.callable_regions = true;
+    reader.expect_tag(CoordinateTag::NamedCallable)?;
+    let coordinates = grammar::compound(&mut reader, syntax, |reader, syntax| {
+        let path = reader.atom(CoordinateTag::Path, syntax)?;
+        grammar::semantic_name(&path, syntax, true)?;
+        reader.expect(b',')?;
+        let parameters = reader.atom(CoordinateTag::Parameters, syntax)?;
+        reader.expect(b',')?;
+        reader.opaque(CoordinateTag::ResultDispatch, syntax)?;
+        Ok((path, parameters))
+    })?;
+    reader.finish()?;
+    Ok(coordinates)
+}
+
+fn closed_callable_matches(
+    callable: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+    syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
+) -> Result<bool> {
+    use encoding::CoordinateTag;
+    let (path, parameters) = callable_coordinates(callable, syntax)?;
+    let (template_path, _) = callable_coordinates(&abi.requirement_identity, syntax)?;
+    let mut reader = framing::Reader::new(&parameters);
+    reader.callable_regions = true;
+    reader.expect_tag(CoordinateTag::ClosedRequirement)?;
+    let matches = grammar::compound(&mut reader, syntax, |reader, syntax| {
+        let template = reader.atom(CoordinateTag::Template, syntax)?;
+        reader.expect(b',')?;
+        let owner = reader.atom(CoordinateTag::TraitApplication, syntax)?;
+        reader.expect(b',')?;
+        reader.expect_tag(CoordinateTag::LocalArguments)?;
+        let operands_match = grammar::compound(reader, syntax, |reader, syntax| {
+            let mut ordinal = 0_usize;
+            let mut matched = true;
+            while !reader.next(b')') {
+                if ordinal != 0 {
+                    reader.expect(b',')?;
+                }
+                let start = reader.position();
+                index::static_argument(reader, syntax)?;
+                let identity = reader.consumed_since(start);
+                matched &= abi.operands.get(ordinal).is_some_and(|operand| {
+                    usize::try_from(operand.ordinal).ok() == Some(ordinal)
+                        && identity == operand.identity
+                });
+                ordinal = ordinal.checked_add(1).ok_or(Error::ResourceLimitExceeded)?;
+            }
+            Ok(matched && ordinal == abi.operands.len())
+        })?;
+        reader.expect(b',')?;
+        // The existing declaration and calling geometry owners check runtime
+        // parameter types. Retain their complete framed payload here.
+        reader.opaque(CoordinateTag::Parameters, syntax)?;
+        Ok(path == template_path
+            && template == abi.requirement_identity
+            && owner == abi.declaring_application
+            && operands_match)
+    })?;
+    reader.finish()?;
+    Ok(matches)
 }
 
 // This query validates framing, not package authority. Bound recursive identity

@@ -947,9 +947,30 @@ pub(crate) mod declarations {
                 || !language_semantics::type_identity::closed_requirement_matches_calling_abi(
                     text(self.source.semantic_declaration)?,
                     text(application.template_semantic_declaration)?,
+                    text(self.source.callable)?,
                     abi,
                 )
                 .map_err(|reason| reason.to_string())?
+            {
+                return Ok(false);
+            }
+            if self.method_arguments.len() != abi.operands.len()
+                || self
+                    .method_arguments
+                    .iter()
+                    .zip(&abi.operands)
+                    .any(|(argument, operand)| {
+                        use semantic_vocabulary::CallingOperandKind;
+                        let index = match (argument, operand.kind) {
+                            (crate::ClosedReachArgument::Type(index), CallingOperandKind::Type)
+                            | (
+                                crate::ClosedReachArgument::Const(index),
+                                CallingOperandKind::Const | CallingOperandKind::Value,
+                            ) => *index,
+                            _ => return true,
+                        };
+                        identities.text(index) != Some(operand.identity.as_str())
+                    })
             {
                 return Ok(false);
             }

@@ -790,6 +790,56 @@ machine entry() -> u32 crashes none {
                 "another argument, kind, template, owner or tuple must not share calling authority: {mutation}"
             );
         }
+        let other = module.boundary_machines[1 - ordinal]
+            .declaration
+            .as_ref()
+            .unwrap();
+        let mut changed = declaration.clone();
+        changed.source.semantic_declaration = other.source.semantic_declaration;
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, &abis[1 - ordinal])
+                .unwrap(),
+            "a different semantic tuple must not retain the original method tuple and commitment"
+        );
+        let mut changed = declaration.clone();
+        changed.method_arguments.clone_from(&other.method_arguments);
+        let arguments = changed
+            .method_arguments
+            .iter()
+            .map(|argument| {
+                use language_semantics::conformance_identity::MachineOperandSelectionIdentity;
+                let terminal_psi::ClosedReachArgument::Const(identity) = argument else {
+                    panic!("this source applies one constant");
+                };
+                MachineOperandSelectionIdentity::Const(
+                    module.identities.text(*identity).unwrap().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let application = changed.source.specialization.as_mut().unwrap();
+        application.commitment =
+            language_semantics::conformance_identity::requirement_application_commitment(
+                module
+                    .identities
+                    .text(application.template_callable)
+                    .unwrap(),
+                &arguments,
+            )
+            .unwrap();
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap(),
+            "a new method tuple and recomputed commitment must not retain another semantic tuple"
+        );
+        changed.source.semantic_declaration = other.source.semantic_declaration;
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, &abis[1 - ordinal])
+                .unwrap(),
+            "coherent changed metadata must still match the original closed callable"
+        );
         let application = declaration.source.specialization.as_ref().unwrap();
         let identity = module
             .identities
@@ -805,7 +855,22 @@ machine entry() -> u32 crashes none {
         ] {
             assert!(
                 language_semantics::type_identity::closed_requirement_matches_calling_abi(
-                    &malformed, template, abi,
+                    &malformed,
+                    template,
+                    module.identities.text(declaration.source.callable).unwrap(),
+                    abi,
+                )
+                .is_err()
+            );
+        }
+        let callable = module.identities.text(declaration.source.callable).unwrap();
+        for malformed in [
+            format!("{callable}trailing"),
+            callable[..callable.len() - 1].to_owned(),
+        ] {
+            assert!(
+                language_semantics::type_identity::closed_requirement_matches_calling_abi(
+                    identity, template, &malformed, abi,
                 )
                 .is_err()
             );
