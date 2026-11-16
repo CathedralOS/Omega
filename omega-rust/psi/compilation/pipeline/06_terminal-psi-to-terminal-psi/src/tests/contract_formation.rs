@@ -141,6 +141,78 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
 }
 
 #[test]
+fn byte_predicate_contracts_reject_nonbyte_inputs_under_a_false_precondition() {
+    const SOURCE: &str = r#"
+machine observes<'input>(value: &'input u32) -> bool
+ensures result == true
+{ true }
+machine build_entry() {
+    let number: u32 = 37;
+    let verdict: bool = observes(&number);
+}
+"#;
+    let accepted = accepted_source(SOURCE);
+    let original = &accepted.elaboration.module;
+    let machine = original
+        .machines
+        .iter()
+        .find(|machine| machine.contract.structural_parameters.len() == 1)
+        .expect("the ordinary helper retains its actual borrowed input");
+    let input = &machine.contract.structural_parameters[0];
+    assert_eq!(input.access, terminal_psi::StructuralAccess::SharedBorrow);
+    assert_eq!(
+        machine.structural_parameters,
+        machine.contract.structural_parameters
+    );
+    assert!(
+        matches!(original.structural_type(input.structural_type).unwrap().shape,
+        terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+            if integer == integer_type(IntegerSign::Unsigned))
+    );
+    let contract_id = machine.contract.id;
+    let predicate = Proposition::Equal(
+        ScalarTerm::byte_sequence_predicate(
+            semantic_vocabulary::ByteSequencePredicate::AsciiOnly,
+            input.place,
+            Vec::new(),
+        ),
+        ScalarTerm::Boolean(true),
+    );
+    // A false precondition cannot erase a malformed input observation from
+    // either side of the ordinary callable contract. Keep the actual input
+    // and existing guarantee obligation while changing only its proposition.
+    for completion in [false, true] {
+        let mut module = original.clone();
+        let change = |contract: &mut terminal_psi::MachineContract| {
+            contract.requires = vec![Proposition::Falsehood];
+            if completion {
+                assert_eq!(contract.ensures.len(), 1);
+                contract.ensures[0].proposition = predicate.clone();
+            } else {
+                contract.requires.push(predicate.clone());
+            }
+            contract.source_checked_requires = contract.requires.clone();
+        };
+        for machine in &mut module.machines {
+            if machine.contract.id == contract_id {
+                change(&mut machine.contract);
+            }
+        }
+        for contract in &mut module.declaration_contracts {
+            if contract.id == contract_id {
+                change(contract);
+            }
+        }
+        let refusal = crate::formation::module(&module, &[])
+            .expect_err("a byte predicate cannot observe the helper's genuine u32 input");
+        assert!(
+            refusal.detail.contains("byte predicate"),
+            "the wrong byte carrier must be the refusal: {refusal:?}"
+        );
+    }
+}
+
+#[test]
 fn guarantees_cannot_form_an_input_precondition() {
     let mut elaboration =
         lower(vec![machine(vec![u32_type()], vec![returns(unsigned(0))])]).unwrap();
