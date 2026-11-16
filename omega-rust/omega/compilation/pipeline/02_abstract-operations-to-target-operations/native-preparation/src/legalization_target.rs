@@ -1374,6 +1374,7 @@ pub(crate) mod control_flow {
                         .map(|contract| contract.parameters.as_slice())
                         .unwrap_or(&[]),
                     &unit.accepted_obligation_facts,
+                    unit.closed_types(),
                 )? != crate::legalization_source::scalar_graph::terminator::audit_project(
                     terminal,
                     function_inputs,

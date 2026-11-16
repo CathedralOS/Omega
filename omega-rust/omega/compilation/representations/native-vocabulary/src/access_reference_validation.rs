@@ -7,7 +7,7 @@ correspondence, and owner base/length fields match the authenticated plan
 without granting provider admission, active loans, or concrete addresses.
 */
 
-use abstract_operations::AccessReferenceBacking;
+use crate::access_references::AccessReferenceBacking;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::find_structural_type;
 use terminal_psi::{StructuralTypeDeclaration, TerminalAccessViewPlan};
@@ -61,7 +61,7 @@ pub fn validate_backing(
 }
 
 pub fn borrowed_view_formation(
-    types: &abstract_operations::StructuralTypeCatalog,
+    types: &crate::structural_type_catalog::StructuralTypeCatalog,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     result: &terminal_psi::StructuralOperationResult,
 ) -> Option<(
@@ -107,7 +107,7 @@ pub fn borrowed_view_formation(
     }
     Some((
         path,
-        AccessReferenceBacking::BorrowedExtent(abstract_operations::BorrowedExtentBacking {
+        AccessReferenceBacking::BorrowedExtent(crate::access_references::BorrowedExtentBacking {
             owner: plan.storage.carrier,
             schema: plan.schema,
             carrier,

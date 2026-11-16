@@ -25,7 +25,7 @@ use diagnostics::Diagnostic;
 pub enum StageValidator {
     /// Rejoins each target's retained target operations to the optimized
     /// abstract operations they were lowered from
-    /// (`target_operations_to_selected_instructions::verify_target_operation_plan_with_closed_module`).
+    /// (`native_preparation::verify_target_operation_plan_with_closed_module`).
     TargetOperationCorrespondence,
 }
 

@@ -90,3 +90,17 @@ framework or a list of unimplemented features.
 - Cost: A zero-body selection pays to copy unrelated storage. Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
+
+### The execution plan and selected form still depend on the abstract-program crates
+- Category: knowledge crossing a boundary
+- Where: [plan manifest](omega-rust/omega/compilation/representations/target-operations/legalized-operations/Cargo.toml), [selected-instructions manifest](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml), [retained types](omega-rust/omega/compilation/representations/target-operations/legalized-operations/src/lib.rs), [selection boundary rule](tools/xtask/src/boundary.rs)
+- Saw: Instruction selection no longer depends on `abstract-operations`, `optimization-unit` or `terminal-codec`, and `check-boundary` enforces that. The representations it reads and writes still do: `legalized-operations` uses `optimization_unit::{access_view_catalog_identity_bytes, scalar_refinement_identity_bytes}`, `OwnershipFrontierFact` and `abstract_operations::CompletionClaimSource`, and both it and `selected-instructions` list those crates. Structural declarations in the plan still state leaf scalars in the checking form, so the plan carries `RetainedIntegerTypes` to close them, with an `Unsealed` case for plans built without a module. Stage 03 also names about forty leaf types from `target-operations`.
+- Cost: Selection can still reach the earlier program containers through the crates of its own input. Move the identity encoders and the remaining leaf records to `native-vocabulary`, close the leaf scalars of structural declarations during preparation, then drop the dependencies and extend the boundary rule to the two representation crates.
+- Reported: 2026-11-16, Claude Code, while moving preparation of the execution plan from stage 03 to stage 02.
+
+### Image emission still reads the target operations stage 02 keeps as a working form
+- Category: knowledge crossing a boundary
+- Where: [object evidence](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs)
+- Saw: Stage 02 now publishes one execution plan, and the entry, profile, entry calling plan and surviving installations are read from it. `function_fragments.rs` still reads `target_operations()` in six places beside the abstract program (reference backing geometry, activation residence, access-reference checks), and borrowed-storage layouts still come from `TargetOperationPlan` because `NativeBorrowedStorageLayout` has no identity encoding to seal into the plan.
+- Cost: Stage 02 has to keep exposing two complete graphs. Give borrowed-storage layouts a canonical encoding and move them into the plan, port the evidence checks to plan rows, then stop exposing `target_operations()` outside the stage and its validator.
+- Reported: 2026-11-16, Claude Code, while moving the readers of stage 02's output onto the execution plan.

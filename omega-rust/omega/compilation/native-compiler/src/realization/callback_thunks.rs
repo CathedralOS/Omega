@@ -121,15 +121,8 @@ pub(crate) fn prepare_installed_callbacks(
     physical_entry: Option<installation_evidence::InstalledPhysicalStackRoot>,
 ) -> Result<Vec<installation_evidence::InstalledInterruptStackRequirement>, Vec<Diagnostic>> {
     let cohort = target.lowering_facts().installed_interrupts();
-    let mut operations: Vec<_> = target
-        .target_operations()
-        .functions
-        .iter()
-        .flat_map(|function| function.graph.operations())
-        .filter_map(|operation| operation.installation_operation())
-        .collect();
-    operations.sort_unstable();
-    operations.dedup();
+    // The plan lists the installations that survived lowering, sorted and unique.
+    let operations = &target.execution_plan().plan().installation_operations;
     let mut entries: Vec<_> = cohort.entries().iter().collect();
     entries.sort_unstable_by_key(|entry| (entry.operation, entry.placement.application_index));
     if entries.windows(2).any(|pair| {
