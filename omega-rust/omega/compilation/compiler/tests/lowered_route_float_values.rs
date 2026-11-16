@@ -28,6 +28,11 @@ fn byte_float_integer_conversions_publish_all_result_policies() {
     assert_integer_conversion_policies("byte_integer_conversion", 8);
 }
 
+#[test]
+fn i16_u16_float_integer_conversions_publish_all_result_policies() {
+    assert_integer_conversion_policies("i16_u16_conversion", 16);
+}
+
 fn assert_integer_conversion_policies(fixture: &str, width: u64) {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
@@ -1682,6 +1687,45 @@ fn byte_float_integer_bad_inputs_crash_at_the_named_boundary() {
                 "1.0f64 / 0.0f64",
                 NumericType::F64,
                 FixedInteger::unsigned(8),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn i16_u16_float_integer_bad_inputs_crash_at_the_named_boundary() {
+    use language_semantics::numeric_intrinsics::NumericType;
+    use numerics::integer_carrier::FixedInteger;
+    assert_bad_integer_conversion_inputs(
+        "i16_u16_conversion",
+        &[
+            (
+                "nan",
+                "signed32_trapping",
+                "0.0f32 / 0.0f32",
+                NumericType::F32,
+                FixedInteger::signed(16),
+            ),
+            (
+                "overflow",
+                "signed64_trapping",
+                "32768.0f64",
+                NumericType::F64,
+                FixedInteger::signed(16),
+            ),
+            (
+                "negative",
+                "unsigned32_trapping",
+                "-1.0f32",
+                NumericType::F32,
+                FixedInteger::unsigned(16),
+            ),
+            (
+                "infinity",
+                "unsigned64_trapping",
+                "1.0f64 / 0.0f64",
+                NumericType::F64,
+                FixedInteger::unsigned(16),
             ),
         ],
     );
