@@ -2367,6 +2367,26 @@ pub mod borrowed_storage {
             self
         }
 
+        /// Recover the complete captured address, including fields after a
+        /// dynamic selector. A widened region or a window has no single such
+        /// path; a dynamic coordinate must retain its formation point.
+        pub fn captured_storage_path(&self) -> Option<Vec<StructuralPathSegment>> {
+            if self.indirect || self.window.is_some() {
+                return None;
+            }
+            let mut result = Vec::new();
+            for step in self.address.as_ref()? {
+                let AddressStep::Path(path, at) = step else {
+                    return None;
+                };
+                if path.iter().any(|segment| segment.runtime_index().is_some()) && at.is_none() {
+                    return None;
+                }
+                result.extend_from_slice(path);
+            }
+            Some(result)
+        }
+
         pub fn window(start: ValueId, end: ValueId, position: Position) -> Self {
             Self::new(&[]).with_window(start, end, position)
         }

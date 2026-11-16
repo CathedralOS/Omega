@@ -942,19 +942,23 @@ impl<'a> Storage<'a> {
         let captured = self
             .references
             .borrow_mut()
-            .location(self.machine, (block, before), &location)
+            .storage_projection(self.machine, (block, before), &location)
             .ok_or_else(|| {
                 self.unsupported(
                     concerns,
                     terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
                 )
             })?;
-        let mut segments = captured.path;
-        segments.extend_from_slice(suffix);
-        let resolved = Lineage {
-            root: captured.root,
-            segments,
+        let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+            source: root,
+            projection,
+        } = captured
+        else {
+            return Err(unresolved());
         };
+        let path = projection.captured_storage_path().ok_or_else(unresolved)?;
+        let mut resolved = self.stored_at(root, &path, concerns)?;
+        resolved.segments.extend_from_slice(suffix);
         self.shape(&resolved, concerns)?;
         Ok(resolved)
     }
