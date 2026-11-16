@@ -423,6 +423,8 @@ pub(crate) mod callable_identity {
                 binders: &binders,
                 lifetime_binders: &lifetimes,
                 substitutions,
+                substitution_semantics:
+                    super::identity_context::SubstitutionSemantics::Simultaneous,
                 require_owned_substitution_regions: true,
                 signature_region_projection: region_projection,
                 signature_elision: Some(&elision),
@@ -1755,6 +1757,13 @@ pub(crate) mod identity_context {
     pub(crate) enum SignatureRegion {
         Bound(usize),
         Captured(LifetimeParameterIdentity),
+        /// An omitted region of one fixed enclosing type argument. Its source
+        /// application may choose any region; the callback must accept all of
+        /// them while repeated uses of that type argument keep the same choice.
+        Argument {
+            binding: usize,
+            ordinal: usize,
+        },
     }
 
     pub(crate) struct SignatureTypeIdentityContext<'scope> {
@@ -1800,7 +1809,7 @@ pub(crate) mod identity_context {
         // Caller type arguments retain their supplying regions. They must not
         // acquire a lifetime from the receiving signature's same-spelled tag.
         pub(crate) require_owned_substitution_regions: bool,
-        pub(crate) instantiated_type_argument: bool,
+        pub(crate) signature_argument: Option<usize>,
         pub(crate) substitution_scope_starts: &'binders [usize],
         pub(crate) substitution_semantics: SubstitutionSemantics,
         pub(crate) active_const_substitutions: &'binders [SymbolHandle],
@@ -2099,6 +2108,15 @@ pub(crate) mod identity_context {
             let region = match region {
                 SignatureRegion::Bound(ordinal) => return schema_region(ordinal),
                 SignatureRegion::Captured(region) => region,
+                SignatureRegion::Argument { binding, ordinal } => {
+                    return compound(
+                        RegionForm::Region,
+                        [
+                            atom(Label::Owner, &format!("argument:{binding}")),
+                            atom(Label::Ordinal, &ordinal.to_string()),
+                        ],
+                    );
+                }
             };
             if self.qualification == TypeIdentityQualification::PackageQualified {
                 let identity = if self.portable_machine_applications.is_some() {
@@ -2132,6 +2150,15 @@ pub(crate) mod identity_context {
                     atom(Label::Ordinal, &region.ordinal.to_string()),
                 ],
             )
+        }
+
+        fn encode_elided_signature_region(&self, program: &TypedTrees, ordinal: usize) -> String {
+            let region = self
+                .signature_argument
+                .map_or(SignatureRegion::Bound(ordinal), |binding| {
+                    SignatureRegion::Argument { binding, ordinal }
+                });
+            self.encode_signature_region(program, region)
         }
 
         fn lifetime_slot(
@@ -2264,7 +2291,7 @@ pub(crate) mod identity_context {
         symbol: SymbolHandle,
         context: &TypeIdentityContext<'_>,
     ) -> usize {
-        if context.signature_elision.is_none() && !context.instantiated_type_argument {
+        if context.signature_elision.is_none() {
             return 0;
         }
         if let Some(declaration) = program.unique_data_definition_by_symbol(symbol) {
@@ -2308,12 +2335,7 @@ pub(crate) mod identity_context {
                             .and_then(SignatureElision::region)
                             .map_or_else(
                                 || substitution::rejected(context),
-                                |ordinal| {
-                                    context.encode_signature_region(
-                                        program,
-                                        SignatureRegion::Bound(ordinal),
-                                    )
-                                },
+                                |ordinal| context.encode_elided_signature_region(program, ordinal),
                             )
                     })
                     .collect::<Vec<_>>()
@@ -2686,17 +2708,27 @@ pub(crate) mod identity_context {
                 .find(|(_, (candidate, _))| candidate == symbol)
             && *replacement != type_reference
         {
-            let mut replacement_context = context.replacement_context_at(ordinal);
-            if context.require_owned_substitution_regions {
-                replacement_context.application_owner = program
+            let replacement_context = context.replacement_context_at(ordinal);
+            // The actual type's omitted regions are universally arbitrary, but
+            // fixed across every use of this binding, including the result.
+            // They establish no storage or loan; owned named regions retain
+            // their original declaration instead of entering this local scope.
+            let argument_elision = SignatureElision::inputs(0);
+            let replacement_context = if context.require_owned_substitution_regions {
+                let owner = program
                     .type_reference_table
                     .operand_lifetime_owner(*replacement);
-                replacement_context.application_argument_owner =
-                    replacement_context.application_owner;
-                replacement_context.application_scopes = &[];
-                replacement_context.signature_elision = None;
-                replacement_context.instantiated_type_argument = true;
-            }
+                TypeIdentityContext {
+                    application_owner: owner,
+                    application_argument_owner: owner,
+                    application_scopes: &[],
+                    signature_elision: Some(&argument_elision),
+                    signature_argument: Some(ordinal),
+                    ..replacement_context
+                }
+            } else {
+                replacement_context
+            };
             return normalize_type_identity(program, *replacement, &replacement_context);
         }
         if context.static_context.is_valid() {
@@ -2725,10 +2757,8 @@ pub(crate) mod identity_context {
                                 if let Some(ordinal) =
                                     context.signature_elision.and_then(SignatureElision::region)
                                 {
-                                    return context.encode_signature_region(
-                                        program,
-                                        SignatureRegion::Bound(ordinal),
-                                    );
+                                    return context
+                                        .encode_elided_signature_region(program, ordinal);
                                 }
                                 if context.qualification
                                     == TypeIdentityQualification::PackageQualified
