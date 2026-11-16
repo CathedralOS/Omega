@@ -1940,9 +1940,9 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("callee without a symbol"),
             ));
         }
-        // An authored free-machine call may retain its entry-state symbol.
-        // Primitive custody and visibility belong to the exact machine owner.
-        let target = if self.typed.symbols.get(target).kind == SymbolKind::State {
+        // Resolve executable entries to their machine owner. Trait requirements
+        // also use state symbols, but keep their own signature identity.
+        let target = if self.typed.machine_by_own_or_state_symbol(target).is_some() {
             self.call_target_symbol(id, target)?
         } else {
             target

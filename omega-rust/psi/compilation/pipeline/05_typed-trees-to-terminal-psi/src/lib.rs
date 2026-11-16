@@ -1038,7 +1038,7 @@ fn finish_reading_into<'source>(
     elaboration.machines = program.symbols.clone();
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     source.selection_questions = Some(source_selection_questions);
-    crate::reach::publish(diagnostic, &services, &mut elaboration)?;
+    crate::reach::publish(entry, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
     let declaration_error = |reason| {

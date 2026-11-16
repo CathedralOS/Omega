@@ -320,17 +320,20 @@ pub(crate) fn written_ceiling(
 /// State canonical rows from actual lowered direct, callable and boundary calls.
 /// No acceptance follows from this computation; the receiving judgment checks it.
 pub(crate) fn publish(
-    entry: MachineId,
+    entry: Option<MachineId>,
     services: &ServiceMap,
     elaboration: &mut Elaboration,
 ) -> Checked<()> {
+    // A declaration module has no executable root. Its diagnostic coordinate
+    // still locates failures while every machine's reach is published below.
+    let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     if !elaboration.reach.ceilings.is_empty() || !elaboration.reach.names.is_empty() {
         return Err(unavailable(
-            entry,
+            diagnostic,
             "service request metadata was already published",
         ));
     }
-    elaboration.reach.names = services.publish(entry, &mut elaboration.module)?;
+    elaboration.reach.names = services.publish(diagnostic, &mut elaboration.module)?;
     let mut ceilings = Vec::with_capacity(elaboration.module.machines.len());
     for machine in &elaboration.module.machines {
         // Lowering retained the authored bound and its applied service
@@ -349,7 +352,7 @@ pub(crate) fn publish(
         .collect::<Vec<_>>();
     let position = |machine: MachineId| {
         usize::try_from(machine.get() - 1)
-            .map_err(|_| unavailable(entry, "machine coordinate exceeds host width"))
+            .map_err(|_| unavailable(diagnostic, "machine coordinate exceeds host width"))
     };
     loop {
         let mut changed = false;
@@ -428,10 +431,12 @@ pub(crate) fn publish(
             ));
         }
     }
-    elaboration.module.root_service_reach.concrete = published
-        .get(position(entry)?)
-        .ok_or_else(|| unavailable(entry, "program entry has no published reach"))?
-        .clone();
+    if let Some(entry) = entry {
+        elaboration.module.root_service_reach.concrete = published
+            .get(position(entry)?)
+            .ok_or_else(|| unavailable(entry, "program entry has no published reach"))?
+            .clone();
+    }
     for ceiling in ceilings {
         elaboration.reach.ceilings.push(ceiling);
     }

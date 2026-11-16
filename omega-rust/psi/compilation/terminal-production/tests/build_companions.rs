@@ -1202,13 +1202,44 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
         "machine bind(activation: u64) reaches none crashes none;",
         "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
     );
-    let accepted = accepted_frontier(
-        typed_with_prelude(
-            "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
-            &prelude,
-        ),
-        terminal_codec::TerminalPublication::Invocation,
-    ).unwrap_or_else(|refused| panic!("the Build records a provider choice for later Product resolution: {refused:?}"));
+    let typed = typed_with_prelude(
+        "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
+        &prelude,
+    );
+    let probe = typed
+        .traits
+        .iter()
+        .find_map(|(_, declaration)| {
+            (declaration.name.as_str() == "Probe").then_some(declaration.symbol)
+        })
+        .expect("the prelude declares Probe");
+    let resolved_inputs = typed
+        .expression_table
+        .expression_entries()
+        .filter_map(|(expression, _)| {
+            typed
+                .expression_table
+                .build_selection_inputs(expression)
+                .unwrap()
+        })
+        .flat_map(|inputs| inputs.inputs.iter())
+        .filter(|input| {
+            input
+                .target
+                .as_resolved()
+                .is_some_and(|target| target.selected_symbol() == probe)
+        })
+        .map(|input| {
+            assert_eq!(input.resolved_target, Some(probe));
+            (input.occurrence.ordinal(), input.argument_ordinal)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(resolved_inputs.len(), 1);
+    let (occurrence, operand) = resolved_inputs[0];
+    let accepted = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+        .unwrap_or_else(|refused| {
+            panic!("the Build records a provider choice for later Product resolution: {refused:?}")
+        });
     let program = accepted
         .produce(
             TerminalProductionCustody::default(),
@@ -1222,6 +1253,46 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
             .unwrap()
             .iter()
             .any(|call| call.action == TerminalBuildBindingOperation::SelectProvider)
+    );
+    use semantic_vocabulary::source_selections::{
+        SelectionNode, SelectionPurpose, SelectionReference, SelectionRole,
+    };
+    let packet = program
+        .source_selections()
+        .unwrap()
+        .questions_for(program.view())
+        .unwrap();
+    let published = packet
+        .questions
+        .iter()
+        .filter(|(_, question)| {
+            matches!(
+                question.occurrence.node,
+                SelectionNode::AuthoredSelection { occurrence: selected, .. }
+                    if selected == occurrence
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(published.len(), 1);
+    let question = published[0].1;
+    let SelectionRole::ProductDesignation(designation) = &question.role else {
+        panic!("the resolved Probe operand must retain its Product designation");
+    };
+    assert_eq!(designation.operand, operand);
+    assert_eq!(question.purpose, SelectionPurpose::Product);
+    assert_eq!(
+        packet
+            .declarations
+            .get(question.occurrence.lexical_owner)
+            .unwrap()
+            .purpose,
+        SelectionPurpose::Build
+    );
+    assert_eq!(
+        question.selected,
+        SelectionReference::ProductInput {
+            input_selection: designation.input_selection,
+        }
     );
 }
 

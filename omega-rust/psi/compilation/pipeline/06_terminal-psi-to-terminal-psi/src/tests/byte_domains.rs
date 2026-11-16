@@ -159,7 +159,7 @@ machine build_entry() {
     let refused = terminal_semantics::structural_qualifications::validate_shape(&forged_theory)
         .expect_err("an octet predicate cannot establish an unrelated generic clause");
     assert_eq!(
-        refused.detail, "a structural cast cannot prove a domain predicate",
+        refused.detail, "a byte qualification change is not a complete primitive byte domain",
         "{refused:?}"
     );
     let refused = terminal_codec::decode_module(
@@ -171,7 +171,7 @@ machine build_entry() {
         matches!(
             refused,
             terminal_codec::CodecError::MalformedStructuralFoundation(
-                "a structural cast cannot prove a domain predicate"
+                "a byte qualification change is not a complete primitive byte domain"
             ) | terminal_codec::CodecError::MalformedOperationFoundation {
                 reason: "byte transfer qualification is not a complete primitive byte domain",
                 ..

@@ -149,7 +149,10 @@ impl Fixture {
                 ..Default::default()
             });
         }
+        // The hand-built signature records the source's explicit reaches none.
+        let no_services = typed.service_reach_rows.intern(Vec::new());
         let machines = typed.trait_machine_signatures.insert_many([StateSignature {
+            service_reach_row: no_services,
             symbol: requirement,
             name: Identifier::generated("read"),
             return_type: unit,
@@ -158,6 +161,7 @@ impl Fixture {
             blocks,
             ..Default::default()
         }]);
+        typed.service_reaches.intern(owner, "Raw");
         typed.push_trait_definition(TraitDefinition {
             symbol: owner,
             name: Identifier::generated("Raw"),

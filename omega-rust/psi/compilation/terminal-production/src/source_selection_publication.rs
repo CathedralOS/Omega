@@ -966,8 +966,27 @@ impl<'source> Questions<'source> {
         };
         let selected = match raw.target {
             RawSelectionTarget::Declaration(symbol) => {
-                self.declarations
-                    .symbol_reference(&mut self.output, raw.lexical_owner, symbol)?
+                // Build records a request; Product selects its declaration after
+                // the package join. The input commitment retains this exact symbol.
+                if let Some(designation) = designation.as_ref()
+                    && self.module.identities.invocation_scope().is_some()
+                    && self.declarations.purpose(raw.lexical_owner)? == SelectionPurpose::Build
+                {
+                    if raw.designation.and_then(|input| input.resolved_target) != Some(symbol) {
+                        return Err(refused(
+                            "resolved Product designation differs from its exact retained input",
+                        ));
+                    }
+                    SelectionReference::ProductInput {
+                        input_selection: designation.input_selection,
+                    }
+                } else {
+                    self.declarations.symbol_reference(
+                        &mut self.output,
+                        raw.lexical_owner,
+                        symbol,
+                    )?
+                }
             }
             RawSelectionTarget::LocalBinding { symbol, owner } => self.declarations.local_binding(
                 &mut self.output,
