@@ -354,14 +354,8 @@ fn inspect_body_cpu_state(report: &products::CompileReport, fixture: &Path) -> R
                 .ok_or("scalar CPU-state control lacks retained instruction rows")?;
             let source = rows.frame_application.source().source();
             let model = source.register_environment().physical().model();
-            let actual_abi_vector_clobber = source
-                .machine()
-                .machine()
-                .plan()
-                .functions
-                .iter()
-                .flat_map(|function| function.instructions())
-                .any(|instruction| {
+            let actual_abi_vector_clobber =
+                source.physical_program().instructions().any(|instruction| {
                     instruction.alternative.encoded.control
                         == selected_instructions::MachineEncodedControlEffect::DirectRelativeCallV1
                         && instruction.unit_clobbers.iter().any(|unit| {
