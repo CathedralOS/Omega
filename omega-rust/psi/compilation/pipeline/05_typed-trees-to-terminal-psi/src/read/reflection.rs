@@ -435,9 +435,10 @@ impl Program<'_> {
                 .as_ref()
                 .is_some_and(|application| application.member.is_valid())
         {
-            return Err(fail(
-                "a schema query lost its exact selected type application",
-            ));
+            return Err(invalid(machine, format!(
+                "a schema query lost its exact selected type application: selected={selected:?}, authored={:?}, direct={:?}",
+                call.authored_machine_application, call.machine_arguments,
+            )));
         }
         let data = self
             .typed
