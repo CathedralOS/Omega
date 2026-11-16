@@ -901,12 +901,36 @@ impl<'a> Storage<'a> {
                 "reference use position exceeds its descriptor graph",
             )
         })?;
-        let location = place.descriptor_location().ok_or_else(|| {
+        // A runtime selector or an extent names a part of storage, not a
+        // different backing: `main.nums[j]` through `main: &mut Main` is
+        // element `j` of whatever `main.nums` designates here. The selector
+        // is an immutable value captured when the place was formed (loans.md:
+        // "Loan formation captures a place, not a live selector
+        // expression"), so resolve the storage prefix before the first such
+        // step at this use and keep the rest as written. Crossing a
+        // permission beneath a runtime selector would need the backing of a
+        // descriptor the replay cannot name, so that still refuses.
+        let split = place
+            .segments
+            .iter()
+            .position(|segment| matches!(segment, Segment::RuntimeIndex { .. } | Segment::Extent))
+            .unwrap_or(place.segments.len());
+        let (prefix, suffix) = place.segments.split_at(split);
+        let unresolved = || {
             self.unsupported(
                 concerns,
                 "reference backing with an unresolved selector or extent",
             )
-        })?;
+        };
+        if suffix.contains(&Segment::Referent) {
+            return Err(unresolved());
+        }
+        let location = Lineage {
+            root: place.root,
+            segments: prefix.to_vec(),
+        }
+        .descriptor_location()
+        .ok_or_else(unresolved)?;
         let captured = self
             .references
             .borrow_mut()
@@ -917,9 +941,11 @@ impl<'a> Storage<'a> {
                     terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
                 )
             })?;
+        let mut segments = captured.path;
+        segments.extend_from_slice(suffix);
         let resolved = Lineage {
             root: captured.root,
-            segments: captured.path,
+            segments,
         };
         self.shape(&resolved, concerns)?;
         Ok(resolved)
