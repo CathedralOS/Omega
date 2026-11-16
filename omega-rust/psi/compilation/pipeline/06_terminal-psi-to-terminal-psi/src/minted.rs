@@ -78,10 +78,10 @@ fn contains_parameter_extent(
     let mut pending = vec![root];
     let mut visited = Vec::new();
     while let Some(id) = pending.pop() {
-        if visited.contains(&id) {
-            continue;
+        match visited.binary_search(&id) {
+            Ok(_) => continue,
+            Err(position) => visited.insert(position, id),
         }
-        visited.push(id);
         let Some(declaration) = module.structural_type(id) else {
             // An authenticated abstract referent exposes no storage shape or
             // extent. A missing declaration without that authority refuses.
