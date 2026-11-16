@@ -883,15 +883,30 @@ pub mod closed_conformances {
                     ],
                 )
             };
+            // A machine's semantic declaration names its path together with
+            // its callable signature, so overloads sharing a path stay
+            // distinct. Build both expected identities the same way the
+            // declaration publishes them.
+            let semantic = |declaration: &str, callable: &str| {
+                format!(
+                    "toolchain::{}",
+                    language_semantics::type_identity::encoding::callable_declaration_path(
+                        declaration,
+                        callable,
+                    )
+                )
+            };
+            let primitive_callable = callable(primitive.1);
+            let requirement_callable = callable(requirement_member);
             HostedProcessExitIdentities {
                 primitive: exact_nominal(primitive, primitive.1),
                 primitive_entry: exact_nominal(primitive, &format!("{}::entry", primitive.1)),
-                primitive_semantic: format!("toolchain::{}", primitive.1),
-                primitive_callable: callable(primitive.1),
+                primitive_semantic: semantic(primitive.1, &primitive_callable),
+                primitive_callable,
                 requirement_owner: exact_nominal(requirement, requirement.1),
                 requirement_member: exact_nominal(requirement, requirement_member),
-                requirement_semantic: format!("toolchain::{requirement_member}"),
-                requirement_callable: callable(requirement_member),
+                requirement_semantic: semantic(requirement_member, &requirement_callable),
+                requirement_callable,
                 parameter,
                 result: result_type,
             }
