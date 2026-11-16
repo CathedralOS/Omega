@@ -3891,13 +3891,6 @@ impl<'a> Lowering<'a> {
         let right = continuing!(self.located(right));
         let mut operands = Vec::with_capacity(2);
         for at in [left, right] {
-            if !at.path.is_empty() {
-                return Err(refuse(
-                    self.id,
-                    Construct::Machine,
-                    Unserved::Expression("comparison of a view stored in a field"),
-                ));
-            }
             operands.push(self.measured_byte_view(&at, source)?);
         }
         let right = operands.pop().expect("two operands");

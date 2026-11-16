@@ -7,6 +7,9 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use products::{CheckedProductSource, CompileFailure, PreparedProductSource};
 use std::sync::Arc;
+use typed_trees::service_declarations::{
+    PreparedServiceCatalog, provider_declarations::ProviderPlanningContext,
+};
 
 const SOURCE_PREPARATION: StageMeta =
     StageMeta::new("typed-source-preparation", "TypedTrees", "FrozenTypedTrees");
@@ -259,6 +262,7 @@ fn prepare_and_judge(
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut declaration_metadata = Vec::new();
+    let mut entry_catalog = None;
     for profile in target::TargetProfile::ALL {
         let slot = profile.program_entry_slot();
         let slot_name = format!("{}::ProgramEntry", profile.root_slot_owner_name());
@@ -269,11 +273,22 @@ fn prepare_and_judge(
         {
             continue;
         }
+        let catalog = entry_catalog.get_or_insert_with(|| {
+            Arc::new(PreparedServiceCatalog::prepare(
+                ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+                &exact_sources,
+            ))
+        });
+        let catalog = catalog
+            .bind(ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
+            ))
+            .map_err(|diagnostic| vec![diagnostic])?;
         let declaration = package_compilation::selected_program_entry_boundary(
-            &typed,
+            catalog,
             slot,
             pass.package_inputs,
-            &exact_sources,
         )?;
         if !declaration_metadata.contains(&declaration) {
             declaration_metadata.push(declaration);

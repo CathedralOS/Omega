@@ -61,6 +61,9 @@ pub enum AcceptedProofRule {
     /// The `IntegerAffineBound` form that relates a quotient to its
     /// dividend; provisional, like the row above.
     IntegerQuotientAtMostDividend,
+    /// The `IntegerAffineBound` form that bounds an exact remainder of a
+    /// polynomial multiple of its literal divisor at zero; provisional.
+    IntegerMultipleRemainder,
     IntegerExactAddDefinitionBound,
     IntegerExactSubtractDefinitionBound,
     IntegerCastBound,
@@ -502,6 +505,8 @@ pub(crate) mod integer_bound_rules {
             AcceptedProofRule::IntegerRemainderWithinDividend
         } else if form.is_quotient_at_most_dividend() {
             AcceptedProofRule::IntegerQuotientAtMostDividend
+        } else if form.is_multiple_remainder() {
+            AcceptedProofRule::IntegerMultipleRemainder
         } else {
             AcceptedProofRule::IntegerAffineBound
         };

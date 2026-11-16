@@ -209,8 +209,9 @@ impl PackageBuildInvocation {
     pub fn prepare_next_stage(
         &mut self,
         prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+        named_source: Option<package_compilation::PackageCompilationInputs>,
     ) -> Result<(), CompileFailure> {
-        super::run_on_compile_thread(|| self.source.prepare_next_stage(prepared))
+        super::run_on_compile_thread(|| self.source.prepare_next_stage(prepared, named_source))
     }
 }
 

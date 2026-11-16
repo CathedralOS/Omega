@@ -5447,6 +5447,8 @@ pub mod inspection {
         ) -> (&'static str, Option<String>) {
             use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
             match intrinsic {
+                Intrinsic::BuildParameterDescription => ("build_parameter_description", None),
+                Intrinsic::BuildFieldDescription => ("build_field_description", None),
                 Intrinsic::BuildNativeBinding => ("build_native_binding", None),
                 Intrinsic::StorageAddress => ("storage_address", None),
                 Intrinsic::BuiltinOperator => ("builtin_operator", None),
