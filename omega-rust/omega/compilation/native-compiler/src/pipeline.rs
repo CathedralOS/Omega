@@ -140,7 +140,7 @@ pub(crate) fn emit_target(
         terminal_psi_to_abstract_operations::provider_admission::BoundInstallationAuthority,
     >,
     observation: &NativePipelineObservation,
-    retain_native_inputs: bool,
+    retain_native_stage_inputs: bool,
 ) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
@@ -212,7 +212,7 @@ pub(crate) fn emit_target(
         .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
     }?;
     let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?;
-    let realization = if retain_native_inputs {
+    let realization = if retain_native_stage_inputs {
         realization.retain_replay_for_validation(machine_emission::FunctionRealizationReplay {
             allocation,
             target_input: std::sync::Arc::clone(&target_input),

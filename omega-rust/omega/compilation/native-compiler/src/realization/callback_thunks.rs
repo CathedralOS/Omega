@@ -308,7 +308,7 @@ fn lower_callback_thunk(
         request.optimization_selections,
         request.optimization_budget(),
         settlement.artifact,
-        request.retain_native_inputs,
+        request.retain_native_stage_inputs,
     )?;
     let execution = installed_plan
         .as_ref()

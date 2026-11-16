@@ -102,7 +102,7 @@ impl ProjectProduct {
         &self,
         optimization_rollback: &compiler::OptimizationRollback,
         targets: &[TargetProfile],
-        retain_native_inputs: bool,
+        retain_native_stage_inputs: bool,
     ) -> compiler::CompilationProduct {
         match self {
             Self::Check => compiler::CompilationProduct::Check,
@@ -122,7 +122,8 @@ impl ProjectProduct {
                     .filter(|row| targets.contains(&row.profile()))
                     .cloned()
                     .collect(),
-                retain_native_inputs,
+                retain_native_inputs: false,
+                retain_native_stage_inputs,
                 image: destination.image_demand(),
                 private_entry_ram: private_entry_ram.clone(),
                 terminal_authority_policy:
@@ -164,7 +165,8 @@ fn compile_standalone_reports(
         )
         .with_private_entry_ram(private_entry_ram.to_vec())
         .with_native_image_demand(native_image);
-    compilation = compilation.with_retained_native_inputs(!request.stage_validators.is_empty());
+    compilation =
+        compilation.with_retained_native_stage_inputs(!request.stage_validators.is_empty());
     if let Some(snapshot) = &request.build_snapshot {
         compilation = compilation.with_build_snapshot(snapshot.clone());
     }

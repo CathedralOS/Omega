@@ -104,7 +104,7 @@ pub(crate) fn emit_realization_object(
         target,
         installations,
         request.observation,
-        request.retain_native_inputs,
+        request.retain_native_stage_inputs,
     )
     .map_err(|error| match error {
         BodyEmissionError::Physical(error) => {

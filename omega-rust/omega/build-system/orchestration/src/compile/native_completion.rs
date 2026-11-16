@@ -108,7 +108,7 @@ pub(crate) fn complete_native(
         }
         let post_terminal = rollback.effective().project_post_terminal();
         let request = native_compiler::NativeCompileRequest {
-            retain_native_inputs: request.retain_native_inputs,
+            retain_native_stage_inputs: request.retain_native_stage_inputs,
             installation_assumptions: &request.installation_assumptions,
             private_entry_ram: &request.private_entry_ram,
             optimization_selections: post_terminal.selections(),
