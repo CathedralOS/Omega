@@ -386,7 +386,7 @@ fn select_call(
         && call.ordinary
         && let Some(machine) = program.machine_by_own_or_state_symbol(call.target)
         && program.machine_type_parameters(machine).is_empty()
-        && machine.attached_data.is_none()
+        && !machine.has_data_owner()
         && !program
             .symbols
             .get(machine.symbol)
@@ -656,7 +656,7 @@ fn select_closed_call(
         // carrier identity compares type, access and domains; ordinary call
         // formation must still instantiate and check the selected lifetimes.
         if !program.machine_type_parameters(machine).is_empty()
-            || machine.attached_data.is_some()
+            || machine.has_data_owner()
             || program.symbols.get(candidate).declaration_owner.is_valid()
         {
             return Ok(None);
@@ -1667,6 +1667,109 @@ mod tests {
         assert!(
             !owned_call(&program, "unmatched").0.is_valid(),
             "another domain set cannot supply the result"
+        );
+    }
+
+    #[test]
+    fn qualified_machine_headers_use_resolved_namespace_ownership() {
+        let mut program = checked(&[
+            ("namespace.omg", "module converted;"),
+            (
+                "operations.omg",
+                r#"
+                public machine converted::pick(value: u32) -> u32 { value }
+                public machine converted::pick(value: u32) -> u32 in Saturating { value }
+                public data Owned {}
+                public machine Owned::pick(value: u32) -> u32 { value }
+                public machine Owned::pick(value: u32) -> u32 in Saturating { value }
+            "#,
+            ),
+            (
+                "client.omg",
+                r#"
+                use converted;
+                use converted::pick;
+                machine namespace_call(value: u32) {
+                    let selected: u32 in Saturating = converted::pick(value);
+                }
+                machine data_call(value: u32) {
+                    let selected: u32 in Saturating = Owned::pick(value);
+                }
+            "#,
+            ),
+        ])
+        .expect("retain real declaration forms before their body judgments");
+        let (target, _) = owned_call(&program, "namespace_call");
+        let selected = program
+            .machine_by_own_or_state_symbol(target)
+            .expect("module member selected");
+        assert!(
+            selected.attached_data.is_some(),
+            "the parser retains its written prefix"
+        );
+        assert!(!selected.has_data_owner());
+        assert_eq!(
+            program
+                .normalized_result_dispatch_set(program.machine_states(selected)[0].return_type)
+                .identity(),
+            "arithmetic:Saturating"
+        );
+        assert!(
+            program
+                .machines()
+                .iter()
+                .any(|machine| machine.has_data_owner()),
+            "control has real data attachment"
+        );
+        let (data_target, _) = owned_call(&program, "data_call");
+        let data_owned = program.machine_by_own_or_state_symbol(data_target).unwrap();
+        assert!(
+            data_owned.has_data_owner(),
+            "the retained choice still has data ownership and stage05 rejects it"
+        );
+        let expected = program.machine_states(data_owned)[0].return_type;
+        let expression = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(value, node)| {
+                matches!(node, ExpressionNode::Call(call) if call.target_symbol == data_target)
+                    .then_some(value)
+            })
+            .unwrap();
+        let mut input = CallInput::expression(&program, expression, Some(expected)).unwrap();
+        assert_eq!(
+            input.binding.unwrap().selected,
+            data_target,
+            "preserve source02's actual choice"
+        );
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "data_call")
+            .unwrap()
+            .symbol;
+        assert!(
+            !input.ordinary,
+            "a data receiver is not an ordinary module call"
+        );
+        let original = (input.target, input.binding);
+        select_call(
+            &symbol_resolved_trees::SymbolResolvedTrees::default(),
+            &mut program,
+            &mut input,
+            caller,
+        )
+        .unwrap();
+        assert_eq!(
+            (input.target, input.binding),
+            original,
+            "retain its actual source choice without granting a new one"
+        );
+        assert!(
+            program
+                .machine_by_own_or_state_symbol(input.target)
+                .unwrap()
+                .has_data_owner()
         );
     }
 

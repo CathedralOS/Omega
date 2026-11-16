@@ -932,10 +932,7 @@ impl<'t> Program<'t> {
         // arguments are explicit (machines.md, "Static declarations and
         // explicit state"). Test retained attachment, not name spelling:
         // module, trait and lexical qualification remain independent.
-        if machine.attached_data_symbol.is_valid()
-            || machine.attached_data_application.is_valid()
-            || machine.generic_data_template.is_valid()
-        {
+        if machine.has_data_owner() {
             return Err(crate::reject(
                 id,
                 SourceOrigin::of(
