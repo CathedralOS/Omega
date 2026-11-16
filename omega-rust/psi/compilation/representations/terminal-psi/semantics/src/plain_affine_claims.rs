@@ -8,6 +8,7 @@ use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, InvocationSite, OperationId, PlaceId, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, EntryClaim, MachineContract, Operation, OperationKind as Op,
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralPathSegment as Path,
@@ -22,14 +23,53 @@ pub struct ClaimLocation {
     pub path: Vec<Path>,
 }
 
-// Keep only live claims, sorted by identity. They are a sparse subset of a
-// machine's declared claims; storage must not grow to a supplied ID.
+// Slots come from the declared claim and place rosters, never from the largest
+// supplied identity. Each place lists only its own live claim slots.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct ClaimsState {
-    pub live: Vec<ClaimLocation>,
+    claim_ids: Arc<[ClaimId]>,
+    place_ids: Arc<[PlaceId]>,
+    claims: Vec<Option<ClaimLocation>>,
+    at_place: Vec<Vec<usize>>,
+    live_count: usize,
 }
 
 impl ClaimsState {
+    fn new(machine: &TerminalMachine, mut claim_ids: Vec<ClaimId>) -> Result<Self, Error> {
+        claim_ids.sort_unstable();
+        claim_ids.dedup();
+        let mut place_ids = machine
+            .structural_places
+            .iter()
+            .map(|place| place.id)
+            .collect::<Vec<_>>();
+        place_ids.sort_unstable();
+        if place_ids.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(Error::malformed("claim storage repeats a declared place"));
+        }
+        Ok(Self {
+            claims: vec![None; claim_ids.len()],
+            at_place: vec![Vec::new(); place_ids.len()],
+            claim_ids: claim_ids.into(),
+            place_ids: place_ids.into(),
+            live_count: 0,
+        })
+    }
+    fn live(&self) -> impl Iterator<Item = &ClaimLocation> {
+        self.claims.iter().flatten()
+    }
+    fn at(&self, place: PlaceId) -> impl Iterator<Item = &ClaimLocation> {
+        self.place_ids
+            .binary_search(&place)
+            .ok()
+            .into_iter()
+            .flat_map(|position| &self.at_place[position])
+            .map(|slot| {
+                self.claims[*slot]
+                    .as_ref()
+                    .expect("place slots name live claims")
+            })
+    }
     pub(super) fn meet(&self, other: &Self) -> Result<Self, Error> {
         if self != other {
             return Err(Error::unsupported(
@@ -37,6 +77,25 @@ impl ClaimsState {
             ));
         }
         Ok(self.clone())
+    }
+    fn remove(&mut self, identity: ClaimId) -> Result<ClaimLocation, Error> {
+        let slot = self
+            .claim_ids
+            .binary_search(&identity)
+            .map_err(|_| Error::malformed("claim capture names an undeclared identity"))?;
+        let claim = self.claims[slot]
+            .take()
+            .ok_or_else(|| Error::malformed("claim capture lost its exact identity"))?;
+        let place = self
+            .place_ids
+            .binary_search(&claim.place)
+            .map_err(|_| Error::malformed("claim capture lost its declared place"))?;
+        let position = self.at_place[place]
+            .binary_search(&slot)
+            .map_err(|_| Error::malformed("claim capture lost its place slot"))?;
+        self.at_place[place].remove(position);
+        self.live_count -= 1;
+        Ok(claim)
     }
     fn take(&mut self, argument: &StructuralArgument) -> Result<Vec<ClaimLocation>, Error> {
         if argument.access != StructuralAccess::Owned {
@@ -51,54 +110,58 @@ impl ClaimsState {
                 "owned claim transport requires an exact inline path",
             ));
         }
-        let held = self
-            .live
-            .iter()
-            .filter(|claim| claim.place == argument.place);
-        if held
-            .clone()
+        if self
+            .at(argument.place)
             .any(|claim| argument.path.starts_with(&claim.path) && argument.path != claim.path)
         {
             return Err(Error::unsupported(
                 "a projected move would split an intrinsic logical claim",
             ));
         }
-        Ok(self
-            .live
-            .extract_if(.., |claim| {
-                claim.place == argument.place && claim.path.starts_with(&argument.path)
-            })
-            .map(|mut claim| {
+        let identities = self
+            .at(argument.place)
+            .filter(|claim| claim.path.starts_with(&argument.path))
+            .map(|claim| claim.identity)
+            .collect::<Vec<_>>();
+        identities
+            .into_iter()
+            .map(|identity| {
+                let mut claim = self.remove(identity)?;
                 claim.path.drain(..argument.path.len());
-                claim
+                Ok(claim)
             })
-            .collect())
+            .collect()
     }
     fn put(&mut self, claim: ClaimLocation) -> Result<(), Error> {
-        let position = match self
-            .live
-            .binary_search_by_key(&claim.identity, |row| row.identity)
+        let slot = self
+            .claim_ids
+            .binary_search(&claim.identity)
+            .map_err(|_| Error::malformed("claim transport names an undeclared identity"))?;
+        if self.claims[slot].is_some() {
+            return Err(Error::malformed(
+                "claim transport duplicates a live identity",
+            ));
+        }
+        let place = self
+            .place_ids
+            .binary_search(&claim.place)
+            .map_err(|_| Error::malformed("claim transport names an undeclared place"))?;
+        if self
+            .at(claim.place)
+            .any(|held| held.path.starts_with(&claim.path) || claim.path.starts_with(&held.path))
         {
-            Ok(_) => {
-                return Err(Error::malformed(
-                    "claim transport duplicates a live identity",
-                ));
-            }
-            Err(position) => position,
-        };
-        if self.live.iter().any(|held| {
-            held.place == claim.place
-                && (held.path.starts_with(&claim.path) || claim.path.starts_with(&held.path))
-        }) {
             return Err(Error::malformed("claim transport overlaps an owned path"));
         }
-        self.live.insert(position, claim);
+        let position = self.at_place[place]
+            .binary_search(&slot)
+            .expect_err("an absent claim has no live place slot");
+        self.at_place[place].insert(position, slot);
+        self.claims[slot] = Some(claim);
+        self.live_count += 1;
         Ok(())
     }
     fn under(&self, place: PlaceId) -> Vec<Binding> {
-        self.live
-            .iter()
-            .filter(|claim| claim.place == place)
+        self.at(place)
             .map(|claim| Binding {
                 claim: claim.identity,
                 path: claim.path.clone(),
@@ -356,7 +419,7 @@ impl Flow {
             );
             Ok(())
         };
-        let mut state = ClaimsState::default();
+        let mut entry_locations = Vec::new();
         for formal in &contract.structural_parameters {
             let rows = contract
                 .entry_claims
@@ -375,14 +438,14 @@ impl Flow {
             validate_bindings(expected, &rows)?;
             for row in rows {
                 check_id(row.claim)?;
-                state.put(ClaimLocation {
+                entry_locations.push(ClaimLocation {
                     identity: row.claim,
                     place: formal.place,
                     path: row.path,
-                })?;
+                });
             }
         }
-        if contract.entry_claims.len() != state.live.len() {
+        if contract.entry_claims.len() != entry_locations.len() {
             return Err(Error::malformed("entry claim names an absent formal"));
         }
         let mut block_claims = Vec::new();
@@ -470,6 +533,21 @@ impl Flow {
             .any(|pair| pair[0].operation == pair[1].operation)
         {
             return Err(Error::malformed("claim results repeat an operation"));
+        }
+        let claim_ids = contract
+            .entry_claims
+            .iter()
+            .chain(&block_claims)
+            .map(|row| row.claim)
+            .chain(
+                fresh_results
+                    .iter()
+                    .flat_map(|row| row.bindings.iter().map(|binding| binding.claim)),
+            )
+            .collect();
+        let mut state = ClaimsState::new(machine, claim_ids)?;
+        for claim in entry_locations {
+            state.put(claim)?;
         }
         let operation_results = fresh_results
             .iter()
@@ -571,7 +649,9 @@ impl Flow {
     }
     fn snapshot(&mut self, site: InvocationSite, state: &ClaimsState, settled: bool) {
         if settled {
-            self.plan.frontiers.insert(site, state.live.clone());
+            self.plan
+                .frontiers
+                .insert(site, state.live().cloned().collect::<Vec<_>>());
         }
     }
     pub fn operation(
@@ -603,7 +683,7 @@ impl Flow {
         );
         if is_call {
             self.snapshot(site, state, settled);
-            let held = state.live.clone();
+            let held = state.live().cloned().collect::<Vec<_>>();
             let mut transfers = Vec::new();
             for (ordinal, argument) in terminal_psi::call_structural_arguments(&operation.kind)
                 .iter()
@@ -685,7 +765,7 @@ impl Flow {
                     path,
                     field,
                 } => {
-                    let selected = if state.live.iter().any(|claim| claim.place == *source) {
+                    let selected = if state.at(*source).next().is_some() {
                         Self::field_path(types, root_type(*source)?, path, *field)?
                     } else {
                         Vec::new()
@@ -710,7 +790,7 @@ impl Flow {
                     value,
                     ..
                 } => {
-                    if state.live.iter().any(|claim| claim.place == value.place) {
+                    if state.at(value.place).next().is_some() {
                         let selected =
                             Self::field_path(types, root_type(*destination)?, path, *field)?;
                         Self::relocate(state, value, *destination, &selected)?;
@@ -777,7 +857,7 @@ impl Flow {
                     }
                 }
                 Op::StructuralLeafCopy { source, path } => {
-                    for claim in state.live.iter().filter(|claim| claim.place == *source) {
+                    for claim in state.at(*source) {
                         let overlaps = crate::structural_claim_paths_may_overlap(
                             types.iter(),
                             root_type(*source)?,
@@ -820,10 +900,14 @@ impl Flow {
         let Some(selected) = cases.iter().find(|case| case.edge == edge) else {
             return Ok(());
         };
-        state.live.retain(|claim| {
-            !(claim.place == *source && claim.path.starts_with(path)
-                && matches!(claim.path.get(path.len()), Some(Path::Case(case)) if *case != selected.case))
-        });
+        let inactive = state.at(*source).filter(|claim| claim.path.starts_with(path))
+            .filter_map(|claim| {
+                matches!(claim.path.get(path.len()), Some(Path::Case(case)) if *case != selected.case)
+                    .then_some(claim.identity)
+            }).collect::<Vec<_>>();
+        for identity in inactive {
+            state.remove(identity)?;
+        }
         Ok(())
     }
     pub fn successor(
@@ -951,7 +1035,7 @@ impl Flow {
             Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
                 | Terminator::ReturnStructural { .. }
-        ) && !state.live.is_empty()
+        ) && state.live_count != 0
         {
             return Err(Error::unsupported(
                 "a normal return leaves an untransferred logical claim",
@@ -976,7 +1060,7 @@ impl Flow {
                     .map_err(|_| Error::malformed("cleanup claim ordinal overflows"))?,
             };
             self.snapshot(site, state, settled);
-            if state.live.iter().any(|claim| claim.place == action.place()) {
+            if state.at(action.place()).next().is_some() {
                 return Err(Error::unsupported(
                     "claim-bearing cleanup needs its exact consuming disposition",
                 ));
