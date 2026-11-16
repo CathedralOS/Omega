@@ -457,7 +457,7 @@ impl Program<'_> {
                 let next = policies
                     .get(id)
                     .ok_or_else(|| unavailable(id, "callable has no header policy"))?
-                    .close(id, reached)?;
+                    .complete(reached);
                 let previous = published
                     .get_mut(id)
                     .ok_or_else(|| unavailable(id, "callable has no envelope row"))?;
@@ -745,23 +745,9 @@ impl Policy {
             termination: self.termination.clone(),
         }
     }
-    fn close(&self, context: MachineId, reached: SourceEnvelope) -> Checked<SourceEnvelope> {
-        if self.invokes.as_ref().is_some_and(|ceiling| {
-            reached
-                .invocations
-                .iter()
-                .any(|value| !ceiling.contains(value))
-        }) {
-            return Err(unavailable(
-                context,
-                "body invokes outside its published ceiling",
-            ));
-        }
-        // Keep authored operational bounds even when a call exceeds them.
-        // The Terminal checker rejects that actual call at its source position.
-        Ok(self.complete(reached))
-    }
     fn complete(&self, reached: SourceEnvelope) -> SourceEnvelope {
+        // Keep authored bounds even when a call exceeds them. The lowered-form
+        // checker rejects that actual call at its source position on every axis.
         SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or(reached.service_reach),
             invocations: self.invokes.clone().unwrap_or(reached.invocations),

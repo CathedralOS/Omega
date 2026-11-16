@@ -236,6 +236,7 @@ pub(crate) mod statement {
                     lowerer.type_reference_exposure,
                     symbols::SymbolHandle::invalid(),
                     &call.machine_arguments,
+                    &call.authored_static_argument_selections,
                 )?;
                 return Ok(typed::statement::TableCall {
                     authored_call_selection: call.authored_call_selection,
@@ -297,6 +298,7 @@ pub(crate) mod statement {
                     lowerer.type_reference_exposure,
                     call.target_symbol,
                     ordinary_arguments,
+                    &call.authored_static_argument_selections,
                 )?,
                 arguments,
                 evidence_arguments: call

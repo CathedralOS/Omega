@@ -4562,7 +4562,9 @@ pub(crate) mod structural_storage {
                     }
                 }
                 StructuralTypeShape::FixedArray {
-                    length: terminal_psi::ArrayExtent::Application(_),
+                    length:
+                        terminal_psi::ArrayExtent::Application(_)
+                        | terminal_psi::ArrayExtent::Parameter { .. },
                     ..
                 } => return Err(TerminalInterpretError::UnclosedArrayExtent(root)),
                 StructuralTypeShape::FixedArray {

@@ -525,9 +525,12 @@ fn infer_call(
         return Ok(None);
     };
     if omitted.is_empty()
-        || omitted
-            .iter()
-            .any(|parameter| parameter.kind != TypeParameterKind::Type)
+        || omitted.iter().any(|parameter| {
+            !matches!(
+                parameter.kind,
+                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+            )
+        })
         || formals.len() != call.arguments.len()
     {
         return Ok(None);
@@ -1331,6 +1334,42 @@ mod tests {
             completed += 1;
         }
         assert!(completed >= 3, "constant and runtime applications");
+    }
+
+    #[test]
+    fn ordinary_call_inference_recovers_a_repeated_const_array_extent() {
+        let source = r#"
+            machine extent<const N: u64>(left: &[u8; N], right: &[u8; N]) -> u64 { N }
+            machine use_it(left: &[u8; 3], right: &[u8; 3]) -> u64 { extent(left, right) }
+        "#;
+        let program = checked(&[("main.omg", source)]).expect("the array shape determines N");
+        let call = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, node)| match node {
+                ExpressionNode::Call(call) if call.target.as_str() == "extent" => Some(call),
+                _ => None,
+            })
+            .unwrap();
+        let [argument] = program
+            .expression_table
+            .static_machine_application_arguments(call.authored_machine_application)
+        else {
+            panic!("the inferred application must retain its one const argument")
+        };
+        let ExpressionNode::Integer(literal) = program
+            .prepare_callable_scalar_argument(typed_trees::types::PrimitiveType::U64, argument)
+            .unwrap()
+        else {
+            panic!("N has its declared integer carrier")
+        };
+        assert_eq!(literal.value_bignum().unwrap().to_string(), "3");
+        let conflicting = source.replace("right: &[u8; 3]", "right: &[u8; 4]");
+        let refusal = checked(&[("main.omg", &conflicting)]).unwrap_err();
+        assert!(
+            format!("{refusal:?}").contains("conflicting generic arguments"),
+            "{refusal:?}"
+        );
     }
 
     #[test]

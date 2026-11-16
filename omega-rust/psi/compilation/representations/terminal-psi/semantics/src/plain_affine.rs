@@ -2316,7 +2316,14 @@ impl Analysis<'_> {
         use terminal_psi::StructuralStorageUse;
         match used {
             StructuralStorageUse::Place(root) => self.read(state, root, &[], site),
-            StructuralStorageUse::Projection(projection) => {
+            // An element observation retains its descriptor, just like a
+            // length read. The descriptor owns no elements; bounds and backing
+            // authority are checked by their separate storage and loan judgments.
+            StructuralStorageUse::Projection(projection)
+            | StructuralStorageUse::Element {
+                descriptor: projection,
+                ..
+            } => {
                 if self.root(projection.root)?.is_none() {
                     return Ok(());
                 }
@@ -2354,12 +2361,6 @@ impl Analysis<'_> {
                 self.read(state, root, path, site)
             }
             StructuralStorageUse::Type(_) => Ok(()),
-            StructuralStorageUse::Element { descriptor, .. } => {
-                if self.root(descriptor.root)?.is_some() {
-                    return Err(Error::unsupported("affine element views"));
-                }
-                Ok(())
-            }
         }
     }
 
@@ -2609,20 +2610,6 @@ impl Analysis<'_> {
             Op::StoreStructuralField { value, .. } => self.argument(state, value, site, false)?,
             Op::StructuralByteViewFieldStore { source, .. } => {
                 self.read(state, *source, &[], site)?;
-            }
-            Op::ElementViewRead { source, .. } => {
-                // The slice elements live in the backing. This observation needs
-                // the initialized descriptor at the same place as its length.
-                self.storage_use(
-                    state,
-                    terminal_psi::OperationProjection {
-                        root: source.place,
-                        path: &source.path,
-                        field: None,
-                    }
-                    .into(),
-                    site,
-                )?;
             }
             kind => {
                 for (used, _) in kind.storage_uses() {
@@ -3297,8 +3284,9 @@ impl Analysis<'_> {
     /// whether that region is exactly the projected place.
     ///
     /// An inline projection whose every step is static has its own region.
-    /// A reference's backing is separate storage: an observation depends on
-    /// the live descriptor, while loan checking judges access to the backing.
+    /// A reference or view's backing is separate storage: an observation
+    /// depends on the live descriptor, while loan checking judges access to
+    /// the backing.
     /// An element chosen at run time has none of its own: which element it
     /// is is not known here, so the observation depends on the whole fixed
     /// array it indexes and is answered from that array's region. This
@@ -3324,9 +3312,22 @@ impl Analysis<'_> {
         let declaration = self
             .root(root)?
             .ok_or(Error::malformed("untracked affine root"))?;
-        if let Some(referent) = path
-            .iter()
-            .position(|segment| matches!(segment, StructuralPathSegment::Referent))
+        let first_indirection = path.iter().position(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Referent | StructuralPathSegment::RuntimeIndex { .. }
+            )
+        });
+        let descriptor_crossing = first_indirection.filter(|position| {
+            matches!(path[*position], StructuralPathSegment::Referent)
+                || crate::runtime_structural_path_tip(
+                    self.types.iter(),
+                    declaration.structural_type,
+                    &path[..*position],
+                )
+                .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
+        });
+        if let Some(referent) = descriptor_crossing
             && let Some((descriptor, _)) = crate::canonical_static_projection(
                 self.types.iter(),
                 declaration.structural_type,

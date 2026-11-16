@@ -374,9 +374,47 @@ pub(crate) mod callable_identity {
 
         fn signature_definition_types(
             &self,
-            mut binders: Vec<(symbols::SymbolHandle, String)>,
+            binders: Vec<(symbols::SymbolHandle, String)>,
             signature: (symbols::SymbolHandle, symbols::SymbolHandle),
             lifetime_owners: &[(symbols::SymbolHandle, usize)],
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
+            result: crate::types::TypeReferenceHandle,
+            application: &super::identity_context::TypeIdentityContext<'_>,
+        ) -> Option<(Vec<String>, String, usize)> {
+            self.signature_types_in_context(
+                super::identity_context::SignatureTypeIdentityContext {
+                    binders,
+                    signature,
+                    lifetime_owners,
+                    substitutions: application.substitutions,
+                    region_projection: None,
+                },
+                parameters,
+                result,
+                application,
+            )
+        }
+
+        pub(crate) fn signature_types(
+            &self,
+            scope: super::identity_context::SignatureTypeIdentityContext<'_>,
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
+            result: crate::types::TypeReferenceHandle,
+        ) -> Option<(Vec<String>, String, usize)> {
+            let application = super::identity_context::TypeIdentityContext {
+                substitutions: scope.substitutions,
+                substitution_semantics:
+                    super::identity_context::SubstitutionSemantics::Simultaneous,
+                require_owned_substitution_regions: true,
+                application_argument_owner: scope.signature.0,
+                ..Default::default()
+            };
+            self.signature_types_in_context(scope, parameters, result, &application)
+        }
+
+        fn signature_types_in_context(
+            &self,
+            scope: super::identity_context::SignatureTypeIdentityContext<'_>,
             parameters: arena::RootRows<'_, crate::signature::StateParameter>,
             result: crate::types::TypeReferenceHandle,
             application: &super::identity_context::TypeIdentityContext<'_>,
@@ -388,6 +426,13 @@ pub(crate) mod callable_identity {
             };
             use std::cell::Cell;
 
+            let super::identity_context::SignatureTypeIdentityContext {
+                mut binders,
+                signature,
+                lifetime_owners,
+                substitutions: _,
+                region_projection,
+            } = scope;
             binders.extend(
                 parameters
                     .iter()
@@ -413,6 +458,7 @@ pub(crate) mod callable_identity {
             let context = TypeIdentityContext {
                 binders: &binders,
                 lifetime_binders: &lifetimes,
+                signature_region_projection: region_projection,
                 signature_elision: Some(&elision),
                 application_owner: signature.0,
                 application_argument_owner: application.application_argument_owner,
@@ -1737,6 +1783,29 @@ pub(crate) mod identity_context {
         }
     }
 
+    /// A callable's own regions are universally instantiated at each call.
+    /// Captured regions retain the exact declaration that supplied them.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum SignatureRegion {
+        Bound(usize),
+        Captured(LifetimeParameterIdentity),
+        /// An omitted region of one fixed enclosing type argument. Its source
+        /// application may choose any region; the callback must accept all of
+        /// them while repeated uses of that type argument keep the same choice.
+        Argument {
+            binding: usize,
+            ordinal: usize,
+        },
+    }
+
+    pub(crate) struct SignatureTypeIdentityContext<'scope> {
+        pub(crate) binders: Vec<(SymbolHandle, String)>,
+        pub(crate) signature: (SymbolHandle, SymbolHandle),
+        pub(crate) lifetime_owners: &'scope [(SymbolHandle, usize)],
+        pub(crate) substitutions: &'scope [(SymbolHandle, TypeReferenceHandle)],
+        pub(crate) region_projection: Option<&'scope dyn Fn(SignatureRegion) -> SignatureRegion>,
+    }
+
     #[derive(Default)]
     pub(crate) struct TypeIdentityContext<'binders> {
         pub(crate) portable_machine_applications:
@@ -1771,8 +1840,14 @@ pub(crate) mod identity_context {
         // position the lifetime stage 05 gives it, so a receiver can derive
         // the same loan groups from the schema alone.
         pub(crate) signature_elision: Option<&'binders SignatureElision>,
+        pub(crate) signature_region_projection:
+            Option<&'binders dyn Fn(SignatureRegion) -> SignatureRegion>,
         pub(crate) binders: &'binders [(SymbolHandle, String)],
         pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+        // Caller type arguments retain their supplying regions. They must not
+        // acquire a lifetime from the receiving signature's same-spelled tag.
+        pub(crate) require_owned_substitution_regions: bool,
+        pub(crate) signature_argument: Option<usize>,
         pub(crate) substitution_scope_starts: &'binders [usize],
         pub(crate) substitution_semantics: SubstitutionSemantics,
         pub(crate) active_const_substitutions: &'binders [SymbolHandle],
@@ -2092,13 +2167,55 @@ pub(crate) mod identity_context {
                 .iter()
                 .find(|(parameter, _)| *parameter == region)
                 .map_or(region, |(_, argument)| *argument);
-            if let Some((_, binder)) = self
+            // A stored callable's own binders are universal inside its type.
+            // Callback comparison may instantiate the surrounding machine's
+            // regions, but must not instantiate or exchange these inner binders
+            // with captured outer regions. Keep their frame coordinates rigid.
+            if self.require_owned_substitution_regions
+                && let Some(depth) = self
+                    .active_callable_signatures
+                    .iter()
+                    .rposition(|signature| signature.symbol == region.declaration)
+            {
+                return compound(
+                    RegionForm::Region,
+                    [
+                        atom(Label::Owner, &format!("callable:{depth}")),
+                        atom(Label::Ordinal, &region.ordinal.to_string()),
+                    ],
+                );
+            }
+            let region = self
                 .lifetime_binders
                 .iter()
                 .find(|(parameter, _)| *parameter == region)
-            {
-                return schema_region(*binder);
-            }
+                .map_or(SignatureRegion::Captured(region), |(_, binder)| {
+                    SignatureRegion::Bound(*binder)
+                });
+            self.encode_signature_region(program, region)
+        }
+
+        pub(crate) fn encode_signature_region(
+            &self,
+            program: &TypedTrees,
+            region: SignatureRegion,
+        ) -> String {
+            let region = self
+                .signature_region_projection
+                .map_or(region, |projection| projection(region));
+            let region = match region {
+                SignatureRegion::Bound(ordinal) => return schema_region(ordinal),
+                SignatureRegion::Captured(region) => region,
+                SignatureRegion::Argument { binding, ordinal } => {
+                    return compound(
+                        RegionForm::Region,
+                        [
+                            atom(Label::Owner, &format!("argument:{binding}")),
+                            atom(Label::Ordinal, &ordinal.to_string()),
+                        ],
+                    );
+                }
+            };
             if self.qualification == TypeIdentityQualification::PackageQualified
                 || self.structural_callable_identity
             {
@@ -2135,6 +2252,15 @@ pub(crate) mod identity_context {
                     atom(Label::Ordinal, &region.ordinal.to_string()),
                 ],
             )
+        }
+
+        fn encode_elided_signature_region(&self, program: &TypedTrees, ordinal: usize) -> String {
+            let region = self
+                .signature_argument
+                .map_or(SignatureRegion::Bound(ordinal), |binding| {
+                    SignatureRegion::Argument { binding, ordinal }
+                });
+            self.encode_signature_region(program, region)
         }
 
         fn lifetime_slot(
@@ -2322,7 +2448,10 @@ pub(crate) mod identity_context {
                         context
                             .signature_elision
                             .and_then(SignatureElision::region)
-                            .map_or_else(|| substitution::rejected(context), schema_region)
+                            .map_or_else(
+                                || substitution::rejected(context),
+                                |ordinal| context.encode_elided_signature_region(program, ordinal),
+                            )
                     })
                     .collect::<Vec<_>>()
             } else {
@@ -2694,11 +2823,28 @@ pub(crate) mod identity_context {
                 .find(|(_, (candidate, _))| candidate == symbol)
             && *replacement != type_reference
         {
-            return normalize_type_identity(
-                program,
-                *replacement,
-                &context.replacement_context_at(ordinal),
-            );
+            let replacement_context = context.replacement_context_at(ordinal);
+            // The actual type's omitted regions are universally arbitrary, but
+            // fixed across every use of this binding, including the result.
+            // They establish no storage or loan; owned named regions retain
+            // their original declaration instead of entering this local scope.
+            let argument_elision = SignatureElision::inputs(0);
+            let replacement_context = if context.require_owned_substitution_regions {
+                let owner = program
+                    .type_reference_table
+                    .operand_lifetime_owner(*replacement);
+                TypeIdentityContext {
+                    application_owner: owner,
+                    application_argument_owner: owner,
+                    application_scopes: &[],
+                    signature_elision: Some(&argument_elision),
+                    signature_argument: Some(ordinal),
+                    ..replacement_context
+                }
+            } else {
+                replacement_context
+            };
+            return normalize_type_identity(program, *replacement, &replacement_context);
         }
         if context.static_context.is_valid() {
             let refined =
@@ -2732,7 +2878,8 @@ pub(crate) mod identity_context {
                             || {
                                 if let Some(elision) = context.signature_elision {
                                     if let Some(ordinal) = elision.region() {
-                                        return schema_region(ordinal);
+                                        return context
+                                            .encode_elided_signature_region(program, ordinal);
                                     }
                                 } else if let Some(region) = program
                                     .type_reference_table
@@ -2850,11 +2997,31 @@ pub(crate) mod identity_context {
                 ))],
             )
             .intern(program),
-            TypeReferenceNode::Callable { contract } => text_identity(
-                program,
-                crate::runtime_callable_identity::normalize_contract(program, *contract, context)
+            TypeReferenceNode::Callable { contract } => {
+                // The callable type owns its invocation lifetimes; an outer
+                // callback signature or type argument does not supply elision
+                // for the callable's independent parameter/result contract.
+                let nested = TypeIdentityContext {
+                    signature_elision: if context.require_owned_substitution_regions {
+                        None
+                    } else {
+                        context.signature_elision
+                    },
+                    signature_argument: if context.require_owned_substitution_regions {
+                        None
+                    } else {
+                        context.signature_argument
+                    },
+                    ..*context
+                };
+                text_identity(
+                    program,
+                    crate::runtime_callable_identity::normalize_contract(
+                        program, *contract, &nested,
+                    )
                     .unwrap_or_else(|_| substitution::rejected(context)),
-            ),
+                )
+            }
             TypeReferenceNode::Named { symbol, name: _ }
                 if (context.structural_callable_identity || context.signature_owners.is_some())
                     && !symbol.is_valid() =>
@@ -9346,6 +9513,213 @@ mod closed_requirement_declaration_tests {
             program
                 .normalized_hermetic_symbol_identity(SymbolHandle::from_parts(u32::MAX, 1))
                 .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod nested_callback_region_tests {
+    use crate::TypedTrees;
+    use crate::callable_signature_shapes::CallableShapeMismatch;
+    use crate::callable_values::RuntimeCallableContract;
+    use crate::machine::Machine;
+    use crate::name::Identifier;
+    use crate::signature::{StateParameter, StateSignature};
+    use crate::state::State;
+    use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    fn reference(
+        program: &mut TypedTrees,
+        unit: TypeReferenceHandle,
+        lifetime: &str,
+    ) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from(lifetime)),
+            })
+    }
+
+    fn compare(swapped: bool) -> Vec<CallableShapeMismatch> {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                PathBuf::from("nested_callback_regions.omg"),
+                "environment".to_owned(),
+                PathBuf::from("nested_callback_regions"),
+                PackageKeyIdentity::from_digest([7; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let environment = symbols.insert_root(
+            SymbolKind::Machine,
+            SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, "environment".len()))),
+        );
+        let environment_entry = symbols
+            .insert_children(
+                environment,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0);
+        let callback = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("callback"));
+        let callback_entry = symbols
+            .insert_children(
+                callback,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0);
+        let required_parameter = symbols.insert_root(
+            SymbolKind::Parameter,
+            SymbolNameRef::Static("required_value"),
+        );
+        let supplied_parameter = symbols.insert_root(
+            SymbolKind::Parameter,
+            SymbolNameRef::Static("supplied_value"),
+        );
+        let required_contract = symbols.insert_root(
+            SymbolKind::CallableContract,
+            SymbolNameRef::Static("required_contract"),
+        );
+        let supplied_contract = symbols.insert_root(
+            SymbolKind::CallableContract,
+            SymbolNameRef::Static("supplied_contract"),
+        );
+        let formals = [required_contract, supplied_contract].map(|owner| {
+            let children = symbols.insert_children(
+                owner,
+                [
+                    (SymbolKind::Parameter, SymbolNameRef::Static("first")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("second")),
+                ],
+            );
+            [children.handle_at(0), children.handle_at(1)]
+        });
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let states = program.machine_states.insert_many([State {
+            symbol: environment_entry,
+            return_type: unit,
+            ..Default::default()
+        }]);
+        // The enclosing borrowed region has a real declaration owner, separate
+        // from either callable type's universally quantified invocation binder.
+        program.push_machine(Machine {
+            symbol: environment,
+            name: Identifier::from("environment"),
+            lifetime_parameters: vec![Identifier::from("captured")],
+            states,
+            ..Default::default()
+        });
+        let mut contracts = Vec::new();
+        for (position, (owner, lexical_owner, own_lifetime, parameters)) in [
+            (
+                required_contract,
+                environment,
+                "local",
+                ["local", "captured"],
+            ),
+            (
+                supplied_contract,
+                callback,
+                "renamed",
+                if swapped {
+                    ["chosen", "renamed"]
+                } else {
+                    ["renamed", "chosen"]
+                },
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let parameters = parameters
+                .into_iter()
+                .zip(formals[position])
+                .map(|(lifetime, symbol)| {
+                    let type_reference = reference(&mut program, unit, lifetime);
+                    StateParameter {
+                        symbol,
+                        name: Identifier::generated(program.symbols.name(symbol)),
+                        type_reference,
+                        ..Default::default()
+                    }
+                })
+                .collect::<Vec<_>>();
+            let parameters = program.state_parameters.insert_many(parameters);
+            let contract = program
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    signature: StateSignature {
+                        symbol: owner,
+                        lifetime_parameters: vec![Identifier::from(own_lifetime)],
+                        parameters,
+                        return_type: unit,
+                        ..Default::default()
+                    },
+                    lexical_owner,
+                    ..Default::default()
+                });
+            contracts.push(
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Callable { contract }),
+            );
+        }
+        let required = StateSignature {
+            symbol: environment,
+            parameters: program.state_parameters.insert_many([StateParameter {
+                symbol: required_parameter,
+                type_reference: contracts[0],
+                ..Default::default()
+            }]),
+            return_type: unit,
+            ..Default::default()
+        };
+        let parameters = program.state_parameters.insert_many([StateParameter {
+            symbol: supplied_parameter,
+            type_reference: contracts[1],
+            ..Default::default()
+        }]);
+        let states = program.machine_states.insert_many([State {
+            symbol: callback_entry,
+            parameters,
+            return_type: unit,
+            ..Default::default()
+        }]);
+        let callback = Machine {
+            symbol: callback,
+            name: Identifier::from("callback"),
+            lifetime_parameters: vec![Identifier::from("chosen")],
+            states,
+            ..Default::default()
+        };
+        program.push_machine(callback.clone());
+        program
+            .compare_callback_signature_types(&required, &callback, &[], &[])
+            .expect("the nested callable types have complete owned signatures")
+    }
+
+    #[test]
+    fn callback_nested_binders_alpha_rename_and_outer_captures_still_instantiate() {
+        assert!(compare(false).is_empty());
+    }
+
+    #[test]
+    fn callback_nested_binders_cannot_exchange_own_and_captured_regions() {
+        assert_eq!(
+            compare(true),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
         );
     }
 }

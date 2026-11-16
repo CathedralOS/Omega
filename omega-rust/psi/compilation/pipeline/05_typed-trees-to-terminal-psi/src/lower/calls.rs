@@ -400,15 +400,18 @@ impl Lowering<'_> {
                 })
             }
         }?;
+        // Every invocation keeps the header's authored crash ceiling. A
+        // private body outcome supplies routes only when that ceiling is open,
+        // independently of whether this call has a routed public requirement.
+        let signature = self.target_signature(target, required_contract)?;
+        if let Some(routes) = signature.declared_crash_routes() {
+            outcome.crash_routes = routes.to_vec();
+        }
         if required_contract.is_some() {
-            let signature = self.target_signature(target, required_contract)?;
             // A routed public requirement keeps its own continuation and
             // written bounds; only omitted clauses use the completed source.
             outcome.completes_normally = true;
             outcome.operational = signature.operational.published(outcome.operational);
-            if let Some(routes) = signature.declared_crash_routes() {
-                outcome.crash_routes = routes.to_vec();
-            }
             if let crate::Ceiling::Authored(row) = signature.reaches {
                 outcome.service_reach = row;
             }

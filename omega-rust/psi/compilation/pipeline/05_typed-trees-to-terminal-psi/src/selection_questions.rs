@@ -1399,6 +1399,173 @@ mod tests {
         assert!(refused.to_string().contains("CheckedMember"), "{refused}");
     }
 
+    fn cast_source(
+        form: language_core::cast_form::CastForm,
+    ) -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {
+        let (mut typed, owner, _, _) = source();
+        let state = typed.machine_by_symbol(owner).unwrap().states.start();
+        let StatementNode::Expression(value) = typed
+            .statement_table
+            .statement(typed.machine_states.get(state).statement_nodes.start())
+        else {
+            panic!("the source fixture owns one expression");
+        };
+        let value = *value;
+        let target = typed
+            .symbols
+            .insert_generated_root_from(owner, SymbolKind::Data, "Target");
+        let target_type =
+            typed
+                .type_reference_table
+                .insert(typed_trees::types::TypeReferenceNode::Named {
+                    symbol: target,
+                    name: Identifier::generated("Target"),
+                });
+        let cast = typed.expression_table.insert(ExpressionNode::Cast(
+            typed_trees::expression::TableCastExpression {
+                value,
+                target_type,
+                result_type: target_type,
+                target_label: Default::default(),
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                semantic_domain: Default::default(),
+                semantic_domain_arguments: Default::default(),
+                semantic_domain_symbol: SymbolHandle::invalid(),
+                semantic_domain_id: language_semantics::SemanticDomainId::NULL,
+                form,
+            },
+        ));
+        let body = typed
+            .statement_table
+            .insert_statements([StatementNode::Expression(cast)]);
+        typed.machine_states.get_mut(state).statement_nodes = body;
+        (typed, owner, target, cast)
+    }
+
+    #[test]
+    fn intrinsic_casts_keep_operand_selections_and_target_dependencies_without_a_domain() {
+        use language_core::{
+            ReferenceAccess,
+            cast_form::{CastEntry, CastEntryKind, CastForm},
+        };
+        use numerics::arithmetic::ArithmeticDomain;
+        let policy_entry = CastForm::Entry(CastEntry {
+            kind: CastEntryKind::Add,
+            first: true,
+            after_carrier: false,
+        });
+        for (form, policy) in [
+            (CastForm::Value, ArithmeticDomain::Exact),
+            (
+                CastForm::Recast(ReferenceAccess::Shared),
+                ArithmeticDomain::Exact,
+            ),
+            (policy_entry, ArithmeticDomain::Wrapping),
+            (policy_entry, ArithmeticDomain::Saturating),
+            (policy_entry, ArithmeticDomain::Trapping),
+        ] {
+            let (mut typed, owner, target, expression) = cast_source(form);
+            let ExpressionNode::Cast(cast) = typed.expression_table.expression_mut(expression)
+            else {
+                panic!("the source fixture owns one cast");
+            };
+            cast.domain = policy;
+            let captured = capture(
+                &typed,
+                &DeclarationSelection::from_symbols([owner]),
+                &CompletedOperators::default(),
+                &[],
+            )
+            .expect("an intrinsic cast has no semantic-domain declaration dependency");
+            assert_eq!(
+                captured.questions.len(),
+                1,
+                "the operand's genuine authored selection survives"
+            );
+            assert_eq!(captured.questions[0].lexical_owner, owner);
+            assert!(captured.dependencies.iter().any(|row| row.target == target));
+        }
+    }
+
+    #[test]
+    fn declared_cast_domains_remain_dependencies_and_incomplete_coordinates_still_refuse() {
+        use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
+        let (mut typed, owner, target, expression) = cast_source(CastForm::Value);
+        let domain = typed
+            .symbols
+            .insert_generated_root_from(owner, SymbolKind::Domain, "D");
+        let ExpressionNode::Cast(cast) = typed.expression_table.expression_mut(expression) else {
+            panic!("the source fixture owns one cast");
+        };
+        cast.semantic_domain_symbol = domain;
+        let captured = capture(
+            &typed,
+            &DeclarationSelection::from_symbols([owner]),
+            &CompletedOperators::default(),
+            &[],
+        )
+        .expect("a declared semantic domain keeps its exact dependency");
+        assert!(captured.dependencies.iter().any(|row| row.target == target));
+        assert!(captured.dependencies.iter().any(|row| row.target == domain));
+        for malformed in 0..7 {
+            let (mut typed, owner, _, expression) = cast_source(CastForm::Value);
+            let mut domain_name = arena::HandleSpan::empty();
+            typed
+                .expression_table
+                .push_name_path_member(&mut domain_name, Identifier::generated("D"));
+            let missing_type =
+                typed
+                    .type_reference_table
+                    .insert(typed_trees::types::TypeReferenceNode::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: Identifier::generated("Missing"),
+                    });
+            let arguments = typed
+                .type_reference_table
+                .insert_type_reference_handles([missing_type]);
+            let ExpressionNode::Cast(cast) = typed.expression_table.expression_mut(expression)
+            else {
+                panic!("the source fixture owns one cast");
+            };
+            match malformed {
+                0 => cast.semantic_domain = domain_name,
+                1 => cast.semantic_domain_arguments = arguments,
+                2 => cast.semantic_domain_id = language_semantics::SemanticDomainId(1),
+                3 => {
+                    cast.form = CastForm::Entry(CastEntry {
+                        kind: CastEntryKind::Add,
+                        first: true,
+                        after_carrier: false,
+                    })
+                }
+                4 => cast.semantic_domain_symbol = SymbolHandle::from_parts(9_999, 1),
+                5 => cast.target_type = missing_type,
+                _ => {
+                    cast.semantic_domain = domain_name;
+                    cast.domain = numerics::arithmetic::ArithmeticDomain::Wrapping;
+                    cast.form = CastForm::Entry(CastEntry {
+                        kind: CastEntryKind::Add,
+                        first: true,
+                        after_carrier: false,
+                    });
+                }
+            }
+            let refused = capture(
+                &typed,
+                &DeclarationSelection::from_symbols([owner]),
+                &CompletedOperators::default(),
+                &[],
+            )
+            .expect_err("a declared cast coordinate must remain exact");
+            assert!(
+                refused
+                    .to_string()
+                    .contains("missing or stale declaration coordinate"),
+                "{refused}"
+            );
+        }
+    }
+
     fn runtime_source(
         statement: bool,
     ) -> (

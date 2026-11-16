@@ -1607,52 +1607,70 @@ pub mod domain {
         index_argument_is_closed_with_substitutions(program, reference, &[])
     }
 
+    struct StaticArgumentClosure<'a> {
+        program: &'a TypedTrees,
+        substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+        types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
+        expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
+        open: bool,
+    }
+    impl Extend<symbols::SymbolHandle> for StaticArgumentClosure<'_> {
+        fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+            self.open |= symbols
+                .into_iter()
+                .filter(|symbol| symbol.is_valid())
+                .any(|symbol| {
+                    if let Some((_, actual)) = self
+                        .substitutions
+                        .iter()
+                        .find(|(formal, _)| *formal == symbol)
+                    {
+                        return !index_argument_is_closed(self.program, *actual);
+                    }
+                    matches!(
+                        self.program.symbols.get(symbol).kind,
+                        symbols::SymbolKind::TypeParameter
+                            | symbols::SymbolKind::MachineParameter
+                            | symbols::SymbolKind::ConformanceParameter
+                            | symbols::SymbolKind::PropositionParameter
+                            | symbols::SymbolKind::Parameter
+                            | symbols::SymbolKind::Local
+                    )
+                });
+        }
+    }
+    impl crate::references::TypedReferences for StaticArgumentClosure<'_> {
+        fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
+            self.types.insert(reference)
+        }
+        fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+            self.expressions.insert(expression)
+        }
+    }
+
+    /// Callable operands close under the same declaration-based test as type
+    /// indices, including every nested static application argument.
+    pub fn static_argument_is_closed(
+        program: &TypedTrees,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> bool {
+        let mut closure = StaticArgumentClosure {
+            program,
+            substitutions: &[],
+            types: Default::default(),
+            expressions: Default::default(),
+            open: false,
+        };
+        crate::references::visit_static_argument(program, &mut closure, argument);
+        !closure.open
+    }
+
     pub fn index_argument_is_closed_with_substitutions(
         program: &TypedTrees,
         reference: crate::types::TypeReferenceHandle,
         substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
     ) -> bool {
-        struct Closure<'a> {
-            program: &'a TypedTrees,
-            substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
-            types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
-            expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
-            open: bool,
-        }
-        impl Extend<symbols::SymbolHandle> for Closure<'_> {
-            fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
-                self.open |= symbols
-                    .into_iter()
-                    .filter(|symbol| symbol.is_valid())
-                    .any(|symbol| {
-                        if let Some((_, actual)) = self
-                            .substitutions
-                            .iter()
-                            .find(|(formal, _)| *formal == symbol)
-                        {
-                            return !index_argument_is_closed(self.program, *actual);
-                        }
-                        matches!(
-                            self.program.symbols.get(symbol).kind,
-                            symbols::SymbolKind::TypeParameter
-                                | symbols::SymbolKind::MachineParameter
-                                | symbols::SymbolKind::ConformanceParameter
-                                | symbols::SymbolKind::PropositionParameter
-                                | symbols::SymbolKind::Parameter
-                                | symbols::SymbolKind::Local
-                        )
-                    });
-            }
-        }
-        impl crate::references::TypedReferences for Closure<'_> {
-            fn type_reference(&mut self, reference: crate::types::TypeReferenceHandle) -> bool {
-                self.types.insert(reference)
-            }
-            fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
-                self.expressions.insert(expression)
-            }
-        }
-        let mut closure = Closure {
+        let mut closure = StaticArgumentClosure {
             program,
             substitutions,
             types: Default::default(),
