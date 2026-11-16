@@ -82,7 +82,7 @@ fn reject_changed_entry_literal(
 ) {
     // Keep the compiled operation and result paired with their optimized
     // source, and change just the value in a copy of the target plan.
-    let mut mismatched = target.target_operations().clone();
+    let mut mismatched = target.working_program_for_validation().clone();
     let function = mismatched
         .functions
         .iter_mut()
@@ -150,7 +150,7 @@ fn check_published_plan(
     let verify = |prepared: &PreparedExecutionPlan| {
         native_preparation::verify_execution_plan(
             prepared,
-            target.target_operations(),
+            target.working_program_for_validation(),
             optimized.plan(),
             optimized.unit(),
             target.boundary_origins(),

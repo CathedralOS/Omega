@@ -1719,7 +1719,9 @@ pub(crate) mod byte_output {
         block_start: usize,
         builder: &mut Builder<'_>,
     ) -> Result<bool, SelectedInstructionError> {
-        let LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } = row.kind
+        let LegalizedScalarInstructionKind::HostedWriteByteI32 {
+            boundary, source, ..
+        } = row.kind
         else {
             return Ok(false);
         };

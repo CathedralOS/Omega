@@ -3458,7 +3458,13 @@ pub(crate) mod hosted_scalar {
         native: &TargetOperationPlan,
         machine: MachineId,
         operation: OperationId,
-    ) -> Result<BoundaryRealization, LegalizationError> {
+    ) -> Result<
+        (
+            target_operations::BoundaryExecutionBinding,
+            BoundaryRealization,
+        ),
+        LegalizationError,
+    > {
         let mut functions = native
             .functions
             .iter()
@@ -3467,18 +3473,21 @@ pub(crate) mod hosted_scalar {
         if functions.next().is_some() {
             return Err(LegalizationError::custody());
         }
-        let Some(TargetUnitOperation::BoundarySettlement { realization, .. }) =
-            super::unique_row(function, |row| {
-                matches!(
-                    row,
-                    TargetUnitOperation::BoundarySettlement { psi_operation, .. }
-                        if *psi_operation == operation
-                )
-            })?
+        let Some(TargetUnitOperation::BoundarySettlement {
+            execution,
+            realization,
+            ..
+        }) = super::unique_row(function, |row| {
+            matches!(
+                row,
+                TargetUnitOperation::BoundarySettlement { psi_operation, .. }
+                    if *psi_operation == operation
+            )
+        })?
         else {
             return Err(LegalizationError::custody());
         };
-        Ok(*realization)
+        Ok((*execution, *realization))
     }
 }
 pub(crate) mod ieee_float_arithmetic {
