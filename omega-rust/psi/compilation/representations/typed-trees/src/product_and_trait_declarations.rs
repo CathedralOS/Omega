@@ -221,8 +221,10 @@ pub mod product_operand {
             pub fn product_operand_application_identity(
                 &self,
                 handle: Handle<ProductOperandApplication>,
-            ) -> Result<Option<crate::type_identity::NormalizedTypeIdentity>, &'static str>
-            {
+            ) -> Result<Option<String>, &'static str> {
+                if !self.product_operand_applications.is_valid(handle) {
+                    return Err("Product application has no live prepared row");
+                }
                 let application = self.product_operand_applications.get(handle);
                 if !matches!(
                     application.role,
@@ -244,13 +246,20 @@ pub mod product_operand {
                 {
                     return Ok(None);
                 }
+                if application.role == Some(ProductOperandRole::Requirement) {
+                    let closed = self.product_requirement_application(handle)?;
+                    let (owner, requirement) = self
+                        .trait_machine_signature(closed.signature.symbol)
+                        .ok_or("Product requirement application lost its closed signature")?;
+                    return Ok(Some(
+                        self.trait_requirement_callable_identity_text(owner, requirement),
+                    ));
+                }
                 let identity = match application.role {
-                    Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Requirement) => {
-                        application
-                            .scope
-                            .scope(self)
-                            .and_then(|scope| scope.portable_application_identity(self))
-                    }
+                    Some(ProductOperandRole::BoundarySubject) => application
+                        .scope
+                        .scope(self)
+                        .and_then(|scope| scope.portable_application_identity(self)),
                     // A provider is identified by its declaration and the
                     // complete argument tuple it is applied to, phantom
                     // arguments included (conformances.md: an application
@@ -285,7 +294,49 @@ pub mod product_operand {
                     _ => unreachable!("nominal role checked above"),
                 }
                 .ok_or("Product application has no complete portable static identity")?;
-                Ok(Some(identity))
+                self.type_identity_text(identity)
+                    .map(Some)
+                    .ok_or("Product application lost its canonical identity")
+            }
+
+            /// A native binding selects the canonical closed header only while
+            /// its original supplying arguments and declaring scope still match.
+            pub fn product_requirement_application(
+                &self,
+                handle: Handle<ProductOperandApplication>,
+            ) -> Result<crate::ClosedRequirementApplication<'_>, &'static str> {
+                if !self.product_operand_applications.is_valid(handle) {
+                    return Err("Product requirement application has no live prepared row");
+                }
+                let application = self.product_operand_applications.get(handle);
+                if application.role != Some(ProductOperandRole::Requirement) {
+                    return Err("Product application is not a requirement");
+                }
+                let closed = self
+                    .closed_requirement_application(application.declaration)
+                    .ok_or("Product requirement application has no canonical closed header")?;
+                if closed.template != application.argument.symbol
+                    || !self.same_static_machine_application_bindings(
+                        closed.application,
+                        application.supplying_application,
+                    )
+                {
+                    return Err(
+                        "Product requirement application differs from its retained bindings",
+                    );
+                }
+                let scope = application
+                    .scope
+                    .scope(self)
+                    .ok_or("Product requirement application lost its declaring trait scope")?;
+                if !self
+                    .requirement_application_matches_contract_scope(application.declaration, &scope)
+                {
+                    return Err(
+                        "Product requirement application changed its declaring trait scope",
+                    );
+                }
+                Ok(closed)
             }
 
             pub fn prepared_product_operand(
@@ -1600,6 +1651,7 @@ pub mod product_operand {
                     &[
                         ProductOperandKind::BoundarySubject,
                         ProductOperandKind::Provider,
+                        ProductOperandKind::Requirement,
                         ProductOperandKind::Data,
                     ],
                 ),

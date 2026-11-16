@@ -88,6 +88,13 @@ impl super::PackageCompilationInputs {
                 let mut admitted = declaration.clone();
                 admitted.requirement =
                     self.admit_retained_product_declaration(handoff, &declaration.requirement)?;
+                admitted.application = declaration
+                    .application
+                    .as_ref()
+                    .map(|application| {
+                        self.admit_retained_product_application(handoff, application)
+                    })
+                    .transpose()?;
                 Ok(admitted)
             })
             .collect()

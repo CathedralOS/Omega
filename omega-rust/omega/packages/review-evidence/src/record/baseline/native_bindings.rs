@@ -50,9 +50,6 @@ impl PackagePolicyNativeBinding {
         package: semantic_vocabulary::PackageKeyIdentity,
         target: target::TargetProfile,
     ) -> Result<(), &'static str> {
-        if self.application.is_some() {
-            return Err("native inventory has an unsupported applied requirement");
-        }
         let producer = self
             .producer()
             .ok_or("native inventory has no evaluated Build producer")?;
@@ -64,6 +61,13 @@ impl PackagePolicyNativeBinding {
         let [calling] = self.method.calling.as_slice() else {
             return Err("native inventory has no unique pinned calling application");
         };
+        if self
+            .application
+            .as_ref()
+            .is_some_and(|application| application != &calling.abi.requirement_identity)
+        {
+            return Err("native inventory application differs from its complete calling identity");
+        }
         if calling.abi.requirement_identity == calling.requirement.path {
             return Err("native inventory has no complete declaration ABI key");
         }

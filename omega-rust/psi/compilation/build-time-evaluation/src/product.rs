@@ -658,7 +658,7 @@ mod tests {
             source::DependencyScope::Product,
         );
         [
-            native_bindings::collect(&typed, activation, declared, &[]).map(drop),
+            native_bindings::collect(&typed, activation, declared, &[], &[]).map(drop),
             product_declarations::admit(&typed, activation, declared, executed, &[]).map(drop),
             product_policy::collect_behavior_exclusions(
                 &typed,

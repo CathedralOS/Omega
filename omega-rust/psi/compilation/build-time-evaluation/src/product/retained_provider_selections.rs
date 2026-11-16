@@ -40,29 +40,41 @@ fn captured(
             Ok(None)
         };
     };
-    if !typed
-        .product_operand_applications
-        .is_valid(identity.application)
-    {
-        return Err("an applied provider choice lost its prepared application".to_owned());
+    RetainedProductApplication::capture(typed, identity.application, text.clone()).map(Some)
+}
+
+impl RetainedProductApplication {
+    /// Capture the prepared argument graph with the canonical identity already
+    /// established by its declaration owner; package handoff adds no new meaning.
+    pub fn capture(
+        typed: &TypedTrees,
+        application_handle: arena::Handle<typed_trees::product_operand::ProductOperandApplication>,
+        identity: String,
+    ) -> Result<Self, String> {
+        if !typed
+            .product_operand_applications
+            .is_valid(application_handle)
+        {
+            return Err("an applied provider choice lost its prepared application".to_owned());
+        }
+        let application = typed.product_operand_applications.get(application_handle);
+        let owner = typed
+            .expression_table
+            .static_machine_application(application.supplying_application)
+            .lexical_owner;
+        Ok(RetainedProductApplication {
+            graph: typed_trees::product_operand::capture_closed_operand(
+                typed,
+                &application.argument,
+                owner,
+            )?,
+            sources: typed
+                .symbols
+                .source_map()
+                .ok_or("an applied provider choice has no source map for its anchors")?,
+            identity,
+        })
     }
-    let application = typed.product_operand_applications.get(identity.application);
-    let owner = typed
-        .expression_table
-        .static_machine_application(application.supplying_application)
-        .lexical_owner;
-    Ok(Some(RetainedProductApplication {
-        graph: typed_trees::product_operand::capture_closed_operand(
-            typed,
-            &application.argument,
-            owner,
-        )?,
-        sources: typed
-            .symbols
-            .source_map()
-            .ok_or("an applied provider choice has no source map for its anchors")?,
-        identity: text.clone(),
-    }))
 }
 
 /// Forms a retained application again among `program`'s declarations and
@@ -79,68 +91,82 @@ fn applied(
     declaration: SymbolHandle,
     selected: &mut ProviderSelectionIdentity,
 ) -> Result<(), Diagnostic> {
-    let own = |span: source::SourceSpan| -> Option<source::SourceSpan> {
-        let file = retained.sources.get(span.source_id)?;
-        let here = program
-            .symbols
-            .source_files()
-            .find(|own| own.path == file.path)?;
-        Some(source::SourceSpan::new(here.source_id, span.span))
-    };
-    let mut graph = retained.graph.clone();
-    let mut foreign = false;
-    let mut anchor = |declaration: &mut Option<source::SourceSpan>| {
-        if let Some(span) = *declaration {
-            match own(span) {
-                Some(here) => *declaration = Some(here),
-                None => foreign = true,
-            }
-        }
-    };
-    graph
-        .names
-        .for_each_mut(|_, name| anchor(&mut name.declaration));
-    graph
-        .operands
-        .for_each_mut(|_, operand| anchor(&mut operand.declaration));
-    if foreign {
-        return Err(Diagnostic::error(format!(
-            "retained provider choice `{}` is applied to a declaration in a source this program did not load",
-            selected.authored_path
-        )));
-    }
-    let operand = ProductDeclarationOperand {
-        path: selected.authored_path.clone(),
-        source_span: program
-            .symbols
-            .symbol_provenance_source_span(declaration)
-            .unwrap_or_default(),
-        application: Some(Arc::new(graph)),
-    };
-    let application = typed_trees_to_typed_trees::prepare_retained_product_application(
-        program,
-        &operand,
-        role,
-        declaration,
-    )
-    .map_err(|mut diagnostics| diagnostics.remove(0))?;
-    let here = program
-        .product_operand_application_identity(application)
-        .map_err(Diagnostic::error)?
-        .and_then(|identity| program.type_identity_text(identity));
-    if here.as_deref() != Some(retained.identity.as_str()) {
-        return Err(Diagnostic::error(format!(
-            "retained provider choice `{}` forms `{}` here and was chosen as `{}`",
-            selected.authored_path,
-            here.as_deref().unwrap_or("no application"),
-            retained.identity,
-        )));
-    }
-    program.retain_dependency_product_application(application);
-    selected.application = application;
+    selected.application = retained.prepare(program, role, declaration, &selected.authored_path)?;
     selected.applied = true;
-    selected.application_identity = here;
+    selected.application_identity = Some(retained.identity.clone());
     Ok(())
+}
+
+impl RetainedProductApplication {
+    /// Rejoin declaration anchors before forming the same complete application;
+    /// generated symbols and allocation order cannot identify a dependency row.
+    pub fn prepare(
+        &self,
+        program: &mut TypedTrees,
+        role: ProductOperandRole,
+        declaration: SymbolHandle,
+        authored_path: &str,
+    ) -> Result<arena::Handle<typed_trees::product_operand::ProductOperandApplication>, Diagnostic>
+    {
+        let own = |span: source::SourceSpan| -> Option<source::SourceSpan> {
+            let file = self.sources.get(span.source_id)?;
+            let here = program
+                .symbols
+                .source_files()
+                .find(|own| own.path == file.path)?;
+            Some(source::SourceSpan::new(here.source_id, span.span))
+        };
+        let mut graph = self.graph.clone();
+        let mut foreign = false;
+        let mut anchor = |declaration: &mut Option<source::SourceSpan>| {
+            if let Some(span) = *declaration {
+                match own(span) {
+                    Some(here) => *declaration = Some(here),
+                    None => foreign = true,
+                }
+            }
+        };
+        graph
+            .names
+            .for_each_mut(|_, name| anchor(&mut name.declaration));
+        graph
+            .operands
+            .for_each_mut(|_, operand| anchor(&mut operand.declaration));
+        if foreign {
+            return Err(Diagnostic::error(format!(
+                "retained provider choice `{}` is applied to a declaration in a source this program did not load",
+                authored_path
+            )));
+        }
+        let operand = ProductDeclarationOperand {
+            path: authored_path.to_owned(),
+            source_span: program
+                .symbols
+                .symbol_provenance_source_span(declaration)
+                .unwrap_or_default(),
+            application: Some(Arc::new(graph)),
+        };
+        let application = typed_trees_to_typed_trees::prepare_retained_product_application(
+            program,
+            &operand,
+            role,
+            declaration,
+        )
+        .map_err(|mut diagnostics| diagnostics.remove(0))?;
+        let here = program
+            .product_operand_application_identity(application)
+            .map_err(Diagnostic::error)?;
+        if here.as_deref() != Some(self.identity.as_str()) {
+            return Err(Diagnostic::error(format!(
+                "retained provider choice `{}` forms `{}` here and was chosen as `{}`",
+                authored_path,
+                here.as_deref().unwrap_or("no application"),
+                self.identity,
+            )));
+        }
+        program.retain_dependency_product_application(application);
+        Ok(application)
+    }
 }
 
 impl RetainedProviderSelection {

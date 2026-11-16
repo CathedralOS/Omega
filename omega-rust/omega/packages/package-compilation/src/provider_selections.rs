@@ -43,6 +43,21 @@ impl PackageCompilationInputs {
                         });
                     if reached {
                         paths.push(anchor.source().path.clone());
+                        if let Some(application) = &declaration.application {
+                            let application =
+                                self.admit_retained_product_application(bundle, application)?;
+                            for span in application.declaration_spans() {
+                                let file =
+                                    application.sources.get(span.source_id).ok_or_else(|| {
+                                        vec![Diagnostic::error(
+                                            "native application has a foreign source coordinate",
+                                        )]
+                                    })?;
+                                if file.resolution_stratum == SourceResolutionStratum::Base {
+                                    paths.push(file.path.clone());
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -126,6 +141,36 @@ impl PackageCompilationInputs {
         let source = self.admit_retained_product_source(bundle, anchor.source())?;
         RetainedDeclaration::from_retained_parts(source, anchor.span(), anchor.kind())
             .map_err(|reason| refuse(reason.into()))
+    }
+
+    pub(super) fn admit_retained_product_application(
+        &self,
+        bundle: &PackageBuildHandoff,
+        application: &build_time_evaluation::provider_declarations::RetainedProductApplication,
+    ) -> Result<
+        build_time_evaluation::provider_declarations::RetainedProductApplication,
+        Vec<Diagnostic>,
+    > {
+        let mut admitted = application.clone();
+        let mut needed = application
+            .declaration_spans()
+            .map(|span| span.source_id)
+            .collect::<Vec<_>>();
+        needed.sort_unstable();
+        needed.dedup();
+        let files = application
+            .sources
+            .files()
+            .map(|file| {
+                if needed.binary_search(&file.source_id).is_ok() {
+                    self.admit_retained_product_source(bundle, file)
+                } else {
+                    Ok(file.clone())
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        admitted.sources = std::sync::Arc::new(source::SourceMap::from_files(files));
+        Ok(admitted)
     }
 
     pub(super) fn admit_retained_product_source(

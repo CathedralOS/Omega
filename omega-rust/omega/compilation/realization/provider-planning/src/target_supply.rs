@@ -289,7 +289,6 @@ impl PreparedTargetSupply {
                             selected.target.canonical_name() == target
                                 && selected.subject == requirement.slot
                                 && selected.requirement == requirement.requirement
-                                && selected.application.is_none()
                         })
                         .map(|supply| ProviderSupply {
                             authority: SupplyAuthority::NativeBinding,

@@ -156,7 +156,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 }
 
 /// Why one application was left as typing wrote it.
-enum Stop {
+pub(crate) enum Stop {
     /// A request this pass does not serve yet; nothing was changed for it.
     Unserved(Option<&'static str>),
     /// The application is wrong as the author wrote it.
@@ -779,11 +779,28 @@ fn apply_requirement(
     applied: &Applied,
     arguments: &[StaticMachineArgument],
 ) -> Served<()> {
-    let Some((owner, requirement)) = program.trait_machine_signature(applied.target) else {
-        return Ok(());
+    if let Some(closed) =
+        prepare_requirement_application(program, applied.target, applied.application, arguments)?
+    {
+        site.enter(program, closed);
+    }
+    Ok(())
+}
+
+/// Product operands spend the same declared argument tuple as source calls.
+/// Retain its binding judgment here so both entrances select the canonical
+/// requirement header; a declaration name alone cannot substitute a contract.
+pub(crate) fn prepare_requirement_application(
+    program: &mut TypedTrees,
+    target: SymbolHandle,
+    application: StaticMachineApplicationHandle,
+    arguments: &[StaticMachineArgument],
+) -> Result<Option<SymbolHandle>, Stop> {
+    let Some((owner, requirement)) = program.trait_machine_signature(target) else {
+        return Ok(None);
     };
-    if requirement.symbol != applied.target {
-        return Ok(());
+    if requirement.symbol != target {
+        return Ok(None);
     }
     let parameters = program
         .state_signature_type_parameters(requirement)
@@ -791,7 +808,7 @@ fn apply_requirement(
         .map(|parameter| (parameter.symbol, parameter.kind.clone()))
         .collect::<Vec<_>>();
     if parameters.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     if !owner.type_parameters.is_empty()
         || !owner.lifetime_parameters.is_empty()
@@ -806,29 +823,28 @@ fn apply_requirement(
     for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
         operands.push(Operand::read(program, *parameter, kind, argument)?);
     }
-    bind(program, applied.application, &operands);
+    bind(program, application, &operands);
     // Open at a parameter of the enclosing generic machine: closed in each
     // machine generated from that one.
     if operands.iter().any(|operand| operand.is_open(program)) {
-        return Ok(());
+        return Ok(None);
     }
     let table = &mut program.expression_table;
     if table
-        .static_machine_application(applied.application)
+        .static_machine_application(application)
         .registration_operation
-        != applied.target
+        != target
     {
         return Err(Stop::Unserved(None));
     }
     table
-        .static_machine_application_mut(applied.application)
-        .binding_declaration = applied.target;
-    table.set_static_machine_application_lifetimes(applied.application, applied.target, &[]);
+        .static_machine_application_mut(application)
+        .binding_declaration = target;
+    table.set_static_machine_application_lifetimes(application, target, &[]);
     let closed = program
-        .instantiate_requirement_application(&environment, applied.target, &[], applied.application)
-        .map_err(|_| Stop::Unserved(None))?;
-    site.enter(program, closed);
-    Ok(())
+        .instantiate_requirement_application(&environment, target, &[], application)
+        .map_err(|reason| Stop::Unserved(Some(reason)))?;
+    Ok(Some(closed))
 }
 
 /// What a static argument is, as the identity an application is keyed by:

@@ -6,9 +6,9 @@
 //! own: it has no application to form, and a requirement is the one visible
 //! declaration its path selects. A slot or a provider applied to static
 //! arguments, `Reading<Tag>`, has its application formed among the
-//! program's declarations ([`applications`]). A requirement applied to
-//! static arguments (a native binding's operand) still has no producer; it
-//! is refused by name and publishes nothing.
+//! program's declarations ([`applications`]). An applied requirement uses
+//! the same canonical argument binding and closed-header instantiation as
+//! an ordinary source call; its selected declaration survives package capture.
 
 use arena::Handle;
 use diagnostics::Diagnostic;
@@ -20,7 +20,7 @@ use typed_trees::product_operand::{ProductApplicationDemand, ProductOperandAppli
 
 mod applications;
 
-const NO_PRODUCT_ROUTE: &str = "no product route yet: Product operand preparation: a requirement applied to static arguments has no producer";
+const INCOMPLETE_REQUIREMENT: &str = "Product requirement has no complete prepared application";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PreparedProductRequirement {
@@ -107,15 +107,38 @@ fn served(
 }
 
 pub fn prepare_product_requirement_operand(
-    declarations: &typed_trees::product_operand::ProductDeclarationLookup<'_>,
+    program: &mut TypedTrees,
+    source: &typed_trees::product_operand::ProductSourceLookups<'_>,
     operand: &ProductDeclarationOperand,
-    _author: SymbolHandle,
-    _static_environment: Option<&ProductStaticEnvironment>,
+    author: SymbolHandle,
+    static_environment: Option<&ProductStaticEnvironment>,
 ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
     if operand.application.is_some() {
-        return Err(product_error(operand));
+        let handle = prepare_product_operand_application(
+            program,
+            source,
+            operand,
+            ProductOperandRole::Requirement,
+            author,
+            static_environment,
+            ProductApplicationDemand::Selected,
+        )?
+        .ok_or_else(|| product_error(operand))?;
+        let application = program.product_operand_applications.get(handle);
+        let closed = program
+            .product_requirement_application(handle)
+            .map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(operand.source_span)]
+            })?;
+        return Ok(PreparedProductRequirement {
+            application: Some(handle),
+            requirement: closed.template,
+            closed_requirement: Some(application.declaration),
+            trait_scope: Some(application.scope),
+        });
     }
-    declarations
+    source
+        .declarations
         .resolve(
             &operand.path,
             operand.source_span,
@@ -129,26 +152,27 @@ pub fn prepare_product_requirement_operand(
         })
         .ok_or_else(|| {
             vec![
-                Diagnostic::error(
-                    "native binding must name one exact visible package-owned requirement",
-                )
+                Diagnostic::error(format!(
+                    "Product requirement `{}` does not name one visible declaration",
+                    operand.path
+                ))
                 .with_source_span(operand.source_span),
             ]
         })
 }
 
 fn product_error(operand: &ProductDeclarationOperand) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(NO_PRODUCT_ROUTE).with_source_span(operand.source_span)]
+    vec![Diagnostic::error(INCOMPLETE_REQUIREMENT).with_source_span(operand.source_span)]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// An operand applied to static arguments has no producer: it is
-    /// refused in both entrances and never becomes an empty result.
+    /// A damaged application must be refused in both entrances, rather than
+    /// becoming an empty tuple that could name a different declaration.
     #[test]
-    fn an_applied_product_operand_is_refused_and_never_becomes_an_empty_result() {
+    fn a_malformed_applied_product_operand_is_refused_and_never_becomes_an_empty_result() {
         let mut program = TypedTrees::default();
         let source_program = program.clone();
         let source = typed_trees::product_operand::ProductSourceLookups::new(&source_program);
@@ -170,10 +194,8 @@ mod tests {
         );
         assert!(
             prepare_product_requirement_operand(
-                &typed_trees::product_operand::ProductDeclarationLookup::new(
-                    &program,
-                    &[ProductOperandRole::Requirement]
-                ),
+                &mut program,
+                &source,
                 &operand,
                 SymbolHandle::invalid(),
                 None
@@ -205,10 +227,8 @@ mod tests {
         );
         assert!(
             prepare_product_requirement_operand(
-                &typed_trees::product_operand::ProductDeclarationLookup::new(
-                    &program,
-                    &[ProductOperandRole::Requirement]
-                ),
+                &mut program,
+                &source,
                 &operand,
                 SymbolHandle::invalid(),
                 None

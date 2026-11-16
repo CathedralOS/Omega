@@ -81,10 +81,7 @@ impl PackageReviewInput<'_> {
         let mut policies = Vec::new();
         for supply in supplies {
             let selection = &supply.selection;
-            if selection.supplier_package != package
-                || selection.producer.package != package
-                || selection.application.is_some()
-            {
+            if selection.supplier_package != package || selection.producer.package != package {
                 return Err(unavailable(
                     "the native binding's complete local Build custody",
                 ));
@@ -110,6 +107,33 @@ impl PackageReviewInput<'_> {
                 })
                 .ok_or_else(|| unavailable("the native binding's authored requirement"))?;
             let canonical = source.trait_requirement_callable_identity_text(service, signature);
+            let application = selection
+                .application
+                .map(|handle| {
+                    let closed = source
+                        .product_requirement_application(handle)
+                        .map_err(unavailable)?;
+                    if closed.signature.symbol != selection.requirement
+                        || closed.declaring_trait != selection.subject
+                    {
+                        return Err(unavailable(
+                            "the native binding's exact closed requirement application",
+                        ));
+                    }
+                    let identity = source
+                        .product_operand_application_identity(handle)
+                        .map_err(unavailable)?
+                        .ok_or_else(|| {
+                            unavailable("the native binding's complete application identity")
+                        })?;
+                    if identity != canonical {
+                        return Err(unavailable(
+                            "the native binding's unchanged closed callable identity",
+                        ));
+                    }
+                    Ok::<_, Vec<Diagnostic>>(identity)
+                })
+                .transpose()?;
             let boundary_callable = boundary
                 .declaration
                 .as_ref()
@@ -164,7 +188,7 @@ impl PackageReviewInput<'_> {
             });
             policies.push((
                 PackagePolicyNativeBinding {
-                    application: None,
+                    application,
                     method,
                     binding: policy_binding,
                 },

@@ -390,7 +390,6 @@ mod product_policy {
     use language_semantics::declaration_selection::{
         AuthoredBehaviorExclusion, AuthoredRootGrant, CapturedNativeIntent, ExecutedEnumExclusion,
         ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationRequest,
-        ProductOperandRole,
     };
     use std::sync::Arc;
     use symbols::SymbolHandle;
@@ -424,13 +423,12 @@ mod product_policy {
             if formations.is_empty() && executed.is_empty() {
                 return Ok((Vec::new(), Vec::new()));
             }
-            let authors = typed_trees::product_operand::ProductRequestAuthors::new(self.typed());
-            let declarations = typed_trees::product_operand::ProductDeclarationLookup::new(
-                self.typed(),
-                &[ProductOperandRole::Requirement],
-            );
+            let source = Arc::clone(&self.input);
+            let lookups =
+                typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
             for formation in formations {
-                let author = authors
+                let author = lookups
+                    .authors
                     .resolve(formation.author)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let [operand] = formation.request.operands.as_ref() else {
@@ -439,7 +437,8 @@ mod product_policy {
                     )]);
                 };
                 typed_trees_to_typed_trees::prepare_product_requirement_operand(
-                    &declarations,
+                    Arc::make_mut(&mut self.input).typing.typed_mut(),
+                    &lookups,
                     operand,
                     author,
                     None,
@@ -487,10 +486,9 @@ mod product_policy {
                 .filter(|(request, _)| request.operation == BuildOperation::NativeBinding)
                 .peekable();
             if native_formations.peek().is_some() {
-                let declarations = typed_trees::product_operand::ProductDeclarationLookup::new(
-                    self.typed(),
-                    &[ProductOperandRole::Requirement],
-                );
+                let source = Arc::clone(&self.input);
+                let lookups =
+                    typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
                 for (request, author) in native_formations {
                     let [operand] = request.operands.as_ref() else {
                         return Err(vec![Diagnostic::error(
@@ -498,7 +496,8 @@ mod product_policy {
                         )]);
                     };
                     typed_trees_to_typed_trees::prepare_product_requirement_operand(
-                        &declarations,
+                        Arc::make_mut(&mut self.input).typing.typed_mut(),
+                        &lookups,
                         operand,
                         *author,
                         None,
@@ -512,6 +511,7 @@ mod product_policy {
                 request.activation,
                 request.declared,
                 request.native_bindings,
+                &formations,
             )?;
             let grants = build_time_evaluation::product_policy::collect_product_root_grants(
                 typed,
@@ -1185,11 +1185,12 @@ impl SourceContinuation {
             &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
         >,
     ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
+        let source = Arc::clone(&self.input);
+        let lookups =
+            typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
         typed_trees_to_typed_trees::prepare_product_requirement_operand(
-            &typed_trees::product_operand::ProductDeclarationLookup::new(
-                self.typed(),
-                &[language_semantics::declaration_selection::ProductOperandRole::Requirement],
-            ),
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            &lookups,
             operand,
             author,
             static_environment,
