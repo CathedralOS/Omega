@@ -75,6 +75,102 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### The Psi interpreter compares and offsets host-returned addresses that the spec says it must refuse
+- Category: A verdict with nothing behind it
+- Where: [integer equality](omega-rust/psi/interpreter/src/engine_execution.rs#L3598), [integer order](omega-rust/psi/interpreter/src/engine_execution.rs#L3612), [compare_with](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L627), [address subtraction](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L385), [address cast](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L419), [host address result](omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/original_homes.rs#L205), [host address ledger](omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/allocation.rs#L115)
+- Saw: [host result validation](wiki/spec/terminal-psi/boundary_calls.md#L230) says the interpreter "never dereferences or offsets" a host-returned `addr` and "refuses any comparison or arithmetic that combines it with an interpreter-created address". Host provenance lives only in the terminal-runtime ledger, read only when an address goes back to a native import. `host_address_result` stores the value as a plain integer, and `IntegerEqual`, `IntegerLessThan`, `ExactIntegerAdd`, `ExactIntegerSubtract` and `IntegerExactCast` compute results on it, refusing only on a carrier mismatch. With `p` from a native import and `q = address_of(&local)`, `p < q` runs in Psi, ordering a stand-in identity against a real pointer, and `p == address_of(&x)` can be true in Psi alone.
+- Cost: `omega run --both` can report agreement or disagreement on a comparison with no defined meaning across the two runs. Carry host provenance on the scalar and refuse mixed comparison, arithmetic and offsets in the core operations.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/boundary_calls.md
+
+### A shared byte view of an array gives its elements different addresses in the Psi interpreter
+- Category: Re-deriving
+- Where: [shared view is a snapshot](omega-rust/psi/interpreter/src/boundary_inputs.rs#L1403), [shared reborrow snapshot](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L1017), [fresh namespace](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3003), [view element address](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3077), [array element address](omega-rust/psi/interpreter/src/storage_primitives.rs#L6016)
+- Saw: [address exposure](wiki/spec/language/counts_and_addresses.md#L35) says compatible views of the same location "expose the same address", and [interpreted address identities](wiki/spec/language/counts_and_addresses.md#L107) says changing a view's type "cannot change the referent's address". A shared view `&bytes[..]` of a `[u8; N]` array, and a shared reborrow of a mutable view, copy the bytes into `ByteSequenceView::new`, which draws a new exposure namespace; `address_of(&view[i])` encodes that namespace while `address_of(&bytes[i])` encodes the array's identity. `var bytes: [u8; 4]; let view = &bytes[..]; exit_process(if address_of(&bytes[0]) == address_of(&view[0]) { 0 } else { 1 });` exits 0 natively and 1 under Psi. Traced in the interpreter; the lowering of `address_of` on a view place was not confirmed.
+- Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
+
+### `Clock::sleep` promises it never blocks a worker, but every provider blocks for the whole wait
+- Category: A verdict with nothing behind it
+- Where: [Clock::sleep](source/library/std/clock.omg#L10), [LinuxClockWait::poll](source/library/std/targets/linux_x86_64/clock_impl.omg#L15), [LinuxX64TimeRead::poll](source/library/std/targets/linux_x86_64/time_host_impl.omg#L39), [Windows Clock binding](source/library/std/build.omg#L104), [WindowsTimeRead::sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L51)
+- Saw: [implementation boundaries](wiki/spec/language/effects.md) says that on published surfaces "omitted `blocks` means never blocks a worker". `Clock::sleep` omits `blocks` although its comment says "Block the caller for `milliseconds`", and so do its raw waits `LinuxClockWait::poll`, `LinuxArmClockWait::nanosleep` and `DarwinClockWait::poll`. The same native calls are bound elsewhere with `blocks`: syscall 7 is also `LinuxX64TimeRead::poll` (entered as `block ...`), and kernel32 `Sleep` is also `WindowsTimeRead::sleep`.
+- Cost: The task runtime and synchronization checks read `blocks` to decide whether a call can hold a worker; `Clock::sleep(60000)` holds one for a minute with no evidence. Declare `blocks` on `Clock::sleep` and its three raw waits, as `TimeHost::sleep` does, and mark the call sites with `block`.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/effects.md
+
+### On Windows, sleeping for `u32::MAX` milliseconds never returns
+- Category: One idea, several implementations
+- Where: [Windows Clock binding](source/library/std/build.omg#L104), [Windows TimeHost sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L119), [POSIX split of large waits](source/library/std/targets/linux_x86_64/clock_impl.omg#L30), [sleep_for saturates](source/library/std/time.omg#L1065)
+- Saw: [three layers](wiki/spec/build/platform_services.md) requires a portable service to mean the same thing on every target. The Linux and Darwin providers split a count above `i32::MAX` into finite waits, so `sleep(4294967295)` returns after about 49.7 days. Windows binds `Clock::sleep` and `WindowsTimeRead::sleep` straight to `Sleep(DWORD)`, where 0xFFFFFFFF is `INFINITE`. `sleep_for` saturates any duration of 49.7 days or more to exactly that value, and its comment says the saturated request "is RETURNED so the caller can observe it".
+- Cost: A long sleep hangs forever on Windows only. Give Windows a checked adapter that never passes 0xFFFFFFFF, for example by splitting the wait as the POSIX providers do.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/platform_services.md
+
+### POSIX and Windows filesystem adapters give five portable calls different meanings
+- Category: One idea, several implementations
+- Where: [Windows open_with](source/library/std/targets/windows_x86_64/filesystem/handles.omg#L30), [POSIX open_with](source/library/std/posix_filesystem_adapter.omg#L1191), [POSIX Default permissions](source/library/std/posix_filesystem_adapter.omg#L1009), [Windows Default permissions](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L161), [POSIX removal budget](source/library/std/posix_filesystem_adapter.omg#L1477), [POSIX removal stack](source/library/std/posix_filesystem_adapter.omg#L422), [POSIX create_dir_all prefix](source/library/std/posix_filesystem_adapter.omg#L919), [Windows read](source/library/std/targets/windows_x86_64/filesystem/handles.omg#L110), [Linux read clamp](source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg#L148)
+- Saw: [three layers](wiki/spec/build/platform_services.md) says the portable service "is identical on every target" and all translation to the OS shape happens in the adapter. Each family decides these cases itself:
+  - `open_with` with `truncate` and no write access (or with `append`): Windows refuses with `InvalidInput`; POSIX encodes `O_RDONLY|O_TRUNC` and empties the file.
+  - `set_permissions(p, Permissions::Default)`: Windows only clears read-only; POSIX calls `chmod(p, 0o666)`, which strips execute, set-ID and sticky bits (a 0755 script stops running, a directory loses its search bit), unlike its own `Readonly { value: false }` path.
+  - `remove_dir_all`: POSIX stops after 4096 steps or 16 levels, after deleting part of the tree, with `Other`; Windows has no budget.
+  - `create_dir_all`: POSIX skips any parent prefix ending at byte 255 or later and ignores every intermediate `mkdir` failure; Windows creates every prefix and stops at the first real error.
+  - `read`, `read_all` and `copy` with a count larger than the buffer: Windows refuses with `InvalidInput`; POSIX clamps to the buffer.
+- Cost: The same call is harmless on one target and destroys data or half-finishes on another. Decide each rule once in the portable layer and make both families follow it.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/platform_services.md
+
+### POSIX std reads `errno` by `memcpy` from a raw address and declares it cannot crash
+- Category: A verdict with nothing behind it
+- Where: [copy_error](source/library/std/posix_filesystem_adapter.omg#L1813), [posix_canonical_error](source/library/std/posix_filesystem_adapter.omg#L1875), [c_copy_from_address](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L156), [darwin_failure_i32](source/library/std/targets/macos_arm64/posix_filesystem_impl.omg#L161), [memcpy bindings](source/library/std/build.omg#L359)
+- Saw: [inert addresses and marshaling](wiki/spec/build/foreign_storage.md) says `addr` is numerical data that ordinary code cannot dereference, and a binding materializes a pointer "only from established storage claims"; thread-local storage must be copied or mediated by such a claim. std declares `copy_error(destination, source: u64, count)` and `c_copy_from_address` as `reaches none crashes none`, binds both to `memcpy`, and passes the bare `u64` from `__errno_location`/`___error` as the source. That is a general read of any address, and `source = 0` faults. The two copies also decode differently: one assembles four bytes, the other keeps only `code[0]`.
+- Cost: Reviewers see a crash-free boundary that is really an unchecked dereference. Provide one shared errno requirement whose provider returns the `int`, or an admitted view of the thread-local slot, for both callers.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/foreign_storage.md
+
+### The Omega-written compiler counts effectful guards as complementary coverage
+- Category: One idea, several implementations
+- Where: [opposed_guards](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L243), [same_tree](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L386), [unmatched-arm trap](source/psi/pipeline/05_checked-trees-to-scalar-operations/statements.omg#L327), [Rust refusal test](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L377)
+- Saw: [coverage and domain tests](wiki/spec/language/patterns.md#L197) says missing coverage "is a compile error, not an implicit trap or fallthrough", and complementary `==`/`!=` guards cover only "over the same unchanged subjects"; [expressions.md](wiki/spec/language/expressions.md#L32) says an effectful guard "cannot be replayed as a fact about operands it may have changed". `opposed_guards` pairs any `l == r`/`l != r` or `x == true`/`x == false` arms, and `same_tree` compares only spellings, never the arms between them. With `machine flip(v: &mut bool) -> bool { v = true; false }`, `transition { cell == true -> 1  flip(&mut cell) == true -> 2  cell == false -> 3 }` counts as covered; from `cell = false` no arm matches, and stage 05 lowers that path to `Trap`. The Rust compiler refuses this shape ("the call can change the pointee between alternatives").
+- Cost: The two compilers disagree, and the Omega-written one turns a coverage error into an undeclared runtime trap. Refuse a guard pair when any guard between them can write storage the pair reads, as Rust's `guard_may_change_storage` does.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
+
+### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
+- Category: A verdict with nothing behind it
+- Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
+- Saw: [patterns.md](wiki/spec/language/patterns.md#L30) says "`field: value` is ordinary projected equality", so `Reading::Value { level: 0 }` matches only some `Value` readings. `case_pattern` checks only that the arm names the case and ignores the pattern's fields, so `transition r { Reading::Value { level: 0 } -> 0  Reading::Missing -> 1 }` passes coverage and `Value { level: 5 }` matches nothing.
+- Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
+
+### The Omega-written resolver accepts type names spelled like builtin integers
+- Category: One idea, several implementations
+- Where: [builtin_shadow](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L288), [builtin_type](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L1470), [type_binding](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L1224), [Rust check](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_builtin_type_names.rs#L23)
+- Saw: [builtin type names](wiki/spec/language/modules.md#L146) makes the integer family "every `i` or `u` followed by decimal digits" and says a data declaration or generic type binder with such a spelling "rejects where it is introduced" (`data u7 { value: u32; } // Rejected`). The Omega-written resolver checks only root type declarations against a fixed list (`u8`…`u64`, `i8`…`i64`, …), so `data u7` and `data u128` are accepted, and it never checks generic binders, so in `machine pick<u32>(x: u32) -> u32` the binder silently hides the builtin. The Rust compiler refuses both with the open-ended `is_builtin_type_spelling`.
+- Cost: The same source means different types in the two compilers. Use the open-ended family test for every type introducer, generic binders included.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
+
+### Omega-written typing re-scans integer literals from source bytes
+- Category: Re-deriving
+- Where: [literal_value](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L15), [suffix_carrier](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L180), [lexer](source/psi/pipeline/00_source_files_to_tokens.omg#L944), [token kind](source/psi/representations/tokens.omg#L109)
+- Saw: AGENTS.md says stages consume their declared input representation and must not bypass the pipeline with "source re-analysis". The lexer already records each integer literal's base, digit run and suffix presence in `TokenKind::Integer`; stage 03's `literal_value` reopens the source bytes at the span, detects the base again, re-scans digits and separators, and matches the suffix against eight spellings.
+- Cost: Two scanners must agree on literal grammar, so a change to one (such as the spec's `u13` suffixes) can split them silently. Decode value and carrier once in the lexer or parser and carry them forward.
+- Reported: 2026-11-16, Claude Code, while auditing code against omega-rust/pipeline.md
+
+### The compiler has no `InternalFailure` outcome, so a defect it detects in itself exits as "source rejected"
+- Category: A verdict with nothing behind it
+- Where: [outcome enum](omega-rust/omega/compilation/products/src/compile_outcomes.rs#L109), [non-diagnostic errors become Reject](omega-rust/omega/build-system/orchestration/src/lib.rs#L233), [validator failure called a compiler defect](omega-rust/omega/build-system/orchestration/src/lib.rs#L215), [exit status](omega-rust/omega/application/src/commands/compile.rs#L244), [reserved-codes comment](omega-rust/omega/application/src/arguments/mod.rs#L33)
+- Saw: [outcomes](wiki/spec/build/compiler_request.md#L249) says compilation "preserves four outcome distinctions", including `InternalFailure` for "a compiler/checker malfunction or violated implementation invariant", with halt value 3; [independent stage validators](wiki/spec/build/command_line.md) says to "distinguish compiler invariant failures from invalid authored source". `CompilerRequestOutcome` has only `Complete`, `Reject` and `Incomplete`, and `BuildError::outcome` maps every non-diagnostic error (`StageValidation`, `Publication`, `BuildDirectory`, `CheckWorkspace`) to `Reject`. A failing `omega --validator TargetOperationCorrespondence main.omg` prints "this is a compiler defect, not an error in the source" and exits 1. The Omega-written compiler has the case (`source/omega/application/ocreq/outcome.omg`).
+- Cost: Scripts reading `$?` cannot tell a compiler bug from a rejected program. Add `InternalFailure` (exit 3), classify compiler-invariant errors as it, and exit with it.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/compiler_request.md
+
+### A failed stage validator never reaches the `--report-file` report
+- Category: A verdict with nothing behind it
+- Where: [first failure drops the rows](omega-rust/omega/build-system/orchestration/src/project/stage_validators.rs#L201), [exit before the report](omega-rust/omega/application/src/commands/compile.rs#L158), [report write](omega-rust/omega/application/src/commands/compile.rs#L161)
+- Saw: [independent stage validators](wiki/spec/build/command_line.md#L152) says to report validator names and "passed/failed results in the existing compile report; `--report-file` retains those rows". `StageValidatorRequest::run_with` returns `Err(BuildError::StageValidation(row))` at the first failure and drops the rows already gathered, and `present_single` exits on refusal before `write_report_or_exit`. `omega --every-validator --report-file r.txt main.omg` with one failing validator writes no `r.txt`; with several targets the batch report keeps a `failed:` line but loses that target's passed rows. No report can contain a failed row.
+- Cost: The report is missing exactly when validation fails. Carry the complete row list out with the error and write the report before choosing the exit status.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
+
+### `omega packages audit --help` documents exit 2 for invalid arguments; the code exits 64
+- Category: The documents disagree
+- Where: [audit usage text](omega-rust/omega/application/src/arguments/audit.rs#L13), [parse errors exit 64](omega-rust/omega/application/src/main.rs#L62), [bad adapter exits 64](omega-rust/omega/application/src/commands/packages.rs#L125)
+- Saw: The usage text promises "2: invalid arguments". Every parse error exits with `USAGE_ERROR_EXIT` (64), as does a bad adapter, and the comment in `arguments/mod.rs` explains that 2 is the compiler request contract's `Incomplete` status. `omega packages audit --bogus; echo $?` prints 64.
+- Cost: A script written from `--help` never sees its argument errors. Change the help text to 64, or state the audit statuses in command_line.md.
+- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
+
 ### `x == S::C` on a payload-bearing sum becomes a bare tag test when Psi 03 cannot type `x`
 - Category: One idea, several implementations
 - Where: [untyped comparison left in place](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_preparation.rs#L217), [no type for a receiver call](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L1425), [read as a case test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L500), [case test without payload check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L1412)
