@@ -10669,6 +10669,13 @@ pub(crate) mod operation_contracts {
                         roots.insert(left.root());
                         roots.insert(right.root());
                     }
+                    Proposition::FloatIntegerConversion(clause) => {
+                        scalar_term_roots(&clause.source, roots);
+                        scalar_term_roots(&clause.result, roots);
+                    }
+                    Proposition::IeeeFloatIntegerExact { source, .. } => {
+                        scalar_term_roots(source, roots)
+                    }
                     Proposition::FloatMeaningEqual(clause) => {
                         for source in clause.sources() {
                             scalar_term_roots(source, roots);

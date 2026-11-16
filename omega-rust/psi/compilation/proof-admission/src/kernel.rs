@@ -97,6 +97,22 @@ pub fn decide_primitive(
         (PrimitiveJudgment::ClosedIeeeFloatRelation, relation) => {
             crate::ieee_float_rules::closed_relation(relation) == Some(true)
         }
+        (
+            PrimitiveJudgment::ClosedFloatIntegerRelation,
+            Proposition::Implication {
+                premise,
+                conclusion,
+            },
+        ) if **conclusion == Proposition::Falsehood => {
+            crate::closed_float_integer_relation(premise)
+                .map_err(|error| KernelError::FloatInteger(Box::new(error)))?
+                == Some(false)
+        }
+        (PrimitiveJudgment::ClosedFloatIntegerRelation, relation) => {
+            crate::closed_float_integer_relation(relation)
+                .map_err(|error| KernelError::FloatInteger(Box::new(error)))?
+                == Some(true)
+        }
         _ => false,
     };
     accepted
@@ -243,6 +259,7 @@ fn compare_fixed_integer_relation(
 pub enum KernelError {
     MalformedProposition(semantic_vocabulary::PropositionError),
     ClosedIntegerEvaluation(ClosedIntegerEvaluationError),
+    FloatInteger(Box<crate::FloatIntegerError>),
     JudgmentDoesNotEstablishGoal { judgment: PrimitiveJudgment },
 }
 

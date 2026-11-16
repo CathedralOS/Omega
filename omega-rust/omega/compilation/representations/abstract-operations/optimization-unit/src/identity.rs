@@ -362,6 +362,18 @@ pub(crate) mod proposition_encoding {
                 encode_scalar_term(bytes, left);
                 encode_scalar_term(bytes, right);
             }
+            Proposition::FloatIntegerConversion(clause) => {
+                bytes.u8(20);
+                encode_scalar_term(bytes, &clause.source);
+                encode_scalar_term(bytes, &clause.result);
+                encode_float_projection_contract(bytes, &clause.projection);
+                encode_float_semantic_contract(bytes, &clause.operation);
+            }
+            Proposition::IeeeFloatIntegerExact { source, target } => {
+                bytes.u8(21);
+                encode_scalar_term(bytes, source);
+                encode_integer_type(bytes, *target);
+            }
             Proposition::FloatMeaningEqual(clause) => {
                 use semantic_vocabulary::{
                     FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,
@@ -371,11 +383,7 @@ pub(crate) mod proposition_encoding {
                     Value::Projection { source, contract } => {
                         bytes.u8(0);
                         encode_scalar_term(bytes, source);
-                        bytes.u16(contract.format);
-                        bytes.u8(contract.operation);
-                        bytes.u8(contract.declaration);
-                        bytes.u16(contract.catalog_version);
-                        bytes.bytes(&contract.commitment);
+                        encode_float_projection_contract(bytes, contract);
                     }
                     Value::Application {
                         contract,
@@ -383,24 +391,7 @@ pub(crate) mod proposition_encoding {
                         operands,
                     } => {
                         bytes.u8(1);
-                        use numerics::float_semantics::FloatSemanticOperationIdentity as Operation;
-                        let (tag, carrier) = match contract.operation {
-                            Operation::Fixed(row) => {
-                                bytes.u8(0);
-                                bytes.u8(row);
-                                (0, None)
-                            }
-                            Operation::FromInteger(carrier) => (1, Some(carrier)),
-                            Operation::ToIntegerExact(carrier) => (2, Some(carrier)),
-                            Operation::ToIntegerSaturating(carrier) => (3, Some(carrier)),
-                        };
-                        if let Some(carrier) = carrier {
-                            bytes.u8(tag);
-                            bytes.boolean(carrier.is_signed());
-                            bytes.u64(carrier.width());
-                        }
-                        bytes.u16(contract.catalog_version);
-                        bytes.bytes(&contract.commitment);
+                        encode_float_semantic_contract(bytes, contract);
                         encode_float_format(bytes, *format);
                         bytes.slice(operands, |bytes, operand| match operand {
                             Operand::Format(format) => {
@@ -824,6 +815,41 @@ pub(crate) mod proposition_encoding {
             }
         }
     }
+    fn encode_float_projection_contract(
+        bytes: &mut CanonicalBytes,
+        contract: &numerics::float_projection::FloatProjectionContractIdentity,
+    ) {
+        bytes.u16(contract.format);
+        bytes.u8(contract.operation);
+        bytes.u8(contract.declaration);
+        bytes.u16(contract.catalog_version);
+        bytes.bytes(&contract.commitment);
+    }
+
+    fn encode_float_semantic_contract(
+        bytes: &mut CanonicalBytes,
+        contract: &numerics::float_semantics::FloatSemanticContractIdentity,
+    ) {
+        use numerics::float_semantics::FloatSemanticOperationIdentity as Operation;
+        let (tag, carrier) = match contract.operation {
+            Operation::Fixed(row) => {
+                bytes.u8(0);
+                bytes.u8(row);
+                (0, None)
+            }
+            Operation::FromInteger(carrier) => (1, Some(carrier)),
+            Operation::ToIntegerExact(carrier) => (2, Some(carrier)),
+            Operation::ToIntegerSaturating(carrier) => (3, Some(carrier)),
+        };
+        if let Some(carrier) = carrier {
+            bytes.u8(tag);
+            bytes.boolean(carrier.is_signed());
+            bytes.u64(carrier.width());
+        }
+        bytes.u16(contract.catalog_version);
+        bytes.bytes(&contract.commitment);
+    }
+
     pub(super) fn encode_float_format(bytes: &mut CanonicalBytes, value: IeeeFloatFormat) {
         bytes.u8(match value {
             IeeeFloatFormat::Binary32 => 1,

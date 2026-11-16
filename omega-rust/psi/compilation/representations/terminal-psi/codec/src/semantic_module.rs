@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 280`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 281`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1018,6 +1018,12 @@ pub(crate) mod canonical_order {
                         clause
                             .validate()
                             .map_err(CodecError::MalformedStructuralFoundation)?;
+                    }
+                    Proposition::FloatIntegerConversion(_)
+                    | Proposition::IeeeFloatIntegerExact { .. } => {
+                        proposition
+                            .validate()
+                            .map_err(CodecError::MalformedProposition)?;
                     }
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                     Proposition::Equal(left, right) => {
@@ -4871,7 +4877,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // checks; the prior float and installation data remain part of this format.
 // Marker 280 retains transparent scalar predicate bodies and their own formals.
 // A 279 artifact cannot state declaration-time arithmetic formation for them.
-pub(crate) const FORMAT_MARKER: u16 = 280;
+// Marker 281 adds total integer-result conversion and exact-cast predicates.
+pub(crate) const FORMAT_MARKER: u16 = 281;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

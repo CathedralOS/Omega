@@ -708,6 +708,8 @@ integer math and content operands are their own encodings inside the row.
 | 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
 | 18 | StructuralIdentity | structural type id + canonical structural field + structural type id + canonical structural field |
 | 19 | FloatMeaningEqual | counted float-meaning clause rows + `u32` left slot + `u32` right slot |
+| 20 | FloatIntegerConversion | scalar source + scalar integer result + projection contract + semantic application contract |
+| 21 | IeeeFloatIntegerExact | scalar source + integer type |
 
 A `FloatMeaningEqual` clause records structural meaning equality before a
 call supplies its actual arguments and result. Its slots index only its own
@@ -732,6 +734,16 @@ results. Storage bindings resolve Entry/Current fields to their exact captured
 observations first. A bodyless contract does not invent a machine owner.
 This equality keeps NaN meanings reflexive and distinguishes signed zeros;
 it grants neither IEEE comparison facts nor raw representation identity.
+
+`FloatIntegerConversion` records a total graph of an authenticated integer-result
+catalog row: undefined conversion makes the relation false rather than forming
+a partial integer term. The artifact checker validates both scalar terms, the
+float projection, the full catalog commitment and its integer result carrier.
+Calls bind the source and normal-completion result independently.
+`IeeeFloatIntegerExact` names only an existing source and destination carrier.
+It requires a finite integral value within the exact integer bounds and
+preserves the positive-zero meaning; negative zero is not silently erased.
+Neither relation is a meaning-valued catalog application or raw identity.
 
 Each `StructuralIdentity` subject denotes the complete value at its path in
 the enclosing predicate's invocation frame. The two endpoint types must match
@@ -1050,9 +1062,10 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 256 + `u16` vocabulary
-marker 133 + a Boolean default-entry presence flag, followed by the entry
-callable when present and the module tables in the declaration order below.
+Module bytes are `PSITERM\0` + `u16` format marker + `u16` vocabulary
+marker (see [Section identities](#section-identities)) + a Boolean default-entry
+presence flag, followed by the entry
+callable when present and module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
 encoding. An absent default entry requires empty root-service reach; it does
 not authorize implicit selection of another retained machine.
@@ -1504,6 +1517,14 @@ under those arbitrary inputs without assuming the proposition or its conjuncts;
 it discharges arithmetic through the ordinary scalar-operation proof rules.
 These rows are definitions, not callable machines or evidence of their bodies.
 Earlier semantic formats reject before table decoding.
+
+Semantic format marker 281 adds proposition tags 20 and 21 for integer-result
+conversion graphs and source-only exact cast eligibility. Vocabulary marker
+138 distinguishes these predicates. Earlier semantic formats reject before
+table decoding. The native terminal-input record uses `OMGNTI33` and rejects
+`OMGNTI32`. The separate in-memory proof-system marker is 8; its conversion
+rule fingerprints every checked child, without adding a stored certificate
+decoder or changing the `PSICORE` envelope.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -2824,14 +2845,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (137). A receiver rejects an unknown magic or stale marker
+vocabulary marker (138). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 280 | yes |
+| semantic module | `PSITERM\0` | 281 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
