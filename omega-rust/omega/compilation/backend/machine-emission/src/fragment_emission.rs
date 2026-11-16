@@ -136,10 +136,6 @@ impl StagedOptimizedFunctionFragmentEmission {
     pub fn post_allocation_manifest(&self) -> &register_homes::AllocationPublicationFacts {
         self.source.post_allocation_manifest()
     }
-
-    pub fn pre_physical_manifest(&self) -> &optimization_unit::PrePhysicalOptimizationManifest {
-        self.source.pre_physical_manifest()
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -175,6 +171,7 @@ pub enum FunctionFragmentEmissionError {
     OffsetOverflow,
     StatisticsOverflow,
     RootMismatch,
+    MissingExecutionFacts,
     ArtifactMismatch,
     ManifestMismatch,
     ReceiptMismatch,
@@ -269,10 +266,6 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         &self.target_input
     }
 
-    pub fn pre_physical_manifest(&self) -> &optimization_unit::PrePhysicalOptimizationManifest {
-        self.optimized_target().optimized().pre_physical_manifest()
-    }
-
     pub fn lowering_facts(&self) -> &verified_optimization_input::AdmittedLoweringFacts {
         self.optimized_target().lowering_facts()
     }
@@ -342,6 +335,12 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 
     fn validate_target_input(&self) -> Result<(), FunctionFragmentEmissionError> {
+        let roots = self
+            .physical_program()
+            .contracts
+            .execution()
+            .ok_or(FunctionFragmentEmissionError::MissingExecutionFacts)?
+            .roots();
         let installation_program = self.installation_authority().program();
         if installation_program.psi != self.physical_program().psi
             || installation_program.target != self.physical_program().target
@@ -349,8 +348,10 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
-        if self.post_allocation_manifest().record().pre_physical
-            != self.pre_physical_manifest().identity
+        if roots.psi != self.physical_program().psi
+            || roots.work_schedule != self.physical_program().work_schedule
+            || roots.entry != self.physical_program().entry
+            || self.post_allocation_manifest().record().pre_physical != roots.pre_physical
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }

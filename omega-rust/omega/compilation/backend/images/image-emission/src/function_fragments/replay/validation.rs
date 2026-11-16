@@ -50,14 +50,23 @@ pub fn verify_retained_target_operations(
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     // The validator judges the plan stage 02 published for this object,
     // not a plan prepared again here.
+    let target = crate::retained_working_program::target_operations(&replay.0);
+    let callable_roots = current
+        .lowering_facts()
+        .callable_invocation_roots(target)
+        .map_err(diagnostics::Diagnostic::error)?;
     native_preparation::verify_execution_plan(
         current.execution_plan(),
-        crate::retained_working_program::target_operations(&replay.0),
-        optimized.plan(),
-        optimized.unit(),
-        current.boundary_origins(),
-        current.lowering_facts().installed_interrupts(),
-        current.lowering_facts().closed_module(),
+        native_preparation::ExecutionPlanReplayInputs {
+            target,
+            abstract_plan: optimized.plan(),
+            unit: optimized.unit(),
+            origins: current.boundary_origins(),
+            installed_interrupts: current.lowering_facts().installed_interrupts(),
+            closed_module: current.lowering_facts().closed_module(),
+            callable_roots: &callable_roots,
+            pre_physical: optimized.pre_physical_manifest().identity,
+        },
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
     let expected =
