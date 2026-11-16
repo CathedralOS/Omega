@@ -759,7 +759,19 @@ machine entry() -> u32 crashes none {
         assert!(
             declaration
                 .matches_calling_abi(&module.identities, abi)
-                .unwrap()
+                .unwrap_or_else(|reason| panic!(
+                    "{reason}; semantic={:?}; template={:?}; ABI={abi:?}",
+                    module
+                        .identities
+                        .text(declaration.source.semantic_declaration),
+                    declaration
+                        .source
+                        .specialization
+                        .as_ref()
+                        .and_then(|application| module
+                            .identities
+                            .text(application.template_semantic_declaration)),
+                ))
         );
         for mutation in 0..5 {
             let mut changed = abi.clone();
