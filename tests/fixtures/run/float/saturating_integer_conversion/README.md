@@ -23,8 +23,8 @@ cannot narrow their input contracts.
 an exact declared overload before the compiler matches its input types. The
 compiler retains that Core declaration, the source and result carriers, the
 complete integer-result contract, and the result policy.
-Native checking must reject replacing saturation with truncation or erasing
-that policy from retained declarations.
+Native checking must reject replacing a `Saturating` conversion with the
+unqualified conversion or erasing its policy from retained declarations.
 
 Other integer destinations and `Trapping` remain separate requirements. Runtime
 observations apply only to the host recorded in the PR; authored bindings alone
