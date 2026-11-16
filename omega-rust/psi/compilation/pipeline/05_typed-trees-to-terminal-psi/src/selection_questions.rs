@@ -1379,6 +1379,64 @@ mod tests {
     }
 
     #[test]
+    fn casts_omit_only_absent_semantic_domain_coordinates() {
+        use typed_trees::expression::TableCastExpression;
+        for fault in 0..3 {
+            let (mut typed, owner, _, _) = source();
+            let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
+            let expression =
+                typed
+                    .expression_table
+                    .insert(ExpressionNode::Cast(TableCastExpression {
+                        value,
+                        target_type: Default::default(),
+                        result_type: Default::default(),
+                        target_label: Default::default(),
+                        domain: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                        semantic_domain: Default::default(),
+                        semantic_domain_arguments: Default::default(),
+                        semantic_domain_symbol: if fault == 1 {
+                            SymbolHandle::from_arena_index(9999)
+                        } else {
+                            SymbolHandle::invalid()
+                        },
+                        semantic_domain_id: language_semantics::SemanticDomainId(u32::from(
+                            fault == 2,
+                        )),
+                        form: Default::default(),
+                    }));
+            let state = typed
+                .machine_by_symbol(owner)
+                .unwrap()
+                .states
+                .handles()
+                .next()
+                .unwrap();
+            typed.machine_states.get_mut(state).statement_nodes = typed
+                .statement_table
+                .insert_statements([StatementNode::Expression(expression)]);
+            // This tests source-coordinate capture, before cast type checking.
+            // Missing and stale declared-domain coordinates are not omitted.
+            let result = capture(
+                &typed,
+                &DeclarationSelection::from_symbols([owner]),
+                &CompletedOperators::default(),
+                &[],
+            );
+            if fault == 0 {
+                result.unwrap();
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .to_string()
+                        .contains("missing or stale declaration coordinate")
+                );
+            }
+        }
+    }
+
+    #[test]
     fn completed_operator_answers_require_the_exact_owner_expression_and_occurrence() {
         use typed_trees::expression::{BinaryOperator, TableBinaryExpression};
         let (mut typed, a, b, selected) = source();

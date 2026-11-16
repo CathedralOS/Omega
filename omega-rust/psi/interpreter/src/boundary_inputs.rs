@@ -2379,6 +2379,20 @@ pub(crate) mod contents {
                 ));
             }
             for (leaf, value) in visible.into_iter().zip(values) {
+                let plain_root;
+                let root = if matches!(
+                    value.contents,
+                    TerminalStorageContents::Bytes(_) | TerminalStorageContents::Elements { .. }
+                ) {
+                    let path = leaf
+                        .path
+                        .strip_prefix(prefix)
+                        .ok_or_else(|| invalid("immutable contents lost their containing path"))?;
+                    plain_root = self.immutable_contents_root(root, path)?;
+                    &plain_root
+                } else {
+                    root
+                };
                 if let TerminalStorageContents::Elements { length, values } = &value.contents {
                     if leaf.path != value.path {
                         return Err(invalid(
@@ -2466,6 +2480,50 @@ pub(crate) mod contents {
                 }
             }
             Ok(())
+        }
+
+        /// Plain backing may initialize a sibling of a qualified member, but
+        /// cannot establish a membership on the selected storage. Translate the
+        /// stored field IDs through their declaration before checking overlap;
+        /// keep the parent's memberships and project only this leaf's carrier.
+        fn immutable_contents_root(
+            &self,
+            root: &crate::TerminalStructuralValue,
+            path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        ) -> Result<crate::TerminalStructuralValue, TerminalInterpretError> {
+            use crate::boundary::errors::malformed;
+            // The contents walk already validated the leaf. With no memberships
+            // there is nothing to project; inline byte fields need no extra
+            // standalone descriptor declaration merely to retain plain backing.
+            if root.qualifications.is_empty() && root.projected_qualifications.is_empty() {
+                return Ok(root.clone());
+            }
+            let path = terminal_semantics::canonical_structural_storage_path(
+                self.structural_types().values(),
+                root.structural_type,
+                path,
+            )
+            .ok_or_else(|| {
+                malformed()
+                    .in_argument_preparation("immutable contents need their exact declared path")
+            })?;
+            if !terminal_semantics::structural_memberships_disjoint_from_write(
+                &root.qualifications,
+                &root.projected_qualifications,
+                &path,
+            ) {
+                return Err(malformed().in_argument_preparation(
+                    "immutable contents cannot establish overlapping qualifications",
+                ));
+            }
+            let mut selected = root.clone();
+            (selected.qualifications, selected.projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(
+                    &root.qualifications,
+                    &root.projected_qualifications,
+                    &path,
+                );
+            Ok(selected)
         }
 
         fn stage_immutable_sequence_contents(
@@ -2623,7 +2681,167 @@ pub(crate) mod contents {
             }
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::boundary::values::{
+            StructuralByteSequenceRuntimeField, StructuralFieldNamespace, StructuralRuntimePlace,
+        };
+        use crate::engine::calls::frames::tests::empty_program;
+        use semantic_vocabulary::{
+            CanonicalStructuralPathSegment as Path, PlaceId, StructuralDomainId, StructuralFieldId,
+            StructuralTypeId,
+        };
+        use std::sync::Arc;
+        use terminal_psi::{
+            BindingRelevance, ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration,
+            StructuralFieldType, StructuralPathQualification, StructuralPathSegment,
+            StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
+            TerminalIdentityIndex,
+        };
+
+        #[test]
+        fn immutable_contents_keep_qualified_siblings_and_refuse_overlapping_memberships() {
+            let record = StructuralTypeId::new(1).unwrap();
+            let bytes = StructuralTypeId::new(2).unwrap();
+            let marker = StructuralTypeId::new(3).unwrap();
+            let field = StructuralFieldId::new(2).unwrap();
+            let domain = StructuralDomainId::new(1).unwrap();
+            for control in 0..5 {
+                let declaration = |id, shape| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    id,
+                    identity: TerminalIdentityIndex(0),
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: true,
+                    nominal_cleanup: None,
+                    shape,
+                    scalar_restriction: None,
+                };
+                let carrier = ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                };
+                let mut program = empty_program();
+                Arc::get_mut(&mut program)
+                    .unwrap()
+                    .fixture_module_mut()
+                    .structural_types
+                    .extend([
+                        declaration(
+                            record,
+                            StructuralTypeShape::Record {
+                                fields: vec![
+                                    StructuralFieldDeclaration {
+                                        declaration_identity: Default::default(),
+                                        inline_carrier: None,
+                                        id: StructuralFieldId::new(1).unwrap(),
+                                        identity: TerminalIdentityIndex(100),
+                                        relevance: BindingRelevance::Relevant,
+                                        field_type: StructuralFieldType::Structural(marker),
+                                        storage: None,
+                                    },
+                                    StructuralFieldDeclaration {
+                                        declaration_identity: Default::default(),
+                                        inline_carrier: Some(bytes),
+                                        id: field,
+                                        identity: TerminalIdentityIndex(200),
+                                        relevance: BindingRelevance::Relevant,
+                                        field_type: StructuralFieldType::ByteSequence(carrier),
+                                        storage: None,
+                                    },
+                                ],
+                                storage: StructuralRecordStorage::Packed,
+                            },
+                        ),
+                        declaration(bytes, StructuralTypeShape::ByteSequence(carrier)),
+                        declaration(
+                            marker,
+                            StructuralTypeShape::Record {
+                                fields: Vec::new(),
+                                storage: StructuralRecordStorage::Packed,
+                            },
+                        ),
+                    ]);
+                let mut execution = TerminalExecution::start_with_program(
+                    program,
+                    &[],
+                    crate::TerminalStructuralInputs::default(),
+                    None,
+                    None,
+                )
+                .unwrap();
+                // The parent is an already admitted carrier. Its qualified
+                // empty marker is a sibling, not permission established by bytes.
+                let mut root = crate::TerminalStructuralValue::minted(44, record, Vec::new());
+                root.projected_qualifications
+                    .push(StructuralPathQualification {
+                        path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(
+                            if control == 1 { 200 } else { 100 },
+                        ))],
+                        domain,
+                    });
+                if control == 2 {
+                    root.projected_qualifications[0].path.clear();
+                }
+                if control == 3 {
+                    root.qualifications.push(domain);
+                }
+                let before = root.clone();
+                let mut original: Arc<[u8]> = Arc::from(b"scope".as_slice());
+                let values = vec![TerminalBoundaryStorageValue {
+                    path: vec![Path::Field(if control == 4 {
+                        StructuralFieldId::new(999).unwrap()
+                    } else {
+                        field
+                    })],
+                    contents: TerminalStorageContents::Bytes(Arc::clone(&original)),
+                }];
+                let mut staged = ConstructorStorage::new(None);
+                let mut cursor = None;
+                let result = execution.stage_structural_result_contents(
+                    PlaceId::new(1).unwrap(),
+                    &root,
+                    &values,
+                    &mut staged,
+                    &mut cursor,
+                );
+                assert_eq!(
+                    result.is_ok(),
+                    control == 0,
+                    "control {control}: {result:?}"
+                );
+                assert_eq!(root, before, "parent memberships are retained");
+                if result.is_ok() {
+                    staged.publish(&mut execution).unwrap();
+                    Arc::make_mut(&mut original)[0] = b'X';
+                    let stored = execution
+                        .structural_byte_sequence_fields
+                        .get(&StructuralByteSequenceRuntimeField {
+                            parent: StructuralRuntimePlace::from(&root),
+                            namespace: StructuralFieldNamespace::Member,
+                            field,
+                        })
+                        .unwrap();
+                    assert_eq!(stored.immutable().unwrap().bytes(), b"scope");
+                } else {
+                    assert!(
+                        execution
+                            .structural_byte_sequence_fields
+                            .keys()
+                            .next()
+                            .is_none()
+                    );
+                }
+            }
+        }
+    }
 }
+
 pub(crate) mod initialization {
     use crate::boundary::errors::TerminalInterpretError;
     use crate::boundary::structural_inputs::TerminalStructuralInputs;

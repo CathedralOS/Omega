@@ -1126,6 +1126,24 @@ impl SourceContinuation {
         Ok((typing, input.pending_pre_checks.clone()))
     }
 
+    pub fn describe_parameter(
+        &self,
+        occurrence: source::SourceSpan,
+        selecting: source::SourceSpan,
+        path: &[u8],
+    ) -> Result<semantic_vocabulary::ParameterDescription, String> {
+        crate::product_descriptions::describe_parameter(self.typed(), occurrence, selecting, path)
+    }
+
+    pub fn describe_field(
+        &self,
+        occurrence: source::SourceSpan,
+        selecting: source::SourceSpan,
+        path: &[u8],
+    ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+        crate::product_descriptions::describe_field(self.typed(), occurrence, selecting, path)
+    }
+
     pub fn describe_schema(
         &self,
         occurrence: source::SourceSpan,

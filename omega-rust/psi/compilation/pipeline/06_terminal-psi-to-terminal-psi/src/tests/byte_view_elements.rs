@@ -1366,19 +1366,17 @@ machine use(same: bool) { }",
     }
 }
 
-/// The forms of a comparison this route does not read: a view that is
-/// stored in a field, and an operand whose type carries a domain
-/// (domains.md, "Operands": "Builtin operators and comparisons ... accept
-/// unqualified operands only").
+/// A stored descriptor is compared through its exact field. Other operand
+/// kinds still require the ordinary scalar/type rules.
 #[test]
-fn the_byte_comparisons_not_read_are_refused_by_name() {
+fn byte_field_comparisons_use_the_existing_readable_descriptor() {
     assert_eq!(
         verdict(
             "data Holder<'held> { path: &'held [u8]; }
 machine build_entry<'held>(holder: &Holder<'held>) { use(holder.path == \"main.omg\"); }
 machine use(same: bool) { }"
         ),
-        "expression comparison of a view stored in a field"
+        "accepted"
     );
     assert_eq!(
         verdict(
@@ -1530,4 +1528,74 @@ requires position < bytes.len {
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. } | ObligationKind::ArrivalInvariant { .. }))),
         "the first view's bound cannot establish a bound on its sibling"
     );
+}
+
+#[test]
+fn field_byte_comparisons_retain_their_own_measurement_and_access() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "data Holder<'held> { left: &'held [u8]; right: &'held [u8]; }
+machine build_entry<'held>(holder: &Holder<'held>) { use(holder.left == holder.right); }
+machine use(same: bool) { }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    assert_eq!(verdict("data Token {}
+data Holder<'held> { token: Token; path: &'held [u8]; }
+machine take(token: Token) {}
+machine build_entry<'held>(holder: Holder<'held>) { take(holder.token); use(holder.path == \"main.omg\"); }
+machine use(same: bool) {}"), "accepted");
+    for fault in 0..4 {
+        let mut changed = elaborate();
+        let operation = changed
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceEqual { .. }))
+            .unwrap();
+        let OperationKind::ByteSequenceEqual { left, right } = &mut operation.kind else {
+            unreachable!()
+        };
+        let (
+            ByteSequenceOperand::Field {
+                source: left_source,
+                field: left_field,
+                length: left_length,
+            },
+            ByteSequenceOperand::Field {
+                field: right_field,
+                length: right_length,
+                ..
+            },
+        ) = (left, right)
+        else {
+            panic!("both operands retain their fields")
+        };
+        match fault {
+            0 => std::mem::swap(left_field, right_field),
+            1 => std::mem::swap(left_length, right_length),
+            2 => left_source.access = terminal_psi::StructuralAccess::MutableBorrow,
+            3 => *left_field = semantic_vocabulary::StructuralFieldId::new(9999).unwrap(),
+            _ => unreachable!(),
+        }
+        assert!(
+            !matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))),
+            "fault {fault} accepted"
+        );
+    }
 }

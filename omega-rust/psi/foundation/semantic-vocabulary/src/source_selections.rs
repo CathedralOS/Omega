@@ -34,6 +34,23 @@ pub enum SelectionPurpose {
     Product,
 }
 
+impl SelectionPurpose {
+    /// Imported library declarations retain their Product namespace even
+    /// when checked for a consuming Build. Only that Build's actual package
+    /// owns declarations in its Build namespace.
+    pub fn for_declaring_package(
+        self,
+        build_root: Option<crate::PackageKeyIdentity>,
+        declaring: crate::PackageKeyIdentity,
+    ) -> Self {
+        if build_root == Some(declaring) {
+            self
+        } else {
+            Self::Product
+        }
+    }
+}
+
 /// Other accepted generic forms have their own local machine/value namespaces.
 /// Their semantic questions must not be joined against the published module.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

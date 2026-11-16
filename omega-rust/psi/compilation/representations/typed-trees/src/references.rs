@@ -3368,7 +3368,16 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            visit_symbol(retained, cast.semantic_domain_symbol);
+            // Carrier and builtin-policy casts name no semantic declaration.
+            // A written or retained semantic domain still visits its coordinate,
+            // including an invalid one, so its owner can refuse missing custody.
+            if cast.semantic_domain_symbol.is_valid()
+                || !cast.semantic_domain.is_empty()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
+            {
+                visit_symbol(retained, cast.semantic_domain_symbol);
+            }
             for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
