@@ -75,8 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/dependent_values.md
-
 ### Matching on storage lent to a live `&mut` is not checked against the loan, though copying it is refused
 - Category: One idea, several implementations
 - Where: [loan check walks operations](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs#L1076), [then cleanup only](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs#L1195), [match subject checked for availability only](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L1919)
