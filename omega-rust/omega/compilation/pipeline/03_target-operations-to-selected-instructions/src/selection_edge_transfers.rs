@@ -172,7 +172,7 @@ pub(crate) mod construction {
                     8 => (constraints.keys.load64, 8),
                     _ => return Err(invalid()),
                 };
-                if destination.scalar_type != payload.semantic.parameter.scalar_type
+                if destination.scalar_type != payload.semantic.parameter.scalar_type.as_checking()
                     || destination.definition_site
                         != Some(payload.semantic.parameter.definition_site)
                     || payload

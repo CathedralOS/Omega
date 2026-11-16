@@ -546,6 +546,7 @@ pub(crate) fn legalize_target_operations(
         installed_interrupts,
         installed_entry_execution,
         installed_stack_requirements,
+        legalized_operations::RetainedIntegerTypes::Unsealed,
     )
 }
 
@@ -556,10 +557,11 @@ pub(crate) fn legalize_retained_target_operations(
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
+    retained_integers: legalized_operations::RetainedIntegerTypes,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     crate::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
     validate_boundary_origins(target, origins)?;
-    let rosters = source::derive_target_function_rosters(target, evidence)?;
+    let rosters = source::derive_target_function_rosters(target, evidence, &retained_integers)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: evidence.optimization_unit,
@@ -568,6 +570,7 @@ pub(crate) fn legalize_retained_target_operations(
         profile: target.profile,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
+        retained_integers,
     };
     Ok(seal(
         target,
@@ -616,7 +619,7 @@ pub fn verify_target_operation_plan(
         unit,
         origins,
         installed_interrupts,
-        None,
+        crate::native_geometry::UNSEALED,
     )
 }
 
@@ -637,7 +640,7 @@ pub fn verify_target_operation_plan_with_closed_module(
         unit,
         origins,
         installed_interrupts,
-        Some(closed_types),
+        &closed_types,
     )
 }
 
@@ -647,7 +650,7 @@ fn verify_target_operation_plan_input(
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+    closed_types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<(), LegalizationError> {
     crate::installed_interrupts::validate_target(
         target,
@@ -663,7 +666,7 @@ pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+    closed_types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<(), LegalizationError> {
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
@@ -720,6 +723,7 @@ pub(crate) fn audit_target_operation_plan(
             accepted_obligation_facts: &unit.accepted_obligation_facts,
             ownership_frontier_facts: &unit.ownership_frontier_facts,
         },
+        closed_types,
     )?;
     if expected.scalar_functions != retained.scalar_functions {
         return Err(LegalizationError::custody());

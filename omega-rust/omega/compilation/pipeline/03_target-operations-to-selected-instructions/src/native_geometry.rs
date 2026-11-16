@@ -63,47 +63,36 @@ impl<'a> NativeGeometries<'a> {
     }
 }
 
-/// The published catalog must belong to the exact module used by origin
-/// admission. Clones of the retained owner share this immutable module.
-pub(crate) fn retained_types<'a>(
-    closed: &'a terminal_codec::ClosedTerminalModule,
+/// Copy the accepted module's retained integer types into the plan's own
+/// membership record. The module must be the exact one origin admission used;
+/// clones of the retained owner share that immutable module.
+pub(crate) fn retained_types(
+    closed: &terminal_codec::ClosedTerminalModule,
     psi: terminal_psi::TerminalPsiIdentity,
     module: &terminal_psi::TerminalModule,
-) -> Option<&'a terminal_codec::ClosedTypeCatalog> {
-    (closed.identity() == psi && std::ptr::eq(closed.module(), module))
-        .then(|| closed.closed_types())
+) -> Option<legalized_operations::RetainedIntegerTypes> {
+    (closed.identity() == psi && std::ptr::eq(closed.module(), module)).then(|| {
+        legalized_operations::RetainedIntegerTypes::from_module(
+            closed.closed_types().retained_integers(),
+        )
+    })
 }
 
-pub(crate) fn closed_scalar(
-    types: Option<&terminal_codec::ClosedTypeCatalog>,
-    scalar: semantic_vocabulary::ScalarType,
-) -> Option<semantic_vocabulary::ClosedScalarType> {
-    match types {
-        Some(types) => types.scalar(scalar).ok(),
-        None => scalar.try_into().ok(),
-    }
-}
-
-pub(crate) fn closed_integer(
-    types: Option<&terminal_codec::ClosedTypeCatalog>,
-    integer: semantic_vocabulary::IntegerType,
-) -> Option<semantic_vocabulary::ClosedIntegerType> {
-    match types {
-        Some(types) => types.integer(integer).ok(),
-        None => integer.try_into().ok(),
-    }
-}
+/// A plan prepared without an accepted module: unit fixtures and the
+/// module-less audit entry.
+pub(crate) const UNSEALED: &legalized_operations::RetainedIntegerTypes =
+    &legalized_operations::RetainedIntegerTypes::Unsealed;
 
 pub(crate) struct NativeInput<'a, T> {
     source: &'a T,
     geometry: &'a NativeGeometry<'a>,
-    closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
+    closed_types: &'a legalized_operations::RetainedIntegerTypes,
 }
 
 impl<'a, T> NativeInput<'a, T> {
     #[cfg(test)]
     pub(crate) fn new(source: &'a T, geometry: &'a NativeGeometry<'a>) -> Self {
-        Self::with_types(source, geometry, None)
+        Self::with_types(source, geometry, UNSEALED)
     }
 
     /// Published inputs retain their exact catalog. Independent plan metadata
@@ -111,7 +100,7 @@ impl<'a, T> NativeInput<'a, T> {
     pub(crate) fn with_types(
         source: &'a T,
         geometry: &'a NativeGeometry<'a>,
-        closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
+        closed_types: &'a legalized_operations::RetainedIntegerTypes,
     ) -> Self {
         Self {
             source,
@@ -124,17 +113,17 @@ impl<'a, T> NativeInput<'a, T> {
         &self,
         scalar: semantic_vocabulary::ScalarType,
     ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        closed_scalar(self.closed_types, scalar)
+        self.closed_types.scalar(scalar)
     }
 
     pub(crate) fn closed_integer(
         &self,
         integer: semantic_vocabulary::IntegerType,
     ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        closed_integer(self.closed_types, integer)
+        self.closed_types.integer(integer)
     }
 
-    pub(crate) const fn closed_types(&self) -> Option<&'a terminal_codec::ClosedTypeCatalog> {
+    pub(crate) const fn closed_types(&self) -> &'a legalized_operations::RetainedIntegerTypes {
         self.closed_types
     }
 
@@ -259,8 +248,9 @@ mod tests {
             super::retained_types(&foreign_owner, published.identity(), published.module())
                 .is_none()
         );
-        let verified =
-            super::NativeInput::with_types(&source, &geometry, Some(published.closed_types()));
+        let retained =
+            super::retained_types(&published, published.identity(), published.module()).unwrap();
+        let verified = super::NativeInput::with_types(&source, &geometry, &retained);
         assert_eq!(verified.closed_integer(integer).unwrap().bits(), 13);
         assert!(verified.closed_scalar(scalar).is_some());
         let foreign = IntegerType::new(IntegerSign::Unsigned, 17).unwrap();

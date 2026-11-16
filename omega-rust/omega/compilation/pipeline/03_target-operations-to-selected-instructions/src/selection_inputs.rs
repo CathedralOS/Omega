@@ -2862,9 +2862,7 @@ pub(crate) mod literal_compare_input {
             return None;
         };
         let value = u64::try_from(value).ok()?;
-        if !matches!(
-            function.closed_scalar(definition.scalar_type),
-            Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+        if !matches!(definition.scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                 if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64
         ) || !immediates.contains(&value)
         {
@@ -3159,7 +3157,7 @@ pub(crate) mod primitive_local_input {
                 ..
             } => {
                 if local(source, *place).is_some() {
-                    return runtime_abi::ScalarStorageCodec::from_scalar(scalar);
+                    return runtime_abi::ScalarStorageCodec::from_scalar(scalar.as_checking());
                 }
                 let root = projected_read_root(source, *place)?;
                 projected_scalar_codec(root, path, source.geometry())
@@ -3172,7 +3170,7 @@ pub(crate) mod primitive_local_input {
                 let root = projected_read_root(source, argument.place)?;
                 scalar_field_codec(root, &argument.path, *field, source.geometry())
             }
-            _ => runtime_abi::ScalarStorageCodec::from_scalar(scalar),
+            _ => runtime_abi::ScalarStorageCodec::from_scalar(scalar.as_checking()),
         }
     }
 
@@ -3274,7 +3272,7 @@ pub(crate) mod primitive_local_input {
                 {
                     return None;
                 }
-                length_count_matches(scalar, indices, &geometry.elements)?;
+                length_count_matches(scalar.as_checking(), indices, &geometry.elements)?;
                 Some((argument.place, geometry.byte_offset, geometry.pointer_slots))
             }
             Instruction::StructuralByteSequenceFieldLength {
@@ -3286,7 +3284,7 @@ pub(crate) mod primitive_local_input {
                 let root = crate::selection::field_bytes::root_type(source, argument)?;
                 let geometry =
                     projected_byte_field(root, &argument.path, *field, source.geometry())?;
-                length_count_matches(scalar, indices, &geometry.elements)?;
+                length_count_matches(scalar.as_checking(), indices, &geometry.elements)?;
                 Some((
                     argument.place,
                     geometry.length_offset,
@@ -3299,7 +3297,8 @@ pub(crate) mod primitive_local_input {
                 path,
                 indices,
             } => {
-                if !matches!(scalar, ScalarType::Integer(integer) if integer.is_address()) {
+                if !matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.is_address())
+                {
                     return None;
                 }
                 source.structural.as_ref()?;
@@ -3315,8 +3314,10 @@ pub(crate) mod primitive_local_input {
             } => {
                 crate::selection::scalar_call_abi::scalar_shape(scalar)?;
                 if let Some((_, _, actual, _)) = local(source, *place) {
-                    return (path.is_empty() && indices.is_empty() && actual == scalar)
-                        .then_some((*place, 0, Vec::new()));
+                    return (path.is_empty()
+                        && indices.is_empty()
+                        && actual == scalar.as_checking())
+                    .then_some((*place, 0, Vec::new()));
                 }
                 source.structural.as_ref()?;
                 let structural_type = if let Some((_, result)) =
@@ -3334,8 +3335,12 @@ pub(crate) mod primitive_local_input {
                     }
                     parameter.structural_type
                 };
-                let geometry =
-                    primitive_read_geometry(structural_type, path, scalar, source.geometry())?;
+                let geometry = primitive_read_geometry(
+                    structural_type,
+                    path,
+                    scalar.as_checking(),
+                    source.geometry(),
+                )?;
                 crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
                     .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
             }
@@ -3398,10 +3403,16 @@ pub(crate) mod primitive_local_input {
                         path,
                         *case,
                         *field,
-                        scalar,
+                        scalar.as_checking(),
                         source.geometry(),
                     )?,
-                    _ => field_read(structural_type, path, *field, scalar, source.geometry())?,
+                    _ => field_read(
+                        structural_type,
+                        path,
+                        *field,
+                        scalar.as_checking(),
+                        source.geometry(),
+                    )?,
                 };
                 Some((argument.place, offset, Vec::new()))
             }
@@ -4900,7 +4911,8 @@ pub(crate) mod storage_origin_input {
                     path,
                     row.result
                         .ok_or(SelectedInstructionError::custody())?
-                        .scalar_type,
+                        .scalar_type
+                        .as_checking(),
                     function.geometry(),
                 )
                 .ok_or(SelectedInstructionError::custody())?;

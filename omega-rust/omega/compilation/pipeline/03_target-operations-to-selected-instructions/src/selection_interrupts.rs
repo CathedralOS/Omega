@@ -23,7 +23,7 @@ pub(crate) mod interrupt_installation {
         FrameStorageSlotId, LocalStorageSlotId, SelectedImageAddressReference,
         SelectedLocalStorageSlot, SelectedMemoryAccessRole,
     };
-    use semantic_vocabulary::{IntegerValue, ScalarType};
+    use semantic_vocabulary::IntegerValue;
     use target_operations::InstallationCallRole;
     pub(crate) mod address {
         use super::{SelectedInstructionError, failure};
@@ -85,7 +85,7 @@ pub(crate) mod interrupt_installation {
         let result = row
             .result
             .ok_or_else(|| failure("installation lost its Boolean refusal result"))?;
-        if result.scalar_type != ScalarType::Boolean {
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean {
             return Err(failure("installation refusal result is not Boolean"));
         }
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;

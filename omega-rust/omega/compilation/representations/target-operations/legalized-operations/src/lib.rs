@@ -54,6 +54,57 @@ pub struct LegalizedOperationPlan {
     pub profile: Option<target::TargetProfile>,
     pub entry: MachineId,
     pub scalar_functions: Vec<LegalizedScalarFunction>, // Ordinary ordered scalar and Unit graphs with explicit ABI transport.
+    pub retained_integers: RetainedIntegerTypes,
+}
+
+/// Which integer types the accepted module retains.
+///
+/// Values, parameters and typed operations carry closed scalar types, so they
+/// need no lookup. Structural declarations still state their leaf scalars in
+/// the checking form; instruction selection closes one of those only if the
+/// module the plan was prepared from retains it. Preparation copies that
+/// membership here so selection needs the plan and nothing behind it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetainedIntegerTypes {
+    /// Sorted and deduplicated, so membership is a binary search.
+    Module(Vec<semantic_vocabulary::ClosedIntegerType>),
+    /// The plan was prepared without an accepted module (unit fixtures and the
+    /// module-less audit entry): every host-closable integer type is admitted.
+    Unsealed,
+}
+
+impl RetainedIntegerTypes {
+    pub fn from_module(
+        retained: impl Iterator<Item = semantic_vocabulary::ClosedIntegerType>,
+    ) -> Self {
+        let mut retained = retained.collect::<Vec<_>>();
+        retained.sort_unstable();
+        retained.dedup();
+        Self::Module(retained)
+    }
+
+    pub fn integer(
+        &self,
+        integer: semantic_vocabulary::IntegerType,
+    ) -> Option<semantic_vocabulary::ClosedIntegerType> {
+        let closed = semantic_vocabulary::ClosedIntegerType::try_from(integer).ok()?;
+        match self {
+            Self::Module(retained) => retained.binary_search(&closed).ok().map(|_| closed),
+            Self::Unsealed => Some(closed),
+        }
+    }
+
+    pub fn scalar(
+        &self,
+        scalar: semantic_vocabulary::ScalarType,
+    ) -> Option<semantic_vocabulary::ClosedScalarType> {
+        use semantic_vocabulary::{ClosedScalarType, ScalarType};
+        Some(match scalar {
+            ScalarType::Boolean => ClosedScalarType::Boolean,
+            ScalarType::Integer(integer) => ClosedScalarType::Integer(self.integer(integer)?),
+            ScalarType::IeeeFloat(format) => ClosedScalarType::IeeeFloat(format),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

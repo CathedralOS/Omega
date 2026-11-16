@@ -77,9 +77,9 @@ pub(crate) mod structural_reference_input {
         Some(value.checked_add(alignment.checked_sub(1)?)? / alignment * alignment)
     }
 
-    pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
+    pub(crate) fn scalar_shape(scalar: impl Into<ScalarType>) -> Option<ValueShape> {
         // Independent geometry metadata uses the shared fallible classifier.
-        ValueShape::for_scalar(scalar)
+        ValueShape::for_scalar(scalar.into())
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2615,7 +2615,10 @@ pub(crate) mod resource_profile {
                                     optimization_unit::ValueDefinitionSite::FunctionParameter(
                                         position as u32,
                                     ),
-                                    selector.operand.scalar_type,
+                                    semantic_vocabulary::ClosedScalarType::try_from(
+                                        selector.operand.scalar_type,
+                                    )
+                                    .unwrap(),
                                 ));
                             }
                             let arena = (u64::from(profile_layout.bytes) + 255) & !255;
@@ -4640,12 +4643,13 @@ pub(crate) mod tests {
             profile: None,
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
+            retained_integers: legalized_operations::RetainedIntegerTypes::Unsealed,
         };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
             &program,
             &geometries,
-            None,
+            crate::native_geometry::UNSEALED,
         );
         let installed_interrupts =
             provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
@@ -4653,7 +4657,7 @@ pub(crate) mod tests {
             crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
         let mut builder = Builder {
             // This standalone emitter fixture has no published source owner.
-            closed_types: None,
+            closed_types: crate::native_geometry::UNSEALED,
             installed_interrupts: &installed_interrupts,
             installed_stack_requirements: &[],
             installed_entry_execution: None,

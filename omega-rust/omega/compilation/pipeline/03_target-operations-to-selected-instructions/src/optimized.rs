@@ -80,8 +80,7 @@ pub(crate) mod constraints {
 pub(crate) mod construction {
     use crate::{
         ValidatedLegalizedOperations, ValidatedSelectedInstructions,
-        legalization::legalize_retained_target_operations,
-        selection::select_instructions_with_types,
+        legalization::legalize_retained_target_operations, selection::select_instructions,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
 
@@ -111,16 +110,13 @@ pub(crate) mod construction {
             input.installed_interrupts,
             input.installed_entry_execution,
             input.installed_stack_requirements,
+            closed_types,
         )
         .map_err(OptimizedSelectionPipelineError::Legalization)?;
         let selection_constraints = selection_constraints(&legalized, register_environment);
-        let selected = select_instructions_with_types(
-            &legalized,
-            &selection_constraints,
-            register_environment,
-            Some(closed_types),
-        )
-        .map_err(OptimizedSelectionPipelineError::Selection)?;
+        let selected =
+            select_instructions(&legalized, &selection_constraints, register_environment)
+                .map_err(OptimizedSelectionPipelineError::Selection)?;
         Ok((legalized, selected))
     }
 }

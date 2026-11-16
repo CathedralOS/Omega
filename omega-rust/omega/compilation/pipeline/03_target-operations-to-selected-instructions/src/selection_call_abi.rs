@@ -1145,7 +1145,7 @@ pub(crate) mod normalized_foreign {
                 if scalar_shape(result.scalar_type).is_none()
                     || Some(home.defining_operation) != invocation_site.operation()
                     || home.source_value != result.value
-                    || home.scalar_type != result.scalar_type
+                    || home.scalar_type != result.scalar_type.as_checking()
                     || scalar_shape(result.scalar_type) != Some(home.shape)
                     || placement.shape != home.shape
                 {
@@ -1914,8 +1914,8 @@ pub(crate) fn validate(
     Ok(())
 }
 
-pub(crate) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
-    ValueShape::for_scalar(scalar_type)
+pub(crate) fn scalar_shape(scalar_type: impl Into<ScalarType>) -> Option<ValueShape> {
+    ValueShape::for_scalar(scalar_type.into())
 }
 
 pub(crate) fn integer_carrier_normalization(
@@ -1996,7 +1996,7 @@ fn scalar_value_shape(
 fn scalar_value_type(
     source: &crate::native_geometry::NativeFunction<'_>,
     value: ValueId,
-) -> Option<ScalarType> {
+) -> Option<semantic_vocabulary::ClosedScalarType> {
     source
         .parameters
         .iter()

@@ -84,6 +84,7 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let projected = crate::legalization_source::scalar_graph::instruction::project(
         unit.functions[0].machine,
         &unit.accepted_obligation_facts,
+        crate::native_geometry::UNSEALED,
         &target,
         &geometry,
         instruction,
@@ -121,7 +122,9 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let carried = crate::legalization_source::scalar_graph::instruction::with_metadata(
         &carrying,
         projected.kind.clone(),
-    );
+        crate::native_geometry::UNSEALED,
+    )
+    .unwrap();
     assert_eq!(carried.work, carrying.metadata.work);
     assert_eq!(carried.effect, carrying.metadata.effect);
     assert_eq!(carried.ownership, carrying.metadata.ownership);
@@ -134,6 +137,7 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let failure = crate::legalization_source::scalar_graph::instruction::project(
         unit.functions[0].machine,
         &unit.accepted_obligation_facts,
+        crate::native_geometry::UNSEALED,
         &target,
         &geometry,
         &missing,
@@ -161,8 +165,14 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
                 arguments: Vec::new(),
             },
         });
-    let failure = crate::legalization_control::project(machine(), &annotated_cleanup, &[], &[])
-        .expect_err("cleanup keeps its cleanup owner, not an authored instruction identity");
+    let failure = crate::legalization_control::project(
+        machine(),
+        &annotated_cleanup,
+        &[],
+        &[],
+        crate::native_geometry::UNSEALED,
+    )
+    .expect_err("cleanup keeps its cleanup owner, not an authored instruction identity");
     assert!(matches!(
         failure,
         crate::LegalizationError::InstructionMetadata {
@@ -282,6 +292,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &interrupts,
         None,
         &[],
+        legalized_operations::RetainedIntegerTypes::Unsealed,
     )
     .unwrap();
     // The selector-free helper has a representable operand. Only separately
@@ -302,6 +313,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
     crate::legalization_source::scalar_graph::instruction::project(
         machine(),
         &[],
+        crate::native_geometry::UNSEALED,
         &target,
         &geometry,
         &target.functions[0].graph.blocks[0].operations[0],
@@ -314,6 +326,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &interrupts,
         None,
         &[],
+        legalized_operations::RetainedIntegerTypes::Unsealed,
     )
     .expect_err("operand geometry cannot invent an admitted helper association");
     assert!(
@@ -357,6 +370,7 @@ fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidenc
         &target.functions[0].graph.blocks[0],
         &[],
         &[],
+        crate::native_geometry::UNSEALED,
     )
     .unwrap();
     let legalized_operations::LegalizedScalarTerminator::Return(returned) = projected else {
@@ -364,8 +378,13 @@ fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidenc
     };
     assert_eq!(returned.edge, edge(1));
     assert_eq!(returned.work, unit.functions[0].blocks[0].nodes[0].work);
-    crate::legalization::audit_target_operation_plan(&target, &plan, &unit, None)
-        .expect("retained exit matches source");
+    crate::legalization::audit_target_operation_plan(
+        &target,
+        &plan,
+        &unit,
+        crate::native_geometry::UNSEALED,
+    )
+    .expect("retained exit matches source");
     for mutation in 0..4 {
         let mut changed = target.clone();
         let block = &mut changed.functions[0].graph.blocks[0];
@@ -380,7 +399,13 @@ fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidenc
             _ => block.terminator = return_unit(9),
         }
         assert!(
-            crate::legalization::audit_target_operation_plan(&changed, &plan, &unit, None).is_err(),
+            crate::legalization::audit_target_operation_plan(
+                &changed,
+                &plan,
+                &unit,
+                crate::native_geometry::UNSEALED
+            )
+            .is_err(),
             "forged exit {mutation}"
         );
     }
@@ -583,11 +608,14 @@ fn scalar_parameter_projection_uses_retained_abi_without_a_source_function() {
         scalar_type,
         placement: call_plan.parameters[0].clone(),
     }];
-    let parameters =
-        crate::legalization_source::scalar_graph::parameters(&target.functions[0]).unwrap();
+    let parameters = crate::legalization_source::scalar_graph::parameters(
+        &target.functions[0],
+        crate::native_geometry::UNSEALED,
+    )
+    .unwrap();
     assert_eq!(parameters.len(), 1);
     assert_eq!(parameters[0].value, val(7));
-    assert_eq!(parameters[0].scalar_type, scalar_type);
+    assert_eq!(parameters[0].scalar_type.as_checking(), scalar_type);
     assert_eq!(parameters[0].placement, call_plan.parameters[0]);
     assert_eq!(
         parameters[0].definition_site,
@@ -4063,11 +4091,11 @@ fn ordinary_comparison_metadata_does_not_recover_a_missing_retained_operand_type
     );
     let closed = terminal_codec::ClosedTerminalModule::new(TerminalModule::declarations()).unwrap();
     assert!(closed.closed_types().scalar(scalar).is_err());
-    let retained = crate::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        Some(closed.closed_types()),
+    let retained_integers = legalized_operations::RetainedIntegerTypes::from_module(
+        closed.closed_types().retained_integers(),
     );
+    let retained =
+        crate::native_geometry::NativeInput::with_types(&plan, &geometry, &retained_integers);
     assert!(
         crate::legalization_scalar_graph::nodes::validate(
             &function.blocks[0],

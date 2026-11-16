@@ -59,6 +59,16 @@ pub fn legalized_operation_plan_identity(
         bytes.extend_from_slice(name);
     });
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
+    match &plan.retained_integers {
+        crate::RetainedIntegerTypes::Unsealed => bytes.push(0),
+        crate::RetainedIntegerTypes::Module(retained) => {
+            bytes.push(1);
+            encode_len(&mut bytes, retained.len());
+            for integer in retained {
+                encode_integer_type(&mut bytes, integer.as_checking());
+            }
+        }
+    }
     bytes.extend_from_slice(b"ordinary-scalar-graph.v43\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
