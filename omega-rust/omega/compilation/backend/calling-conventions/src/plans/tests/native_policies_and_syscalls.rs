@@ -245,9 +245,11 @@ fn darwin_aapcs64_packs_narrow_stack_arguments_and_generic_aapcs64_does_not() {
         plan.parameters[8..]
             .iter()
             .map(|placement| match placement.locations.as_slice() {
-                [ValueLocation::Stack {
-                    stack_byte_offset, ..
-                }] => *stack_byte_offset,
+                [
+                    ValueLocation::Stack {
+                        stack_byte_offset, ..
+                    },
+                ] => *stack_byte_offset,
                 other => panic!("expected one stack location, found {other:?}"),
             })
             .collect::<Vec<_>>()

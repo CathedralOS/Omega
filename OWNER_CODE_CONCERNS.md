@@ -197,13 +197,6 @@ framework or a list of unimplemented features.
 - Cost: Foreign calls and callbacks with this shape exchange wrong arguments silently. Set `float_index = 8` and advance by `align_up(byte_size, 8)` on the overflow path, and test the seven-floats case.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/boundary_shapes.md
 
-### The default macOS arm64 calling plan uses 8-byte stack slots where Apple packs arguments
-- Category: One idea, several implementations
-- Where: [Mach-O arm64 maps to Aapcs64](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L524), [scalar stack placement](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L754), [import binding](omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs#L273), [std's Darwin policy](source/library/std/darwin_calling.omg#L182)
-- Saw: [authorship and evaluation](wiki/spec/build/calling_plans.md#L14) says the selected plan "must explicitly support the argument/result's representation, fit and placement; otherwise reject the binding". Apple arm64 places stack arguments at natural alignment with no 8-byte minimum, and `std/darwin_calling.omg` implements that. A default-ABI boundary on macos_arm64 instead gets the generic `Aapcs64` evaluator, which advances by `byte_size.max(8)`: for `f(a0..a7: u64, b: u32, c: u32)` Omega writes `c` at sp+8 while an Apple callee reads sp+4.
-- Cost: Default-ABI imports and callbacks with more than eight integer arguments, any narrower than 8 bytes, pass wrong values on macOS, and the two Darwin implementations disagree. Give Mach-O arm64 its own packed policy row (or refuse such signatures) and test the 9th and 10th `u32`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/calling_plans.md
-
 ### Static linux_arm64 executables align segments to 4 KiB and fail on 16 KiB and 64 KiB page kernels
 - Category: One idea, several implementations
 - Where: [static PAGE_SIZE](omega-rust/omega/compilation/backend/images/image-elf/src/lib.rs#L85), [p_align written](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L97), [data segment placement](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L136), [dynamic path uses 64 KiB](omega-rust/omega/compilation/backend/images/image-elf/src/load_placement.rs#L1827)
