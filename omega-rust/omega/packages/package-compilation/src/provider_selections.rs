@@ -156,13 +156,16 @@ impl PackageCompilationInputs {
             .declaration_spans()
             .map(|span| span.source_id)
             .collect::<Vec<_>>();
-        needed.sort_unstable();
+        needed.sort_unstable_by_key(|id| id.0);
         needed.dedup();
         let files = application
             .sources
             .files()
             .map(|file| {
-                if needed.binary_search(&file.source_id).is_ok() {
+                if needed
+                    .binary_search_by_key(&file.source_id.0, |id| id.0)
+                    .is_ok()
+                {
                     self.admit_retained_product_source(bundle, file)
                 } else {
                     Ok(file.clone())
