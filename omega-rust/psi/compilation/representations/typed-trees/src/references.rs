@@ -3951,7 +3951,7 @@ mod conformance_occurrence_tests {
                 .type_reference_table
                 .contains_type_reference(selected.type_reference)
         );
-        assert_eq!(program.type_symbol(selected.type_reference), ticket);
+        assert_eq!(program.type_reference_symbol(selected.type_reference), ticket);
         assert_eq!(
             program
                 .type_reference_table
