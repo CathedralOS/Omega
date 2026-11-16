@@ -295,11 +295,15 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
     let (check_publication, _, _, checked) = published_fixture(fixture);
     let (signature, _) = compiler::prepare_program_entry(&checked).unwrap();
     let accepted = checked.terminal_publication().accepted().unwrap();
+    let catalog = checked
+        .source_inspection()
+        .inventory()
+        .services_for(accepted.source().as_ref())
+        .expect("the accepted source's retained Product service catalog");
     let boundary = package_compilation::selected_program_entry_boundary(
-        accepted.source(),
+        catalog,
         signature.target_slot(),
         None,
-        checked.sources().exact_toolchain_sources(),
     )
     .expect("the selected target's authenticated entry declaration");
     let mut roster = checked.terminal_publication().roster().unwrap().clone();
