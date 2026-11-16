@@ -1809,6 +1809,7 @@ machine entry() -> u32 crashes none {{
             .application;
         assert_eq!(
             program
+                .expression_table
                 .static_machine_application(application)
                 .lexical_owner,
             author
