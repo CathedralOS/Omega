@@ -558,7 +558,16 @@ fn remaining_arguments(
     let source = program.machine_by_symbol(owner).ok_or(unserved(
         "a nested application lost its enclosing declaration",
     ))?;
-    if source.type_parameters != template_parameters {
+    let captured = program
+        .data_type_parameters
+        .span(template_parameters)
+        .ok_or(unserved(
+            "a nested application lost its captured binder roster",
+        ))?;
+    if !same_declared_binders(
+        program.machine_type_parameters(source).iter(),
+        captured.iter(),
+    ) {
         return Err(unserved(
             "a nested application changed its enclosing binder roster",
         ));
@@ -643,8 +652,16 @@ fn enter_generated(
     };
     // The selection belongs to the original enclosing declaration, not an
     // unrelated application with equal rendered arguments.
-    if row.template_parameters != source.type_parameters
-        || program.symbols.get(callee).generated_from != row.template
+    let captured = program
+        .data_type_parameters
+        .span(row.template_parameters)
+        .ok_or(unserved(
+            "a copied application lost its captured binder roster",
+        ))?;
+    if !same_declared_binders(
+        program.machine_type_parameters(source).iter(),
+        captured.iter(),
+    ) || program.symbols.get(callee).generated_from != row.template
     {
         return Err(Stop::Unserved(None));
     }
@@ -668,6 +685,16 @@ fn enter_generated(
     Ok(())
 }
 
+/// Capturing a binder preserves its declaration. Copying carrier and contract
+/// type references does not create another binder or another application.
+fn same_declared_binders<'a>(
+    left: impl Iterator<Item = &'a typed_trees::data::TypeParameter>,
+    right: impl Iterator<Item = &'a typed_trees::data::TypeParameter>,
+) -> bool {
+    left.map(|parameter| parameter.symbol)
+        .eq(right.map(|parameter| parameter.symbol))
+}
+
 /// Compare a requested tuple with the complete original selection, including
 /// unused binders. This only acknowledges an already supplied application;
 /// the caller separately authenticates its source association.
@@ -678,7 +705,12 @@ fn bound_arguments(
     selection: StaticMachineApplicationHandle,
     arguments: &[StaticMachineArgument],
 ) -> Served<Vec<Operand>> {
-    if parameters.len() != arguments.len() || parameters != source_parameters {
+    // A copied signature keeps these binder declarations even when its
+    // type-reference handles differ. The operand reads below still check the
+    // supplied and retained arguments under each receiving binder's kind.
+    if parameters.len() != arguments.len()
+        || !same_declared_binders(parameters.iter(), source_parameters.iter())
+    {
         return Err(Stop::Unserved(None));
     }
     let table = &program.expression_table;
@@ -687,25 +719,21 @@ fn bound_arguments(
     if actual_arguments.len() != bindings.len() || bindings.len() != source_parameters.len() {
         return Err(Stop::Unserved(None));
     }
-    let mut selected = symbols::SymbolMap::default();
-    for (binding, argument) in bindings.iter().zip(actual_arguments) {
-        if selected
-            .insert(binding.parameter, argument.clone())
-            .is_some()
-        {
-            return Err(Stop::Unserved(None));
-        }
-    }
-    for parameter in source_parameters {
-        if !selected.contains_key(&parameter.symbol) {
-            return Err(Stop::Unserved(None));
-        }
+    let mut selected = bindings
+        .iter()
+        .zip(actual_arguments)
+        .map(|(binding, argument)| (symbol_order(binding.parameter), argument.clone()))
+        .collect::<Vec<_>>();
+    selected.sort_unstable_by_key(|(symbol, _)| *symbol);
+    if selected.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(Stop::Unserved(None));
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let Some(actual) = selected.get(&parameter.symbol) else {
-            return Err(Stop::Unserved(None));
-        };
+        let position = selected
+            .binary_search_by_key(&symbol_order(parameter.symbol), |(symbol, _)| *symbol)
+            .map_err(|_| Stop::Unserved(None))?;
+        let actual = &selected[position].1;
         let operand = Operand::read(program, parameter.symbol, &parameter.kind, argument)?;
         let existing = Operand::read(program, parameter.symbol, &parameter.kind, actual)?;
         if operand.is_open(program) || operand.identity != existing.identity {
@@ -1250,16 +1278,22 @@ fn named_type(
             )
             && program
                 .prepare_data_application_view(reference)
-                .map_err(|_| Stop::Unserved(None))?
+                .map_err(|_| {
+                    unserved("a static type operand has no closed data application view")
+                })?
         {
             return Ok(reference);
         }
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a static type operand needs a closed, region-free retained type",
+        ));
     }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
     let symbol = argument.symbol;
     if !only_a_name || !symbol.is_valid() || !program.symbols.symbols().nodes().is_valid(symbol) {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a static type operand has no exact declaration name",
+        ));
     }
     let plain = match program.symbols.get(symbol).kind {
         SymbolKind::BuiltinType | SymbolKind::TypeParameter => true,
@@ -1271,7 +1305,9 @@ fn named_type(
         _ => false,
     };
     let Some(name) = argument.path.last().filter(|_| plain) else {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a static type operand names an unapplied data or lifetime parameter",
+        ));
     };
     Ok(program
         .type_reference_table
@@ -1307,11 +1343,18 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
     let root = program
         .machine_by_symbol(symbol)
         .ok_or(Stop::Unserved(None))?;
-    let parameters = program
+    // Cloning a signature can give a captured binder's carrier or contract
+    // fresh type-reference handles. Its declaration symbol still identifies
+    // the same enclosing binder, whose application was checked at the owner.
+    let mut parameters = program
         .machine_callable_parameters(root)
         .into_iter()
-        .map(|parameter| (parameter.symbol, parameter))
-        .collect::<symbols::SymbolMap<_>>();
+        .map(|parameter| parameter.symbol)
+        .collect::<Vec<_>>();
+    parameters.sort_unstable_by_key(|symbol| symbol_order(*symbol));
+    if parameters.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(Stop::Unserved(None));
+    }
     let mut pending = vec![symbol];
     let mut parts = Vec::new();
     let mut position = 0;
@@ -1326,7 +1369,11 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
                 .machine_callable_parameters(&machine)
                 .iter()
                 .any(|parameter| {
-                    parameters.get(&parameter.symbol) != Some(parameter)
+                    parameters
+                        .binary_search_by_key(&symbol_order(parameter.symbol), |symbol| {
+                            symbol_order(*symbol)
+                        })
+                        .is_err()
                         && parameter.kind != TypeParameterKind::Type
                 })
         {
@@ -1335,7 +1382,9 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
             ));
         }
         if has_unserved_type_expression(program, &types) {
-            return Err(Stop::Unserved(None));
+            return Err(unserved(
+                "a copied declaration has an unsupported embedded type expression",
+            ));
         }
         for owner in [machine.symbol, state.symbol] {
             for child in program
@@ -1872,7 +1921,9 @@ fn copy_declarations(
     let substitutions = operands
         .iter()
         .filter_map(|operand| match operand.value {
-            StaticMachineBindingValue::Type(actual) => Some((operand.parameter, actual)),
+            StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
+                Some((operand.parameter, actual))
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1973,6 +2024,15 @@ fn generate(
     // Each nested declaration is specialized by the actual enclosing
     // application's bindings, not by an invented call or runtime capture.
     for (source, state) in &copied.originals {
+        // The application consumes the same declaring binders, but a child's
+        // copied signature owns its carrier references. Retain that exact
+        // prefix so receiving source correspondence can check it strictly.
+        let bound_count = copied.originals[0].0.type_parameters.count();
+        if source.type_parameters.count() < bound_count {
+            return Err(Stop::Defect("a copied child lost its enclosing binders"));
+        }
+        let template_parameters =
+            HandleSpan::from_parts_or_empty(source.type_parameters.start(), bound_count);
         let of_kind = |implementation: bool| {
             operands.iter().filter(move |operand| {
                 matches!(operand.value, StaticMachineBindingValue::Conformance(_)) == implementation
@@ -1981,7 +2041,7 @@ fn generate(
         program.machine_specializations.push(MachineSpecialization {
             template: source.symbol,
             instance: copied_symbol(&copied.symbols, source.symbol)?,
-            template_parameters: copied.originals[0].0.type_parameters,
+            template_parameters,
             binding_application: application,
             states: program.captured_machine_states.insert_many([
                 typed_trees::CapturedMachineState {

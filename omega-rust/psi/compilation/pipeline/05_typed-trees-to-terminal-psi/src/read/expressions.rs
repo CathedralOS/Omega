@@ -652,6 +652,7 @@ impl<'t> Program<'t> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        let value = self.retain_view_input(id, slots, value, expected)?;
         if let (Some(wanted @ ValueType::Record(wanted_row, _, _)), Some(carried)) =
             (expected, value.result)
             && let ValueType::Record(carried_row, _, _) = carried

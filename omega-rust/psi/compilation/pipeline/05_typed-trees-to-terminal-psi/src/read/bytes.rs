@@ -616,10 +616,109 @@ impl Program<'_> {
                 row.shape,
                 StorageShape::ByteSequence(_)
                     | StorageShape::ElementView {
-                        access: Some(StructuralAccess::SharedBorrow),
+                        access: Some(
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        ),
                         ..
                     }
             )
+        })
+    }
+
+    /// An incoming mutable view lends backing for the call. Keeping it in an
+    /// aggregate requires an owned child descriptor, not a move out of the
+    /// formal's storage. Establish that ordinary reborrow at any value use.
+    pub(super) fn retain_view_input(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        value: Expression,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
+        let (
+            ExpressionKind::Slot(slot),
+            Some(ValueType::Record(actual, qualification, regions)),
+            Some(ValueType::Record(wanted, wanted_qualification, _)),
+        ) = (&value.kind, value.result, expected)
+        else {
+            return Ok(value);
+        };
+        if slots.get(*slot).and_then(|slot| slot.borrowed)
+            != Some(language_core::ReferenceAccess::Mutable)
+            || qualification != wanted_qualification
+        {
+            return Ok(value);
+        }
+        let element = match (
+            &self.data_type(machine, actual)?.shape,
+            &self.data_type(machine, wanted)?.shape,
+        ) {
+            (
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None | Some(StructuralAccess::MutableBorrow),
+                }),
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                }),
+            ) => {
+                let physical = self
+                    .record_sources
+                    .get(wanted)
+                    .and_then(|source| source.application.as_ref())
+                    .ok_or_else(|| {
+                        refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Type("retained view without its source element"),
+                        )
+                    })?;
+                let owner = self
+                    .record_sources
+                    .get(wanted)
+                    .map(|source| source.region_owner)
+                    .ok_or_else(|| {
+                        refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Type("retained view without its source owner"),
+                        )
+                    })?;
+                let source = source_byte_view(self.typed, physical.reference, owner, machine)?
+                    .ok_or_else(|| {
+                        refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Type("retained byte view without its source type"),
+                        )
+                    })?;
+                let value_type = self.value_type(machine, source.element_type)?;
+                self.collection_element_storage(machine, source.element_type, value_type)?
+                    .0
+            }
+            (
+                StorageShape::ElementView {
+                    element: actual,
+                    qualification: actual_q,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+                StorageShape::ElementView {
+                    element: wanted,
+                    qualification: wanted_q,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+            ) if actual == wanted && actual_q == wanted_q => *actual,
+            _ => return Ok(value),
+        };
+        let source = value.source;
+        Ok(Expression {
+            call_context: None,
+            result: Some(ValueType::Record(wanted, qualification, regions)),
+            kind: ExpressionKind::ArrayView {
+                base: Box::new(value),
+                access: language_core::ReferenceAccess::Mutable,
+                element,
+            },
+            source,
         })
     }
 

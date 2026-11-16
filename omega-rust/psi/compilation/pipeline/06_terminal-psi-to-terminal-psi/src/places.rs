@@ -1838,19 +1838,31 @@ impl<'a> Storage<'a> {
                     return Err(self.foreign(concerns, "a case beneath a case"));
                 }
                 (Shape::Typed(owner), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }) => {
-                    let StructuralTypeShape::FixedArray {
-                        element,
-                        length: terminal_psi::ArrayExtent::Literal(length),
-                    } = self.declaration(owner, concerns)?.shape
-                    else {
-                        return Err(self
-                            .foreign(concerns, "an index is not applied to a closed fixed array"));
+                    let element = match self.declaration(owner, concerns)?.shape {
+                        StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } => {
+                            if matches!(segment, Segment::FixedIndex(index) if *index >= length) {
+                                return Err(self.foreign(
+                                    concerns,
+                                    "a literal index exceeds its array extent",
+                                ));
+                            }
+                            element
+                        }
+                        StructuralTypeShape::ElementView { element, .. }
+                            if matches!(segment, Segment::RuntimeIndex { .. }) =>
+                        {
+                            element
+                        }
+                        _ => {
+                            return Err(self.foreign(
+                                concerns,
+                                "an index needs a closed array or a live view bound",
+                            ));
+                        }
                     };
-                    if matches!(segment, Segment::FixedIndex(index) if *index >= length) {
-                        return Err(
-                            self.foreign(concerns, "a literal index exceeds its array extent")
-                        );
-                    }
                     match self.declaration(element, concerns)?.shape {
                         StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(cell),
                         StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
@@ -1925,14 +1937,7 @@ impl<'a> Storage<'a> {
             // Availability concerns the descriptor, not ownership of its
             // backing. An exclusive descriptor is readable too; copying it
             // still requires the separate unrestricted-copy judgment.
-            StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::MutableBorrow),
-                },
-            ) => found.push(at.clone()),
-            shape if is_shared_view(shape) => {
-                found.push(at.clone());
-            }
+            shape if shape.is_view_descriptor() => found.push(at.clone()),
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
@@ -2234,6 +2239,16 @@ impl<'a> Storage<'a> {
             }
             ExecutionSite::Block(id) => self.block(id)?.terminator.storage_uses(),
         };
+        let preceding = match site {
+            ExecutionSite::Operation(id) => {
+                let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(id))?;
+                let before = after.checked_sub(1).ok_or_else(|| {
+                    self.foreign(concerns, "an indexed operation has no position")
+                })?;
+                &self.block(block)?.operations[..before]
+            }
+            ExecutionSite::Block(id) => self.block(id)?.operations.as_slice(),
+        };
         let mut found = None;
         for projection in projections {
             if !projection.path.iter().any(|step| {
@@ -2250,6 +2265,13 @@ impl<'a> Storage<'a> {
                 root,
                 projection.path,
                 types,
+                |prefix| {
+                    terminal_semantics::preceding_element_view_length(
+                        preceding,
+                        projection.root,
+                        prefix,
+                    )
+                },
                 |owned, goal| {
                     if owned == obligation {
                         duplicate |= found.replace(goal).is_some();
@@ -2264,6 +2286,10 @@ impl<'a> Storage<'a> {
                     }
                     RuntimeIndexGoalError::OpenExtent => self
                         .unsupported(concerns, "index into storage without a closed array extent"),
+                    RuntimeIndexGoalError::MissingExtent => self.unsupported(
+                        concerns,
+                        "index into a view without its current descriptor length",
+                    ),
                     RuntimeIndexGoalError::MissingSelector => {
                         self.foreign(concerns, "an array selector has no scalar type")
                     }

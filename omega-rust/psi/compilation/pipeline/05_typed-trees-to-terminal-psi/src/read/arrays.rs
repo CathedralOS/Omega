@@ -57,12 +57,21 @@ pub(super) fn source_sequence_view(
             if super::bytes::source_byte_view(typed, reference, lexical_owner, machine)?.is_some() {
                 return Ok(None);
             }
-            if *access != language_core::ReferenceAccess::Shared {
-                return Err(fail(
-                    "mutable typed sequence requires its actual exclusive backing and loan",
-                ));
-            }
-            (*referee, Some(terminal_psi::StructuralAccess::SharedBorrow))
+            // A declared view type describes access; it does not create a
+            // permission. Mutable formation and every transfer must still
+            // establish their actual exclusive backing through ordinary loans.
+            let access = match access {
+                language_core::ReferenceAccess::Shared => {
+                    terminal_psi::StructuralAccess::SharedBorrow
+                }
+                language_core::ReferenceAccess::Mutable => {
+                    terminal_psi::StructuralAccess::MutableBorrow
+                }
+                language_core::ReferenceAccess::WriteOnly => {
+                    return Err(fail("write-only typed sequence"));
+                }
+            };
+            (*referee, Some(access))
         }
         _ => return Ok(None),
     };
@@ -487,14 +496,7 @@ impl Program<'_> {
         }
         let (element, qualification, extent) = self.array_element(machine, array)?;
         let stored_length = matches!(extent, CollectionExtent::StoredLength);
-        if stored_length && access != Access::Read {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Typing("sequence index needs its current length and bounds judgment"),
-            ));
-        }
-        if stored_length && !self.data_type(machine, element)?.copyable {
+        if stored_length && access == Access::Read && !self.data_type(machine, element)?.copyable {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -736,7 +738,7 @@ impl Program<'_> {
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
     }
 
-    fn collection_element_storage(
+    pub(super) fn collection_element_storage(
         &mut self,
         machine: MachineId,
         reference: TypeReferenceHandle,

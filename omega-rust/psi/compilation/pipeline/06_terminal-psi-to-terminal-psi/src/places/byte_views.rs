@@ -259,8 +259,9 @@ impl Storage<'_> {
         }
         // A `u8` array forms its borrowed byte descriptor; another element
         // type forms an `ElementView` naming that exact element declaration
-        // (byte_views.md, "Collection view establishment"). Only the shared
-        // typed view has a source formation; a mutable one stays refused.
+        // (byte_views.md, "Collection view establishment"). Both accesses use
+        // the same exact backing judgment; the loan checker separately proves
+        // that an exclusive formation has no competing live borrower.
         let typed = match self.declaration(result.structural_type, concerns)?.shape {
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(declared),
@@ -268,15 +269,7 @@ impl Storage<'_> {
             StructuralTypeShape::ElementView {
                 element: declared,
                 access: Some(declared_access),
-            } if declared == element && declared_access == access => {
-                if access != StructuralAccess::SharedBorrow {
-                    return Err(self.unsupported(
-                        concerns,
-                        "a mutable typed array view without its exclusive element-view judgment",
-                    ));
-                }
-                true
-            }
+            } if declared == element && declared_access == access => true,
             _ => {
                 return Err(self.foreign(
                     concerns,
