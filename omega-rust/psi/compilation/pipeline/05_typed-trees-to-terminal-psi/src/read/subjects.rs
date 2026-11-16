@@ -361,9 +361,11 @@ impl Program<'_> {
                     let id = self.subject_machine(machine.symbol)?;
                     self.subject_machines.push(id);
                 } else {
-                    // Its own form admits the source after actually reading
-                    // its signature and body. This closure has no operator
-                    // answers for that separate reading of the template.
+                    // Keep the declaration's identity in this compilation,
+                    // but defer its questions to the required generic form.
+                    // That form reads and checks its own signature and body;
+                    // this closure cannot supply its operator answers.
+                    self.admitted_declarations.include(machine.symbol);
                     self.generic_templates.push(machine.symbol);
                 }
                 Ok(())
