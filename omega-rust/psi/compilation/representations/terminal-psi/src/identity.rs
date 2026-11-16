@@ -518,8 +518,8 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Boundary declarations retain their complete service contract.
-            137
+            // Float conversions retain integer inputs, results and exactness.
+            138
         }
     }
 }

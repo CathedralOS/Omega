@@ -73,26 +73,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Native binding admission cannot check an owned record result
-- Category: the documents disagree
-- Where: [native geometry admission](omega-rust/omega/compilation/realization/provider-admission/src/native_bindings.rs#L610), [foreign affine record sample](samples/cli/facts/foreign_indirect_float_record_result/README.md)
-- Saw: On clean `d897503cd19` and candidate `02cd253f7b6` on macOS arm64, the unchanged `CGAffineTransformMake` sample exits 200 before instruction selection with “native owned aggregate needs complete canonical field calling correspondence.” Its result is an owned 48-byte record of six `f64` fields. The sample documents successful native and Psi execution.
-- Cost: Admission refuses the record before comparing its fields. Use the existing calling application's ordered field carriers and placement with the canonical record layout so an exact binding can proceed and a field or layout mismatch still refuses.
-- Reported: 2026-11-15, Codex, while verifying retained indirect result placement.
-
 ### Structural equality refuses a field of a closed generic type
 - Category: knowledge crossing a boundary
 - Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)
 - Saw: On clean `eca5c0b9d21` and candidate `c64a4d172f9` on macOS arm64, `Player.point: Point<1>` with `PointEquality satisfies Equatable<Point<1>>` refuses that the field is not Equatable before choosing its comparison row. `Point<const Index: u64> [copy]` has one `i32` field. The same nested comparison over non-generic `Point` runs in both engines.
 - Cost: Equality preparation has the resolved application and has no comparison over its instantiated fields. Use the existing applied type and member substitution owner so a comparison for `Point<1>` cannot be reused for a different argument or unresolved field.
 - Reported: 2026-11-15, Codex, while verifying exact structural equality through aliases.
-
-### A borrowed generic equality formal stops a closed comparison
-- Category: knowledge crossing a boundary
-- Where: [borrowed formal reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L2742), [authored equality signature](samples/cli/probes/synthesized_equatable/main.omg#L17)
-- Saw: On clean `eca5c0b9d21` on macOS arm64, an exact named `Equatable<Player>` row with the declared formal `left: &T` is refused as “parameter reference to a value of a type parameter” even though its actual comparison uses only concrete `Player` values. A separate control with by-value formals and copyable records runs in native and Psi.
-- Cost: The equality's selected concrete row cannot bypass the earlier rigid borrowed formal. Use the checked callable's existing requirement and lifetime ownership so admission closes the reference without assigning an arbitrary referent or waiving its loan.
-- Reported: 2026-11-15, Codex, while preserving the original reference-signature comparison control.
 
 ### A user trait named Equatable receives compiler synthesis
 - Category: the documents disagree
@@ -101,48 +87,25 @@ framework or a list of unimplemented features.
 - Cost: A user root path grants synthesis privilege through spelling. Publish and select the existing equality protocol through an exact sealed owner. Migrate the legacy authored witnesses together with that change so a lookalike user declaration cannot acquire synthesis.
 - Reported: 2026-11-15, Codex, while auditing remaining equality-name selection.
 
-### Named mathematical terms reject total wrapping operators before formation
-- Category: branch per shape
-- Where: [policy-specific binary expression lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [total arithmetic in proof terms](wiki/spec/proofs/contracts.md#total-arithmetic)
-- Saw: With compiler source `16c9a2cd0431` on macOS arm64, a Linux x86-64 check refuses an unused `let reflexive(value: u32): core::Strict<0> = value +% 1u32 == 1u32;` in the [existing predicate fixture](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate). Typing says suffixed operators are supported only in executable machines and their contracts. Replacing only that declaration with a machine precondition over the same `value: u32` and the same `+%` comparison compiles 237 files. The named declaration never reaches canonical term formation.
-- Cost: Totality depends on where the term is written before the shared checker can look at its operands. Admit the same wrapping expression under its exact mathematical input and retain the shared definedness obligation for a division. A trapping term must still refuse.
-- Reported: 2026-11-15, Codex, while comparing overflow controls for the unused mathematical predicate.
-
-### A `fail/` proof fixture compiles, so `lowered_route_governance` fails at its base
+### Named predicates skip declaration-time arithmetic totality
 - Category: a verdict with nothing behind it
-- Where: `tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg`, `omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs:44`
-- Saw: `omega --check --target linux_x86_64` on the fixture prints `compiled 237 source file(s)` at dc83fcb65264, although its header expects `carrier arithmetic in a clause term`; `an_invalid_bound_entry_reports_the_routes_rejection` panics with "the compilation must be rejected after Psi 04".
-- Cost: the governance test is red for every agent that runs the lowered-form checker's area tests, and an unused partial predicate (`value + 1u32 == 1u32`) is accepted without the rejection the fixture pins.
-- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
+- Where: [unused partial predicate](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg), [governance assertion](omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs#L185), [operator lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [proof arithmetic rules](wiki/spec/proofs/contracts.md#total-arithmetic)
+- Saw: At `dc83fcb65264`, `omega --check --target linux_x86_64` accepts the unused predicate `value + 1u32 == 1u32` over arbitrary `u32`, so the governance test panics. At `16c9a2cd0431` on macOS arm64 targeting Linux x86-64, changing only the unused predicate's addition to `+%` is refused during typing. A machine precondition with the same wrapping expression and input type compiles.
+- Cost: Check a named predicate under its own formal inputs through the same term formation as an inline contract. Pin the overflow refusal even when the predicate is unused, admit the wrapping control, and preserve the nonzero-divisor obligation. Replace the governance assertion's old `carrier arithmetic in a clause term` expectation with the actual totality refusal.
+- Reported: 2026-11-15, Claude Code and Codex, while testing refusal locations and comparing overflow controls.
 
 ### Literal declaration validation still judges selected predicates in syntax
 - Category: one idea, several implementations
-- Where: [production constant validation](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L569), [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [operator applicability](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L197), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)
-- Saw: At `c30b00a0b878`, complete resolution still sends literal record/case and nested constrained-member predicates through `ProveSyntax`. That path interprets named/indexed domain facts and approximates operator applicability from root spellings and parameter carriers. Computed initializers already defer to checked evaluation; top-level qualified destinations require the exact checked judgment or refuse. This is source inspection, with no divergent acceptance reproduced; the older `const_integer` classifier has no production callers.
-- Cost: Declaration-dependent meaning has another implementation before ordinary checking. Retain selected declarations, scope, substitutions and exact destination/initializer through the existing forward evaluation handoff; keep literal decoding and anonymous primitive normalization. Under **EARLY-TERMINAL-JOBS**, check matching declaration/static-argument/construction outcomes and independence from unrelated incompatible operators, preserving false unused-declaration, overflow, zero-divisor, carrier, arity and uncertain-predicate refusals. Removing this evaluator must not remove those obligations.
+- Where: [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)
+- Saw: Record/case and nested constrained-member predicates still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. Computed initializers use checked evaluation. The indexed receiving case gained exact declaration identity in #3616. The record/case const-argument path still refuses before checked evaluation. The duplicate syntax judgment was identified by inspection.
+- Cost: The syntax path duplicates part of the ordinary predicate judgment. [EARLY-TERMINAL-JOBS](TASKS.md#early-terminal-jobs) tracks the remaining handoff and its acceptance checks.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
-
-
-### A narrow installation bound rejects a valid selected child
-- Category: knowledge crossing a boundary
-- Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
-- Saw: The original fixture retains B's X and C/D's Y in A's selected row. Narrow A to `reaches <= X` and move its C call to `main` after the call to A, leaving the same two writes and target selections. On macOS arm64, `AProvider::visit` at line 13, column 59 still refuses. Source checking charges B's whole X + Y upper bound even though the exact selected B only reaches X.
-- Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
-- Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
-
-
-### Package review cannot recover the nominal callback's Count binder
-- Category: knowledge crossing a boundary
-- Where: [kept nominal callback package](tests/fixtures/pass/facts/static_callback_reach_boundary_schema/main.omg#L62), [policy recovery assertion](omega-rust/omega/compilation/compiler/tests/package_review.rs#L827), [machine supply rules](wiki/spec/language/machines.md#supply)
-- Saw: On clean `cfabcb98f21`, the unchanged fixture stops at `TraversalCode::traverse<quiet, unused>(37)` on line 62, column 37. A prototype admitting the exact nominal operands reaches the complete-interface refusal for `Step<2>` and the generic named member without a method application. Direct `quiet<3>(37)` and `boundary_step<3>(37)` hit the same copier refusal without a callback binder. The latter declares a body-bearing free `boundary machine`; the supply rules reserve that free form for bodyless admission.
-- Cost: The policy test never recovers `StepContract::step` with its authored `Count` binder and contract. Carry exact method application and nominal refinement through their existing owners and settle the boundary declaration migration. Keep the checked `Step<2>` and `Step<3>` calls, unused effectful selection, and the recovered schema oracle.
-- Reported: 2026-11-15, Codex, macOS arm64, while testing static callable receipts.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs), [source application preparation](omega-rust/psi/compilation/representations/typed-trees/src/references.rs)
-- Saw: Type, expression and statement tables share retained pages and append private rows. Empty selected activation still copies declaration and side-record storage before projection narrows its roots. Later declarations can also give a retained call its source application; that necessary write still detaches the earlier completion batch's whole page.
-- Cost: Unrelated declaration storage is copied even for an empty body batch. A real update to one retained call can copy unrelated bodies from its earlier batch. Use the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share the remaining immutable declaration storage and keep body replacements under their actual owner, not the earlier batch. Do not skip source application preparation, projection, source authority checks, or signature and inferred-summary dependencies.
-- Measured: On Windows x86-64 at opt-level 1, the two original Build routes each selected 75 files and zero bodies. Activation requested 5,072,931 bytes across 13,043 allocations and cloned 63 arenas. Later full completions of 1,695 / 1,693 machines requested 322,765,350 / 322,664,660 bytes, including new output and required preparation. They still copied earlier pages containing 21,773 / 21,757 expression rows and 1,955 statement rows. These are operation counts, not a runtime-speedup claim. The [historical macOS measurement](wiki/drafts/measurements/selected_body_copies.md) at `d66164cd0f5` recorded 32,333,303 activation bytes, 14,553 allocations and 101 cloned arenas; it did not measure repeated nonempty completion.
+- Saw: Type, expression and statement tables share retained pages and append private rows. Primary expression and statement rewrites detach their declaration or body owner's rows, not an earlier completion batch. Empty selected activation still copies declaration and side-record storage before projection narrows its roots. Child-list rewrites retain their existing batch boundary.
+- Cost: Unrelated declaration storage is copied even for an empty body batch. Use the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share the remaining immutable declaration and side-record storage under its actual owner. Do not skip source application preparation, projection, source authority checks, or signature and inferred-summary dependencies.
+- Measured: On Windows x86-64 at opt-level 1, the two original Build routes each selected 75 files and zero bodies. Activation requested 5,072,323 bytes across 13,043 allocations and cloned 63 arenas. Later full completions of 1,695 / 1,693 machines requested 311,597,594 / 311,407,992 bytes, including new output and required preparation. Primary payload copies were limited to 205 expression rows and two statement rows per route; shared-directory detachment copied 742,388 / 742,276 bytes of page headers and slot associations. These are operation counts, not a general runtime-speedup claim. The [historical macOS measurement](wiki/drafts/measurements/selected_body_copies.md) at `d66164cd0f5` recorded 32,333,303 activation bytes, 14,553 allocations and 101 cloned arenas; it did not measure repeated nonempty completion.
 - Reported: 2026-11-15, Codex, after measuring retained type and body storage on the original scalar-contract and borrowed-root Build routes
 

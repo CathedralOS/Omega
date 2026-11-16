@@ -159,32 +159,6 @@ impl CallingProgram {
         })
     }
 
-    pub fn describe_borrowed_storage<Output>(
-        &self,
-        declaration: &semantic_vocabulary::CallingAbiIdentity,
-        target: target::TargetProfile,
-        ordinal: usize,
-        describe: impl FnOnce(
-            &dyn Fn(
-                semantic_vocabulary::ScalarApplicationId,
-            ) -> Result<u64, terminal_semantics::StorageGeometryError>,
-        ) -> Result<Output, String>,
-    ) -> Result<Output, String> {
-        let demand = terminal_installation::CallingAbiStorageDemand::new(
-            self.artifact.view(),
-            target.target_name(),
-            declaration,
-        )?
-        .with_borrowed_parameter(self.artifact.view(), ordinal)?;
-        self.with_storage_extents(
-            &demand,
-            target,
-            CallingStorageScope::Description,
-            &[],
-            describe,
-        )
-    }
-
     fn with_storage_extents<Output>(
         &self,
         demand: &terminal_installation::CallingAbiStorageDemand,

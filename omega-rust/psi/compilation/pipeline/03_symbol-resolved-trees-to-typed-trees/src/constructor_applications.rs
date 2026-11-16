@@ -35,12 +35,32 @@ pub(crate) fn prepare(
             continue;
         }
         let mut callers = owners.expression_owners(expression);
-        let Some(caller) = callers.next() else {
+        let Some(first) = callers.next() else {
             continue;
         };
-        if !caller.is_valid() || callers.any(|other| other != caller) {
-            continue;
-        }
+        let caller = if let Some(call) = program.expression_table.call_node(expression)
+            && call.target_symbol.is_valid()
+            && call.authored_machine_application.is_valid()
+            && let owner = program
+                .expression_table
+                .static_machine_application(call.authored_machine_application)
+                .lexical_owner
+            && owner.is_valid()
+            && (owner == first || callers.any(|other| other == owner))
+        {
+            // A constant and its generated entry may share an expression.
+            // Its already selected source application supplies the scope.
+            owner
+        } else {
+            if !first.is_valid()
+                || owners
+                    .expression_owners(expression)
+                    .any(|other| other != first)
+            {
+                continue;
+            }
+            first
+        };
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
             // A bare range observes the actual collection's elements,
@@ -310,58 +330,96 @@ fn infer_call(
         }
         call.target = target;
     }
-    if call.explicit
-        || (call.application.is_valid()
-            && !program
-                .expression_table
-                .static_machine_application_arguments(call.application)
-                .is_empty())
-    {
+    let supplied = if call.application.is_valid() {
+        program
+            .expression_table
+            .static_machine_application_arguments(call.application)
+    } else if call.explicit {
+        // A different source context owns arguments that were not retained
+        // as an ordinary application.
         return Ok(None);
-    }
-    let Some((owner, signature)) = program.trait_machine_signature(call.target) else {
+    } else {
+        &[]
+    };
+    let (parameters, formals) =
+        if let Some((owner, signature)) = program.trait_machine_signature(call.target) {
+            if !supplied.is_empty()
+                || !owner.type_parameters.is_empty()
+                || !owner.lifetime_parameters.is_empty()
+                || !signature.lifetime_parameters.is_empty()
+            {
+                return Ok(None);
+            }
+            (
+                program.state_signature_type_parameters(signature).to_vec(),
+                program.state_signature_parameters(signature).to_vec(),
+            )
+        } else {
+            // The retained declaration owns the written prefix. Complete
+            // that application before specialization asks for its bindings.
+            if !call.application.is_valid() {
+                return Ok(None);
+            }
+            let application = program
+                .expression_table
+                .static_machine_application(call.application);
+            let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
+                return Ok(None);
+            };
+            let state = if call.target == machine.symbol {
+                program.machine_states(machine).first()
+            } else {
+                program
+                    .state_by_symbol(call.target)
+                    .filter(|state| program.symbols.get(state.symbol).parent == machine.symbol)
+            };
+            let Some(state) = state else {
+                return Ok(None);
+            };
+            if machine.has_bodyless_signature() || machine.type_parameters.len() <= supplied.len() {
+                return Ok(None);
+            }
+            (
+                program.machine_callable_parameters(machine),
+                program.state_parameters(state).to_vec(),
+            )
+        };
+    let Some(omitted) = parameters.get(supplied.len()..) else {
         return Ok(None);
     };
-    if !owner.type_parameters.is_empty()
-        || !owner.lifetime_parameters.is_empty()
-        || !signature.lifetime_parameters.is_empty()
-    {
-        return Ok(None);
-    }
-    let parameters = program.state_signature_type_parameters(signature).to_vec();
-    if parameters.is_empty()
-        || parameters
+    if omitted.is_empty()
+        || omitted
             .iter()
             .any(|parameter| parameter.kind != TypeParameterKind::Type)
+        || formals.len() != call.arguments.len()
     {
         return Ok(None);
     }
-    let formals = program.state_signature_parameters(signature).to_vec();
-    if formals.len() != call.arguments.len() {
-        return Ok(None);
-    }
-    let mut inferred = vec![None; parameters.len()];
+    let mut arguments = supplied.to_vec();
+    let mut inferred = vec![None; omitted.len()];
     for (formal, argument) in formals.iter().zip(call.arguments.iter().copied()) {
         if let Some(actual) = infer(program, argument, &mut Vec::new())? {
             unify(
                 program,
                 formal.type_reference,
                 actual,
-                &parameters,
+                omitted,
                 &mut inferred,
-            )?;
+            )
+            .map_err(|error| error.with_source_span(call.source_span))?;
         }
     }
     let Some(inferred) = inferred.into_iter().collect::<Option<Vec<_>>>() else {
         return Ok(None);
     };
-    let arguments: Vec<_> = inferred
-        .into_iter()
-        .map(|type_reference| StaticMachineArgument {
-            type_reference,
-            ..Default::default()
-        })
-        .collect();
+    arguments.extend(
+        inferred
+            .into_iter()
+            .map(|type_reference| StaticMachineArgument {
+                type_reference,
+                ..Default::default()
+            }),
+    );
     let application = if call.application.is_valid() {
         program
             .expression_table
@@ -1056,6 +1114,44 @@ mod tests {
     use crate::qualified_operator_home_tests::checked;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+    #[test]
+    fn ordinary_call_inference_completes_the_existing_application() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/fixtures/run/generics/inferred_static_call_types/main.omg"
+        ));
+        let program = checked(&[("main.omg", source)]).expect("the fixture types");
+        let expressions = &program.expression_table;
+        let mut completed = 0;
+        for (_, node) in expressions.expression_entries() {
+            let ExpressionNode::Call(call) = node else {
+                continue;
+            };
+            let [written] = call.machine_arguments.as_ref() else {
+                continue;
+            };
+            if call.target.as_str() != "apply" {
+                continue;
+            }
+            let [selected, inferred] =
+                expressions.static_machine_application_arguments(call.authored_machine_application)
+            else {
+                panic!("the source application needs the written callback and its inferred type");
+            };
+            assert_eq!(selected, written);
+            let inferred_type = program
+                .type_reference_table
+                .type_reference(inferred.type_reference);
+            assert!(matches!(
+                inferred_type,
+                TypeReferenceNode::Named { symbol, .. }
+                    if program.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::Bool)
+            ));
+            completed += 1;
+        }
+        assert!(completed >= 3, "constant and runtime applications");
+    }
 
     #[test]
     fn prepared_statement_calls_keep_retained_body_storage_shared() {

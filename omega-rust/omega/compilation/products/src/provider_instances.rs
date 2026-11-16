@@ -3,7 +3,6 @@
 // (`Arc::ptr_eq`). Source declarations do not replace route-owned provider
 // application evidence; projection refuses while that evidence is unavailable.
 
-use diagnostics::Diagnostic;
 use std::sync::Arc;
 use typed_trees::{FrozenTypedTrees, provider_declarations::PreparedProviderInventory};
 
@@ -44,14 +43,5 @@ impl SelectedProviderSource {
     }
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
         &self.plans
-    }
-
-    pub fn project_instances(&self) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
-        if self.plans.plans().is_empty() {
-            return provider_selection::project_provider_instances(&self.plans, &[]);
-        }
-        Err(vec![Diagnostic::error(
-            "no product route yet: selected provider instances require route-owned application custody",
-        )])
     }
 }

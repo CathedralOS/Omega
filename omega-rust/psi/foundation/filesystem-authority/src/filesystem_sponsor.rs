@@ -78,7 +78,6 @@ pub(crate) struct FilesystemAccount {
 
 #[derive(Debug)]
 pub(crate) struct StagingWriter {
-    pub(crate) relative_path: PathBuf,
     pub(crate) extent: u64,
 }
 
@@ -494,7 +493,6 @@ impl FilesystemSponsor {
             prepared: self.reserve(
                 self.lock_account()?,
                 StagingChange::CreateWriter(StagingWriter {
-                    relative_path: path.relative.clone(),
                     extent: initial_extent,
                 }),
                 1,
@@ -502,23 +500,6 @@ impl FilesystemSponsor {
                 initial_extent,
             )?,
         })
-    }
-
-    pub fn require_sealed(
-        &self,
-        path: &FilesystemSponsorPath,
-    ) -> Result<(), FilesystemSponsorError> {
-        self.host_path(path)?;
-        if self
-            .lock_account()?
-            .writers
-            .iter()
-            .flatten()
-            .any(|writer| writer.relative_path == path.relative)
-        {
-            return Err(FilesystemSponsorError::UnsealedEntry(path.relative.clone()));
-        }
-        Ok(())
     }
 
     pub fn prepare_close(
@@ -786,15 +767,3 @@ impl fmt::Display for FilesystemSponsorError {
 }
 
 impl Error for FilesystemSponsorError {}
-
-impl FilesystemSponsorError {
-    pub const fn is_limit_exceeded(&self) -> bool {
-        matches!(
-            self,
-            Self::EntryLimitExceeded { .. }
-                | Self::TotalLogicalBytesLimitExceeded { .. }
-                | Self::ObjectExtentLimitExceeded { .. }
-                | Self::ArithmeticOverflow
-        )
-    }
-}

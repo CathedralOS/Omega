@@ -217,7 +217,7 @@ pub(crate) fn numeric_requirement_schema(
     } else {
         declaration
             .rsplit_once("::")
-            .ok_or("numeric primitive has no declaring namespace")?
+            .ok_or("numeric primitive has no declaration owner")?
     };
     requirement_schema(
         module,

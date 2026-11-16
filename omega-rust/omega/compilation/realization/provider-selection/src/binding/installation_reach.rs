@@ -1,9 +1,9 @@
 // Substitute the complete selected installation closure without source queries.
 // Inputs retain the selected requirement/plan association and its checked reach;
-// a concrete child may become available several rounds before another child while
-// its contribution stays in the parent's accumulated row. All publishers are
+// a concrete child may complete before another child while its contribution
+// stays in the parent's accumulated row. All publishers are
 // counted up front so a pending competing plan never appears unambiguous, and
-// plan_scoped_resolution prefers the owning plan's row before allowing a foreign
+// the dependency index prefers the owning plan's row before allowing a foreign
 // row only when the entire selected closure has a single publisher.
 
 use diagnostics::Diagnostic;
@@ -21,67 +21,76 @@ pub struct InstallationReachRow {
 }
 
 pub fn resolve_installation_reach(
-    rows: Vec<InstallationReachRow>,
+    mut rows: Vec<InstallationReachRow>,
 ) -> Result<(Vec<InstallationReachResolution>, TerminalIdentityTable), Vec<Diagnostic>> {
-    let mut identities = TerminalIdentityTableBuilder::default();
-    let mut resolutions = Vec::new();
-    let mut pending = Vec::new();
-    let mut publishers =
-        std::collections::BTreeMap::<String, std::collections::BTreeSet<u64>>::new();
-    for row in rows {
-        publishers
-            .entry(row.requirement_identity.clone())
-            .or_default()
-            .insert(row.provider_plan_report_identity);
-        if row.dependencies.is_empty() {
-            resolutions.push(completed_row(row, &mut identities));
-        } else {
-            pending.push(row);
-        }
-    }
-    loop {
-        let mut next = Vec::new();
-        let mut progressed = false;
-        for mut row in pending {
-            row.dependencies.retain(|dependency| {
-                let child = plan_scoped_resolution(
-                    &resolutions,
-                    &identities,
-                    &publishers,
-                    row.provider_plan_report_identity,
-                    dependency,
-                );
-                match child {
-                    Some(child) => {
-                        row.concrete_reach
-                            .extend(child.resolved_row.iter().cloned());
-                        false
-                    }
-                    None => true,
-                }
-            });
-            if row.dependencies.is_empty() {
-                row.concrete_reach.sort();
-                row.concrete_reach.dedup();
-                resolutions.push(completed_row(row, &mut identities));
-                progressed = true;
-            } else {
-                next.push(row);
+    use flow_effects::installation_reach::{ReachResolutionError, ReachRow, resolve};
+    // Name every publisher before resolving: a not-yet-ready competing plan
+    // cannot make a foreign requirement look unambiguous.
+    let dependencies = {
+        let mut own = std::collections::BTreeMap::new();
+        let mut publishers = std::collections::BTreeMap::new();
+        for (position, row) in rows.iter().enumerate() {
+            own.entry((
+                row.requirement_identity.as_str(),
+                row.provider_plan_report_identity,
+            ))
+            .or_insert(position);
+            let publisher = publishers
+                .entry(row.requirement_identity.as_str())
+                .or_insert(Some((row.provider_plan_report_identity, position)));
+            if publisher.is_some_and(|(plan, _)| plan != row.provider_plan_report_identity) {
+                *publisher = None;
             }
         }
-        pending = next;
-        if !progressed {
-            break;
-        }
-    }
-    if pending.is_empty() {
-        Ok((resolutions, identities.build()))
-    } else {
-        Err(pending.into_iter().map(|row| Diagnostic::error(format!(
-            "selected provider row `{}` realization `{}` of provider `{}` retains {} unresolved installation-bound requirement(s); its checked reach is a conservative bound, not a resolved row",
-            row.requirement_identity, row.realization_name, row.provider_name, row.dependencies.len(),
-        ))).collect())
-    }
+        rows.iter()
+            .map(|row| {
+                row.dependencies
+                    .iter()
+                    .map(|dependency| {
+                        own.get(&(dependency.as_str(), row.provider_plan_report_identity))
+                            .copied()
+                            .or_else(|| {
+                                publishers
+                                    .get(dependency.as_str())
+                                    .copied()
+                                    .flatten()
+                                    .map(|(_, position)| position)
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+    };
+    let inputs = rows
+        .iter_mut()
+        .zip(dependencies)
+        .map(|(row, dependencies)| ReachRow {
+            fixed: std::mem::take(&mut row.concrete_reach),
+            dependencies,
+        })
+        .collect();
+    let resolved = resolve(inputs).map_err(|error| match error {
+        ReachResolutionError::Unresolved(pending) => pending.into_iter().map(|(position, count)| {
+            let row = &rows[position];
+            Diagnostic::error(format!(
+                "selected provider row `{}` realization `{}` of provider `{}` retains {} unresolved installation-bound requirement(s); its checked reach is a conservative bound, not a resolved row",
+                row.requirement_identity, row.realization_name, row.provider_name, count,
+            ))
+        }).collect(),
+        ReachResolutionError::InvalidDependency { row, dependency } => vec![Diagnostic::error(format!(
+            "installation reach row {row} has invalid dependency {dependency}",
+        ))],
+    })?;
+    let mut identities = TerminalIdentityTableBuilder::default();
+    let resolutions = rows
+        .into_iter()
+        .zip(resolved)
+        .map(|(mut row, resolved)| {
+            row.concrete_reach = resolved;
+            completed_row(row, &mut identities)
+        })
+        .collect();
+    Ok((resolutions, identities.build()))
 }
 
 fn completed_row(
@@ -96,26 +105,53 @@ fn completed_row(
     }
 }
 
-fn plan_scoped_resolution<'a>(
-    resolutions: &'a [InstallationReachResolution],
-    identities: &TerminalIdentityTableBuilder,
-    publishers: &std::collections::BTreeMap<String, std::collections::BTreeSet<u64>>,
-    plan: u64,
-    requirement: &str,
-) -> Option<&'a InstallationReachResolution> {
-    if let Some(own) = resolutions.iter().find(|row| {
-        identities.text(row.requirement_identity) == Some(requirement)
-            && row.provider_plan_report_identity == plan
-    }) {
-        return Some(own);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(
+        requirement: &str,
+        plan: u64,
+        fixed: &[&str],
+        dependencies: &[&str],
+    ) -> InstallationReachRow {
+        InstallationReachRow {
+            requirement_identity: requirement.into(),
+            provider_plan_report_identity: plan,
+            provider_name: format!("provider-{plan}"),
+            realization_name: "checked".into(),
+            upper_bound: vec!["X".into(), "Y".into()],
+            concrete_reach: fixed.iter().map(|name| (*name).into()).collect(),
+            dependencies: dependencies.iter().map(|name| (*name).into()).collect(),
+        }
     }
-    if publishers
-        .get(requirement)
-        .is_some_and(|owners| owners.len() > 1)
-    {
-        return None;
+
+    #[test]
+    fn the_owning_plan_wins_over_other_publishers() {
+        let (resolved, _) = resolve_installation_reach(vec![
+            row("A", 1, &[], &["B"]),
+            row("B", 1, &["X"], &[]),
+            row("B", 2, &["Y"], &[]),
+        ])
+        .unwrap();
+        assert_eq!(resolved[0].resolved_row, ["X"]);
     }
-    resolutions
-        .iter()
-        .find(|row| identities.text(row.requirement_identity) == Some(requirement))
+
+    #[test]
+    fn foreign_children_require_one_publisher_across_the_whole_closure() {
+        let (resolved, _) =
+            resolve_installation_reach(vec![row("A", 1, &[], &["B"]), row("B", 2, &["X"], &[])])
+                .unwrap();
+        assert_eq!(resolved[0].resolved_row, ["X"]);
+        // The competing plan is still waiting: readiness cannot grant
+        // authority to the first publisher that happened to finish.
+        assert!(
+            resolve_installation_reach(vec![
+                row("A", 1, &[], &["B"]),
+                row("B", 2, &["X"], &[]),
+                row("B", 3, &[], &["missing"]),
+            ])
+            .is_err()
+        );
+    }
 }

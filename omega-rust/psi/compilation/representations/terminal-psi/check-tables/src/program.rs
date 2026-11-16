@@ -142,6 +142,10 @@ pub struct SuppliedRequirement {
 /// and every machine those call.
 #[derive(Debug, Clone)]
 pub struct Elaboration {
+    /// A proof-only conformance root for an installation-bound requirement.
+    /// Known reach must fit now; abstract child rows are checked against the
+    /// exact selected provider at installation. Never an executable export.
+    pub installation_bound_refinement: Option<MachineId>,
     /// Unsealed: no proof fields and no evidence. Its only type declarations
     /// are the record types its machines name and the subject declares. In a
     /// compilation's module (`elaborate`) each machine also states the

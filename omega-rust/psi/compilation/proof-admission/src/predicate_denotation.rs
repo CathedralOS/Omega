@@ -106,7 +106,17 @@ mod budget {
                             semantic_vocabulary::FloatMeaningClauseValue::Application {
                                 operands,
                                 ..
-                            } => self.count(operands.len())?,
+                            } => {
+                                self.count(operands.len())?;
+                                for operand in operands {
+                                    if let semantic_vocabulary::FloatMeaningClauseOperand::Integer(
+                                        source,
+                                    ) = operand
+                                    {
+                                        self.scalar(source, depth + 1)?;
+                                    }
+                                }
+                            }
                         }
                     }
                 }

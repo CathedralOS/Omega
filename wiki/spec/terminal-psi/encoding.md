@@ -724,6 +724,7 @@ flat table; they are not runtime values or module proof-value ids.
 | --- | --- | --- |
 | 0 | Format | IEEE float format |
 | 1 | Meaning | `u32` earlier clause slot |
+| 2 | Integer | scalar term with the catalog's exact integer carrier |
 
 Receiving checks each exact catalog commitment, ordered application signature,
 permanent format, unique topological rows and complete connection to the two
@@ -1483,11 +1484,28 @@ including 275, reject before table decoding. The native terminal-input record
 uses `OMGNTI31`; `OMGNTI30` is retired. The mathematical certificate envelope
 and proof-system marker remain unchanged because this adds no proof rule.
 
-Semantic format marker 277 adds proposition tags 20 and 21 for integer-result
+Semantic format marker 277 retains whether a boundary requirement's service
+row is installation-bound. A Boolean after its fixed service reach distinguishes
+an abstract selected row from an ordinary pinned requirement ceiling, including
+when either is empty. An installation-bound requirement has no fixed service
+contribution; its published ceiling remains the selected row's finite upper
+bound. Root installation dependencies must name such requirements. Earlier
+semantic formats reject before table decoding.
+
+Semantic format marker 278 adds typed integer operands to float-result
+contract clauses. Operand tag 2 carries an ordinary scalar term whose signedness
+and width must match the exact `FloatSemantics::from_integer` catalog signature.
+Calls substitute this input with their other scalar actuals; it is not an IEEE
+projection or a new float source class. Receiving validates the full equation,
+including the integer carrier. Vocabulary marker 137 and native input record
+`OMGNTI32` distinguish these contracts; their earlier formats reject. This adds
+no arithmetic proof rule or execution authority.
+
+Semantic format marker 279 adds proposition tags 20 and 21 for integer-result
 conversion graphs and source-only exact cast eligibility. Vocabulary marker
-137 distinguishes these predicates. Earlier semantic formats reject before
-table decoding. The native terminal-input record uses `OMGNTI32` and rejects
-`OMGNTI31`. The separate in-memory proof-system marker is 8; its conversion
+138 distinguishes these predicates. Earlier semantic formats reject before
+table decoding. The native terminal-input record uses `OMGNTI33` and rejects
+`OMGNTI32`. The separate in-memory proof-system marker is 8; its conversion
 rule fingerprints every checked child, without adding a stored certificate
 decoder or changing the `PSICORE` envelope.
 
@@ -2142,7 +2160,7 @@ requires a format change; display spelling does not select a provider.
 
 | Row | Fields |
 | --- | --- |
-| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + result-reference regions + optional declared result-lifetime groups + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling + published synchronous entries |
+| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + result-reference regions + optional declared result-lifetime groups + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + `bool` installation-bound service reach + optional owning service id + published service ceiling + published synchronous entries |
 | optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
 | structural requirement | `u32` argument index + domain id |
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
@@ -2810,14 +2828,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (137). A receiver rejects an unknown magic or stale marker
+vocabulary marker (138). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 277 | yes |
+| semantic module | `PSITERM\0` | 279 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

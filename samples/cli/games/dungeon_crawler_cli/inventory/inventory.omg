@@ -1,15 +1,13 @@
-use inventory::items;
-use rewards::rewards;
 
 data InventorySystem {
 }
 
-machine InventorySystem::clear(inventory: &mut Inventory) {
+machine clear(inventory: &mut Inventory) {
     inventory.item_count = 0;
     inventory.gold = 0;
 }
 
-machine InventorySystem::add_reward(
+machine add_reward(
     inventory_system: &mut InventorySystem,
     inventory: &mut Inventory,
     reward: Reward
@@ -27,7 +25,7 @@ machine InventorySystem::add_reward(
         inventory: &mut Inventory,
         amount: u32 in Wrapping
     ) {
-        InventorySystem::add_gold(inventory, amount);
+        inventory_system_add_gold(inventory, amount);
     }
 
     machine add_item(
@@ -35,7 +33,7 @@ machine InventorySystem::add_reward(
         inventory: &mut Inventory,
         kind: ItemKind
     ) {
-        InventorySystem::add_item(inventory_system, inventory, kind);
+        inventory_system_add_item(inventory_system, inventory, kind);
     }
 
     machine add_gold_and_item(
@@ -43,17 +41,17 @@ machine InventorySystem::add_reward(
         inventory: &mut Inventory,
         reward: Reward
     ) {
-        InventorySystem::add_gold(inventory, reward.gold);
-        InventorySystem::add_item(inventory_system, inventory, reward.item);
+        inventory_system_add_gold(inventory, reward.gold);
+        inventory_system_add_item(inventory_system, inventory, reward.item);
     }
 }
 
-machine InventorySystem::add_gold(inventory: &mut Inventory,
+machine inventory_system_add_gold(inventory: &mut Inventory,
     amount: u32 in Wrapping) {
     inventory.gold = inventory.gold + amount;
 }
 
-machine InventorySystem::add_item(
+machine inventory_system_add_item(
     inventory_system: &mut InventorySystem,
     inventory: &mut Inventory,
     kind: ItemKind
@@ -62,7 +60,7 @@ machine InventorySystem::add_item(
     // (Optional<T> case payloads are not used here yet; the old
     // `Optional<u64>` + `is_some()`/`unwrap()` spelling resolved to NOTHING and
     // silently bound 0 -- every pickup appended a fresh stack.)
-    let existing_index: u64 = InventorySystem::find_item(inventory_system, inventory, kind);
+    let existing_index: u64 = find_item(inventory_system, inventory, kind);
 
     transition existing_index < 32 {
         true -> increment_existing(inventory_system, inventory, kind, existing_index as u64 in Wrapping)
@@ -87,7 +85,7 @@ machine InventorySystem::add_item(
         inventory: &mut Inventory,
         kind: ItemKind
     ) {
-        InventorySystem::append_item(inventory, kind);
+        inventory_system_append_item(inventory, kind);
     }
 
     machine increment_item(
@@ -95,11 +93,11 @@ machine InventorySystem::add_item(
         item: &mut InventoryItem,
         amount: u32 in Wrapping
     ) {
-        InventorySystem::increment_item(item, amount);
+        inventory_system_increment_item(item, amount);
     }
 }
 
-machine InventorySystem::append_item(inventory: &mut Inventory,
+machine inventory_system_append_item(inventory: &mut Inventory,
     kind: ItemKind) {
     let index: u64 in Wrapping = inventory.item_count;
 
@@ -117,7 +115,7 @@ machine InventorySystem::append_item(inventory: &mut Inventory,
     }
 }
 
-machine InventorySystem::find_item(
+machine find_item(
     inventory_system: &mut InventorySystem,
     inventory: &Inventory,
     kind: ItemKind
@@ -125,12 +123,12 @@ machine InventorySystem::find_item(
     let items: &[InventoryItem] = &inventory.items[..];
 
     match inventory.item_count > 0 {
-        true -> InventorySystem::find_item_at(items, kind, 0)
+        true -> find_item_at(items, kind, 0)
         false -> (32)
     }
 }
 
-machine InventorySystem::find_item_at(items: &[InventoryItem],
+machine find_item_at(items: &[InventoryItem],
     kind: ItemKind,
     index: u64 in Wrapping) -> u64 {
     transition index < items.len {
@@ -164,7 +162,7 @@ machine InventorySystem::find_item_at(items: &[InventoryItem],
     }
 }
 
-machine InventorySystem::increment_item(item: &mut InventoryItem,
+machine inventory_system_increment_item(item: &mut InventoryItem,
     amount: u32 in Wrapping) {
     item.count = item.count + amount;
 }

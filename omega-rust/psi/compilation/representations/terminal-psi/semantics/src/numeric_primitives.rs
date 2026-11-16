@@ -76,37 +76,20 @@ pub fn comparison_predicate(
 /// The exact Core declaration for each supported semantic operation. Consumers
 /// authenticate its sealed source and full signature separately from this name.
 pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static str> {
-    use language_semantics::numeric_intrinsics::NumericType;
     use numerics::arithmetic::ArithmeticDomain;
     let declaration = match meaning {
         NumericIntrinsic::FloatBinary { operation, .. } => {
             Ok(format!("Float::{}", operation.name()))
         }
         NumericIntrinsic::Conversion {
-            source: NumericType::F32,
-            target: NumericType::F64,
-            domain: ArithmeticDomain::Exact,
-        } => Ok("F64::from_f32".into()),
-        NumericIntrinsic::Conversion {
-            source: NumericType::F64,
-            target: NumericType::F32,
-            domain: ArithmeticDomain::Exact,
-        } => Ok("F32::from_f64".into()),
-        NumericIntrinsic::Conversion {
             source,
-            target: NumericType::Integer(target),
+            target,
             domain: ArithmeticDomain::Exact,
-        } if matches!(source, NumericType::F32 | NumericType::F64) => {
-            let source = if source == NumericType::F32 {
-                "f32"
-            } else {
-                "f64"
-            };
-            Ok(format!(
-                "{}::from_{source}",
-                target.to_string().to_ascii_uppercase()
-            ))
-        }
+        } if source.is_float() || target.is_float() => Ok(format!(
+            "{}::from_{}",
+            carrier_name(target).to_ascii_uppercase(),
+            carrier_name(source)
+        )),
         _ => Err("numeric primitive is outside the supported catalog"),
     }?;
     if !language_core::float_operations::CANONICAL_FLOAT_OPERATIONS.contains(&declaration.as_str())
@@ -116,18 +99,23 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
     Ok(declaration)
 }
 
-/// The sealed catalog retains token-bound declarations as machines and named
-/// declarations as operators. Receiving reconstructs that actual source form.
+/// Core retains float-result requirements as machines and integer-result
+/// converters as operators. The artifact checker reconstructs that source form.
 pub fn declaration_kind(
     meaning: NumericIntrinsic,
 ) -> Result<semantic_vocabulary::BoundaryRequirementKind, &'static str> {
+    use language_semantics::numeric_intrinsics::NumericType;
     declaration_path(meaning)?;
     Ok(match meaning {
         NumericIntrinsic::FloatBinary { .. } => {
             semantic_vocabulary::BoundaryRequirementKind::Machine
         }
+        NumericIntrinsic::Conversion {
+            target: NumericType::Integer(_),
+            ..
+        } => semantic_vocabulary::BoundaryRequirementKind::Operator,
         NumericIntrinsic::Conversion { .. } => {
-            semantic_vocabulary::BoundaryRequirementKind::Operator
+            semantic_vocabulary::BoundaryRequirementKind::Machine
         }
         _ => return Err("numeric primitive has no supported declaration kind"),
     })
@@ -159,7 +147,12 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
         .map_err(|error| error.description())?;
         return Ok(vec![Proposition::FloatIntegerConversion(relation)]);
     }
-    let semantic_operation = match meaning {
+    use language_semantics::numeric_intrinsics::NumericType;
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Integer, Meaning},
+    };
+    let semantic = match meaning {
         NumericIntrinsic::FloatBinary { operation, .. }
             if matches!(
                 operation,
@@ -169,34 +162,37 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
                     | PrimitiveFloatBinaryOperation::Divide
             ) =>
         {
-            Some(operation.name())
+            FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                operation.name(),
+                &[Format, Meaning, Meaning],
+                Meaning,
+            )
         }
-        NumericIntrinsic::Conversion { .. } => {
-            declaration_path(meaning)?;
-            Some("convert")
+        NumericIntrinsic::Conversion {
+            source,
+            target,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+        } if target.is_float() => {
+            let (name, operand) = match source {
+                NumericType::Integer(carrier) => ("from_integer", Integer(carrier)),
+                NumericType::F32 | NumericType::F64 => ("convert", Meaning),
+            };
+            FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                name,
+                &[Format, operand],
+                Meaning,
+            )
         }
         _ => None,
     };
-    if let Some(name) = semantic_operation {
-        use numerics::float_semantics::{
-            FloatSemanticOperation,
-            FloatSemanticValueKind::{Format, Meaning},
-        };
+    if let Some(operation) = semantic {
         let (formals, result) = scalar_formals(meaning)?;
         let format = result
             .scalar_type()
             .as_ieee_float()
             .ok_or("numeric primitive has no float result")?;
-        let parameters = std::iter::once(Format)
-            .chain(std::iter::repeat_n(Meaning, formals.len()))
-            .collect::<Vec<_>>();
-        let operation = FloatSemanticOperation::from_source_identity(
-            "FloatSemantics",
-            name,
-            &parameters,
-            Meaning,
-        )
-        .ok_or("numeric primitive has no complete semantic catalog row")?;
         let clause = semantic_vocabulary::FloatMeaningClause::result_equation(
             result,
             operation.contract_identity(),
@@ -307,6 +303,15 @@ pub fn result_scalar_type(meaning: NumericIntrinsic) -> Result<ScalarType, &'sta
     }
 }
 
+fn carrier_name(carrier: language_semantics::numeric_intrinsics::NumericType) -> String {
+    use language_semantics::numeric_intrinsics::NumericType;
+    match carrier {
+        NumericType::F32 => "f32".to_owned(),
+        NumericType::F64 => "f64".to_owned(),
+        NumericType::Integer(carrier) => carrier.to_string(),
+    }
+}
+
 /// Rejoin a retained numeric primitive to its exact catalog declaration and
 /// complete public contract. Neither a name nor a numeric tag grants execution.
 pub fn validate_boundary(
@@ -332,11 +337,7 @@ pub fn validate_boundary(
         .operand
         .scalar_type()
         .ok_or("numeric primitive has no scalar operand")?;
-    let format_name = match expected_operand {
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32",
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
-        _ => return Err("numeric primitive has an unsupported operand carrier"),
-    };
+    let parameter_name = carrier_name(signature.operand);
     let expected_result = result_scalar_type(meaning)?;
     let result_name = match expected_result {
         ScalarType::Boolean => "bool".to_owned(),
@@ -349,7 +350,7 @@ pub fn validate_boundary(
     let [owner, state, semantic, callable, parameter, result] = coordinates(
         &declaration,
         kind,
-        format_name,
+        &parameter_name,
         signature.operand_count,
         &result_name,
     )?;

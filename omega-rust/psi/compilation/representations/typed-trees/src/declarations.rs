@@ -75,17 +75,6 @@ pub mod boundary_completions {
         }
     }
 
-    pub fn is_canonical_process_exit_requirement(
-        program: &TypedTrees,
-        trait_symbol: SymbolHandle,
-        requirement: SymbolHandle,
-    ) -> bool {
-        program.traits().iter().any(|definition| {
-            definition.symbol == trait_symbol
-                && exact_process_exit_requirement(program, definition, requirement)
-        })
-    }
-
     fn exact_process_exit_requirement(
         program: &TypedTrees,
         definition: &crate::trait_definition::TraitDefinition,
@@ -582,15 +571,6 @@ pub mod data {
         pub name: Identifier,
         pub kind: TypeParameterKind,
         pub bounds: DataProperties,
-    }
-
-    pub fn type_parameter_position(
-        parameters: &[TypeParameter],
-        symbol: SymbolHandle,
-    ) -> Option<usize> {
-        parameters
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)
     }
 
     pub fn type_parameter_demands_stronger_properties(
@@ -1284,13 +1264,6 @@ pub mod domain {
             };
             Some(membership)
         }
-
-        pub fn as_proposition(&self) -> Option<&crate::proposition::PropositionApplication> {
-            let ProofFact::Proposition(proposition) = self else {
-                return None;
-            };
-            Some(proposition)
-        }
     }
 
     impl Default for ProofFact {
@@ -1322,43 +1295,6 @@ pub mod domain {
                 authored_domain_selection: None,
             }
         }
-    }
-
-    pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
-        domain_by_symbol(program, domain_symbol)
-            .is_some_and(|domain| has_bound_symbol_only_proof(program, domain))
-    }
-
-    pub fn has_bound_symbol_only_proof(program: &TypedTrees, domain: &DomainDefinition) -> bool {
-        fn visit(
-            program: &TypedTrees,
-            domain: &DomainDefinition,
-            visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
-        ) -> bool {
-            let symbol = (domain.symbol, domain.semantic_id);
-            if !index_parameters(program, domain).is_empty() || !domain.index_arguments.is_empty() {
-                return false;
-            }
-            if visited.contains(&symbol) {
-                return true;
-            }
-            visited.push(symbol);
-            domain.alias.as_ref().is_none_or(|alias| {
-                alias.constituents.iter().all(|constituent| {
-                    domain_by_symbol(program, constituent.domain_symbol)
-                        .is_some_and(|domain| visit(program, domain, visited))
-                })
-            }) && program.proof_facts(domain).iter().all(|fact| match fact {
-                ProofFact::Membership(membership) => program
-                    .domain_definition_for_instance(
-                        membership.domain_symbol,
-                        membership.semantic_domain,
-                    )
-                    .is_some_and(|domain| visit(program, domain, visited)),
-                _ => true,
-            })
-        }
-        visit(program, domain, &mut Vec::new())
     }
 
     pub fn domain_subject_reference(
@@ -1420,94 +1356,6 @@ pub mod domain {
                 }
                 _ => None,
             })
-    }
-
-    pub fn required_subject_memberships<'a>(
-        program: &'a TypedTrees,
-        domain: &'a DomainDefinition,
-    ) -> Option<Vec<&'a ProofMembershipFact>> {
-        if domain.alias.is_some() {
-            return None;
-        }
-        program
-            .proof_facts(domain)
-            .iter()
-            .filter_map(|fact| match fact {
-                ProofFact::Membership(membership) => Some(membership),
-                _ => None,
-            })
-            .map(|membership| {
-                (domain_subject_reference(program, domain, membership.value)
-                    && program
-                        .type_reference_handles(membership.domain_arguments)
-                        .len()
-                        == membership.domain_arguments.len()
-                    && program
-                        .type_reference_handles(membership.domain_arguments)
-                        .iter()
-                        .all(|argument| index_argument_is_closed(program, *argument))
-                    && membership.domain_symbol.is_valid()
-                    && membership.semantic_domain != language_semantics::SemanticDomainId::NULL
-                    && program
-                        .domain_definition_for_instance(
-                            membership.domain_symbol,
-                            membership.semantic_domain,
-                        )
-                        .is_some())
-                .then_some(membership)
-            })
-            .collect()
-    }
-
-    pub fn declared_domain_implies(
-        program: &TypedTrees,
-        source_domain: SymbolHandle,
-        target_domain: SymbolHandle,
-    ) -> bool {
-        fn inner(
-            program: &TypedTrees,
-            source_domain: SymbolHandle,
-            target_domain: SymbolHandle,
-            visited: &mut Vec<SymbolHandle>,
-        ) -> bool {
-            if !source_domain.is_valid() || !target_domain.is_valid() {
-                return false;
-            }
-            if source_domain == target_domain {
-                return true;
-            }
-            if visited.contains(&source_domain) {
-                return false;
-            }
-            visited.push(source_domain);
-
-            let Some(source) = domain_by_symbol(program, source_domain) else {
-                return false;
-            };
-            let Some(target) = domain_by_symbol(program, target_domain) else {
-                return false;
-            };
-            if source.semantic_id.is_valid() && source.semantic_id == target.semantic_id {
-                return true;
-            }
-
-            if source.alias.as_ref().is_some_and(|alias| {
-                alias.constituents.iter().any(|constituent| {
-                    inner(program, constituent.domain_symbol, target_domain, visited)
-                })
-            }) {
-                return true;
-            }
-
-            program.proof_facts(source).iter().any(|fact| match fact {
-                ProofFact::Membership(membership) => {
-                    inner(program, membership.domain_symbol, target_domain, visited)
-                }
-                ProofFact::Expression(_) | ProofFact::Proposition(_) => false,
-            })
-        }
-
-        inner(program, source_domain, target_domain, &mut Vec::new())
     }
 
     pub fn type_selects_semantic_domain(
@@ -1655,74 +1503,6 @@ pub mod domain {
     }
 
     impl TypedTrees {
-        pub fn conjunctive_proof_facts(
-            &self,
-            facts: HandleSpan<ProofFact>,
-        ) -> impl Iterator<Item = ProofFact> + '_ {
-            let mut pending = self
-                .proof_facts
-                .span_or_empty(facts)
-                .iter()
-                .rev()
-                .cloned()
-                .collect::<Vec<_>>();
-            std::iter::from_fn(move || {
-                while let Some(fact) = pending.pop() {
-                    if let Some(expression) = fact.as_expression()
-                        && let Some(binary) = self.expression_table.binary_node(*expression)
-                        && binary.operator == crate::expression::BinaryOperator::And
-                    {
-                        pending.extend([binary.right, binary.left].map(ProofFact::Expression));
-                    } else {
-                        return Some(fact);
-                    }
-                }
-                None
-            })
-        }
-    }
-
-    impl TypedTrees {
-        pub fn cleanup_selections(&self) -> impl Iterator<Item = &CleanupSelection> {
-            self.data_definitions()
-                .iter()
-                .filter_map(|data| data.cleanup_selection.as_ref())
-                .chain(
-                    self.domain_definitions()
-                        .iter()
-                        .filter_map(|domain| domain.cleanup_selection.as_ref()),
-                )
-                .chain(
-                    self.applied_domain_applications
-                        .iter()
-                        .filter(|application| {
-                            self.domain_definition(application.declaration).is_some()
-                        })
-                        .filter_map(|application| application.theory.as_ref()?.as_ref().ok())
-                        .filter_map(|theory| theory.cleanup_selection.as_ref()),
-                )
-                .chain(
-                    self.applied_data_cleanup_selections
-                        .iter()
-                        .map(|application| &application.selection),
-                )
-        }
-
-        pub fn applied_data_cleanup_selection(
-            &self,
-            declaration: SymbolHandle,
-            reference: TypeReferenceHandle,
-        ) -> Option<&CleanupSelection> {
-            let identity = self.normalized_type_identity(reference);
-            self.applied_data_cleanup_selections
-                .iter()
-                .find(|application| {
-                    application.declaration == declaration
-                        && self.normalized_type_identity(application.selection.subject) == identity
-                })
-                .map(|application| &application.selection)
-        }
-
         pub fn domain_application(
             &self,
             symbol: SymbolHandle,
@@ -1851,245 +1631,6 @@ pub mod domain {
             value.encoding.len(),
             value.encoding
         ))
-    }
-}
-pub mod float_providers {
-    use crate::TypedTrees;
-    use crate::machine::Machine;
-    use crate::signature::{SignatureContract, SignatureContractKind, StateParameter};
-    use crate::trait_definition::ConformanceRowSource;
-    use language_semantics::numeric_intrinsics::NumericIntrinsic;
-    use language_semantics::{
-        ExternalBindingIdentity, ExternalBindingMechanism, MachineSupplyMode,
-    };
-    use symbols::SymbolHandle;
-
-    use language_core::sealed_intrinsics::SealedIntrinsic;
-
-    /// Whether `machine` is a member of the sealed core `NativeFloats` map.
-    pub fn is_catalog_declaration(typed: &TypedTrees, machine: &Machine) -> bool {
-        typed
-            .symbols
-            .sealed_declaration(machine.symbol, machine.name.as_str())
-            == Some(SealedIntrinsic::NativeFloatOperation)
-    }
-
-    /// Whether `symbol` is the sealed core `NativeFloats` catalog map. Only
-    /// that map's plans realize canonical float operations from a target's
-    /// declared realization table; a same-named map elsewhere is ordinary.
-    pub fn is_sealed_catalog_map(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
-        typed.symbols.sealed_intrinsic(symbol) == Some(SealedIntrinsic::NativeFloatMap)
-    }
-
-    /// The public requirements the sealed map's authenticated members
-    /// satisfy, in declaration order. Each target's realization table binds
-    /// these; product and Build programs keep them as boundary roots because
-    /// no Build selection names them any more.
-    pub fn catalog_realization_requirements(typed: &TypedTrees) -> Vec<SymbolHandle> {
-        catalog_members(typed)
-            .into_iter()
-            .map(|(_, requirement)| requirement)
-            .fold(Vec::new(), |mut requirements, requirement| {
-                if !requirements.contains(&requirement) {
-                    requirements.push(requirement);
-                }
-                requirements
-            })
-    }
-
-    /// The sealed map together with the requirements above. A Build
-    /// activation's checked projection keeps both so the target realization
-    /// table can supply float operations a Build program reaches.
-    pub fn catalog_realization_declarations(typed: &TypedTrees) -> Vec<SymbolHandle> {
-        let mut declarations = Vec::new();
-        for (map, requirement) in catalog_members(typed) {
-            for symbol in map.into_iter().chain([requirement]) {
-                if !declarations.contains(&symbol) {
-                    declarations.push(symbol);
-                }
-            }
-        }
-        declarations
-    }
-
-    fn catalog_members(typed: &TypedTrees) -> Vec<(Option<SymbolHandle>, SymbolHandle)> {
-        typed
-            .machines
-            .iter()
-            .filter(|(_, machine)| is_catalog_declaration(typed, machine))
-            .filter_map(|(_, machine)| {
-                let (requirement, _) = authenticate_intrinsic_member(typed, machine).ok()?;
-                let map = typed
-                    .owned_conformance_realization(machine.symbol)
-                    .map(|(implementation, _)| implementation.symbol);
-                Some((map, requirement))
-            })
-            .collect()
-    }
-
-    pub fn authenticate_intrinsic_member(
-        typed: &TypedTrees,
-        machine: &Machine,
-    ) -> Result<(SymbolHandle, NumericIntrinsic), &'static str> {
-        let (implementation, row) = typed
-            .owned_conformance_realization(machine.symbol)
-            .ok_or("the member has no unambiguous owned map row")?;
-        let declarations = typed.product_declarations();
-        let primary = declarations
-            .trait_definition_by_symbol(implementation.trait_symbol)
-            .ok_or("the retained map has no exact primary trait declaration")?;
-        if declarations.symbols.sealed_intrinsic(implementation.symbol)
-            != Some(SealedIntrinsic::NativeFloatMap)
-            || declarations.symbols.sealed_intrinsic(primary.symbol)
-                != Some(SealedIntrinsic::NativeFloatOperationsTrait)
-            || primary.is_boundary
-            || !declarations.trait_type_parameters(primary).is_empty()
-            || !primary.lifetime_parameters.is_empty()
-            || !declarations.trait_requirements(primary).is_empty()
-            || !primary.conformance_bounds.is_empty()
-            || row.source != ConformanceRowSource::Inline
-            || !implementation.type_parameters.is_empty()
-            || !implementation.lifetime_parameters.is_empty()
-            || !implementation.arguments.is_empty()
-            || !implementation.trait_lifetime_arguments.is_empty()
-            || machine.body_is_present
-            || machine.attached_data.is_some()
-            || !typed.machine_type_parameters(machine).is_empty()
-            || !machine.lifetime_parameters.is_empty()
-            || machine.suspends
-            || machine.blocks
-            || !machine.invokes.is_empty()
-            || !machine.owned_data.is_empty()
-            || typed.machine_contracts(machine).iter().any(|contract| {
-                matches!(
-                    contract.kind,
-                    SignatureContractKind::Ensures
-                        | SignatureContractKind::EnsuresForResultCase { .. }
-                )
-            })
-        {
-            return Err(
-                "the sealed map or member has incompatible captures, effects, body or guarantees",
-            );
-        }
-        let MachineSupplyMode::ExternalRealization {
-            binding: Some(binding),
-            mechanism: Some(ExternalBindingMechanism::CompilerIntrinsic),
-        } = machine.supply_mode
-        else {
-            return Err("the member has no exact inferred intrinsic realization");
-        };
-        if typed.external_bindings.identity(binding)
-            != Some(&ExternalBindingIdentity::CompilerIntrinsic)
-        {
-            return Err("the member binding is not the fixed compiler intrinsic");
-        }
-        let [edge] = typed.machine_trait_conformances(machine) else {
-            return Err("the member does not retain exactly one public satisfaction");
-        };
-        if edge.external_binding != Some(binding)
-            || edge.via_expression.is_valid()
-            || edge.external_binding_source_span.is_some()
-        {
-            return Err("the intrinsic satisfaction has an authored or different binding");
-        }
-        let (requirement_symbol, _) =
-            crate::provider_declarations::boundary_satisfaction_identity(typed, machine, edge)
-                .ok_or("the satisfaction has no exact public boundary identity")?;
-        let requirement = super::intrinsic_requirements::IntrinsicRequirement::by_symbol(
-            typed,
-            requirement_symbol,
-        )
-        .ok_or("the public requirement has no complete intrinsic signature")?;
-        if typed
-            .symbols
-            .sealed_declaration(requirement_symbol, &requirement.display())
-            != Some(SealedIntrinsic::FloatOperationRequirement)
-        {
-            return Err("the public requirement is outside the sealed float catalog");
-        }
-        let meaning = typed
-            .numeric_intrinsic_execution(requirement_symbol)
-            .ok_or("the public requirement has no fixed numeric meaning")?;
-        let [entry] = typed.machine_states(machine) else {
-            return Err("the member does not have exactly one entry");
-        };
-        if entry.symbol != row.realization_state {
-            return Err("the entry is not the owned row realization");
-        }
-        let parameters = typed.state_parameters(entry);
-        if parameters.len() != requirement.parameters.len()
-            || parameters
-                .iter()
-                .zip(requirement.parameters)
-                .any(|(actual, required)| {
-                    actual.is_const != required.is_const
-                        || actual.is_mutable != required.is_mutable
-                        || actual.relevance != required.relevance
-                        || typed.normalized_type_identity(actual.type_reference)
-                            != typed.normalized_type_identity(required.type_reference)
-                })
-            || typed.normalized_type_identity(entry.return_type)
-                != typed.normalized_type_identity(requirement.return_type)
-        {
-            return Err("the complete public value signature does not match");
-        }
-        let actual_formation =
-            formation_clauses(typed, parameters, typed.machine_contracts(machine))
-                .ok_or("the member formation contract cannot be normalized exactly")?;
-        let expected_formation = formation_clauses(
-            typed,
-            requirement.parameters,
-            requirement
-                .contracts(typed)
-                .ok_or("the public requirement has no contract inventory")?,
-        )
-        .ok_or("the public formation contract cannot be normalized exactly")?;
-        if actual_formation != expected_formation || !typed.state_contracts(entry).is_empty() {
-            return Err("the formation or crash contract differs from the public requirement");
-        }
-        Ok((requirement_symbol, meaning))
-    }
-
-    fn formation_clauses(
-        typed: &TypedTrees,
-        parameters: &[StateParameter],
-        contracts: &[SignatureContract],
-    ) -> Option<Vec<(SignatureContractKind, Vec<String>)>> {
-        let binders = parameters
-            .iter()
-            .enumerate()
-            .map(|(position, parameter)| (parameter.symbol, format!("$V{position}")))
-            .collect::<Vec<_>>();
-        let mut clauses = Vec::new();
-        for contract in contracts {
-            if matches!(
-                contract.kind,
-                SignatureContractKind::Ensures | SignatureContractKind::EnsuresForResultCase { .. }
-            ) {
-                continue;
-            }
-            if contract.binding.is_some() {
-                return None;
-            }
-            let facts = typed
-                .proof_facts
-                .span_or_empty(contract.facts)
-                .iter()
-                .map(|fact| {
-                    let crate::domain::ProofFact::Expression(expression) = fact else {
-                        return None;
-                    };
-                    crate::type_identity::normalized_expression_identity(
-                        typed,
-                        *expression,
-                        &binders,
-                    )
-                })
-                .collect::<Option<Vec<_>>>()?;
-            clauses.push((contract.kind.clone(), facts));
-        }
-        Some(clauses)
     }
 }
 pub mod intrinsic_requirements {
@@ -2241,51 +1782,6 @@ pub mod intrinsic_requirements {
                 IntrinsicRequirementKind::Operator => "realize",
                 IntrinsicRequirementKind::TopLevelRequirement => &self.name,
             }
-        }
-
-        pub fn method_owner(&self) -> &str {
-            match self.kind {
-                IntrinsicRequirementKind::Operator => &self.requirement_identity,
-                IntrinsicRequirementKind::TopLevelRequirement => &self.namespace,
-            }
-        }
-
-        pub fn intrinsic_realization_matches(
-            &self,
-            typed: &TypedTrees,
-            realization_machine_identity: &str,
-        ) -> bool {
-            typed.machines().iter().any(|machine| {
-                typed
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| conformance.external_binding.is_some())
-                    && typed
-                        .machine_callable_identity_text(machine)
-                        .is_some_and(|identity| identity == realization_machine_identity)
-                    && typed.machine_trait_conformances(machine).iter().any(
-                        |conformance| {
-                            match self.kind {
-                        IntrinsicRequirementKind::Operator => {
-                            crate::operator::resolve_satisfied_boundary_operator_for_conformance(
-                                typed,
-                                machine,
-                                conformance,
-                            )
-                            .is_some_and(|resolved| resolved.symbol == self.symbol)
-                        }
-                        IntrinsicRequirementKind::TopLevelRequirement => matches!(
-                            crate::machine::resolve_satisfied_declaration(
-                                typed, machine, conformance,
-                            ),
-                            Some(crate::machine::SatisfiedDeclaration::TopLevelRequirement(
-                                requirement,
-                            )) if requirement.symbol == self.symbol
-                        ),
-                    }
-                        },
-                    )
-            })
         }
     }
 }
@@ -2469,79 +1965,6 @@ pub mod layout_storage {
                     ))
                 })
         }
-        pub fn layout_target_facts_result(
-            &self,
-            selected: SymbolHandle,
-        ) -> Result<Option<SymbolHandle>, &'static str> {
-            let Some(machine) = self
-                .machine_by_symbol(selected)
-                .or_else(|| self.machine_holding_state(selected))
-            else {
-                return Ok(None);
-            };
-            if self.symbols.sealed_intrinsic(machine.symbol)
-                != Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts)
-            {
-                return Ok(None);
-            }
-            let invalid = "sealed layout target snapshot has an invalid declaration contract";
-            let [state] = self.machine_states(machine) else {
-                return Err(invalid);
-            };
-            let [parameter] = self.state_parameters(state) else {
-                return Err(invalid);
-            };
-            let TypeReferenceNode::Reference {
-                access, referee, ..
-            } = self.type_reference_node(parameter.type_reference)
-            else {
-                return Err(invalid);
-            };
-            let target = self.type_reference_table.type_symbol(*referee);
-            let result = self.type_reference_table.type_symbol(state.return_type);
-            if *access != language_semantics::ReferenceAccess::Shared
-                || !self.core_layout_declaration(
-                    target,
-                    language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetData,
-                )
-                || self.symbols.name(result) != "LayoutTargetFacts"
-                || self
-                    .symbols
-                    .symbol_source_span(target)
-                    .map(|span| span.source_id)
-                    != self
-                        .symbols
-                        .symbol_source_span(machine.symbol)
-                        .map(|span| span.source_id)
-                || self
-                    .symbols
-                    .symbol_source_span(result)
-                    .map(|span| span.source_id)
-                    != self
-                        .symbols
-                        .symbol_source_span(machine.symbol)
-                        .map(|span| span.source_id)
-                || machine.attached_data_symbol.is_valid()
-                || !self.machine_type_parameters(machine).is_empty()
-                || machine.lifetime_parameters.len() != 1
-                || parameter.is_const
-                || parameter.is_mutable
-                || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
-                || machine.body_is_present
-                || machine.suspends
-                || machine.blocks
-                || machine.target.is_some()
-                || machine.authored_target.is_some()
-                || !machine.conformance_bounds.is_empty()
-                || !self.machine_invokes(machine).is_empty()
-                || !self.machine_owned_data(machine).is_empty()
-                || !self.machine_trait_conformances(machine).is_empty()
-            {
-                return Err(invalid);
-            }
-            Ok(Some(result))
-        }
-
         /*
             Whether `symbol` is the opaque core layout data the sealed
             intrinsic catalog names as `data`.
@@ -2630,13 +2053,6 @@ pub mod layout_storage {
                 policy: *policy,
                 contract: contract.symbol,
             })
-        }
-
-        pub fn plan_laid_layout_for_data(
-            &self,
-            data: &crate::data::DataDefinition,
-        ) -> Option<&crate::PlanLaidLayout> {
-            self.plan_laid_layout_for_type(data.generic_instance?)
         }
 
         pub fn plan_laid_layout_for_type(
@@ -3355,13 +2771,12 @@ pub mod visibility {
     }
 }
 pub mod wire {
-    use crate::TypedTrees;
-    use crate::data::DataMember::Field;
+
     use crate::name::Identifier;
     use crate::types;
     use arena::HandleSpan;
     use symbols::SymbolHandle;
-    use types::{DomainConstraint, TypeReferenceHandle};
+    use types::TypeReferenceHandle;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum WirePlacement {
@@ -3459,209 +2874,10 @@ pub mod wire {
         pub members: HandleSpan<WireMember>,
     }
 
-    pub const WIRE_ENCODE_MACHINE_NAME: &str = "encode";
-
-    pub const WIRE_DECODE_MACHINE_NAME: &str = "decode";
-
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct WireScalarEncoding {
         pub byte_size: usize,
         pub zigzag: bool,
-    }
-
-    pub fn data_field_type(
-        program: &TypedTrees,
-        receiver: TypeReferenceHandle,
-        field_name: &str,
-    ) -> Option<TypeReferenceHandle> {
-        let receiver = program.type_reference_table.peeled_type_reference(receiver);
-        match program.type_reference_table.type_reference(receiver) {
-            types::TypeReferenceNode::Named { symbol, name } => {
-                let data = program.data_definitions().iter().find(|data| {
-                    (symbol.is_valid() && data.symbol == *symbol) || data.name == *name
-                })?;
-                program
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        Field(field) if field.name.as_str() == field_name => {
-                            Some(field.type_reference)
-                        }
-                        _ => None,
-                    })
-            }
-            _ => None,
-        }
-    }
-
-    pub fn fixed_array_element_type(
-        program: &TypedTrees,
-        handle: TypeReferenceHandle,
-    ) -> Option<TypeReferenceHandle> {
-        let handle = program.type_reference_table.peeled_type_reference(handle);
-        match program.type_reference_table.type_reference(handle) {
-            types::TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
-            _ => None,
-        }
-    }
-
-    pub fn repeated_element_type(
-        program: &TypedTrees,
-        handle: TypeReferenceHandle,
-        carrier: WireRepeatedCarrier,
-    ) -> Option<TypeReferenceHandle> {
-        match carrier {
-            WireRepeatedCarrier::FixedArray => fixed_array_element_type(program, handle),
-            WireRepeatedCarrier::FixedVec => {
-                let handle = program.type_reference_table.peeled_type_reference(handle);
-                let symbol = match program.type_reference_table.type_reference(handle) {
-                    types::TypeReferenceNode::Generic {
-                        base_symbol,
-                        arguments,
-                        ..
-                    } if program.is_core_fixed_vec(*base_symbol) => {
-                        let [element, _] = program.type_reference_handles(*arguments) else {
-                            return None;
-                        };
-                        return Some(*element);
-                    }
-                    types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-                    _ => return None,
-                };
-                if !program.is_core_fixed_vec(symbol) {
-                    return None;
-                }
-                let data = program.data_definition_by_symbol(symbol)?;
-                let items = program
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        Field(field) if field.name.as_str() == "items" => {
-                            Some(field.type_reference)
-                        }
-                        _ => None,
-                    })?;
-                fixed_array_element_type(program, items)
-            }
-        }
-    }
-
-    impl WireScalarEncoding {
-        pub fn for_primitive(primitive: types::PrimitiveType) -> Option<Self> {
-            use types::PrimitiveType;
-            match primitive {
-                PrimitiveType::Bool => Some(Self {
-                    byte_size: 1,
-                    zigzag: false,
-                }),
-                /* The variable-length wire form is defined for 32 and 64 bits only. */
-                PrimitiveType::Integer(carrier) => match carrier.width() {
-                    32 | 64 => Some(Self {
-                        byte_size: carrier.native_scalar_bytes()?,
-                        zigzag: carrier.is_signed(),
-                    }),
-                    _ => None,
-                },
-                _ => None,
-            }
-        }
-
-        pub fn max_varint_length(self) -> usize {
-            match (self.byte_size, self.zigzag) {
-                (1, _) => 1,
-                (4, _) => 5,
-                (8, _) => 10,
-                _ => 10,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum WireFieldEncoding {
-        Scalar(WireScalarEncoding),
-        Text,
-    }
-
-    impl WireFieldEncoding {
-        pub fn for_primitive(primitive: types::PrimitiveType) -> Option<Self> {
-            WireScalarEncoding::for_primitive(primitive).map(Self::Scalar)
-        }
-    }
-
-    pub const WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH: usize = 10;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum WireRepeatedCarrier {
-        FixedArray,
-        FixedVec,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct WireRepeatedEncoding {
-        pub carrier: WireRepeatedCarrier,
-        pub element: WireScalarEncoding,
-        pub max_count: usize,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct WireBorrowedScalarSliceEncoding {
-        pub element: WireScalarEncoding,
-    }
-
-    impl WireRepeatedEncoding {
-        pub fn worst_case_payload_bytes(self) -> usize {
-            let body = self.max_count * self.element.max_varint_length();
-            wire_varint_bytes(body as u64).len() + body
-        }
-    }
-
-    pub fn layout_domain_arguments(name: &str) -> Option<(&str, Option<&str>)> {
-        let rest = name.strip_prefix("OmegaLayout<")?;
-        let rest = rest.strip_suffix('>')?;
-        Some(match rest.split_once(',') {
-            Some((schema, grammar)) => (schema.trim(), Some(grammar.trim())),
-            None => (rest.trim(), None),
-        })
-    }
-
-    pub fn is_layout_domain_name(name: &str) -> bool {
-        layout_domain_arguments(name).is_some()
-    }
-
-    pub fn is_layout_domain_constraint(domain: &DomainConstraint) -> bool {
-        (domain.name.as_str() == "OmegaLayout" && matches!(domain.arguments.len(), 1 | 2))
-            || is_layout_domain_name(domain.name.as_str())
-    }
-
-    pub fn layout_domain_constraint_arguments(
-        program: &TypedTrees,
-        domain: &DomainConstraint,
-    ) -> Option<(String, Option<String>)> {
-        if let Some((schema, grammar)) = layout_domain_arguments(domain.name.as_str()) {
-            return Some((schema.to_owned(), grammar.map(str::to_owned)));
-        }
-        if domain.name.as_str() != "OmegaLayout" || !matches!(domain.arguments.len(), 1 | 2) {
-            return None;
-        }
-        let schema = program.display_type_reference_with_constraints(domain.arguments[0]);
-        let grammar = domain
-            .arguments
-            .get(1)
-            .map(|argument| program.display_type_reference_with_constraints(*argument));
-        Some((schema, grammar))
-    }
-
-    pub fn wire_varint_bytes(mut value: u64) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(2);
-        loop {
-            let low = (value & 0x7f) as u8;
-            value >>= 7;
-            if value == 0 {
-                bytes.push(low);
-                return bytes;
-            }
-            bytes.push(low | 0x80);
-        }
     }
 }
 

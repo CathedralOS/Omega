@@ -66,39 +66,6 @@ pub struct ProviderDeployment {
 }
 
 impl BuildConfig {
-    pub fn provider_deployment(&self) -> Result<ProviderDeployment, Vec<diagnostics::Diagnostic>> {
-        let deployed = !self.root_bindings.is_empty()
-            || !self.provider_selections.is_empty()
-            || self.default_provider_selections.iter().any(|selection| {
-                selection
-                    .origin
-                    .activation()
-                    .source()
-                    .package_identity
-                    .is_some()
-            });
-        let roots = self
-            .root_bindings
-            .iter()
-            .map(|binding| {
-                let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
-                    vec![diagnostics::Diagnostic::error(
-                        "Build application root lost its exact target slot",
-                    )]
-                })?;
-                let profile = target::TargetProfile::from_root_slot_owner(owner)
-                    .map_err(|error| vec![error])?;
-                Ok((
-                    profile.target_name().to_owned(),
-                    binding.implementation_symbol,
-                ))
-            })
-            .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        Ok(ProviderDeployment {
-            roots: deployed.then_some(roots),
-        })
-    }
-
     pub(crate) fn same_source_choices(&self, other: &Self) -> bool {
         let Self {
             settings,

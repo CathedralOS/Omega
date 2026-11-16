@@ -1883,6 +1883,7 @@ pub(crate) mod proposition_wire {
         MeaningOperand: FloatMeaningClauseOperand, "FloatMeaningClauseOperand" {
             0 => Format(format: float_meaning_wire::Format),
             1 => Meaning(slot: MeaningSlot),
+            2 => Integer(source: MeaningSource),
         }
     }
 
@@ -2196,6 +2197,67 @@ pub(crate) mod proposition_wire {
                     }
                 }
             }
+        }
+
+        #[test]
+        fn integer_float_meaning_operands_round_trip_and_reject_carrier_substitution() {
+            use numerics::float_semantics::FloatSemanticValueKind::Integer;
+            use numerics::integer_carrier::FixedInteger;
+            let carrier = FixedInteger::signed(32);
+            let operation = FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                "from_integer",
+                &[Format, Integer(carrier)],
+                Meaning,
+            )
+            .unwrap();
+            let original = Proposition::FloatMeaningEqual(
+                FloatMeaningClause::result_equation(
+                    ScalarTerm::value(
+                        ValueId::new(2).unwrap(),
+                        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+                    ),
+                    operation.contract_identity(),
+                    IeeeFloatFormat::Binary64,
+                    [ScalarTerm::value(
+                        ValueId::new(1).unwrap(),
+                        ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::from_fixed(carrier).unwrap(),
+                        ),
+                    )],
+                )
+                .unwrap(),
+            );
+            let mut writer = Writer::default();
+            encode_proposition(&mut writer, &original).unwrap();
+            let encoded = writer.finish();
+            let decoded = decode_proposition(&mut Reader::new(&encoded)).unwrap();
+            decoded.validate().unwrap();
+            assert_eq!(decoded, original);
+            let Proposition::FloatMeaningEqual(mut clause) = decoded else {
+                unreachable!()
+            };
+            let FloatMeaningClauseValue::Application { operands, .. } =
+                clause.values.last_mut().unwrap()
+            else {
+                unreachable!()
+            };
+            operands[1] = FloatMeaningClauseOperand::Integer(ScalarTerm::value(
+                ValueId::new(1).unwrap(),
+                ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::from_fixed(FixedInteger::unsigned(32))
+                        .unwrap(),
+                ),
+            ));
+            let mut writer = Writer::default();
+            encode_proposition(&mut writer, &Proposition::FloatMeaningEqual(clause)).unwrap();
+            let changed = writer.finish();
+            assert!(
+                decode_proposition(&mut Reader::new(&changed))
+                    .unwrap()
+                    .validate()
+                    .is_err()
+            );
         }
 
         #[test]

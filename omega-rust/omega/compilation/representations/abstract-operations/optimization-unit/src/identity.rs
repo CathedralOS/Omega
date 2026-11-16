@@ -402,6 +402,10 @@ pub(crate) mod proposition_encoding {
                                 bytes.u8(1);
                                 bytes.u32(slot.0);
                             }
+                            Operand::Integer(source) => {
+                                bytes.u8(2);
+                                encode_scalar_term(bytes, source);
+                            }
                         });
                     }
                 });
@@ -1418,6 +1422,7 @@ pub(crate) mod structural_encoding {
             encode_boundary_content_guarantee,
         );
         encode_ids(bytes, &declaration.fixed_service_reach);
+        bytes.boolean(declaration.service_reach_is_installation_bound);
         encode_optional(
             bytes,
             declaration.owning_service.as_ref(),
@@ -2348,6 +2353,7 @@ pub(crate) mod structural_encoding {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
@@ -5267,5 +5273,42 @@ mod float_meaning_identity_tests {
         let mut changed = clause;
         std::mem::swap(&mut changed.left, &mut changed.right);
         assert_ne!(original, bytes(changed));
+    }
+
+    #[test]
+    fn float_meaning_identity_keeps_integer_operands() {
+        use numerics::{
+            float_semantics::FloatSemanticValueKind::Integer, integer_carrier::FixedInteger,
+        };
+        let carrier = FixedInteger::signed(32);
+        let integer =
+            ScalarType::Integer(semantic_vocabulary::IntegerType::from_fixed(carrier).unwrap());
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "from_integer",
+            &[Format, Integer(carrier)],
+            Meaning,
+        )
+        .unwrap();
+        let clause = FloatMeaningClause::result_equation(
+            ScalarTerm::value(
+                ValueId::new(2).unwrap(),
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            ),
+            operation.contract_identity(),
+            IeeeFloatFormat::Binary64,
+            [ScalarTerm::value(ValueId::new(1).unwrap(), integer)],
+        )
+        .unwrap();
+        let changed = clause
+            .map_sources::<&'static str>(|source| {
+                Ok(if source.scalar_type() == integer {
+                    ScalarTerm::value(ValueId::new(3).unwrap(), integer)
+                } else {
+                    source.clone()
+                })
+            })
+            .unwrap();
+        assert_ne!(bytes(clause), bytes(changed));
     }
 }

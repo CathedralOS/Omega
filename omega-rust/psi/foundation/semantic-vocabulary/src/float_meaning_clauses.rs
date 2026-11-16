@@ -19,6 +19,7 @@ pub struct FloatMeaningSlot(pub u32);
 pub enum FloatMeaningClauseOperand {
     Format(IeeeFloatFormat),
     Meaning(FloatMeaningSlot),
+    Integer(ScalarTerm),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
@@ -136,6 +137,11 @@ impl FloatMeaningClause {
                     values.push(Self::projection(source)?);
                     FloatMeaningClauseOperand::Meaning(slot)
                 }
+                FloatSemanticValueKind::Integer(_) => FloatMeaningClauseOperand::Integer(
+                    arguments
+                        .next()
+                        .ok_or("float result equation is missing an integer argument")?,
+                ),
                 _ => return Err("float result equation has an unsupported argument kind"),
             });
         }
@@ -216,6 +222,18 @@ impl FloatMeaningClause {
                                     );
                                 }
                             }
+                            (Kind::Integer(carrier), Operand::Integer(source)) => {
+                                source.validate().map_err(
+                                    |_| "float meaning application has an invalid integer operand",
+                                )?;
+                                if crate::IntegerType::from_fixed(*carrier).map(ScalarType::Integer)
+                                    != Some(source.scalar_type())
+                                {
+                                    return Err(
+                                        "float meaning application changes its integer carrier",
+                                    );
+                                }
+                            }
                             _ => {
                                 return Err(
                                     "float meaning application changes its ordered operands",
@@ -250,7 +268,7 @@ impl FloatMeaningClause {
             if let Value::Application { operands, .. } = &self.values[index] {
                 pending.extend(operands.iter().filter_map(|operand| match operand {
                     Operand::Meaning(slot) => Some(*slot),
-                    Operand::Format(_) => None,
+                    Operand::Format(_) | Operand::Integer(_) => None,
                 }));
             }
         }
@@ -299,15 +317,20 @@ impl FloatMeaningClause {
                     format: *format,
                     operands: operands
                         .iter()
-                        .map(|operand| match operand {
-                            FloatMeaningClauseOperand::Format(format) => {
-                                FloatMeaningClauseOperand::Format(*format)
-                            }
-                            FloatMeaningClauseOperand::Meaning(slot) => {
-                                FloatMeaningClauseOperand::Meaning(slots[slot.0 as usize])
-                            }
+                        .map(|operand| {
+                            Ok(match operand {
+                                FloatMeaningClauseOperand::Format(format) => {
+                                    FloatMeaningClauseOperand::Format(*format)
+                                }
+                                FloatMeaningClauseOperand::Meaning(slot) => {
+                                    FloatMeaningClauseOperand::Meaning(slots[slot.0 as usize])
+                                }
+                                FloatMeaningClauseOperand::Integer(input) => {
+                                    FloatMeaningClauseOperand::Integer(source(input)?)
+                                }
+                            })
                         })
-                        .collect(),
+                        .collect::<Result<Vec<_>, E>>()?,
                 },
             };
             let next = FloatMeaningSlot(
@@ -352,9 +375,26 @@ impl FloatMeaningClause {
     }
 
     pub fn sources(&self) -> impl DoubleEndedIterator<Item = &ScalarTerm> {
+        self.values.iter().flat_map(|value| {
+            let (projection, operands): (Option<&ScalarTerm>, &[_]) = match value {
+                FloatMeaningClauseValue::Projection { source, .. } => (Some(source), &[]),
+                FloatMeaningClauseValue::Application { operands, .. } => (None, operands),
+            };
+            projection
+                .into_iter()
+                .chain(operands.iter().filter_map(|operand| match operand {
+                    FloatMeaningClauseOperand::Integer(source) => Some(source),
+                    _ => None,
+                }))
+        })
+    }
+
+    /// Only IEEE projections need the disjoint float-producer correspondence.
+    /// Integer operands are bound by ordinary scalar argument substitution.
+    pub fn projection_sources(&self) -> impl Iterator<Item = &ScalarTerm> {
         self.values.iter().filter_map(|value| match value {
             FloatMeaningClauseValue::Projection { source, .. } => Some(source),
-            FloatMeaningClauseValue::Application { .. } => None,
+            _ => None,
         })
     }
 }
@@ -382,6 +422,60 @@ mod tests {
             [value(1), value(2)],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn integer_inputs_keep_their_exact_catalog_carrier_during_substitution() {
+        use FloatSemanticValueKind::{Format, Integer, Meaning};
+        use numerics::integer_carrier::FixedInteger;
+        let carrier = FixedInteger::signed(32);
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "from_integer",
+            &[Format, Integer(carrier)],
+            Meaning,
+        )
+        .unwrap();
+        let integer = ScalarType::Integer(crate::IntegerType::from_fixed(carrier).unwrap());
+        let result = ScalarTerm::value(
+            ValueId::new(2).unwrap(),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+        );
+        let source = ScalarTerm::value(ValueId::new(1).unwrap(), integer);
+        let clause = FloatMeaningClause::result_equation(
+            result,
+            operation.contract_identity(),
+            IeeeFloatFormat::Binary64,
+            [source],
+        )
+        .unwrap();
+        let mapped = clause
+            .map_sources::<&'static str>(|source| {
+                Ok(match source {
+                    ScalarTerm::Value { id, scalar_type } => {
+                        ScalarTerm::value(ValueId::new(id.get() + 10).unwrap(), *scalar_type)
+                    }
+                    _ => source.clone(),
+                })
+            })
+            .unwrap();
+        assert!(mapped.sources().any(|source| matches!(source, ScalarTerm::Value { id, scalar_type } if id.get()==11 && *scalar_type==integer)));
+        assert_eq!(mapped.projection_sources().count(), 1);
+        assert!(
+            clause
+                .map_sources::<&'static str>(|source| Ok(if source.scalar_type() == integer {
+                    ScalarTerm::value(
+                        ValueId::new(1).unwrap(),
+                        ScalarType::Integer(
+                            crate::IntegerType::from_fixed(FixedInteger::unsigned(32)).unwrap(),
+                        ),
+                    )
+                } else {
+                    source.clone()
+                }))
+                .is_err(),
+            "equal widths do not make signed and unsigned inputs interchangeable"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 277`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 279`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -3103,6 +3103,7 @@ mod numeric_intrinsic_tests {
             result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -3755,6 +3756,7 @@ mod routed_scalar_tests {
             result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -4777,7 +4779,11 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 277;
+// Marker 278 retains typed integer operands in canonical float-result equations,
+// alongside 277's installation-bound service rows. A 277 reader cannot
+// authenticate a from-integer result contract.
+// Marker 279 adds total integer-result conversion and exact-cast predicates.
+pub(crate) const FORMAT_MARKER: u16 = 279;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5100,6 +5106,7 @@ mod normal_qualification_tests {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -5834,7 +5841,8 @@ mod format_marker_tests {
         // of which payload follows their shared legacy marker. Marker 260's finite
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
-            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273,
+            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
+            275, 276, 277,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

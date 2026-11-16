@@ -108,7 +108,7 @@ pub fn substitute_clause<Error: From<&'static str>>(
     Ok(match proposition {
         Proposition::FloatMeaningEqual(clause) => {
             let mapped = clause.map_sources(|source| substitute_clause_term(source, bindings))?;
-            for source in mapped.sources() {
+            for source in mapped.projection_sources() {
                 bindings.validate_float_meaning_source(source)?;
             }
             Proposition::FloatMeaningEqual(mapped)

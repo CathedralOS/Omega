@@ -526,18 +526,4 @@ impl EvaluatedNativeBinding {
             },
         }
     }
-
-    pub const fn as_import(&self) -> Option<&EvaluatedForeignImport> {
-        match self {
-            Self::Import(evaluated) => Some(evaluated),
-            Self::Syscall(_) => None,
-        }
-    }
-
-    pub const fn as_syscall(&self) -> Option<&EvaluatedForeignSyscall> {
-        match self {
-            Self::Import(_) => None,
-            Self::Syscall(evaluated) => Some(evaluated),
-        }
-    }
 }

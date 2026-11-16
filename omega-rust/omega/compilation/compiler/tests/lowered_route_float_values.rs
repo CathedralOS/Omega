@@ -18,6 +18,177 @@ fn receiving_error(module: terminal_psi::TerminalModule) -> String {
     }
 }
 
+fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
+    use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+    use terminal_psi::NominalDeclarationIdentity;
+    let original = NumericIntrinsic::Conversion {
+        source: NumericType::Integer(FixedInteger::signed(32)),
+        target: NumericType::F64,
+        domain: ArithmeticDomain::Exact,
+    };
+    let invented = NumericIntrinsic::Conversion {
+        source: NumericType::Integer(FixedInteger::unsigned(13)),
+        target: NumericType::F64,
+        domain: ArithmeticDomain::Exact,
+    };
+    // A valid rootless capsule isolates declaration receiving from unrelated
+    // callers and their proof scopes. Corruption must reach the catalog guard.
+    let mut declaration = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.numeric_intrinsic == Some(original))
+        .unwrap()
+        .clone();
+    declaration.id = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
+    let module = terminal_psi::TerminalModule {
+        identities: module.identities.clone(),
+        boundary_machines: vec![declaration],
+        ..terminal_psi::TerminalModule::declarations()
+    };
+    let baseline = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(baseline.semantic_bytes()).unwrap();
+    let mut changed = module.clone();
+    let boundary = changed
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| boundary.numeric_intrinsic == Some(original))
+        .unwrap();
+    let mut identities = module.identities.clone().into_builder();
+    // Forge the whole declaration, not only its meaning tag: family custody
+    // alone used to describe a nonexistent Core member under the real source.
+    let mut rekey = |identity| {
+        identities.intern(
+            &module
+                .identities
+                .text(identity)
+                .unwrap()
+                .replace("from_i32", "from_u13")
+                .replace("i32", "u13"),
+        )
+    };
+    boundary.owner = NominalDeclarationIdentity::new(rekey(boundary.owner.identity()));
+    boundary.identity = rekey(boundary.identity);
+    let source = &mut boundary.declaration.as_mut().unwrap().source;
+    source.machine = NominalDeclarationIdentity::new(rekey(source.machine.identity()));
+    source.state = NominalDeclarationIdentity::new(rekey(source.state.identity()));
+    source.semantic_declaration = rekey(source.semantic_declaration);
+    source.callable = rekey(source.callable);
+    for parameter in &mut source.parameter_types {
+        *parameter = rekey(*parameter);
+    }
+    boundary.numeric_intrinsic = Some(invented);
+    boundary.scalar_parameters = vec![
+        NumericType::Integer(FixedInteger::unsigned(13))
+            .scalar_type()
+            .unwrap(),
+    ];
+    boundary.scalar_ensures = terminal_semantics::numeric_primitives::ensures(invented).unwrap();
+    let boundary_id = boundary.id;
+    changed.identities = identities.build();
+    let message = "numeric primitive has no exact admitted catalog declaration";
+    assert_eq!(
+        terminal_semantics::numeric_primitives::validate_boundary(
+            &changed,
+            changed.boundary_machine(boundary_id).unwrap()
+        ),
+        Err(message)
+    );
+    let error = receiving_error(changed);
+    assert!(error.contains(message), "{error}");
+}
+
+#[test]
+fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main = repository().join("tests/fixtures/run/float/canonical_conversions/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("windows_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = publication.artifact.semantic_module();
+            let mut conversions = 0;
+            for boundary in &module.boundary_machines {
+                let Some(language_semantics::numeric_intrinsics::NumericIntrinsic::Conversion {
+                    source,
+                    ..
+                }) = boundary.numeric_intrinsic
+                else {
+                    continue;
+                };
+                conversions += 1;
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .unwrap();
+                let [semantic_vocabulary::Proposition::FloatMeaningEqual(clause)] =
+                    boundary.scalar_ensures.as_slice()
+                else {
+                    panic!("conversion keeps its complete result equation");
+                };
+                if let language_semantics::numeric_intrinsics::NumericType::Integer(_) = source {
+                    assert!(
+                        clause
+                            .sources()
+                            .any(|term| term.scalar_type() == source.scalar_type().unwrap())
+                    );
+                    assert_eq!(clause.projection_sources().count(), 1);
+                }
+                let mut changed = module.clone();
+                changed
+                    .boundary_machines
+                    .iter_mut()
+                    .find(|row| row.id == boundary.id)
+                    .unwrap()
+                    .scalar_ensures
+                    .clear();
+                assert!(receiving_error(changed).contains("MalformedStructuralFoundation"));
+            }
+            assert_eq!(conversions, 6);
+            refuse_undeclared_conversion(module);
+            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_planning::direct_compiler_primitive_leaves(
+                module,
+                &schemas,
+                "windows_x86_64",
+                module.boundary_machines.iter().map(|boundary| boundary.id),
+            )
+            .unwrap();
+            for leaf in leaves {
+                leaf.validate_bound_calling_custody(module).unwrap();
+            }
+            let invalid =
+                repository().join("tests/fixtures/fail/float/canonical_conversions/main.omg");
+            let diagnostic = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("windows_x86_64")),
+            )
+            .result
+            .expect_err("an i64 does not match the selected i32 conversion")
+            .into_diagnostics();
+            let [diagnostic] = diagnostic.as_slice() else {
+                panic!("one carrier mismatch: {diagnostic:?}");
+            };
+            assert!(diagnostic.message.starts_with("this value has scalar carrier `i64` but the parameter it is passed for requires `i32`: there is no implicit scalar conversion at a receiving type"), "{diagnostic:?}");
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
 #[test]
 fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion() {
     std::thread::scope(|scope| {
@@ -575,12 +746,17 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
             leaf.validate_bound_calling_custody(module).unwrap();
             assert_eq!(
                 leaf.satisfied_schema.declaration.methods[0].requirement_owner,
-                module.identities.text(boundary.identity).unwrap()
+                "F64"
             );
-            assert_eq!(leaf.satisfied_schema.declaration.methods[0].name, "realize");
+            assert_eq!(
+                leaf.satisfied_schema.declaration.methods[0].name,
+                "from_f32"
+            );
+            // Named conversions now belong to real modules and boundary
+            // machines; their runtime operation and complete equation stay the same.
             assert_eq!(
                 boundary.kind,
-                semantic_vocabulary::BoundaryRequirementKind::Operator
+                semantic_vocabulary::BoundaryRequirementKind::Machine
             );
             for altered in 0..2 {
                 let mut changed = module.clone();
