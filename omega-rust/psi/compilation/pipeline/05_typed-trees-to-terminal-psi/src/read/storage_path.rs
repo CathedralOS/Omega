@@ -40,6 +40,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::ArrayView { .. }
+            | ExpressionKind::RepresentationView { .. }
             | ExpressionKind::CollectionSubslice { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Array { .. }

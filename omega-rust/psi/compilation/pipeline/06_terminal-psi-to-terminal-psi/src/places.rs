@@ -2217,6 +2217,19 @@ impl<'a> Storage<'a> {
                 {
                     return self.collection_index_goal(operation, types);
                 }
+                if let OperationKind::EstablishElementView {
+                    region:
+                        terminal_psi::ElementViewRegion::WholeRepresentation {
+                            obligation: owned, ..
+                        },
+                    ..
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(self.foreign(concerns, "a re-view owns another obligation"));
+                    }
+                    return self.representation_count_goal(operation);
+                }
                 operation.kind.structural_projections()
             }
             ExecutionSite::Block(id) => self.block(id)?.terminator.storage_uses(),

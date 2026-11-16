@@ -307,6 +307,41 @@ impl<'module> MachineEvidenceGoals<'module> {
                     proposition: Some(proposition),
                 });
             }
+            // A shared whole-representation view owns its converted-count
+            // goal, which needs the source collection's element layout.
+            if let terminal_psi::OperationKind::EstablishElementView {
+                source,
+                element,
+                region:
+                    region @ terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
+                ..
+            } = &operation.kind
+            {
+                let places = places.get_or_insert_with(|| machine_place_types(machine));
+                let proposition = unique_by_id(places, source.place, |(place, _)| *place)
+                    .and_then(|(_, ty)| *ty)
+                    .and_then(|root| {
+                        terminal_semantics::runtime_structural_path_tip(
+                            structural_types.iter(),
+                            root,
+                            &source.path,
+                        )
+                    })
+                    .and_then(|collection| {
+                        terminal_semantics::whole_representation_region_goal(
+                            structural_types.iter(),
+                            &collection.shape,
+                            *element,
+                            *region,
+                            source.access,
+                        )
+                    });
+                goals.push(ExecutionEvidenceGoal {
+                    site,
+                    obligation: *obligation,
+                    proposition,
+                });
+            }
         }
         sites.extend(
             machine

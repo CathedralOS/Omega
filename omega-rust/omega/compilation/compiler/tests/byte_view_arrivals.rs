@@ -25,6 +25,7 @@ fn reopened_byte_views_read_the_original_backing_after_arrival() {
     for fixture in [
         "mutable_byte_view_arrival",
         "mutable_byte_view_short_circuit",
+        "whole_representation_view",
     ] {
         let root = fixtures().join("run/views").join(fixture).join("main.omg");
         let checked = orchestration::check_source(
