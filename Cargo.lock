@@ -432,7 +432,6 @@ dependencies = [
  "review-evidence",
  "runtime-abi",
  "selected-dispatch",
- "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",
  "source",

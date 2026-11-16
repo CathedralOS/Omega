@@ -18,7 +18,6 @@ use register_homes::{
     PostAllocationOptimizationManifest, PostAllocationSelectedTransformation,
     PostAllocationSpillStatus,
 };
-use selected_instruction_analyses::RetainedSelectedOptimizationRun as _;
 use target::TargetProfile;
 
 // Compilations share process-wide phase counters; run them one at a time.
