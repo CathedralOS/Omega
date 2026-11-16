@@ -161,9 +161,24 @@ impl Program<'_> {
                                 ExpressionNode::Range(_)
                             )
                     );
+                    // A shared view of a qualified byte array is likewise the
+                    // plain shared view typing selected (borrowed_array_range,
+                    // after each domain's removal was admitted).
+                    let formed = match &value.kind {
+                        ExpressionKind::CollectionSubslice { .. } => {
+                            self.is_readable_byte_view(machine, record)?
+                        }
+                        ExpressionKind::CollectionView { access, .. } => {
+                            *access == language_core::ReferenceAccess::Shared
+                                && self.byte_array_element(base.result.and_then(|backing| {
+                                    backing.qualified(Qualification::NONE)
+                                }))
+                                .is_some()
+                        }
+                        _ => false,
+                    };
                     if range
-                        && matches!(value.kind, ExpressionKind::CollectionSubslice { .. })
-                        && self.is_readable_byte_view(machine, record)?
+                        && formed
                         && self
                             .typed
                             .type_reference_table
