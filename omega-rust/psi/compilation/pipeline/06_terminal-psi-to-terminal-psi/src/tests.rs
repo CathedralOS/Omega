@@ -54,6 +54,7 @@ mod indexed_contracts;
 mod inferred_bounds;
 mod lifetime_elision;
 mod lifetime_generics;
+mod loan_windows;
 mod loan_regions;
 mod machine_inputs;
 mod machine_lifetimes;
