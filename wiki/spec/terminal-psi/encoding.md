@@ -562,6 +562,8 @@ exact negations and are therefore true on NaN.
 | --- | --- | --- |
 | 1 | Field | field id |
 | 2 | FixedIndex | `u64` index |
+| 3 | Case | case id |
+| 4 | Referent | — |
 
 The optional-identity byte 0 records absence and carries no fields; the
 shared optional-identity reader decodes it as the absent form rather than a
@@ -699,6 +701,8 @@ record/enum carrier construction and never stands in for a runtime operand.
 | 5 | Mathematical | type identity string + counted canonical mathematical-certificate bytes |
 | 6 | MathematicalApplication | result type identity string + counted canonical mathematical-function certificate bytes + `u8` formal namespace (0 block, 1 invocation) + counted `u32` caller proof-formal positions |
 | 7 | InvocationFormal | `u32` position in the machine contract proof roster |
+| 8 | MixedMathematicalApplication | tag 6's fields, except each counted argument is a `u8` kind: 0 + `u32` caller proof-formal position; 1 + scalar source carrier identity string + scalar term table |
+| 9 | Projection | type identity string + `u32` formal position + counted field identity strings |
 
 ## Content terms and places
 
@@ -1866,7 +1870,7 @@ BlockParameter places are machine-local and reject at content positions:
 | 5 | ProviderAttachment | attachment structural type id + field id + boundary machine id |
 | 6 | OperationResult | producer operation id + structural type id |
 | 7 | TrivialAffineLocal | `u32` declaration ordinal + structural type id + root structural type id + `u64` construction index |
-| 8 | — | retired at content positions: BlockParameter places are machine-local |
+| 8 | retired | BlockParameter places are machine-local and reject at content positions |
 
 <!-- content-place-version-tags -->
 | Tag | Content place version | Fields after the tag |
@@ -2088,18 +2092,27 @@ bound strictly ordered.
 
 <!-- structural-type-shape-tags -->
 
-| tag | Structural type shape |
-| --- | --- |
+| tag | Structural type shape | Fields after the tag |
+| --- | --- | --- |
 | 1 | Record | counted structural fields |
-| 2 | FixedArray | element structural type id + `u64` length |
+| 2 | FixedArray | element structural type id + `u8` extent (0 + `u64` length; 1 + scalar application id) |
 | 3 | Sum | counted structural cases |
 | 4 | ByteSequence | byte-sequence carrier |
 | 5 | Mixed | counted structural fields + counted structural cases |
 | 6 | PrimitiveScalar | scalar type |
 | 7 | Reference | referent structural type id + structural access |
-| 8 | ElementView | element structural type id |
+| 8 | ElementView | element structural type id + `bool` access presence + optional structural access |
 | 9 | retired | former Fused-only carrier; reject |
+| 10 | Record (authored storage) | `u64` byte size + `u64` byte alignment + counted structural fields + one field storage per field: `u8` 0 none; 1 + `u64` byte offset; 2 + `u64` byte offset + stored scalar type; 3 + `u64` byte offset + `u64` element stride; 4 + `u64` byte offset; 6 + nonempty counted bit fragments of five `u64`s |
 | 11 | retired | former routed `Binding<R>` carrier; reject |
+| 12 | PrimitiveScalar (refined) | scalar type + structural field type restricting its values |
+| 13 | Record (target layout) | `u32` layout application + counted structural fields |
+| 14 | Record (access view) | tag 10's fields |
+| 15 | Record (accessor) | tag 10's fields |
+| 16 | AtomicCell | structural field type; only `Atomic` and `AtomicBoundedInteger` are admitted |
+| 17 | Record with requires | record storage tag (1, 10, 13, 14 or 15) + that tag's fields + nonempty counted propositions |
+| 18 | Sum with requires | tag 3's fields + nonempty counted propositions |
+| 19 | Opaque | — |
 
 Tags 9 and 11 are retired: a decoder rejects them rather than reinterpreting
 them. Checking rejects a boundary trait in every runtime value position, so no
@@ -2107,10 +2120,11 @@ structural declaration carries a supplied provider.
 
 <!-- byte-sequence-carrier-tags -->
 
-| tag | Byte-sequence carrier |
-| --- | --- |
-| 1 | BorrowedView |
+| tag | Byte-sequence carrier | Fields after the tag |
+| --- | --- | --- |
+| 1 | BorrowedView | optional structural access (`u8` 0 absent, else an access tag) |
 | 2 | BoundedOwned | `u64` capacity |
+| 3 | BoundedView | optional structural access + `u64` capacity |
 
 <!-- binding-relevance-tags -->
 
@@ -2121,8 +2135,8 @@ structural declaration carries a supplied provider.
 
 <!-- structural-field-type-tags -->
 
-| tag | Structural field type |
-| --- | --- |
+| tag | Structural field type | Fields after the tag |
+| --- | --- | --- |
 | 1 | Scalar | scalar type |
 | 2 | Structural | structural type id |
 | 3 | Erased | type identity string |
@@ -2131,6 +2145,8 @@ structural declaration carries a supplied provider.
 | 6 | BoundedInteger | integer type + integer value minimum + integer value maximum |
 | 7 | PredicateByteSequence | byte-sequence carrier + predicate-set bits |
 | 8 | Atomic | scalar type; only Boolean and fixed-width, non-address integers are admitted |
+| 9 | RefinedScalar | scalar type + proposition the value satisfies |
+| 10 | AtomicBoundedInteger | integer type + integer value minimum + integer value maximum |
 
 <!-- structural-access-tags -->
 
@@ -2153,11 +2169,14 @@ structural declaration carries a supplied provider.
 
 | tag | Structural path segment | Fields after the tag |
 | --- | --- | --- |
-| 1 | Field | field identity string |
+| 1 | Field | `u32` interned field identity |
 | 2 | FixedIndex | `u64` index |
 | 3 | Referent | none |
 | 4 | FixedByteRange | `u64` start + `u64` end |
 | 6 | RuntimeIndex | selector value id + obligation id |
+| 7 | Case | case id |
+| 8 | RepresentationView | structural type id + `bool` scalar-codec presence + optional scalar type |
+| 10 | AllElements | none; qualification paths only |
 
 `RuntimeIndex` selects one element of the fixed array its prefix resolves to
 by the runtime integer the selector value holds. The operation carrying the
@@ -2175,11 +2194,12 @@ checks remain required by [byte views](byte_views.md#calls-and-control-transfers
 
 <!-- canonical-path-segment-tags -->
 
-| tag | Canonical structural path segment |
-| --- | --- |
+| tag | Canonical structural path segment | Fields after the tag |
+| --- | --- | --- |
 | 1 | Field | structural field id |
 | 2 | FixedIndex | `u64` index |
 | 3 | Case | structural case id |
+| 4 | Referent | — |
 
 A canonical structural field path is a root place id + counted canonical path
 segments. An IEEE float field path is a root place id + counted canonical

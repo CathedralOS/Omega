@@ -6,6 +6,7 @@
 //! - `cargo xtask branch-cleanup [--delete] [--min-age-hours <n>] [--max-delete <n>] [--include-unmerged-no-pr]`
 //! - `cargo xtask rust-producer-omission --manifest <path> [--steps <path>] [--root <dir>]`
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
+//! - `cargo xtask check-portable-services [--observe] [--list]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
 //! - `cargo xtask qualify --samples <paths> --output <new-directory> [--target <host>]`
 //! - `cargo xtask doctor [--json <path>]`
@@ -31,6 +32,7 @@ mod execution;
 mod fmt;
 mod gamma_invoke;
 mod managed_cache_retention;
+mod portable_services;
 mod producer;
 mod provenance;
 mod qualification;
@@ -74,6 +76,7 @@ usage: cargo xtask <command> [options]
 verification and gates:
   check-rules               Verify commit lane, PR provenance, ratchets, and board hygiene
   check-boundary            Verify native/runtime production dependency and Psi/Omega boundaries
+  check-portable-services   Diff std's POSIX and Windows adapters for each portable call against a baseline
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
   sweep                     Run omega --check over the programs and group where each one stops;
@@ -110,6 +113,7 @@ fn main() -> ExitCode {
         "check-boundary" => boundary::run(&args),
         "branch-cleanup" => branch_cleanup::run(&args),
         "check-rules" => rules::run(&args),
+        "check-portable-services" => portable_services::run(&args),
         "rust-producer-omission" => rust_producer_omission::run(&args),
         "sample-gate" => samples::run(&args),
         "qualify" => qualification::run(&args),
@@ -149,6 +153,7 @@ mod tests {
             "fmt",
             "check-boundary",
             "check-rules",
+            "check-portable-services",
             "rust-producer-omission",
             "sample-gate",
             "qualify",

@@ -1222,6 +1222,7 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "verified-optimization-input",
 ]
 
 [[package]]

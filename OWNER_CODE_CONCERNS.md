@@ -75,12 +75,37 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Three more portable filesystem calls mean different things on Windows and POSIX
+- Category: One idea, several implementations
+- Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
+- Saw: [three layers](wiki/spec/build/platform_services.md) says a portable service "is identical on every target". A static diff of the two adapter families found three differences that #3864 did not cover:
+  - `set_times` accepts any `i64` on POSIX, but Windows refuses times at or before 1601 and after about year 60056. The comment cites Win32, but the portable contract does not state the limit.
+  - `read_dir_nth` and `read_dir_is_empty` error on Windows for an entry name over 256 bytes of UTF-8, while a legal NTFS name can need up to 765, so a directory holding one cannot be listed.
+  - A single `write` over 4 GiB is a short write on POSIX and `InvalidInput` on Windows. `read_at`, `write_at` and `copy` refuse a count over 4 GiB on Windows the same way.
+  - `mbx xtask check-portable-services` tracks these as `known` rows in `tools/ratchets/portable_services.txt`; delete them with this entry.
+- Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
+- Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
+
 ### Each provider row rehashes every toolchain source
 - Category: Verifying costs more than writing
 - Where: [provider publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/static_contracts.rs#L303), [shared program inputs](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L84)
 - Saw: On `d0906b179f95`, `StaticContracts::publish` rebuilds the complete source-identity list inside each provider row, again for each generic form and witness reading the same immutable program. A one-second sample of the unchanged Console test caught 27 of 58 compiler-thread observations in that operation. The test took 519.245s; the sample does not establish its share of total time. Evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-effect-policies-landed/original58-test.sample.txt`.
 - Cost: Hashing repeats with the source bytes, provider rows and check forms. Let the existing `SharedProgram` retain the exact list once and lend it to publication; preserve missing-identity refusals and source authentication. Count derivations and time the unchanged Console run before claiming a speedup. The separate boundary-declaration projection still needs its own equivalence check.
 - Reported: 2026-11-16, Codex, while carrying the original Console and stored-machine programs through checking and execution
+
+### A qualified collection gets builtin `[..]` indexing without a declared operator
+- Category: A verdict with nothing behind it
+- Where: [builtin meaning check](omega-rust/psi/compilation/representations/typed-trees/src/operator_declarations.rs#L2135), [typing selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L74), [byte-view tests](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_view_elements.rs#L593)
+- Saw: [operands](wiki/spec/language/domains.md#L752) says builtin operators accept unqualified operands only, and indexing "follows the same rule through its operator declarations ... a qualified collection or index has such a declaration or is cast" (L777). Typing selects builtin indexing when `has_builtin_spelled_expression_meaning` holds, but that function never checks operand qualification. So with `domain [u8]::Path requires no_nul(self)`, `let x: &[u8] = &path[0..p];` on a `&[u8] in Path` is accepted as builtin indexing with no declaration and no cast, and the byte-view tests assert that acceptance. A declared range operator is still honoured; only the no-declaration case falls through. Found by a blind checklist replay of #3789 and confirmed on main at fdc89014463.
+- Cost: Qualified values lose the rule that their operators come from declarations, and a test pins the gap. Refuse builtin meaning for qualified operands in `has_builtin_spelled_expression_meaning`, require a declaration or cast, and turn the pinning test into a refusal twin.
+- Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
+
+### The Omega-written compiler binds static arguments by kind instead of position
+- Category: One idea, several implementations
+- Where: [bind_static_arguments](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/calls.omg#L379), [Rust positional binding](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L1211)
+- Saw: [applications and specialization](wiki/spec/language/generics.md#L383) matches arguments "by exact constructor and parameter position", and allows omitting an argument only where inference determines one substitution (L396). The Omega-written `bind_static_arguments` gives a static argument naming a machine to the next machine binder and any other argument to the next other binder, accepting when the counts match. `pick<double>(b)` against `pick<T, machine K>` is accepted there with `double` bound to `K`; the Rust compiler binds supplied arguments positionally, so `double` lands at `T`. Found by a blind checklist replay of abb38f673db and confirmed on main at fdc89014463. The `<machine K>` spelling is itself retired under TYPED-STATIC-PARAMETERS.
+- Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
+- Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
 ### macOS arm64 starts 16-byte-aligned register arguments on an even register, where Apple allows an odd one
 - Category: One idea, several implementations
@@ -89,12 +114,6 @@ framework or a list of unimplemented features.
 - Cost: Default-ABI imports and callbacks with such records exchange wrong values on macOS. This has the same root as the macOS stack-packing entry: Mach-O arm64 uses the generic AAPCS64 policy instead of Apple's. Give Apple arm64 its own policy row covering both rules, or refuse these signatures there.
 - Reported: 2026-11-16, Claude Code, while piloting an ABI cross-check against clang
 
-### A callee's write through a `&mut` held inside a lent record leaves the caller's facts about the referent standing
-- Category: One idea, several implementations
-- Where: [call logs only argument places](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L582), [Referent frame falls back to the argument](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2248), [cleanup follows carried references](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/owned_cleanup.rs#L393), [same-machine test only](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L296)
-- Saw: [mutation frames](wiki/spec/language/dependent_values.md) says a caller's fact survives a call only "when its storage dependencies are provably disjoint from the frame, aliases included", and [store vocabulary](wiki/spec/terminal-psi/structural_access.md#L700) says referent backing survives callee frames "so a completed write remains visible to the caller". `Storage::stored_by` logs a call's write only on each `&mut` argument's own place, and `call_write_regions` returns `None` when the frame crosses a `Referent`, falling back to that place. With `machine update(carrier: &mut Carrier, incoming: u64) { carrier.cell.value = incoming; }`, `let mut carrier = Carrier { cell: &mut cell }; update(&mut carrier, 73); need(cell.value);` proves `need`'s `requires value == 5` from the literal, while `cell.value` is 73 at run time. `owned_cleanup::writes` already walks carried references, but only for cleanup calls. Traced, not run.
-- Cost: The checker accepts a call whose precondition is false at run time. Log a write row for each referent backing a call can reach through lent or moved values carrying `&mut`, reusing the cleanup walk, and pin it with the in-callee twin of `a_store_through_a_stored_reference_ends_facts_about_the_original_cell`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/dependent_values.md
 
 ### A read through a runtime index gets a field equation the spec says it never supplies
 - Category: The documents disagree
@@ -205,12 +224,12 @@ framework or a list of unimplemented features.
 - Cost: Repeated identity normalization grows with both the method and signature counts. Prepare the exact callable/package identities once per inherited declaration set. Preserve source authentication, complete applications, and refusals for missing or ambiguous requirements. Validate with the unchanged Console program and refusal controls; measure the identity derivations before claiming a speedup.
 - Reported: 2026-11-16, Codex, while carrying the original Console binding and stored-machine programs through checking and execution
 
-### Every native caller evaluates constants between two driver calls
-- Category: one idea, several implementations
-- Where: [native completion](omega-rust/omega/build-system/orchestration/src/compile/native_completion.rs#L123), [scalar completion](omega-rust/omega/compilation/native-compiler/src/scalar_completion.rs), [Build's completer](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L20)
-- Saw: Omega 00 now runs whole inside `native_compiler::compile`, but callers still call `native_compiler::prepare`, run `build_settings::scalar_completion::complete` on every `NativeScalarCompletion`, then call `compile`. Preparation reads only the retained Terminal product and its native proposal (`TerminalNativeRealizationProposal::prepare_native_execution`, `PreparedNativeExecution::scalar_application_demand`). Product checking separately completes the same artifact's conditions with an empty demand (`ProducedTerminalProduct::check_conditions`).
-- Cost: Orchestration, the review example and compiler tests each repeat the prepare, evaluate, compile sequence, and conditions are evaluated twice. Select the execution and complete its demand once where the retained native product is formed, pass the completed scalars in `NativeCompileRequest`, and delete `NativeScalarCompletion` and the split entry.
-- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
+### Native products evaluate their scalar conditions twice
+- Category: re-deriving
+- Where: [product checking](omega-rust/omega/compilation/compiler/src/terminal/terminal_artifact.rs#L94), [native completion](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L25)
+- Saw: `ProducedTerminalProduct::check_conditions` completes the artifact's scalar conditions for the target with no application roots. `complete_native` then completes them again with the program's application roots and the native demand before `native_compiler::compile`. The two closures differ in scope, so neither result can stand in for the other as built.
+- Cost: Every native compile with scalar conditions evaluates the deployed conditions twice. Extend one completed closure with the native demand and application roots, or complete once with both where the retained native product is formed, keeping product checking's refusals and their order.
+- Reported: 2026-11-16, pi, while making native compilation one call.
 
 ### Emission libraries still name earlier stage outputs
 - Category: knowledge crossing a boundary
