@@ -33,11 +33,9 @@ public data FloatFormat [copy] {
 // runtime carriers.
 public data I8 { }
 public data I16 { }
-public data I32 { }
 public data I64 { }
 public data U8 { }
 public data U16 { }
-public data U32 { }
 public data U64 { }
 
 // Permanent semantic identities for the language's f32 and f64 carriers.

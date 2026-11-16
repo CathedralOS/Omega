@@ -975,10 +975,7 @@ impl<'t> Program<'t> {
         // arguments are explicit (machines.md, "Static declarations and
         // explicit state"). Test retained attachment, not name spelling:
         // module, trait and lexical qualification remain independent.
-        if machine.attached_data_symbol.is_valid()
-            || machine.attached_data_application.is_valid()
-            || machine.generic_data_template.is_valid()
-        {
+        if machine.has_data_owner() {
             return Err(crate::reject(
                 id,
                 SourceOrigin::of(
@@ -2015,8 +2012,21 @@ impl<'t> Program<'t> {
             .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
         let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
             .map_err(unavailable)?;
-        if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
-            || result != Some(ValueType::plain(expected_result))
+        let qualification = match terminal_semantics::numeric_primitives::result_policy(meaning)
+            .map_err(unavailable)?
+        {
+            None => Qualification::NONE,
+            Some(domain) => {
+                Qualification::of_policy(crate::body::Policy::of_domain(domain).ok_or_else(
+                    || unavailable("numeric primitive has an unsupported result policy"),
+                )?)
+            }
+        };
+        if parameters.len() != expected.operand_count
+            || parameters
+                .iter()
+                .any(|parameter| *parameter != ValueType::plain(expected_operand))
+            || result != Some(ValueType::Scalar(expected_result, qualification))
         {
             return Err(unavailable(
                 "numeric primitive differs from its canonical scalar signature",
