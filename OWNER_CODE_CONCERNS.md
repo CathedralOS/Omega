@@ -190,13 +190,6 @@ framework or a list of unimplemented features.
 - Cost: Reviewers checking the rows approve a smaller trusted surface than the kernel has; the extra forms appear sound but are unaudited, and the discreteness ones also skip the core. Document every accepted form with its core status, or restrict the code to the rows; decide explicitly whether exact operations are read as total.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
 
-### On arm64, a float record that misses the vector registers still lets later floats use them
-- Category: One idea, several implementations
-- Where: [HFA register test](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L697), [stack fallback](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L754), [AAPCS64 entry](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L572), [only test](omega-rust/omega/compilation/backend/calling-conventions/src/plans/tests/parameter_and_aggregate_placement.rs#L206)
-- Saw: [public aggregates](wiki/spec/build/boundary_shapes.md#L12) lets a policy place an aggregate "under its target's rules", and the `Aapcs64` policy claims AAPCS64, whose rule C.3 sets the next vector register to 8 and rounds the stack size up to 8 when a homogeneous float aggregate does not fit. `evaluate_split_bank_call` falls to the generic stack branch, which leaves `float_index` unchanged and advances by `byte_size.max(8)` without rounding. With seven `f64` arguments, then `{f64, f64}`, then `f64 z`, C passes `z` at sp+16 and Omega in v7; a stacked three-`f32` record followed by a `u32` puts the `u32` at sp+12 instead of sp+16. Imports and callbacks share the plan.
-- Cost: Foreign calls and callbacks with this shape exchange wrong arguments silently. Set `float_index = 8` and advance by `align_up(byte_size, 8)` on the overflow path, and test the seven-floats case.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/boundary_shapes.md
-
 ### The default macOS arm64 calling plan uses 8-byte stack slots where Apple packs arguments
 - Category: One idea, several implementations
 - Where: [Mach-O arm64 maps to Aapcs64](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L524), [scalar stack placement](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L754), [import binding](omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs#L273), [std's Darwin policy](source/library/std/darwin_calling.omg#L182)
