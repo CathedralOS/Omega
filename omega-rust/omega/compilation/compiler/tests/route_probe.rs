@@ -275,6 +275,40 @@ fn a_literal_shift_count_lands_in_the_shifted_carrier() {
 /// field's contents after that call, which the predicate cannot name. The
 /// read itself dominates the join, so the guard is stated over it. A guard
 /// that is too weak, or a `||`, still leaves the requirement unproved.
+/// state_contracts.md, "Private entry inference": a helper that omits
+/// `requires` may rely on what every arrival establishes. In a call cycle
+/// each member's copy of the cycle reads `main.i` once per block, and the
+/// guard in `mark` is stated over an earlier, equal read. The arrival at
+/// `bump` still passes the guard's bound, so its write keeps the data clause.
+#[test]
+fn a_guard_in_a_call_cycle_reaches_the_helper_it_selects() {
+    for (name, bound, expected) in [
+        ("guarded_bump", "31", "accepted"),
+        ("bump_past_the_clause", "32", "rejected"),
+    ] {
+        let source = format!(
+            "data Main requires self.i >= 0 && self.i <= 31 {{ i: i32; }}\n\
+             machine cycle(main: &mut Main) {{\n\
+                 main.i = 0;\n\
+                 transition {{ _ -> block head(main) }}\n\
+                 machine head(main: &mut Main) {{\n\
+                     transition main.i >= 0 && main.i < 31 {{ true -> block mark(main) _ -> block done(main) }}\n\
+                 }}\n\
+                 machine mark(main: &mut Main) {{\n\
+                     transition main.i >= 0 && main.i < {bound} {{ true -> block bump(main) _ -> block head(main) }}\n\
+                 }}\n\
+                 machine bump(main: &mut Main) {{\n\
+                     main.i = main.i + 1;\n\
+                     transition {{ _ -> block head(main) }}\n\
+                 }}\n\
+                 machine done(main: &mut Main) {{ }}\n\
+             }}\n\
+             machine main() {{ let mut storage: Main; block cycle(&mut storage); }}\n"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
 #[test]
 fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
     for (name, guard, expected) in [

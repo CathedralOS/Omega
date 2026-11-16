@@ -241,6 +241,7 @@ fn describe_calls(
                 known: &known,
                 context: &prepared.context,
                 fields: fields.observations(),
+                equal: None,
             },
         );
         incoming
@@ -288,6 +289,7 @@ fn describe_calls(
                 known: &known,
                 context: &prepared.context,
                 fields: fields.observations(),
+                equal: None,
             },
         );
         // What the caller derives of an integer actual without holding it
@@ -790,11 +792,15 @@ struct InputBindings<'s, 'a> {
     known: &'s crate::known::Known,
     context: &'s semantic_vocabulary::PropositionContext,
     fields: crate::places::CallObservations<'s, 'a>,
+    /// The caller's value equalities, gathered on the first value that does
+    /// not bind directly.
+    equal: Option<Vec<(ValueId, ValueId)>>,
 }
 
-impl Bindings for InputBindings<'_, '_> {
-    type Error = Unbound;
-    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+impl InputBindings<'_, '_> {
+    /// `value` as a callee formal or as the field of a structural input it
+    /// was read from.
+    fn direct(&mut self, value: ValueId, scalar_type: ScalarType) -> Option<ScalarTerm> {
         self.actuals
             .iter()
             .position(|actual| *actual == value)
@@ -812,9 +818,64 @@ impl Bindings for InputBindings<'_, '_> {
                         )
                     })
             })
-            .ok_or(Unbound::Unproved(
-                "a caller value is not read from an actual input",
-            ))
+    }
+}
+
+impl Bindings for InputBindings<'_, '_> {
+    type Error = Unbound;
+    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        if let Some(term) = self.direct(value, scalar_type) {
+            return Ok(term);
+        }
+        // A fact may name a value the arrival cannot see while an equal one
+        // is read from what it passes on. In a call cycle the head of
+        // `render_loop` reads `main.i` from its own block formal, and the
+        // guard in `mark` reads the same unchanged field from `mark`'s: the
+        // guard's bound is stated over the first read and only the second
+        // is an input of the edge to `render_bump`. Follow the caller's own
+        // value equalities to a value the edge does pass. Describing an
+        // arrival is inference: every arrival still proves the result.
+        // Both directions of each equality, sorted, so a value's equals are
+        // one contiguous run.
+        let equal = self.equal.get_or_insert_with(|| {
+            let mut pairs = Vec::new();
+            for &index in &self.known.equations {
+                if let Some(Proposition::Equal(
+                    ScalarTerm::Value { id: left, .. },
+                    ScalarTerm::Value { id: right, .. },
+                )) = self.known.facts.get(index).map(|fact| &fact.proposition)
+                    && left != right
+                {
+                    pairs.push((*left, *right));
+                    pairs.push((*right, *left));
+                }
+            }
+            pairs.sort_unstable();
+            pairs.dedup();
+            pairs
+        });
+        let mut seen = vec![value];
+        let mut next = 0;
+        while let Some(&here) = seen.get(next) {
+            next += 1;
+            let first = equal.partition_point(|(from, _)| *from < here);
+            for &(from, other) in &equal[first..] {
+                if from != here {
+                    break;
+                }
+                if !seen.contains(&other) {
+                    seen.push(other);
+                }
+            }
+        }
+        for other in seen.into_iter().skip(1) {
+            if let Some(term) = self.direct(other, scalar_type) {
+                return Ok(term);
+            }
+        }
+        Err(Unbound::Unproved(
+            "a caller value is not read from an actual input",
+        ))
     }
     fn field(
         &mut self,
