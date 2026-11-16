@@ -183,13 +183,6 @@ framework or a list of unimplemented features.
 - Cost: Default-ABI imports and callbacks with more than eight integer arguments, any narrower than 8 bytes, pass wrong values on macOS, and the two Darwin implementations disagree. Give Mach-O arm64 its own packed policy row (or refuse such signatures) and test the 9th and 10th `u32`.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/calling_plans.md
 
-### Static linux_arm64 executables align segments to 4 KiB and fail on 16 KiB and 64 KiB page kernels
-- Category: One idea, several implementations
-- Where: [static PAGE_SIZE](omega-rust/omega/compilation/backend/images/image-elf/src/lib.rs#L85), [p_align written](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L97), [data segment placement](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L136), [dynamic path uses 64 KiB](omega-rust/omega/compilation/backend/images/image-elf/src/load_placement.rs#L1827)
-- Saw: No spec page states page alignment; the AArch64 ELF ABI allows 64 KiB pages, and the crate's own header gives the dynamic path 64 KiB alignment "portable across 64 KiB AArch64 translation granules". `emit_elf_executable`, used for every import-free linux_arm64 executable, writes `p_align = 0x1000` and puts the data segment on the next 4 KiB page, so on a 16 KiB or 64 KiB kernel both segments share a page and the second mapping fails or replaces the text.
-- Cost: A hosted target's normal output does not start on common arm64 Linux machines. Use the target's maximum page size for the static path, shared with the dynamic layout, and state the rule in the native target spec.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
-
 ### The Psi interpreter compares and offsets host-returned addresses that the spec says it must refuse
 - Category: A verdict with nothing behind it
 - Where: [integer equality](omega-rust/psi/interpreter/src/engine_execution.rs#L3598), [integer order](omega-rust/psi/interpreter/src/engine_execution.rs#L3612), [compare_with](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L627), [address subtraction](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L385), [address cast](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L419), [host address result](omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/original_homes.rs#L205), [host address ledger](omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/allocation.rs#L115)
