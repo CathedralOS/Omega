@@ -399,11 +399,12 @@ const EARLIER_PROGRAM_FORMS: &str =
 const STAGE_02_WORKING_FORM: &str =
     "omega-rust/omega/compilation/representations/target-operations";
 
-/// Instruction selection and the forms from the prepared plan onward. None of
-/// them is handed stage 02's working program, so none may be able to name it.
-/// Instruction selection itself is held to this by a direct rule until the
-/// installation authority it is handed stops depending on target operations.
+/// Instruction selection, the installation record it is handed, and the forms
+/// from the prepared plan onward. None of them is handed stage 02's working
+/// program, so none may be able to name it.
 const AFTER_PREPARATION: &[&str] = &[
+    "omega-rust/omega/compilation/backend/runtime/bound-installations",
+    "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/compilation/representations/target-operations/target-vocabulary",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
     "omega-rust/omega/compilation/representations/selected-instructions",
@@ -420,12 +421,15 @@ const AFTER_PREPARATION: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
 ];
 
-/// The forms from the prepared plan onward, the stages that turn one into the
-/// next, the target setup they share, and the leaf vocabulary they carry. Instruction selection is handed only the prepared
-/// execution plan; if one of these crates could reach an earlier program form,
-/// so could selection, one dependency away. The check follows every production
-/// edge, so a new path through a helper crate is caught too.
+/// Instruction selection, the forms from the prepared plan onward, the stages
+/// that turn one into the next, the target setup and installation record they
+/// share, and the leaf vocabulary they carry. Instruction selection is handed
+/// only the prepared execution plan and its bound installations; none of these
+/// crates may reach an earlier program form. The check follows every
+/// production edge, so a new path through a helper crate is caught too.
 const SELECTION_REPRESENTATIONS: &[&str] = &[
+    "omega-rust/omega/compilation/backend/runtime/bound-installations",
+    "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/compilation/representations/native-vocabulary",
     "omega-rust/omega/compilation/representations/target-operations",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
@@ -469,20 +473,6 @@ pub fn transitive_exact_violations(
     reason: &str,
 ) -> Result<Vec<String>, String> {
     transitive_violations(metadata, roots, |directory| directory == forbidden, reason)
-}
-
-/// One crate may not depend on exactly one other, directly.
-pub fn direct_exact_violations(
-    metadata: &Metadata,
-    owner: &str,
-    forbidden: &str,
-    reason: &str,
-) -> Result<Vec<String>, String> {
-    Ok(production_edges(metadata)?
-        .into_iter()
-        .filter(|(_, from, to)| from == owner && to == forbidden)
-        .map(|(package, _, _)| format!("{} -> {forbidden}: {reason}", package.name))
-        .collect())
 }
 
 fn transitive_violations(
@@ -890,12 +880,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             SELECTION_REPRESENTATIONS,
             EARLIER_PROGRAM_FORMS,
             "a representation instruction selection reads or writes reaches an earlier program form; move the shared leaf type to native-vocabulary",
-        )?);
-        violations.extend(direct_exact_violations(
-            &metadata,
-            "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
-            STAGE_02_WORKING_FORM,
-            "instruction selection reads the prepared plan, not stage 02's working program; name the record from target-vocabulary",
         )?);
         violations.extend(transitive_exact_violations(
             &metadata,

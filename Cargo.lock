@@ -146,6 +146,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bound-installations"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
+]
+
+[[package]]
 name = "boundary-applications"
 version = "0.1.0"
 dependencies = [
@@ -1174,6 +1187,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "arena",
  "backend-plan",
+ "bound-installations",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1655,6 +1669,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "backend-plan",
+ "bound-installations",
  "calling-conventions",
  "component-description",
  "diagnostics",
@@ -2351,6 +2366,7 @@ name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "access-plans",
+ "bound-installations",
  "calling-conventions",
  "installation-evidence",
  "language-core",
@@ -2358,7 +2374,6 @@ dependencies = [
  "legalized-operations",
  "native-vocabulary",
  "optimization-core",
- "provider-admission",
  "register-environment",
  "register-model",
  "runtime-abi",

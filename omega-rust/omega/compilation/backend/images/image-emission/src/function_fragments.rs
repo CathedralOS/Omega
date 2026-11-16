@@ -9931,7 +9931,7 @@ mod source {
 
         pub(super) fn retained(
             operation: &abstract_operations::AbstractOperation,
-            helpers: &target_operations_to_selected_instructions::PreparedInstalledInterruptHelpers,
+            helpers: &provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers,
             replay: &PreparedHelperReplay<'_>,
         ) -> Result<bool, super::Error> {
             use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
@@ -19747,7 +19747,7 @@ mod source {
             )
         });
         let interrupt_helpers =
-            target_operations_to_selected_instructions::PreparedInstalledInterruptHelpers::new(
+            provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
                 abstract_plan.psi,
                 source.lowering_facts().module(),
                 source.lowering_facts().installed_interrupts(),

@@ -107,6 +107,18 @@ pub(crate) fn optimize_abstract(
     )
 }
 
+/// Project the installation authority admission checked into the plain
+/// record instruction selection reads beside the plan.
+pub(crate) fn bound_installations(
+    target: &ValidatedOptimizedTargetOperations,
+) -> target_operations_to_selected_instructions::BoundInstallations {
+    terminal_psi_to_abstract_operations::provider_admission::bind_installations(
+        target.lowering_facts().installed_interrupts(),
+        target.installed_entry_execution(),
+        target.installed_stack_requirements(),
+    )
+}
+
 pub(crate) fn emit_target(
     optimized_target: ValidatedOptimizedTargetOperations,
     observation: &NativePipelineObservation,
@@ -114,17 +126,14 @@ pub(crate) fn emit_target(
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
     let target_input = std::sync::Arc::new(optimized_target);
+    let installations = bound_installations(&target_input);
     let selected = {
         observation.enter(NativePipelineStage::InstructionSelection);
         let optimized = target_input.optimized();
         stage_optimized_instruction_selection(
             SelectionInput {
                 plan: target_input.execution_plan(),
-                installations: target_operations_to_selected_instructions::BoundInstallations {
-                    interrupts: target_input.lowering_facts().installed_interrupts(),
-                    entry_execution: target_input.installed_entry_execution(),
-                    stack_requirements: target_input.installed_stack_requirements(),
-                },
+                installations: &installations,
                 optimization: optimized.identity_bundle().identity(),
                 projection: optimized.projection(),
                 manifest: optimized.pre_physical_manifest().identity,

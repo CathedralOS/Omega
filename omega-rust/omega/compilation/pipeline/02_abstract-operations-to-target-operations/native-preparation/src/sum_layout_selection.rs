@@ -3585,11 +3585,11 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     // From here selection sees the prepared plan and nothing behind it.
     let selected = target_operations_to_selected_instructions::select_instructions_for_plan(
         &prepared,
-        target_operations_to_selected_instructions::BoundInstallations {
-            interrupts: &interrupts,
-            entry_execution: None,
-            stack_requirements: &[],
-        },
+        &provider_admission::installed_interrupt_helpers::bind_installations(
+            &interrupts,
+            None,
+            &[],
+        ),
         &environment,
     )
     .unwrap_or_else(|error| panic!("{name}: select {error:?}"));
