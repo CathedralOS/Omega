@@ -341,15 +341,35 @@ impl Program<'_> {
                 ));
             }
         }
-        // Presentation follows only predicates preserved by the real source.
-        // Lowering still establishes the actual descriptor without result
-        // qualification annotations; receiving proofs reconstruct its bytes.
-        let present = |mut expression: Expression| -> Checked<Expression> {
-            let Some(ValueType::Record(row, _, regions)) = expression.result else {
+        // Establish the plain descriptor first, then prove its requested
+        // presentation through the ordinary qualification edge. A result
+        // annotation alone cannot establish predicates of the selected bytes.
+        let present = |reader: &mut Self, expression: Expression| -> Checked<Expression> {
+            let Some(ValueType::Record(row, Qualification::NONE, regions)) = expression.result
+            else {
                 return Err(unavailable("range lost its actual descriptor"));
             };
-            expression.result = Some(ValueType::Record(row, expected_qualification, regions));
-            Ok(expression)
+            if expected_qualification == Qualification::NONE {
+                return Ok(expression);
+            }
+            let result = ValueType::Record(row, expected_qualification, regions);
+            let (clauses, stated) =
+                reader.record_cast_predicates(machine, expected_qualification, result)?;
+            let kind = if clauses.is_empty() {
+                ExpressionKind::Requalify(Box::new(expression))
+            } else {
+                ExpressionKind::Establish {
+                    operand: Box::new(expression),
+                    clauses,
+                    stated: terminal_check_tables::program::CastCondition::DomainMembership(stated),
+                }
+            };
+            Ok(Expression {
+                call_context: None,
+                kind,
+                result: Some(result),
+                source,
+            })
         };
         // A shared descriptor can snapshot its unrestricted value. A child
         // of an exclusive descriptor instead keeps a persistent payload loan,
@@ -362,7 +382,7 @@ impl Program<'_> {
             self.authorized(machine, backing_type, Access::Read)?;
             let value = self.byte_subslice(machine, slots, base, range, borrow.target, source)?;
             self.complete_formed_operator(machine, borrow.target, &value)?;
-            return present(value).map(Some);
+            return present(self, value).map(Some);
         }
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
@@ -441,7 +461,7 @@ impl Program<'_> {
         } else {
             whole
         };
-        present(formed).map(Some)
+        present(self, formed).map(Some)
     }
 
     /// A collection recast borrows the same captured window. Its destination

@@ -2928,7 +2928,7 @@ mod operation_permissions {
         let mut roots = Vec::new();
         for machine in &module.machines {
             let declarations = Declared::new(machine)?;
-            let governed = declarations.declared.iter().any(|(_, row)| {
+            let governed = declarations.declared.iter().any(|(_, _, row)| {
                 row.whole.iter().any(|id| has_rules(*id))
                     || row.projected.iter().any(|row| has_rules(row.domain))
             }) || machine.operations().any(|operation| {

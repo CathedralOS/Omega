@@ -2057,10 +2057,14 @@ fn decide(
     #[cfg(test)]
     if certificate.is_err()
         && std::env::var_os("OMEGA_TEST_TRACE_DEFAULTS").is_some()
-        && tables
-            .obligations
-            .get(obligation)
-            .is_some_and(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))
+        && tables.obligations.get(obligation).is_some_and(|row| {
+            matches!(
+                row.kind,
+                ObligationKind::DataDomain { .. }
+                    | ObligationKind::CallRequirement { .. }
+                    | ObligationKind::ArrivalInvariant { .. }
+            )
+        })
     {
         // Keep a failed restoration trace at the exact substitution cut;
         // dumping the input module would miss inferred reaching equations.

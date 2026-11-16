@@ -536,6 +536,54 @@ machine main() crashes Trap {
 }
 
 #[test]
+fn a_qualified_window_proves_its_domain_without_qualifying_the_raw_subslice() {
+    let program = r#"
+use omega::language::core::byte_observation;
+domain [u8]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+machine whole<'bytes>(bytes: &'bytes [u8] in Utf8) -> &'bytes [u8] in Utf8
+requires bytes.len >= 1
+{
+    &bytes[..]
+}
+machine main() crashes Trap {
+    let bytes: &[u8] in Utf8 = whole("é" as +Utf8);
+    transition bytes.len == 2 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}
+"#;
+    let verdicts = observed_program(program);
+    assert!(!verdicts.is_empty());
+    for verdict in verdicts {
+        let Ok(crate::RouteVerdict::Accepted(accepted)) = verdict else {
+            panic!("the complete qualified window must be checked: {verdict:?}");
+        };
+        for operation in accepted.elaboration.module.operations() {
+            if matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ByteSequenceSubslice { .. }
+            ) {
+                let result = operation
+                    .result
+                    .as_structural()
+                    .expect("a descriptor result");
+                assert!(result.qualifications.is_empty());
+                assert!(result.projected_qualifications.is_empty());
+                assert!(result.qualification_establishments.is_empty());
+            }
+        }
+        execute_observed(accepted);
+    }
+    let partial = program.replace("&bytes[..]", "&bytes[1..]");
+    let refused = observed_program(&partial);
+    assert!(
+        refused.iter().any(|verdict| matches!(verdict,
+            Err(crate::CompilationRefusal::Elaboration(refusal))
+                if refusal.detail.contains("range domains not preserved by its actual byte backing"))),
+        "a cut inside the UTF-8 encoding must not retain its domain: {refused:?}"
+    );
+}
+
+#[test]
 fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
     // Use the actual customer body. Only the harness entry spelling changes;
     // both copies, every bound, and the Room A1/length-seven check stay intact.

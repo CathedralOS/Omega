@@ -900,6 +900,79 @@ pub(crate) mod byte_sequence_predicates {
         }
     }
 
+    /// A whole-window view has the same bytes as its source. Authenticate the
+    /// zero start and the immediately preceding measurement of that exact
+    /// descriptor; equal lengths of unrelated views establish nothing.
+    pub fn byte_subslice_is_whole(machine: &TerminalMachine, operation: &Operation) -> bool {
+        let OperationKind::ByteSequenceSubslice {
+            source,
+            start,
+            end,
+            length,
+            ..
+        } = &operation.kind
+        else {
+            return false;
+        };
+        if end != length {
+            return false;
+        }
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let mut locations = machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .filter_map(move |(ordinal, candidate)| {
+                    (candidate.id == operation.id).then_some((block, ordinal, candidate))
+                })
+        });
+        let Some((block, ordinal, candidate)) = locations.next() else {
+            return false;
+        };
+        if locations.next().is_some() || candidate != operation {
+            return false;
+        }
+        let Some(measurement) = ordinal
+            .checked_sub(1)
+            .and_then(|ordinal| block.operations.get(ordinal))
+        else {
+            return false;
+        };
+        if !matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
+            if measured == source)
+            || !measurement
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == *length && result.scalar_type == count)
+        {
+            return false;
+        }
+        let mut starts = machine.operations().filter(|producer| {
+            producer
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.id == *start)
+        });
+        let Some(zero) = starts.next() else {
+            return false;
+        };
+        starts.next().is_none()
+            && zero
+                .result
+                .scalar_ref()
+                .is_some_and(|result| result.scalar_type == count)
+            && matches!(
+                zero.kind,
+                OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(0)
+                }
+            )
+    }
+
     pub fn byte_sequence_source_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -994,25 +1067,26 @@ pub(crate) mod byte_sequence_predicates {
                         {
                             return None;
                         }
-                        return Some(
-                            if backing.path.is_empty() {
-                                source_predicates(module, machine, backing.place, work, memo)?
-                            } else {
-                                let (root, access) =
-                                    byte_field_root(module, machine, backing.place)?;
-                                if access == StructuralAccess::WriteOnlyBorrow
-                                    || backing.access == StructuralAccess::WriteOnlyBorrow
-                                {
-                                    return None;
-                                }
-                                shared_byte_field_copy_predicates(
-                                    module.structural_types.iter(),
-                                    root,
-                                    &backing.path,
-                                )?
+                        let predicates = if backing.path.is_empty() {
+                            source_predicates(module, machine, backing.place, work, memo)?
+                        } else {
+                            let (root, access) = byte_field_root(module, machine, backing.place)?;
+                            if access == StructuralAccess::WriteOnlyBorrow
+                                || backing.access == StructuralAccess::WriteOnlyBorrow
+                            {
+                                return None;
                             }
-                            .subslice(),
-                        );
+                            shared_byte_field_copy_predicates(
+                                module.structural_types.iter(),
+                                root,
+                                &backing.path,
+                            )?
+                        };
+                        return Some(if byte_subslice_is_whole(machine, operation) {
+                            predicates
+                        } else {
+                            predicates.subslice()
+                        });
                     }
                     let declared = byte_result_predicates(module, machine, source)?;
                     let copy = match &operation.kind {
@@ -1668,6 +1742,117 @@ pub(crate) mod byte_sequence_predicates {
                 OperationResult::Scalar(value(raw, scalar_type)),
                 kind,
             )
+        }
+
+        #[test]
+        fn whole_byte_windows_require_zero_and_their_own_immediate_measurement() {
+            let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+            let root = PlaceId::new(1).unwrap();
+            let source =
+                terminal_psi::StructuralArgument::whole(root, StructuralAccess::SharedBorrow);
+            let mut entry = Block::plain(
+                BlockId::new(1).unwrap(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: EdgeId::new(1).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            );
+            entry.operations = vec![
+                constant(
+                    1,
+                    count,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(0),
+                    },
+                ),
+                constant(
+                    2,
+                    count,
+                    OperationKind::ByteSequenceLength {
+                        source: source.clone(),
+                    },
+                ),
+                Operation::unsuspended(
+                    OperationId::new(3).unwrap(),
+                    OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        place: PlaceId::new(2).unwrap(),
+                        structural_type: StructuralTypeId::new(1).unwrap(),
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    OperationKind::ByteSequenceSubslice {
+                        source,
+                        start: ValueId::new(1).unwrap(),
+                        end: ValueId::new(2).unwrap(),
+                        length: ValueId::new(2).unwrap(),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    },
+                ),
+            ];
+            let machine = TerminalMachine {
+                assembly_target_requirement: RegisterTargetApplicability::Any,
+                id: MachineId::new(1).unwrap(),
+                attachment: None,
+                ranked_scc: None,
+                structural_places: Vec::new(),
+                call_formations: Vec::new(),
+                block_entry_claims: Vec::new(),
+                loan_completions: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: entry.id,
+                blocks: vec![entry],
+                contract: MachineContract::empty(ContractId::new(1).unwrap()),
+            };
+            let whole = |machine: &TerminalMachine| {
+                byte_subslice_is_whole(machine, &machine.blocks[0].operations[2])
+            };
+            assert!(whole(&machine));
+
+            let mut partial = machine.clone();
+            partial.blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(1),
+            };
+            assert!(!whole(&partial), "a UTF-8 codepoint may cross the cut");
+
+            let mut foreign = machine.clone();
+            let OperationKind::ByteSequenceLength { source } =
+                &mut foreign.blocks[0].operations[1].kind
+            else {
+                unreachable!()
+            };
+            source.place = PlaceId::new(3).unwrap();
+            assert!(
+                !whole(&foreign),
+                "an unrelated equal-sized view is not this source"
+            );
+
+            let mut wrong_width = machine.clone();
+            wrong_width.blocks[0].operations[0].result = OperationResult::Scalar(value(
+                1,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+            ));
+            assert!(!whole(&wrong_width));
+
+            let mut duplicate = machine.clone();
+            let mut extra = duplicate.blocks[0].operations[0].clone();
+            extra.id = OperationId::new(4).unwrap();
+            duplicate.blocks[0].operations.push(extra);
+            assert!(!whole(&duplicate), "the zero must have one actual producer");
+
+            let mut shortened = machine.clone();
+            let OperationKind::ByteSequenceSubslice { end, .. } =
+                &mut shortened.blocks[0].operations[2].kind
+            else {
+                unreachable!()
+            };
+            *end = ValueId::new(1).unwrap();
+            assert!(!whole(&shortened));
         }
 
         #[test]

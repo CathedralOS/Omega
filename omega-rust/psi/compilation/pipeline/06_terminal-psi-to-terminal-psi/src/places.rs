@@ -961,14 +961,25 @@ impl<'a> Storage<'a> {
         }
         .descriptor_location()
         .ok_or_else(unresolved)?;
-        let captured = references
-            .storage_projection(self.machine, (block, before), &location)
-            .ok_or_else(|| {
-                self.unsupported(
-                    concerns,
-                    terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
-                )
-            })?;
+        let captured = references.storage_projection(self.machine, (block, before), &location);
+        #[cfg(test)]
+        if captured.is_none() {
+            eprintln!(
+                "UNRESOLVED BACKING {:?} {:?} {:?} {:?} origins={:?} block={:#?}",
+                self.machine,
+                concerns,
+                (block, before),
+                location,
+                references.source_origins(self.machine, (block, before), &location),
+                self.lowered.block(&block),
+            );
+        }
+        let captured = captured.ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
+            )
+        })?;
         let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
             source: root,
             projection,
@@ -4257,9 +4268,9 @@ impl<'a> Storage<'a> {
         Ok(result)
     }
 
-    /// A shared subslice inherits predicates that hold for every window of
-    /// its source. Name the actual producer's result and keep the source
-    /// condition in the proof so each loop arrival must establish it.
+    /// A shared subslice inherits window-preserving predicates; an exact whole
+    /// window also preserves UTF-8 and other predicates of the entire source.
+    /// Keep the source condition in the proof: an annotation grants no fact.
     pub(crate) fn subslice_predicate_premises(
         &self,
         operation: &Operation,
@@ -4281,10 +4292,11 @@ impl<'a> Storage<'a> {
         {
             return Ok(Vec::new());
         }
+        let whole = terminal_semantics::byte_subslice_is_whole(self.lowered, operation);
         let source = self.argument(source, concerns)?;
         let mut known = Vec::new();
         for predicate in ByteSequencePredicate::ALL {
-            if !predicate.is_subslice_preserving() {
+            if !whole && !predicate.is_subslice_preserving() {
                 continue;
             }
             let term = match self.byte_source(predicate, &source, concerns) {

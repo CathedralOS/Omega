@@ -490,21 +490,6 @@ impl Program<'_> {
                             },
                             carrier,
                         )?,
-                        // Primitive byte qualifications remain structural
-                        // memberships. Lowering states them on the produced
-                        // descriptor and the receiver checks the actual
-                        // literal bytes; no scalar proof substitutes for it.
-                        (ValueType::Record(row, _, _), Some(_))
-                            if matches!(operand.kind, ExpressionKind::ByteLiteral(_))
-                                && self.is_view(id, row)?
-                                && typed_trees::byte_predicates::domain_byte_predicate(
-                                    self.typed,
-                                    domain.declaration,
-                                )
-                                .is_some() =>
-                        {
-                            (Vec::new(), String::new())
-                        }
                         // An array or record, or a reference displaying a
                         // domain on its referent (`&text as +Terminated`):
                         // the clauses are stated over the plain value at one
@@ -793,14 +778,6 @@ impl Program<'_> {
                 self.typed.expression_table.expression(expression),
                 typed_trees::expression::ExpressionNode::ArrayLiteral(_)
             )
-    }
-
-    /// Whether the record row `row` is a shared byte view.
-    fn is_view(&self, id: MachineId, row: semantic_vocabulary::StructuralTypeId) -> Checked<bool> {
-        Ok(matches!(
-            self.data_type(id, row)?.shape,
-            crate::StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view()
-        ))
     }
 }
 
