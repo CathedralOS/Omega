@@ -1100,11 +1100,31 @@ impl Program<'_> {
         use language_core::cast_form::CastEntryKind;
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         if cast.form == language_core::cast_form::CastForm::Value && cast.result_type.is_valid() {
-            let (term, before) = self.term(id, scope, cast.value, expected)?;
-            let after = self.scalar_domain_cast_type(id, cast.result_type, before)?;
+            let after = self.qualified_scalar_type(id, cast.result_type)?;
+            let landing = after.scalar().filter(|_| self.wholly_anonymous(cast.value));
+            let (term, before) = self.term(id, scope, cast.value, landing)?;
             if before == after {
                 return Ok((term, after));
             }
+            if let (
+                ValueType::Scalar(ScalarType::Integer(from), Qualification::NONE),
+                ValueType::Scalar(ScalarType::Integer(to), Qualification::NONE),
+            ) = (before, after)
+                && !from.is_address()
+                && !to.is_address()
+            {
+                // Widening is total. A narrowing or sign change must form its
+                // representability obligation before this clause can be used.
+                let converted = if from.can_widen_to(to) {
+                    ScalarTerm::integer_widen(from, to, term)
+                } else {
+                    ScalarTerm::integer_exact_cast(from, to, term)
+                };
+                return converted
+                    .map(|term| (term, after))
+                    .map_err(|_| unavailable("integer cast with no exact carrier conversion"));
+            }
+            self.scalar_domain_cast_type(id, cast.result_type, before)?;
             return Err(unavailable(
                 "value cast in a clause changes its qualification",
             ));
