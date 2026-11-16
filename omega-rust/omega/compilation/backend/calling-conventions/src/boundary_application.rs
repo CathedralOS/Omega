@@ -37,7 +37,7 @@ pub struct BoundaryCallingApplication {
     pub report_fingerprint: u64,
     pub commitment: [u8; 32],
     pub plan: ValidatedBoundaryEntryPlan,
-    pub dispatch_only_parameter_count: u32,
+    pub dispatch_only_formal: Option<u32>,
     pub signature: BoundarySignatureGeometry,
     pub opaque_applications: Vec<BoundaryOpaqueApplication>,
     pub callback_context: crate::CallbackMaterializationContext,
@@ -60,19 +60,20 @@ pub struct BoundarySignatureGeometry {
 
 pub struct NativeCallProjection<'geometry> {
     parameters: &'geometry [BoundaryNativeParameterGeometry],
-    dispatch_only_parameter_count: u32,
+    dispatch_only_formal: Option<u32>,
 }
 
 impl<'geometry> NativeCallProjection<'geometry> {
+    // A dispatch-only table remains one exact semantic formal even when
+    // native-only callbacks precede it. Omitting a prefix changes the other
+    // arguments as soon as the table is not first in declaration order.
     pub fn new(
         parameters: &'geometry [BoundaryNativeParameterGeometry],
         semantic_parameter_count: usize,
-        dispatch_only_parameter_count: u32,
+        dispatch_only_formal: Option<u32>,
     ) -> Result<Self, String> {
-        let dispatch_count = usize::try_from(dispatch_only_parameter_count)
-            .map_err(|_| "dispatch prefix exceeds usize")?;
-        if dispatch_count > semantic_parameter_count {
-            return Err("dispatch prefix exceeds the public semantic telescope".into());
+        if dispatch_only_formal.is_some_and(|formal| formal as usize >= semantic_parameter_count) {
+            return Err("dispatch formal is outside the public semantic telescope".into());
         }
         let mut semantic_seen = vec![false; semantic_parameter_count];
         for (ordinal, parameter) in parameters.iter().enumerate() {
@@ -104,14 +105,14 @@ impl<'geometry> NativeCallProjection<'geometry> {
         }
         Ok(Self {
             parameters,
-            dispatch_only_parameter_count,
+            dispatch_only_formal,
         })
     }
 
     fn is_dispatch_only(&self, parameter: &BoundaryNativeParameterGeometry) -> bool {
         matches!(parameter.origin,
             BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }
-            if formal_ordinal < self.dispatch_only_parameter_count)
+            if Some(formal_ordinal) == self.dispatch_only_formal)
     }
 
     pub fn parameters(
@@ -140,6 +141,73 @@ impl<'geometry> NativeCallProjection<'geometry> {
     }
 }
 
+#[cfg(test)]
+mod projection_tests {
+    use super::*;
+    use crate::{CallbackRequirementId, NativeParameterId, StaticMachineBinderId};
+
+    fn parameters() -> Vec<BoundaryNativeParameterGeometry> {
+        [
+            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 0 },
+            BoundaryNativeParameterOrigin::PrivateCallback {
+                binder: StaticMachineBinderId::new(11).unwrap(),
+                requirement: CallbackRequirementId::new(12).unwrap(),
+            },
+            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 1 },
+            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 2 },
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, origin)| BoundaryNativeParameterGeometry {
+            identity: NativeParameterId::new(ordinal as u64 + 1).unwrap(),
+            native_ordinal: ordinal as u32,
+            origin,
+            shape: BoundaryNativeParameterShape::Semantic(0),
+        })
+        .collect()
+    }
+
+    #[test]
+    fn dispatch_omits_the_selected_formal_and_keeps_callback_order() {
+        let parameters = parameters();
+        let projection = NativeCallProjection::new(&parameters, 3, Some(1)).unwrap();
+        assert_eq!(
+            projection
+                .parameters()
+                .map(|row| row.native_ordinal)
+                .collect::<Vec<_>>(),
+            [0, 1, 3]
+        );
+        assert_eq!(projection.parameter_ordinal(0).unwrap(), Some(0));
+        assert_eq!(projection.parameter_ordinal(1).unwrap(), Some(1));
+        assert_eq!(projection.parameter_ordinal(2).unwrap(), None);
+        assert_eq!(projection.parameter_ordinal(3).unwrap(), Some(2));
+    }
+
+    #[test]
+    fn a_passed_table_preserves_every_native_parameter() {
+        let parameters = parameters();
+        let projection = NativeCallProjection::new(&parameters, 3, None).unwrap();
+        assert_eq!(projection.parameters().count(), parameters.len());
+        for ordinal in 0..parameters.len() {
+            assert_eq!(
+                projection.parameter_ordinal(ordinal as u32).unwrap(),
+                Some(ordinal)
+            );
+        }
+    }
+
+    #[test]
+    fn a_dispatch_selection_does_not_hide_a_missing_or_repeated_formal() {
+        let mut parameters = parameters();
+        assert!(NativeCallProjection::new(&parameters, 3, Some(3)).is_err());
+        parameters[3].origin = BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 1 };
+        assert!(NativeCallProjection::new(&parameters, 3, Some(1)).is_err());
+        parameters.pop();
+        assert!(NativeCallProjection::new(&parameters, 3, Some(1)).is_err());
+    }
+}
+
 impl BoundaryCallingApplication {
     pub fn call_projection(&self) -> Result<NativeCallProjection<'_>, String> {
         NativeCallProjection::new(
@@ -148,7 +216,7 @@ impl BoundaryCallingApplication {
                 .span(self.signature.native_parameter_rows)
                 .ok_or("calling application has stale native telescope storage")?,
             self.signature.parameters.len(),
-            self.dispatch_only_parameter_count,
+            self.dispatch_only_formal,
         )
     }
 
@@ -163,9 +231,15 @@ impl BoundaryCallingApplication {
             .span(self.signature.native_parameter_rows)
             .ok_or("native telescope has stale row storage")?;
         let mut strong =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v10");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v11");
         self.call_projection()?;
-        strong.raw(&self.dispatch_only_parameter_count.to_le_bytes());
+        match self.dispatch_only_formal {
+            Some(formal) => {
+                strong.byte(1);
+                strong.raw(&formal.to_le_bytes());
+            }
+            None => strong.byte(0),
+        }
         match &self.calling_owner_application {
             Some(owner) if !owner.is_empty() => {
                 strong.byte(1);
@@ -415,7 +489,7 @@ pub struct BoundaryCallingApplicationCandidate {
     pub report_fingerprint: u64,
     pub commitment: [u8; 32],
     pub plan: BoundaryEntryPlan,
-    pub dispatch_only_parameter_count: u32,
+    pub dispatch_only_formal: Option<u32>,
     pub signature: BoundarySignatureGeometry,
     pub opaque_applications: Vec<BoundaryOpaqueApplication>,
     pub callback_context: crate::CallbackMaterializationContext,
@@ -432,7 +506,7 @@ impl BoundaryCallingApplicationCandidate {
             report_fingerprint,
             commitment,
             plan,
-            dispatch_only_parameter_count,
+            dispatch_only_formal,
             signature,
             opaque_applications,
             callback_context,
@@ -453,11 +527,8 @@ impl BoundaryCallingApplicationCandidate {
             .span(signature.native_parameter_rows)
             .ok_or("recovered native telescope has stale storage")?;
         let mut parameters = Vec::with_capacity(native.len());
-        let projection = NativeCallProjection::new(
-            native,
-            signature.parameters.len(),
-            dispatch_only_parameter_count,
-        )?;
+        let projection =
+            NativeCallProjection::new(native, signature.parameters.len(), dispatch_only_formal)?;
         for parameter in native {
             let shape = match parameter.shape {
                 BoundaryNativeParameterShape::Semantic(root) => {
@@ -528,7 +599,7 @@ impl BoundaryCallingApplicationCandidate {
             report_fingerprint,
             commitment,
             plan: validated,
-            dispatch_only_parameter_count,
+            dispatch_only_formal,
             signature,
             opaque_applications,
             callback_context,

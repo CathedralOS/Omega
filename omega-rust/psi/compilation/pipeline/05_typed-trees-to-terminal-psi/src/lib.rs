@@ -804,6 +804,10 @@ fn finish_reading_into<'source>(
     loop {
         program.resolve_scalar_applications(diagnostic)?;
         if binder_reach.len() == program.symbols.len() {
+            program.prepare_calling_policy_roots(diagnostic)?;
+            if binder_reach.len() != program.symbols.len() {
+                continue;
+            }
             if predicates_prepared {
                 break;
             }

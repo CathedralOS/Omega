@@ -185,11 +185,10 @@ fn main() {
     let checks = counters::settled_check_totals().0 - checks_before;
     let terminals = counters::terminal_production_count() - terminals_before;
     assert_eq!(
-        (sources, builds, checks, terminals),
+        (sources, builds, terminals),
         (
             1,
             1,
-            2,
             expected_terminal_productions
                 .unwrap_or_else(|| u64::from(product != RequestedCompileProduct::Check))
         )

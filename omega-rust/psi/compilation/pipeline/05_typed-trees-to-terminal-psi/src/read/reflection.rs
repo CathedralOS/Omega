@@ -23,6 +23,138 @@ fn invalid(machine: MachineId, detail: impl Into<String>) -> Refusal {
 }
 
 impl Program<'_> {
+    fn parameter_description(
+        &mut self,
+        machine: MachineId,
+        query: symbols::SymbolHandle,
+        call: &TableCallExpression,
+        expected: Option<ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let fail = |detail| invalid(machine, detail);
+        if !call.machine_arguments.is_empty() {
+            return Err(fail("a parameter query accepts no static query arguments"));
+        }
+        let [operand] = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments)
+        else {
+            return Err(fail(
+                "a parameter query requires exactly one declaration path",
+            ));
+        };
+        let selected = self
+            .typed
+            .declaration_operand_from_expression(*operand)
+            .map_err(|reason| invalid(machine, reason))?;
+        if selected.application.is_some()
+            || selected.const_literal.is_some()
+            || selected.evidence_projection.is_some()
+            || selected.type_reference.is_valid()
+        {
+            return Err(fail(
+                "a parameter query requires its exact formal declaration",
+            ));
+        }
+        let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
+            .lexical_owner(self.typed);
+        let description = typed_trees::reflection::construction::parameter_description_identity(
+            self.typed,
+            selected.symbol,
+            author,
+        )
+        .map_err(|reason| invalid(machine, reason))?;
+        let (_, entry) = self.declaration(machine, query)?;
+        let result_type = entry.return_type;
+        let data = self
+            .typed
+            .closed_data_definition(result_type)
+            .ok_or_else(|| fail("a parameter query lost its exact result declaration"))?;
+        if self.typed.core_vocabulary(data.symbol)
+            != Some(CoreVocabulary::Reflection(
+                ReflectionDeclaration::ParameterInfo,
+            ))
+        {
+            return Err(fail(
+                "a parameter query lost its toolchain ParameterInfo result",
+            ));
+        }
+        let (result, record, regions) = self.description_result(
+            machine,
+            result_type,
+            expected,
+            "a parameter description requires structured storage",
+        )?;
+        let fields = self.data_type(machine, record)?.fields().to_vec();
+        if fields.len() != 6 || !self.data_type(machine, record)?.cases().is_empty() {
+            return Err(fail(
+                "a parameter description has another result field roster",
+            ));
+        }
+        let mut values = Vec::with_capacity(fields.len());
+        for (name, bytes) in [
+            ("requirement_identity", description.requirement_identity),
+            (
+                "requirement_application",
+                description.requirement_application,
+            ),
+            ("parameter_identity", description.parameter_identity),
+            ("qualified_type", description.qualified_type),
+            ("source_revision", description.source_revision),
+        ] {
+            let mut matching = fields
+                .iter()
+                .enumerate()
+                .filter(|(_, field)| field.identity == name);
+            let (position, field) = matching
+                .next()
+                .ok_or_else(|| fail("a parameter description lost a byte field"))?;
+            if matching.next().is_some() {
+                return Err(fail("a parameter description repeats a byte field"));
+            }
+            let field_type = self.substitute(field.value_type, &regions);
+            values.push((
+                position,
+                self.byte_literal(machine, &bytes, Some(field_type), source)?,
+            ));
+        }
+        let mut matching = fields
+            .iter()
+            .enumerate()
+            .filter(|(_, field)| field.identity == "declaration_position");
+        let (position, field) = matching
+            .next()
+            .ok_or_else(|| fail("a parameter description lost its position field"))?;
+        if matching.next().is_some()
+            || !matches!(field.value_type, ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), qualification)
+                if integer.bits() == Some(64) && !integer.is_address()
+                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && qualification.is_none())
+        {
+            return Err(fail(
+                "a parameter description position has another declared type",
+            ));
+        }
+        values.push((
+            position,
+            Expression {
+                call_context: None,
+                kind: ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
+                    u128::from(description.declaration_position),
+                )),
+                result: Some(field.value_type),
+                source,
+            },
+        ));
+        values.sort_by_key(|(position, _)| *position);
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::Record { fields: values },
+            result: Some(result),
+            source,
+        })
+    }
+
     fn description_result(
         &mut self,
         machine: MachineId,
@@ -51,14 +183,6 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use semantic_vocabulary::{IntegerValue, ScalarType};
-        use symbols::SymbolKind;
-        use typed_trees::expression::StaticMachineArgument;
-        use typed_trees::reflection::SchemaNode;
-        use typed_trees::reflection::construction::{
-            construct_semantic_schema_graph, construct_semantic_schema_graph_for_type,
-            declaration_source_revision, exact_symbol_identity,
-        };
-        use typed_trees::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
 
         let fail = |detail| invalid(machine, detail);
         if !call.machine_arguments.is_empty() {
@@ -75,229 +199,26 @@ impl Program<'_> {
             .typed
             .declaration_operand_from_expression(*operand)
             .map_err(|reason| invalid(machine, reason))?;
-        let symbols = self.typed.symbols.symbols().nodes();
         let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
             .lexical_owner(self.typed);
-        if !symbols.is_valid(author) {
-            return Err(fail("a field query lost its lexical owner"));
-        }
-        let mut selected = &operand;
-        let mut declaring_type = None;
-        let mut members = Vec::new();
-        while let Some(application) = &selected.application
-            && application.member.is_valid()
-        {
-            if members.contains(&application.member) {
-                return Err(fail("a field query has a cyclic member selection"));
-            }
-            members.push(application.member);
-            if !symbols.is_valid(selected.symbol) {
-                return Err(fail("a field query lost its supplying declaration"));
-            }
-            match self.typed.symbols.get(selected.symbol).kind {
-                SymbolKind::Data | SymbolKind::TypeAlias => {
-                    if declaring_type.is_some() {
-                        return Err(fail(
-                            "a field query has an unjoined enclosing type application",
-                        ));
-                    }
-                    let mut head = selected.clone();
-                    head.application
-                        .as_mut()
-                        .expect("selected member has an application")
-                        .member = arena::Handle::invalid();
-                    if !self
-                        .typed
-                        .type_reference_table
-                        .contains_type_reference(head.type_reference)
-                        || !self
-                            .typed
-                            .type_reference_table
-                            .operand_lifetime_owner(head.type_reference)
-                            .is_valid()
-                    {
-                        return Err(fail(
-                            "a field query lost its prepared supplying type and scope",
-                        ));
-                    }
-                    self.typed
-                        .static_operand_region_supplier(&head, author)
-                        .map_err(|reason| invalid(machine, reason))?;
-                    declaring_type = Some(head.type_reference);
-                }
-                SymbolKind::Variant
-                    if application.arguments.is_empty()
-                        && application.lifetime_arguments.is_empty() => {}
-                _ => return Err(fail("a field query has a non-type member supplier")),
-            }
-            selected = self
-                .typed
-                .expression_table
-                .static_member(application.member)
-                .ok_or_else(|| fail("a field query lost its selected member"))?;
-        }
-        if !symbols.is_valid(selected.symbol) {
-            return Err(fail("a field query lost its selected declaration"));
-        }
-        if self.typed.symbols.get(selected.symbol).kind != SymbolKind::Field {
-            return Err(fail(
-                "a field query requires its exact resolved field declaration",
-            ));
-        }
-        if selected.const_literal.is_some() || selected.evidence_projection.is_some() {
-            return Err(fail(
-                "a field query cannot describe a value or evidence projection",
-            ));
-        }
-        if selected.application.is_some() {
-            return Err(fail("a field query needs its resolved owner application"));
-        }
-        if selected.type_reference.is_valid() {
-            return Err(fail(
-                "a field query has an unjoined supplying type reference",
-            ));
-        }
-        let parent = self.typed.symbols.get(selected.symbol).parent;
-        if !symbols.is_valid(parent) {
-            return Err(fail("a field query lost its declaring owner"));
-        }
-        let owner = if self.typed.symbols.get(parent).kind == SymbolKind::Variant {
-            self.typed.symbols.get(parent).parent
-        } else {
-            parent
-        };
-        if !symbols.is_valid(owner) || self.typed.symbols.get(owner).kind != SymbolKind::Data {
-            return Err(fail("a field query has no data declaration owner"));
-        }
-        let data = match declaring_type {
-            Some(reference) => {
-                if self
-                    .typed
-                    .closed_data_constructor_field(reference, owner, selected.symbol)
-                    .is_none()
-                {
-                    return Err(fail(
-                        "a field query does not belong to its closed owner application",
-                    ));
-                }
-                self.typed
-                    .closed_data_definition(reference)
-                    .ok_or_else(|| fail("a field query lost its closed declaring data"))?
-            }
-            None => self
-                .typed
-                .unique_data_definition_by_symbol(owner)
-                .ok_or_else(|| fail("a field query has no unique declaring data"))?,
-        };
-        let mut occurrences = 0;
-        for member in self.typed.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field)
-                    if parent == owner && field.symbol == selected.symbol =>
-                {
-                    occurrences += 1
-                }
-                typed_trees::data::DataMember::Variant(case) if case.symbol == parent => {
-                    occurrences += self
-                        .typed
-                        .data_payload_fields(case)
-                        .iter()
-                        .filter(|field| field.symbol == selected.symbol)
-                        .count();
-                }
-                _ => {}
-            }
-        }
-        if occurrences != 1 {
-            return Err(fail(
-                "a field query is not its declaring owner's exact field row",
-            ));
-        }
-        if data.generic_instance.is_none()
-            && (!self.typed.data_type_parameters(data).is_empty()
-                || !data.lifetime_parameters.is_empty())
-        {
-            return Err(fail(
-                "a field query requires its complete owner application",
-            ));
-        }
-        let author_span = self
-            .typed
-            .symbols
-            .symbol_provenance_source_span(author)
-            .ok_or_else(|| fail("a field query lost its lexical author"))?;
-        if !self
-            .typed
-            .symbols
-            .source_reference_may_select_symbol(author_span, selected.symbol)
-        {
-            return Err(fail(
-                "a field query is outside its author's declaration scope",
-            ));
-        }
-        let authority = typed_trees::reflection::construction::schema_query_authority(
-            self.typed, author, owner,
+        let description = typed_trees::reflection::construction::field_description_identity(
+            self.typed, &operand, author,
         )
         .map_err(|reason| invalid(machine, reason))?;
-        let graph = match declaring_type {
-            Some(reference) => {
-                construct_semantic_schema_graph_for_type(self.typed, reference, authority)
-            }
-            None => construct_semantic_schema_graph(self.typed, owner, authority),
-        }
-        .map_err(|reason| invalid(machine, reason))?;
-        let member = exact_symbol_identity(self.typed, selected.symbol)
-            .map_err(|reason| invalid(machine, reason))?
-            .0;
-        let mut described = graph.nodes().iter().filter_map(|node| match node {
-            SchemaNode::Field(field) if field.member_identity == member => Some(field),
-            _ => None,
-        });
-        let field = described
-            .next()
-            .ok_or_else(|| fail("field query lost its exact schema member"))?;
-        if described.next().is_some() {
-            return Err(fail("field query has ambiguous schema correspondence"));
-        }
-        let case_identity = if field.owner_case.is_valid() {
-            let SchemaNode::Case(case) = graph.node(field.owner_case) else {
-                return Err(fail("field query lost its exact case owner"));
-            };
-            case.member_identity.as_bytes().to_vec()
-        } else {
-            Vec::new()
-        };
-        let owner_application = match &graph.declaration().application_identity {
-            Some(identity) => identity.clone(),
-            None => portable_applied_index_identity(
-                self.typed,
-                IndexIdentityArgument::StaticArgument(&StaticMachineArgument {
-                    symbol: owner,
-                    ..Default::default()
-                }),
-                author,
-                &[],
-            )
-            .and_then(|identity| self.typed.type_identity_text(identity))
-            .ok_or_else(|| fail("field query lost its complete owner type identity"))?,
-        };
-        let revision = declaration_source_revision(self.typed, owner)
-            .map_err(|reason| invalid(machine, reason))?;
         let bytes = [
-            ("member_identity", field.member_identity.as_bytes().to_vec()),
-            ("case_identity", case_identity),
-            (
-                "owner_identity",
-                graph.declaration().owner_identity.as_bytes().to_vec(),
-            ),
-            ("owner_application", owner_application.into_bytes()),
-            ("name", field.name.as_bytes().to_vec()),
-            ("qualified_type", field.qualified_type.as_bytes().to_vec()),
-            ("source_revision", revision),
+            ("member_identity", description.member_identity),
+            ("case_identity", description.case_identity),
+            ("owner_identity", description.owner_identity),
+            ("owner_application", description.owner_application),
+            ("name", description.name),
+            ("qualified_type", description.qualified_type),
+            ("source_revision", description.source_revision),
         ];
-        let position = u64::from(field.declaration_position);
-        let stable_number = field.stable_number;
-        let erased = field.erased;
+        let position = description.declaration_position;
+        let stable_number = description
+            .has_stable_number
+            .then_some(description.stable_number);
+        let erased = description.is_erased;
         // A field description comes from the declaration, including erased
         // members whose runtime storage cannot supply a value.
         let (_, entry) = self.declaration(machine, query)?;
@@ -537,7 +458,8 @@ impl Program<'_> {
         let Some(CoreVocabulary::Reflection(
             query @ (ReflectionDeclaration::Callable
             | ReflectionDeclaration::Schema
-            | ReflectionDeclaration::Field),
+            | ReflectionDeclaration::Field
+            | ReflectionDeclaration::Parameter),
         )) = self.typed.core_vocabulary(declaration.symbol)
         else {
             return Ok(None);
@@ -577,6 +499,11 @@ impl Program<'_> {
         if query == ReflectionDeclaration::Field {
             return self
                 .field_description(machine, declaration.symbol, call, expected, source)
+                .map(Some);
+        }
+        if query == ReflectionDeclaration::Parameter {
+            return self
+                .parameter_description(machine, declaration.symbol, call, expected, source)
                 .map(Some);
         }
         if !call.machine_arguments.is_empty() {
