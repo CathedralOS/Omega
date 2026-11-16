@@ -169,37 +169,15 @@ impl Storage<'_> {
         Ok(backing)
     }
 
-    /// Layout compatibility cannot establish a declaration's predicates or
-    /// those of its inline children. Source and target elements share this
-    /// check before a representation view can expose their payload.
     fn plain_collection_element(
         &self,
         element: semantic_vocabulary::StructuralTypeId,
         concerns: Construct,
     ) -> Checked<bool> {
-        let mut pending = vec![element];
-        let mut visited = Vec::new();
-        while let Some(element) = pending.pop() {
-            if visited.contains(&element) {
-                continue;
-            }
-            visited.push(element);
-            let declaration = self.declaration(element, concerns)?;
-            if !self.domains.get(element).is_some_and(Vec::is_empty)
-                || !declaration.requires.is_empty()
-                || declaration.scalar_restriction.is_some()
-            {
-                return Ok(false);
-            }
-            match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. } => {
-                    pending.extend(terminal_psi::structural_children(fields))
-                }
-                StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                _ => {}
-            }
-        }
-        Ok(true)
+        let declaration = self.declaration(element, concerns)?;
+        Ok(self.domains.get(element).is_some_and(Vec::is_empty)
+            && declaration.requires.is_empty()
+            && declaration.scalar_restriction.is_none())
     }
 
     /// Forming a view retains the array's storage and creates a descriptor;
@@ -346,6 +324,30 @@ impl Storage<'_> {
                         "representation view needs its captured source descriptor",
                     ));
                 };
+                // A change of element presentation cannot establish any
+                // source or target inline child's predicates. Ordinary
+                // same-element loans retain their existing contract check.
+                let mut pending = vec![source_element, element];
+                let mut visited = Vec::new();
+                while let Some(element) = pending.pop() {
+                    if visited.contains(&element) {
+                        continue;
+                    }
+                    visited.push(element);
+                    if !self.plain_collection_element(element, concerns)? {
+                        return Err(self.unsupported(
+                            concerns,
+                            "a collection view cannot establish target element predicates",
+                        ));
+                    }
+                    match &self.declaration(element, concerns)?.shape {
+                        StructuralTypeShape::Record { fields, .. } => {
+                            pending.extend(terminal_psi::structural_children(fields))
+                        }
+                        StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+                        _ => {}
+                    }
+                }
                 let ElementViewRegion::WholeRepresentation { source_length, .. } = region else {
                     return Err(self.foreign(concerns, "representation view has another region"));
                 };
@@ -379,12 +381,6 @@ impl Storage<'_> {
                 );
             }
         };
-        if !self.plain_collection_element(element, concerns)? {
-            return Err(self.unsupported(
-                concerns,
-                "a collection view cannot establish target element predicates",
-            ));
-        }
         let actual = self.collection_backing_source(source, 0, source_element, concerns)?;
         let (whole, projected) = StructuralPathQualification::select_restorable(
             &actual.qualifications,
