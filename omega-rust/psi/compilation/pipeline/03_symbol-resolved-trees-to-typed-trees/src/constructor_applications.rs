@@ -1,5 +1,5 @@
 //! Constructed values retain the types their payloads determine. Ordinary
-//! call families use those same types to select one declared parameter list.
+//! calls select the expected result-domain set, then match declared inputs.
 //! This forms types and selections; the lowered checker still judges fields,
 //! argument admission, generic eligibility and declaration requirements.
 
@@ -261,9 +261,7 @@ fn expression_owner(
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut callers = owners.expression_owners(expression);
-    let Some(first) = callers.next() else {
-        return None;
-    };
+    let first = callers.next()?;
     let caller = if let Some(call) = program.expression_table.call_node(expression)
         && call.target_symbol.is_valid()
         && call.authored_machine_application.is_valid()
@@ -406,7 +404,7 @@ fn select_call(
                 caller,
                 typed_trees::deferred_refusals::DeferredRequest::CallResultDomainMismatch,
                 call.source_span,
-                &format!(
+                format!(
                     "declared result domains `{}`; expected `{}`",
                     actual.identity(),
                     expected.identity()

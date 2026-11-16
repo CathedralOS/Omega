@@ -1341,14 +1341,9 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
             .result
             .expect_err("Saturating must be explicitly removed")
             .into_diagnostics();
-            assert!(!diagnostics.is_empty());
-            assert!(
-                diagnostics
-                    .iter()
-                    .all(|row| !row.message.contains("not supported yet")),
-                "{diagnostics:?}"
-            );
-            eprintln!("policy removal diagnostics: {diagnostics:?}");
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+            assert!(diagnostics[0].message.contains("this value's type carries `Saturating` and the machine's result declares no domain")
+                && diagnostics[0].message.contains("while reading the body of `signed32`"), "{diagnostics:?}");
         })
         .unwrap()
         .join()
