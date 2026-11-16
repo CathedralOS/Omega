@@ -1510,6 +1510,72 @@ machine main() {
     }
 
     #[test]
+    fn anonymous_call_regions_do_not_assign_a_public_source_owner() {
+        let program = crate::qualified_operator_home_tests::checked_anonymous(&[(
+            "build.omg",
+            r#"
+public data View<'text> { bytes: &'text [u8]; }
+machine use_view<T>(value: T) {}
+machine build() { use_view(View { bytes: "text" }); }
+"#,
+        )])
+        .expect("private inference precedes the Build's named declaration");
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "build")
+            .unwrap();
+        assert!(
+            program
+                .symbols
+                .symbol_package_identity(caller.symbol)
+                .is_none()
+        );
+        assert!(
+            program
+                .normalized_hermetic_symbol_identity(caller.symbol)
+                .is_err(),
+            "private region creation cannot name an anonymous source package"
+        );
+        let app = program
+            .expression_table
+            .static_machine_applications()
+            .find(|(_, app)| app.inferred_lifetime_owner.is_valid())
+            .map(|(_, app)| app)
+            .unwrap();
+        assert!(
+            program
+                .inferred_invocation_lifetime_scope(app.inferred_lifetime_owner)
+                .is_some()
+        );
+        let [argument] = program
+            .expression_table
+            .static_machine_application_arguments(
+                program
+                    .expression_table
+                    .static_machine_applications()
+                    .find(|(_, candidate)| {
+                        candidate.inferred_lifetime_owner == app.inferred_lifetime_owner
+                    })
+                    .unwrap()
+                    .0,
+            )
+        else {
+            panic!("one actual inferred type")
+        };
+        let region = program
+            .type_reference_table
+            .operand_lifetimes(argument.type_reference)[0];
+        let identity =
+            typed_trees::type_identity::portable_lifetime_parameter_identity(&program, region)
+                .unwrap();
+        assert!(
+            identity.contains("unresolved-owner"),
+            "{identity}"
+        );
+    }
+
+    #[test]
     fn ordinary_call_inference_recovers_a_repeated_const_array_extent() {
         let source = r#"
             machine extent<const N: u64>(left: &[u8; N], right: &[u8; N]) -> u64 { N }

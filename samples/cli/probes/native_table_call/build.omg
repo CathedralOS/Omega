@@ -5,6 +5,8 @@ use omega::language::core::reflect;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "native_table_call");
+    let std_registration: DependencyRegistration = Build::dependency(builder,
+        dependency::from_source(Source::Path { location: "../../../../source/library/std" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind<ModuleSymbols::module>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {

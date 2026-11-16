@@ -2,13 +2,14 @@
 // QueryPerformanceCounter writes only the first i64; the function address follows it.
 // Expected exit: 0
 use omega_language_std::Calling;
+use omega_language_std::WindowsX64ScalarCalling;
 use omega_language_std::CallingPolicy;
 use omega_language_std::BoundarySignature;
 use omega_language_std::BoundaryPlanResult;
 use omega_language_std::table_parameter_for_formal;
 use omega_language_std::windows_x64_scalar_plan;
 
-boundary trait ModuleSymbols {
+boundary trait ModuleSymbols: Calling<WindowsX64ScalarCalling> {
     machine module(name: &[u8; 13]) -> addr reaches terminates crashes none;
     machine symbol(module: addr, name: &[u8; 24]) -> addr reaches terminates crashes none;
 }
@@ -68,14 +69,14 @@ invokes Arithmetic
     let symbol: [u8; 24] = "QueryPerformanceCounter\0";
     let module: addr = ModuleSymbols::module(&library);
     let function: addr = ModuleSymbols::symbol(module, &symbol);
-    let mut table: CounterTable = CounterTable { query: function };
-    let mut nested: Observations = Observations { table: CounterTable { query: function } };
+    let mut table: CounterTable = CounterTable { query: function, .. };
+    let mut nested: Observations = Observations { table: CounterTable { query: function, .. } };
     let success: i32 = Counter::query(&mut table);
     let forwarded: i32 = measure(&mut nested.table);
-    let functions: CounterFunctions = CounterFunctions { query: function };
+    let functions: CounterFunctions = CounterFunctions { query: function, .. };
     let mut output: i64;
     let direct_function: i32 = CounterFunction::query(&functions, &mut output);
-    let holder: FunctionHolder = FunctionHolder { functions: CounterFunctions { query: function } };
+    let holder: FunctionHolder = FunctionHolder { functions: CounterFunctions { query: function, .. } };
     let mut forwarded_output: i64;
     let forwarded_function: i32 = measure_function(&holder.functions, &mut forwarded_output);
     let process_symbol: [u8; 24] = "GetCurrentProcessId\0\0\0\0\0";

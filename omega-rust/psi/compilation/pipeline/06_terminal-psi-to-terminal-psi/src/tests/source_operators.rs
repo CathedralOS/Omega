@@ -399,3 +399,71 @@ fn an_inlined_predicate_body_keeps_its_own_source_operator_owner() {
         operator_program(&typed).expect("the actual denotational body has its own source owner");
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
+
+#[test]
+fn contract_arithmetic_keeps_its_selected_maximum_u64_operands() {
+    for (contract, accepted) in [
+        ("requires size <= 18446744073709551615u64 - offset", true),
+        ("", false),
+    ] {
+        let typed = super::boundary_calls::typed(&format!(
+            r#"
+            data Pair [copy] {{ first: u64; second: u64; }}
+            machine - difference(left: Pair, right: Pair) -> Pair {{ left }}
+            machine <= ordered(left: Pair, right: Pair) -> bool {{ left.first <= right.first }}
+            machine entry(offset: u64, size: u64) -> u64 {contract} {{ offset + size }}
+        "#
+        ));
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .expect(
+            "the contract keeps its selected u64 operands despite unrelated operator declarations",
+        );
+        let verdict = judge(Ok(elaboration)).unwrap();
+        if accepted {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            assert!(
+                matches!(verdict, RouteVerdict::Rejected { .. }),
+                "{verdict:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_array_contract_indices_keep_their_selected_collection_operation() {
+    let source = |index, byte| {
+        format!(
+            r#"
+machine last(name: &[u8; 8]) -> bool requires name[{index}] == 0 {{ true }}
+machine entry() -> bool {{ let name: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, {byte}]; last(&name) }}
+"#
+        )
+    };
+    assert_enum_operator_value(&source(7, 0), true);
+    let detail = enum_operator(&source(8, 0)).unwrap_err();
+    assert!(detail.contains("outside its fixed extent 8"), "{detail}");
+    let verdict = enum_operator(&source(7, 1)).expect("the wrong byte reaches ordinary checking");
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("the caller must establish the indexed precondition");
+    };
+    assert!(unproved.iter().any(|row| matches!(
+        row.kind,
+        terminal_check_tables::obligations::ObligationKind::CallRequirement { .. }
+    )));
+}

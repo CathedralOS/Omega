@@ -457,19 +457,28 @@ pub(crate) mod reference_completion {
         {
             return Ok(BorrowedLoanSource::Owner);
         }
+        if !view && analysis.shared_plain_input_arrival(machine.id, at, descriptor) {
+            // Every retained choice is plain storage held through an original
+            // shared input. Continuing that header creates no exclusive parent
+            // or view permission, and its original choices remain in replay.
+            return Ok(BorrowedLoanSource::Incoming);
+        }
         if crate::arrival_parameter(machine, descriptor.root)
             .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
-            && let Some(original) = analysis.location(machine.id, at, descriptor)
+            && let Some(crate::descriptor_results::DescriptorCallOrigin::Argument {
+                source,
+                projection,
+            }) = analysis.storage_projection(machine.id, at, descriptor)
             && let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-                parameter.place == original.root && parameter.access != StructuralAccess::Owned
+                parameter.place == source && parameter.access != StructuralAccess::Owned
             })
         {
-            let path = crate::descriptor_lifetimes::descriptor_path(
-                &module.structural_types,
-                parameter.structural_type,
-                &original.path,
-            )
-            .ok_or("borrowed successor has no exact original input path")?;
+            // Indexed storage keeps its captured address through headers too.
+            // A slot-only query discards that projection and cannot authenticate
+            // the actual incoming loan. Indirect or ambiguous origins still fail.
+            let path = projection
+                .captured_storage_path()
+                .ok_or("borrowed successor has no exact original input path")?;
             if crate::projection_stays_in_inline_storage(
                 module.structural_types.iter(),
                 parameter.structural_type,

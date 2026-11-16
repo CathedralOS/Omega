@@ -17,6 +17,17 @@ pub(crate) fn checked(units: &[(&str, &str)]) -> Result<typed_trees::TypedTrees,
     )
 }
 
+pub(crate) fn checked_anonymous(units: &[(&str, &str)]) -> Result<typed_trees::TypedTrees, String> {
+    packages(
+        &units
+            .iter()
+            .map(|(path, text)| (u8::MAX, *path, *text))
+            .collect::<Vec<_>>(),
+        &[],
+        &[],
+    )
+}
+
 pub(crate) fn checked_with_equality(
     units: &[(&str, &str)],
 ) -> Result<typed_trees::TypedTrees, String> {
@@ -48,7 +59,7 @@ fn packages(
                 root.join(path),
                 (*text).to_owned(),
                 root,
-                (*package != 0).then(|| identity(*package)),
+                (*package != 0 && *package != u8::MAX).then(|| identity(*package)),
                 if *package == 0 {
                     source::SourceOrigin::Toolchain
                 } else {

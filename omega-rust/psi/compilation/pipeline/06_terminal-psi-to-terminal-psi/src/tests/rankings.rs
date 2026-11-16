@@ -596,3 +596,136 @@ fn a_slice_loop_must_shrink_the_slice_it_actually_passes() {
         if refusal.detail.contains("removing strict rank edges")
     )), "passing the unchanged slice cannot prove descent: {:?}", observed_verdicts(&results));
 }
+
+#[test]
+fn ranked_tail_arguments_keep_index_bounds_at_the_transfer() {
+    let text = r#"
+data CellKind [copy] { case Plain; case Nested(index: u64); }
+data Cell [copy] { kind: CellKind; value: u64; }
+data Plan { value: u64; }
+machine entry(cells: &[Cell; 2], plan: &mut Plan, index: u64, n: u64) -> u64
+terminates by n - 1 -> Nat::Descending
+requires index < 2, n > 0
+{
+    transition n > 1 {
+        true -> step(cells, plan, index, n, &cells[index])
+        _ -> 0
+    }
+    machine step(cells: &[Cell; 2], plan: &mut Plan, index: u64, n: u64, cell: &Cell) -> u64
+    requires index < 2, n > 1 {
+        let value: u64 = match cell.kind {
+            CellKind::Plain -> cell.value
+            _ -> 0
+        };
+        plan.value = value;
+        entry(cells, plan, index, n - 1)
+    }
+}
+"#;
+    let results = super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(text));
+    assert!(
+        results
+            .iter()
+            .all(|result| matches!(result, Ok(RouteVerdict::Accepted(_)))),
+        "the indexed tail argument remains valid after ranking observations: {:?}",
+        observed_verdicts(&results)
+    );
+    for result in results {
+        let Ok(RouteVerdict::Accepted(accepted)) = result else {
+            unreachable!("the unchanged program was accepted above");
+        };
+        accepted.publish_invocation().unwrap();
+    }
+    let typed = typed_with_ranking_catalog(text);
+    let entry = super::boundary_calls::entry(&typed);
+    let frozen: typed_trees::FrozenTypedTrees = typed.into();
+    let mut forged = typed_trees_to_terminal_psi::elaborate_for(
+        &frozen,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let mut altered = None;
+    for machine in &forged.module.machines {
+        for block in &machine.blocks {
+            for projection in block.terminator.storage_uses() {
+                for segment in projection.path {
+                    if let terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        obligation, ..
+                    } = segment
+                    {
+                        let row = forged
+                            .tables
+                            .machines
+                            .get_mut(machine.id)
+                            .unwrap()
+                            .obligations
+                            .get_mut(*obligation)
+                            .unwrap();
+                        assert_ne!(row.created_at, ProgramPoint::BlockEntry(block.id));
+                        row.created_at = ProgramPoint::BlockEntry(block.id);
+                        altered = Some(forged.clone());
+                        break;
+                    }
+                }
+                if altered.is_some() {
+                    break;
+                }
+            }
+            if altered.is_some() {
+                break;
+            }
+        }
+        if altered.is_some() {
+            break;
+        }
+    }
+    let refusal = judge(Ok(
+        altered.expect("the actual tail transfer has an indexed argument")
+    ))
+    .unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refusal.detail,
+        "an obligation is not created at the point of what owes it in machine `entry`"
+    );
+
+    let overlapping = text
+        .replace("cells: &[Cell; 2]", "cells: &mut [Cell; 2]")
+        .replace("let value: u64", "cells[index].value = 1; let value: u64");
+    let rejected =
+        super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&overlapping));
+    // Mutable-backed alternatives still require an exact borrowed-storage
+    // frame. This refusal does not claim that overlap checking was reached.
+    assert!(
+        rejected.iter().any(|result| matches!(result,
+            Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
+                if refusal.reason == RefusalReason::Unsupported &&
+                    refusal.detail.contains("executable borrowed-storage closure cannot be reconstructed")
+        )),
+        "mutable origins must not gain the shared-input binding: {:?}",
+        observed_verdicts(&rejected)
+    );
+
+    let wrong_bound = text.replace("index < 2", "index < 3");
+    let results =
+        super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&wrong_bound));
+    assert!(
+        results.iter().any(|result| matches!(result,
+            Ok(RouteVerdict::Rejected { unproved, .. }) if unproved.iter().any(|row|
+                matches!(row.kind, ObligationKind::OperationSafety { .. }))
+        )),
+        "an unbounded indexed tail argument must still refuse: {:?}",
+        observed_verdicts(&results)
+    );
+}

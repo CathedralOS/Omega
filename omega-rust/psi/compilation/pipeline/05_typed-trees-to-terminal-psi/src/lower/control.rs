@@ -157,7 +157,6 @@ impl Lowering<'_> {
         {
             return Err(self.internal("an arrival does not match the head's parameters"));
         }
-        self.successor_ranking(member, &arguments, &structural_arguments)?;
         let edge = self.edge(Destination::Block(target), source)?;
         if let Some(acknowledgement) = acknowledgement {
             self.call_formations.push(terminal_psi::CallFormation {

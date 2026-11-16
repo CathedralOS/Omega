@@ -841,3 +841,15 @@ fn a_data_clause_that_tests_a_case_is_published() {
     let outside = verdict(&root("Place::Two { b: 1, count: 17 }"), &["root"]);
     assert!(outside.starts_with("cannot prove"), "{outside}");
 }
+
+#[test]
+fn windows_scalar_policy_checks_its_unchanged_helpers() {
+    let source =
+        include_str!("../../../../../../../source/library/std/targets/windows_x86_64/calling.omg");
+    let text = format!("{VOCABULARY}\n{source}");
+    let result = verdict(&text, &["windows_x64_scalar_plan"]);
+    assert_eq!(
+        result, "accepted",
+        "the real Windows scalar helper: {result}"
+    );
+}

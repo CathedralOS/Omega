@@ -610,3 +610,101 @@ fn authority_walks_follow_the_evaluated_machine_and_leave_unused_code_out() {
     *callee = ValueId::new(99).unwrap();
     assert!(walk(&module).is_err());
 }
+
+#[test]
+fn recursive_source_origins_keep_the_entry_and_exact_folded_head() {
+    let id = MachineId::new(1).unwrap();
+    let head = BlockId::new(2).unwrap();
+    let mut identities = TerminalIdentityTableBuilder::default();
+    let mut body = machine(id, identities.intern("recursive"));
+    let entry = body.entry;
+    body.blocks[0].terminator = Terminator::Jump {
+        edge: EdgeId::new(1).unwrap(),
+        target: head,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        cleanup_actions: Vec::new(),
+    };
+    body.blocks.push(Block::plain(
+        head,
+        Vec::new(),
+        Terminator::ReturnUnit {
+            edge: EdgeId::new(2).unwrap(),
+            cleanup_actions: Vec::new(),
+        },
+    ));
+    let mut module = TerminalModule::declarations();
+    module.identities = identities.build();
+    module.machines.push(body);
+    let mut packet = SelectionQuestions::default();
+    let source = packet.declarations.push(declaration_row(
+        "recursive",
+        package(1),
+        SelectionPurpose::Build,
+    ));
+    for head in [entry, head] {
+        packet.joins.push(SelectionJoin::Machine {
+            declaration: source,
+            machine: id,
+            head,
+        });
+    }
+    let mut row = source_question(
+        source,
+        SelectionReference::Declaration(source),
+        SelectionPurpose::Build,
+    );
+    row.form = SelectionForm::Published;
+    row.role = SelectionRole::Executable;
+    let question = packet.questions.push(row);
+    packet.joins.push(SelectionJoin::FoldedCall {
+        question,
+        original_caller: source,
+        original_target: source,
+        machine: id,
+        edge: EdgeId::new(1).unwrap(),
+        head,
+    });
+    validate_selection_questions(&module, &packet).unwrap();
+    let mut duplicate = packet.clone();
+    duplicate.joins.push(packet.joins[1].clone());
+    assert!(
+        validate_selection_questions(&module, &duplicate)
+            .unwrap_err()
+            .contains("repeats a machine origin")
+    );
+    let mut missing = packet.clone();
+    missing.joins.remove(1);
+    assert!(
+        validate_selection_questions(&module, &missing)
+            .unwrap_err()
+            .contains("actual head")
+    );
+    let mut changed = packet.clone();
+    let SelectionJoin::FoldedCall { head: target, .. } = changed.joins.last_mut().unwrap() else {
+        panic!("folded call")
+    };
+    *target = entry;
+    assert!(
+        validate_selection_questions(&module, &changed)
+            .unwrap_err()
+            .contains("actual head edge")
+    );
+    let mut changed = packet.clone();
+    let foreign = changed.declarations.push(declaration_row(
+        "foreign",
+        package(1),
+        SelectionPurpose::Build,
+    ));
+    let SelectionJoin::Machine { declaration, .. } = &mut changed.joins[1] else {
+        panic!("head origin")
+    };
+    *declaration = foreign;
+    assert!(
+        validate_selection_questions(&module, &changed)
+            .unwrap_err()
+            .contains("actual head")
+    );
+}

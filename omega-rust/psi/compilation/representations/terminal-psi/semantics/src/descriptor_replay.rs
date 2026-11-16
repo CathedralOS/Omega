@@ -574,6 +574,34 @@ pub(crate) mod analysis {
             result
         }
 
+        /// A plain shared header may select different caller-owned inputs.
+        /// This proves their common borrowed custody, not address equality;
+        /// views, references, mutable sources and unresolved origins are excluded.
+        pub fn shared_plain_input_arrival(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            location: &DescriptorLocation,
+        ) -> bool {
+            if self.replay.prepare_states(identity).is_none() {
+                return false;
+            }
+            let Some(machine) = self.replay.machine(identity) else {
+                return false;
+            };
+            let Some(state) = self
+                .replay
+                .snapshots
+                .get(&identity)
+                .and_then(|cached| cached.ready())
+                .and_then(|prepared| prepared.before.get(&position))
+            else {
+                return false;
+            };
+            self.replay
+                .shared_plain_input_arrival(machine, state, location)
+        }
+
         pub fn storage_origins(
             &mut self,
             identity: MachineId,
@@ -5176,6 +5204,23 @@ pub(crate) mod engine {
                 {
                     return None;
                 }
+                if matches!(
+                    definition,
+                    DescriptorDefinition::Arrival {
+                        access: StructuralAccess::SharedBorrow
+                    }
+                ) && !current.path.contains(&DescriptorPathSegment::Referent)
+                    && let Some(Some(origins)) = origins
+                    && origins.len() > 1
+                    && self.shared_input_arrival(machine, root_type, origins)
+                {
+                    // Each choice is held through an original shared input.
+                    // The header names the selected
+                    // contents in this iteration; no single original address
+                    // represents that binding. Keep its local identity while
+                    // arrival_backing retains every choice for result custody.
+                    return Some(StorageResolution::Unique(current));
+                }
                 if borrowed_arrival
                     && let Some(Some(origins)) = origins
                     && origins
@@ -5337,6 +5382,106 @@ pub(crate) mod engine {
                 }
             }
         }
+        fn shared_input_arrival(
+            &self,
+            machine: &DescriptorMachine,
+            expected: StructuralTypeId,
+            origins: &BTreeSet<Origin>,
+        ) -> bool {
+            if origins.is_empty()
+                || !crate::is_copyable_carrier(self.types.iter(), expected)
+                || !plain_owned_shape(self.types.iter(), expected)
+            {
+                return false;
+            }
+            origins.iter().all(|origin| {
+                let projected = match origin {
+                    Origin::Storage(location) => self.storage_projection(machine, location),
+                    Origin::Backing(origin) => Some(origin.clone()),
+                    _ => None,
+                };
+                let Some(DescriptorCallOrigin::Argument { source, projection }) = projected else {
+                    return false;
+                };
+                if !matches!(
+                    machine.place_definition(source),
+                    Some(DescriptorDefinition::Parameter {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    })
+                ) {
+                    return false;
+                }
+                let Some(path) = projection.captured_storage_path() else {
+                    return false;
+                };
+                let Some(source_type) = machine.place_types.get(&source).copied() else {
+                    return false;
+                };
+                crate::projection_stays_in_inline_storage(self.types.iter(), source_type, &path)
+                    && crate::runtime_structural_path_tip(self.types.iter(), source_type, &path)
+                        .is_some_and(|actual| actual.id == expected)
+            })
+        }
+
+        pub(crate) fn shared_plain_input_arrival(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            location: &DescriptorLocation,
+        ) -> bool {
+            if !matches!(
+                machine.place_definition(location.root),
+                Some(DescriptorDefinition::Arrival {
+                    access: StructuralAccess::SharedBorrow
+                })
+            ) {
+                return false;
+            }
+            let Some(expected) = machine.place_types.get(&location.root).copied() else {
+                return false;
+            };
+            let Some(Some(origins)) = self.root_storage_origins(machine, state, location.root)
+            else {
+                return false;
+            };
+            let Some(path) = machine.location_path(self.types, location, None) else {
+                return false;
+            };
+            crate::projection_stays_in_inline_storage(self.types.iter(), expected, &path)
+                && self.shared_input_arrival(machine, expected, origins)
+        }
+
+        // A forwarded indexed borrow already carries a checked address. Its
+        // projection is not a descriptor-slot location, so asking only for a
+        // canonical slot loses the backing at the next header. Keep that
+        // address in the existing origin account; ambiguous choices stay closed.
+        fn captured_storage_origins(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            location: &DescriptorLocation,
+        ) -> Value {
+            // Keep the real alternatives when forwarding a shared plain header;
+            // its local contents identity is not an original input address.
+            if self.shared_plain_input_arrival(machine, state, location) {
+                let origins = self
+                    .root_storage_origins(machine, state, location.root)?
+                    .clone();
+                let path = machine.location_path(self.types, location, None)?;
+                return self.project(machine, origins, Some(&Projection::new(&path)));
+            }
+            match self.resolve_storage(machine, state, location, None)? {
+                StorageResolution::Unique(location) => {
+                    Some(BTreeSet::from([Origin::Storage(location)]))
+                }
+                StorageResolution::Projected(origin) => {
+                    Some(BTreeSet::from([Origin::Backing(origin)]))
+                }
+                StorageResolution::Alternatives => None,
+            }
+        }
+
         pub(crate) fn storage_origins(
             &self,
             machine: &DescriptorMachine,
@@ -5975,14 +6120,12 @@ pub(crate) mod engine {
                             let value = if is_descriptor(self.types.iter(), ty) {
                                 self.read_with_depth(machine, before, descriptor, reads)
                             } else {
-                                self.canonical_storage(machine, before, descriptor, None)
-                                    .map(|storage| BTreeSet::from([Origin::Storage(storage)]))
+                                self.captured_storage_origins(machine, before, descriptor)
                             };
                             self.project(machine, value, Some(projection))
                         } else {
                             binding.source.exact_location().and_then(|source| {
-                                self.canonical_storage(machine, before, source, None)
-                                    .map(|storage| BTreeSet::from([Origin::Storage(storage)]))
+                                self.captured_storage_origins(machine, before, source)
                             })
                         }
                     } else {

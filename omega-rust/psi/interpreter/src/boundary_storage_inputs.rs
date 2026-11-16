@@ -1202,7 +1202,7 @@ pub(crate) mod original_residence {
                 None,
             )?
             .leaves;
-            let (_, scalars) = crate::storage::structural_storage::contents::capture(
+            let (_, scalars, _) = crate::storage::structural_storage::contents::capture(
                 self,
                 source,
                 original,
@@ -2359,6 +2359,8 @@ pub(crate) struct StructuralLoanBinding {
 }
 
 struct OwnedPayloadSnapshot {
+    // Keep the copied text charged until this call's snapshot is retired.
+    _byte_leases: Vec<evaluation_accounting::EvaluationStorageLease>,
     identity: Arc<()>,
     argument_index: usize,
     structural_type: semantic_vocabulary::StructuralTypeId,
@@ -2432,7 +2434,7 @@ impl BoundaryStorageInputs {
                 return Err(malformed());
             }
             let leaves = contents::describe(execution, referent, parameter.access, None)?.leaves;
-            let (values, _) = contents::capture(
+            let (values, _, byte_leases) = contents::capture(
                 execution,
                 argument.place,
                 referent,
@@ -2456,6 +2458,7 @@ impl BoundaryStorageInputs {
                 },
             ));
             self.owned.push(OwnedPayloadSnapshot {
+                _byte_leases: byte_leases,
                 identity,
                 argument_index,
                 structural_type: referent.structural_type,
@@ -2500,7 +2503,7 @@ impl BoundaryStorageInputs {
             )?;
         }
         let leaves = contents::describe(execution, referent, parameter.access, None)?.leaves;
-        let (original, scalars) = contents::capture(
+        let (original, scalars, _) = contents::capture(
             execution,
             argument.place,
             referent,

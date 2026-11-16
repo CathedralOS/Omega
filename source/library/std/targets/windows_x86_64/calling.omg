@@ -1,6 +1,6 @@
 // Fixed Microsoft x64 calls with up to four scalar or sized-reference formals.
 // Stack arguments, narrow register scalars and callbacks require a richer policy.
-WindowsX64ScalarCalling satisfies CallingPolicy {
+public WindowsX64ScalarCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         windows_x64_scalar_plan(signature, TableParameter::None)
     }
@@ -18,7 +18,7 @@ public machine windows_x64_scalar_plan(signature: BoundarySignature,
     transition accepted {
         true -> BoundaryPlanResult::Accepted { plan: plan }
         _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
-            reason: "expected at most four native 32/64-bit integer or sized-reference parameters, an exact table role, Unit or integer result, and no callbacks" as +Utf8
+            reason: "expected at most four 32/64-bit integer or sized-reference parameters, Unit or 32/64-bit integer result, and no callbacks" as +Utf8
         } }
     }
 }

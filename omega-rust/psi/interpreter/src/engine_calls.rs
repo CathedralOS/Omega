@@ -1798,7 +1798,7 @@ pub(crate) mod component_contents {
                     "component contents cannot manufacture opaque backing or erased custody",
                 ));
             }
-            let (values, _) = contents::capture(
+            let (values, _, _) = contents::capture(
                 self,
                 argument.place,
                 value,

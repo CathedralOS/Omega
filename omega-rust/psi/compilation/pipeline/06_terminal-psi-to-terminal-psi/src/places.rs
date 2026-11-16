@@ -954,7 +954,14 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| {
                 self.unsupported(
                     concerns,
-                    terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
+                    &format!(
+                        "{} (root {:?}, path {:?}, block {:?}, cut {})",
+                        terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
+                        place.root,
+                        place.segments,
+                        block,
+                        before
+                    ),
                 )
             })?;
         let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {

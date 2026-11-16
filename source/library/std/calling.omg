@@ -322,7 +322,7 @@ public machine table_parameter_for_formal(signature: &BoundarySignature,
         dispatch_only: bool, index: u64, remaining: u64) -> TableParameter
     requires index < 32, remaining > 0 {
         transition signature.native_parameters[index].origin {
-            NativeParameterOrigin::SemanticFormal { formal_ordinal: actual } ->
+            NativeParameterOrigin::SemanticFormal { formal_ordinal as actual } ->
                 compare(signature, formal_ordinal, dispatch_only, index, remaining, actual)
             _ -> seek(signature, formal_ordinal, dispatch_only, index + 1, remaining - 1)
         }
@@ -350,10 +350,11 @@ public machine normalize_table_parameters(signature: &mut BoundarySignature,
     role: TableParameter) -> bool {
     transition role {
         TableParameter::None -> true
-        TableParameter::Passed { formal: formal, formal_ordinal: ordinal } ->
+        TableParameter::Passed { formal, formal_ordinal as ordinal } ->
             valid(signature, formal, ordinal, false)
-        TableParameter::DispatchOnly { formal: formal, formal_ordinal: ordinal } ->
+        TableParameter::DispatchOnly { formal, formal_ordinal as ordinal } ->
             valid(signature, formal, ordinal, true)
+        _ -> false
     }
     machine valid(signature: &mut BoundarySignature, formal: u64, ordinal: u64,
         dispatch: bool) -> bool {
@@ -369,15 +370,15 @@ public machine normalize_table_parameters(signature: &mut BoundarySignature,
     requires ordinal < signature.parameter_count, ordinal < 32,
         signature.parameter_count == signature.native_parameter_count {
         let selected: TableParameter = table_parameter_for_formal(signature, ordinal, dispatch);
-        identified(signature, formal, ordinal, dispatch, selected)
+        identified(signature, formal, ordinal, selected)
     }
     machine identified(signature: &mut BoundarySignature, formal: u64, ordinal: u64,
-        dispatch: bool, selected: TableParameter) -> bool
+        selected: TableParameter) -> bool
     requires ordinal < signature.parameter_count, ordinal < 32,
         signature.parameter_count == signature.native_parameter_count {
         transition selected {
-            TableParameter::Passed { formal: actual, formal_ordinal: found } -> actual == formal && found == ordinal
-            TableParameter::DispatchOnly { formal: actual, formal_ordinal: found } ->
+            TableParameter::Passed { formal as actual, formal_ordinal as found } -> (actual == formal && found == ordinal)
+            TableParameter::DispatchOnly { formal as actual, formal_ordinal as found } ->
                 remove_if_exact(signature, formal, ordinal, actual, found)
             _ -> false
         }
@@ -402,16 +403,19 @@ public machine normalize_table_parameters(signature: &mut BoundarySignature,
         }
     }
     machine next(signature: &mut BoundarySignature, index: u64, remaining: u64) -> bool
-    requires index + 1 < signature.parameter_count, index + 1 < 32, remaining > 0,
+    requires index < 32, index + 1 < signature.parameter_count, index + 1 < 32, remaining > 0,
         signature.parameter_count == signature.native_parameter_count {
         signature.parameters[index] = signature.parameters[index + 1];
+        signature.native_parameters[index] = signature.native_parameters[index + 1];
+        signature.native_parameters[index].native_ordinal = index;
         shift(signature, index + 1, remaining - 1)
     }
     machine finish(signature: &mut BoundarySignature) -> bool
     requires signature.parameter_count > 0,
         signature.parameter_count == signature.native_parameter_count {
-        signature.parameter_count = signature.parameter_count - 1;
-        signature.native_parameter_count = signature.native_parameter_count - 1;
+        let count: u64 = signature.parameter_count - 1;
+        signature.parameter_count = count;
+        signature.native_parameter_count = count;
         true
     }
 }

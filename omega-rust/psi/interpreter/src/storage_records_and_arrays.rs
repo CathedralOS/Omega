@@ -4250,6 +4250,13 @@ pub(crate) mod structural_storage {
         };
         use terminal_semantics::scalar_array_leaf_shape;
 
+        use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
+        use crate::boundary::values::{
+            StructuralByteSequenceRuntimeField, StructuralFieldNamespace,
+        };
+        use crate::storage::byte_sequences::binding::ByteSequenceBinding;
+        use crate::{TerminalStorageObservationError, TerminalStorageObservationValue};
+
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub enum TerminalStorageContents {
             Scalar {
@@ -4844,6 +4851,185 @@ pub(crate) mod structural_storage {
             }
         }
 
+        pub(crate) fn selected_leaf(
+            execution: &TerminalExecution<'_>,
+            value: &TerminalStructuralValue,
+            path: &[Path],
+        ) -> Result<(TerminalStructuralValue, StorageLeaf), TerminalStorageObservationError>
+        {
+            select(execution, value, path)
+                .map_err(|error| error.in_argument_preparation("select observed storage"))?
+                .ok_or(TerminalStorageObservationError::UnknownPath)
+        }
+
+        pub(crate) fn observe_leaf<'storage>(
+            execution: &'storage TerminalExecution<'_>,
+            source: PlaceId,
+            value: &TerminalStructuralValue,
+            path: &[Path],
+        ) -> Result<TerminalStorageObservationValue<'storage>, TerminalStorageObservationError>
+        {
+            let (selected, leaf) = selected_leaf(execution, value, path)?;
+            match &leaf.kind {
+                StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } if execution.structural_declaration(*declaration)?.shape
+                    == StructuralTypeShape::Opaque =>
+                {
+                    let relative = destination
+                        .path
+                        .strip_prefix(selected.path.as_slice())
+                        .filter(|_| destination.opaque_identity == selected.opaque_identity)
+                        .ok_or(TerminalStorageObservationError::UnknownPath)?;
+                    let (qualifications, projected_qualifications) =
+                        terminal_psi::StructuralPathQualification::select(
+                            &selected.qualifications,
+                            &selected.projected_qualifications,
+                            relative,
+                        );
+                    let mut actual = TerminalStructuralValue {
+                        opaque_identity: destination.opaque_identity,
+                        structural_type: *declaration,
+                        qualifications,
+                        projected_qualifications,
+                        path: destination.path.clone(),
+                    };
+                    if execution.forward_host_atom(&mut actual).is_none() {
+                        return Err(TerminalStorageObservationError::OpaqueContents);
+                    }
+                    Ok(TerminalStorageObservationValue::Opaque(actual))
+                }
+                StorageLeafKind::Scalar { .. } | StorageLeafKind::Case { .. } => {
+                    // Only a backing crossing supplies a retained original
+                    // owner. Inline/presented values keep ordinary owner lookup.
+                    let source_owner = (selected.opaque_identity != value.opaque_identity
+                        || selected.path != value.path
+                        || selected.structural_type != value.structural_type)
+                        .then_some(&selected);
+                    let (mut values, _, _) = capture(
+                        execution,
+                        source,
+                        &selected,
+                        None,
+                        None,
+                        StructuralAccess::SharedBorrow,
+                        std::slice::from_ref(&leaf),
+                        &[],
+                        source_owner,
+                    )?;
+                    let observed = values
+                        .pop()
+                        .ok_or(TerminalStorageObservationError::UnknownPath)?;
+                    Ok(TerminalStorageObservationValue::Storage(observed.contents))
+                }
+                StorageLeafKind::ByteField { parent, field, .. } => {
+                    let namespace = if matches!(path.iter().rev().nth(1), Some(Path::Case(_))) {
+                        StructuralFieldNamespace::CasePayload
+                    } else {
+                        StructuralFieldNamespace::Member
+                    };
+                    let bytes = execution
+                        .byte_field_read(&StructuralByteSequenceRuntimeField {
+                            parent: parent.clone(),
+                            namespace,
+                            field: *field,
+                        })
+                        .map_err(|error| {
+                            error.in_argument_preparation("read observed byte field")
+                        })?;
+                    Ok(TerminalStorageObservationValue::Bytes(bytes))
+                }
+                StorageLeafKind::EmptyScalarArray {
+                    destination,
+                    structural_type,
+                } => {
+                    if byte_array_length(&execution.structural_types(), *structural_type) == Some(0)
+                        && execution
+                            .initialized_empty_scalar_array(destination, *structural_type)?
+                    {
+                        Ok(TerminalStorageObservationValue::Bytes(
+                            crate::TerminalByteRead::contiguous(&[]),
+                        ))
+                    } else {
+                        Err(TerminalStorageObservationError::OpaqueContents)
+                    }
+                }
+                StorageLeafKind::ByteArray { destination, .. } => {
+                    if execution.initialized_empty_byte_array(destination)? {
+                        return Ok(TerminalStorageObservationValue::Bytes(
+                            crate::TerminalByteRead::contiguous(&[]),
+                        ));
+                    }
+                    let bytes = execution
+                        .structural_byte_storage
+                        .get(destination)
+                        .ok_or(TerminalStorageObservationError::OpaqueContents)?;
+                    Ok(TerminalStorageObservationValue::Bytes(bytes.read_view()?))
+                }
+                StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } if execution
+                    .structural_declaration(*declaration)?
+                    .shape
+                    .is_shared_readable_byte_view() =>
+                {
+                    let unsupported = |reason| {
+                        TerminalStorageObservationError::Execution(
+                            TerminalInterpretError::UnsupportedSemanticVariant(reason),
+                        )
+                    };
+                    let binding = if let Some(binding) =
+                        execution.structural_byte_descriptors.get(destination)
+                    {
+                        let home = match binding {
+                            ByteSequenceBinding::Immutable(bytes) => bytes.descriptor_home(),
+                            binding => binding.descriptor_home(),
+                        }
+                        .ok_or_else(|| {
+                            unsupported("observed byte field has no retained descriptor home")
+                        })?;
+                        if home.structural_type != *declaration
+                            || StructuralRuntimePlace::from(home) != *destination
+                            || !binding.matches_shared_home(home)
+                        {
+                            return Err(unsupported(
+                                "observed byte field differs from its retained descriptor home",
+                            ));
+                        }
+                        binding
+                    } else if path.is_empty()
+                        && value.structural_type == *declaration
+                        && StructuralRuntimePlace::from(value) == *destination
+                    {
+                        let binding =
+                            execution.returned_byte_sequence.as_ref().ok_or_else(|| {
+                                unsupported(
+                                    "returned byte value has no retained descriptor binding",
+                                )
+                            })?;
+                        if !binding.matches_shared_home(value) {
+                            return Err(unsupported(
+                                "returned byte binding differs from its actual result home",
+                            ));
+                        }
+                        binding
+                    } else {
+                        return Err(unsupported(
+                            "observed byte field has no retained descriptor binding",
+                        ));
+                    };
+                    Ok(TerminalStorageObservationValue::Bytes(
+                        binding.read_view(execution)?,
+                    ))
+                }
+                StorageLeafKind::Opaque { .. } => {
+                    Err(TerminalStorageObservationError::OpaqueContents)
+                }
+            }
+        }
+
         pub(crate) fn capture(
             execution: &TerminalExecution,
             source: PlaceId,
@@ -4854,10 +5040,17 @@ pub(crate) mod structural_storage {
             leaves: &[StorageLeaf],
             normal_qualifications: &[crate::boundary::effects::normal_qualifications::CapturedNormalQualification],
             source_owner: Option<&TerminalStructuralValue>,
-        ) -> Result<(Vec<TerminalBoundaryStorageValue>, Vec<PinnedScalar>), TerminalInterpretError>
-        {
+        ) -> Result<
+            (
+                Vec<TerminalBoundaryStorageValue>,
+                Vec<PinnedScalar>,
+                Vec<evaluation_accounting::EvaluationStorageLease>,
+            ),
+            TerminalInterpretError,
+        > {
             let mut values = Vec::new();
             let mut endpoints = Vec::new();
+            let mut byte_leases = Vec::new();
             for leaf in leaves {
                 if aggregate.is_some()
                     && !matches!(
@@ -4868,6 +5061,57 @@ pub(crate) mod structural_storage {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                         "host aggregate re-view requires independently represented scalar leaves",
                     ));
+                }
+                let immutable_bytes = match &leaf.kind {
+                    StorageLeafKind::ByteField { declaration, .. } => matches!(declaration,
+                        StructuralFieldType::ByteSequence(carrier) if carrier.is_shared_readable_view()),
+                    StorageLeafKind::Opaque { declaration, .. } => execution
+                        .structural_declaration(*declaration)?
+                        .shape
+                        .is_shared_readable_byte_view(),
+                    _ => false,
+                };
+                if access == StructuralAccess::Owned && immutable_bytes {
+                    // Moving a record to the host also moves its immutable text
+                    // contents. Reuse ordinary storage observation: it owes the
+                    // real backing, borrow and read checks before any copy. The
+                    // copy supplies bytes, never an invented static reference.
+                    let observed =
+                        observe_leaf(execution, source, referent, &leaf.path).map_err(|error| {
+                            match error {
+                                TerminalStorageObservationError::Execution(error) => error,
+                                _ => TerminalInterpretError::UnsupportedSemanticVariant(
+                                    "owned host contents need actual immutable byte backing",
+                                ),
+                            }
+                        })?;
+                    let TerminalStorageObservationValue::Bytes(bytes) = observed else {
+                        return Err(malformed());
+                    };
+                    let payload = u64::try_from(bytes.len()).map_err(|_| malformed())?;
+                    let lease = execution
+                        .account
+                        .as_ref()
+                        .map(|account| account.reserve_storage(1, payload))
+                        .transpose()
+                        .map_err(TerminalInterpretError::Storage)?;
+                    let mut copied = Vec::new();
+                    copied.try_reserve_exact(bytes.len()).map_err(|reason| {
+                        TerminalInterpretError::StorageAllocationFailed {
+                            requested_bytes: bytes.len(),
+                            reason: reason.to_string(),
+                        }
+                    })?;
+                    copied.resize(bytes.len(), 0);
+                    bytes.copy_to(&mut copied)?;
+                    values.push(TerminalBoundaryStorageValue {
+                        path: leaf.path.clone(),
+                        contents: TerminalStorageContents::Bytes(copied.into()),
+                    });
+                    if let Some(lease) = lease {
+                        byte_leases.push(lease);
+                    }
+                    continue;
                 }
                 let contents = match &leaf.kind {
                     StorageLeafKind::Case { case, .. } => TerminalStorageContents::Case(*case),
@@ -4976,7 +5220,7 @@ pub(crate) mod structural_storage {
                     contents,
                 });
             }
-            Ok((values, endpoints))
+            Ok((values, endpoints, byte_leases))
         }
     }
     pub(crate) mod retirement {

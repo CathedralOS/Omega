@@ -8834,28 +8834,11 @@ impl TypedTrees {
         {
             return Err("inferred regions do not belong to their actual caller source");
         }
-        // Commit the original source and selected declaration once. Arena
-        // numbers and presentation paths cannot identify this private scope
-        // when the same declaration is captured into another typed program.
-        use sha2::{Digest, Sha256};
-        let mut identity = Sha256::new();
-        identity.update(b"omega.inferred-call-regions.v1\0");
-        let caller_identity = self
-            .normalized_hermetic_symbol_identity(caller)
-            .map_err(|_| "inferred regions lost their canonical caller identity")?;
-        let target_identity = self
-            .normalized_hermetic_symbol_identity(retained.registration_operation)
-            .map_err(|_| "inferred regions lost their canonical selected declaration")?;
-        for part in [caller_identity.as_bytes(), target_identity.as_bytes()] {
-            identity.update((part.len() as u64).to_le_bytes());
-            identity.update(part);
-        }
-        let source_identity = source::source_identity::canonical_source_entry(file)
-            .map_err(|_| "inferred regions lost their captured source identity")?;
-        identity.update(Sha256::digest(source_identity));
-        identity.update((source.span.start as u64).to_le_bytes());
-        identity.update((source.span.end as u64).to_le_bytes());
-        let identity = format!("@inferred-call-regions-{:x}", identity.finalize());
+        // A Build is typed before it can issue its package/application name.
+        // This private coordinate identifies only the captured invocation;
+        // ordinary type-identity qualification supplies the actual source owner
+        // later. An anonymous caller stays unresolved, never a package owner.
+        let identity = self.inferred_invocation_coordinate(caller, source)?;
         let name = format!(
             "@invocation-regions-{}-{}",
             source.span.start, source.span.end
@@ -8876,6 +8859,58 @@ impl TypedTrees {
         self.expression_table
             .retain_inferred_lifetime_application(application);
         Ok(owner)
+    }
+
+    fn inferred_invocation_coordinate(
+        &self,
+        caller: SymbolHandle,
+        occurrence: source::SourceSpan,
+    ) -> Result<String, &'static str> {
+        let declaration = self
+            .symbols
+            .symbol_provenance_source_span(caller)
+            .ok_or("inferred regions lost their captured caller declaration")?;
+        let file = self
+            .symbols
+            .source_file(occurrence)
+            .ok_or("inferred regions lost their captured source occurrence")?;
+        if declaration.source_id != occurrence.source_id
+            || occurrence.span.start >= occurrence.span.end
+            || file
+                .source
+                .get(occurrence.span.start..occurrence.span.end)
+                .is_none()
+        {
+            return Err("inferred regions changed their captured call occurrence");
+        }
+        let relative = file
+            .path
+            .strip_prefix(&file.package_root)
+            .map_err(|_| "inferred region source is outside its captured root")?;
+        let components = source::source_identity::canonical_path_components(relative, &file.path)
+            .map_err(|_| "inferred region source has no canonical relative path")?;
+        let origin = match file.origin {
+            source::SourceOrigin::User => 0,
+            source::SourceOrigin::Toolchain => 1,
+            source::SourceOrigin::ToolchainContract => 2,
+        };
+        let purpose = match file.dependency_scope {
+            source::DependencyScope::Product => 0,
+            source::DependencyScope::Build => 1,
+        };
+        let stratum = match file.resolution_stratum {
+            source::SourceResolutionStratum::Base => 0,
+            source::SourceResolutionStratum::CurrentActivationExtension => 1,
+            source::SourceResolutionStratum::DependencyActivationExtension => 2,
+        };
+        Ok(format!(
+            "@invocation-region:{}:{origin}:{purpose}:{stratum}:{}:{}:{}:{}",
+            components.join("/"),
+            declaration.span.start,
+            declaration.span.end,
+            occurrence.span.start,
+            occurrence.span.end
+        ))
     }
 
     /// Copies keep the original source invocation. An exchanged roster or
@@ -8908,7 +8943,11 @@ impl TypedTrees {
                     "@invocation-regions-{}-{}",
                     source.span.start, source.span.end
                 )
-            && !retained.inferred_lifetime_identity.is_empty()
+            && self
+                .inferred_invocation_coordinate(symbol.parent, source)
+                .ok()
+                .as_deref()
+                == Some(retained.inferred_lifetime_identity.as_str())
             && source.span.start < source.span.end
             && file
                 .source

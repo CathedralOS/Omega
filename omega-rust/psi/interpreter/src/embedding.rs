@@ -774,16 +774,11 @@ pub(crate) mod instance {
     pub(crate) mod storage_observation {
         use super::TerminalInstance;
         use crate::boundary::errors::{TerminalInterpretError, malformed};
-        use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
-        use crate::boundary::values::{
-            StructuralByteSequenceRuntimeField, StructuralFieldNamespace, StructuralRuntimePlace,
-            TerminalStructuralValue,
-        };
+        use crate::boundary::values::TerminalStructuralValue;
         use crate::engine::execution::TerminalExecution;
-        use crate::storage::byte_sequences::binding::ByteSequenceBinding;
-        use crate::storage::structural_storage::contents::{self, StorageLeaf, StorageLeafKind};
-        use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, PlaceId};
-        use terminal_psi::{StructuralAccess, StructuralTypeShape};
+        use crate::storage::structural_storage::contents::{self, StorageLeafKind};
+        use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
+        use terminal_psi::StructuralTypeShape;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum TerminalStorageObservationValue<'storage> {
@@ -832,7 +827,7 @@ pub(crate) mod instance {
                     .ok_or(TerminalStorageObservationError::NotBorrowedEntryArgument {
                         argument_index,
                     })?;
-                observe_leaf(execution, *place, value, path)
+                contents::observe_leaf(execution, *place, value, path)
             }
 
             /// Read the live length of a typed sequence in this completed
@@ -853,7 +848,8 @@ pub(crate) mod instance {
                 let crate::TerminalExecutionResult::Structural(returned) = result else {
                     return Err(TerminalStorageObservationError::NotStructuralResult);
                 };
-                let (_, leaf) = selected_leaf(execution, &returned.observation_value(), path)?;
+                let (_, leaf) =
+                    contents::selected_leaf(execution, &returned.observation_value(), path)?;
                 let StorageLeafKind::Opaque {
                     destination,
                     declaration,
@@ -900,7 +896,12 @@ pub(crate) mod instance {
                             .structural()
                             .ok_or(malformed())?
                             .place;
-                        observe_leaf(execution, source, &returned.observation_value(), path)
+                        contents::observe_leaf(
+                            execution,
+                            source,
+                            &returned.observation_value(),
+                            path,
+                        )
                     }
                     crate::TerminalExecutionResult::ScalarCase(returned) => {
                         observe_case(execution, returned.value(), path)
@@ -912,185 +913,6 @@ pub(crate) mod instance {
                     | crate::TerminalExecutionResult::Scalar(_) => {
                         Err(TerminalStorageObservationError::NotStructuralResult)
                     }
-                }
-            }
-        }
-
-        fn selected_leaf(
-            execution: &TerminalExecution<'_>,
-            value: &TerminalStructuralValue,
-            path: &[Path],
-        ) -> Result<(TerminalStructuralValue, StorageLeaf), TerminalStorageObservationError>
-        {
-            contents::select(execution, value, path)
-                .map_err(|error| error.in_argument_preparation("select observed storage"))?
-                .ok_or(TerminalStorageObservationError::UnknownPath)
-        }
-
-        fn observe_leaf<'storage>(
-            execution: &'storage TerminalExecution<'_>,
-            source: PlaceId,
-            value: &TerminalStructuralValue,
-            path: &[Path],
-        ) -> Result<TerminalStorageObservationValue<'storage>, TerminalStorageObservationError>
-        {
-            let (selected, leaf) = selected_leaf(execution, value, path)?;
-            match &leaf.kind {
-                StorageLeafKind::Opaque {
-                    destination,
-                    declaration,
-                } if execution.structural_declaration(*declaration)?.shape
-                    == StructuralTypeShape::Opaque =>
-                {
-                    let relative = destination
-                        .path
-                        .strip_prefix(selected.path.as_slice())
-                        .filter(|_| destination.opaque_identity == selected.opaque_identity)
-                        .ok_or(TerminalStorageObservationError::UnknownPath)?;
-                    let (qualifications, projected_qualifications) =
-                        terminal_psi::StructuralPathQualification::select(
-                            &selected.qualifications,
-                            &selected.projected_qualifications,
-                            relative,
-                        );
-                    let mut actual = TerminalStructuralValue {
-                        opaque_identity: destination.opaque_identity,
-                        structural_type: *declaration,
-                        qualifications,
-                        projected_qualifications,
-                        path: destination.path.clone(),
-                    };
-                    if execution.forward_host_atom(&mut actual).is_none() {
-                        return Err(TerminalStorageObservationError::OpaqueContents);
-                    }
-                    Ok(TerminalStorageObservationValue::Opaque(actual))
-                }
-                StorageLeafKind::Scalar { .. } | StorageLeafKind::Case { .. } => {
-                    // Only a backing crossing supplies a retained original
-                    // owner. Inline/presented values keep ordinary owner lookup.
-                    let source_owner = (selected.opaque_identity != value.opaque_identity
-                        || selected.path != value.path
-                        || selected.structural_type != value.structural_type)
-                        .then_some(&selected);
-                    let (mut values, _) = contents::capture(
-                        execution,
-                        source,
-                        &selected,
-                        None,
-                        None,
-                        StructuralAccess::SharedBorrow,
-                        std::slice::from_ref(&leaf),
-                        &[],
-                        source_owner,
-                    )?;
-                    let observed = values
-                        .pop()
-                        .ok_or(TerminalStorageObservationError::UnknownPath)?;
-                    Ok(TerminalStorageObservationValue::Storage(observed.contents))
-                }
-                StorageLeafKind::ByteField { parent, field, .. } => {
-                    let namespace = if matches!(path.iter().rev().nth(1), Some(Path::Case(_))) {
-                        StructuralFieldNamespace::CasePayload
-                    } else {
-                        StructuralFieldNamespace::Member
-                    };
-                    let bytes = execution
-                        .byte_field_read(&StructuralByteSequenceRuntimeField {
-                            parent: parent.clone(),
-                            namespace,
-                            field: *field,
-                        })
-                        .map_err(|error| {
-                            error.in_argument_preparation("read observed byte field")
-                        })?;
-                    Ok(TerminalStorageObservationValue::Bytes(bytes))
-                }
-                StorageLeafKind::EmptyScalarArray {
-                    destination,
-                    structural_type,
-                } => {
-                    if byte_array_length(&execution.structural_types(), *structural_type) == Some(0)
-                        && execution
-                            .initialized_empty_scalar_array(destination, *structural_type)?
-                    {
-                        Ok(TerminalStorageObservationValue::Bytes(
-                            crate::TerminalByteRead::contiguous(&[]),
-                        ))
-                    } else {
-                        Err(TerminalStorageObservationError::OpaqueContents)
-                    }
-                }
-                StorageLeafKind::ByteArray { destination, .. } => {
-                    if execution.initialized_empty_byte_array(destination)? {
-                        return Ok(TerminalStorageObservationValue::Bytes(
-                            crate::TerminalByteRead::contiguous(&[]),
-                        ));
-                    }
-                    let bytes = execution
-                        .structural_byte_storage
-                        .get(destination)
-                        .ok_or(TerminalStorageObservationError::OpaqueContents)?;
-                    Ok(TerminalStorageObservationValue::Bytes(bytes.read_view()?))
-                }
-                StorageLeafKind::Opaque {
-                    destination,
-                    declaration,
-                } if execution
-                    .structural_declaration(*declaration)?
-                    .shape
-                    .is_shared_readable_byte_view() =>
-                {
-                    let unsupported = |reason| {
-                        TerminalStorageObservationError::Execution(
-                            TerminalInterpretError::UnsupportedSemanticVariant(reason),
-                        )
-                    };
-                    let binding = if let Some(binding) =
-                        execution.structural_byte_descriptors.get(destination)
-                    {
-                        let home = match binding {
-                            ByteSequenceBinding::Immutable(bytes) => bytes.descriptor_home(),
-                            binding => binding.descriptor_home(),
-                        }
-                        .ok_or_else(|| {
-                            unsupported("observed byte field has no retained descriptor home")
-                        })?;
-                        if home.structural_type != *declaration
-                            || StructuralRuntimePlace::from(home) != *destination
-                            || !binding.matches_shared_home(home)
-                        {
-                            return Err(unsupported(
-                                "observed byte field differs from its retained descriptor home",
-                            ));
-                        }
-                        binding
-                    } else if path.is_empty()
-                        && value.structural_type == *declaration
-                        && StructuralRuntimePlace::from(value) == *destination
-                    {
-                        let binding =
-                            execution.returned_byte_sequence.as_ref().ok_or_else(|| {
-                                unsupported(
-                                    "returned byte value has no retained descriptor binding",
-                                )
-                            })?;
-                        if !binding.matches_shared_home(value) {
-                            return Err(unsupported(
-                                "returned byte binding differs from its actual result home",
-                            ));
-                        }
-                        binding
-                    } else {
-                        return Err(unsupported(
-                            "observed byte field has no retained descriptor binding",
-                        ));
-                    };
-                    Ok(TerminalStorageObservationValue::Bytes(
-                        binding.read_view(execution)?,
-                    ))
-                }
-                StorageLeafKind::Opaque { .. } => {
-                    Err(TerminalStorageObservationError::OpaqueContents)
                 }
             }
         }
@@ -1209,7 +1031,9 @@ pub(crate) mod instance {
             use crate::embedding::program::TerminalProgram;
             use crate::engine::calls::frames::tests::empty_program;
             use crate::{TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue};
+            use semantic_vocabulary::PlaceId;
             use semantic_vocabulary::{EdgeId, ScalarType, StructuralFieldId, StructuralTypeId};
+            use terminal_psi::StructuralAccess;
             use terminal_psi::{
                 BoundaryParameterKind, StructuralMultiplicity, StructuralParameterDeclaration,
                 StructuralResultDeclaration, StructuralTypeDeclaration, TerminalMachineResult,

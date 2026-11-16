@@ -3145,6 +3145,75 @@ pub(crate) mod results {
                         })
                         .unwrap();
                     assert_eq!(bytes.immutable().unwrap().bytes(), b"selector");
+                    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+                        work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
+                        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+                    };
+                    let sponsor = BuildEvaluationSponsor::new_with_measurement(
+                        BuildEvaluationSponsorLimits::new(100, 8, 2, 2, 100, 8, 100, 100).unwrap(),
+                        measurement,
+                    )
+                    .unwrap();
+                    execution.account = Some(sponsor.begin_invocation(measurement, 100).unwrap());
+                    let parameter = terminal_psi::StructuralParameterDeclaration {
+                        place: declaration.place,
+                        position: 0,
+                        structural_type,
+                        multiplicity: declaration.multiplicity,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    };
+                    let argument = terminal_psi::StructuralArgument {
+                        place: declaration.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    };
+                    let referent = execution
+                        .structural_values
+                        .get(&declaration.place)
+                        .unwrap()
+                        .clone();
+                    let capture = |execution: &TerminalExecution<'_>| {
+                        let mut inputs = crate::boundary::effects::storage_inputs::BoundaryStorageInputs::default();
+                        inputs
+                            .capture_fields(
+                                execution,
+                                &parameter,
+                                &argument,
+                                &referent,
+                                None,
+                                None,
+                                0,
+                                &[],
+                            )
+                            .map(|()| inputs)
+                    };
+                    let snapshot = capture(&execution)
+                        .expect("the same returned record is a complete owned host argument");
+                    let [crate::TerminalBoundaryStorageBuffer::Structural(buffer)] =
+                        snapshot.buffers.as_slice()
+                    else {
+                        panic!("the original record keeps one structural snapshot")
+                    };
+                    assert_eq!(buffer.values().len(), 2);
+                    assert!(buffer.values().iter().any(|cell| cell.path == [Path::Field(byte_field)]
+                        && matches!(&cell.contents, TerminalStorageContents::Bytes(bytes) if bytes.as_ref() == b"selector")));
+                    assert_eq!(sponsor.live_payload_bytes(), 8);
+                    assert!(
+                        capture(&execution).is_err(),
+                        "a second live copy exceeds the byte budget"
+                    );
+                    assert_eq!(sponsor.live_payload_bytes(), 8);
+                    drop(snapshot);
+                    assert_eq!(sponsor.live_payload_bytes(), 0);
+                    execution.structural_byte_sequence_fields.clear();
+                    assert!(
+                        capture(&execution).is_err(),
+                        "a missing borrowed backing cannot become owned text"
+                    );
+                    assert_eq!(sponsor.live_payload_bytes(), 0);
                 } else {
                     assert!(!execution.structural_values.contains_key(&declaration.place));
                     assert!(execution.structural_scalar_fields.keys().next().is_none());

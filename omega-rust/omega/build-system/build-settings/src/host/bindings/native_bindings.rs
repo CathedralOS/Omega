@@ -189,7 +189,13 @@ impl ValueRef<'_> {
         self.values
             .binary_search_by(|value| value.path.as_slice().cmp(self.path.as_slice()))
             .map(|index| self.values[index].contents.clone())
-            .map_err(|_| "native locator snapshot omitted an actual semantic cell".to_owned())
+            .map_err(|_| {
+                format!(
+                    "native locator snapshot has no semantic cell at {:?} ({} observed cells)",
+                    self.path,
+                    self.values.len()
+                )
+            })
     }
 }
 impl NativeLocatorValue for ValueRef<'_> {
