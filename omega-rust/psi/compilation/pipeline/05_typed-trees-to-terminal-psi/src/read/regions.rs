@@ -777,13 +777,11 @@ impl Program<'_> {
         collection: semantic_vocabulary::StructuralTypeId,
         regions: Regions,
     ) -> Checked<Regions> {
-        let borrowed = matches!(
-            self.data_type(id, collection)?.shape,
-            crate::StorageShape::ElementView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                ..
-            }
-        );
+        let borrowed = match self.data_type(id, collection)?.shape {
+            crate::StorageShape::ElementView { access, .. } => access.is_some(),
+            crate::StorageShape::ByteSequence(carrier) => carrier.is_borrowed(),
+            _ => false,
+        };
         if !borrowed {
             return Ok(regions);
         }
