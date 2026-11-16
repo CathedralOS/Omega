@@ -293,6 +293,7 @@ impl Program<'_> {
         // including when that child only observes the bytes.
         if byte_view
             && requested == StructuralAccess::SharedBorrow
+            && self.observes_only(machine, base.result)?
             && self.data_type(machine, backing)?.copyable
         {
             self.authorized(machine, backing_type, Access::Read)?;
