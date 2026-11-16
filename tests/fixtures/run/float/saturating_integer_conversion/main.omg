@@ -1,5 +1,7 @@
 // Expected exit: 0
 // Saturating conversions keep their result policy until explicitly removed.
+use omega::language::core::I32;
+use omega::language::core::U32;
 use omega::language::core::I32::from_f32;
 use omega::language::core::I32::from_f64;
 use omega::language::core::U32::from_f32;
