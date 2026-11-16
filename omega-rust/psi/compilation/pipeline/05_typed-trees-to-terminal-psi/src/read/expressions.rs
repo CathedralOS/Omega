@@ -539,7 +539,7 @@ impl<'t> Program<'t> {
                 return self.array_literal(id, slots, *elements, array_type, source);
             }
             ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
-            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
+            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, expected, source),
             ExpressionNode::Float(literal) => {
                 let value = self.float_literal(id, literal, expected_scalar)?;
                 (
@@ -1466,6 +1466,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ArrayView { base: a, access: aa, element: ae }, ExpressionKind::ArrayView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
+            (ExpressionKind::RepresentationView { base: a, element: ae }, ExpressionKind::RepresentationView { base: b, element: be }) => ae == be && both(a, b),
             (ExpressionKind::CollectionSubslice { base: a, start: ast, end: ae }, ExpressionKind::CollectionSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
@@ -1565,6 +1566,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::ArrayView { .. }
+            | ExpressionKind::RepresentationView { .. }
             | ExpressionKind::CollectionSubslice { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)

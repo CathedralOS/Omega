@@ -3916,6 +3916,26 @@ pub(crate) mod representation_regions {
             literal(u64::MAX / factor),
         ))
     }
+    /// The count goal a shared `WholeRepresentation` formation owns, from
+    /// the source collection's shape: `source_length * factor` fits `u64`,
+    /// where `factor` is how many target elements tile one source element.
+    pub fn whole_representation_region_goal<'a>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        shape: &StructuralTypeShape,
+        element: StructuralTypeId,
+        region: ElementViewRegion,
+        access: terminal_psi::StructuralAccess,
+    ) -> Option<Proposition> {
+        let ElementViewRegion::WholeRepresentation { source_length, .. } = region else {
+            return None;
+        };
+        let Some(ElementViewRegionGeometry::WholeRepresentation { source, target, .. }) =
+            element_view_shape_region_geometry(types, shape, element, region, access)
+        else {
+            return None;
+        };
+        whole_representation_count_goal(source_length, source.size.checked_div(target.size)?)
+    }
     pub fn representation_region_goal(
         start: ValueId,
         end: ValueId,

@@ -70,6 +70,7 @@ mod ranges;
 pub(crate) mod rankings;
 mod reach;
 mod references;
+mod representation_views;
 mod result_fields;
 mod result_summaries;
 mod returned_views;

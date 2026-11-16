@@ -576,7 +576,8 @@ impl<'b> Walk<'b> {
                 }
                 Ok(true)
             }
-            ExpressionKind::ArrayView { base, .. } => self.expression(machine, base),
+            ExpressionKind::ArrayView { base, .. }
+            | ExpressionKind::RepresentationView { base, .. } => self.expression(machine, base),
             ExpressionKind::CollectionSubslice { base, start, end } => {
                 for operand in std::iter::once(base.as_ref())
                     .chain(start.as_deref())

@@ -2612,6 +2612,21 @@ impl<'t> Program<'t> {
         // A recast presents the same captured place under another type. The
         // parser keeps it inside the loan; it never produces an owned value.
         let (mut place, presentation) = match self.node(id, operand)? {
+            // `view as &[T]` given to a slice formal is the re-view of an
+            // existing view; it passes on like any other view value.
+            ExpressionNode::Cast(cast)
+                if cast.form.is_recast()
+                    && formal.referent == crate::body::BorrowedReferent::Slice
+                    && !explicit =>
+            {
+                let Some(access) = cast.form.recast_access() else {
+                    unreachable!("a recast names its access")
+                };
+                (
+                    self.representation_view(id, slots, cast, access, Some(expected), source)?,
+                    None,
+                )
+            }
             ExpressionNode::Cast(cast) if cast.form.is_recast() => {
                 if access != ReferenceAccess::Shared || cast.form.recast_access() != Some(access) {
                     return unserved(
@@ -3177,6 +3192,7 @@ impl Touches<'_> {
             | ExpressionKind::Requalify(operand)
             | ExpressionKind::Establish { operand, .. }
             | ExpressionKind::ArrayView { base: operand, .. }
+            | ExpressionKind::RepresentationView { base: operand, .. }
             | ExpressionKind::CollectionMeasure { base: operand, .. }
             | ExpressionKind::IsCase {
                 subject: operand, ..

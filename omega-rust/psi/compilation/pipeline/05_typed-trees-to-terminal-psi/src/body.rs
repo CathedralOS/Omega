@@ -1062,6 +1062,16 @@ pub enum ExpressionKind {
         access: language_core::ReferenceAccess,
         element: StructuralTypeId,
     },
+    /// `view as &[T]`: the complete captured window of an existing shared
+    /// view, presented as `element`s. The result keeps the source view's
+    /// backing and loan; the checker judges that `element` exactly tiles
+    /// the source's element and that the converted count fits `u64`
+    /// (byte_views.md, "Collection view establishment",
+    /// `WholeRepresentation`).
+    RepresentationView {
+        base: Box<Expression>,
+        element: StructuralTypeId,
+    },
     Array {
         elements: Vec<Expression>,
     },

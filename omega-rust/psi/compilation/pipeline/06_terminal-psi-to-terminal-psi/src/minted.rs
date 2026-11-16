@@ -573,8 +573,11 @@ pub(crate) fn follow_the_lowered_form(
             | terminal_psi::OperationKind::ByteSequenceWrite { obligation, .. }
             | terminal_psi::OperationKind::ElementViewRead { obligation, .. }
             | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. }
-            | terminal_psi::OperationKind::ElementViewSubslice { obligation, .. } =
-                &operation.kind
+            | terminal_psi::OperationKind::ElementViewSubslice { obligation, .. }
+            | terminal_psi::OperationKind::EstablishElementView {
+                region: terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
+                ..
+            } = &operation.kind
             {
                 minted.claim(
                     *obligation,
