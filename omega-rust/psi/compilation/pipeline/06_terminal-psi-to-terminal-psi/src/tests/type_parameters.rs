@@ -436,11 +436,11 @@ fn a_const_only_generic_form_cannot_publish_its_extra_formal() {
     };
     assert!(matches!(
         accepted.publish(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         accepted.publish_invocation(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
 }
 
@@ -470,11 +470,11 @@ fn an_unused_type_binder_still_prevents_generic_form_publication() {
     };
     assert!(matches!(
         accepted.publish(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         accepted.publish_invocation(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
 }
 
@@ -504,11 +504,11 @@ fn an_empty_generic_schema_retains_its_real_binder_without_an_entry() {
     };
     assert!(matches!(
         accepted.publish(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
     assert!(matches!(
         accepted.publish_invocation(),
-        Err(crate::PublicationError::GenericCheckForm)
+        Err(crate::PublicationError::GenericCheckForm(_))
     ));
 }
 
