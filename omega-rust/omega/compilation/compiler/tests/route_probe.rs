@@ -269,6 +269,35 @@ fn a_literal_shift_count_lands_in_the_shifted_carrier() {
     }
 }
 
+/// A `&&` guard lowers to a join. Its facts reach the taken edge only through
+/// the join's inferred predicate. A local read after a call that wrote the
+/// field (`let mid = main.pout` after `fill(main, v)`) is defined as the
+/// field's contents after that call, which the predicate cannot name. The
+/// read itself dominates the join, so the guard is stated over it. A guard
+/// that is too weak, or a `||`, still leaves the requirement unproved.
+#[test]
+fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
+    for (name, guard, expected) in [
+        ("both_bounds", "mid >= 0 && mid < 26", "accepted"),
+        ("weak_bound", "mid >= 0 && mid < 27", "rejected"),
+        ("disjunction", "mid >= 0 || mid < 26", "rejected"),
+    ] {
+        let source = format!(
+            "data Main {{ pout: i32; }}\n\
+             machine fill(main: &mut Main, v: i32) {{ main.pout = v; }}\n\
+             machine use_it(main: &mut Main, mid: i32) requires 0 <= mid && mid < 26 {{ main.pout = mid; }}\n\
+             machine step(main: &mut Main, v: i32) {{\n\
+                 fill(main, v);\n\
+                 let mid: i32 = main.pout;\n\
+                 transition {guard} {{ true -> use_it(main, mid) _ -> done(main) }}\n\
+             }}\n\
+             machine done(main: &mut Main) {{ }}\n\
+             machine main() {{ let mut storage: Main; step(&mut storage, 3); step(&mut storage, 300); }}\n"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
 #[test]
 fn trapping_normal_results_are_retained_in_guarantees() {
     // Observe the denotation using clause forms the current prover handles.

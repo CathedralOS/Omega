@@ -752,9 +752,16 @@ fn evaluate_split_bank_call(
             locations.push(register_location(integer_registers[integer_index], shape));
             integer_index += 1;
         } else {
-            stack_offset = align_up(stack_offset, u32::from(shape.alignment))?;
+            // AAPCS64 C.3: once a float value misses the vector registers,
+            // no later float may use them, so close the bank. C.4 and C.6
+            // then place it at an 8-byte-aligned slot whose size is rounded
+            // up to whole 8-byte units (a three-`f32` record takes 16 bytes).
+            if float_members.is_some() {
+                float_index = float_register_count;
+            }
+            stack_offset = align_up(stack_offset, u32::from(shape.alignment).max(8))?;
             locations.push(stack_location(stack_offset, shape));
-            stack_offset = stack_end(stack_offset, shape.byte_size.max(8))?;
+            stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
         }
         parameters.push(ValuePlacement { shape, locations });
     }

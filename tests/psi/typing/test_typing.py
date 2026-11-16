@@ -1031,6 +1031,27 @@ def main() -> None:
     rejected(program, "empty-braces-are-not-a-tag-only-pattern", packet.replace(b"FIELDS", b""), "MissingPatternField", b"Packet::Data")
     rejected(program, "rest-does-not-admit-duplicate-waivers", packet.replace(b"FIELDS", b"value as _, value as _, .."), "DuplicatePatternField", b"value as _!2")
 
+    # `field: value` is projected equality, so an arm that tests a field
+    # matches only some values of its case and does not close it
+    # (wiki/spec/language/patterns.md#pattern-subjects-and-bindings).
+    reading = (
+        b"data Reading [copy] { case Value(level: u8); case Missing; }\n"
+        b"machine f(r: Reading) -> u8 { transition r { ARMS Reading::Missing -> 1 } }"
+    )
+    accepted(
+        program,
+        "a-binder-arm-closes-its-case",
+        reading.replace(b"ARMS", b"Reading::Value { level: 0 } -> 0 Reading::Value { level as _ } -> 2"),
+        (),
+    )
+    rejected(
+        program,
+        "a-valued-field-does-not-close-its-case",
+        reading.replace(b"ARMS", b"Reading::Value { level: 0 } -> 0"),
+        "UncoveredDispatch",
+        b"transition r { Reading::Value { level: 0 } -> 0 Reading::Missing -> 1 }",
+    )
+
     # A value-position match (wiki/spec/language/patterns.md): its patterns
     # meet its subject, its arms' values meet one type and its arms cover the
     # subject. Arms of anonymous numbers make an anonymous choice that lands
@@ -1470,6 +1491,30 @@ def main() -> None:
         program,
         "transition-complementary-equalities-cover",
         b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } machine g() {} }",
+        (),
+    )
+    # Complementary guards cover only over the same unchanged subjects: a
+    # call evaluated between them may change what the later guard reads, so
+    # `cell == false` can fail after `cell == true` failed. A pair that
+    # finishes before the call, or starts after it, still covers.
+    flip = b"machine flip(value: &mut bool) -> bool { value = false; false }\n"
+    rejected(
+        program,
+        "a-call-between-complementary-guards-uncovers-them",
+        flip + b"machine f(value: &mut bool) { transition { value == true -> g() flip(value) == true -> g() value == false -> g() } machine g() {} }",
+        "UncoveredDispatch",
+        b"transition { value == true -> g() flip(value) == true -> g() value == false -> g() }",
+    )
+    accepted(
+        program,
+        "complementary-guards-before-a-call-cover",
+        flip + b"machine f(value: &mut bool) { transition { value == true -> g() value == false -> g() flip(value) == true -> g() } machine g() {} }",
+        (),
+    )
+    accepted(
+        program,
+        "complementary-guards-after-a-call-cover",
+        flip + b"machine f(value: &mut bool) { transition { flip(value) == true -> g() value == true -> g() value == false -> g() } machine g() {} }",
         (),
     )
     accepted(

@@ -2400,21 +2400,28 @@ pub(crate) mod identity_context {
                 .symbol_source_origin(symbol)
                 .is_some_and(source::SourceOrigin::is_toolchain)
             {
-                program
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .and_then(|span| {
-                        self.exact_toolchain_sources
-                            .iter()
-                            .find(|(source_id, _)| *source_id == span.source_id)
-                    })
-                    .map(|(_, digest)| PackageQualifiedNominalOwner::ToolchainSource(*digest))
-                    .unwrap_or_else(|| {
-                        if let Some(missing) = self.missing_exact_nominal_owner {
-                            missing.set(true);
-                        }
-                        PackageQualifiedNominalOwner::Toolchain
-                    })
+                let span = program.symbols.symbol_provenance_source_span(symbol);
+                span.and_then(|span| {
+                    self.exact_toolchain_sources
+                        .iter()
+                        .find(|(source_id, _)| *source_id == span.source_id)
+                        .map(|(_, digest)| *digest)
+                })
+                // A caller that requires an exact owner but did not pass this
+                // source's digest gets the digest of the declaring file
+                // itself: the same value a complete source list supplies.
+                .or_else(|| {
+                    self.missing_exact_nominal_owner?;
+                    let file = program.symbols.source_file(span?)?;
+                    source::source_identity::toolchain_source_identity_digest(file).ok()
+                })
+                .map(PackageQualifiedNominalOwner::ToolchainSource)
+                .unwrap_or_else(|| {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    PackageQualifiedNominalOwner::Toolchain
+                })
             } else {
                 if let Some(missing) = self.missing_exact_nominal_owner {
                     missing.set(true);
@@ -5583,6 +5590,40 @@ pub(crate) mod package_policy_reading_tests {
     }
 
     #[test]
+    fn an_exact_toolchain_owner_is_the_declaring_files_digest_when_none_is_supplied() {
+        // A bundled declaration has no package; its exact owner is its source
+        // file's digest. A caller that requires an exact owner without passing
+        // the digests (as a Build layout policy's selection did) gets the same
+        // identity a complete list gives, and a supplied list still decides.
+        let fixture = Fixture::new();
+        let toolchain_data = fixture.symbol("Source");
+        let complete = source::source_identity::toolchain_source_identities(
+            fixture.program.symbols.source_files(),
+        )
+        .expect("fixture sources remain inside their toolchain root");
+        let absent = fixture
+            .program
+            .exact_owner_nominal_identity(toolchain_data, &[])
+            .expect("the declaring file supplies the exact toolchain owner");
+        assert_eq!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &complete)
+        );
+        let [(source_id, _)] = complete.as_slice() else {
+            panic!("the fixture has one toolchain source");
+        };
+        assert_ne!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &[(*source_id, [9; 32])]),
+            "a supplied digest is used as given"
+        );
+    }
+
+    #[test]
     fn a_repeated_identity_request_spells_no_new_text() {
         // Asking again for identities the table already holds must reach the
         // same identities through its composite index, minting no text and no
@@ -6443,13 +6484,59 @@ pub(crate) mod portable_machine_applications {
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_under_owner_policy(
+            program,
+            symbol,
+            exact_toolchain_sources,
+            &missing_exact_owner,
+        )?;
+        if missing_exact_owner.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    /// Compute a record value for an operand named inside a larger identity.
+    /// The record's toolchain owners follow the enclosing identity's own rule:
+    /// when the enclosing request requires exact toolchain owners, a missing
+    /// one is reported to that request, which then refuses exactly as it does
+    /// for its other names. When it does not require them, the record names
+    /// toolchain declarations with the same plain owner its other names use.
+    /// Every other loss of identity still refuses the record.
+    pub(crate) fn portable_operation_record_value_in_context(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_under_owner_policy(
+            program,
+            symbol,
+            context.exact_toolchain_sources,
+            &missing_exact_owner,
+        )?;
+        if missing_exact_owner.get()
+            && let Some(missing) = context.missing_exact_nominal_owner
+        {
+            missing.set(true);
+        }
+        Ok(result)
+    }
+
+    fn portable_operation_record_value_under_owner_policy(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        missing_exact_owner: &Cell<bool>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let projection = PortableMachineApplications::default();
         let invalid = Cell::new(false);
         let context = TypeIdentityContext {
             portable_machine_applications: Some(&projection),
             qualification: TypeIdentityQualification::PackageQualified,
             exact_toolchain_sources,
-            missing_exact_nominal_owner: Some(&invalid),
+            missing_exact_nominal_owner: Some(missing_exact_owner),
             invalid_application: Some(&invalid),
             encountered_elided_regions: Some(&invalid),
             invalid_index_argument: Some(&invalid),
@@ -7944,10 +8031,8 @@ pub(crate) mod substitution {
         {
             return match context.portable_machine_applications {
                 Some(projection) => projection.record_value(program, symbol, context),
-                None => super::portable_machine_applications::portable_operation_record_value(
-                    program,
-                    symbol,
-                    context.exact_toolchain_sources,
+                None => super::portable_machine_applications::portable_operation_record_value_in_context(
+                    program, symbol, context,
                 ),
             }
             .ok()

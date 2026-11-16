@@ -401,7 +401,10 @@ mod tests {
             })
             .unwrap_err();
         assert!(matches!(error, BuildError::StageValidation(_)));
-        assert_eq!(error.outcome(), compiler::CompilerRequestOutcome::Reject);
+        assert_eq!(
+            error.outcome(),
+            compiler::CompilerRequestOutcome::InternalFailure
+        );
         let text = error.to_string();
         assert!(text.contains("stage validator TargetOperationCorrespondence (target linux_x86_64, stage target operations): failed: changed operand"), "{text}");
         assert!(

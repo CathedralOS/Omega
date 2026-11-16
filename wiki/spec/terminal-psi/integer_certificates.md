@@ -156,6 +156,16 @@ signed exceptional division, mixed carriers, non-landed runtime counts,
 negative/out-of-width counts, stale/reordered definitions, and target drift reject.
 Checked arithmetic failure is rejection, not wrapped witness arithmetic.
 
+The checker also replays a same-carrier bitwise and/or step whose other
+operand is a literal, embedded or fixed by a cited landing. `x & m` with a
+literal `m >= 0` has the image `0..=m` whatever `x` is, so a `Truth` child
+suffices. `x | c` with a literal `c >= 0` keeps the lower endpoint, and its
+upper endpoint is the smallest all-ones value covering both the root's
+nonnegative upper endpoint and `c` (`-1` when that endpoint is negative); it
+needs a real root bound. A negative literal operand rejects. An operand that
+no literal or landing fixes rejects, even when an earlier axiom bounds it:
+the step must not use an axiom its witness does not cite.
+
 Unsigned wrapping remainder also admits the nonzero-divisor remainder step.
 Its upper endpoint intersects the proved dividend upper bound with `divisor - 1`;
 the unconditional remainder image remains a valid certificate conclusion.

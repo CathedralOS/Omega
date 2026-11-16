@@ -152,6 +152,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let call = id::<OperationId>(1);
     let return_edge = id::<EdgeId>(1);
     LegalizedOperationPlan {
+        execution: None,
         publication: Default::default(),
         borrowed_storage_layouts: Default::default(),
         installation_operations: Vec::new(),
