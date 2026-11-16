@@ -343,6 +343,7 @@ impl LegalizedScalarInstruction {
             }
             LegalizedScalarInstructionKind::ProgramImageAddress { .. }
             | LegalizedScalarInstructionKind::SelectImplementation { .. }
+            | LegalizedScalarInstructionKind::SelectMachine { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
@@ -592,6 +593,9 @@ pub enum LegalizedScalarInstructionKind {
     },
     SelectImplementation {
         table: u32,
+    },
+    SelectMachine {
+        descriptor: semantic_vocabulary::MachineDescriptorId,
     },
     FloatResultPolicy {
         format: semantic_vocabulary::IeeeFloatFormat,
@@ -1065,6 +1069,7 @@ impl LegalizedScalarInstructionKind {
             | Self::InstallStaticInterrupt { .. }
             | Self::ProgramImageAddress { .. }
             | Self::SelectImplementation { .. }
+            | Self::SelectMachine { .. }
             | Self::FloatResultPolicy { .. }
             | Self::PortWrite { .. }
             | Self::ActivateTaskRegister { .. }

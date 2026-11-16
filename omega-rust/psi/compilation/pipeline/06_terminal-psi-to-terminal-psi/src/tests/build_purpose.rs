@@ -126,6 +126,8 @@ pub(super) fn roster<'a>(
         subjects,
         purpose,
         selected: &[],
+        calling: None,
+        providers: None,
         bindings: &[],
         supplies: &[],
     }

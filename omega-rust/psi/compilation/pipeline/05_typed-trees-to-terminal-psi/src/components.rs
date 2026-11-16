@@ -26,8 +26,8 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::CrashRouteGuard;
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
-    ValueType,
+    Body, CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
+    Termination, ValueType,
 };
 use crate::{Unserved, refuse};
 
@@ -219,11 +219,40 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'b
     }
 }
 
-/// A completed match forwards its selected arm's result. Its subject and
-/// operands still run before that result and are never terminal calls.
+/// An arm's target is the one terminal position: a call there forwards its
+/// result as the machine's (`wiki/spec/language/machines.md`: "A machine
+/// call in a terminal `transition` arm forwards its normal result as the
+/// current invocation's result, with no continuation in that invocation.").
 fn target<'body>(target: &'body Target, sites: &mut Vec<CallSite<'body>>) {
-    if let Target::Value(value) = target {
-        expression(value, true, sites);
+    match target {
+        Target::Unit | Target::Crash(_) => {}
+        Target::Value(value) => expression(value, true, sites),
+    }
+}
+
+fn call<'body>(
+    callee: &'body CallTarget,
+    arguments: &'body [Expression],
+    required_contract: Option<semantic_vocabulary::ContractId>,
+    terminal: bool,
+    sites: &mut Vec<CallSite<'body>>,
+) {
+    if let Some(operand) = callee.operand() {
+        expression(operand, false, sites);
+    }
+    for argument in arguments {
+        expression(argument, false, sites);
+    }
+    // These components lower statically named tail transfers to local jumps.
+    // A value call stays an invocation with its retained contract; selecting
+    // code is not an edge, and no eligible-body list substitutes for it.
+    if let CallTarget::Machine(callee) = callee {
+        sites.push(CallSite {
+            callee: *callee,
+            terminal,
+            required_contract,
+            arguments,
+        });
     }
 }
 
@@ -239,6 +268,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
         | ExpressionKind::Float(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Not(operand)
@@ -306,17 +336,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
             arguments,
             ..
         } => {
-            for argument in arguments {
-                expression(argument, false, sites);
-            }
-            if let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee {
-                sites.push(CallSite {
-                    callee: *callee,
-                    terminal,
-                    required_contract: *required_contract,
-                    arguments,
-                });
-            }
+            call(callee, arguments, *required_contract, terminal, sites);
         }
     }
 }

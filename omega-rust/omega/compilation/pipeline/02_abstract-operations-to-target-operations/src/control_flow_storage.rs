@@ -2487,12 +2487,8 @@ pub(crate) mod observations {
             }
             _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
-        let shape = match scalar_type {
-            ScalarType::IeeeFloat(format) => ValueShape::float(format.byte_size()),
-            ScalarType::Boolean => ValueShape::integer(1, 1),
-            ScalarType::Integer(integer) => crate::scalar_abi::fixed_native_integer_shape(integer)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
-        };
+        let shape = ValueShape::for_scalar(scalar_type)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let home = TargetUnitScalarHomeRequirement {
             defining_operation: psi_operation,
             source_value: result,
@@ -2500,7 +2496,7 @@ pub(crate) mod observations {
             shape,
         };
         match scalar_type {
-            ScalarType::IeeeFloat(_) | ScalarType::Boolean => {
+            ScalarType::Callable(_) | ScalarType::IeeeFloat(_) | ScalarType::Boolean => {
                 std::sync::Arc::make_mut(&mut live.scalar_homes).insert(result, home);
             }
             ScalarType::Integer(_) => {
@@ -2771,11 +2767,7 @@ pub(crate) mod primitive_storage {
     }
 
     pub(crate) fn native_shape(scalar: ScalarType) -> Option<ValueShape> {
-        match scalar {
-            ScalarType::Integer(integer) => crate::scalar_abi::fixed_native_integer_shape(integer),
-            ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-            ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
-        }
+        ValueShape::for_scalar(scalar)
     }
 
     fn unsigned(function: &AbstractFunction, bits: u16) -> Result<ScalarType, LoweringError> {

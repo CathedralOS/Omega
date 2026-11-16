@@ -58,7 +58,10 @@ fn warning_explanations_use_one_refutation_per_point_not_one_per_premise_or_arm(
         .unwrap();
         let branch = elaboration.sources.get(id(1)).unwrap().branches[0];
         let mut analysis = Analysis::new(&context, &graph, tables, lowered, id(1));
-        let repeated = analysis.run(&vec![branch; 64]);
+        let repeated = analysis.run(
+            &vec![branch; 64],
+            &mut crate::ProofSearchActivity::default(),
+        );
         assert_eq!(repeated.len(), 64);
         assert_eq!(analysis.searches, 2, "unrelated premises: {unrelated}");
         assert_eq!(analysis.query_count(), 2);

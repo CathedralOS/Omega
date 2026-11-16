@@ -199,3 +199,147 @@ machine entry() crashes Trap {
         );
     }
 }
+
+#[test]
+fn representation_target_constraints_must_be_established() {
+    let source = |predicate: &str| {
+        format!(
+            "data Target {predicate} {{ value: i32; }}
+machine reinterpret(words: &[i32]) requires words.len <= 8 {{
+    let values: &[Target] = words as &[Target];
+    take(values);
+}}
+machine take(values: &[Target]) {{ }}"
+        )
+    };
+    assert_eq!(verdict(&source("")), "accepted");
+    let actual = verdict(&source("requires value > 0"));
+    assert!(
+        actual.starts_with(
+            "not supported: an array view without plain element storage and unclaimed backing"
+        ),
+        "the source bits do not establish the target invariant: {actual}"
+    );
+}
+
+#[test]
+fn representation_byte_target_keeps_canonical_element_identity() {
+    let source = "data ByteBox { value: u8; }
+machine retain(value: ByteBox) -> u8 { value.value }
+machine bytes_of(words: &[i32]) requires words.len <= 8 {
+    let bytes: &[u8] = words as &[u8];
+    take(bytes);
+}
+machine take(bytes: &[u8]) { }";
+    let typed = super::boundary_calls::typed(source);
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                calling: None,
+                providers: None,
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program
+    else {
+        panic!("the original source must prepare its ordinary checking closure");
+    };
+    let mut changed = prepared.closure.expect("the original source elaborates");
+    let RouteVerdict::Accepted(accepted) = judge(Ok(changed.clone())).unwrap() else {
+        panic!("the canonical byte view must be accepted before the mutation");
+    };
+    let publication = accepted
+        .publish_invocation()
+        .expect("the original view publishes");
+    terminal_codec::EvidenceSealValidator::new(
+        publication.artifact.view().module(),
+        &publication.seals.seals,
+    )
+    .validate_all()
+    .expect("the original element owns its count evidence");
+    let mut wrappers = changed.module.structural_types.iter().filter_map(|row| {
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &row.shape else {
+            return None;
+        };
+        let [field] = fields.as_slice() else {
+            return None;
+        };
+        let terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) =
+            field.field_type
+        else {
+            return None;
+        };
+        (integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned).then_some(row.id)
+    });
+    let wrapper = wrappers
+        .next()
+        .expect("the source retains its ByteBox declaration");
+    assert!(
+        wrappers.next().is_none(),
+        "the wrapper declaration is unique"
+    );
+    let alter_element = |module: &mut terminal_psi::TerminalModule| {
+        let mut formations = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishElementView {
+                        region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                        ..
+                    }
+                )
+            });
+        let formation = formations.next().expect("the original source has its view");
+        assert!(
+            formations.next().is_none(),
+            "the source has exactly one view"
+        );
+        let terminal_psi::OperationKind::EstablishElementView { element, .. } = &mut formation.kind
+        else {
+            unreachable!()
+        };
+        *element = wrapper;
+    };
+    alter_element(&mut changed.module);
+    let mut received = publication.artifact.view().module().clone();
+    alter_element(&mut received);
+    let changed_evidence =
+        terminal_codec::EvidenceSealValidator::new(&received, &publication.seals.seals)
+            .validate_all();
+    let checked = judge(Ok(changed));
+    assert!(
+        matches!(
+            changed_evidence,
+            Err(terminal_codec::EvidenceSealValidationError::SealMismatch { .. })
+        ),
+        "the wrapper must not own the canonical byte element's evidence: {changed_evidence:?}"
+    );
+    match checked {
+        Err(refusal) => {
+            assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+            assert!(
+                refusal
+                    .detail
+                    .contains("a byte view re-views elements that are not bytes"),
+                "{}",
+                refusal.detail
+            );
+        }
+        Ok(RouteVerdict::Accepted(_)) => {
+            panic!("a nominal byte wrapper must not authenticate the canonical u8 element")
+        }
+        Ok(other) => panic!("the altered element has a different verdict: {other:?}"),
+    }
+}

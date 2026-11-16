@@ -12,6 +12,7 @@ path = "src/lib.rs"
 # form, and accepts one only when the proof kernel accepted its certificate.
 # Production consumes retained Terminal representations, never a preceding stage.
 [dependencies]
+language-semantics = { path = "../../../foundation/language-semantics" }
 execution-admission = { path = "../../../foundation/execution-admission" }
 rayon = "1.11"
 diagnostics = { path = "../../../foundation/diagnostics" }

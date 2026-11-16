@@ -10,7 +10,9 @@ use std::path::Path;
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::obligations::ObligationKind;
-use terminal_psi_to_terminal_psi::{Selection, discharge, reverify_specialization};
+use terminal_psi_to_terminal_psi::{
+    ProofSearchActivity, Selection, discharge, reverify_specialization,
+};
 use typed_trees_to_terminal_psi::Elaboration;
 
 fn one_line(text: impl std::fmt::Display) -> String {
@@ -83,6 +85,7 @@ fn report(
 /// The outcome of the three steps on the program in `main`, whose Build
 /// binds `main`: `route=<outcome>`, with one line per obligation in `lines`.
 pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
+    let mut proof_activity = ProofSearchActivity::default();
     let frontier = match crate::unbuilt_frontier::frontier(main, None, &[]) {
         Ok(frontier) => frontier,
         Err(stopped) => {
@@ -207,7 +210,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             };
             let mut checked = Vec::new();
             for mut form in forms {
-                let found = match discharge(&mut form) {
+                let found = match discharge(&mut form, &mut proof_activity) {
                     Ok(found) => found,
                     Err(refusal) => {
                         return format!("route=defect\tgeneric: {}", one_line(&refusal.detail));
@@ -239,7 +242,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         // does not yet serve every machine of the whole program.
         if let Some(symbol) = consumer.machines.get(specialization).copied()
             && let Ok(mut alone) = typed_trees_to_terminal_psi::elaborate_closure(typed, symbol)
-            && let Ok(searched) = discharge(&mut alone)
+            && let Ok(searched) = discharge(&mut alone, &mut proof_activity)
         {
             report(
                 "concrete",
@@ -297,7 +300,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                         return format!("route=outside\twitness: {}", one_line(&refusal.detail));
                     }
                 };
-                let refinement = match discharge(&mut witness) {
+                let refinement = match discharge(&mut witness, &mut proof_activity) {
                     Ok(refinement) => refinement,
                     Err(refusal) => {
                         return format!("route=defect\twitness: {}", one_line(&refusal.detail));
@@ -323,19 +326,22 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 })
                 .collect();
             // Form both exact declarations before entering search-free replay.
-            let generic_scope = match terminal_psi_to_terminal_psi::prepare_replay(generic) {
-                Ok(scope) => scope,
-                Err(refusal) => {
-                    return format!("route=outside\tformation: {}", one_line(&refusal.detail));
-                }
-            };
-            let mut consumer_scope =
-                match terminal_psi_to_terminal_psi::prepare_replay(&mut consumer) {
+            let generic_scope =
+                match terminal_psi_to_terminal_psi::prepare_replay(generic, &mut proof_activity) {
                     Ok(scope) => scope,
                     Err(refusal) => {
                         return format!("route=outside\tformation: {}", one_line(&refusal.detail));
                     }
                 };
+            let mut consumer_scope = match terminal_psi_to_terminal_psi::prepare_replay(
+                &mut consumer,
+                &mut proof_activity,
+            ) {
+                Ok(scope) => scope,
+                Err(refusal) => {
+                    return format!("route=outside\tformation: {}", one_line(&refusal.detail));
+                }
+            };
             let carried = reverify_specialization(
                 &generic_scope,
                 found,
@@ -343,6 +349,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 &mut consumer_scope,
                 specialization,
                 &selections,
+                &mut proof_activity,
             );
             let corresponds = carried.is_ok();
             outcome = Some(carried);

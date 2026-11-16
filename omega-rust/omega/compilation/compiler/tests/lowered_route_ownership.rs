@@ -38,6 +38,12 @@ fn call_arguments_read_fields_beside_a_sibling_loan() {
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
                     selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
                     bindings: &frontier.bindings,
                     supplies: &[],
                 },
@@ -86,6 +92,12 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
                     selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
                     bindings: &frontier.bindings,
                     supplies: &[],
                 },
@@ -321,6 +333,12 @@ fn a_borrowed_runtime_element_write_keeps_its_selector_beneath_the_backing() {
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
                     selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
                     bindings: &frontier.bindings,
                     supplies: &[],
                 },
@@ -398,8 +416,14 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
-                supplies: &[],
+                supplies: &frontier.supplies,
             },
             terminal_codec::TerminalPublication::Portable,
         )
@@ -473,8 +497,14 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
-                supplies: &[],
+                supplies: &frontier.supplies,
             },
             terminal_codec::TerminalPublication::Portable,
         )
@@ -616,6 +646,12 @@ machine main() crashes Trap {
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
                     selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
                     bindings: &frontier.bindings,
                     supplies: &[],
                 },
@@ -700,6 +736,8 @@ machine main() crashes Trap {
                     purpose: source::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
+                    calling: None,
+                    providers: None,
                     supplies: &[],
                 },
                 terminal_codec::TerminalPublication::Portable,
@@ -774,6 +812,13 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
+
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
@@ -860,6 +905,13 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
+
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
@@ -958,6 +1010,13 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
+
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
@@ -1020,11 +1079,10 @@ fn whole_owned_transfers_consume_their_homes_once() {
     let invoke = |callee, arguments, result| {
         expression(
             ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+                callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
                 required_contract: None,
                 static_reach_binding: None,
-                source_call: None,
                 designated: None,
             },
             result,
@@ -1285,11 +1343,10 @@ mod transferred_on_one_path {
     fn invoke(callee: u64, arguments: Vec<Expression>, result: ValueType) -> Expression {
         expression(
             ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+                callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
                 required_contract: None,
                 static_reach_binding: None,
-                source_call: None,
                 designated: None,
             },
             Some(result),

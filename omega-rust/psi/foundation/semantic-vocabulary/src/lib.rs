@@ -57,12 +57,13 @@ impl From<MachineId> for TargetMachineCallable {
 }
 
 mod source_review;
+pub mod source_selections;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 
 mod float_integer_conversions;
 pub use float_integer_conversions::{
     FloatIntegerConversion, FloatIntegerConversionError, fixed_integer_type,
-    float_integer_preconditions,
+    float_integer_failure_condition, float_integer_preconditions,
 };
 
 mod float_meaning_clauses;
@@ -1416,14 +1417,15 @@ pub use fnv1a::Fnv1a;
 pub use id_table::{IdSet, IdTable, IdTableBuildError, NonDenseIdentities};
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
-    CallingAbiIdentity, CallingDeclarationOwner, CallingGenericFormal, CallingOperandKind,
-    CallingSignatureId, CallingStaticOperand, ClaimId, ContentDomainId, ContractId,
-    CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
-    ExternalCompletionKind, InvocationSite, MachineId, ObligationId, OperationId,
-    PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,
-    RankingRelationId, RecursiveComponentId, ScalarApplicationId, ScalarDomainId,
-    ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, SuspensionCrossingId, ValueId, WorkScheduleIdentity,
+    CallableContractId, CallableInvocationSite, CallingAbiIdentity, CallingDeclarationOwner,
+    CallingGenericFormal, CallingOperandKind, CallingSignatureId, CallingStaticOperand, ClaimId,
+    ContentDomainId, ContractId, CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity,
+    EvidenceTermId, ExternalCompletionKind, InvocationSite, MachineDescriptorId, MachineId,
+    ObligationId, OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId,
+    PsiSemanticId, RankingRelationId, RecursiveComponentId, ScalarApplicationId, ScalarDomainId,
+    ScalarQualificationSetId, SelectionDeclarationId, SelectionQuestionId, ServiceId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    SuspensionCrossingId, ValueId, WorkScheduleIdentity,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,
@@ -1453,6 +1455,14 @@ pub use boundary::foreign_locator::{ForeignLocatorCandidate, NativeBindingLocato
 pub enum Termination {
     Terminates,
     NoGuarantee,
+}
+
+/// Whether a callable publishes its complete crash routes. An open static
+/// requirement grants no closed runtime crash promise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallableCrashPolicy {
+    Closed,
+    Open,
 }
 
 /// The exact target's mathematical interpretation of address inputs. This

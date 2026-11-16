@@ -1097,7 +1097,7 @@ pub(crate) mod instance {
 
         fn observe_case(
             execution: &TerminalExecution<'_>,
-            value: &crate::TerminalScalarAggregateValue,
+            value: &crate::TerminalAggregateValue,
             path: &[Path],
         ) -> Result<TerminalStorageObservationValue<'static>, TerminalStorageObservationError>
         {
@@ -1113,12 +1113,18 @@ pub(crate) mod instance {
             if *case != selected {
                 return Err(TerminalStorageObservationError::UnknownPath);
             }
-            let scalar = value
+            let field_value = value
                 .fields
                 .iter()
-                .find(|(candidate, _)| candidate.as_slice() == [Path::Field(*field)])
-                .map(|(_, scalar)| *scalar)
+                .find(|candidate| candidate.path.as_slice() == [Path::Field(*field)])
                 .ok_or(TerminalStorageObservationError::UnknownPath)?;
+            let crate::TerminalStorageContents::Scalar {
+                value: scalar,
+                stored_scalar: actual_stored,
+            } = field_value.contents
+            else {
+                return Err(malformed().into());
+            };
             let declaration = execution.structural_declaration(value.structural_type)?;
             let StructuralTypeShape::Sum { cases } = &declaration.shape else {
                 return Err(malformed().into());
@@ -1131,6 +1137,9 @@ pub(crate) mod instance {
                 .as_ref()
                 .and_then(|storage| storage.stored_scalar())
                 .unwrap_or(scalar.scalar_type());
+            if actual_stored != stored_scalar {
+                return Err(malformed().into());
+            }
             Ok(TerminalStorageObservationValue::Storage(
                 crate::TerminalStorageContents::Scalar {
                     value: scalar,

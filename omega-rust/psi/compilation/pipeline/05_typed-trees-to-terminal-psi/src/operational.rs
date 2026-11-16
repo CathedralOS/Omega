@@ -105,7 +105,8 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         | ExpressionKind::Boolean(_)
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Slot(_)
-        | ExpressionKind::SavedSubject(_) => {}
+        | ExpressionKind::SavedSubject(_)
+        | ExpressionKind::MachineValue { .. } => {}
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Referent(operand)
@@ -121,11 +122,17 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             subject: operand, ..
         }
         | ExpressionKind::Borrow { place: operand, .. } => expression(machine, operand)?,
-        ExpressionKind::Array { elements }
-        | ExpressionKind::Call {
-            arguments: elements,
-            ..
+        ExpressionKind::Call {
+            callee, arguments, ..
         } => {
+            if let crate::body::CallTarget::Selected { callable, .. } = callee {
+                expression(machine, callable)?;
+            }
+            for argument in arguments {
+                expression(machine, argument)?;
+            }
+        }
+        ExpressionKind::Array { elements } => {
             for element in elements {
                 expression(machine, element)?;
             }

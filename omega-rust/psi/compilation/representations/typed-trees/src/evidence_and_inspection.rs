@@ -9,7 +9,7 @@ pub mod evidence {
         use crate::TypedTrees;
         use crate::domain::DomainDefinition;
         use crate::expression::ExpressionHandle;
-        use crate::types::TypeReferenceNode;
+        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
         use symbols::{BuiltinTypeAtom, SymbolHandle};
 
         pub use language_semantics::byte_predicates::ByteSequencePredicate;
@@ -18,8 +18,12 @@ pub mod evidence {
             program: &TypedTrees,
             expression: ExpressionHandle,
         ) -> Option<(ByteSequencePredicate, ExpressionHandle)> {
+            if !program.expression_table.expression_is_valid(expression) {
+                return None;
+            }
             let call = program.expression_table.call_node(expression)?;
             if !program.call_has_no_runtime_receiver_for_target(call)
+                || call.runtime_call.is_some()
                 || !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
                 || call.requirement_application.is_valid()
@@ -32,8 +36,7 @@ pub mod evidence {
                 || call.installed_interrupt_operation.is_some()
                 || call.layout_query.is_some()
                 || call.native_code_layout.is_some()
-                || call.operational_acknowledgement.acknowledges_suspend
-                || call.operational_acknowledgement.acknowledges_block
+                || call.operational_acknowledgement != Default::default()
             {
                 return None;
             }
@@ -79,6 +82,9 @@ pub mod evidence {
             let [argument] = arguments else {
                 return None;
             };
+            if !program.expression_table.expression_is_valid(*argument) {
+                return None;
+            }
             Some((predicate, *argument))
         }
 
@@ -173,7 +179,12 @@ pub mod evidence {
             program: &TypedTrees,
             domain: &DomainDefinition,
         ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
-            if domain.alias.is_some()
+            if !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(domain.subject_symbol)
+                || domain.alias.is_some()
                 || !domain.index_arguments.is_empty()
                 || domain.issuance() != crate::domain::DomainIssuance::Unrestricted
                 || !crate::domain::index_parameters(program, domain).is_empty()
@@ -223,6 +234,38 @@ pub mod evidence {
             };
             (!range.start.is_valid() && !range.end.is_valid() && !range.end_inclusive)
                 .then_some(indexed.collection)
+        }
+
+        /// The exact primitive predicate of a declared byte-slice domain.
+        /// Its subject is the domain's immutable carrier, not a callable
+        /// formal reconstructed from the predicate's spelling.
+        pub fn primitive_byte_slice_domain(
+            program: &TypedTrees,
+            domain_symbol: SymbolHandle,
+        ) -> Option<ByteSequencePredicate> {
+            let domain = program.domain_definition(domain_symbol)?;
+            let table = &program.type_reference_table;
+            if !table.contains_type_reference(domain.target_type) {
+                return None;
+            }
+            let TypeReferenceNode::Slice { element_type } =
+                table.type_reference(domain.target_type)
+            else {
+                return None;
+            };
+            if !table.contains_type_reference(*element_type) {
+                return None;
+            }
+            let TypeReferenceNode::Named { symbol, .. } = table.type_reference(*element_type)
+            else {
+                return None;
+            };
+            if !program.symbols.symbols().nodes().is_valid(*symbol)
+                || program.symbols.builtin_type_atom(*symbol) != Some(symbols::BuiltinTypeAtom::U8)
+            {
+                return None;
+            }
+            domain_byte_predicate(program, domain_symbol)
         }
 
         pub fn literal_bytes(
@@ -393,7 +436,9 @@ pub mod evidence {
                         .iter()
                         .find_map(|argument| proof_only_mention_in(reasons, program, *argument))
                 }
-                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => None,
+                TypeReferenceNode::Callable { .. }
+                | TypeReferenceNode::ConstExpression(_)
+                | TypeReferenceNode::Unit => None,
             }
         }
 
@@ -574,7 +619,8 @@ pub mod evidence {
                         collect_inline_data_edges(program, *argument, edge);
                     }
                 }
-                TypeReferenceNode::Reference { .. }
+                TypeReferenceNode::Callable { .. }
+                | TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::Unit => {}
@@ -585,10 +631,101 @@ pub mod evidence {
         use crate::data::DataProperties;
         use crate::expression::ExpressionHandle;
         use crate::name::Identifier;
+        use crate::type_identity::TypeIdentityRequest;
         use crate::types::TypeReferenceHandle;
         use arena::HandleSpan;
         use symbols::JoinedPath;
         use symbols::SymbolHandle;
+
+        pub(crate) mod constructor_values {
+            use crate::data::DataMember;
+            use crate::expression::{ExpressionHandle, TableStructLiteralField};
+            use symbols::SymbolHandle;
+
+            pub(crate) fn render(
+                program: &crate::TypedTrees,
+                owner: SymbolHandle,
+                case: Option<SymbolHandle>,
+                fields: &[TableStructLiteralField],
+                render_value: impl Fn(ExpressionHandle) -> String,
+            ) -> Option<String> {
+                let mut owners = program
+                    .data_definitions()
+                    .iter()
+                    .filter(|data| data.symbol == owner);
+                let data = owners.next()?;
+                if owners.next().is_some() {
+                    return None;
+                }
+                let members = program.data_members(data);
+                let selected_case = if let Some(case) = case {
+                    let mut cases = members.iter().filter_map(|member| match member {
+                        DataMember::Variant(variant) if variant.symbol == case => Some(variant),
+                        _ => None,
+                    });
+                    let selected = cases.next()?;
+                    if cases.next().is_some() {
+                        return None;
+                    }
+                    Some(selected)
+                } else {
+                    None
+                };
+                let owner = program.normalized_hermetic_symbol_identity(owner).ok()?;
+                let case = selected_case.map_or_else(
+                    || "record".to_owned(),
+                    |case| member_identity(case.identity, case.name.as_str()),
+                );
+                let mut values = Vec::with_capacity(fields.len());
+                for field in fields {
+                    let common = members.iter().filter_map(|member| match member {
+                        DataMember::Field(declared) if declared.symbol == field.field_symbol => {
+                            Some(("common", declared))
+                        }
+                        _ => None,
+                    });
+                    let payload = selected_case
+                        .into_iter()
+                        .flat_map(|case| program.data_payload_fields(case))
+                        .filter(|declared| declared.symbol == field.field_symbol)
+                        .map(|declared| ("payload", declared));
+                    let mut declarations = common.chain(payload);
+                    let (scope, declared) = declarations.next()?;
+                    if declarations.next().is_some() {
+                        return None;
+                    }
+                    let identity = format!(
+                        "{scope}:{}",
+                        member_identity(declared.identity, declared.name.as_str())
+                    );
+                    values.push((identity, render_value(field.value)));
+                }
+                values.sort_by(|left, right| left.0.cmp(&right.0));
+                if values.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                    return None;
+                }
+                let mut label = "constructor:".to_owned();
+                append(&mut label, &owner);
+                append(&mut label, &case);
+                for (field, value) in values {
+                    append(&mut label, &field);
+                    append(&mut label, &value);
+                }
+                Some(label)
+            }
+
+            fn member_identity(identity: Option<u64>, name: &str) -> String {
+                identity.map_or_else(
+                    || format!("name:{name}"),
+                    |identity| format!("schema:{identity}"),
+                )
+            }
+
+            fn append(label: &mut String, component: &str) {
+                use std::fmt::Write;
+                let _ = write!(label, "{}:{component}", component.len());
+            }
+        }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct PropositionDefinition {
@@ -667,6 +804,920 @@ pub mod evidence {
             }
         }
 
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub enum NormalizedPropositionFormula {
+            Proposition {
+                label: String,
+                classification: PropositionEvidenceClassification,
+            },
+            Boolean {
+                label: String,
+            },
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub enum PropositionEvidenceClassification {
+            FactOnly,
+            Witness {
+                evidence: String,
+                interface: Option<NormalizedEvidenceInterfaceIdentity>,
+            },
+        }
+
+        fn normalize_evidence_interface(
+            program: &crate::TypedTrees,
+            evidence: TypeReferenceHandle,
+            binders: &[PropositionBinder],
+            binder_labels: &[String],
+            binder_identities: &[Option<String>],
+        ) -> Option<(String, Option<NormalizedEvidenceInterfaceIdentity>)> {
+            let display_substitutions = binders
+                .iter()
+                .zip(binder_labels)
+                .map(|(binder, replacement)| (binder.symbol, replacement.clone()))
+                .collect::<Vec<_>>();
+            let label = render_evidence_type(program, evidence, &display_substitutions);
+            let (trait_symbol, arguments) =
+                match program.type_reference_table.type_reference(evidence) {
+                    crate::types::TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
+                    crate::types::TypeReferenceNode::Generic {
+                        base_symbol,
+                        arguments,
+                        ..
+                    } => (*base_symbol, program.type_reference_handles(*arguments)),
+                    _ => return Some((label, None)),
+                };
+            if !trait_symbol.is_valid()
+                || program.symbols.get(trait_symbol).kind != symbols::SymbolKind::Trait
+            {
+                return Some((label, None));
+            }
+            let unresolved_binders = binders
+                .iter()
+                .zip(binder_identities)
+                .filter_map(|(binder, identity)| identity.is_none().then_some(binder.symbol))
+                .collect::<Vec<_>>();
+            if arguments.iter().any(|argument| {
+                type_reference_mentions_any(program, *argument, &unresolved_binders)
+            }) {
+                return Some((label, None));
+            }
+            let exact_substitutions = binders
+                .iter()
+                .zip(binder_identities)
+                .filter_map(|(binder, replacement)| {
+                    replacement.clone().map(|value| (binder.symbol, value))
+                })
+                .collect::<Vec<_>>();
+            let arguments = arguments
+                .iter()
+                .map(|argument| {
+                    program.type_identity(TypeIdentityRequest {
+                        binders: &exact_substitutions,
+                        ..TypeIdentityRequest::ordinary(*argument)
+                    })
+                })
+                .collect::<Vec<_>>();
+            let root_arguments = arguments
+                .iter()
+                .map(|argument| program.type_identity_text(*argument).unwrap_or_default())
+                .collect::<Vec<_>>();
+            Some((
+                label,
+                Some(NormalizedEvidenceInterfaceIdentity {
+                    trait_symbol,
+                    arguments,
+                    requirements: normalized_evidence_requirements(
+                        program,
+                        trait_symbol,
+                        &root_arguments,
+                    )
+                    .ok()?,
+                }),
+            ))
+        }
+
+        pub(crate) fn normalized_evidence_requirements(
+            program: &crate::TypedTrees,
+            root: SymbolHandle,
+            root_arguments: &[String],
+        ) -> Result<
+            Vec<NormalizedEvidenceRequirementIdentity>,
+            crate::runtime_callable_identity::RuntimeCallableIdentityError,
+        > {
+            fn collect(
+                program: &crate::TypedTrees,
+                trait_symbol: SymbolHandle,
+                trait_arguments: &[String],
+                visited: &mut Vec<(SymbolHandle, Vec<String>)>,
+                requirements: &mut Vec<NormalizedEvidenceRequirementIdentity>,
+            ) -> Result<(), crate::runtime_callable_identity::RuntimeCallableIdentityError>
+            {
+                let visit = (trait_symbol, trait_arguments.to_vec());
+                if visited.contains(&visit) {
+                    return Ok(());
+                }
+                visited.push(visit);
+                let definition = program.trait_definition_by_symbol(trait_symbol)
+                    .ok_or(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact)?;
+                if program.trait_type_parameters(definition).len() != trait_arguments.len() {
+                    return Err(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact);
+                }
+                for requirement in program.trait_machine_signatures(definition) {
+                    if !requirements.iter().any(|candidate| {
+                        candidate.declaring_trait == definition.symbol
+                            && candidate.declaring_trait_arguments == trait_arguments
+                            && candidate.requirement == requirement.symbol
+                    }) {
+                        requirements.push(NormalizedEvidenceRequirementIdentity {
+                            declaring_trait: definition.symbol,
+                            declaring_trait_arguments: trait_arguments.to_vec(),
+                            requirement: requirement.symbol,
+                        });
+                    }
+                }
+                let substitutions = program
+                    .trait_type_parameters(definition)
+                    .iter()
+                    .zip(trait_arguments)
+                    .map(|(parameter, argument)| (parameter.symbol, argument.clone()))
+                    .collect::<Vec<_>>();
+                for parent in program.trait_requirements(definition) {
+                    let parent_arguments = program
+                        .type_reference_handles(parent.arguments)
+                        .iter()
+                        .map(|argument| {
+                            program.runtime_callable_type_identity(TypeIdentityRequest {
+                                binders: &substitutions,
+                                ..TypeIdentityRequest::ordinary(*argument)
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    collect(
+                        program,
+                        parent.symbol,
+                        &parent_arguments,
+                        visited,
+                        requirements,
+                    )?;
+                }
+                Ok(())
+            }
+
+            let mut requirements = Vec::new();
+            collect(
+                program,
+                root,
+                root_arguments,
+                &mut Vec::new(),
+                &mut requirements,
+            )?;
+            requirements.sort_by_key(|requirement| {
+                (
+                    requirement.declaring_trait.arena_index(),
+                    requirement.requirement.arena_index(),
+                    requirement.declaring_trait_arguments.clone(),
+                )
+            });
+            Ok(requirements)
+        }
+
+        impl crate::TypedTrees {
+            pub fn type_reference_mentions_any(
+                &self,
+                reference: TypeReferenceHandle,
+                symbols: &[SymbolHandle],
+            ) -> bool {
+                type_reference_mentions_any(self, reference, symbols)
+            }
+        }
+
+        fn type_reference_mentions_any(
+            program: &crate::TypedTrees,
+            type_reference: TypeReferenceHandle,
+            symbols: &[SymbolHandle],
+        ) -> bool {
+            let mut references = FreeInputMentions::new(program, symbols);
+            crate::references::visit_type_reference(program, &mut references, type_reference);
+            references.mentioned
+        }
+
+        struct FreeInputMentions<'program, 'query> {
+            program: &'program crate::TypedTrees,
+            symbols: &'query [SymbolHandle],
+            mentioned: bool,
+            scopes: Vec<Vec<SymbolHandle>>,
+            pending_binders: Vec<SymbolHandle>,
+            types: std::collections::HashSet<(TypeReferenceHandle, Vec<SymbolHandle>)>,
+            expressions: std::collections::HashSet<(ExpressionHandle, Vec<SymbolHandle>)>,
+        }
+
+        impl<'program, 'query> FreeInputMentions<'program, 'query> {
+            fn new(program: &'program crate::TypedTrees, symbols: &'query [SymbolHandle]) -> Self {
+                Self {
+                    program,
+                    symbols,
+                    mentioned: false,
+                    scopes: Vec::new(),
+                    pending_binders: Vec::new(),
+                    types: std::collections::HashSet::new(),
+                    expressions: std::collections::HashSet::new(),
+                }
+            }
+            fn context(&self) -> Vec<SymbolHandle> {
+                let mut bound = self.scopes.iter().flatten().copied().collect::<Vec<_>>();
+                bound.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                bound.dedup();
+                bound
+            }
+        }
+
+        impl Extend<SymbolHandle> for FreeInputMentions<'_, '_> {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                self.mentioned |= symbols.into_iter().any(|symbol| {
+                    self.symbols.contains(&symbol)
+                        && !self.scopes.iter().flatten().any(|bound| *bound == symbol)
+                });
+            }
+        }
+
+        impl crate::references::TypedReferences for FreeInputMentions<'_, '_> {
+            fn callable_signature(&mut self, signature: &crate::signature::StateSignature) {
+                self.pending_binders = self
+                    .program
+                    .state_signature_type_parameters(signature)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(
+                        self.program
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .map(|parameter| parameter.symbol),
+                    )
+                    .collect();
+                if signature.symbol.is_valid() {
+                    self.pending_binders.push(signature.symbol);
+                    if let Some(children) = self.program.symbols.child_handles(signature.symbol) {
+                        self.pending_binders.extend(children);
+                    }
+                }
+            }
+            fn enter_lexical_scope(&mut self, _: SymbolHandle) {
+                self.scopes.push(std::mem::take(&mut self.pending_binders));
+            }
+            fn leave_lexical_scope(&mut self) {
+                self.scopes.pop();
+            }
+            fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+                !self.mentioned && self.types.insert((reference, self.context()))
+            }
+            fn expression(&mut self, expression: ExpressionHandle) -> bool {
+                !self.mentioned && self.expressions.insert((expression, self.context()))
+            }
+        }
+
+        fn exact_binder_argument_identity(
+            program: &crate::TypedTrees,
+            argument: &PropositionBinderArgument,
+        ) -> Option<String> {
+            if argument.const_literal.is_some() || !argument.symbol.is_valid() {
+                return None;
+            }
+            if matches!(
+                program.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::TypeParameter
+                    | symbols::SymbolKind::MachineParameter
+                    | symbols::SymbolKind::PropositionParameter
+                    | symbols::SymbolKind::PropositionMachineParameter
+            ) {
+                return None;
+            }
+            let identity = program.symbols.display_path(argument.symbol, "::");
+            (!identity.is_empty()).then_some(identity)
+        }
+
+        fn binder_argument_identities_for_labels(
+            program: &crate::TypedTrees,
+            application: &PropositionApplication,
+            binder_labels: &[String],
+        ) -> Option<Vec<Option<String>>> {
+            if application.binder_arguments.len() == binder_labels.len() {
+                return Some(
+                    application
+                        .binder_arguments
+                        .iter()
+                        .map(|argument| exact_binder_argument_identity(program, argument))
+                        .collect(),
+                );
+            }
+            application
+                .binder_arguments
+                .is_empty()
+                .then(|| vec![None; binder_labels.len()])
+        }
+
+        fn render_evidence_type(
+            program: &crate::TypedTrees,
+            type_reference: TypeReferenceHandle,
+            substitutions: &[(SymbolHandle, String)],
+        ) -> String {
+            use crate::types::TypeReferenceNode;
+
+            match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Reference {
+                    referee, access, ..
+                } => format!(
+                    "{}{}",
+                    access.borrow_prefix(),
+                    render_evidence_type(program, *referee, substitutions)
+                ),
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => format!(
+                    "{}[{}]",
+                    render_evidence_type(program, *base_type, substitutions),
+                    match constraints.count() {
+                        1 => "1 constraint".to_owned(),
+                        count => format!("{count} constraints"),
+                    }
+                ),
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } => format!(
+                    "[{}; {length}]",
+                    render_evidence_type(program, *element_type, substitutions)
+                ),
+                TypeReferenceNode::Slice { element_type } => format!(
+                    "[{}]",
+                    render_evidence_type(program, *element_type, substitutions)
+                ),
+                TypeReferenceNode::Generic {
+                    base_name,
+                    arguments,
+                    ..
+                } => format!(
+                    "{base_name}<{}>",
+                    program
+                        .type_reference_handles(*arguments)
+                        .iter()
+                        .map(|argument| render_evidence_type(program, *argument, substitutions))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                TypeReferenceNode::Named { symbol, name } => substitutions
+                    .iter()
+                    .find(|(candidate, _)| candidate == symbol)
+                    .map(|(_, replacement)| replacement.clone())
+                    .unwrap_or_else(|| name.to_string()),
+                TypeReferenceNode::Callable { .. } => {
+                    program.type_identity_request_text(TypeIdentityRequest {
+                        binders: substitutions,
+                        ..TypeIdentityRequest::ordinary(type_reference)
+                    })
+                }
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                    program.display_type_reference(type_reference)
+                }
+            }
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct NormalizedEvidenceInterfaceIdentity {
+            pub trait_symbol: SymbolHandle,
+            pub arguments: Vec<crate::type_identity::NormalizedTypeIdentity>,
+            pub requirements: Vec<NormalizedEvidenceRequirementIdentity>,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct NormalizedEvidenceRequirementIdentity {
+            pub declaring_trait: SymbolHandle,
+            pub declaring_trait_arguments: Vec<String>,
+            pub requirement: SymbolHandle,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct NormalizedPropositionApplicationIdentity {
+            pub declaration: SymbolHandle,
+            pub name: String,
+            pub binder_arguments: Vec<NormalizedPropositionBinderArgument>,
+            pub arguments: Vec<String>,
+            pub classification: PropositionEvidenceClassification,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct NormalizedPropositionBinderArgument {
+            pub kind: PropositionBinderArgumentKind,
+            pub identity: String,
+        }
+
+        impl NormalizedPropositionFormula {
+            pub fn identity_label(&self) -> String {
+                match self {
+                    Self::Proposition {
+                        label,
+                        classification: PropositionEvidenceClassification::FactOnly,
+                    } => format!("proposition:fact:{label}"),
+                    Self::Proposition {
+                        label,
+                        classification: PropositionEvidenceClassification::Witness { evidence, .. },
+                    } => format!("proposition:witness:{evidence}:{label}"),
+                    Self::Boolean { label } => format!("boolean:{label}"),
+                }
+            }
+        }
+
+        pub type ProofLabelResult<T> =
+            Result<T, crate::runtime_callable_identity::RuntimeCallableIdentityError>;
+
+        #[derive(Clone, Copy)]
+        pub enum ProofSubstitutions<'a> {
+            None,
+            BySymbol(&'a [(SymbolHandle, String)]),
+            ByParameter(&'a [(SymbolHandle, String, String)]),
+        }
+
+        #[derive(Clone, Copy)]
+        pub struct PropositionLabels<'a> {
+            pub binder_labels: &'a [String],
+            pub argument_labels: &'a [String],
+        }
+
+        #[derive(Clone, Debug, Default, PartialEq, Eq)]
+        pub struct OwnedPropositionLabels {
+            pub binder_labels: Vec<String>,
+            pub argument_labels: Vec<String>,
+        }
+
+        impl OwnedPropositionLabels {
+            pub fn borrow(&self) -> PropositionLabels<'_> {
+                PropositionLabels {
+                    binder_labels: &self.binder_labels,
+                    argument_labels: &self.argument_labels,
+                }
+            }
+        }
+
+        impl crate::TypedTrees {
+            pub fn normalize_nominal_proposition_application(
+                &self,
+                application: &PropositionApplication,
+                labels: Option<PropositionLabels<'_>>,
+            ) -> Option<NormalizedPropositionApplicationIdentity> {
+                self.try_normalize_nominal_proposition_application(application, labels)
+                    .ok()
+                    .flatten()
+            }
+
+            pub fn try_normalize_nominal_proposition_application(
+                &self,
+                application: &PropositionApplication,
+                labels: Option<PropositionLabels<'_>>,
+            ) -> ProofLabelResult<Option<NormalizedPropositionApplicationIdentity>> {
+                let rendered = self.proposition_labels(application)?;
+                let labels = labels.unwrap_or_else(|| rendered.borrow());
+                let (binder_labels, argument_labels) =
+                    (labels.binder_labels, labels.argument_labels);
+                let Some(binder_identities) =
+                    binder_argument_identities_for_labels(self, application, binder_labels)
+                else {
+                    return Ok(None);
+                };
+                self.normalize_nominal_proposition_application_inner(
+                    application,
+                    binder_labels,
+                    argument_labels,
+                    &binder_identities,
+                    &mut Vec::new(),
+                )
+            }
+
+            fn normalize_nominal_proposition_application_inner(
+                &self,
+                application: &PropositionApplication,
+                binder_labels: &[String],
+                argument_labels: &[String],
+                binder_identities: &[Option<String>],
+                visiting: &mut Vec<SymbolHandle>,
+            ) -> ProofLabelResult<Option<NormalizedPropositionApplicationIdentity>> {
+                if visiting.contains(&application.proposition) {
+                    return Ok(None);
+                }
+                let Some(declaration) =
+                    self.proposition_definition_by_symbol(application.proposition)
+                else {
+                    return Ok(None);
+                };
+                let binders = self.proposition_binders(declaration);
+                let parameters = self.proposition_parameters(declaration);
+                if binders.len() != binder_labels.len()
+                    || binders.len() != binder_identities.len()
+                    || parameters.len() != argument_labels.len()
+                {
+                    return Ok(None);
+                }
+                let substitutions = binders
+                    .iter()
+                    .zip(binder_labels)
+                    .map(|(binder, label)| (binder.symbol, label.clone()))
+                    .chain(
+                        parameters
+                            .iter()
+                            .zip(argument_labels)
+                            .map(|(parameter, label)| (parameter.symbol, label.clone())),
+                    )
+                    .collect::<Vec<_>>();
+                let endpoint = |classification| NormalizedPropositionApplicationIdentity {
+                    declaration: declaration.symbol,
+                    name: declaration.name.as_str().to_owned(),
+                    binder_arguments: binders
+                        .iter()
+                        .zip(binder_labels)
+                        .map(|(binder, identity)| NormalizedPropositionBinderArgument {
+                            kind: match binder.kind {
+                                PropositionBinderKind::Type => PropositionBinderArgumentKind::Type,
+                                PropositionBinderKind::Const { .. } => {
+                                    PropositionBinderArgumentKind::Const
+                                }
+                                PropositionBinderKind::Machine => {
+                                    PropositionBinderArgumentKind::Machine
+                                }
+                            },
+                            identity: identity.clone(),
+                        })
+                        .collect(),
+                    arguments: argument_labels.to_vec(),
+                    classification,
+                };
+                match &declaration.body {
+                    PropositionBody::Primitive => {
+                        Ok(Some(endpoint(PropositionEvidenceClassification::FactOnly)))
+                    }
+                    PropositionBody::Witness { evidence } => {
+                        let Some((evidence, interface)) = normalize_evidence_interface(
+                            self,
+                            *evidence,
+                            binders,
+                            binder_labels,
+                            binder_identities,
+                        ) else {
+                            return Ok(None);
+                        };
+                        Ok(Some(endpoint(PropositionEvidenceClassification::Witness {
+                            evidence,
+                            interface,
+                        })))
+                    }
+                    PropositionBody::Transparent {
+                        proposition: PropositionFormula::BooleanExpression(_),
+                    } => Ok(None),
+                    PropositionBody::Transparent {
+                        proposition: PropositionFormula::Application(expansion),
+                    } => {
+                        visiting.push(application.proposition);
+                        let normalized = (|| {
+                            let (expanded_binders, expanded_binder_identities, expanded_arguments) =
+                                expanded_application_parts(
+                                    self,
+                                    expansion,
+                                    &substitutions,
+                                    binders,
+                                    binder_identities,
+                                )?;
+                            self.normalize_nominal_proposition_application_inner(
+                                expansion,
+                                &expanded_binders,
+                                &expanded_arguments,
+                                &expanded_binder_identities,
+                                visiting,
+                            )
+                        })();
+                        visiting.pop();
+                        normalized
+                    }
+                }
+            }
+
+            pub fn render_proof_constructor_value(
+                &self,
+                literal: &crate::expression::TableStructLiteral,
+                render_value: impl Fn(ExpressionHandle) -> String,
+            ) -> String {
+                constructor_values::render(
+                    self,
+                    literal.type_symbol,
+                    literal.case_symbol,
+                    self.expression_table.struct_fields(literal.fields),
+                    render_value,
+                )
+                .unwrap_or_else(|| format!("invalid-constructor:{}", literal.type_name))
+            }
+
+            /// Display a proof expression in diagnostics. Semantic consumers
+            /// use `try_render_proof_expression` and retain its failure.
+            pub fn render_proof_expression(
+                &self,
+                expression: ExpressionHandle,
+                substitutions: ProofSubstitutions<'_>,
+            ) -> String {
+                self.try_render_proof_expression(expression, substitutions)
+                    .unwrap_or_else(|error| format!("<cannot render proof expression: {error}>"))
+            }
+
+            pub fn try_render_proof_expression(
+                &self,
+                expression: ExpressionHandle,
+                substitutions: ProofSubstitutions<'_>,
+            ) -> ProofLabelResult<String> {
+                match substitutions {
+                    ProofSubstitutions::None => render_expression(self, expression, &[], &[]),
+                    ProofSubstitutions::BySymbol(substitutions) => {
+                        render_expression(self, expression, substitutions, &[])
+                    }
+                    ProofSubstitutions::ByParameter(substitutions) => {
+                        let symbol_substitutions = substitutions
+                            .iter()
+                            .map(|(symbol, _, replacement)| (*symbol, replacement.clone()))
+                            .collect::<Vec<_>>();
+                        let name_substitutions = substitutions
+                            .iter()
+                            .map(|(_, name, replacement)| (name.clone(), replacement.clone()))
+                            .collect::<Vec<_>>();
+                        render_expression(
+                            self,
+                            expression,
+                            &symbol_substitutions,
+                            &name_substitutions,
+                        )
+                    }
+                }
+            }
+
+            pub fn proposition_labels(
+                &self,
+                application: &PropositionApplication,
+            ) -> ProofLabelResult<OwnedPropositionLabels> {
+                Ok(OwnedPropositionLabels {
+                    binder_labels: application
+                        .binder_arguments
+                        .iter()
+                        .map(display_binder_argument)
+                        .collect(),
+                    argument_labels: self
+                        .expression_table
+                        .expression_handles(application.arguments)
+                        .iter()
+                        .map(|argument| {
+                            self.try_render_proof_expression(*argument, ProofSubstitutions::None)
+                        })
+                        .collect::<ProofLabelResult<Vec<_>>>()?,
+                })
+            }
+
+            pub fn normalize_proposition_application(
+                &self,
+                application: &PropositionApplication,
+                labels: Option<PropositionLabels<'_>>,
+            ) -> Option<NormalizedPropositionFormula> {
+                self.try_normalize_proposition_application(application, labels)
+                    .ok()
+                    .flatten()
+            }
+
+            pub fn try_normalize_proposition_application(
+                &self,
+                application: &PropositionApplication,
+                labels: Option<PropositionLabels<'_>>,
+            ) -> ProofLabelResult<Option<NormalizedPropositionFormula>> {
+                let rendered = self.proposition_labels(application)?;
+                let labels = labels.unwrap_or_else(|| rendered.borrow());
+                let (binder_labels, argument_labels) =
+                    (labels.binder_labels, labels.argument_labels);
+                let Some(binder_identities) =
+                    binder_argument_identities_for_labels(self, application, binder_labels)
+                else {
+                    return Ok(None);
+                };
+                let mut visiting = Vec::new();
+                self.normalize_proposition_application_inner(
+                    application,
+                    binder_labels,
+                    argument_labels,
+                    &binder_identities,
+                    &mut visiting,
+                )
+            }
+
+            pub fn normalized_identity_label(
+                &self,
+                application: &PropositionApplication,
+                binder_labels: &[String],
+                argument_labels: &[String],
+            ) -> Option<String> {
+                self.normalize_proposition_application(
+                    application,
+                    Some(PropositionLabels {
+                        binder_labels,
+                        argument_labels,
+                    }),
+                )
+                .map(|formula| formula.identity_label())
+            }
+
+            fn normalize_proposition_application_inner(
+                &self,
+                application: &PropositionApplication,
+                binder_labels: &[String],
+                argument_labels: &[String],
+                binder_identities: &[Option<String>],
+                visiting: &mut Vec<SymbolHandle>,
+            ) -> ProofLabelResult<Option<NormalizedPropositionFormula>> {
+                if visiting.contains(&application.proposition) {
+                    return Ok(None);
+                }
+                let declaration = self.proposition_definition_by_symbol(application.proposition);
+                if declaration.is_none()
+                    && self.symbols.get(application.proposition).kind
+                        == symbols::SymbolKind::PropositionParameter
+                {
+                    let Some(parameter_count) = self
+                        .data_type_parameters
+                        .iter()
+                        .map(|(_, parameter)| parameter)
+                        .find_map(|parameter| match &parameter.kind {
+                            crate::data::TypeParameterKind::Proposition { contract }
+                                if parameter.symbol == application.proposition =>
+                            {
+                                Some(contract.parameters.len())
+                            }
+                            _ => None,
+                        })
+                    else {
+                        return Ok(None);
+                    };
+                    if !binder_labels.is_empty() || parameter_count != argument_labels.len() {
+                        return Ok(None);
+                    }
+                    return Ok(Some(NormalizedPropositionFormula::Proposition {
+                        label: canonical_application_label(
+                            application.name.as_str(),
+                            binder_labels,
+                            argument_labels,
+                        ),
+                        classification: PropositionEvidenceClassification::FactOnly,
+                    }));
+                }
+                let Some(declaration) = declaration else {
+                    return Ok(None);
+                };
+                let binders = self.proposition_binders(declaration);
+                let parameters = self.proposition_parameters(declaration);
+                if binders.len() != binder_labels.len()
+                    || binders.len() != binder_identities.len()
+                    || parameters.len() != argument_labels.len()
+                {
+                    return Ok(None);
+                }
+
+                let mut substitutions = Vec::new();
+                for (binder, label) in binders.iter().zip(binder_labels) {
+                    substitutions.push((binder.symbol, label.clone()));
+                }
+                for (parameter, label) in parameters.iter().zip(argument_labels) {
+                    substitutions.push((parameter.symbol, label.clone()));
+                }
+
+                match &declaration.body {
+                    PropositionBody::Primitive => {
+                        Ok(Some(NormalizedPropositionFormula::Proposition {
+                            label: canonical_application_label(
+                                declaration.name.as_str(),
+                                binder_labels,
+                                argument_labels,
+                            ),
+                            classification: PropositionEvidenceClassification::FactOnly,
+                        }))
+                    }
+                    PropositionBody::Witness { evidence } => {
+                        let Some((evidence, interface)) = normalize_evidence_interface(
+                            self,
+                            *evidence,
+                            binders,
+                            binder_labels,
+                            binder_identities,
+                        ) else {
+                            return Ok(None);
+                        };
+                        Ok(Some(NormalizedPropositionFormula::Proposition {
+                            label: canonical_application_label(
+                                declaration.name.as_str(),
+                                binder_labels,
+                                argument_labels,
+                            ),
+                            classification: PropositionEvidenceClassification::Witness {
+                                evidence,
+                                interface,
+                            },
+                        }))
+                    }
+                    PropositionBody::Transparent { proposition } => {
+                        visiting.push(application.proposition);
+                        let normalized = (|| match proposition {
+                            PropositionFormula::BooleanExpression(expression) => {
+                                Ok(Some(NormalizedPropositionFormula::Boolean {
+                                    label: render_expression(
+                                        self,
+                                        *expression,
+                                        &substitutions,
+                                        &[],
+                                    )?,
+                                }))
+                            }
+                            PropositionFormula::Application(expansion) => {
+                                let (
+                                    expanded_binders,
+                                    expanded_binder_identities,
+                                    expanded_arguments,
+                                ) = expanded_application_parts(
+                                    self,
+                                    expansion,
+                                    &substitutions,
+                                    binders,
+                                    binder_identities,
+                                )?;
+                                self.normalize_proposition_application_inner(
+                                    expansion,
+                                    &expanded_binders,
+                                    &expanded_arguments,
+                                    &expanded_binder_identities,
+                                    visiting,
+                                )
+                            }
+                        })();
+                        visiting.pop();
+                        normalized
+                    }
+                }
+            }
+        }
+
+        fn expanded_application_parts(
+            program: &crate::TypedTrees,
+            expansion: &PropositionApplication,
+            substitutions: &[(SymbolHandle, String)],
+            binders: &[PropositionBinder],
+            binder_identities: &[Option<String>],
+        ) -> ProofLabelResult<(Vec<String>, Vec<Option<String>>, Vec<String>)> {
+            let expanded_binders = expansion
+                .binder_arguments
+                .iter()
+                .map(|argument| {
+                    substitutions
+                        .iter()
+                        .find(|(symbol, _)| *symbol == argument.symbol)
+                        .map(|(_, label)| label.clone())
+                        .unwrap_or_else(|| display_binder_argument(argument))
+                })
+                .collect::<Vec<_>>();
+            let expanded_binder_identities = expansion
+                .binder_arguments
+                .iter()
+                .map(|argument| {
+                    binders
+                        .iter()
+                        .zip(binder_identities)
+                        .find(|(binder, _)| binder.symbol == argument.symbol)
+                        .and_then(|(_, identity)| identity.clone())
+                        .or_else(|| exact_binder_argument_identity(program, argument))
+                })
+                .collect::<Vec<_>>();
+            let expanded_arguments = program
+                .expression_table
+                .expression_handles(expansion.arguments)
+                .iter()
+                .map(|argument| render_expression(program, *argument, substitutions, &[]))
+                .collect::<ProofLabelResult<Vec<_>>>()?;
+            Ok((
+                expanded_binders,
+                expanded_binder_identities,
+                expanded_arguments,
+            ))
+        }
+
+        fn canonical_application_label(
+            name: &str,
+            binders: &[String],
+            arguments: &[String],
+        ) -> String {
+            let binder_suffix = if binders.is_empty() {
+                String::new()
+            } else {
+                format!("<{}>", binders.join(","))
+            };
+            format!("{name}{binder_suffix}({})", arguments.join(","))
+        }
+
         fn display_binder_argument(argument: &PropositionBinderArgument) -> String {
             if let Some(literal) = &argument.const_literal {
                 return literal.to_string();
@@ -676,7 +1727,307 @@ pub mod evidence {
             }
             argument.path.joined_path()
         }
+
+        // Display helpers accept total callbacks. Discard their complete output
+        // when a child cannot be normalized, preserving the original failure.
+        fn with_fallible_children<T>(
+            render: impl Fn(ExpressionHandle) -> ProofLabelResult<String>,
+            display: impl FnOnce(&dyn Fn(ExpressionHandle) -> String) -> T,
+        ) -> ProofLabelResult<T> {
+            let failure = std::cell::Cell::new(None);
+            let result = display(&|expression| match render(expression) {
+                Ok(label) => label,
+                Err(error) => {
+                    if failure.get().is_none() {
+                        failure.set(Some(error));
+                    }
+                    String::new()
+                }
+            });
+            match failure.into_inner() {
+                Some(error) => Err(error),
+                None => Ok(result),
+            }
+        }
+
+        fn render_expression(
+            program: &crate::TypedTrees,
+            expression: ExpressionHandle,
+            substitutions: &[(SymbolHandle, String)],
+            name_substitutions: &[(String, String)],
+        ) -> ProofLabelResult<String> {
+            use crate::expression::ExpressionNode;
+            if !program.expression_table.expression_is_valid(expression) {
+                return Err(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact);
+            }
+            let render = |expression| {
+                render_expression(program, expression, substitutions, name_substitutions)
+            };
+            Ok(match program.expression_table.expression(expression) {
+                ExpressionNode::MachineValue(value) => {
+                    return program.runtime_machine_value_identity(value, substitutions);
+                }
+                ExpressionNode::Match(dispatch) => with_fallible_children(render, |render| {
+                    let arms = program
+                        .expression_table
+                        .match_arms(dispatch.arms)
+                        .iter()
+                        .map(|arm| {
+                            let pattern = crate::expression::display_match_pattern(
+                                &program.expression_table,
+                                arm.pattern,
+                                render,
+                            );
+                            format!("{pattern} => {}", render(arm.value))
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("match {} {{ {arms} }}", render(dispatch.subject))
+                })?,
+                ExpressionNode::SavedSubject(saved) => format!(
+                    "<saved subject #{}:{}>",
+                    saved.capture.arena_index(),
+                    saved.capture.generation()
+                ),
+                ExpressionNode::Atomic(atomic) => {
+                    format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value)?)
+                }
+                ExpressionNode::ArrayLiteral(values) => format!(
+                    "[{}]",
+                    program
+                        .expression_table
+                        .expression_handles(*values)
+                        .iter()
+                        .map(|value| render(*value))
+                        .collect::<ProofLabelResult<Vec<_>>>()?
+                        .join(", ")
+                ),
+                ExpressionNode::Binary(binary) => format!(
+                    "{} {} {}",
+                    render(binary.left)?,
+                    binary.operator.display_name(),
+                    render(binary.right)?
+                ),
+                ExpressionNode::Boolean(value) => value.to_string(),
+                ExpressionNode::Cast(cast) => format!(
+                    "({} as {})",
+                    render(cast.value)?,
+                    crate::expression::display_name_path(
+                        program
+                            .expression_table
+                            .name_path_members(cast.target_label),
+                        "::",
+                    )
+                ),
+                ExpressionNode::Call(call) => with_fallible_children(render, |render| {
+                    crate::expression::display_call_label(&program.expression_table, call, render)
+                })?,
+                ExpressionNode::Float(value) => value.to_string(),
+                ExpressionNode::UndeterminedNaN(format) => {
+                    format!("<undetermined NaN {}>", format.name())
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    format!(
+                        "{}[{}]",
+                        render(indexed.collection)?,
+                        render(indexed.index)?
+                    )
+                }
+                ExpressionNode::Integer(value) => value.to_string(),
+                ExpressionNode::Member(member) => {
+                    format!("{}.{}", render(member.receiver)?, member.member)
+                }
+                ExpressionNode::Borrow(inner) => format!(
+                    "{} {}",
+                    match inner.access {
+                        language_core::ReferenceAccess::Mutable => "mut",
+                        language_core::ReferenceAccess::WriteOnly => "write",
+                        language_core::ReferenceAccess::Shared => "shared",
+                    },
+                    render(inner.target)?
+                ),
+                ExpressionNode::Name(path) => {
+                    if let Some((_, replacement)) = substitutions
+                        .iter()
+                        .find(|(symbol, _)| *symbol == path.symbol || *symbol == path.head_symbol)
+                    {
+                        return Ok(replacement.clone());
+                    }
+                    let members = program.expression_table.name_path_members(path.members);
+                    if let Some(first) = members.first()
+                        && let Some((_, replacement)) = name_substitutions
+                            .iter()
+                            .find(|(name, _)| name == first.as_str())
+                    {
+                        return Ok(replacement.clone());
+                    }
+                    let selected = program
+                        .expression_table
+                        .name_path_member_symbols(path.member_symbols);
+                    if selected.len() == members.len()
+                        && selected.len() >= 2
+                        && selected.first() == Some(&path.head_symbol)
+                        && selected.last() == Some(&path.symbol)
+                        && selected.iter().all(|symbol| symbol.is_valid())
+                        && selected.windows(2).all(|pair| {
+                            program
+                                .symbols
+                                .child_handles(pair[0])
+                                .is_some_and(|mut children| children.any(|child| child == pair[1]))
+                        })
+                        && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant
+                    {
+                        let label = with_fallible_children(render, |render| {
+                            constructor_values::render(
+                                program,
+                                program.symbols.get(path.symbol).parent,
+                                Some(path.symbol),
+                                &[],
+                                render,
+                            )
+                        })?;
+                        return label.ok_or(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact);
+                    }
+                    crate::expression::display_name_path(members, "::")
+                }
+                ExpressionNode::Range(range) => {
+                    match (range.start.is_valid(), range.end.is_valid()) {
+                        (true, true) => format!("{}..{}", render(range.start)?, render(range.end)?),
+                        (true, false) => format!("{}..", render(range.start)?),
+                        (false, true) => format!("..{}", render(range.end)?),
+                        (false, false) => "..".to_owned(),
+                    }
+                }
+                ExpressionNode::String(value) => format!("{value:?}"),
+                ExpressionNode::StructLiteral(literal) => {
+                    with_fallible_children(render, |render| {
+                        constructor_values::render(
+                            program,
+                            literal.type_symbol,
+                            literal.case_symbol,
+                            program.expression_table.struct_fields(literal.fields),
+                            render,
+                        )
+                    })?
+                    .ok_or(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact)?
+                }
+                ExpressionNode::TypeExpression(reference) => {
+                    program.display_type_reference(*reference)
+                }
+                ExpressionNode::ZeroValue(_) => program.expression_table.display_name(expression),
+                ExpressionNode::Unary(unary) => {
+                    format!(
+                        "{}{}",
+                        unary.operator.display_name(),
+                        render(unary.operand)?
+                    )
+                }
+            })
+        }
+        #[cfg(test)]
+        mod proof_label_tests {
+            use super::*;
+            use crate::callable_values::RuntimeCallBinding;
+            use crate::expression::{ExpressionNode, TableCallExpression};
+            use crate::runtime_callable_identity::RuntimeCallableIdentityError;
+            use crate::type_identity::package_policy_reading_tests::fixture::Fixture;
+            use crate::types::TypeReferenceNode;
+
+            #[test]
+            fn callable_labels_keep_selection_identity_and_refuse_unresolved_children() {
+                let mut fixture = Fixture::new();
+                let expression = fixture.machine_value();
+                let ExpressionNode::MachineValue(value) = fixture
+                    .program
+                    .expression_table
+                    .expression(expression)
+                    .clone()
+                else {
+                    panic!("fixture must retain a machine selection");
+                };
+                let expected = fixture
+                    .program
+                    .runtime_machine_value_identity(&value, &[])
+                    .unwrap();
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(expression, ProofSubstitutions::None,),
+                    Ok(expected)
+                );
+                let amount = fixture.integer(9);
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(amount, ProofSubstitutions::None,),
+                    Ok(fixture.program.expression_table.display_name(amount))
+                );
+
+                let TypeReferenceNode::Callable { contract } = *fixture
+                    .program
+                    .type_reference_table
+                    .type_reference(value.type_reference)
+                else {
+                    panic!("fixture must retain its exact callable contract");
+                };
+                let mut unresolved = value;
+                unresolved.selected.symbol = SymbolHandle::invalid();
+                let unresolved = fixture.expression(ExpressionNode::MachineValue(unresolved));
+                let call = fixture.expression(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: Some(RuntimeCallBinding {
+                        callee: unresolved,
+                        contract,
+                    }),
+                    ..Default::default()
+                }));
+                let error = RuntimeCallableIdentityError::UnresolvedSymbol;
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(call, ProofSubstitutions::None,),
+                    Err(error)
+                );
+                let arguments = fixture
+                    .program
+                    .expression_table
+                    .insert_expression_handles([call]);
+                let application = PropositionApplication {
+                    proposition: SymbolHandle::invalid(),
+                    name: Identifier::generated("invalid_selection"),
+                    binder_arguments: Box::new([]),
+                    arguments,
+                };
+                let supplied_arguments = ["caller supplied label".to_owned()];
+                for labels in [
+                    None,
+                    Some(PropositionLabels {
+                        binder_labels: &[],
+                        argument_labels: &supplied_arguments,
+                    }),
+                ] {
+                    assert_eq!(
+                        fixture
+                            .program
+                            .try_normalize_proposition_application(&application, labels,),
+                        Err(error)
+                    );
+                    assert_eq!(
+                        fixture
+                            .program
+                            .try_normalize_nominal_proposition_application(&application, labels,),
+                        Err(error)
+                    );
+                }
+                assert!(
+                    fixture
+                        .program
+                        .normalize_proposition_application(&application, None)
+                        .is_none()
+                );
+            }
+        }
     }
+
     pub mod ranking {
         use crate::TypedTrees;
         use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -1934,6 +3285,243 @@ pub mod inspection {
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum RuntimeCallableContractSnapshot {
+                Contract {
+                    lexical_owner: String,
+                    resolved_source: Option<(u32, u32)>,
+                    signature: Box<CallableSignatureSnapshot>,
+                },
+                Invalid {
+                    handle: (u32, u32),
+                },
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct CallableSignatureSnapshot {
+                pub signature: StateSignatureSnapshot,
+                pub type_parameters: Vec<CallableTypeParameterSnapshot>,
+                pub termination: TerminationInterfaceSnapshot,
+                pub declares_no_crash_route: bool,
+                pub contract_metadata: Vec<CallableContractMetadataSnapshot>,
+                pub invocation_targets: Vec<String>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct CallableContractMetadataSnapshot {
+                pub keyword_source_span: Option<super::SourceSpanSnapshot>,
+                pub result_case: Option<(String, String)>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct CallableTypeParameterSnapshot {
+                pub name: String,
+                pub multiplicity: String,
+                pub carry: Option<String>,
+                pub kind: CallableTypeParameterKindSnapshot,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum CallableTypeParameterKindSnapshot {
+                Type,
+                Implementation,
+                Const {
+                    type_reference: TypeReferenceSnapshot,
+                },
+                Value {
+                    type_reference: TypeReferenceSnapshot,
+                },
+                Machine {
+                    contract: Box<CallableMachineParameterSnapshot>,
+                },
+                Proposition {
+                    name: String,
+                    parameters: Vec<StateParameterSnapshot>,
+                },
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum CallableMachineParameterSnapshot {
+                RequirementIdentity,
+                Structural {
+                    signature: Box<CallableSignatureSnapshot>,
+                },
+                Nominal {
+                    receiving_trait: String,
+                    receiving_arguments: Vec<TypeReferenceSnapshot>,
+                    trait_definition: String,
+                    requirement: String,
+                    trait_arguments: Vec<TypeReferenceSnapshot>,
+                    instantiated: Option<Box<CallableSignatureSnapshot>>,
+                },
+            }
+
+            pub(crate) fn runtime_callable_contract_snapshot(
+                program: &TypedTrees,
+                handle: crate::callable_values::RuntimeCallableContractHandle,
+            ) -> RuntimeCallableContractSnapshot {
+                if !program.runtime_callable_contracts.is_valid(handle) {
+                    return RuntimeCallableContractSnapshot::Invalid {
+                        handle: (handle.arena_index(), handle.generation()),
+                    };
+                }
+                let contract = program.runtime_callable_contracts.get(handle);
+                RuntimeCallableContractSnapshot::Contract {
+                    lexical_owner: program.symbols.display_path(contract.lexical_owner, "::"),
+                    resolved_source: contract.resolved_source,
+                    signature: Box::new(callable_signature_snapshot(program, &contract.signature)),
+                }
+            }
+
+            fn callable_signature_snapshot(
+                program: &TypedTrees,
+                signature: &StateSignature,
+            ) -> CallableSignatureSnapshot {
+                CallableSignatureSnapshot {
+                    signature: state_signature_snapshot(program, signature),
+                    type_parameters: program
+                        .state_signature_type_parameters(signature)
+                        .iter()
+                        .map(|parameter| {
+                            use crate::data::TypeParameterKind;
+                            let kind = match &parameter.kind {
+                                TypeParameterKind::Type => CallableTypeParameterKindSnapshot::Type,
+                                TypeParameterKind::Implementation => {
+                                    CallableTypeParameterKindSnapshot::Implementation
+                                }
+                                TypeParameterKind::Const { type_reference } => {
+                                    CallableTypeParameterKindSnapshot::Const {
+                                        type_reference: type_reference_snapshot(
+                                            program,
+                                            *type_reference,
+                                        ),
+                                    }
+                                }
+                                TypeParameterKind::Value { type_reference } => {
+                                    CallableTypeParameterKindSnapshot::Value {
+                                        type_reference: type_reference_snapshot(
+                                            program,
+                                            *type_reference,
+                                        ),
+                                    }
+                                }
+                                TypeParameterKind::Machine { contract } => {
+                                    CallableTypeParameterKindSnapshot::Machine {
+                                        contract: Box::new(callable_machine_parameter_snapshot(
+                                            program, contract,
+                                        )),
+                                    }
+                                }
+                                TypeParameterKind::Proposition { contract } => {
+                                    CallableTypeParameterKindSnapshot::Proposition {
+                                        name: contract.name.to_string(),
+                                        parameters: program
+                                            .state_parameters
+                                            .span_or_empty(contract.parameters)
+                                            .iter()
+                                            .map(|parameter| {
+                                                state_parameter_snapshot(program, parameter)
+                                            })
+                                            .collect(),
+                                    }
+                                }
+                            };
+                            CallableTypeParameterSnapshot {
+                                name: parameter.name.to_string(),
+                                multiplicity: format!("{:?}", parameter.bounds.multiplicity),
+                                carry: parameter.bounds.carry.map(|carry| format!("{carry:?}")),
+                                kind,
+                            }
+                        })
+                        .collect(),
+                    termination: termination_interface_snapshot(
+                        &language_semantics::TerminationInterface::Published(
+                            signature.termination_guarantee.clone(),
+                        ),
+                    ),
+                    declares_no_crash_route: signature.declares_no_crash_route,
+                    contract_metadata: program
+                        .state_signature_contracts(signature)
+                        .iter()
+                        .map(|contract| CallableContractMetadataSnapshot {
+                            keyword_source_span: contract
+                                .keyword_source_span
+                                .as_ref()
+                                .map(super::source_span_snapshot),
+                            result_case: match contract.kind {
+                                SignatureContractKind::EnsuresForResultCase {
+                                    result_data,
+                                    result_case,
+                                } => Some((
+                                    program.symbols.display_path(result_data, "::"),
+                                    program.symbols.display_path(result_case, "::"),
+                                )),
+                                _ => None,
+                            },
+                        })
+                        .collect(),
+                    invocation_targets: program
+                        .state_signature_invokes(signature)
+                        .iter()
+                        .map(|invocation| {
+                            use crate::signature::AuthoredInvocationTarget;
+                            match invocation.target {
+                                AuthoredInvocationTarget::Unresolved => "unresolved".to_owned(),
+                                AuthoredInvocationTarget::Undeclared => "undeclared".to_owned(),
+                                AuthoredInvocationTarget::Parameter { ordinal, symbol } => format!(
+                                    "parameter {ordinal}: {}",
+                                    program.symbols.display_path(symbol, "::")
+                                ),
+                                AuthoredInvocationTarget::Service(symbol) => format!(
+                                    "service: {}",
+                                    program.symbols.display_path(symbol, "::")
+                                ),
+                            }
+                        })
+                        .collect(),
+                }
+            }
+
+            fn callable_machine_parameter_snapshot(
+                program: &TypedTrees,
+                contract: &crate::data::MachineParameterContract,
+            ) -> CallableMachineParameterSnapshot {
+                use crate::data::MachineParameterContract;
+                match contract {
+                    MachineParameterContract::RequirementIdentity => {
+                        CallableMachineParameterSnapshot::RequirementIdentity
+                    }
+                    MachineParameterContract::Structural(signature) => {
+                        CallableMachineParameterSnapshot::Structural {
+                            signature: Box::new(callable_signature_snapshot(program, signature)),
+                        }
+                    }
+                    MachineParameterContract::Nominal {
+                        receiving_trait,
+                        receiving_arguments,
+                        trait_definition,
+                        requirement,
+                        trait_arguments,
+                        instantiated,
+                    } => CallableMachineParameterSnapshot::Nominal {
+                        receiving_trait: program.symbols.display_path(*receiving_trait, "::"),
+                        receiving_arguments: receiving_arguments
+                            .iter()
+                            .map(|reference| type_reference_snapshot(program, *reference))
+                            .collect(),
+                        trait_definition: program.symbols.display_path(*trait_definition, "::"),
+                        requirement: program.symbols.display_path(*requirement, "::"),
+                        trait_arguments: trait_arguments
+                            .iter()
+                            .map(|reference| type_reference_snapshot(program, *reference))
+                            .collect(),
+                        instantiated: instantiated.as_ref().map(|signature| {
+                            Box::new(callable_signature_snapshot(program, signature))
+                        }),
+                    },
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             pub struct NativeCallbackParameterSnapshot {
                 pub name: String,
                 pub binder: String,
@@ -2401,6 +3989,268 @@ pub mod inspection {
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct RuntimeCallSnapshot {
+                pub callee: Box<ExpressionSnapshot>,
+                pub contract: Box<super::machine_snapshots::RuntimeCallableContractSnapshot>,
+            }
+
+            fn runtime_call_snapshot(
+                program: &TypedTrees,
+                binding: crate::callable_values::RuntimeCallBinding,
+            ) -> RuntimeCallSnapshot {
+                RuntimeCallSnapshot {
+                    callee: Box::new(expression_snapshot(program, binding.callee)),
+                    contract: Box::new(
+                        super::machine_snapshots::runtime_callable_contract_snapshot(
+                            program,
+                            binding.contract,
+                        ),
+                    ),
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticApplicationGraphSnapshot {
+                pub root: (u32, u32),
+                pub applications: Vec<StaticApplicationSnapshot>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticApplicationSnapshot {
+                pub handle: (u32, u32),
+                pub callable_contract_source: Option<(u32, u32)>,
+                pub registration_operation: String,
+                pub lexical_owner: String,
+                pub target: String,
+                pub arguments: Vec<StaticArgumentSnapshot>,
+                pub selected_machine_arguments: Vec<StaticArgumentSnapshot>,
+                pub bindings: Vec<(String, StaticBindingSnapshot)>,
+                pub lifetime_bindings: Vec<(String, String)>,
+                pub lifetime_binding_declaration: String,
+                pub binding_declaration: String,
+                pub input_selections: Vec<StaticInputSelectionSnapshot>,
+                pub conformance_selection: Option<StaticConformanceSelectionSnapshot>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticConformanceSelectionSnapshot {
+                pub ordinal: u32,
+                pub application: Option<ClosedConformanceSelectionSnapshot>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct ClosedConformanceSelectionSnapshot {
+                pub declaration: String,
+                pub callable_application: Option<(u32, u32)>,
+                pub arguments: Vec<StaticArgumentSnapshot>,
+                pub identity_encoding: Vec<u8>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticInputSelectionSnapshot {
+                pub occurrence: Option<String>,
+                pub argument_ordinal: u32,
+                pub target: StaticInputTargetSnapshot,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum StaticInputTargetSnapshot {
+                Invalid,
+                Argument {
+                    steps: Vec<String>,
+                },
+                Type {
+                    reference: Box<TypeReferenceSnapshot>,
+                    slot: String,
+                },
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum StaticBindingSnapshot {
+                Type(Box<TypeReferenceSnapshot>),
+                Const(Box<TypeReferenceSnapshot>),
+                RuntimeValue {
+                    type_reference: Box<TypeReferenceSnapshot>,
+                    subject: String,
+                    expression: Box<ExpressionSnapshot>,
+                },
+                Machine(StaticArgumentSnapshot),
+                Conformance(StaticArgumentSnapshot),
+            }
+
+            fn static_application_snapshot(
+                program: &TypedTrees,
+                root: crate::static_applications::StaticMachineApplicationHandle,
+            ) -> StaticApplicationGraphSnapshot {
+                let coordinate =
+                    |handle: crate::static_applications::StaticMachineApplicationHandle| {
+                        (handle.arena_index(), handle.generation())
+                    };
+                let mut pending = vec![root];
+                let mut seen = Vec::new();
+                let mut applications = Vec::new();
+                while let Some(handle) = pending.pop() {
+                    if !handle.is_valid() || seen.contains(&handle) {
+                        continue;
+                    }
+                    seen.push(handle);
+                    let application = program.static_machine_application(handle);
+                    pending.push(application.callable_contract_source);
+                    let conformance_selection =
+                        application.conformance_selection.as_ref().map(|selection| {
+                            StaticConformanceSelectionSnapshot {
+                                ordinal: selection.operand_ordinal,
+                                application: selection.application.as_ref().map(|selected| {
+                                    pending.push(selected.callable_application);
+                                    ClosedConformanceSelectionSnapshot {
+                                        declaration: program
+                                            .symbols
+                                            .display_path(selected.declaration, "::"),
+                                        callable_application: selected
+                                            .callable_application
+                                            .is_valid()
+                                            .then(|| coordinate(selected.callable_application)),
+                                        arguments: selected
+                                            .arguments
+                                            .iter()
+                                            .map(|argument| {
+                                                snapshot_static_argument(program, argument)
+                                            })
+                                            .collect(),
+                                        identity_encoding: selected.identity_encoding.to_vec(),
+                                    }
+                                }),
+                            }
+                        });
+                    applications.push(StaticApplicationSnapshot {
+                        handle: coordinate(handle),
+                        callable_contract_source: application
+                            .callable_contract_source
+                            .is_valid()
+                            .then(|| coordinate(application.callable_contract_source)),
+                        registration_operation: program
+                            .symbols
+                            .display_path(application.registration_operation, "::"),
+                        lexical_owner: program
+                            .symbols
+                            .display_path(application.lexical_owner, "::"),
+                        target: application.target.to_string(),
+                        arguments: program
+                            .static_machine_application_arguments(handle)
+                            .iter()
+                            .map(|argument| snapshot_static_argument(program, argument))
+                            .collect(),
+                        selected_machine_arguments: program
+                            .expression_table
+                            .static_machine_application_selected_machines(handle)
+                            .iter()
+                            .map(|argument| snapshot_static_argument(program, argument))
+                            .collect(),
+                        bindings: program
+                            .static_machine_application_bindings(handle)
+                            .iter()
+                            .map(|binding| {
+                                use crate::static_applications::StaticMachineBindingValue;
+                                let value = match &binding.value {
+                                    StaticMachineBindingValue::Type(reference) => {
+                                        StaticBindingSnapshot::Type(Box::new(
+                                            type_reference_snapshot(program, *reference),
+                                        ))
+                                    }
+                                    StaticMachineBindingValue::Const(reference) => {
+                                        StaticBindingSnapshot::Const(Box::new(
+                                            type_reference_snapshot(program, *reference),
+                                        ))
+                                    }
+                                    StaticMachineBindingValue::RuntimeValue {
+                                        type_reference,
+                                        subject,
+                                        expression,
+                                    } => StaticBindingSnapshot::RuntimeValue {
+                                        type_reference: Box::new(type_reference_snapshot(
+                                            program,
+                                            *type_reference,
+                                        )),
+                                        subject: program.symbols.display_path(*subject, "::"),
+                                        expression: Box::new(expression_snapshot(
+                                            program,
+                                            *expression,
+                                        )),
+                                    },
+                                    StaticMachineBindingValue::Machine(argument) => {
+                                        StaticBindingSnapshot::Machine(snapshot_static_argument(
+                                            program, argument,
+                                        ))
+                                    }
+                                    StaticMachineBindingValue::Conformance(argument) => {
+                                        StaticBindingSnapshot::Conformance(
+                                            snapshot_static_argument(program, argument),
+                                        )
+                                    }
+                                };
+                                (program.symbols.display_path(binding.parameter, "::"), value)
+                            })
+                            .collect(),
+                        lifetime_bindings: program
+                            .static_machine_application_lifetimes(handle)
+                            .iter()
+                            .map(|binding| {
+                                (binding.parameter.to_string(), binding.argument.to_string())
+                            })
+                            .collect(),
+                        lifetime_binding_declaration: program
+                            .symbols
+                            .display_path(application.lifetime_binding_declaration, "::"),
+                        binding_declaration: program
+                            .symbols
+                            .display_path(application.binding_declaration, "::"),
+                        input_selections: program
+                            .product_input_selections
+                            .span_or_empty(application.input_selections)
+                            .iter()
+                            .map(|selection| {
+                                use crate::product_operand::ProductInputSelectionTarget;
+                                StaticInputSelectionSnapshot {
+                                    occurrence: selection
+                                        .occurrence
+                                        .map(|occurrence| format!("{occurrence:?}")),
+                                    argument_ordinal: selection.argument_ordinal,
+                                    target: match &selection.target {
+                                        ProductInputSelectionTarget::Invalid => {
+                                            StaticInputTargetSnapshot::Invalid
+                                        }
+                                        ProductInputSelectionTarget::Argument(steps) => {
+                                            StaticInputTargetSnapshot::Argument {
+                                                steps: program
+                                                    .product_input_argument_steps
+                                                    .span_or_empty(*steps)
+                                                    .iter()
+                                                    .map(|step| format!("{step:?}"))
+                                                    .collect(),
+                                            }
+                                        }
+                                        ProductInputSelectionTarget::Type { reference, slot } => {
+                                            StaticInputTargetSnapshot::Type {
+                                                reference: Box::new(type_reference_snapshot(
+                                                    program, *reference,
+                                                )),
+                                                slot: format!("{slot:?}"),
+                                            }
+                                        }
+                                    },
+                                }
+                            })
+                            .collect(),
+                        conformance_selection,
+                    });
+                }
+                StaticApplicationGraphSnapshot {
+                    root: coordinate(root),
+                    applications,
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum StatementSnapshot {
                 Assembly {
@@ -2421,6 +4271,8 @@ pub mod inspection {
                     value: ExpressionSnapshot,
                 },
                 Call {
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    runtime_call: Option<RuntimeCallSnapshot>,
                     receiver: Option<Vec<String>>,
                     target: String,
                     machine_arguments: Vec<StaticArgumentSnapshot>,
@@ -2556,6 +4408,14 @@ pub mod inspection {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum ExpressionSnapshot {
+                MachineValue {
+                    type_reference: Box<TypeReferenceSnapshot>,
+                    selected: StaticArgumentSnapshot,
+                    selected_symbol: String,
+                    application: StaticApplicationGraphSnapshot,
+                    conformance: String,
+                    requirement: String,
+                },
                 Match {
                     subject: Box<ExpressionSnapshot>,
                     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2595,6 +4455,8 @@ pub mod inspection {
                     semantic_domain_id: u32,
                 },
                 Call {
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    runtime_call: Option<RuntimeCallSnapshot>,
                     receiver: Option<Box<ExpressionSnapshot>>,
                     target: String,
                     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2746,6 +4608,7 @@ pub mod inspection {
             value: expression_snapshot(program, assignment.value),
         },
         StatementNode::Call(call) => StatementSnapshot::Call {
+            runtime_call: call.runtime_call.map(|binding| runtime_call_snapshot(program, binding)),
             receiver: (!call.receiver.is_empty())
                 .then(|| path_snapshot(program.statement_table.name_path_members(call.receiver))),
             target: call.target.to_string(),
@@ -2910,6 +4773,14 @@ pub mod inspection {
                 }
 
                 match program.expression_table.expression(expression) {
+        ExpressionNode::MachineValue(value) => ExpressionSnapshot::MachineValue {
+            type_reference: Box::new(type_reference_snapshot(program, value.type_reference)),
+            selected: snapshot_static_argument(program, &value.selected),
+            selected_symbol: program.symbols.display_path(value.selected.symbol, "::"),
+            application: static_application_snapshot(program, value.application),
+            conformance: program.symbols.display_path(value.conformance, "::"),
+            requirement: program.symbols.display_path(value.requirement, "::"),
+        },
         ExpressionNode::Match(dispatch) => ExpressionSnapshot::Match {
             subject: Box::new(expression_snapshot(program, dispatch.subject)),
             capture: dispatch.capture.is_valid().then_some((
@@ -2961,6 +4832,7 @@ pub mod inspection {
             semantic_domain_id: cast.semantic_domain_id.0,
         },
         ExpressionNode::Call(call) => ExpressionSnapshot::Call {
+            runtime_call: call.runtime_call.map(|binding| runtime_call_snapshot(program, binding)),
             exact_coercion_target: call
                 .exact_coercion_target
                 .is_valid()
@@ -3245,9 +5117,14 @@ pub mod inspection {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum TypeReferenceSnapshot {
+                Callable {
+                    contract: Box<super::machine_snapshots::RuntimeCallableContractSnapshot>,
+                },
                 Reference {
                     referee: Box<TypeReferenceSnapshot>,
                     access: &'static str,
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    lifetime: Option<String>,
                 },
                 Constrained {
                     base_type: Box<TypeReferenceSnapshot>,
@@ -3374,13 +5251,21 @@ pub mod inspection {
                 }
 
                 match program.type_reference_table.type_reference(type_reference) {
+                    TypeReferenceNode::Callable { contract } => TypeReferenceSnapshot::Callable {
+                        contract: Box::new(
+                            super::machine_snapshots::runtime_callable_contract_snapshot(
+                                program, *contract,
+                            ),
+                        ),
+                    },
                     TypeReferenceNode::Reference {
                         referee,
                         access,
-                        lifetime: _,
+                        lifetime,
                     } => TypeReferenceSnapshot::Reference {
                         referee: Box::new(type_reference_snapshot(program, *referee)),
                         access: access.name(),
+                        lifetime: lifetime.as_ref().map(ToString::to_string),
                     },
                     TypeReferenceNode::Constrained {
                         base_type,

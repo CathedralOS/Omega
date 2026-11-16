@@ -35,6 +35,10 @@ impl CompilationSession {
             }
         }
         for group in groups {
+            let calling_targets = group
+                .iter()
+                .map(|(_, _, build)| build.target_profile())
+                .collect::<Vec<_>>();
             let completion_timings = if group
                 .iter()
                 .any(|(_, _, build)| build.timings().is_enabled())
@@ -57,6 +61,7 @@ impl CompilationSession {
                 check_product_source(
                     source,
                     Some(&inputs),
+                    &calling_targets,
                     &rollback,
                     inspection_name(&first_owner),
                     frontier.as_deref_mut(),

@@ -54,6 +54,8 @@ pub(super) fn prepared(
     typed_trees_to_terminal_psi::prepare_compilation(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[],

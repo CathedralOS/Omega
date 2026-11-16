@@ -42,6 +42,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
         _ -> finish(plan, offset, alignment)
     }
     machine place(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64) -> LayoutPlan
+    terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32
     {
         let field_align: u64 = schema.fields[index].align;
@@ -56,6 +57,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
     // Numbered schemas are canonically ordered by identity rather than authored
     // declaration order. They require an explicit policy instead of guessed C order.
     machine represented(schema: Schema, plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, padding: u64, size: u64) -> LayoutPlan
+    terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32
     {
         match schema.fields[index].layout_source {
@@ -65,6 +67,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
         }
     }
     machine checked(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, padding: u64, size: u64) -> LayoutPlan
+    terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32
     {
         transition padding <= 18446744073709551615u64 - offset {
@@ -73,6 +76,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
         }
     }
     machine extent(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, size: u64) -> LayoutPlan
+    terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32
     {
         transition size <= 18446744073709551615u64 - offset {
@@ -81,6 +85,7 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 
         }
     }
     machine append(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, remaining_steps: u64, size: u64) -> LayoutPlan
+    terminates by remaining_steps
     requires index < 32 && alignment >= 1 && alignment <= 16 && remaining_steps >= 1 && remaining_steps <= 32 && size <= 18446744073709551615u64 - offset
     {
         plan.entries[index] = FieldEntry { key: schema.fields[index].key, representation: FieldPlan::At { offset: offset } };

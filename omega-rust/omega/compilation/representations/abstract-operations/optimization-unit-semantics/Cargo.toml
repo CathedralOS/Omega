@@ -19,4 +19,3 @@ terminal-psi = { path = "../../../../../psi/compilation/representations/terminal
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-work = { path = "../../../../../psi/compilation/representations/terminal-psi/work" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
-

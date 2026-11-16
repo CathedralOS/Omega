@@ -92,8 +92,14 @@ fn judge(
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
-                supplies: &[],
+                supplies: &frontier.supplies,
             },
             terminal_codec::TerminalPublication::Portable,
         )
@@ -698,6 +704,82 @@ fn a_nested_requirement_names_a_mutable_byte_views_length() {
     );
     assert_eq!(
         verdicts("guarded_by_path_len", &program("index < path.len")),
+        ["rejected"]
+    );
+}
+
+/// When a `terminates by` recursion forwards `&mut [u8]` to a nested byte
+/// writer, `index` varies across recursive calls and `out` can have different
+/// lengths at different call sites, so constant bounds cannot discharge
+/// `out[index]`: the checker proves `index < out.len` from `byte`'s guard
+/// `index + 1 < out.len` while `terminator` writes the trailing zero under
+/// `index < out.len`.
+///
+/// The two negative twins each change one token: guarding `byte` by
+/// `index < path.len` leaves `out` unchecked, and writing `out[index + 1]`
+/// under `index < out.len` overruns `out` by one byte.
+#[test]
+fn a_recursive_caller_preserves_a_mutable_byte_views_extent_bound() {
+    let program = |guard: &str, write_index: &str| {
+        format!(
+            "machine copy_path_from(path: &[u8], out: &mut [u8], index: u64, remaining: u64)\n\
+             terminates by remaining\n\
+             {{\n    \
+                 put_path_byte(path, out, index);\n    \
+                 transition index < path.len && remaining > 0 {{\n        \
+                     true -> copy_path_from(path, out, index + 1, remaining - 1)\n        \
+                     _ -> done()\n    \
+                 }}\n    \
+                 machine done() {{ }}\n\
+             }}\n\
+             machine put_path_byte(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+                 transition index < path.len {{\n        \
+                     true -> byte(path, out, index)\n        \
+                     _ -> terminator(out, index)\n    \
+                 }}\n    \
+                 machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                     transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    \
+                 }}\n    \
+                 machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                     out[{write_index}] = path[index];\n        \
+                     transition {{ _ -> done() }}\n    \
+                 }}\n    \
+                 machine terminator(out: &mut [u8], index: u64) {{\n        \
+                     transition index < out.len {{ true -> write_terminator(out, index) _ -> done() }}\n    \
+                 }}\n    \
+                 machine write_terminator(out: &mut [u8], index: u64) {{\n        \
+                     out[index] = 0;\n        \
+                     transition {{ _ -> done() }}\n    \
+                 }}\n    \
+                 machine done() {{ }}\n\
+             }}\n\
+             machine main() {{\n    \
+                 let mut short: [u8; 2];\n    \
+                 let mut full: [u8; 4];\n    \
+                 copy_path_from(\"a\", &mut short[..], 0, 1);\n    \
+                 copy_path_from(\"abc\", &mut full[..], 0, 3);\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts(
+            "recursive_guarded_by_out_len",
+            &program("index + 1 < out.len", "index"),
+        ),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts(
+            "recursive_guarded_by_path_len",
+            &program("index < path.len", "index"),
+        ),
+        ["rejected"]
+    );
+    assert_eq!(
+        verdicts(
+            "recursive_store_past_guarded_extent",
+            &program("index < out.len", "index + 1"),
+        ),
         ["rejected"]
     );
 }

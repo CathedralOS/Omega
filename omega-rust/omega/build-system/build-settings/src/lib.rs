@@ -61,10 +61,8 @@ The crate is organized along that lifecycle:
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,
-  `source_result.rs`), plus invocation-local `Pure` build value reuse
-  (`completed_pure_build.rs`), which charges each reused evaluation to the
-  current work sponsor without fabricating interpreter execution or live-resource
-  peaks.
+  `source_result.rs`). Each execution has its own host admission and account.
+  The compatibility handle in `completed_pure_build.rs` grants no cache reuse.
 - `host/` implements the host imports callable from `build(build: &mut Build)`:
   root bindings and product entry queries (`bindings.rs`, `native_bindings.rs`,
   `product_queries.rs`), scoped filesystem staging (`filesystem.rs`), and

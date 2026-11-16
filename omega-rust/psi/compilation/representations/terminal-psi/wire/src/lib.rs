@@ -34,6 +34,7 @@ decoding, structural validation and carried proof data.
 
 mod block_wire;
 mod closed_types;
+pub mod contract_forms;
 pub use closed_types::ClosedTypeCatalog;
 mod foundation_validation;
 mod identity_formations;
@@ -47,6 +48,7 @@ mod module_wire;
 mod obligation_evidence;
 mod sections;
 mod semantic_module;
+mod service_schema_wire;
 mod structural_wire;
 mod term_table;
 mod term_wire;

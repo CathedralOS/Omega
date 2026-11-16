@@ -196,6 +196,9 @@ pub(crate) mod native_geometry {
 }
 pub(crate) use legalized_operations::structural_inputs;
 
+mod callable_invocations;
+pub use callable_invocations::PreparedCallableInvocations;
+
 /// What stage 02 knows about the program's boundary origins while it prepares
 /// the plan: the program entry, the installed assumed bindings, the target
 /// context and the Terminal Psi module. Preparation reads these; the prepared

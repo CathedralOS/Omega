@@ -1,22 +1,13 @@
-// Checked Windows byte I/O for the private ConsoleHost map selected by Build.
-//
-// Windows has no stable syscall ABI, so every leaf realizes through DLL
-// linkage. Byte I/O uses the MSVCRT descriptor calls, which are unbuffered:
-//   `int _write(int fd, const void *buffer, unsigned int count)`
-//   `int _read(int fd, void *buffer, unsigned int count)`
-// Both return the byte count moved, `_read` returns 0 at end of input, and both
-// return -1 on failure. Each call moves one byte through the low byte of an
-// i32 cell (x86-64 is little-endian), so the cell's upper bytes stay zero.
+// Windows byte I/O uses MSVCRT descriptor calls. Binary mode preserves every
+// authored byte, including CR/LF and Ctrl+Z. Build supplies each DLL locator.
 use omega::language::core::narrow_i32_to_u8_wrapping;
-use omega::language::core::narrow_i32_to_u8_trapping;
 use omega::language::core::widen_u8_to_i32;
 
 // The leaf requirements below carry no source realization: each one is a
 // package-owned boundary row whose DLL locator lives in `std/build.omg`
 // (`Build::bind<WindowsConsoleIo::...>`). Providers invoke the trait members
-// directly. These ordinary synchronous calls add their service reach without
-// creating callback-entry authority.
-boundary trait WindowsConsoleIo {
+// directly; their raw host dependencies belong to the realization inventory.
+boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
     machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
     reaches Console
@@ -41,11 +32,10 @@ boundary trait WindowsConsoleIo {
     crashes none;
 }
 
-WindowsConsoleHost satisfies ConsoleHost {
 // Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and
-// -1 is a failed host read. The named trapping conversion rejects that
-// negative status under the published `crashes Trap` contract.
-machine read_byte() -> ByteRead
+// -1 is a failed host read. Every other count traps under the published
+// `crashes Trap` contract.
+machine windows_console_read_byte() -> ByteRead
 reaches Console
 blocks
 crashes Trap
@@ -56,7 +46,7 @@ crashes Trap
     transition count {
         1 -> byte(cell)
         0 -> end()
-        _ -> failed(count)
+        _ -> failed()
     }
 
     machine byte(cell: i32) -> ByteRead {
@@ -66,14 +56,11 @@ crashes Trap
 
     machine end() -> ByteRead { ByteRead::Eof }
 
-    machine failed(count: i32) -> ByteRead {
-        let trapped: u8 = narrow_i32_to_u8_trapping(count);
-        ByteRead::Eof
-    }
+    machine failed() -> ByteRead { crash Trap; }
 }
 
 // Descriptor 1 is stdout.
-machine write_byte(byte: i32)
+machine windows_console_write_byte(byte: i32)
 reaches Console
 {
     let mut cell: i32 = byte;
@@ -81,4 +68,12 @@ reaches Console
     let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
 }
 
+WindowsConsoleBytes satisfies ConsoleByteOperations {
+    machine read_byte() -> ByteRead
+    reaches Console blocks crashes Trap {
+        block windows_console_read_byte()
+    }
+    machine write_byte(byte: i32) reaches Console {
+        windows_console_write_byte(byte);
+    }
 }

@@ -426,7 +426,8 @@ pub(crate) mod loop_invariant_scalar_motion {
         ) -> Result<Vec<LoopInvariantScalarMotionCandidate>, LoopInvariantScalarMotionError>
         {
             let mut candidates = Vec::new();
-            let effects = calls::unit_effect_summaries(session.unit());
+            let effects = calls::unit_effect_summaries(session.unit())
+                .map_err(LoopInvariantScalarMotionError::CallableProvenance)?;
             for component in session.cycle_components().components() {
                 if let Some(candidate) = component_candidate(session, component, &effects)? {
                     candidates.push(candidate);
@@ -1013,7 +1014,8 @@ pub(crate) mod loop_invariant_scalar_motion {
                 .iter()
                 .find(|component| &component.id == candidate.component())
                 .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
-            let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+            let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit())
+                .map_err(LoopInvariantScalarMotionError::CallableProvenance)?;
             let Some(plan) = propose::component_plan(session, component, &effects)? else {
                 return Err(LoopInvariantScalarMotionError::AlreadyRelocated);
             };
@@ -1241,6 +1243,7 @@ pub(crate) mod loop_invariant_scalar_motion {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LoopInvariantScalarMotionError {
+        CallableProvenance(&'static str),
         CandidateBudgetExhausted {
             required: u64,
             limit: u64,

@@ -48,6 +48,13 @@ pub enum Unpositioned {
 }
 
 impl SourceOrigin {
+    pub fn span(self) -> Option<source::SourceSpan> {
+        match self {
+            Self::Authored(span) => Some(span),
+            Self::Unpositioned(_) => None,
+        }
+    }
+
     pub fn of(span: source::SourceSpan) -> Self {
         if span.span.start < span.span.end {
             Self::Authored(span)
@@ -216,6 +223,9 @@ pub struct Elaboration {
     /// encoded or run (generics.md: "Generic bodies use the abstract
     /// requirement envelope").
     pub requirements: Vec<MachineId>,
+    /// Authored ceilings of abstract interfaces; omission remains distinct
+    /// from an explicit empty row. Concrete modules publish full envelopes.
+    pub requirement_ceilings: IdTable<MachineId, crate::contracts::RequirementCeilings>,
     /// Every call through an implementation parameter that a static
     /// application closed, with the member it selects.
     pub selections: Vec<Selected>,
@@ -265,14 +275,37 @@ pub struct Elaboration {
     /// provider it settled on, never into "the" provider of the requirement.
     /// Empty outside `elaborate`.
     pub supplied: Vec<SuppliedRequirement>,
+    /// Source-declared candidate rows awaiting the complete compilation's
+    /// body/refinement judgments. Final catalog formation moves these rows
+    /// into the module only after those obligations have been discharged.
+    pub provider_candidate_intents: Vec<terminal_psi::ProviderCandidateConformance>,
     /// The machines of a compilation's module that were given no declaration
     /// identity, each with the reason (`declare`). A module that lists one is
     /// judged like any other and is never published. Empty outside
     /// `elaborate`, whose forms are not programs.
     pub undeclared: Vec<(MachineId, &'static str)>,
+    /// Complete operational questions for explicitly undeclared source check
+    /// frames, ordered strictly by machine identity. These are checking inputs,
+    /// never named runtime publication or executable declaration authority.
+    pub check_form_envelopes: Vec<terminal_psi::TerminalMachineEnvelope>,
+    /// Complete normalized questions formed before Terminal judgment. Their
+    /// source coordinates are opaque association/diagnostic custody only.
+    pub reach: crate::contracts::ServiceReach,
+    pub external_provider_candidates: Vec<crate::contracts::ExternalProviderCandidate>,
+    pub static_schemas: Vec<crate::contracts::StaticSchemaQuestion>,
+    pub static_conformances: Vec<crate::contracts::StaticConformanceQuestion>,
     /// Diagnostic custody only. The module owns predicate bodies and formals;
     /// these rows cannot add a definition or affect its arithmetic judgment.
     pub predicate_sources: Vec<PredicateSource>,
+}
+
+/// The complete declared identity of the source implementation operand and
+/// the exact declaration that supplied it. This is source-preparation metadata,
+/// not a runtime conformance record or permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedSourceOperand {
+    pub identity: String,
+    pub supplier: SymbolHandle,
 }
 
 /// The source of a retained predicate, ordered by its module declaration identity.
@@ -294,6 +327,9 @@ pub struct Selected {
     /// The exact public header used by this invocation. Synthetic checking
     /// models without a source call leave this absent.
     pub required_contract: Option<semantic_vocabulary::ContractId>,
+    /// The complete operand and its actual supplying declaration before source
+    /// closes. Synthetic checking models have no source operand.
+    pub source_operand: Option<SelectedSourceOperand>,
     pub parameter: SymbolHandle,
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,

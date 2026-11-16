@@ -95,6 +95,13 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
 /// addresses, rather than borrowing the destination's identity.
 pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<BuiltinTypeAtom> {
     Ok(match scalar {
+        ScalarType::Callable(_) => {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("callable lender has no builtin scalar storage identity"),
+            ));
+        }
         ScalarType::Boolean => BuiltinTypeAtom::Bool,
         ScalarType::Integer(integer) if integer.is_address() => BuiltinTypeAtom::Address,
         ScalarType::Integer(integer) => {
@@ -181,6 +188,12 @@ impl<'t> Program<'t> {
     }
 }
 
+pub(super) struct AnonymousValue {
+    pub value: IntegerValue,
+    pub integer: IntegerType,
+    pub operators: Vec<ExpressionHandle>,
+}
+
 impl Program<'_> {
     /// Whether the existing value-type reader will declare a value identity.
     /// This preflight does not allocate records, regions or qualifications.
@@ -233,6 +246,12 @@ impl Program<'_> {
                     }
                     return Err(unserved());
                 }
+                TypeReferenceNode::Callable { contract } => {
+                    if !self.typed.runtime_callable_contracts.is_valid(*contract) {
+                        return Err(unserved());
+                    }
+                    return Ok(true);
+                }
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. } => return Ok(false),
@@ -268,9 +287,30 @@ impl Program<'_> {
                     ));
                 }
                 match typed.symbols.builtin_type_atom(*symbol) {
-                    Some(BuiltinTypeAtom::Address) if self.descriptor_storage => Ok(
-                        ScalarType::Integer(IntegerType::supported_address_representation()),
-                    ),
+                    Some(BuiltinTypeAtom::Address)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::Integer(
+                            IntegerType::supported_address_representation(),
+                        ))
+                    }
+                    Some(BuiltinTypeAtom::F32)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::IeeeFloat(
+                            semantic_vocabulary::IeeeFloatFormat::Binary32,
+                        ))
+                    }
+                    Some(BuiltinTypeAtom::F64)
+                        if self.type_purpose
+                            == super::storage_metadata::TypePurpose::StorageDescription =>
+                    {
+                        Ok(ScalarType::IeeeFloat(
+                            semantic_vocabulary::IeeeFloatFormat::Binary64,
+                        ))
+                    }
                     Some(atom) => atom_type(atom, id),
                     None => unserved("nominal type"),
                 }
@@ -317,6 +357,24 @@ impl Program<'_> {
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
+            TypeReferenceNode::Callable { contract } => self
+                .callables
+                .source_contract(*contract)
+                .map_err(|reason| terminal_check_tables::Refusal {
+                    source_span: None,
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    machine: id,
+                    concerns: Construct::Machine,
+                    detail: reason.to_owned(),
+                })?
+                .map(ScalarType::Callable)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("unprepared runtime callable"),
+                    )
+                }),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }
@@ -653,7 +711,7 @@ impl Program<'_> {
         id: MachineId,
         mut handle: TypeReferenceHandle,
     ) -> Checked<TypeReferenceHandle> {
-        if !self.descriptor_storage {
+        if self.type_purpose == super::storage_metadata::TypePurpose::Value {
             return Ok(handle);
         }
         let mut visiting = Vec::new();
@@ -685,6 +743,12 @@ impl Program<'_> {
     ) -> Checked<ValueType> {
         if let Some(atomic) = self.atomic_type(id, handle)? {
             return Ok(atomic);
+        }
+        if handle.is_valid()
+            && let TypeReferenceNode::Callable { contract } =
+                self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.callable_type(id, *contract).map(ValueType::plain);
         }
         if handle.is_valid()
             && let Some(view) = self.view_type(id, handle)?
@@ -1058,6 +1122,7 @@ impl Program<'_> {
                 return unserved("a predicate domain on laid layout storage");
             }
         }
+        self.admitted_declarations.include(domain.declaration);
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
         // generic declaration alongside the instantiated use-site clauses.
@@ -1231,14 +1296,27 @@ impl Program<'_> {
         id: MachineId,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
-    ) -> Checked<(IntegerValue, IntegerType)> {
+    ) -> Checked<AnonymousValue> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let typed = self.typed;
+        let mut operators = Vec::new();
         let Some(evaluated) = closed_numeric::evaluate_anonymous_value::<true>(
             typed,
             expression,
             &[],
-            &mut |expression| closed_numeric::has_anonymous_operator_meaning(typed, expression),
+            &mut |expression| {
+                let admitted = closed_numeric::has_anonymous_operator_meaning(typed, expression);
+                if admitted
+                    && typed
+                        .expression_table
+                        .authored_selection_occurrences(expression)
+                        .next()
+                        .is_some()
+                {
+                    operators.push(expression);
+                }
+                admitted
+            },
         ) else {
             return unserved("anonymous operation without an exact meaning");
         };
@@ -1264,7 +1342,11 @@ impl Program<'_> {
                 .map(|value| IntegerValue::Unsigned(u128::from(value))),
         };
         match value {
-            Some(value) if integer.admits(value) => Ok((value, integer)),
+            Some(value) if integer.admits(value) => Ok(AnonymousValue {
+                value,
+                integer,
+                operators,
+            }),
             Some(_) | None => unserved("anonymous value outside its type"),
         }
     }

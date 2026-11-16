@@ -141,14 +141,9 @@ impl TerminalBuildHost {
         carried_filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
+        let parameter = machine.receiver_for(artifact.module())?;
         let program = TerminalProgram::borrow(artifact);
         let entry = program.entry().map_err(describe)?;
-        let [parameter] = entry.structural_parameters else {
-            return Err("Build activation requires its one original structural receiver".into());
-        };
-        if !entry.scalar_parameters.is_empty() {
-            return Err("Build activation has unexpected scalar parameters".into());
-        }
         // The evaluator is the build entry's caller, so it owes the entry's
         // `requires` clauses before it runs anything. It hands the entry a
         // Build it promises nothing about, so the only clauses it can owe

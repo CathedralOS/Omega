@@ -697,6 +697,7 @@ impl Program<'_> {
             (view && row.shape == StorageShape::ByteSequence(carrier)).then_some(id)
         });
         if let Some(row) = row {
+            self.retain_byte_domains(machine, row, qualification)?;
             return Ok(typed_view(row));
         }
         let row = self.records.push(RecordType {
@@ -718,7 +719,51 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
         });
+        self.retain_byte_domains(machine, row, qualification)?;
         Ok(typed_view(row))
+    }
+
+    pub(super) fn retain_byte_domains(
+        &mut self,
+        machine: MachineId,
+        carrier: StructuralTypeId,
+        qualification: Qualification,
+    ) -> Checked<()> {
+        for source in qualification.domains.members() {
+            let (_, predicate) = typed_trees::byte_predicates::byte_slice_domain_predicate(
+                self.typed,
+                self.domain_theory(machine, source)?,
+            )
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("byte qualification lost its complete primitive declaration"),
+                )
+            })?;
+            let row = crate::body::SourceByteDomain {
+                source,
+                carrier,
+                predicate,
+            };
+            if let Some(known) = self
+                .byte_domains
+                .iter()
+                .find(|known| known.source == source && known.carrier == carrier)
+            {
+                if *known != row {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("one byte domain has conflicting primitive meanings"),
+                    ));
+                }
+            } else {
+                self.byte_domains.push(row);
+            }
+            self.admitted_declarations.include(source.declaration);
+        }
+        Ok(())
     }
 
     pub(super) fn byte_literal(
@@ -804,7 +849,7 @@ impl Program<'_> {
         row
     }
 
-    /// The primitive byte predicates of a field's type: one for each domain
+    /// The primitive byte predicates of a value's type: one for each domain
     /// a byte view in a domain carries (`byte_view_domains` admitted only
     /// those), none for every other type.
     pub(super) fn view_predicates(

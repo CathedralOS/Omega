@@ -9,14 +9,13 @@
   scalar and mixed structural-scalar calling conventions.
 */
 use super::control_flow::aggregate_results::result_home_layout;
-use super::scalar_abi::fixed_native_integer_shape;
 use super::structural_signature::{StructuralCallPlan, StructuralCallSignature};
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractFunctionResult};
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{IeeeFloatFormat, MachineId, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, PlaceId, ScalarType, ValueId};
 use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{ScalarAbiValue, TargetStructuralParameter};
@@ -29,7 +28,7 @@ pub(crate) fn integer_parameters(
         .iter()
         .enumerate()
         .filter_map(|(parameter_index, parameter)| match parameter.scalar_type {
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
+            ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
             ScalarType::Integer(scalar_type) => Some(
                 u32::try_from(parameter_index)
                     .map(|parameter_index| {
@@ -79,19 +78,12 @@ pub(crate) fn prepare_function_signature(
         .parameters
         .iter()
         .map(|parameter| {
-            structural_types
+            let closed = structural_types
                 .closed_scalar(parameter.scalar_type)
                 .ok_or(LoweringError::ValueTypeMismatch(parameter.value))?;
-            match parameter.scalar_type {
-                ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
-                ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
-                    LoweringError::UnitFunctionHasScalarParameters(function.machine),
-                ),
-                ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
-                    IeeeFloatFormat::Binary32 => 4,
-                    IeeeFloatFormat::Binary64 => 8,
-                })),
-            }
+            ValueShape::for_closed_scalar(closed).ok_or(
+                LoweringError::UnitFunctionHasScalarParameters(function.machine),
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     let signature = StructuralCallSignature::derive(

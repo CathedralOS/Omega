@@ -342,15 +342,9 @@ impl Program<'_> {
             && self.data_type(machine, backing)?.copyable
         {
             self.authorized(machine, backing_type, Access::Read)?;
-            return present(self.byte_subslice(
-                machine,
-                slots,
-                base,
-                range,
-                borrow.target,
-                source,
-            )?)
-            .map(Some);
+            let value = self.byte_subslice(machine, slots, base, range, borrow.target, source)?;
+            self.complete_formed_operator(machine, borrow.target, &value)?;
+            return present(value).map(Some);
         }
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
@@ -432,6 +426,8 @@ impl Program<'_> {
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
         };
+        // The original range operator belongs to its actual backing.
+        self.complete_formed_operator(machine, borrow.target, &whole)?;
         let formed = if partial {
             self.collection_window(machine, slots, whole, range, source)?
         } else {
@@ -896,7 +892,11 @@ impl Program<'_> {
         value: ValueType,
     ) -> Checked<StructuralTypeId> {
         let (scalar_type, policy) = match value {
-            ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
+            ValueType::Scalar(scalar, qualification)
+                if qualification.domains.is_empty()
+                    || self.type_purpose
+                        == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
                 (scalar, qualification.policy)
             }
             ValueType::Scalar(..) => {
@@ -907,6 +907,12 @@ impl Program<'_> {
                 ));
             }
             ValueType::Record(id, Qualification::NONE, _) => return Ok(id),
+            ValueType::Record(id, _, _)
+                if self.type_purpose
+                    == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
+                return Ok(id);
+            }
             ValueType::Record(..) => {
                 return Err(refuse(
                     machine,

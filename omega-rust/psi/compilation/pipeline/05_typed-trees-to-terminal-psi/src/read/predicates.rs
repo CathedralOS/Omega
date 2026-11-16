@@ -24,7 +24,7 @@ kept by the owner's invariant windows, with nothing added here.
 the domain being defined" (domains.md, "Operands"), so it is read at the
 plain carrier.
 
-On a data carrier (`domain Player::Alive requires self.health > 0`) the
+On a nominal data carrier (`domain Player::Alive requires self.health > 0`) the
 clauses name fields beneath `self`, so a field `player: Player in Alive`
 owes `self.player.health > 0` as a clause of its owner, kept by the owner's
 windows like any other. A formal or result states the same predicates in its
@@ -58,6 +58,8 @@ use crate::{ClauseText, Unserved, refuse};
 /// One predicate of a declared domain: the symbol its `self` resolved to
 /// and the clause's expression.
 struct Predicate {
+    instance: crate::body::DomainInstance,
+    owner: SymbolHandle,
     subject: SymbolHandle,
     expression: ExpressionHandle,
     /// The declaring domain's name.
@@ -216,6 +218,8 @@ impl Program<'_> {
                 let expression = self.fact(id, fact)?;
                 if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
+                        instance: domain,
+                        owner: definition.symbol,
                         subject: definition.subject_symbol,
                         expression,
                         domain: definition.name.as_str().to_owned(),
@@ -248,6 +252,7 @@ impl Program<'_> {
             bound.push((predicate.subject, subject.clone()));
             let scope = ClauseScope {
                 bound: &bound,
+                owner: predicate.owner,
                 ..*scope
             };
             clauses.push((
@@ -567,9 +572,8 @@ impl Program<'_> {
             .join(" and "))
     }
 
-    /// Reads the predicates of a subject's domain declaration as a cast
-    /// would state them, so a declaration no type names is still refused
-    /// when the route cannot read it.
+    /// Read domain clauses while their source types and declarations can still
+    /// be retained. Publication consumes these clauses after discovery closes.
     pub(super) fn declared_predicates(
         &mut self,
         id: MachineId,
@@ -650,6 +654,47 @@ impl Program<'_> {
         };
         let mut clauses = Vec::with_capacity(predicates.len());
         for predicate in predicates {
+            if let Some((expression, _)) = typed_trees::byte_predicates::byte_slice_domain_predicate(
+                self.typed,
+                self.domain_theory(id, predicate.instance)?,
+            ) && expression == predicate.expression
+            {
+                let ValueType::Record(carrier, _, _) = plain else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("primitive byte domain on non-byte storage"),
+                    ));
+                };
+                if !self.is_readable_byte_view(id, carrier)? {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("primitive byte domain without its readable descriptor"),
+                    ));
+                }
+                let domains = crate::body::DomainSet::EMPTY
+                    .with(predicate.instance)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("primitive byte domain identity"),
+                        )
+                    })?;
+                // Retain the exact descriptor membership and its theory.
+                // The ordinary clause reader below also states the canonical
+                // byte predicate at this storage root, so every call and
+                // return must prove it from the actual source.
+                self.retain_byte_domains(
+                    id,
+                    carrier,
+                    Qualification {
+                        policy: None,
+                        domains,
+                    },
+                )?;
+            }
             if !predicate.subject.is_valid() {
                 return Err(refuse(
                     id,
@@ -684,18 +729,29 @@ impl Program<'_> {
         path: &[CanonicalStructuralPathSegment],
         value_type: ValueType,
     ) -> Checked<Vec<Proposition>> {
-        // A byte view's domains are its primitive byte predicates, which
-        // the lowered form carries on the field's own type
-        // (`StructuralFieldType::PredicateByteSequence`) and the checker
-        // judges at every store from the bytes supplied, not as a clause of
-        // the owner (`byte_view_domains`).
-        if let ValueType::Record(row, _, _) = value_type
-            && matches!(
-                self.data_type(id, row)?.shape,
-                crate::StorageShape::ByteSequence(_)
-            )
+        // The encoded PredicateByteSequence field type already owns proof
+        // of its primitive predicates at every store. Authenticate each full
+        // domain theory before avoiding a duplicate enclosing-record clause;
+        // ordinary or extra-theory domains keep the full clause path.
+        if let ValueType::Record(carrier, qualification, _) = value_type
+            && self.is_readable_byte_view(id, carrier)?
         {
-            return Ok(Vec::new());
+            let mut primitive = true;
+            for instance in qualification.domains.members() {
+                if typed_trees::byte_predicates::byte_slice_domain_predicate(
+                    self.typed,
+                    self.domain_theory(id, instance)?,
+                )
+                .is_none()
+                {
+                    primitive = false;
+                    break;
+                }
+            }
+            if primitive {
+                self.retain_byte_domains(id, carrier, qualification)?;
+                return Ok(Vec::new());
+            }
         }
         let Some(root) = crate::body::self_place() else {
             return Err(refuse(

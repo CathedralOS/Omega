@@ -45,6 +45,7 @@ return through ("A no-normal-result terminal transfer publishes no fictional
 result or normal-return guarantee"). Both edges go to `Destination::NoNormal`.
 */
 
+mod boundaries;
 // Propagate a completed path without disguising it as a failed judgment.
 macro_rules! continuing {
     ($evaluation:expr) => {
@@ -93,11 +94,18 @@ pub(crate) struct Lowered {
     pub tables: MachineTables,
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::DesignatedOperands)>,
-    pub calls: Vec<(
+    pub source_calls: Vec<typed_trees::SourceCallCorrespondence>,
+    pub source_constructions: Vec<(
         MachineId,
+        OperationId,
+        symbols::SymbolHandle,
         typed_trees::expression::ExpressionHandle,
-        typed_trees::statement::StatementHandle,
-        semantic_vocabulary::InvocationSite,
+    )>,
+    pub source_folded_calls: Vec<(
+        MachineId,
+        EdgeId,
+        symbols::SymbolHandle,
+        typed_trees::SourceNode,
     )>,
     /// The block invariant of each loop head whose member has a `requires`,
     /// in head order: rows of the module's `scalar_block_invariants`.
@@ -127,18 +135,180 @@ pub(crate) fn machine(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
     requirement: bool,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = signatures.get(id.into(), id)?;
+    if signature.borrowed.iter().any(|borrowed| {
+        matches!(
+            signature.parameters.get(borrowed.position),
+            Some(ValueType::Rigid(_))
+        )
+    }) {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Parameter("abstract borrowed type has no physical header"),
+        ));
+    }
+    let (mut lowering, entry, formals, result) = begin(
+        id,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        &body.slots,
+        qualifications,
+    )?;
+    // A requirement is its formals, its result and its contract. It has no
+    // block: the entry block opened above for those identities is dropped.
+    if requirement {
+        lowering.blocks = IdTable::default();
+        lowering.sources.blocks = IdTable::default();
+        return lowering.finish(entry, formals, result, contract, structural_types);
+    }
+    if component.is_empty() {
+        // Even an acyclic body must prove formation of its authored measure.
+        lowering.begin_ranking(id)?;
+        lowering.body(id, body)?;
+    } else {
+        lowering.component(id, bodies, component, &formals)?;
+    }
+    lowering.finish(entry, formals, result, contract, structural_types)
+}
+
+/// A signature's declarations, shared by named bodies and stored callable
+/// contracts. This creates no named machine or implementation selection.
+pub(crate) type SignatureHeader = crate::callable_headers::CallableHeader;
+
+/// The same header preparation as an ordinary machine, without a body. The
+/// context names an existing machine for diagnostics; it is not published as
+/// the identity of the callable contract.
+pub(crate) fn signature_header(
+    context: MachineId,
+    signature: &Signature,
+    signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
+) -> Checked<SignatureHeader> {
+    callable_header(
+        context,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        crate::callable_headers::CallableCrashPolicy::Closed,
+        qualifications,
+    )
+}
+
+pub(crate) fn static_signature_header(
+    context: MachineId,
+    signature: &Signature,
+    signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
+) -> Checked<SignatureHeader> {
+    let policy = if matches!(signature.crashes, crate::body::CrashCeiling::Inferred) {
+        crate::callable_headers::CallableCrashPolicy::Open
+    } else {
+        crate::callable_headers::CallableCrashPolicy::Closed
+    };
+    callable_header(
+        context,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        policy,
+        qualifications,
+    )
+}
+
+fn callable_header(
+    context: MachineId,
+    signature: &Signature,
+    signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+    crash_policy: crate::callable_headers::CallableCrashPolicy,
+    qualifications: &mut crate::qualifications::Qualifications,
+) -> Checked<SignatureHeader> {
+    // Header preparation constructs formals and the result without lowering
+    // a body or looking up an invocation-specific public declaration.
+    let declarations = IdTable::default();
+    let (mut lowering, _, formals, result) = begin(
+        context,
+        signature,
+        Signatures {
+            machines: signatures,
+            declarations: &declarations,
+            declaration_aliases: None,
+            boundaries,
+        },
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        &signature.parameters,
+        qualifications,
+    )?;
+    let routes = match &signature.crashes {
+        crate::body::CrashCeiling::DeclaredNone => Vec::new(),
+        crate::body::CrashCeiling::Authored(routes) => routes.clone(),
+        crate::body::CrashCeiling::Inferred
+            if crash_policy == crate::callable_headers::CallableCrashPolicy::Open =>
+        {
+            Vec::new()
+        }
+        crate::body::CrashCeiling::Inferred => {
+            return Err(
+                lowering.internal("a runtime callable header has no published crash ceiling")
+            );
+        }
+    };
+    let mut header = lowering.signature_header(formals, result, routes)?;
+    header.crash_policy = crash_policy;
+    Ok(header)
+}
+
+fn begin<'a>(
+    id: MachineId,
+    signature: &'a Signature,
+    signatures: Signatures<'a>,
+    outcomes: &'a IdTable<MachineId, Outcome>,
+    records: &'a Records<'a>,
+    callables: &'a crate::callables::CallableNamespace,
+    boundaries: &'a crate::boundaries::BoundaryNamespace,
+    slots: &'a [ValueType],
+    qualifications: &'a mut crate::qualifications::Qualifications,
+) -> Checked<(Lowering<'a>, BlockId, Formals, TerminalMachineResult)> {
     let mut lowering = Lowering::new(
         id,
         signature,
         signatures,
         outcomes,
         records,
-        &body.slots,
+        callables,
+        boundaries,
+        slots,
         qualifications,
     );
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
@@ -155,182 +325,7 @@ pub(crate) fn machine(
         );
         lowering.published.push(published);
     }
-    // A requirement is its formals, its result and its contract. It has no
-    // block: the entry block opened above for those identities is dropped.
-    if requirement {
-        lowering.blocks = IdTable::default();
-        lowering.sources.blocks = IdTable::default();
-        return lowering.finish(entry, formals, result, contract, structural_types);
-    }
-    if component.is_empty() {
-        // Acyclic bodies still owe formation of an authored measure. In
-        // particular, its partial arithmetic cannot disappear unchecked.
-        lowering.begin_ranking(id)?;
-        lowering.body(id, body)?;
-    } else {
-        lowering.component(id, bodies, component, &formals)?;
-    }
-    lowering.finish(entry, formals, result, contract, structural_types)
-}
-
-/// Declare a bodyless interface using the same formal/storage construction
-/// as a body. The supplied header names real source declarations; this emits
-/// no executable block, checked-body marker or provider installation.
-pub(crate) fn boundary(
-    caller: MachineId,
-    id: semantic_vocabulary::BoundaryMachineId,
-    signatures: Signatures<'_>,
-    outcomes: &IdTable<MachineId, Outcome>,
-    records: &Records<'_>,
-    metadata: (
-        terminal_psi::NominalDeclarationIdentity,
-        terminal_psi::CheckedBoundaryCallable,
-    ),
-    service: Option<semantic_vocabulary::ServiceId>,
-    numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
-    kind: semantic_vocabulary::BoundaryRequirementKind,
-    qualifications: &mut crate::qualifications::Qualifications,
-) -> Checked<terminal_psi::BoundaryMachineDeclaration> {
-    let signature = signatures.get(
-        semantic_vocabulary::TargetMachineCallable::Boundary(id),
-        caller,
-    )?;
-    let unavailable = |detail| refuse(caller, Construct::Machine, Unserved::Declaration(detail));
-    if !signature.erased.is_empty()
-        || signature
-            .parameters
-            .iter()
-            .any(|parameter| matches!(parameter, ValueType::Rigid(_)))
-        || matches!(signature.result, Some(ValueType::Rigid(_)))
-    {
-        return Err(unavailable(
-            "boundary declaration needs its closed runtime telescope",
-        ));
-    }
-    let crash_routes = signature
-        .declared_crash_routes()
-        .ok_or_else(|| unavailable("boundary declaration has no published crash ceiling"))?;
-    let mut lowering = Lowering::new(
-        caller,
-        signature,
-        signatures,
-        outcomes,
-        records,
-        &signature.parameters,
-        qualifications,
-    );
-    let (mut formals, mut result) = lowering.formals()?;
-    for formal in &mut formals.scalars {
-        lowering.qualify_declaration(formal)?;
-    }
-    if let TerminalMachineResult::Scalar(result) = &mut result {
-        lowering.qualify_declaration(result)?;
-    }
-    let mut scalar_domain_requirements = Vec::new();
-    for (index, formal) in formals.scalars.iter().enumerate() {
-        for domain in lowering
-            .qualifications
-            .members(caller, formal.qualifications)?
-        {
-            scalar_domain_requirements.push(terminal_psi::ScalarDomainRequirement {
-                argument_index: u32::try_from(index)
-                    .map_err(|_| unavailable("boundary scalar formal ordinal overflow"))?,
-                domain: *domain,
-            });
-        }
-    }
-    // effects.md: a boundary requirement "publishes one stable interface
-    // across providers", so its written ceiling is both what it may reach
-    // and what a caller is charged.
-    let crate::Ceiling::Authored(reach) = &signature.reaches else {
-        return Err(unavailable(
-            "boundary declaration has no declared reach ceiling",
-        ));
-    };
-    // A requirement's `invokes` bounds "the entries of every admitted
-    // implementation"; the reader states omission as the empty row.
-    let crate::Ceiling::Authored(entries) = &signature.invokes else {
-        return Err(unavailable(
-            "boundary declaration has no declared entry ceiling",
-        ));
-    };
-    let result = match result {
-        TerminalMachineResult::Unit => terminal_psi::BoundaryMachineResult::Unit,
-        TerminalMachineResult::Scalar(result) => {
-            terminal_psi::BoundaryMachineResult::Scalar(semantic_vocabulary::QualifiedScalarType {
-                scalar_type: result.scalar_type,
-                qualifications: result.qualifications,
-            })
-        }
-        TerminalMachineResult::Structural(result) => {
-            terminal_psi::BoundaryMachineResult::Structural(
-                terminal_psi::BoundaryStructuralResultDeclaration {
-                    structural_type: result.structural_type,
-                    multiplicity: result.multiplicity,
-                    qualifications: result.qualifications,
-                    projected_qualifications: result.projected_qualifications,
-                },
-            )
-        }
-    };
-    let completion = signatures.completion(id, caller)?;
-    // The terminal identity does not make an ordinary result empty. Retain the
-    // declared Never carrier and prove its default domain before publishing;
-    // the legacy Unit adapter remains a separate, already admitted surface.
-    if matches!(
-        completion,
-        semantic_vocabulary::BoundaryCompletion::External(_)
-    ) && !match &result {
-        terminal_psi::BoundaryMachineResult::Unit => true,
-        terminal_psi::BoundaryMachineResult::Structural(result) => {
-            records.inhabitation.status(result.structural_type)
-                == terminal_semantics::inhabitation::Status::ProvedEmpty
-        }
-        terminal_psi::BoundaryMachineResult::Scalar(_) => false,
-    } {
-        return Err(unavailable(
-            "external completion has no empty declared result",
-        ));
-    }
-    let primitive = metadata.1.execution.compiler_owned();
-    Ok(terminal_psi::BoundaryMachineDeclaration {
-        id,
-        identity: metadata.1.source.callable,
-        owner: metadata.0,
-        declaration: Some(metadata.1),
-        numeric_intrinsic,
-        role: terminal_psi::BoundaryDeclarationRole::Callable,
-        kind,
-        completion,
-        unconditional_termination: signature.termination != crate::Termination::Silent,
-        attachment: None,
-        parameter_order: formals.order,
-        scalar_parameters: formals
-            .scalars
-            .iter()
-            .map(|formal| formal.scalar_type)
-            .collect(),
-        structural_parameters: formals.records,
-        result,
-        result_reference_regions: Vec::new(),
-        result_lifetimes: None,
-        crash_routes: crash_routes.to_vec(),
-        scalar_requires: signature.requires.clone(),
-        scalar_ensures: signature.ensures.clone(),
-        // Scalar qualifications and predicates belong to this interface,
-        // independently of any selected provider's implementation.
-        requires: Vec::new(),
-        normal_qualifications: Vec::new(),
-        scalar_domain_requirements,
-        reference_outputs: Vec::new(),
-        program_local_root_introductions: Vec::new(),
-        content_guarantees: Vec::new(),
-        fixed_service_reach: reach.clone(),
-        service_reach_is_installation_bound: false,
-        owning_service: if primitive { None } else { service },
-        published_service_ceiling: reach.clone(),
-        published_synchronous_entries: entries.clone(),
-    })
+    Ok((lowering, entry, formals, result))
 }
 
 /// A machine's formals in Terminal Psi's two lanes, and the authored order
@@ -398,6 +393,7 @@ pub(crate) fn declaration_contract(
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<MachineContract> {
     let selected = selected_body
@@ -433,6 +429,8 @@ pub(crate) fn declaration_contract(
         signatures,
         outcomes,
         records,
+        callables,
+        signatures.boundaries,
         &signature.parameters,
         qualifications,
     );
@@ -465,6 +463,8 @@ impl<'a> Lowering<'a> {
         signatures: Signatures<'a>,
         outcomes: &'a IdTable<MachineId, Outcome>,
         records: &'a Records<'a>,
+        callables: &'a crate::callables::CallableNamespace,
+        boundaries: &'a crate::boundaries::BoundaryNamespace,
         slot_types: &'a [ValueType],
         qualifications: &'a mut crate::qualifications::Qualifications,
     ) -> Self {
@@ -475,17 +475,21 @@ impl<'a> Lowering<'a> {
             signatures,
             outcomes,
             records,
+            callables,
+            boundaries,
             roots: IdTable::default(),
             demanded_contents: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
             sources: MachineSources::default(),
             designated: Vec::new(),
-            calls: Vec::new(),
+            source_calls: Vec::new(),
+            source_constructions: Vec::new(),
+            source_folded_calls: Vec::new(),
             call_formations: Vec::new(),
             blocks: IdTable::default(),
             operation_locations: IdTable::default(),
-            scalar_constants: std::cell::RefCell::default(),
+            scalar_constants: terminal_semantics::ScalarConstants::default(),
             current: None,
             point: None,
             slots: vec![None; slot_types.len()],
@@ -755,6 +759,8 @@ struct Lowering<'a> {
     signatures: Signatures<'a>,
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
+    callables: &'a crate::callables::CallableNamespace,
+    boundaries: &'a crate::boundaries::BoundaryNamespace,
     qualifications: &'a mut crate::qualifications::Qualifications,
     /// The first qualification edge minted by this machine, carried from
     /// construction instead of searching all preceding machines' edges.
@@ -779,18 +785,25 @@ struct Lowering<'a> {
     tables: MachineTables,
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
-    calls: Vec<(
+    source_calls: Vec<typed_trees::SourceCallCorrespondence>,
+    source_constructions: Vec<(
         MachineId,
+        OperationId,
+        symbols::SymbolHandle,
         typed_trees::expression::ExpressionHandle,
-        typed_trees::statement::StatementHandle,
-        semantic_vocabulary::InvocationSite,
+    )>,
+    source_folded_calls: Vec<(
+        MachineId,
+        EdgeId,
+        symbols::SymbolHandle,
+        typed_trees::SourceNode,
     )>,
     call_formations: Vec<terminal_psi::CallFormation>,
     blocks: IdTable<BlockId, Draft>,
     /// Coordinates of emitted operations in this in-progress machine. A call
     /// reads exact scalar definitions without rescanning all earlier blocks.
     operation_locations: IdTable<OperationId, Option<(BlockId, usize)>>,
-    scalar_constants: std::cell::RefCell<terminal_semantics::ScalarConstants>,
+    scalar_constants: terminal_semantics::ScalarConstants,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
     /// The program point after the last thing emitted in `current`.
@@ -981,6 +994,14 @@ impl<'a> Lowering<'a> {
             .get(entry)
             .copied()
             .ok_or_else(|| self.internal("a body entry has no source correspondence"))?;
+        let source = match source {
+            terminal_check_tables::program::SourceOrigin::Authored(span) => {
+                SourceOrigin::Authored(span)
+            }
+            terminal_check_tables::program::SourceOrigin::Unpositioned(reason) => {
+                SourceOrigin::Unpositioned(reason)
+            }
+        };
         // By-value formals are already bound here. Place them in their
         // homes before any path may lend one. Local initializers establish
         // theirs where the binding actually becomes live.
@@ -1014,9 +1035,10 @@ impl<'a> Lowering<'a> {
                 }
             });
             if let Some(statement) = first {
-                self.sources
-                    .unreachable
-                    .push(crate::Unreachable { statement, call });
+                self.sources.unreachable.push(crate::Unreachable {
+                    statement: statement.into(),
+                    call: call.into(),
+                });
             }
             break;
         }
@@ -1214,13 +1236,13 @@ impl<'a> Lowering<'a> {
         &mut self,
         kind: ObligationKind,
         created_at: ProgramPoint,
-        source: SourceOrigin,
+        source: impl Into<terminal_check_tables::program::SourceOrigin>,
     ) -> ObligationId {
         let obligation = self
             .tables
             .obligations
             .push(ObligationRow { kind, created_at });
-        self.sources.obligations.push(source);
+        self.sources.obligations.push(source.into());
         obligation
     }
 
@@ -1272,14 +1294,12 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    fn finish(
-        mut self,
-        entry: BlockId,
+    fn signature_header(
+        &mut self,
         formals: Formals,
         result: TerminalMachineResult,
-        contract_id: ContractId,
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    ) -> Checked<Lowered> {
+        crash_routes: Vec<terminal_psi::CrashRouteBucket>,
+    ) -> Checked<SignatureHeader> {
         let ensures = self
             .signature
             .ensures
@@ -1290,6 +1310,42 @@ impl<'a> Lowering<'a> {
                 proposition: proposition.clone(),
             })
             .collect();
+        let outcome = Outcome {
+            operational: self.signature.operational.published([false; 2]),
+            completes_normally: true,
+            crash_routes,
+            service_reach: match &self.signature.reaches {
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => Vec::new(),
+            },
+            fixed_service_reach: None,
+            synchronous_entries: match &self.signature.invokes {
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => Vec::new(),
+            },
+        };
+        let id =
+            ContractId::new(self.id.get()).ok_or_else(|| self.internal("contract identity"))?;
+        let mut proof = contract_header(id, self.signature, formals, result, ensures, &outcome);
+        self.qualify_contract(&mut proof)?;
+        Ok(SignatureHeader {
+            crash_policy: crate::callable_headers::CallableCrashPolicy::Closed,
+            scalar_parameters: proof.parameters.clone(),
+            parameter_order: proof.parameter_order.clone(),
+            structural_parameters: proof.structural_parameters.clone(),
+            result: proof.result.clone(),
+            proof,
+        })
+    }
+
+    fn finish(
+        mut self,
+        entry: BlockId,
+        formals: Formals,
+        result: TerminalMachineResult,
+        contract_id: ContractId,
+        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> Checked<Lowered> {
         self.arrivals()?;
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
@@ -1309,6 +1365,16 @@ impl<'a> Lowering<'a> {
             block.operations = operations;
             blocks.push(block);
         }
+        let ensures = self
+            .signature
+            .ensures
+            .iter()
+            .zip(&self.published)
+            .map(|(proposition, obligation)| ContractClause {
+                obligation: *obligation,
+                proposition: proposition.clone(),
+            })
+            .collect();
         let outcome =
             terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?;
         let mut contract = contract_header(
@@ -1378,7 +1444,9 @@ impl<'a> Lowering<'a> {
             tables: self.tables,
             sources: self.sources,
             designated: self.designated,
-            calls: self.calls,
+            source_calls: self.source_calls,
+            source_constructions: self.source_constructions,
+            source_folded_calls: self.source_folded_calls,
             invariants: self.invariants,
         })
     }

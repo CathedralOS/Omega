@@ -14,6 +14,7 @@ const SOURCE_PREPARATION: StageMeta =
 pub(crate) fn check_product_source(
     source: PreparedProductSource,
     package_inputs: Option<&PackageCompilationInputs>,
+    calling_targets: &[target::TargetProfile],
     rollback: &crate::OptimizationRollback,
     inspection: Option<&str>,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
@@ -39,13 +40,19 @@ pub(crate) fn check_product_source(
         // that choose them, and targets choose from the judged module. The
         // first pass lays out the entries and the Build's own selections. When
         // a target then chooses a default the source was not laid out for, the
-        // source is prepared again from this unprepared copy, which exists
-        // only when the Build has dependency defaults.
-        let unprepared = (!build.default_provider_selections.is_empty()).then(|| typed.clone());
+        // source is prepared again from this unprepared copy. Both source
+        // policy declarations and exported Build rows offer defaults; neither
+        // origin makes a default an actual supply before a target chooses it.
+        let has_defaults = !build.default_provider_selections.is_empty()
+            || typed.machines().iter().any(|machine| {
+                machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            });
+        let unprepared = has_defaults.then(|| typed.clone());
         let mut pass = ProductSourcePass {
             computed_build_config: &computed_build_config,
             package_inputs,
             rollback,
+            calling_targets,
             inspection,
             frontier,
             build_accounting: &build_accounting,
@@ -62,7 +69,7 @@ pub(crate) fn check_product_source(
                 crate::checked::SupplyJudgment::PrepareLayouts(chosen) => {
                     let typed = unprepared.clone().ok_or_else(|| {
                         vec![Diagnostic::error(
-                            "a target chose a provider default the Build does not declare",
+                            "a target chose a provider default absent from the source preparation frontier",
                         )]
                     })?;
                     judged = prepare_and_judge(&mut pass, typed, &chosen)?;
@@ -73,7 +80,6 @@ pub(crate) fn check_product_source(
         let JudgedSource {
             program,
             source_completion_accounting,
-            provider_defaults,
             ..
         } = judged;
         let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
@@ -88,7 +94,6 @@ pub(crate) fn check_product_source(
             program,
             provider_inventory,
             terminal_publication,
-            provider_defaults: provider_defaults.into(),
             computed_build_config,
             admission,
             sources,
@@ -110,6 +115,7 @@ struct ProductSourcePass<'a, 'f> {
     computed_build_config: &'a products::ComputedBuildConfig,
     package_inputs: Option<&'a PackageCompilationInputs>,
     rollback: &'a crate::OptimizationRollback,
+    calling_targets: &'a [target::TargetProfile],
     /// The source machine `omega psi inspect --machine` names, if any.
     inspection: Option<&'a str>,
     frontier: Option<&'f mut Option<super::typed_frontier::TypedFrontier>>,
@@ -127,7 +133,6 @@ struct JudgedSource {
     program: Arc<typed_trees::FrozenTypedTrees>,
     source_completion_accounting: products::SourceCompletionAccounting,
     judgment: crate::checked::SupplyJudgment,
-    provider_defaults: Vec<build_time_evaluation::provider_declarations::TargetProviderDefaults>,
 }
 
 fn prepare_and_judge(
@@ -279,7 +284,7 @@ fn prepare_and_judge(
         // bound entries and arrivals, and settle supply from those entries.
         selected.extend(external_roots.iter().copied());
     }
-    let roster = products::ProductRoster {
+    let mut roster = products::ProductRoster {
         declaration_metadata,
         entries: external_roots,
         inspection_root,
@@ -287,12 +292,14 @@ fn prepare_and_judge(
         selected,
         bindings,
         supplies,
+        normalization: Default::default(),
     };
+    let preparation_compilation = roster.preparation_compilation()?;
     let source = pass.timings.record_result(SOURCE_PREPARATION, || {
         source_compiler::SourcePreparationRequest {
             program: typed,
             admission: source_admission,
-            compilation: roster.compilation(),
+            compilation: preparation_compilation,
             accounting: pass.initial_accounting.clone(),
         }
         .prepare()
@@ -307,6 +314,130 @@ fn prepare_and_judge(
             return Err(failure.diagnostics);
         }
     };
+    let mut provider_defaults =
+        build_time_evaluation::provider_declarations::retain_provider_defaults(
+            build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
+                &program,
+                source::DependencyScope::Product,
+            ),
+        )?;
+    // Keep every available default for settlement. Only actual target choices
+    // become normalized provider records and concrete body judgments here;
+    // those choices already entered this pass's exact layout scopes above.
+    // Subject declarations and explicit Build supplies are judged separately.
+    let prepared_provider_defaults = chosen_defaults
+        .iter()
+        .map(
+            |chosen| build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                target: Some(chosen.target.target_name().to_owned()),
+                machines: Vec::new(),
+                selections: vec![chosen.selection.clone()],
+            },
+        )
+        .collect::<Vec<_>>();
+    for selection in &build.default_provider_selections {
+        provider_defaults.push(
+            build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                target: selection
+                    .target
+                    .map(|target| target.canonical_name().to_owned()),
+                machines: Vec::new(),
+                selections: vec![selection.clone()],
+            },
+        );
+    }
+    let super::provider_choices::PreparedProviderChoices {
+        selections: provider_inputs,
+        declaration_roots,
+        calling_applications,
+    } = super::provider_choices::prepare_with_source_defaults(
+        &program,
+        pass.calling_targets,
+        &build.provider_selections,
+        &[],
+        &prepared_provider_defaults,
+    )?;
+    roster.selected.extend(declaration_roots);
+    let mut entry_contracts = Vec::with_capacity(pass.calling_targets.len());
+    for &profile in pass.calling_targets {
+        if entry_contracts
+            .iter()
+            .any(|(selected, _, _, _)| *selected == profile)
+        {
+            continue;
+        }
+        let Some(selected) = provider_planning::program_entry::selected_program_entry_machine(
+            &build.root_bindings,
+            Some(profile),
+        )?
+        else {
+            // Checking source permits a declaration-only product. Normalize
+            // each actual selection here; executable consumers require its
+            // checked entry contract when they prepare execution.
+            continue;
+        };
+        // Shape preparation retains the actual executed binding order and
+        // implementation. The slot text is diagnostic text only.
+        let implementation = roster
+            .bindings
+            .get(selected.binding_ordinal)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected entry lost its target-resolved source shape",
+                )]
+            })?
+            .implementation;
+        let nomination = package_compilation::source_imports::select_program_entry_contract(
+            &program,
+            profile,
+            pass.package_inputs,
+        )?;
+        nomination
+            .require_owner(&program)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let sources = program.symbols.source_map().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected entry contract has no source inventory",
+            )]
+        })?;
+        let file = sources.get(nomination.source()).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected entry contract lost its exact source file",
+            )]
+        })?;
+        let package = profile
+            .program_entry_slot()
+            .physical_contract_package
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected entry has no physical contract package",
+                )]
+            })?;
+        let digest = *provider_planning::program_entry::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+        package, file.source.as_bytes(),
+    ).as_bytes();
+        entry_contracts.push((profile, nomination, implementation, digest));
+    }
+    let entry_inputs = entry_contracts
+        .iter()
+        .map(|(profile, nomination, implementation, digest)| {
+            super::typed_frontier::ProgramEntryInput {
+                target: profile.target_name().to_owned(),
+                application: nomination.application().clone(),
+                physical_source_digest: *digest,
+                implementation: *implementation,
+            }
+        })
+        .collect::<Vec<_>>();
+    let calling_inputs = super::typed_frontier::CallingInputs {
+        applications: calling_applications,
+        entries: entry_inputs,
+    };
+    roster.normalization = Arc::new(products::SourceNormalizationInputs {
+        calling: calling_inputs,
+        providers: provider_inputs,
+    });
+
     // Build invocations belong to another checked context. Join their
     // costs only after Product's own materialization receipts have been
     // authenticated against this source; they prove no Product value.
@@ -320,6 +451,8 @@ fn prepare_and_judge(
             subject,
             selected: roster.selected.clone(),
             bindings: roster.bindings.clone(),
+            supplies: roster.supplies.clone(),
+            normalization: Arc::clone(&roster.normalization),
         });
     }
     let judged = products::ProductTerminalPublication::judge(
@@ -331,41 +464,26 @@ fn prepare_and_judge(
             .clone(),
     );
     let terminal_publication = Arc::new(judged?);
-    let mut provider_defaults =
-        build_time_evaluation::provider_declarations::retain_provider_defaults(
-            build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
-                &program,
-                source::DependencyScope::Product,
-            ),
-        )?;
-    for selection in &build.default_provider_selections {
-        provider_defaults.push(
-            build_time_evaluation::provider_declarations::TargetProviderDefaults {
-                target: selection
-                    .target
-                    .map(|target| target.canonical_name().to_owned()),
-                machines: Vec::new(),
-                selections: vec![selection.clone()],
-            },
-        );
-    }
     // The Product has one module for every target, so the providers each
     // target chooses are judged in it before anything is published. The
     // judgment kept is that module's: the verdict, the demand of each target
     // and the publication are all read from it.
+    let deferred_defaults = provider_defaults
+        .iter()
+        .flat_map(|row| row.selections.iter().cloned())
+        .collect::<Vec<_>>();
     let judgment = crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
         publication: terminal_publication,
         build: &build.provider_selections,
         native_bindings: &build.native_bindings,
         defaults: &provider_defaults,
-        layout_deferred: &build.default_provider_selections,
+        layout_deferred: &deferred_defaults,
         layout_prepared: chosen_defaults,
     })?;
     Ok(JudgedSource {
         program,
         source_completion_accounting,
         judgment,
-        provider_defaults,
     })
 }
 

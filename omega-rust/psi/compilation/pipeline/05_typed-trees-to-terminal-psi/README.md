@@ -63,6 +63,35 @@ arguments, under [static declarations and explicit state](../../../../../wiki/sp
 Module and trait qualification still identify ordinary static declarations;
 they supply no implicit arguments.
 
+Machines with one state and a complete body whose formals, locals and result
+are builtin integers (`i8` to `u64`) or `bool`, using: scalar locals and
+assignment to them; integer and Boolean literals; wholly anonymous `+`, `-`,
+`*` and `/` trees over unsuffixed literals, evaluated as exact rationals (so
+`7 / 2` is `7/2`, not 3) and lowered as one literal when the completed value
+is an integer of the context's type reached with no fractional intermediate,
+any other such tree (fractional anywhere, out of range, or under an operator
+with no anonymous meaning) being refused; builtin `Exact` integer
+arithmetic, bitwise operations, shifts and comparisons; integers of type
+`T in Wrapping` and `T in Saturating` with their arithmetic
+([Arithmetic policies](#arithmetic-policies)); `!`, `~`, `&&` and
+`||`; `as` between two integer carriers ([Casts](#casts)); direct calls of other such machines with `requires` clauses over their
+formals and `ensures` clauses over their formals and `result`; `crashes Trap`
+and `crashes Abort` clauses with or without route guards over the formals;
+`crashes none`; an integer `!=` in a clause, read as `a < b or b < a`, the
+form the kernel denotes a false integer equality by; a `requires` or
+`ensures` clause that compares mathematical integers
+([Mathematical integers in a clause](#mathematical-integers-in-a-clause));
+`crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
+of a machine that may return is an operation wherever it stands, and carries
+the callee's crash routes when it publishes any. A call of a machine with no
+normal completion becomes the block's no-normal invocation wherever it occurs.
+The surrounding evaluation stops on that path; other branch arrivals remain.
+Everything else is refused with `RefusalReason::Unsupported` and a detail
+naming the construct. Unsupported references, suspension, assembly and other
+unserved forms are refused explicitly. Callable values and boundary calls keep
+their complete declared contracts; retaining one does not supply an executable
+implementation or prove its obligations. A
+refusal anywhere in the compilation refuses the whole compilation.
 The base subset is machines with one state and a complete body whose
 formals, locals and result are builtin integers (`i8` to `u64`) or `bool`.
 Such a body may use:
@@ -97,6 +126,21 @@ branch's join remain. Everything else is refused with
 generic, a callable value, a suspension, assembly, a float, a domain, a cast
 that names a domain, or service reach is never skipped, approximated or
 passed through. A refusal anywhere refuses the whole compilation.
+
+### Service reach
+
+A machine header may write `reaches A + B` or `reaches none`. The reader
+retains authored ceilings and derives private effects over the complete call
+closure. Named calls, calls through stored machines and boundary calls
+contribute their retained envelopes. Blocking and suspension are independent,
+and source acknowledgements are checked after those effects are complete.
+
+`reach.rs` publishes canonical service declarations and the completed machine
+and callable rows. The authored-versus-inferred distinction also remains in the
+neutral checking input. Stage 06 checks that calls fit the caller's ceiling;
+source preparation does not prove that judgment. Open static bounds remain
+explicit in static schema questions and never become an empty runtime promise.
+See [effects](../../../../../wiki/spec/language/effects.md).
 
 ### What one compilation elaborates
 
@@ -1406,8 +1450,9 @@ worked around by adding to `terminal-check-tables`.
     [literals and expected types](../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
     with no expected type it is refused.
 9. **Every machine carries a reach row.** A machine with no reach holds
-    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
-    row is refused.
+    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`, and the row alone does not
+    say whether the header wrote `reaches none`: that is read from
+    `authored_service_reach_rows` ([Service reach](#service-reach)).
 10. **A field read is `ScalarStructuralField`, not `PrimitiveScalarRead`.**
     The lane plan's table names `PrimitiveScalarRead`; the specification
     gives a static field path the other form

@@ -62,6 +62,44 @@ machine both(held: &mut Source, value: &u32) -> u32 { 1 }
 machine replace(held: &mut Source) { }
 "#;
 
+/// Build's Source dispatch forwards a shared builder and the selected payload.
+/// Its Git case contains another sum, passed to the helper that selects it.
+#[test]
+fn a_dispatch_arm_forwards_its_shared_borrow_and_nested_payload() {
+    assert_eq!(
+        verdict(
+            r#"
+data Builder { count: u32; }
+data Selection<'storage> {
+    case Root;
+    case Named(package: &'storage [u8]);
+}
+data Source<'storage> {
+    case Path(location: &'storage [u8]);
+    case Git(repository: &'storage [u8], revision: &'storage [u8], selection: Selection<'storage>);
+}
+machine build_entry(builder: &Builder, source: Source) { route(builder, source); }
+machine route(builder: &Builder, source: Source) {
+    transition source {
+        Source::Path { location } -> request(builder, location, "", "")
+        Source::Git { repository, revision, selection } -> git(builder, repository, revision, selection)
+    }
+}
+machine git(builder: &Builder, repository: &[u8], revision: &[u8], selection: Selection) {
+    transition selection {
+        Selection::Root -> request(builder, repository, revision, "")
+        Selection::Named { package } -> request(builder, repository, revision, package)
+    }
+}
+machine request(builder: &Builder, location: &[u8], revision: &[u8], package: &[u8]) {
+    let observed: u32 = builder.count;
+}
+"#
+        ),
+        "accepted"
+    );
+}
+
 /// The toolchain's shape: each arm of a dispatch over an owned sum passes
 /// a view its case holds. The binding is the payload place of the subject
 /// the dispatch saved, and the arm is where that case is selected. A
@@ -298,7 +336,7 @@ fn an_owned_payload_store_requires_its_exact_selected_case() {
     let start = source.find(&format!("{target} =")).unwrap();
     let end = start + target.len();
     assert!(unestablished.iter().any(|failure| failure.detail == NO_CASE
-        && matches!(&failure.site, Some(SourceOrigin::Authored(span))
+        && matches!(&failure.site, Some(terminal_check_tables::program::SourceOrigin::Authored(span))
             if start <= span.span.start && span.span.end <= end)));
 }
 
@@ -352,6 +390,6 @@ fn a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement() {
     let start = changed.find(&format!("{target} =")).unwrap();
     let end = start + target.len();
     assert!(unestablished.iter().any(|failure| failure.detail == NO_CASE
-        && matches!(&failure.site, Some(SourceOrigin::Authored(span))
+        && matches!(&failure.site, Some(terminal_check_tables::program::SourceOrigin::Authored(span))
             if start <= span.span.start && span.span.end <= end)));
 }

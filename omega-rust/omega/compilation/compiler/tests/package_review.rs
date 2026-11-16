@@ -2065,6 +2065,8 @@ fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
             selected: &[],
             declaration_metadata: &[],
             bindings: &[],
+            calling: None,
+            providers: None,
             supplies: &[],
         },
     }
@@ -2682,7 +2684,6 @@ machine main() {}
                 source_inspection: std::sync::Arc::clone(&inspection),
                 build: std::sync::Arc::new(build),
                 build_admission: checked.build_admission().clone(),
-                provider_defaults: checked.provider_defaults().to_vec().into(),
             },
             std::sync::Arc::new(checked.sources().clone()),
             Default::default(),

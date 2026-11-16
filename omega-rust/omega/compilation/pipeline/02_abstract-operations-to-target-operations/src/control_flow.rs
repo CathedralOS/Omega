@@ -2286,7 +2286,7 @@ mod transfers {
                         },
                     );
                 }
-                ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+                ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
                     live.scalar_block_parameters.insert(
                         parameter.value,
                         TargetScalarBlockValue {
@@ -2819,6 +2819,7 @@ pub(crate) fn lower(
     profile: Option<target::TargetProfile>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    callables: &terminal_psi::TerminalCallableCatalog,
     borrowed_reference_sources: references::BorrowedSources,
     stored_reference_effects: references::StoredEffectCatalog,
     structural_types: &StructuralTypeLookup<'_>,
@@ -2882,6 +2883,7 @@ pub(crate) fn lower(
             | abstract_operations::byte_len_or_field_read_pattern!(result, ..)
             | AbstractOperation::StructuralCaseMembership { result, .. }
             | AbstractOperation::SelectImplementation { result, .. }
+            | AbstractOperation::SelectMachine { result, .. }
             | AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Scalar(result),
                 ..
@@ -3241,6 +3243,7 @@ pub(crate) fn lower(
                     profile,
                     functions,
                     dynamic_dispatch,
+                    callables,
                     boundary_machines,
                     settlements,
                     selected_calls,

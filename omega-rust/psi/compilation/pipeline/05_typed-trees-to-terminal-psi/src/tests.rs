@@ -58,12 +58,11 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> Expression {
     expression(
         ExpressionKind::Call {
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+            callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
         },
         result,
     )
@@ -206,19 +205,20 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
-    let boundary_signatures = IdTable::default();
+    let boundary_signatures = crate::boundaries::BoundaryNamespace::default();
     let signatures = crate::body::Signatures {
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: signatures,
         boundaries: &boundary_signatures,
-        completions: &IdTable::default(),
     };
     let declared = crate::lower::places::declare(
         id(1),
         records,
         &bodies,
-        signatures,
+        signatures.machines.values(),
+        &[],
+        None,
         terminal_psi::TerminalIdentityTableBuilder::default(),
     )?;
     crate::lower::machine(
@@ -230,6 +230,8 @@ fn lower_records(
         outcomes,
         &declared.records,
         &declared.structural_types,
+        &crate::callables::CallableNamespace::default(),
+        &crate::boundaries::BoundaryNamespace::default(),
         false,
         &mut crate::qualifications::Qualifications::default(),
     )
@@ -1269,8 +1271,8 @@ fn a_binding_of_a_call_that_never_returns_ends_the_body() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1381,8 +1383,8 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1394,10 +1396,9 @@ fn a_never_returning_record_base_stops_its_field_projection() {
         statements: vec![returns(member(
             of_type(
                 ExpressionKind::Call {
-                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    callee: id::<semantic_vocabulary::MachineId>(2).into(),
                     required_contract: None,
                     static_reach_binding: None,
-                    source_call: None,
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -1577,8 +1578,8 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1778,10 +1779,10 @@ fn outcomes_follow_the_ceiling_or_the_body() {
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &IdTable::default(),
-                completions: &IdTable::default(),
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
+            &crate::callables::CallableNamespace::default(),
             None,
             &Default::default(),
             &crate::components::discover(&bodies).unwrap(),
@@ -1841,10 +1842,10 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &IdTable::default(),
-                completions: &IdTable::default(),
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
             },
             &[],
+            &crate::callables::CallableNamespace::default(),
             None,
             &Default::default(),
             &crate::components::discover(&bodies).unwrap(),
@@ -1918,10 +1919,10 @@ fn a_skipped_operand_cannot_end_the_machine() {
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: &signatures,
-            boundaries: &IdTable::default(),
-            completions: &IdTable::default(),
+            boundaries: &crate::boundaries::BoundaryNamespace::default(),
         },
         &[],
+        &crate::callables::CallableNamespace::default(),
         None,
         &Default::default(),
         &crate::components::discover(&bodies).unwrap(),
@@ -1987,12 +1988,11 @@ fn settle_both(
                 Step::Crash(guarded, cause) => crash_arm(guarded.then(yes), cause),
                 Step::Refuse => Statement::discard(expression(
                     ExpressionKind::Call {
-                        callee: semantic_vocabulary::TargetMachineCallable::Boundary(id(1)),
+                        callee: crate::body::CallTarget::Boundary { boundary: id(1) },
                         arguments: Vec::new(),
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
-                        source_call: None,
                     },
                     None,
                 )),
@@ -2011,8 +2011,7 @@ fn settle_both(
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: &signatures,
-        boundaries: &IdTable::default(),
-        completions: &IdTable::default(),
+        boundaries: &crate::boundaries::BoundaryNamespace::default(),
     };
     let run = |by_rounds| {
         crate::outcome::counted_outcomes(
@@ -2586,12 +2585,11 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                 5,
                 of_type(
                     ExpressionKind::Call {
-                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                        callee: id::<MachineId>(2).into(),
                         arguments: Vec::new(),
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
-                        source_call: None,
                     },
                     point(),
                 ),

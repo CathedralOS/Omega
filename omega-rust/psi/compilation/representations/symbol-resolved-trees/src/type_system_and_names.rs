@@ -40,6 +40,7 @@ pub mod type_system {
                             format!("{}<{arguments}>", generic.base_name)
                         }
                         TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
+                        TypeReference::Callable { .. } => "machine(<contract>)".to_owned(),
                         TypeReference::Named { name, .. } => name.to_string(),
                         TypeReference::Unit => "()".to_owned(),
                         TypeReference::AliasUse { expansion, .. } => {
@@ -245,6 +246,10 @@ pub mod type_system {
             Slice(SliceTypeReference),
             Generic(GenericTypeReference),
             ConstExpression(ConstExpressionTypeReference),
+            Callable {
+                contract: crate::callable_values::RuntimeCallableContractHandle,
+                supplied_operand_owner: OperandLifetimeOwnerHandle,
+            },
             Named {
                 symbol: SymbolHandle,
                 name: DiagnosticName,
@@ -741,6 +746,11 @@ pub mod type_system {
                             source_expressions.copy_into(expressions, expression.expression);
                         self.insert(TypeReferenceNode::ConstExpression(expression))
                     }
+                    TypeReference::Callable { contract, .. } => {
+                        self.insert(TypeReferenceNode::Callable {
+                            contract: *contract,
+                        })
+                    }
                     TypeReference::Named { symbol, name, .. } => {
                         self.insert(TypeReferenceNode::Named {
                             symbol: *symbol,
@@ -802,6 +812,10 @@ pub mod type_system {
                         supplied_operand_owner,
                         ..
                     }
+                    | Self::Callable {
+                        supplied_operand_owner,
+                        ..
+                    }
                     | Self::AliasUse {
                         supplied_operand_owner,
                         ..
@@ -827,6 +841,10 @@ pub mod type_system {
                     Self::Slice(reference) => reference.supplied_operand_owner = owner,
                     Self::Generic(reference) => reference.supplied_operand_owner = owner,
                     Self::Named {
+                        supplied_operand_owner,
+                        ..
+                    }
+                    | Self::Callable {
                         supplied_operand_owner,
                         ..
                     }
@@ -871,6 +889,9 @@ pub mod type_system {
                 arguments: HandleSpan<TypeReferenceHandle>,
             },
             ConstExpression(crate::expression::ExpressionHandle),
+            Callable {
+                contract: crate::callable_values::RuntimeCallableContractHandle,
+            },
             Named {
                 symbol: SymbolHandle,
                 name: DiagnosticName,
@@ -1016,6 +1037,7 @@ pub mod type_system {
                     | TypeReference::Slice(_)
                     | TypeReference::Generic(_)
                     | TypeReference::ConstExpression(_)
+                    | TypeReference::Callable { .. }
                     | TypeReference::Unit => None,
                 }
             }
