@@ -675,16 +675,36 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/",
-    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
 ];
 
 /// Stage 02's accessor for its working program.
-const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation("];
+const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation"];
 /// Stage 02 and its preparation crate, and the one file through which image
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/",
     "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
+];
+
+/// Naming either gateway is restricted, so importing it under another name
+/// cannot give object production access to stage 02's working program.
+const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
+const IMAGE_REPLAY_READERS: &[&str] = &[
+    "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source/retained_source_validation.rs",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/validation.rs",
+];
+const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
+    (
+        "omega-rust/omega/compilation/backend/images/image-emission/src/lib.rs",
+        "mod retained_working_program;",
+    ),
+    (
+        "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs",
+        "pub(super) mod retained_source_validation;",
+    ),
 ];
 
 fn is_test_source(relative: &str) -> bool {
@@ -698,7 +718,13 @@ fn line_calls_any(line: &str, entries: &[&str]) -> bool {
 
 /// Report each line under `omega-rust/omega` that calls one of `entries`
 /// outside the files or directories in `allowed` and outside tests.
-fn call_violations(root: &Path, entries: &[&str], allowed: &[&str], reason: &str) -> Vec<String> {
+fn call_violations(
+    root: &Path,
+    entries: &[&str],
+    allowed: &[&str],
+    declarations: &[(&str, &str)],
+    reason: &str,
+) -> Vec<String> {
     let mut violations = Vec::new();
     let mut files = Vec::new();
     collect_rs_files(&root.join(OMEGA), &mut files);
@@ -708,14 +734,25 @@ fn call_violations(root: &Path, entries: &[&str], allowed: &[&str], reason: &str
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        if allowed.iter().any(|owner| rel.starts_with(owner)) || is_test_source(&rel) {
+        if allowed.iter().any(|owner| {
+            if owner.ends_with('/') {
+                rel.starts_with(owner)
+            } else {
+                rel == *owner
+            }
+        }) || is_test_source(&rel)
+        {
             continue;
         }
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {
-            if line_calls_any(line, entries) {
+            if line_calls_any(line, entries)
+                && !declarations
+                    .iter()
+                    .any(|(file, declaration)| rel == *file && line.trim() == *declaration)
+            {
                 violations.push(format!("{rel}:{}: {reason}", index + 1));
             }
         }
@@ -845,6 +882,7 @@ pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
         root,
         PLAN_VALIDATOR_ENTRIES,
         PLAN_VALIDATOR_CALLERS,
+        &[],
         "stage 02's plan validator is called outside the explicit validator request and tests",
     )
 }
@@ -857,7 +895,19 @@ pub fn working_program_read_violations(root: &Path) -> Vec<String> {
         root,
         WORKING_PROGRAM_ACCESSORS,
         WORKING_PROGRAM_READERS,
+        &[],
         "stage 02's working program is read outside stage 02, its validators and tests; read the prepared execution plan",
+    )
+}
+
+/// Production must not reach stage 02 through a replay helper or its import.
+pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        IMAGE_REPLAY_GATEWAYS,
+        IMAGE_REPLAY_READERS,
+        IMAGE_REPLAY_DECLARATIONS,
+        "image production names a retained-program replay gateway; read the prepared execution plan",
     )
 }
 
@@ -925,6 +975,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(plan_validator_call_violations(&root));
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
+        violations.extend(image_replay_read_violations(&root));
         violations.extend(transitive_forbidden_violations(
             &metadata,
             SELECTION_REPRESENTATIONS,
@@ -1231,6 +1282,90 @@ mod tests {
         assert!(!is_test_source(
             "omega-rust/omega/compilation/native-compiler/src/pipeline.rs"
         ));
+    }
+
+    #[test]
+    fn image_production_cannot_import_or_call_replay_gateways() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-image-replay-boundary-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let image = "omega-rust/omega/compilation/backend/images/image-emission/src";
+        let files = [
+            (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
+            (
+                format!("{image}/function_fragments.rs"),
+                "pub(super) mod retained_source_validation;\n\
+                 fn produce() { crate::retained_working_program::target_operations(input); }\n",
+            ),
+            (
+                format!("{image}/function_fragments/production.rs"),
+                "use crate::retained_working_program as old;\n\
+                 use super::source::{retained_source_validation as audit};\n\
+                 let read = TargetStageOutput::working_program_for_validation;\n",
+            ),
+            (
+                format!("{image}/function_fragments/another_producer.rs"),
+                "mod retained_working_program;\n",
+            ),
+            (
+                format!("{image}/function_fragments/replay/validation.rs"),
+                "crate::retained_working_program::target_operations(input);\n",
+            ),
+            (
+                format!("{image}/function_fragments/source/retained_source_validation.rs"),
+                "use crate::retained_working_program as retained;\n",
+            ),
+            (
+                format!("{image}/function_fragments/validation.rs"),
+                "source::retained_source_validation::admit(input)?;\n",
+            ),
+            (
+                format!("{image}/function_fragments/replay/validation.rs_extra.rs"),
+                "crate::retained_working_program::target_operations(input);\n",
+            ),
+        ];
+        for (relative, text) in files {
+            let path = root.join(relative);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        let violations = image_replay_read_violations(&root);
+        let raw_accessor_violations = working_program_read_violations(&root);
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(violations.len(), 5, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.contains("function_fragments.rs:2:"))
+        );
+        assert_eq!(
+            violations
+                .iter()
+                .filter(|row| row.contains("production.rs:"))
+                .count(),
+            2
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.contains("another_producer.rs:1:"))
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|row| row.contains("validation.rs_extra.rs:1:"))
+        );
+        assert_eq!(
+            raw_accessor_violations.len(),
+            1,
+            "{raw_accessor_violations:?}"
+        );
+        assert!(raw_accessor_violations[0].contains("production.rs:3:"));
     }
 
     #[test]
