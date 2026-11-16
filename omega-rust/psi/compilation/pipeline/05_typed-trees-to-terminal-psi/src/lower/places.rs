@@ -734,8 +734,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
-        | ExpressionKind::RepresentationView { base: operand, .. }
+        | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -2039,15 +2038,58 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::ArrayView {
+            ExpressionKind::CollectionView {
                 base,
                 access,
                 element,
             } => {
                 let captured = continuing!(self.capture_place(base));
+                let ValueType::Record(backing, _, _) = captured.3 else {
+                    return Err(self.internal("a collection view has no collection backing"));
+                };
+                let representation = match self.record_type(backing)?.shape {
+                    StorageShape::FixedArray {
+                        element: stored, ..
+                    }
+                    | StorageShape::ElementView {
+                        element: stored, ..
+                    } => stored != *element,
+                    StorageShape::ByteSequence(_) => false,
+                    _ => return Err(self.internal("a collection view has another backing shape")),
+                };
+                // Measure the captured descriptor, not a later read of its
+                // source expression. The separate safety obligation checks
+                // that scaling this exact count fits the result's u64 count.
+                let source_length = if representation {
+                    let at = Located {
+                        root: captured.0,
+                        path: captured.1.clone(),
+                        place: captured.2,
+                        record: backing,
+                        fresh: false,
+                    };
+                    Some(self.measured_view(&at, expression.source)?.2)
+                } else {
+                    None
+                };
                 let lent = self.captured_loan(base, *access, captured, None)?;
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
+                let region = if let Some(source_length) = source_length {
+                    let obligation = self.obligation(
+                        ObligationKind::OperationSafety {
+                            site: ExecutionSite::Operation(operation),
+                        },
+                        before,
+                        expression.source,
+                    );
+                    terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    }
+                } else {
+                    terminal_psi::ElementViewRegion::WholeCollection
+                };
                 self.obligation(
                     ObligationKind::Loan {
                         captured: lent.place,
@@ -2073,7 +2115,6 @@ impl<'a> Lowering<'a> {
                     },
                     record,
                 )?;
-                let region = terminal_psi::ElementViewRegion::WholeCollection;
                 let kind = match access {
                     language_core::ReferenceAccess::Shared => OperationKind::EstablishElementView {
                         destination: root,
@@ -2104,110 +2145,6 @@ impl<'a> Lowering<'a> {
                         memberships,
                     )),
                     kind,
-                ));
-                self.point = Some(ProgramPoint::AfterOperation(operation));
-                self.write(
-                    place,
-                    ProgramPoint::AfterOperation(operation),
-                    Content::Overwritten,
-                )?;
-                Ok(Reached::Value(Located {
-                    root,
-                    place,
-                    path: Vec::new(),
-                    record,
-                    fresh: true,
-                }))
-            }
-            ExpressionKind::RepresentationView { base, element } => {
-                // byte_views.md, `WholeRepresentation`: the re-view lends the
-                // source descriptor's complete captured window, as an
-                // `ArrayView` of that descriptor lends it whole. Measure that
-                // exact descriptor directly before the formation; the count
-                // obligation the formation owns (`source_length` times the
-                // tiling factor fits `u64`) is judged against this measurement.
-                let Some(ValueType::Record(viewed, _, _)) = base.result else {
-                    return Err(self.internal("a re-view has no source view"));
-                };
-                let captured = continuing!(self.capture_place(base));
-                let lent = self.captured_loan(
-                    base,
-                    language_core::ReferenceAccess::Shared,
-                    captured,
-                    None,
-                )?;
-                let count = ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        64,
-                    )
-                    .expect("u64 is valid"),
-                );
-                let measurement = self.operation_identity(expression.source);
-                let source = StructuralArgument {
-                    place: lent.argument.0,
-                    path: self.storage_path(
-                        &lent.argument.1,
-                        ExecutionSite::Operation(measurement),
-                        expression.source,
-                    )?,
-                    access: lent.argument.2,
-                };
-                self.project(lent.place, Segment::Extent)?;
-                let reads_length = self
-                    .record_type(viewed)?
-                    .shape
-                    .length_operation()
-                    .ok_or_else(|| self.internal("a re-view has no readable source descriptor"))?;
-                let Value::Scalar(source_length) =
-                    self.emit(measurement, Some(count), reads_length(source.clone()))?
-                else {
-                    return Err(self.internal("a re-view's source length is not scalar"));
-                };
-                let operation = self.operation_identity(expression.source);
-                let before = self.here()?;
-                self.obligation(
-                    ObligationKind::Loan {
-                        captured: lent.place,
-                        access: language_core::ReferenceAccess::Shared,
-                        lender: lent.lender,
-                    },
-                    before,
-                    expression.source,
-                );
-                let obligation = self.obligation(
-                    ObligationKind::OperationSafety {
-                        site: ExecutionSite::Operation(operation),
-                    },
-                    before,
-                    expression.source,
-                );
-                let (root, place) = self.root(
-                    StructuralPlaceKind::OperationResult {
-                        producer: operation,
-                        structural_type: record,
-                    },
-                    record,
-                )?;
-                let multiplicity = self.records.multiplicity(record, self.id)?;
-                let memberships = self.memberships(record, Qualification::NONE)?;
-                self.draft()?.operations.push(Operation::unsuspended(
-                    operation,
-                    OperationResult::Structural(owned_result(
-                        root,
-                        record,
-                        multiplicity,
-                        memberships,
-                    )),
-                    OperationKind::EstablishElementView {
-                        destination: root,
-                        source,
-                        element: *element,
-                        region: terminal_psi::ElementViewRegion::WholeRepresentation {
-                            source_length,
-                            obligation,
-                        },
-                    },
                 ));
                 self.point = Some(ProgramPoint::AfterOperation(operation));
                 self.write(

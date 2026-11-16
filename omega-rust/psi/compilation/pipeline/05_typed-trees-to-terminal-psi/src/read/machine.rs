@@ -409,10 +409,17 @@ impl<'t> Program<'t> {
             None
         };
         let reading = match alternative {
-            Some(arguments) => Reading::Alternative(
-                arguments
+            Some(alternative) => Reading::Alternative(
+                alternative
+                    .arguments
                     .into_iter()
-                    .map(|argument| self.value_type(id, argument))
+                    .enumerate()
+                    .map(|(position, argument)| match argument {
+                        Some(argument) => self.value_type(id, argument),
+                        None => Ok(ValueType::Rigid(terminal_check_tables::values::RigidType(
+                            position as u32,
+                        ))),
+                    })
                     .collect::<Checked<_>>()?,
             ),
             None if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
@@ -3540,8 +3547,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::ArrayView { base, .. }
-        | ExpressionKind::RepresentationView { base, .. }
+        | ExpressionKind::CollectionView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
@@ -3737,8 +3743,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::ArrayView { base, .. }
-        | ExpressionKind::RepresentationView { base, .. }
+        | ExpressionKind::CollectionView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }

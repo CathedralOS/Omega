@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v104), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v106), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
@@ -403,6 +403,7 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
         },
         copies: vec![copy],
         transformed: SelectedInstructionPlan {
+            contracts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([6; 32]),
@@ -426,6 +427,45 @@ pub(super) fn transformed_identity_offset(encoded: &[u8]) -> usize {
     cursor.offset
 }
 
+#[test]
+fn transformed_plan_retains_the_nonempty_borrowed_storage_contract() {
+    let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+        runtime_abi::NativeBorrowedStorageLayout::new(
+            StructuralTypeId::new(1).unwrap(),
+            8,
+            8,
+            [(
+                Vec::new(),
+                Vec::new(),
+                0,
+                ScalarType::Boolean,
+                ScalarType::Boolean,
+            )],
+            [],
+            [],
+        ),
+    ])
+    .unwrap();
+    let baseline_identity =
+        selected_instructions::selected_instruction_plan_identity(&original.transformed);
+    std::sync::Arc::make_mut(&mut original.transformed).contracts =
+        std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
+            borrowed_storage_layouts: layouts.clone(),
+        });
+    assert_ne!(
+        selected_instructions::selected_instruction_plan_identity(&original.transformed),
+        baseline_identity
+    );
+    let encoded = original.encode().unwrap();
+    let received = FixedViewCopyPlan::decode(&encoded).unwrap();
+    assert_eq!(
+        received.transformed.contracts.borrowed_storage_layouts,
+        layouts
+    );
+    assert_eq!(received, original);
+}
+
 pub(super) fn selected_payload_offset(encoded: &[u8]) -> usize {
     let mut cursor = Cursor::new(encoded);
     cursor
@@ -440,7 +480,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &104_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &106_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }

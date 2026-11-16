@@ -3920,6 +3920,16 @@ mod production {
             relocations.push_record(record);
         }
         let artifact = ObjectArtifact {
+            program_contracts: Arc::clone(
+                &source
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .program()
+                    .selected
+                    .contracts,
+            ),
             projected: ProjectedObject(()),
             hosted_receiver: None,
             physical_entry: None,

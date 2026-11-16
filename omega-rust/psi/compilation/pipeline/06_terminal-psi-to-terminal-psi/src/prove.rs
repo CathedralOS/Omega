@@ -2653,6 +2653,58 @@ impl<'a> Prover<'a> {
         direction: Direction,
         preferred: Option<&IntegerMathTerm>,
     ) -> Result<(Result<ProofNode, Unproven>, Option<ProofNode>), Unproven> {
+        if let IntegerMathTerm::Embed(scalar) = term {
+            let Some(Proposition::IntegerMathLessOrEqual(expanded, _)) = lift_exact_integer_order(
+                &Proposition::LessOrEqual(scalar.as_ref().clone(), scalar.as_ref().clone()),
+            ) else {
+                return Err("embedded arithmetic is not exact integer arithmetic");
+            };
+            if &expanded == term {
+                return Err("embedded arithmetic does not expand");
+            }
+            let (first, second) = if term <= &expanded {
+                (term, &expanded)
+            } else {
+                (&expanded, term)
+            };
+            let equality = self
+                .closed(Proposition::IntegerMathEqual(first.clone(), second.clone()))
+                .ok_or("the kernel refuses the exact arithmetic identity")?;
+            let (interval, related) = self.arithmetic_images(&expanded, direction, preferred)?;
+            let restate = |image: ProofNode| -> Result<ProofNode, Unproven> {
+                let (conclusion, endpoint) = match (&image.conclusion, direction) {
+                    (Proposition::IntegerMathLessOrEqual(actual, limit), Direction::Upper)
+                        if actual == &expanded =>
+                    {
+                        (
+                            Proposition::IntegerMathLessOrEqual(term.clone(), limit.clone()),
+                            0,
+                        )
+                    }
+                    (Proposition::IntegerMathLessOrEqual(limit, actual), Direction::Lower)
+                        if actual == &expanded =>
+                    {
+                        (
+                            Proposition::IntegerMathLessOrEqual(limit.clone(), term.clone()),
+                            1,
+                        )
+                    }
+                    _ => return Err("the expanded arithmetic bound names a different term"),
+                };
+                Ok(node(
+                    conclusion,
+                    ProofRule::IntegerOrderSubstitution {
+                        relation: Box::new(image),
+                        equality: Box::new(equality.clone()),
+                        endpoint,
+                    },
+                ))
+            };
+            return Ok((
+                interval.and_then(restate),
+                related.and_then(|image| restate(image).ok()),
+            ));
+        }
         let (operation, first, second) = match term {
             IntegerMathTerm::Add(first, second) => (Arithmetic::Add, first, second),
             IntegerMathTerm::Subtract(first, second) => (Arithmetic::Subtract, first, second),

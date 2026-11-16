@@ -6,9 +6,9 @@ therefore means exactly: every declaration of the subject packages is valid,
 and every declaration they depend on is valid", and the closure "starts from
 every declaration of every subject, including unused ones".
 
-So every subject declaration is a root here, used or not. A generic machine
+So every authored subject declaration is a root here, used or not. A generic machine
 is set aside for its own check form (`Elaboration::generic_templates`). Any
-other machine becomes a `MachineId` and is read, lowered and judged like a
+other authored machine becomes a `MachineId` and is read, lowered and judged like a
 called one; its callees
 follow as they do from an entry, whichever package declares them. A data
 declaration is resolved as a record. A plain trait has each requirement's
@@ -313,6 +313,18 @@ impl Program<'_> {
         // read (`keep`).
         for machine in typed.machines() {
             let read = (|| -> Checked<()> {
+                // An application is demanded by its actual uses. Its authored
+                // generic declaration still has its own check form below.
+                // Copying an enclosing declaration also copies lexical helpers
+                // excluded by that type world's static branches; those copies
+                // are not additional authored subject declarations.
+                if typed
+                    .machine_instantiation(machine.symbol)
+                    .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Machine(reason)))?
+                    .is_some()
+                {
+                    return Ok(());
+                }
                 if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
                     return Ok(());
                 }
