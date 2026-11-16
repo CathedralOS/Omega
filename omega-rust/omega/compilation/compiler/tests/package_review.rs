@@ -1593,10 +1593,29 @@ machine build(builder: &mut Build) {
         panic!("one original generic declaration, not one universal method per closed call");
     };
     assert_eq!(original_method.type_parameters().len(), 1);
-    assert!(
-        !original_method.contracts().is_empty(),
-        "the written value <= Limit requirement must remain visible"
+    let [contract] = original_method.contracts() else {
+        panic!("the original value <= Limit requirement must remain visible");
+    };
+    assert_eq!(
+        contract.kind(),
+        review_evidence::record::PackageReviewContractKind::Requires
     );
+    assert_eq!(
+        contract.fact(),
+        &review_evidence::record::PackageReviewContractFact::Expression(
+            review_evidence::record::PackageReviewContractExpression::Binary {
+                meaning: review_evidence::record::PackageReviewContractOperatorMeaning::Builtin,
+                operator: review_evidence::record::PackageReviewContractBinaryOperator::LessOrEqual,
+                left: Box::new(
+                    review_evidence::record::PackageReviewContractExpression::Parameter(0)
+                ),
+                right: Box::new(
+                    review_evidence::record::PackageReviewContractExpression::GenericBinder(0)
+                ),
+            }
+        )
+    );
+    assert_eq!(first.method().signature().static_parameters().len(), 1);
     let first_application = first.application().expect("closed first application");
     let second_application = second.application().expect("closed second application");
     assert_ne!(first_application, second_application);
@@ -1661,6 +1680,21 @@ machine build(builder: &mut Build) {
         PackagePolicyBaseline::recover_canonical(&swapped, PackagePolicyRecoveryLimits::default())
             .is_err(),
         "another closed argument tuple cannot retain the first calling application"
+    );
+    let option_start = position
+        .checked_sub(9)
+        .expect("application option and length");
+    assert_eq!(original[option_start], 1);
+    assert_eq!(
+        &original[option_start + 1..*position],
+        &(first_application.len() as u64).to_le_bytes()
+    );
+    let mut missing = original.clone();
+    missing.splice(option_start..*position + first_application.len(), [0]);
+    assert!(
+        PackagePolicyBaseline::recover_canonical(&missing, PackagePolicyRecoveryLimits::default())
+            .is_err(),
+        "a closed ABI cannot recover without its application"
     );
     let mut malformed = original;
     malformed[*position + first_application.len() - 1] = b'!';

@@ -27,7 +27,26 @@ impl PackagePolicyCallingPlan {
             return self.validate_canonical_structure();
         }
         self.validate_structure()?;
-        if !self.static_parameters.is_empty()
+        // Closed uses keep their values in the ABI tuple and their original
+        // binder kinds in this declaration telescope. Neither replaces the other.
+        if self.static_parameters.len() != self.abi.operands.len()
+            || self
+                .static_parameters
+                .iter()
+                .zip(&self.abi.operands)
+                .any(|(parameter, operand)| {
+                    use crate::record::PackagePolicyTypeParameterKind as Parameter;
+                    use semantic_vocabulary::CallingOperandKind as Operand;
+                    let kind = match parameter.kind {
+                        Parameter::Type => Operand::Type,
+                        Parameter::Implementation => Operand::Implementation,
+                        Parameter::Const(_) => Operand::Const,
+                        Parameter::Value(_) => Operand::Value,
+                        Parameter::Machine(_) => Operand::Machine,
+                        Parameter::Proposition(_) => Operand::Proposition,
+                    };
+                    kind != operand.kind
+                })
             || !self.boundary_arguments.is_empty()
             || !self.requirement_arguments.is_empty()
             || !self.requirement_lifetime_arguments.is_empty()

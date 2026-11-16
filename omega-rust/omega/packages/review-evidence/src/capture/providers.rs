@@ -902,7 +902,7 @@ impl PackageReviewInput<'_> {
                 requirement_arguments: Vec::new(),
                 requirement_lifetime_arguments: Vec::new(),
                 requirement_lifetime_parameter_count: 0,
-                static_parameters: Vec::new(),
+                static_parameters: callable.type_parameters.clone(),
                 parameters,
                 result,
             },
