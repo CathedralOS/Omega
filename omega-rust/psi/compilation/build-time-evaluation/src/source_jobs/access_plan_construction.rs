@@ -644,19 +644,25 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
                 &mut terminal_production::UnmeasuredProduction,
             )
             .expect("produce the same checked read/write program");
-        let program = terminal_interpreter::TerminalProgram::borrow(produced.view());
-        let mut instance = program
-            .instantiate(terminal_interpreter::TerminalInstantiation::default())
-            .expect("ordinary owned record needs no external supply");
-        let mut meter = terminal_work::WorkMeter::unbounded();
-        assert_eq!(
-            instance
-                .invoke(&mut meter)
-                .expect("execute the same governed program"),
-            terminal_interpreter::TerminalExecutionStatus::Complete(
-                terminal_interpreter::TerminalExecutionResult::Unit,
-            )
-        );
+        let received = terminal_interpreter::TerminalProgram::load(&bytes)
+            .expect("load the actual received program with its access rules");
+        for program in [
+            terminal_interpreter::TerminalProgram::borrow(produced.view()),
+            received,
+        ] {
+            let mut instance = program
+                .instantiate(terminal_interpreter::TerminalInstantiation::default())
+                .expect("ordinary owned record needs no external supply");
+            let mut meter = terminal_work::WorkMeter::unbounded();
+            assert_eq!(
+                instance
+                    .invoke(&mut meter)
+                    .expect("execute the same governed program"),
+                terminal_interpreter::TerminalExecutionStatus::Complete(
+                    terminal_interpreter::TerminalExecutionResult::Unit,
+                )
+            );
+        }
     }
 }
 

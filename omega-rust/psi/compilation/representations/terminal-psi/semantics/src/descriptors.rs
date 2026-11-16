@@ -3394,8 +3394,12 @@ pub mod descriptor_results {
                         let source_path = descriptor_path(types, carrier, path)?;
                         let selected = descriptor_location_type(types, carrier, path);
                         if selected.is_none()
-                            && crate::primitive_projection_type(types.iter(), carrier, &source_path)
-                                .is_none()
+                            && crate::primitive_read_projection_type(
+                                types.iter(),
+                                carrier,
+                                &source_path,
+                            )
+                            .is_none()
                         {
                             return None;
                         }
