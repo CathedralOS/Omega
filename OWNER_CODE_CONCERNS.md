@@ -117,13 +117,6 @@ framework or a list of unimplemented features.
 - Cost: A write under a live shared loan is accepted and the reference sees the old value; displaced-value cleanup moves to exit. Lower whole assignment as an empty-path store on the existing root with displaced-value disposal, delete the rebinding route and update the test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
 
-### Build operand lookup falls back to the first same-named declaration when lookup is ambiguous or unimported
-- Category: A verdict with nothing behind it
-- Where: [descendant fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L799), [provider-selection fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L870), [assumed-binding fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L897), [first child wins](omega-rust/psi/foundation/symbols/src/table.rs#L3265)
-- Saw: [resolution](wiki/spec/language/modules.md) says "Ambiguous imported declarations reject. Compiler traversal order cannot select between them." `assign_provider_selection_argument_symbol` and `assign_assumed_binding_argument_symbol` call a lookup that returns `None` for both "not found" and "ambiguous", then fall back to `find_descendant_by_path`, which takes the first root child with that spelling and checks only dependency scope, not import exposure. In a Build file with `use a; use b;` where both declare `boundary trait Clock`, `Build::await_provider<Clock, …>` gets whichever comes first, and a `Clock` the file never imported is also found. Whether later stages re-resolve deferred operations (`select_provider`, `exclude_service`) was not traced.
-- Cost: Root-roster order decides a Build provider operand. Delete the fallback, or make it report ambiguity and check import exposure, and refuse unresolved operands.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
-
 ### Specialization never checks a type parameter's `[copy]`, `[linear]` or `carry` bound against the supplied type
 - Category: One idea, several implementations
 - Where: [Operand::read](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1095), [named_type](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1537), [generate](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L2257), [callable applications refuse bounds](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L419)
