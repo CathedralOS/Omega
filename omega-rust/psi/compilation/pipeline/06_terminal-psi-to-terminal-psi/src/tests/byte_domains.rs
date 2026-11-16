@@ -178,6 +178,7 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
             .to_owned(),
         "domain [u8]::Text requires valid_utf8<u8>(self); machine build_entry() {}".to_owned(),
         "domain u64::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
+        "domain [u16; 2]::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
         "machine build_entry(bytes: &[u8]) { let valid: bool = valid_utf8(bytes); }".to_owned(),
     ] {
         let reason = verdict(&source);
@@ -229,5 +230,103 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
           (needs fact `no_nul(self)` here; establish it before the call via a prior contract \
           guarantee, domain membership, or guard) in state `entry`"
         ]
+    );
+}
+
+/// A fixed byte array in a byte domain, `bytes: [u8; 3] in Text`.
+///
+/// The array's length is in its type, so the domain's one clause is a
+/// statement about its three bytes (domains.md: "`[u8; N] in D` is the same
+/// exact `N`-byte fixed-array carrier as `[u8; N]`"). A cast proves that
+/// statement from what is known about each byte, and a reader of the field
+/// may rely on it. `bytes` are the array's three bytes as literals.
+fn fixed_text(predicate: &str, bytes: &str) -> String {
+    format!(
+        r#"
+domain [u8; 3]::Text
+requires
+    {predicate}(self);
+data Holder {{ bytes: [u8; 3] in Text; }}
+machine first(bytes: &[u8; 3] in Text) -> u8 {{ bytes[0] }}
+machine build_entry() {{
+    let plain: [u8; 3] = [{bytes}];
+    let holder: Holder = Holder {{ bytes: plain as +Text }};
+    let read: u8 = first(&holder.bytes);
+}}
+"#
+    )
+}
+
+/// Whether the checker rejects the program for one obligation it cannot
+/// prove, and for nothing else.
+fn refused_cast(build: &str) -> bool {
+    matches!(
+        judge_build(build),
+        Ok(RouteVerdict::Rejected { formations, violations, unproved, unestablished, conflicts, exceeded })
+            if unproved.len() == 1
+                && formations.is_empty()
+                && violations.is_empty()
+                && unestablished.is_empty()
+                && conflicts.is_empty()
+                && exceeded.is_empty()
+    )
+}
+
+/// Each twin differs only in its bytes: `A` then `é` (`C3 A9`) is UTF-8, and
+/// the same two bytes swapped are a stray continuation and a lead with
+/// nothing after it.
+#[test]
+fn a_fixed_byte_array_is_cast_into_its_domain_only_when_its_bytes_are_in_it() {
+    assert_eq!(
+        verdict(&fixed_text("valid_utf8", "65u8, 0xC3u8, 0xA9u8")),
+        "accepted"
+    );
+    assert!(refused_cast(&fixed_text(
+        "valid_utf8",
+        "65u8, 0xA9u8, 0xC3u8"
+    )));
+    assert_eq!(
+        verdict(&fixed_text("ascii_only", "65u8, 66u8, 67u8")),
+        "accepted"
+    );
+    assert!(refused_cast(&fixed_text(
+        "ascii_only",
+        "65u8, 0xC3u8, 0xA9u8"
+    )));
+    assert_eq!(
+        verdict(&fixed_text("no_nul", "65u8, 66u8, 67u8")),
+        "accepted"
+    );
+    assert!(refused_cast(&fixed_text("no_nul", "65u8, 0u8, 67u8")));
+}
+
+/// Bytes nothing is known about are never assumed to be in the domain.
+#[test]
+fn a_fixed_byte_array_of_unknown_bytes_is_not_cast_into_its_domain() {
+    let unknown = r#"
+domain [u8; 3]::Text
+requires
+    valid_utf8(self);
+data Raw { bytes: [u8; 3]; }
+data Holder { bytes: [u8; 3] in Text; }
+machine relabel(raw: &Raw) -> u8 {
+    let held: Holder = Holder { bytes: raw.bytes as +Text };
+    held.bytes[0]
+}
+machine build_entry() {
+    let raw: Raw = Raw { bytes: [65u8, 66u8, 67u8] };
+    let read: u8 = relabel(&raw);
+}
+"#;
+    let verdict = judge_build(unknown);
+    let unproved_at_cast = matches!(
+        &verdict,
+        Err(crate::CompilationRefusal::Elaboration(refusal))
+            if matches!(refusal.reason, terminal_check_tables::RefusalReason::Unproved(_))
+    );
+    assert!(
+        unproved_at_cast || refused_cast(unknown),
+        "{:?}",
+        verdict.map(|_| ())
     );
 }
