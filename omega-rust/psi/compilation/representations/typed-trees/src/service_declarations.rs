@@ -678,9 +678,7 @@ pub mod projection {
         schema: ProviderSchemaDeclaration,
     ) -> Option<ProjectedServiceSurface<'program>> {
         let program = context.typed;
-        let [entry] = program.machine_states(requirement) else {
-            return None;
-        };
+        let [entry] = program.machine_states(requirement).as_array()?;
         let requirement_path = program.symbols.display_path(requirement.symbol, "::");
         let (requirement_owner, method_name) = requirement_path.rsplit_once("::")?;
         if requirement_owner.is_empty() || method_name.is_empty() {
@@ -875,7 +873,7 @@ pub mod projection {
     fn service_progress_premises_for_parameters(
         program: &crate::TypedTrees,
         guarantee: &language_semantics::TerminationGuarantee,
-        parameters: &[crate::signature::StateParameter],
+        parameters: arena::RootRows<'_, crate::signature::StateParameter>,
         identities: &mut ProviderIdentityTable,
     ) -> Vec<ServiceProgressPremise> {
         let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
@@ -2799,7 +2797,7 @@ pub mod signatures {
                 );
             }
             let requirements = typed.trait_machine_signatures(calling_policy);
-            let [requirement] = requirements else {
+            let Some([requirement]) = requirements.as_array() else {
                 return Err(
                     "CallingPolicy must declare exactly one canonical plan requirement".to_owned(),
                 );
@@ -2977,7 +2975,7 @@ pub mod signatures {
             for machine in typed.machines().iter().filter(|machine| {
                 machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
             }) {
-                let [entry] = typed.machine_states(machine) else {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
                     continue;
                 };
                 let requirement_identity = typed

@@ -1415,7 +1415,7 @@ mod tests {
                 .expect("one selected ordinary public declaration");
             assert!(declaration.is_public);
             let entry = &program.machine_states(declaration)[0];
-            let [parameter] = program.state_parameters(entry) else {
+            let Some([parameter]) = program.state_parameters(entry).as_array() else {
                 panic!("one actual formal")
             };
             let mut reference = parameter.type_reference;
@@ -1495,7 +1495,9 @@ mod tests {
                 .expect("the complete actual selects one declared header");
             assert!(declaration.is_public);
             assert_eq!(declaration.lifetime_parameters.len(), 1);
-            let [parameter] = program.state_parameters(&program.machine_states(declaration)[0])
+            let Some([parameter]) = program
+                .state_parameters(&program.machine_states(declaration)[0])
+                .as_array()
             else {
                 panic!("one retained formal")
             };

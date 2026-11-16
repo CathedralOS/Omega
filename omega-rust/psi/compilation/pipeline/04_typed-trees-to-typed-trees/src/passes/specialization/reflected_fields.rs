@@ -478,7 +478,7 @@ fn callback(program: &TypedTrees, argument: &StaticMachineArgument) -> Served<Ca
 /// vocabulary type each generated query local is declared with.
 fn field_info_type(program: &TypedTrees, binder: &StateSignature) -> Served<TypeReferenceHandle> {
     let parameters = program.state_signature_parameters(binder);
-    let [_, field] = parameters else {
+    let Some([_, field]) = parameters.as_array() else {
         return Err(unserved("the callback binder lost its field parameter"));
     };
     let TypeReferenceNode::Reference { referee, .. } = program
@@ -615,5 +615,8 @@ fn replace(
             .expression_table
             .relocate_statement_operand_captures(original, moved);
     }
-    program.machine_states_mut(machine)[state_index].statement_nodes = body;
+    program
+        .machine_states
+        .get_mut(machine.states.handle_at(state_index as u32))
+        .statement_nodes = body;
 }

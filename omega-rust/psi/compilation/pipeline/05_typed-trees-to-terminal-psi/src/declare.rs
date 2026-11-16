@@ -452,10 +452,11 @@ fn declaration(
     let declared = typed
         .machine_by_symbol(symbol)
         .ok_or("the machine has no typed-tree declaration")?;
-    let [state] = typed
+    let Some([state]) = typed
         .machine_states
         .span(declared.states)
         .ok_or("the machine's state span does not resolve")?
+        .as_array()
     else {
         return Err("the machine does not have exactly one state");
     };
@@ -1467,7 +1468,7 @@ fn top_level_boundary(
     let (entry, formals, return_type, callable, operational) = if let Some(machine) =
         typed.machine_by_symbol(symbol)
     {
-        let [state] = typed.machine_states(machine) else {
+        let Some([state]) = typed.machine_states(machine).as_array() else {
             return Err(Diagnostic::error("primitive has no exact entry state"));
         };
         let callable = typed
@@ -1744,7 +1745,7 @@ fn requirement_application(
 #[allow(clippy::too_many_arguments)]
 fn declaration_contract_commitment<'a>(
     callable: &str,
-    formals: &[typed_trees::signature::StateParameter],
+    formals: arena::RootRows<'_, typed_trees::signature::StateParameter>,
     parameter_types: &[String],
     result_type: &str,
     requires: &[semantic_vocabulary::Proposition],

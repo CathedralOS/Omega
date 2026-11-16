@@ -161,7 +161,7 @@ fn evaluate_application(
         let contract = typed
             .trait_definition_by_symbol(storage.contract)
             .ok_or("layout storage lost its exact core contract")?;
-        let [requirement] = typed.trait_machine_signatures(contract) else {
+        let Some([requirement]) = typed.trait_machine_signatures(contract).as_array() else {
             return Err("fixed layout contract has no exact plan requirement".into());
         };
         if typed.trait_type_parameters(contract).len() != 1 {

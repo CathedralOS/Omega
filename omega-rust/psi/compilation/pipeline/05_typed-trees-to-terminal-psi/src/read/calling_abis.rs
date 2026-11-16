@@ -377,7 +377,7 @@ impl Program<'_> {
                     if let Some((_, signature)) = typed.trait_machine_signature(original.source) {
                         !signature.return_type.is_valid()
                     } else if let Some(machine) = typed.machine_by_symbol(original.source) {
-                        matches!(typed.machine_states(machine), [state] if !state.return_type.is_valid())
+                        matches!(typed.machine_states(machine).as_array(), Some([state]) if !state.return_type.is_valid())
                     } else {
                         false
                     }

@@ -675,7 +675,7 @@ impl Inputs {
     fn prepare(
         typed: &TypedTrees,
         machine: MachineId,
-        parameters: &[StateParameter],
+        parameters: arena::RootRows<'_, StateParameter>,
         origins: &[usize],
         model: Option<&CallableAddressModel>,
         member_arena: &mut Arena<SymbolHandle>,
