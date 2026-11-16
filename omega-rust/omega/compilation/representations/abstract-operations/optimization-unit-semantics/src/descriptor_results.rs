@@ -2302,7 +2302,9 @@ fn adapt(
                                     scalar_actuals,
                                     selector,
                                 ),
-                                operation: node.operation.psi_operation()?,
+                                site: semantic_vocabulary::InvocationSite::Operation(
+                                    node.operation.psi_operation()?,
+                                ),
                                 target: kernel::DescriptorInvocationTarget::Machine(callee.machine),
                                 arguments,
                                 argument_contents,

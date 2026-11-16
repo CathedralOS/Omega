@@ -1839,15 +1839,20 @@ mod operation_permissions {
             for index in range {
                 let (_, caller, position) = self.incoming[index];
                 let body = self.machine(caller)?;
-                let operation = body
+                let block = body
                     .blocks
                     .iter()
                     .find(|block| block.id == position.0)
-                    .and_then(|block| block.operations.get(position.1 as usize))
-                    .ok_or_else(|| {
-                        failure(caller, "memory access call has no original instruction")
-                    })?;
-                if operation.required_contract.is_some() {
+                    .ok_or_else(|| failure(caller, "memory access call has no original block"))?;
+                let invocation = match block.operations.get(position.1 as usize) {
+                    Some(operation) => operation.module_invocation(),
+                    None if position.1 as usize == block.operations.len() => {
+                        block.terminator.module_invocation()
+                    }
+                    None => None,
+                }
+                .ok_or_else(|| failure(caller, "memory access call has no original invocation"))?;
+                if invocation.required_contract.is_some() {
                     return Err(failure(
                         caller,
                         "the compiler cannot check this helper's public call contract yet",

@@ -2106,7 +2106,9 @@ pub(crate) mod case_flow {
                     position(0),
                     Some(DescriptorInvocation {
                         scalar_arguments: Vec::new(),
-                        operation: OperationId::new(1).unwrap(),
+                        site: semantic_vocabulary::InvocationSite::Operation(
+                            OperationId::new(1).unwrap(),
+                        ),
                         target: DescriptorInvocationTarget::Machine(MachineId::new(2).unwrap()),
                         arguments: vec![],
                         argument_contents: vec![],
@@ -4392,7 +4394,6 @@ pub(crate) mod engine {
                 return Err("access frame has no owning machine");
             }
             if self.summary(identity, 0).is_none() {
-                eprintln!("ACCESS_FRAME_TRACE {identity:?}: no completed body summary");
                 return Ok(());
             }
             let summary = self
@@ -4419,7 +4420,6 @@ pub(crate) mod engine {
             identity: MachineId,
         ) -> Result<Option<Vec<(DescriptorPosition, usize)>>, &'static str> {
             if self.prepare_states(identity).is_none() {
-                eprintln!("ACCESS_FRAME_TRACE {identity:?}: no completed replay state");
                 return Ok(None);
             }
             let machine = self
@@ -4451,17 +4451,11 @@ pub(crate) mod engine {
                     continue;
                 };
                 let Some(invocation) = invocation else {
-                    eprintln!(
-                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: unresolved invocation"
-                    );
                     return Ok(None);
                 };
                 // Public and provider calls need their retained interface
                 // effect owner. A possible private implementation is not it.
                 let Some(callee) = invocation.callee() else {
-                    eprintln!(
-                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: interface operation {:?}", invocation.operation
-                    );
                     return Ok(None);
                 };
                 self.prepare_access_frame(callee)?;
@@ -4472,9 +4466,6 @@ pub(crate) mod engine {
                     .and_then(|summary| summary.storage_frame.accesses.as_ref())
                     .is_some_and(|accesses| accesses.as_ref().is_some());
                 if !complete {
-                    eprintln!(
-                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: incomplete callee {callee:?}"
-                    );
                     return Ok(None);
                 }
             }
@@ -7490,7 +7481,9 @@ pub(crate) mod engine {
                 entry,
                 Some(DescriptorInvocation {
                     scalar_arguments: Vec::new(),
-                    operation: OperationId::new(1).unwrap(),
+                    site: semantic_vocabulary::InvocationSite::Operation(
+                        OperationId::new(1).unwrap(),
+                    ),
                     target: DescriptorInvocationTarget::Machine(helper_id),
                     arguments: vec![Some(parameter.clone())],
                     argument_contents: vec![Some(DescriptorContentsQuery::from_location(
@@ -7552,7 +7545,9 @@ pub(crate) mod engine {
                 entry,
                 Some(DescriptorInvocation {
                     scalar_arguments: Vec::new(),
-                    operation: OperationId::new(1).unwrap(),
+                    site: semantic_vocabulary::InvocationSite::Operation(
+                        OperationId::new(1).unwrap(),
+                    ),
                     target: DescriptorInvocationTarget::Public {
                         effects_machine: Some(helper_id),
                         realizations: vec![],
@@ -7661,7 +7656,9 @@ pub(crate) mod engine {
                 point(0),
                 Some(DescriptorInvocation {
                     scalar_arguments: Vec::new(),
-                    operation: OperationId::new(1).unwrap(),
+                    site: semantic_vocabulary::InvocationSite::Operation(
+                        OperationId::new(1).unwrap(),
+                    ),
                     target: DescriptorInvocationTarget::Machine(callee_id),
                     arguments: vec![None],
                     argument_contents: vec![None],
@@ -7821,7 +7818,9 @@ pub(crate) mod engine {
                 entry,
                 Some(DescriptorInvocation {
                     scalar_arguments: Vec::new(),
-                    operation: OperationId::new(1).unwrap(),
+                    site: semantic_vocabulary::InvocationSite::Operation(
+                        OperationId::new(1).unwrap(),
+                    ),
                     target: DescriptorInvocationTarget::Machine(callee_id),
                     arguments: vec![Some(stored.clone()), Some(replacement.clone())],
                     argument_contents: vec![
@@ -8146,7 +8145,7 @@ pub(crate) mod provider {
             }
             let mut invocations = vec![DescriptorInvocationSite {
                 machine: machine.id,
-                operation: call.operation,
+                operation: call.site.operation()?,
             }];
             invocations.extend_from_slice(&provider.invocations);
             Some(BTreeSet::from([Origin::Provider(

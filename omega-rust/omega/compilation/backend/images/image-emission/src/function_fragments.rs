@@ -12063,9 +12063,9 @@ mod source {
                 ) -> Result<DescriptorPosition, &'static str> {
                     let caller = descriptor_machine(graph, caller)
                         .ok_or("selected caller has no reference-origin graph")?;
-                    let mut calls = caller
-                        .known_invocations()
-                        .filter(|(_, call)| call.operation == operation);
+                    let mut calls = caller.known_invocations().filter(|(_, call)| {
+                        call.site == semantic_vocabulary::InvocationSite::Operation(operation)
+                    });
                     let (Some((position, call)), None) = (calls.next(), calls.next()) else {
                         return Err("selected call has no unique reference-origin observation");
                     };
@@ -12221,10 +12221,10 @@ mod source {
                         else {
                             continue;
                         };
-                        if caller
-                            .known_invocations()
-                            .any(|(_, call)| call.operation == *psi_operation)
-                        {
+                        if caller.known_invocations().any(|(_, call)| {
+                            call.site
+                                == semantic_vocabulary::InvocationSite::Operation(*psi_operation)
+                        }) {
                             continue;
                         }
                         let position = caller.originations.iter().find_map(|(position, rows)| {
@@ -12306,7 +12306,7 @@ mod source {
                             position,
                             Some(terminal_semantics::descriptor_results::DescriptorInvocation {
                                 scalar_arguments: Vec::new(),
-                                operation: *psi_operation,
+                                site: semantic_vocabulary::InvocationSite::Operation(*psi_operation),
                                 target:
                                     terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
                                         *callee,
