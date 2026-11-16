@@ -103,13 +103,6 @@ framework or a list of unimplemented features.
 - Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
 
-### A callback binder declared `crashes none` admits a private callback with inferred crash routes
-- Category: A verdict with nothing behind it
-- Where: [satisfies_binder crash test](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/callable_binder.rs#L174), [checker's binder comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L2359), [binding record](omega-rust/psi/compilation/representations/terminal-psi/src/boundary.rs#L1862)
-- Saw: [guarded crashes](wiki/spec/language/effects.md) says "a requirement stating `crashes none` admits only crash-free selections", and private bodies may omit `crashes` to request inference. `satisfies_binder` refuses only when the callback has an authored `crashes` clause, so a private `machine bump(x: u32) -> u32 { x +! 1u32 }`, which publishes an inferred `Trap` route, passes as `const F: machine(x: u32) -> u32 crashes none`. The checker later compares the callee's reach, suspension and blocking with the binder, but `ClosedReachMachineBinding` carries no crash bound, so nothing compares crashes. Read end to end; acceptance through a private wrapper was inferred, not run.
-- Cost: `crashes none` on a callback type guarantees nothing. Carry the binder's crash bound into the binding record and compare it with the callee's published routes in the checker, as reach is compared.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/effects.md
-
 ### Domain lookup silently prefers the same-module or same-package domain over visible competitors
 - Category: One idea, several implementations
 - Where: [Psi 02 prefer_module_local_domain](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs#L1805), [Psi 02 operator homes](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs#L2826), [Psi 02 preparation](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L649), [Psi 03 prefer_local_domain](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs#L459), [pinning test](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_domain_exposure_tests.rs#L209)
