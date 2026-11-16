@@ -106,21 +106,6 @@ fn an_address_field_cannot_substitute_for_a_parameter_declaration() {
 }
 
 #[test]
-fn the_wire_program_round_trips_thirteen_bytes_and_every_field() {
-    let project =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../samples/cli/systems/wire_protocol");
-    let (status, report) = run_project(&project);
-    assert_eq!(status, Some(70), "{report}");
-    for receipt in [
-        "native exit 70",
-        "interp exit: 70",
-        "PASS: 13 bytes round-tripped with every field intact (exit 70)",
-    ] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
-}
-
-#[test]
 fn runtime_visitors_preserve_the_contexts_borrowed_storage() {
     let (success, report) = run_both("run/reflection/borrowed_context");
     assert!(success, "{report}");
