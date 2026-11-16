@@ -1,6 +1,8 @@
-# Generic Run/Vec: unfinished draft handoff
+# Generic Run/Vec: continuation
 
-The user explicitly authorized draft handoff and wind-down. PR #3764 now preserves the ordinary ownership-claim slice described below. It is unvalidated and must not be merged yet. No receiving session has accepted the remaining outcome, and no TASKS acceptance is closed.
+Root accepted PR #3764 and its unfinished Run/Vec outcome on 2026-11-16. Work continues in `worker-2`. The draft is unvalidated; do not merge it. No TASKS acceptance is closed.
+
+Checkpoint `767bce2fcf48894e3da7a53a4d82f1342f2e5ba5` integrates fixed main `d3deb345653b9812607155ff4b51e17db35ca520`, resolves four conflicts, and adds an unrun control removing a linear type's claim flag and matching rows while preserving its program and declared multiplicity. The validator remains unchanged.
 
 ## Original outcome
 
@@ -37,6 +39,6 @@ An independent fsynced snapshot and manifest remain at `/workspace/shared/generi
 3. Build the extracted source, run the actual Source05 sibling publication test and Source06 ordinary-call positive plus five tamper cases, then the neighboring native ownership controls and an actual supported native/Psi customer. Review all omitted/foreign/active-case claims and exact current paths. Only then consider normal admission and a merge.
 4. Continue the full allocation acceptance from its actual next failure using the preserved WIP as material, not as trusted implementation. No new language-design question is implied by these engineering gaps.
 
-## Wind-down state
+## Continuation state
 
-All helpers are quiescent, no Rust producer is owned by this lane, and no further feature work is being started. PR #3764 remains a draft. The broader Run/Vec outcome remains unfinished without an accepting receiver. The final checkpoint commit and PR description carry the exact published head and claim disposition.
+Root owns continuation under claim `18e89b4f6d3691480000000018e98a76`. Previous workers and builds stopped. First local checks: sibling-call transfers, deletion of all claim metadata, and the unchanged Run positive/missing-cut pair. Builds share one executor.
