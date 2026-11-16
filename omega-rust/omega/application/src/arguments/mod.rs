@@ -31,11 +31,12 @@ on `--input` instead of quietly swallowing `--both` as a file name.
 Why `USAGE_ERROR_EXIT` is 64:
 
 Exit codes 0 through 3 are reserved by the compiler request contract
-(`wiki/spec/build/compiler_request.md`), where 0 is `Accept`, 1 is `Reject`,
-and 2 is `Incomplete` (a proof search that hit a resource bound without
-refuting the program). If argument errors exited with 1 or 2, a mistyped flag
-in a test harness or build script would be indistinguishable from a rejected or
-incomplete program. We use BSD `EX_USAGE` (64) so CLI usage mistakes stay
+(`wiki/spec/build/compiler_request.md`), where 0 is `Complete`, 1 is `Reject`,
+2 is `Incomplete` (a proof search that hit a resource bound without
+refuting the program), and 3 is `InternalFailure` (the compiler caught a defect
+in itself). If argument errors exited with 1 through 3, a mistyped flag in a
+test harness or build script would be indistinguishable from a compiler
+verdict. We use BSD `EX_USAGE` (64) so CLI usage mistakes stay
 disjoint from compiler verdicts.
 
 */

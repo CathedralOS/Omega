@@ -12,10 +12,11 @@ phase modules (`import_sections`, `procedure_linkage`, `dynamic_table`,
 `section_headers`, `load_placement`, `file_assembly`), where each stage
 consumes the previous stage's `ValidatedElf*` carrier by value and returns
 either the next sealed carrier or a stage-specific rejection carrier retaining
-the exact failing owner. We keep three distinct page constants explicit:
-`PAGE_SIZE` (`0x1000`) for static segments, `DYNAMIC_MAX_PAGE_SIZE` (`0x1_0000`)
-for dynamic segments portable across 64 KiB AArch64 translation granules, and
-`AARCH64_RELOCATION_PAGE_SIZE` (`0x1000`) for 4 KiB ADRP page arithmetic.
+the exact failing owner. Static and dynamic executables share one load-segment rule:
+`ELF_MAX_PAGE_SIZE` (`0x1_0000`) aligns every `PT_LOAD` file offset and
+address, so the image loads on 4 KiB, 16 KiB and 64 KiB page kernels.
+`AARCH64_RELOCATION_PAGE_SIZE` (`0x1000`) stays separate because ADRP page
+arithmetic always uses 4 KiB pages, whatever page size the kernel runs with.
 */
 
 /*
@@ -82,7 +83,11 @@ mod constants {
     pub(crate) const PROGRAM_HEADER_SIZE: usize = 56;
     pub(crate) const PROGRAM_HEADER_COUNT: usize = 2;
     pub(crate) const IMAGE_BASE: u64 = 0x400000;
-    pub(crate) const PAGE_SIZE: usize = 0x1000;
+    /// Linux arm64 kernels run with 4 KiB, 16 KiB or 64 KiB pages, and the
+    /// x86-64 psABI allows pages up to 64 KiB, so a `PT_LOAD` segment that
+    /// starts on a smaller boundary can share a page with its neighbour and
+    /// the kernel refuses or overlaps the mapping.
+    pub(crate) const ELF_MAX_PAGE_SIZE: u64 = 0x1_0000;
 
     pub(crate) const SECTION_COUNT: usize = 14;
     pub(crate) const ELF64_SECTION_HEADER_SIZE: usize = 64;

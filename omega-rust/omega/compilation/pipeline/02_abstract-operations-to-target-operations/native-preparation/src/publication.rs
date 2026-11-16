@@ -22,6 +22,7 @@ pub fn capture_source_publication(
             .map_err(|_| "publication operation count exceeds its wire range")?;
         let mut sites = Vec::with_capacity(count);
         let mut byte_literals = Vec::new();
+        let mut call_targets = Vec::new();
         for (ordinal, operation) in function.operations().enumerate() {
             let ordinal = u32::try_from(ordinal)
                 .map_err(|_| "publication source ordinal exceeds its wire range")?;
@@ -56,17 +57,27 @@ pub fn capture_source_publication(
                     bytes: Arc::from(bytes.as_slice()),
                 });
             }
+            if let Operation::CallStructural {
+                psi_operation,
+                callee,
+                ..
+            } = operation
+            {
+                call_targets.push((*psi_operation, *callee));
+            }
         }
         sites.sort_unstable_by_key(|row| row.0);
         // A conditional or case dispatch may repeat one edge within that same
         // source operation. Reusing it at another ordinal remains an error.
         sites.dedup();
         byte_literals.sort_unstable_by_key(|row| row.operation);
+        call_targets.sort_unstable_by_key(|row| row.0);
         functions.push(NativeFunctionPublication {
             machine: function.machine,
             operation_count,
             sites,
             byte_literals,
+            call_targets,
         });
     }
     let catalogs = target_vocabulary::NativeCodeCatalogs::seal(
@@ -98,11 +109,23 @@ pub(crate) fn verify_source_publication(
         }
         let mut expected_site_count = 0usize;
         let mut expected_literal_count = 0usize;
+        let mut expected_call_count = 0usize;
         let mut edges = Vec::new();
         for (ordinal, &operation) in operations.iter().enumerate() {
             let ordinal = u32::try_from(ordinal)
                 .map_err(|_| "publication source ordinal exceeds its wire range")?;
             edges.clear();
+            if let Operation::CallStructural {
+                psi_operation,
+                callee,
+                ..
+            } = operation
+            {
+                if current.call_target(*psi_operation) != Some(*callee) {
+                    return Err("publication call differs from its exact source target");
+                }
+                expected_call_count += 1;
+            }
             if let Some(identity) = operation.psi_operation() {
                 if current.ordinal(PsiProvenance::Operation(identity)) != Some(ordinal) {
                     return Err("publication operation site differs from its source ordinal");
@@ -159,6 +182,9 @@ pub(crate) fn verify_source_publication(
         {
             return Err("publication adds or drops a source site or literal");
         }
+        if expected_call_count != current.call_targets.len() {
+            return Err("publication adds or drops a source call occurrence");
+        }
     }
     Ok(())
 }
@@ -211,6 +237,25 @@ mod tests {
                 }],
             }],
         }
+    }
+
+    #[test]
+    fn a_resealed_call_at_a_noncall_operation_is_not_a_source_invocation() {
+        let source = source();
+        let original = capture_source_publication(&source).unwrap();
+        verify_source_publication(&source, &original).unwrap();
+        let mut functions = original.functions().to_vec();
+        functions[0].call_targets.push((
+            OperationId::new(1).unwrap(),
+            target_vocabulary::NativeCallTarget::Machine(source.entry),
+        ));
+        let forged =
+            NativePublicationFacts::seal(functions, original.code_catalogs().clone()).unwrap();
+        assert_ne!(forged.identity_bytes(), original.identity_bytes());
+        assert_eq!(
+            verify_source_publication(&source, &forged),
+            Err("publication adds or drops a source call occurrence")
+        );
     }
 
     #[test]

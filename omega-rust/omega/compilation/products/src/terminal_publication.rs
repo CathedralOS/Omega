@@ -287,12 +287,6 @@ impl ProductTerminalPublication {
             })
     }
 
-    // A separately selected test root needs its own structural judgment. It
-    // cannot reuse the application's closure or a cached old production.
-    pub fn for_other_roots(&self) -> Self {
-        Self::new(self.optimizations.clone())
-    }
-
     pub fn retain_folded_constants(
         &mut self,
         folded: terminal_psi::FoldedConstantClosure,

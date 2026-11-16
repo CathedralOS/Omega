@@ -8,7 +8,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v92\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v93\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -30,6 +30,9 @@ pub fn legalized_operation_plan_identity(
     }
     bytes.extend_from_slice(&plan.borrowed_storage_layouts.identity_bytes());
     bytes.extend_from_slice(&plan.publication.identity_bytes());
+    encode_option(&mut bytes, plan.execution.as_ref(), |bytes, facts| {
+        bytes.extend_from_slice(&facts.identity_bytes());
+    });
     bytes.extend_from_slice(b"ordinary-scalar-graph.v46\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;

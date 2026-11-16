@@ -990,6 +990,23 @@ impl Lowering<'_> {
             acknowledgement,
         )?;
         let _ = self.loans(&arguments.loans, before, source);
+        // The callee may write anything beneath an exclusively lent place,
+        // so the call writes into each value above it, as a field store
+        // does: it owes the `requires` of each type on the lent path
+        // (dependent_values.md, "Invariant windows"). The lent place's own
+        // type is the callee's formal, proved at handback.
+        let mut owed = 0;
+        for (_, steps, access) in &arguments.structural {
+            if matches!(
+                access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) {
+                for step in steps {
+                    owed += self.record_type(step.owner())?.requires.len();
+                }
+            }
+        }
+        self.owe_domains(operation, owed, source)?;
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {

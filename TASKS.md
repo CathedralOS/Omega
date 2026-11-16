@@ -311,7 +311,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Requirement-based tests
 
-- **TEST-GROUP-FILESYSTEM-TARGETS.** Supply the [test runner's private filesystem](wiki/spec/build/testing.md#group-configuration-and-authority) beyond the Linux kernel calls: the interpreter answers only `linux_x86_64`/`linux_arm64` kernel filesystem calls and refuses `canonicalize` (libc `realpath` and its `errno` copy), and the native runner needs Linux user namespaces, so macOS and Windows targets and hosts report the engine unavailable.
+- **TEST-GROUP-FILESYSTEM-TARGETS.** The runner refuses every `builder.tests.service<Group, Slot>()` slot until [`test-runner-filesystem-slot`](OWNER_QUESTIONS.md#test-runner-filesystem-slot) settles how it identifies std's `FilesystemService` without trusting a package name. Then supply the [test runner's private filesystem](wiki/spec/build/testing.md#group-configuration-and-authority) beyond the Linux kernel calls: the interpreter answers only `linux_x86_64`/`linux_arm64` kernel filesystem calls and refuses `canonicalize` (libc `realpath` and its `errno` copy), and the native runner needs Linux user namespaces, so macOS and Windows targets and hosts report the engine unavailable.
 
 ## Checked boundary topology
 
@@ -340,3 +340,4 @@ Write each item so any agent can start from it alone: current state, files and e
 ## Omega-written compiler (after Rust completion)
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Finish `source/psi/` and `source/omega/{build,main}.omg` under [compiler_request.md](wiki/spec/build/compiler_request.md) and [source/psi/README.md](source/psi/README.md).
+  - No program that names `psi::SourceSet` compiles, so no `tests/psi/*/test-*.sh` gate runs: the lowered-form checker refuses its `[u8; 4194304] in Trapping` fields as an "arithmetic policy on a type that is not an integer" (`05_typed-trees-to-terminal-psi/src/read/types.rs`, `type_qualification`), and `source/psi/` writes `] in Trapping` 53 times. The resolver gate also fails 16 harness diagnostics on unqualified values passed for `Trapping` places (`tests/psi/resolver/harness.omg`). Move the policy to the element type or drop it, then run the resolver gate, whose builtin-type-spelling cases have never run.
