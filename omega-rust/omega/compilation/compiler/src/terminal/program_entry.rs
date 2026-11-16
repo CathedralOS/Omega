@@ -19,11 +19,15 @@ pub(crate) fn prepare_entry_metadata(
     })?;
     let publication = &custody.terminal_publication;
     let accepted = publication.accepted()?;
+    let catalog = custody
+        .source_inspection
+        .inventory()
+        .services_for(accepted.source().as_ref())
+        .map_err(|diagnostic| vec![diagnostic])?;
     let declaration = package_compilation::selected_program_entry_boundary(
-        accepted.source(),
+        catalog,
         profile.program_entry_slot(),
         inputs,
-        custody.sources.exact_toolchain_sources(),
     )?;
     if !publication
         .roster()?

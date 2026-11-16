@@ -209,6 +209,149 @@ pub(crate) mod inline_carriers {
             )
         }
 
+        // Knowing what bytes satisfy does not establish an additional theory
+        // or install independent policy rules. Both literal and zero-default
+        // establishment must use the same pure-predicate classification.
+        #[test]
+        fn byte_literals_and_defaults_do_not_establish_extra_theory_or_access_rules() {
+            use language_semantics::reflection::{
+                DeclarationDescription, SchemaNode, SchemaNodeHandle, SchemaQueryAuthority,
+                SchemaShape, SemanticSchemaGraph,
+            };
+            use semantic_vocabulary::{
+                DomainSemanticId, IntegerSign, IntegerType, PlaceId, StructuralDomainId,
+            };
+            use terminal_psi::{
+                ByteSequencePredicate, StructuralDomainDeclaration, StructuralDomainPredicate,
+                StructuralPathQualification,
+            };
+            let (mut types, path) = fixture();
+            let array = types[1].id;
+            let element = types[2].id;
+            types[1].shape = StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            };
+            types[2].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            ));
+            let StructuralTypeShape::Record { fields, .. } = &mut types[0].shape else {
+                panic!("record");
+            };
+            fields[0].field_type = StructuralFieldType::Structural(array);
+            fields[0].inline_carrier = None;
+            let id = StructuralDomainId::new(1).unwrap();
+            let pure = StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: None,
+                id,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(1),
+                carrier: array,
+                subject_identity: TerminalIdentityIndex(1),
+                content_projection: None,
+                byte_predicate: Some(ByteSequencePredicate::AsciiOnly),
+                establishment_routes: None,
+                access_policy: None,
+            };
+            let mut incomplete = pure.clone();
+            incomplete.complete_predicate_theory = false;
+            let mut extra = pure.clone();
+            extra.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: Proposition::Falsehood,
+            });
+            let root = SchemaNodeHandle::from_index(1);
+            let schema = SemanticSchemaGraph::from_nodes(
+                vec![
+                    SchemaNode::Invalid,
+                    SchemaNode::Declaration(DeclarationDescription {
+                        owner_identity: "test::Bytes".into(),
+                        identity_is_hermetic: true,
+                        name: "Bytes".into(),
+                        shape: SchemaShape::Empty,
+                        supply: "Ordinary".into(),
+                        multiplicity: "Unrestricted".into(),
+                        carry: None,
+                        type_parameters: Vec::new(),
+                        lifetime_parameters: Vec::new(),
+                        application_identity: Some("test::Bytes".into()),
+                        members: Vec::new(),
+                        retired_identities: Vec::new(),
+                    }),
+                ],
+                root,
+                SchemaQueryAuthority::OwningScope {
+                    requester_identity: "test::Bytes".into(),
+                },
+            )
+            .unwrap();
+            let mut governed = pure.clone();
+            governed.access_policy = Some(terminal_psi::StructuralDomainAccessPlan {
+                schema,
+                issuance: None,
+                readers: vec![((root, Some(Vec::new())), Vec::new())],
+                writers: Vec::new(),
+                observations: Vec::new(),
+                reach: Default::default(),
+            });
+            let mut complete_truth = pure.clone();
+            complete_truth.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: Proposition::Truth,
+            });
+            let mut primitive_theory = pure.clone();
+            let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+            predicates.insert(ByteSequencePredicate::AsciiOnly);
+            primitive_theory.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: crate::byte_predicate_requirement(
+                    predicates,
+                    terminal_psi::ByteSequencePredicateSet::EMPTY,
+                    PlaceId::new(1).unwrap(),
+                    &[],
+                ),
+            });
+            for (domain, expected, facts_available) in [
+                (pure, true, true),
+                (complete_truth, true, true),
+                (primitive_theory, true, true),
+                (incomplete, false, false),
+                (extra, false, false),
+                (governed, false, true),
+            ] {
+                assert_eq!(
+                    crate::byte_literal_qualifications_hold(
+                        std::slice::from_ref(&domain),
+                        array,
+                        &[id],
+                        &[0, 0]
+                    ),
+                    expected
+                );
+                assert_eq!(
+                    crate::zeroed_projected_byte_qualifications_hold(
+                        types.iter(),
+                        std::iter::once(&domain),
+                        types[0].id,
+                        &[StructuralPathQualification {
+                            path: path.clone(),
+                            domain: id
+                        }]
+                    ),
+                    expected
+                );
+                // Projecting a primitive fact from an already established
+                // domain is separate from establishing the complete domain.
+                assert_eq!(
+                    crate::byte_qualification_predicates_in(std::iter::once(&domain), array, &[id])
+                        .is_some(),
+                    facts_available
+                );
+            }
+        }
+
         #[test]
         fn original_field_carrier_is_exact_among_equal_contracts() {
             let (mut declarations, path) = fixture();
@@ -6624,6 +6767,13 @@ pub(crate) mod zeroed_structural {
         >,
     ) -> bool {
         qualifications.all(|(path, domain)| {
+            let Some(domain) = domains.clone().find(|row| row.id == domain) else {
+                return false;
+            };
+            // Default bytes cannot establish extra theories or access rules.
+            if !domain.is_pure_predicate() {
+                return false;
+            }
             for (index, segment) in path.iter().enumerate() {
                 if let StructuralPathSegment::Case(selected) = segment {
                     let Some(parent) =
@@ -6646,7 +6796,7 @@ pub(crate) mod zeroed_structural {
                 return false;
             };
             let Some(predicates) =
-                crate::byte_qualification_predicates_in(domains.clone(), carrier.id, &[domain])
+                crate::byte_qualification_predicates_in(domains.clone(), carrier.id, &[domain.id])
             else {
                 return false;
             };
@@ -6688,14 +6838,22 @@ pub(crate) mod zeroed_structural {
         root: StructuralTypeId,
         qualifications: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
-        qualifications.iter().all(|row| !row.path.is_empty())
-            && zeroed_byte_qualifications_hold(
-                types,
-                domains,
-                root,
-                qualifications
-                    .iter()
-                    .map(|row| (row.path.as_slice(), row.domain)),
-            )
+        qualifications.iter().all(|row| {
+            if row.path.is_empty() {
+                return false;
+            }
+            let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else {
+                return false;
+            };
+            // Ordinary projected memberships are judged by the structural
+            // membership owner; this query decides only byte contents.
+            domain.byte_predicate.is_none()
+                || zeroed_byte_qualifications_hold(
+                    types.clone(),
+                    std::iter::once(domain),
+                    root,
+                    std::iter::once((row.path.as_slice(), row.domain)),
+                )
+        })
     }
 }

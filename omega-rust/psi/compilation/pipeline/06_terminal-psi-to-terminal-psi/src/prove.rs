@@ -352,6 +352,11 @@ pub(crate) struct Prover<'a> {
     /// An auxiliary sign query can revisit its parent through contradiction
     /// search. The same goal under these unchanged premises supplies no proof.
     active_goals: Vec<Proposition>,
+    /// Set while `unreachable` searches these premises for a contradiction.
+    /// The search does not depend on its goal, so a nested search under the
+    /// same premises finds nothing new; re-entering it only multiplies work
+    /// by the number of order facts at each level.
+    refuting: bool,
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -581,6 +586,7 @@ impl<'a> Prover<'a> {
             remaining_case_branches: CASE_BRANCH_BUDGET,
             active_cuts: Vec::new(),
             active_goals: Vec::new(),
+            refuting: false,
         }
     }
 
@@ -648,7 +654,8 @@ impl<'a> Prover<'a> {
             // decided. The kernel evaluates it.
             self.reflexive(target.clone())
                 .or_else(|| self.closed(target.clone()))
-                .or_else(|| self.sum_order(&target))?
+                .or_else(|| self.sum_order(&target))
+                .or_else(|| self.multiple_remainder(&target))?
         };
         Some(node(
             goal.clone(),
@@ -892,6 +899,15 @@ impl<'a> Prover<'a> {
     /// search is tried last, so a reachable point pays for it only when its
     /// goal is otherwise unproved.
     fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        if std::mem::replace(&mut self.refuting, true) {
+            return None;
+        }
+        let absurd = self.contradiction(goal);
+        self.refuting = false;
+        absurd
+    }
+
+    fn contradiction(&mut self, goal: &Proposition) -> Option<ProofNode> {
         if let Some(absurd) = self
             .refute_closed_relation(goal)
             .or_else(|| self.refute_ieee_relations(goal))
@@ -2374,7 +2390,18 @@ impl<'a> Prover<'a> {
                 // image, while a result's local facts can sharpen that image.
                 let image = self.bound_from_arithmetic_image(term, direction);
                 let definition = self.bound_on_definition(term, integer, direction);
-                let bound = match (image, definition) {
+                let multiple = self.multiple_remainder_bound(term, None, direction);
+                let best_extra = match (definition, multiple) {
+                    (Some(left), Some(right)) => Some(
+                        if direction.prefers(integer.compare(right.literal, left.literal)) {
+                            right
+                        } else {
+                            left
+                        },
+                    ),
+                    (left, right) => left.or(right),
+                };
+                let bound = match (image, best_extra) {
                     (Ok(image), Some(definition))
                         if direction
                             .prefers(integer.compare(definition.literal, image.literal)) =>
@@ -2769,7 +2796,11 @@ impl<'a> Prover<'a> {
                     .and_then(|(dividend, relation)| self.through(relation, &dividend, direction));
                 // A remainder by a divisor its own bounds fix to a literal.
                 let fixed = self.remainder_by_fixed_divisor(axiom, subject, expression, direction);
-                [defined, below, within, quotient, fixed]
+                // A remainder of a polynomial multiple of its literal divisor is zero.
+                let multiple = matches!(expression, ScalarTerm::ExactIntegerRemainder { .. })
+                    .then(|| self.multiple_remainder_bound(subject, Some(axiom), direction))
+                    .flatten();
+                [defined, below, within, quotient, fixed, multiple]
                     .into_iter()
                     .flatten()
                     .reduce(|best, next| {
@@ -3635,6 +3666,35 @@ impl<'a> Prover<'a> {
             return Ok((
                 interval.and_then(restate),
                 related.and_then(|image| restate(image).ok()),
+            ));
+        }
+        if let IntegerMathTerm::Add(inner, addend) = term
+            && matches!(addend.as_ref(), IntegerMathTerm::IntegerLiteral(_))
+            && !matches!(
+                inner.as_ref(),
+                IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_)
+            )
+            // A literal-only inner term has no value to translate; the kernel
+            // evaluates it, and recursing here only repeats a failing search.
+            && !closed_mathematical(inner, &|_| false)
+        {
+            let inner_bound = self.arithmetic_image(inner, direction)?;
+            let Proposition::IntegerMathLessOrEqual(left, right) = &inner_bound.conclusion else {
+                return Err("the inner arithmetic bound is not an order");
+            };
+            let conclusion = Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::Add(Box::new(left.clone()), addend.clone()),
+                IntegerMathTerm::Add(Box::new(right.clone()), addend.clone()),
+            );
+            return Ok((
+                Ok(node(
+                    conclusion,
+                    ProofRule::IntegerMathOrderTranslation {
+                        relation: Box::new(inner_bound),
+                        addend: (**addend).clone(),
+                    },
+                )),
+                None,
             ));
         }
         let (operation, first, second) = match term {

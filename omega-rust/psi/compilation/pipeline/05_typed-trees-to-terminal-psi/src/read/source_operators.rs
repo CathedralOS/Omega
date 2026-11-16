@@ -92,6 +92,19 @@ impl Program<'_> {
         expression: ExpressionHandle,
         value: &Expression,
     ) -> Checked<()> {
+        // Byte inequality is formed as the negation of its checked equality.
+        // The source question still belongs to that binary operation, whose
+        // actual operand types are on the equality rather than the outer Not.
+        let value = match &value.kind {
+            ExpressionKind::Not(equal)
+                if matches!(self.typed.expression_table.expression(expression),
+                    ExpressionNode::Binary(binary)
+                        if binary.operator == typed_trees::expression::BinaryOperator::NotEqual) =>
+            {
+                equal
+            }
+            _ => value,
+        };
         let owner = self.symbols.get(machine).copied().unwrap_or_default();
         match &value.kind {
             ExpressionKind::CollectionSubslice { base, .. }

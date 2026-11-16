@@ -320,12 +320,32 @@ pub mod provider_declarations {
         fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
             let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
             let other = Arc::new(owner.as_ref().clone());
-            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            let issued = [(source::SourceId(7), [0x31; 32])];
+            let mut registry = issued.to_vec();
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &registry);
+            registry[0] = (source::SourceId(22), [0xb7; 32]);
+            drop(registry);
             assert!(Arc::ptr_eq(inventory.program(), &owner));
             assert!(inventory.services_for(&owner).is_ok());
             assert!(inventory.origins_for(&owner).is_ok());
             assert!(inventory.services_for(&other).is_err());
             assert!(inventory.origins_for(&other).is_err());
+            assert_eq!(
+                inventory
+                    .services_for(&owner)
+                    .unwrap()
+                    .exact_toolchain_sources(),
+                &issued,
+            );
+            let catalog = inventory.retained_service_catalog();
+            assert!(
+                catalog
+                    .bind(super::ProviderPlanningContext::new(
+                        owner.as_ref().as_ref(),
+                        source::DependencyScope::Build,
+                    ))
+                    .is_err()
+            );
         }
 
         #[test]
@@ -380,31 +400,53 @@ pub mod projection {
         use language_semantics::service_surface::ServiceReceiverApplication;
         use language_semantics::service_surface::identities::ProviderIdentityTable;
 
-        pub(crate) fn collect_scopes<'program>(
+        pub fn collect_scopes<'program>(
             program: &'program crate::TypedTrees,
             root: AppliedTraitScope<'program>,
         ) -> Result<Vec<AppliedTraitScope<'program>>, Diagnostic> {
-            let mut scopes: Vec<AppliedTraitScope<'_>> = Vec::new();
-            let mut ambiguous = None;
-            root.visit(program, &mut |scope| {
+            // A repeated parent application has the same descendants. Keep
+            // its first declared order without walking every inheritance path.
+            fn collect<'program>(
+                program: &'program crate::TypedTrees,
+                scope: AppliedTraitScope<'program>,
+                scopes: &mut Vec<AppliedTraitScope<'program>>,
+                active: &mut Vec<symbols::SymbolHandle>,
+            ) -> Result<(), Diagnostic> {
+                let declaration = scope.declaration.symbol;
+                if active.contains(&declaration) {
+                    return Err(super::projection_failure(
+                        program,
+                        declaration,
+                        "applied trait traversal has an inherited declaration cycle",
+                    ));
+                }
                 if let Some(existing) = scopes
                     .iter()
-                    .find(|existing| existing.declaration.symbol == scope.declaration.symbol)
+                    .find(|existing| existing.declaration.symbol == declaration)
                 {
-                    if !existing.same_application(program, scope) {
-                        ambiguous.get_or_insert(scope.declaration.symbol);
-                    }
-                } else {
-                    scopes.push(scope.clone());
+                    return if existing.same_application(program, &scope) {
+                        Ok(())
+                    } else {
+                        Err(super::projection_failure(
+                            program,
+                            declaration,
+                            "the receiver is inherited with different applications",
+                        ))
+                    };
                 }
-            });
-            if let Some(declaration) = ambiguous {
-                return Err(super::projection_failure(
-                    program,
-                    declaration,
-                    "the receiver is inherited with different applications",
-                ));
+                scopes.push(scope.clone());
+                active.push(declaration);
+                let parents = scope
+                    .parent_scopes(program)
+                    .map_err(|reason| super::projection_failure(program, declaration, reason))?;
+                for parent in parents {
+                    collect(program, parent, scopes, active)?;
+                }
+                active.pop();
+                Ok(())
             }
+            let mut scopes = Vec::new();
+            collect(program, root, &mut scopes, &mut Vec::new())?;
             Ok(scopes)
         }
 
@@ -580,6 +622,10 @@ pub mod projection {
             Ok(())
         }
     }
+
+    // Schema reading and service publication use the same original parent
+    // applications; neither may flatten inherited members by their names.
+    pub use applied_receivers::collect_scopes as inherited_scopes;
 
     use super::ProviderSchemaDeclaration;
     use crate::boundary_completions::boundary_requirement_completion;
@@ -1461,6 +1507,7 @@ pub(crate) mod catalog {
         owner_identity: u64,
         owner_address: usize,
         scope: source::DependencyScope,
+        exact_toolchain_sources: Box<[(source::SourceId, [u8; 32])]>,
         records: Arena<ServiceRecord>,
         requirements: Arena<PreparedServiceRequirement>,
         arguments: Arena<TypeReferenceHandle>,
@@ -1536,6 +1583,7 @@ pub(crate) mod catalog {
                 owner_identity: program.identity.get(),
                 owner_address: std::ptr::from_ref(program) as usize,
                 scope: context.scope,
+                exact_toolchain_sources: exact_toolchain_sources.into(),
                 records: Arena::new(),
                 requirements: Arena::new(),
                 arguments: Arena::new(),
@@ -1727,6 +1775,11 @@ pub(crate) mod catalog {
 
         pub fn context(self) -> ProviderPlanningContext<'catalog> {
             self.context
+        }
+
+        /// The issued registry used to construct this catalog's exact source identities.
+        pub fn exact_toolchain_sources(self) -> &'catalog [(source::SourceId, [u8; 32])] {
+            &self.catalog.exact_toolchain_sources
         }
 
         pub fn declaration(

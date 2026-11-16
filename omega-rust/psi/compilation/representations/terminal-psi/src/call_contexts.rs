@@ -15,6 +15,7 @@ pub enum CallSite {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum InvocationOwner {
     Operation(OperationId),
+    InvokeNoNormal(EdgeId),
     Cleanup { edge: EdgeId, action_ordinal: u32 },
 }
 
@@ -22,6 +23,7 @@ impl From<InvocationOwner> for semantic_vocabulary::InvocationSite {
     fn from(owner: InvocationOwner) -> Self {
         match owner {
             InvocationOwner::Operation(operation) => Self::Operation(operation),
+            InvocationOwner::InvokeNoNormal(edge) => Self::InvokeNoNormal(edge),
             InvocationOwner::Cleanup {
                 edge,
                 action_ordinal,

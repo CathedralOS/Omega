@@ -854,15 +854,11 @@ pub mod domain {
     /// The judgment of one evaluated `AccessPolicy::plan` result
     /// (`wiki/spec/resources/access.md`, "Plans and admitted supply").
     ///
-    /// The evaluator records a plan as checked only when it can state all of
-    /// it here:
-    /// the returned schema is the domain subject's own, every route names a
-    /// declaration of this program, and the plan has no field observation
-    /// demands, no reader or writer rules and no required reach. A plan with
-    /// any of those is `AccessPlanJudgment::Unjudged` instead, so this record
-    /// is the plan's complete judgment: issuance is exactly `issuance`, and reads and
-    /// writes are unrestricted by this policy ("omission leaves that axis
-    /// unrestricted").
+    /// The evaluator authenticates the returned schema, declarations and
+    /// complete caller applications. The canonical operation judgment then
+    /// checks the retained read/write rules on every actual subject and
+    /// invocation. Observation demands and boundary reach remain unserved
+    /// until their supply/lifecycle consumers can prove them.
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedDomainAccessPlan {
         /// The policy member whose body returned the plan.
@@ -946,15 +942,64 @@ pub mod domain {
     }
 
     impl DomainDefinition {
-        /// Whether reads and writes of what this domain governs wait on a
-        /// plan no pass has judged. A checked plan has no reader or writer
-        /// rules (`CheckedDomainAccessPlan`), so only an unjudged one
-        /// restricts.
+        /// Predicate clauses can be translated in full. Other semantic
+        /// definitions need their own translation before the theory is complete;
+        /// issuer and access rules are checked independently.
+        pub fn has_complete_predicate_theory(&self) -> bool {
+            (self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+                || !self.facts.is_empty())
+                && self.operators.is_empty()
+                && self.alias.is_none()
+                && self.classification.is_none()
+                && self.semantic_roles.is_empty()
+                && self.cleanup_selection.is_none()
+        }
+
+        /// An empty theory has nothing about contents left to translate.
+        /// No proposition alone does not prove the declaration is empty.
+        pub fn has_complete_empty_theory(&self) -> bool {
+            self.has_complete_predicate_theory()
+                && self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+                && self.facts.is_empty()
+        }
+
+        /// Whether source lowering still lacks the complete selected plan.
+        /// A checked plan permits forming operations; its retained rules are
+        /// enforced by the canonical operation judgment before execution.
         pub fn access_unjudged(&self) -> bool {
             self.access_policy
                 .as_ref()
                 .is_some_and(|policy| !matches!(policy.plan, AccessPlanJudgment::Checked(_)))
         }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn issuer_clauses_do_not_make_an_empty_content_theory_nonempty() {
+        let mut definition = DomainDefinition::default();
+        assert!(definition.has_complete_empty_theory());
+        definition.semantic_clause_token_count = 4;
+        definition.establishment_routes.push(
+            language_semantics::DomainEstablishmentRoute::ExactMachine {
+                machine: symbols::SymbolHandle::invalid(),
+            },
+        );
+        assert!(
+            definition.has_complete_empty_theory(),
+            "parsed issuance has its own authority check, separate from predicate completeness"
+        );
+        definition.predicate_presence = language_semantics::DomainPredicatePresence::Present;
+        assert!(!definition.has_complete_empty_theory());
+        assert!(
+            !definition.has_complete_predicate_theory(),
+            "a declared predicate without retained clauses is unavailable, not true"
+        );
+        definition.predicate_presence = language_semantics::DomainPredicatePresence::Absent;
+        definition.alias = Some(DomainAliasDefinition {
+            constituents: Vec::new(),
+        });
+        assert!(!definition.has_complete_empty_theory());
+        assert!(!definition.has_complete_predicate_theory());
     }
 
     impl Default for DomainDefinition {

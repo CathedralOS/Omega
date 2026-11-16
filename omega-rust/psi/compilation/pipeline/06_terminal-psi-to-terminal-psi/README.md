@@ -973,8 +973,8 @@ judges the whole certificate.
 An exact remainder by a divisor that is not a literal takes a bound from its
 dividend: it lies between zero and the dividend, so `-7 <= value <= 7` gives
 `-7 <= value % divisor <= 7` once `divisor` is proved positive or below
-minus one (`remainder_within_dividend`). This is the one step here that
-rests on a provisional kernel rule: the kernel trusts the statement
+minus one (`remainder_within_dividend`). Like the two rules below, this rests
+on a provisional kernel rule: the kernel trusts the statement
 (`IntegerRemainderWithinDividend` in
 [classicality](../../../../../wiki/spec/proofs/classicality.md)), and its
 mathematical core does not derive it.
@@ -984,6 +984,12 @@ the divisor positive (`quotient_at_most_dividend`): `value / 2 <= value`, an
 order step between two values, which also carries the dividend's upper bound
 to the quotient. This too rests on a provisional kernel rule
 (`IntegerQuotientAtMostDividend`).
+
+An exact remainder by a nonzero literal divisor (excluding signed `-1`) is
+zero when its dividend expands over exact add, subtract, multiply, widen and
+exact cast into a polynomial whose every coefficient is divisible by that
+divisor (`multiple_remainder_bound`), resting on the provisional kernel rule
+`IntegerMultipleRemainder`.
 
 `verify_obligation` then decides the whole certificate against the reconstructed
 goal, assumptions and axioms. Search alone supplies no acceptance: a certificate

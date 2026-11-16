@@ -100,6 +100,7 @@ pub(crate) struct DeclaredDomain {
     pub instance: crate::body::DomainInstance,
     pub carrier: ValueType,
     pub predicate: Option<semantic_vocabulary::Proposition>,
+    pub complete_predicate_theory: bool,
 }
 
 pub(crate) struct PredicateDefinition {
@@ -837,6 +838,7 @@ mod tests {
                 },
                 carrier: ValueType::record(carrier),
                 predicate: None,
+                complete_predicate_theory: false,
             }));
         let bodies = semantic_vocabulary::IdTable::default();
         let components = crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
@@ -878,13 +880,16 @@ mod tests {
             [
                 Some(&Proposition::Falsehood),
                 Some(&Proposition::Truth),
-                None
+                Some(&Proposition::Truth)
             ]
         );
-        assert!(
+        assert_eq!(
             domains
                 .iter()
-                .all(|domain| !domain.complete_predicate_theory)
+                .map(|domain| domain.complete_predicate_theory)
+                .collect::<Vec<_>>(),
+            [true, true, true],
+            "translated clauses and a genuinely empty declaration have complete theories"
         );
     }
 

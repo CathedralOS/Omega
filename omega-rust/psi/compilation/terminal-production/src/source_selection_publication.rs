@@ -20,6 +20,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
 use typed_trees::TypedTrees;
 use typed_trees::callable_values::RuntimeCallableContractHandle;
+use typed_trees::references::StaticArgumentRole;
 use typed_trees_to_terminal_psi::selection_questions::{
     RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
     RawSelectionRole, RawSelectionTarget,
@@ -418,9 +419,12 @@ impl<'source> Questions<'source> {
                 }
                 let selected = self.source_target(target)?;
                 if parameter.is_valid() {
-                    return self
-                        .declarations
-                        .symbol_reference(&mut self.output, owner, parameter);
+                    return self.declarations.symbol_reference(
+                        &mut self.output,
+                        owner,
+                        parameter,
+                        StaticArgumentRole::ValueDependency,
+                    );
                 }
                 if let Some(dispatch) = dispatch {
                     if dispatch.realization_machine != selected {
@@ -433,6 +437,7 @@ impl<'source> Questions<'source> {
                             &mut self.output,
                             owner,
                             dispatch.evidence_parameter,
+                            StaticArgumentRole::ValueDependency,
                         );
                     }
                 } else if source_target != selected {
@@ -454,8 +459,12 @@ impl<'source> Questions<'source> {
                         )));
                     }
                 }
-                self.declarations
-                    .symbol_reference(&mut self.output, owner, selected)
+                self.declarations.symbol_reference(
+                    &mut self.output,
+                    owner,
+                    selected,
+                    StaticArgumentRole::ValueDependency,
+                )
             }
         }
     }
@@ -605,8 +614,12 @@ impl<'source> Questions<'source> {
         } else {
             self.source_target(TargetMachineCallable::Machine(body))?
         };
-        self.declarations
-            .symbol_reference(&mut self.output, source.owner, selected)
+        self.declarations.symbol_reference(
+            &mut self.output,
+            source.owner,
+            selected,
+            StaticArgumentRole::ValueDependency,
+        )
     }
 
     fn retain_invocation(
@@ -903,6 +916,11 @@ impl<'source> Questions<'source> {
                     &mut self.output,
                     dependency.lexical_owner,
                     dependency.target,
+                    if dependency.kind == RawDependencyKind::Description {
+                        StaticArgumentRole::DeclarationDescription
+                    } else {
+                        StaticArgumentRole::ValueDependency
+                    },
                 )
                 .map_err(|error| {
                     selection_context(
@@ -985,6 +1003,7 @@ impl<'source> Questions<'source> {
                         &mut self.output,
                         raw.lexical_owner,
                         symbol,
+                        StaticArgumentRole::DeclarationDescription,
                     )?
                 }
             }
@@ -1148,6 +1167,7 @@ fn intrinsic_identity(value: &impl Record, domain: &str) -> Result<String, Diagn
 
 struct Declarations<'source> {
     typed: &'source TypedTrees,
+    build_entry_source: Option<&'source source::SourceFile>,
     ids: SymbolRows<SelectionDeclarationId>,
     identities: SymbolRows<String>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
@@ -1202,6 +1222,41 @@ impl<'source> Declarations<'source> {
                 declaration_identity(identity, Some(callable)).map_err(refused)?,
             )?;
         }
+        // Anonymous Build records already have checked declaration identities.
+        // Reuse their exact source associations, as for emitted machines; a
+        // second hermetic-name lookup would discard that invocation custody.
+        for source_record in &source.correspondence().records {
+            let record = module
+                .structural_type(source_record.record)
+                .ok_or_else(|| refused("source record has no checked structural declaration"))?;
+            let mut retain = |symbol, identity| -> Result<(), Diagnostic> {
+                let identity = module
+                    .identities
+                    .text(identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        refused("checked source record lost its declaration identity")
+                    })?;
+                if identities
+                    .get(&symbol)
+                    .is_some_and(|previous| previous != identity)
+                {
+                    return Err(refused(
+                        "one source record declaration has competing identities",
+                    ));
+                }
+                identities.insert(symbol, identity.to_owned())
+            };
+            retain(source_record.declaration, record.declaration_identity)?;
+            let mut fields = record.shape.fields().collect::<Vec<_>>();
+            fields.sort_unstable_by_key(|field| field.id);
+            for field in &source_record.fields {
+                let position = fields
+                    .binary_search_by_key(&field.field, |field| field.id)
+                    .map_err(|_| refused("source field has no checked structural declaration"))?;
+                retain(field.declaration, fields[position].declaration_identity)?;
+            }
+        }
         // Prepare this association once. Only an admitted contract's meaning
         // is normalized, so unrelated generic contracts never become work.
         let mut contracts: SymbolRows<Vec<RuntimeCallableContractHandle>> =
@@ -1211,8 +1266,23 @@ impl<'source> Declarations<'source> {
                 .get_or_insert_with(contract.signature.symbol, Vec::new)?
                 .push(handle);
         }
+        let build_entry_source = module
+            .entry
+            .and_then(|entry| match entry {
+                TargetMachineCallable::Machine(machine) => elaboration.machines.get(machine),
+                TargetMachineCallable::Boundary(_) => None,
+            })
+            .and_then(|symbol| {
+                source
+                    .source()
+                    .symbols
+                    .symbol_provenance_source_span(*symbol)
+            })
+            .and_then(|span| source.source().symbols.source_file(span))
+            .filter(|file| file.dependency_scope == source::DependencyScope::Build);
         Ok(Self {
             typed: source.source(),
+            build_entry_source,
             ids: SymbolRows::new(source.source().symbols.symbols().nodes().len()),
             identities,
             contracts,
@@ -1248,9 +1318,15 @@ impl<'source> Declarations<'source> {
             .symbol_provenance_source_span(symbol)
             .and_then(|span| self.typed.symbols.source_file(span))
             .ok_or_else(|| refused("source declaration has no retained source purpose"))?;
-        Ok(match source.dependency_scope {
+        let purpose = match source.dependency_scope {
             source::DependencyScope::Build => SelectionPurpose::Build,
             source::DependencyScope::Product => SelectionPurpose::Product,
+        };
+        Ok(match (self.build_entry_source, source.package_identity) {
+            (Some(entry), Some(owner)) => {
+                purpose.for_declaring_package(entry.package_identity, owner)
+            }
+            _ => purpose,
         })
     }
 
@@ -1494,6 +1570,7 @@ impl<'source> Declarations<'source> {
         output: &mut SelectionQuestions,
         owner: SymbolHandle,
         symbol: SymbolHandle,
+        role: StaticArgumentRole,
     ) -> Result<SelectionReference, Diagnostic> {
         self.valid(symbol, "reference target")?;
         if let Some(atom) = self.typed.symbols.builtin_type_atom(symbol) {
@@ -1527,7 +1604,9 @@ impl<'source> Declarations<'source> {
             | SymbolKind::MachineParameter
             | SymbolKind::ConformanceParameter
             | SymbolKind::PropositionParameter
-            | SymbolKind::PropositionMachineParameter => {
+            | SymbolKind::PropositionMachineParameter
+                if role == StaticArgumentRole::ValueDependency =>
+            {
                 self.local_binding(output, owner, symbol, self.typed.symbols.get(symbol).parent)
             }
             _ => Ok(SelectionReference::Declaration(
@@ -1565,6 +1644,7 @@ mod symbol_rows_tests {
         let count = typed.symbols.symbols().nodes().len();
         let mut declarations = Declarations {
             typed: &typed,
+            build_entry_source: None,
             ids: SymbolRows::new(count),
             identities: SymbolRows::new(count),
             contracts: SymbolRows::new(count),
@@ -1578,7 +1658,12 @@ mod symbol_rows_tests {
                 .fixed_core_declaration_symbol(declaration)
                 .unwrap();
             let selected = declarations
-                .symbol_reference(&mut output, root, symbol)
+                .symbol_reference(
+                    &mut output,
+                    root,
+                    symbol,
+                    StaticArgumentRole::ValueDependency,
+                )
                 .unwrap();
             let SelectionReference::Intrinsic { identity } = &selected else {
                 panic!("fixed vocabulary became an authored declaration");
@@ -1587,19 +1672,34 @@ mod symbol_rows_tests {
             assert!(identities.insert(identity.clone()));
             assert_eq!(
                 declarations
-                    .symbol_reference(&mut output, root, symbol)
+                    .symbol_reference(
+                        &mut output,
+                        root,
+                        symbol,
+                        StaticArgumentRole::ValueDependency
+                    )
                     .unwrap(),
                 selected
             );
             let stale = SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
             assert!(
                 declarations
-                    .symbol_reference(&mut output, root, stale)
+                    .symbol_reference(
+                        &mut output,
+                        root,
+                        stale,
+                        StaticArgumentRole::ValueDependency
+                    )
                     .is_err()
             );
         }
         let error = declarations
-            .symbol_reference(&mut output, root, counterfeit)
+            .symbol_reference(
+                &mut output,
+                root,
+                counterfeit,
+                StaticArgumentRole::ValueDependency,
+            )
             .unwrap_err();
         assert!(
             error
@@ -1653,10 +1753,10 @@ machine entry() -> u64 crashes none {
     Second::pick(repeated)
 }
 "#;
-        accepted_source(TEXT)
+        accepted_source(TEXT, &[])
     }
 
-    fn accepted_source(text: &str) -> AcceptedTerminalSource {
+    fn accepted_source(text: &str, metadata_names: &[&str]) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
@@ -1688,6 +1788,27 @@ machine entry() -> u64 crashes none {
             .find(|machine| machine.name.as_str() == "entry")
             .unwrap()
             .symbol;
+        let metadata = metadata_names
+            .iter()
+            .map(|name| {
+                typed
+                    .traits()
+                    .iter()
+                    .find(|declaration| declaration.name.as_str() == *name)
+                    .expect("the fixture names its actual declaration")
+                    .symbol
+            })
+            .collect::<Vec<_>>();
+        let mut selected = metadata.clone();
+        for &symbol in &metadata {
+            let owner = typed.trait_definition_by_symbol(symbol).unwrap();
+            selected.extend(
+                typed
+                    .trait_machine_signatures(owner)
+                    .iter()
+                    .map(|signature| signature.symbol),
+            );
+        }
         let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
@@ -1696,11 +1817,11 @@ machine entry() -> u64 crashes none {
         AcceptedTerminalSource::judge(
             Arc::new(frozen),
             typed_trees_to_terminal_psi::Compilation {
-                declaration_metadata: &[],
+                declaration_metadata: &metadata,
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
-                selected: &[],
+                selected: &selected,
                 bindings: &[],
                 calling: None,
                 providers: None,
@@ -1709,6 +1830,138 @@ machine entry() -> u64 crashes none {
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn requirement_overloads_keep_their_signatures_and_refuse_header_swaps() {
+        // Publish both complete headers directly. A signature-free named call
+        // would test overload selection before reaching this identity owner.
+        let source = accepted_source(
+            r#"
+boundary trait Input {
+    machine pick(value: u64) -> u64 reaches none crashes none;
+    machine pick(value: bool) -> bool reaches none crashes none;
+}
+machine entry() reaches Input {}
+"#,
+            &["Input"],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let typed = source.source();
+        let owner = typed
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Input")
+            .unwrap();
+        let identities = typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .map(|signature| {
+                typed
+                    .normalized_hermetic_symbol_identity(signature.symbol)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(identities.len(), 2);
+        assert_ne!(identities[0], identities[1]);
+        let headers = prepared
+            .questions
+            .joins
+            .iter()
+            .filter_map(|join| match join {
+                SelectionJoin::Boundary {
+                    declaration,
+                    boundary,
+                } => Some((*declaration, *boundary)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(headers.len(), 2);
+        assert_ne!(headers[0].0, headers[1].0);
+        for (original, other) in [(headers[0], headers[1]), (headers[1], headers[0])] {
+            let mut changed = prepared.questions.clone();
+            let joined = changed
+                .joins
+                .iter_mut()
+                .find_map(|join| match join {
+                    SelectionJoin::Boundary {
+                        declaration,
+                        boundary,
+                    } if *boundary == original.1 => Some(declaration),
+                    _ => None,
+                })
+                .unwrap();
+            *joined = other.0;
+            let error = terminal_installation::selection_questions::validate_selection_questions(
+                module, &changed,
+            )
+            .unwrap_err();
+            assert!(
+                error.contains("boundary differs from its checked semantic declaration"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn describing_a_formal_does_not_make_its_argument_value_visible() {
+        let source = named_calls();
+        let published = source
+            .produce(
+                crate::TerminalProductionCustody::default(),
+                &mut crate::UnmeasuredProduction,
+            )
+            .unwrap();
+        assert!(published.view().module().entry.is_some());
+        let typed = source.source();
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let callee = typed
+            .machines()
+            .iter()
+            .find(|machine| typed.symbols.display_path(machine.symbol, "::") == "First::pick")
+            .unwrap();
+        let state = typed.machine_states(callee).first().unwrap();
+        let formal = typed
+            .tables
+            .state_parameters
+            .span_or_empty(state.parameters)
+            .first()
+            .unwrap()
+            .symbol;
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        let description = declarations
+            .symbol_reference(
+                &mut questions,
+                entry,
+                formal,
+                StaticArgumentRole::DeclarationDescription,
+            )
+            .unwrap();
+        assert!(matches!(description, SelectionReference::Declaration(_)));
+        let error = declarations
+            .symbol_reference(
+                &mut questions,
+                entry,
+                formal,
+                StaticArgumentRole::ValueDependency,
+            )
+            .unwrap_err();
+        assert!(
+            error.message.contains("outside its actual lexical context"),
+            "{error:?}"
+        );
     }
 
     #[test]
@@ -1728,6 +1981,7 @@ machine entry() -> u32 crashes none {
     same(1f64)
 }
 "#,
+            &[],
         );
         let module = source.module();
         let prepared = prepare(&source, module, None).unwrap();
