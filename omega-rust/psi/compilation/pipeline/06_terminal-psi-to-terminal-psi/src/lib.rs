@@ -924,7 +924,11 @@ fn machine(
             // data_and_literals.md: "Construction and every restoring write
             // prove the owning default-domain clauses."
             Ok(Discharged::Certificate(evidence)) if stores => {
-                restoring.push((storage.owner(operation, clause, concerns)?, operation));
+                let owner = storage.owner(operation, clause, concerns)?;
+                restoring.push((
+                    storage.capture_owner(&mut references, operation, owner, concerns)?,
+                    operation,
+                ));
                 Ok(Discharged::Certificate(evidence))
             }
             Err(unproved)
@@ -937,7 +941,12 @@ fn machine(
                     windows.push(places::Window {
                         obligation,
                         opened_by: operation,
-                        owner,
+                        owner: storage.capture_owner(
+                            &mut references,
+                            operation,
+                            owner,
+                            concerns,
+                        )?,
                         initial: zeroes,
                         restored: Vec::new(),
                     });
@@ -2053,41 +2062,7 @@ fn decide(
         &hypotheses.axioms,
         unreached,
         activity,
-    );
-    #[cfg(test)]
-    if certificate.is_err()
-        && std::env::var_os("OMEGA_TEST_TRACE_DEFAULTS").is_some()
-        && tables.obligations.get(obligation).is_some_and(|row| {
-            matches!(
-                row.kind,
-                ObligationKind::DataDomain { .. }
-                    | ObligationKind::CallRequirement { .. }
-                    | ObligationKind::ArrivalInvariant { .. }
-            )
-        })
-    {
-        // Keep a failed restoration trace at the exact substitution cut;
-        // dumping the input module would miss inferred reaching equations.
-        eprintln!("DEFAULT FAILURE {id:?} {obligation:?} {point:?} goal={goal:?}");
-        for (row, fact) in hypotheses
-            .assumption_rows
-            .iter()
-            .zip(&hypotheses.assumptions)
-        {
-            eprintln!("DEFAULT ASSUMPTION {row:?}: {fact:?}");
-        }
-        for (row, fact) in hypotheses.axiom_rows.iter().zip(&hypotheses.axioms) {
-            eprintln!("DEFAULT AXIOM {row:?}: {fact:?}");
-        }
-        let mut values = Vec::new();
-        goal.visit_value_ids(|value| values.push(value));
-        values.sort_unstable();
-        values.dedup();
-        for value in values {
-            eprintln!("DEFAULT VALUE {value:?}: {:?}", tables.values.get(value));
-        }
-    }
-    let certificate = certificate?;
+    )?;
     verify(context, id, obligation, goal, hypotheses, certificate)
 }
 

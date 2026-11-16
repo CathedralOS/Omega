@@ -299,7 +299,8 @@ ensures result == byte_observation::ascii_only(bytes)
 { byte_observation::ascii_only(bytes) }
 machine main() crashes Trap {
     let valid: bool = checked("Room A1");
-    transition valid { true -> {} false -> bad() }
+    let invalid: bool = checked("é");
+    transition valid && !invalid { true -> {} false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#,
@@ -577,7 +578,7 @@ machine main() crashes Trap {
     let refused = observed_program(&partial);
     assert!(
         refused.iter().any(|verdict| matches!(verdict,
-            Err(crate::CompilationRefusal::Elaboration(refusal))
+            Ok(crate::RouteVerdict::FallBack(refusal))
                 if refusal.detail.contains("range domains not preserved by its actual byte backing"))),
         "a cut inside the UTF-8 encoding must not retain its domain: {refused:?}"
     );

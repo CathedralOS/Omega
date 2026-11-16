@@ -571,6 +571,8 @@ enum Asked<'q> {
     /// (data_and_literals.md: "Construction and every restoring write prove
     /// the owning default-domain clauses.").
     Window {
+        /// The backing captured when the window opened, independent of the
+        /// descriptor names that may later be moved, rebound or retired.
         place: &'q Lineage,
         by: OperationId,
         restored: &'q [OperationId],
@@ -632,6 +634,8 @@ impl<'q> Asked<'q> {
 /// `DataDomain` obligation is about.
 #[derive(Debug, Clone)]
 pub(crate) struct Owner {
+    /// Operation-local until `capture_owner` freezes its backing for later
+    /// restoration matching and window traversal.
     place: Lineage,
     requirement: terminal_semantics::structural_qualifications::DefaultRequirement,
 }
@@ -968,25 +972,14 @@ impl<'a> Storage<'a> {
         }
         .descriptor_location()
         .ok_or_else(unresolved)?;
-        let captured = references.storage_projection(self.machine, (block, before), &location);
-        #[cfg(test)]
-        if captured.is_none() {
-            eprintln!(
-                "UNRESOLVED BACKING {:?} {:?} {:?} {:?} origins={:?} block={:#?}",
-                self.machine,
-                concerns,
-                (block, before),
-                location,
-                references.source_origins(self.machine, (block, before), &location),
-                self.lowered.block(&block),
-            );
-        }
-        let captured = captured.ok_or_else(|| {
-            self.unsupported(
-                concerns,
-                terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
-            )
-        })?;
+        let captured = references
+            .storage_projection(self.machine, (block, before), &location)
+            .ok_or_else(|| {
+                self.unsupported(
+                    concerns,
+                    terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
+                )
+            })?;
         let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
             source: root,
             projection,
@@ -1411,6 +1404,22 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "an operation owes no such default clause"))?;
         let place = self.stored_at(requirement.root, &requirement.path, concerns)?;
         Ok(Owner { place, requirement })
+    }
+
+    /// A loop can retire a block parameter while its original storage still
+    /// owes restoration. Retain that backing before leaving the operation.
+    /// Local goal and write-dependency checks keep their original paths so a
+    /// descriptor replacement still counts as changing what its clause reads.
+    pub(crate) fn capture_owner(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        operation: OperationId,
+        mut owner: Owner,
+        concerns: Construct,
+    ) -> Checked<Owner> {
+        let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+        owner.place = self.backing(references, &owner.place, block, after, concerns)?;
+        Ok(owner)
     }
 
     fn clause(&self, owner: &Owner, concerns: Construct) -> Checked<Proposition> {
@@ -2771,7 +2780,15 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
-        let resolved = self.backing(references, original, block, up_to, concerns)?;
+        let resolved = match asked {
+            // Windows follow their captured storage, even after the original
+            // descriptor has expired. Looking up that name again can either
+            // lose the debt or redirect it to a different referent.
+            Asked::Window { .. } => original.clone(),
+            Asked::Contents(_) | Asked::Case(_) => {
+                self.backing(references, original, block, up_to, concerns)?
+            }
+        };
         let asked = asked.at(&resolved);
         let key = match asked {
             Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
@@ -4859,7 +4876,18 @@ impl<'a> Storage<'a> {
         if windows.is_empty() {
             return Ok(found);
         }
-        for touch in self.touches(references, tables)? {
+        for mut touch in self.touches(references, tables)? {
+            // Compare actual storage on both sides. Resolve each real use at
+            // its own point once, rather than resolving an expired window
+            // descriptor again for every later consumption.
+            for place in touch.used.iter_mut().chain(&mut touch.relied) {
+                *place = match touch.cleanup {
+                    Some((edge, ordinal)) => {
+                        self.cleanup_backing(references, place, edge, ordinal, touch.at)?
+                    }
+                    None => self.backing(references, place, touch.block, touch.up_to, touch.at)?,
+                };
+            }
             for (position, window) in windows.iter().enumerate() {
                 if !self.consumes(references, tables, &touch, window)? {
                     continue;
