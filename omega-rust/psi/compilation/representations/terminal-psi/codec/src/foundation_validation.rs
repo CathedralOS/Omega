@@ -7725,16 +7725,6 @@ pub(crate) mod storage_foundations {
                         "value transfer has unknown prerequisites",
                     ))?;
                 if missing.iter().any(|row| row.establishment_routes.is_some()) {
-                    eprintln!(
-                        "[receiving transfer] result={:?} source={source:?} projected={projected:?} domain={:?} complete={} predicate={} bytes={} content={} required={:?}",
-                        result.place,
-                        declaration.id,
-                        declaration.complete_predicate_theory,
-                        declaration.predicate.is_some(),
-                        declaration.byte_predicate.is_some(),
-                        declaration.content_projection.is_some(),
-                        declaration.required_memberships
-                    );
                     return malformed(
                         "value transfer cannot establish unsupplied routed prerequisites",
                     );
@@ -12031,10 +12021,6 @@ pub(crate) fn operation_foundation_error(
     let CodecError::MalformedStructuralFoundation(reason) = error else {
         return error;
     };
-    eprintln!(
-        "[receiving instruction] machine={:?} block={block:?} operation={:?} kind={:?} result={:?} reason={reason}",
-        machine.id, operation.id, operation.kind, operation.result
-    );
     let declaration = machine.declaration.as_ref();
     CodecError::MalformedOperationFoundation {
         machine: declaration

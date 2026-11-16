@@ -1573,9 +1573,8 @@ pub fn same_access_policy(
     }
 }
 
-// An access follows actual storage, not just the type displayed by its last
-// alias. Keep each possible subject separate while looking up its rules and
-// following checked argument correspondence back through live invocations.
+// Access rules follow the value and its live storage. Check every possible
+// backing and carry each exact argument relationship through its callers.
 mod operation_permissions {
     use super::*;
     use crate::borrowed_storage::Projection;
@@ -1590,8 +1589,8 @@ mod operation_permissions {
     };
     use access_plans::AccessOperation;
 
-    // A request names existing storage history. These are invocation-local
-    // work items, not retained grants or a second access representation.
+    // Reuse a judgment only for this function, instruction and value. The
+    // same helper can receive different storage on its separate invocations.
     #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
     struct Subject {
         machine: MachineId,
@@ -1626,15 +1625,23 @@ mod operation_permissions {
     }
     impl Permissions<'_> {
         fn machine(&self, identity: MachineId) -> Judged<&TerminalMachine> {
-            self.module
-                .machine(identity)
-                .ok_or_else(|| failure(identity, "memory access has no owning function"))
+            self.module.machine(identity).ok_or_else(|| {
+                failure(
+                    identity,
+                    "the compiler cannot find the function performing this access",
+                )
+            })
         }
         fn descriptor(&self, identity: MachineId) -> Judged<&DescriptorMachine> {
             self.graph
                 .binary_search_by_key(&identity, |row| row.id)
                 .map(|index| &self.graph[index])
-                .map_err(|_| failure(identity, "memory access has no storage history"))
+                .map_err(|_| {
+                    failure(
+                        identity,
+                        "the compiler cannot trace this value through its storage history",
+                    )
+                })
         }
         fn requirements(
             &mut self,
@@ -1650,20 +1657,23 @@ mod operation_permissions {
             {
                 return Err(failure(
                     machine,
-                    "memory access has no exact element selection",
+                    "the compiler cannot identify which element this operation uses",
                 ));
             }
             let body = self.machine(machine)?;
             let contract = terminal_payload_contract(body, query.root).ok_or_else(|| {
                 failure(
                     machine,
-                    "memory access subject has no declared qualifications",
+                    "the compiler cannot identify the access rules on this value",
                 )
             })?;
             query
                 .validate(&self.module.structural_types, contract.carrier)
                 .ok_or_else(|| {
-                    failure(machine, "memory access does not follow its subject's type")
+                    failure(
+                        machine,
+                        "this operation does not select a part of its declared value",
+                    )
                 })?;
             // Reserving a home declares what a later store must deliver; it
             // does not install that value's rules on empty storage. Exempt
@@ -1703,7 +1713,12 @@ mod operation_permissions {
                 contract.carrier,
                 &query.steps,
             )
-            .ok_or_else(|| failure(machine, "memory access has no declared subject path"))?;
+            .ok_or_else(|| {
+                failure(
+                    machine,
+                    "the compiler cannot match this access to its declared field",
+                )
+            })?;
             let mut add = |id, prefix: &[StructuralPathSegment]| -> Judged<()> {
                 let row = domain(self.module, id)
                     .ok_or_else(|| failure(machine, "memory access names an absent domain"))?;
@@ -1731,7 +1746,7 @@ mod operation_permissions {
                 {
                     return Err(failure(
                         machine,
-                        "following a reference inside a governed value needs its separate access checks",
+                        "access through a reference stored inside this value has not been checked yet",
                     ));
                 }
                 requirements.push((id, relative));
@@ -1762,12 +1777,18 @@ mod operation_permissions {
                         .place_types
                         .get(&query.root)
                         .ok_or_else(|| {
-                            failure(machine, "memory access input has no declared carrier")
+                            failure(
+                                machine,
+                                "the compiler cannot identify this argument's value type",
+                            )
                         })?;
                     query
                         .projected(&self.module.structural_types, root, projection)
                         .ok_or_else(|| {
-                            failure(machine, "memory access input has no exact typed projection")
+                            failure(
+                                machine,
+                                "the compiler cannot identify which part of this argument is used",
+                            )
                         })
                 }
                 DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
@@ -1829,7 +1850,7 @@ mod operation_permissions {
                 if operation.required_contract.is_some() {
                     return Err(failure(
                         caller,
-                        "memory access delegation needs the exact public call contract",
+                        "the compiler cannot check this helper's public call contract yet",
                     ));
                 }
                 let actuals = self
@@ -1839,7 +1860,7 @@ mod operation_permissions {
                     .ok_or_else(|| {
                         failure(
                             caller,
-                            "memory access has no complete pre-call argument correspondence",
+                            "the compiler cannot trace every argument to the storage supplied to this helper",
                         )
                     })?;
                 result.extend(actuals.into_iter().map(|source| Subject {
@@ -1884,7 +1905,7 @@ mod operation_permissions {
             if current.selected_application.is_some() {
                 return Err(failure(
                     subject.machine,
-                    "memory access needs its checked public requirement caller",
+                    "the compiler cannot check the selected public caller's access yet",
                 ));
             }
             if !granted {
@@ -1964,7 +1985,7 @@ mod operation_permissions {
                         let path = path.as_deref().ok_or_else(|| {
                             failure(
                                 subject.machine,
-                                "a saved access rule has no runtime field path",
+                                "these access rules name a field without supported runtime storage",
                             )
                         })?;
                         if StructuralPathQualification::selected_suffix(path, &selected).is_none()
@@ -1983,7 +2004,7 @@ mod operation_permissions {
                         if !reached {
                             return Err(failure(
                                 subject.machine,
-                                "memory access lost its governed subject during argument substitution",
+                                "the compiler cannot match this access to the value supplied by its caller",
                             ));
                         }
                     }
@@ -2030,21 +2051,11 @@ mod operation_permissions {
                     DescriptorContentsQuery::from_location(location)
                 }
                 DescriptorFlowSource::Contents(query) => query.clone(),
-                DescriptorFlowSource::Unavailable(root) => {
-                    let body = self.machine(machine)?;
-                    let instruction = body
-                        .block(&position.0)
-                        .and_then(|block| block.operations.get(position.1 as usize));
-                    let carrier = self.descriptor(machine)?.place_types.get(root).copied();
-                    eprintln!(
-                        "[unavailable permission] machine={machine:?} position={position:?} input={input} access={operation:?} root={root:?} instruction={:?} carrier={carrier:?} declaration={:?}",
-                        instruction.map(|row| &row.kind),
-                        carrier.and_then(|id| terminal_psi::find_structural_type(
-                            &self.module.structural_types,
-                            id
-                        ))
-                    );
-                    return Err(failure(machine, "memory access has no exact payload query"));
+                DescriptorFlowSource::Unavailable(_) => {
+                    return Err(failure(
+                        machine,
+                        "the compiler cannot identify the memory this operation uses",
+                    ));
                 }
             };
             let mut requirements = Vec::new();
@@ -2082,18 +2093,19 @@ mod operation_permissions {
                     } => {
                         return Err(failure(
                             machine,
-                            "memory access needs its captured storage permission context",
+                            "the compiler cannot check access to this earlier stored value yet",
                         ));
                     }
                 };
                 self.subject(
-                    Subject { machine, position, source }, operation, requirements.clone(),
-                ).inspect_err(|error| {
-                    let original = self.module.machine(machine)
-                        .and_then(|body| body.blocks.iter().find(|block| block.id == position.0))
-                        .and_then(|block| block.operations.get(position.1 as usize));
-                    eprintln!("[permission failure] machine={machine:?} position={position:?} input={input} access={operation:?} query={query:?} instruction={:?} reason={}", original.map(|row| &row.kind), error.detail);
-                })?;
+                    Subject {
+                        machine,
+                        position,
+                        source,
+                    },
+                    operation,
+                    requirements.clone(),
+                )?;
             }
             Ok(())
         }
@@ -2122,7 +2134,10 @@ mod operation_permissions {
             return Ok(());
         }
         if matches!(module.entry, Some(TargetMachineCallable::Boundary(_))) {
-            return malformed(None, "memory access needs its checked public entry caller");
+            return malformed(
+                None,
+                "the compiler cannot check access through this public entry yet",
+            );
         }
         let mut graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
             .map_err(|error| StructuralQualificationError {

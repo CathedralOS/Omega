@@ -6112,15 +6112,6 @@ pub mod descriptor_results {
                                 return None;
                             }
                         };
-                        if domains.iter().any(|row| {
-                            row.access_policy.as_ref().is_some_and(|plan| {
-                                !plan.readers.is_empty() || !plan.writers.is_empty()
-                            })
-                        }) {
-                            eprintln!(
-                                "[call membership writes] machine={identity:?} cut={current:?} writes={writes:?}"
-                            );
-                        }
                         match writes {
                             Some(writes) => {
                                 for location in writes {
@@ -6794,13 +6785,6 @@ pub mod descriptor_results {
                 !observation.path.starts_with(scalar_path)
                     && !scalar_path.starts_with(&observation.path)
             });
-            if !contract.qualifications.is_empty() || !contract.projected_qualifications.is_empty()
-            {
-                eprintln!(
-                    "[retire memberships] carrier={:?} write={path:?} whole={:?} projected={:?} independent={content_independent:?}",
-                    contract.carrier, contract.qualifications, contract.projected_qualifications
-                );
-            }
             let survives = |domain| content_independent.binary_search(&domain).is_ok();
             // A write beneath an already installed restriction does not issue
             // a new membership. Exact/ancestor replacement still retires it;
@@ -6868,16 +6852,6 @@ pub mod descriptor_results {
                     continue;
                 }
                 let contract = Arc::make_mut(contract);
-                if !contract.qualifications.is_empty()
-                    || !contract.projected_qualifications.is_empty()
-                {
-                    eprintln!(
-                        "[unknown membership write] carrier={:?} whole={:?} projected={:?}",
-                        contract.carrier,
-                        contract.qualifications,
-                        contract.projected_qualifications
-                    );
-                }
                 contract.qualifications.clear();
                 contract.projected_qualifications.clear();
                 contract.scalar_observations.clear();
