@@ -1,0 +1,137 @@
+// Expected exit: 0
+// Named 8-bit conversions retain toward-zero results, policy and guarded failures.
+use omega::language::core::I8;
+use omega::language::core::U8;
+use omega::language::core::I8::from_f32;
+use omega::language::core::I8::from_f64;
+use omega::language::core::U8::from_f32;
+use omega::language::core::U8::from_f64;
+machine signed32_plain(value: f32) -> i8
+requires value == value && value > -129.0f32 && value < 128.0f32
+crashes none {
+    let converted: i8 = I8::from_f32(value);
+    converted
+}
+machine signed64_plain(value: f64) -> i8
+requires value == value && value > -129.0f64 && value < 128.0f64
+crashes none {
+    let converted: i8 = I8::from_f64(value);
+    converted
+}
+machine unsigned32_plain(value: f32) -> u8
+requires value == value && value > -1.0f32 && value < 256.0f32
+crashes none {
+    let converted: u8 = U8::from_f32(value);
+    converted
+}
+machine unsigned64_plain(value: f64) -> u8
+requires value == value && value > -1.0f64 && value < 256.0f64
+crashes none {
+    let converted: u8 = U8::from_f64(value);
+    converted
+}
+machine signed32_trapping(value: f32) -> i8
+requires value == value && value > -129.0f32 && value < 128.0f32
+crashes none {
+    let converted: i8 in Trapping = I8::from_f32(value);
+    converted as -Trapping
+}
+machine signed64_trapping(value: f64) -> i8
+requires value == value && value > -129.0f64 && value < 128.0f64
+crashes none {
+    let converted: i8 in Trapping = I8::from_f64(value);
+    converted as -Trapping
+}
+machine unsigned32_trapping(value: f32) -> u8
+requires value == value && value > -1.0f32 && value < 256.0f32
+crashes none {
+    let converted: u8 in Trapping = U8::from_f32(value);
+    converted as -Trapping
+}
+machine unsigned64_trapping(value: f64) -> u8
+requires value == value && value > -1.0f64 && value < 256.0f64
+crashes none {
+    let converted: u8 in Trapping = U8::from_f64(value);
+    converted as -Trapping
+}
+machine signed32_saturating(value: f32) -> i8
+requires true
+crashes none {
+    let converted: i8 in Saturating = I8::from_f32(value);
+    converted as -Saturating
+}
+machine signed64_saturating(value: f64) -> i8
+requires true
+crashes none {
+    let converted: i8 in Saturating = I8::from_f64(value);
+    converted as -Saturating
+}
+machine unsigned32_saturating(value: f32) -> u8
+requires true
+crashes none {
+    let converted: u8 in Saturating = U8::from_f32(value);
+    converted as -Saturating
+}
+machine unsigned64_saturating(value: f64) -> u8
+requires true
+crashes none {
+    let converted: u8 in Saturating = U8::from_f64(value);
+    converted as -Saturating
+}
+machine main() crashes Trap {
+    let nan32: f32 = 0.0f32 / 0.0f32;
+    let nan64: f64 = 0.0f64 / 0.0f64;
+    let infinity32: f32 = 1.0f32 / 0.0f32;
+    let infinity64: f64 = 1.0f64 / 0.0f64;
+    transition signed32_plain(-128.75f32) == -128i8
+        && signed32_plain(127.75f32) == 127i8
+        && unsigned32_plain(-0.75f32) == 0u8
+        && unsigned32_plain(255.75f32) == 255u8
+        && signed32_trapping(-128.75f32) == -128i8
+        && signed32_trapping(127.75f32) == 127i8
+        && unsigned32_trapping(-0.75f32) == 0u8
+        && unsigned32_trapping(255.75f32) == 255u8
+        && signed32_saturating(-128.75f32) == -128i8
+        && signed32_saturating(127.75f32) == 127i8
+        && signed32_saturating(-129.75f32) == -128i8
+        && signed32_saturating(128.75f32) == 127i8
+        && signed32_saturating(nan32) == 0i8
+        && signed32_saturating(infinity32) == 127i8
+        && signed32_saturating(-1.0f32 / 0.0f32) == -128i8
+        && unsigned32_saturating(128.75f32) == 128u8
+        && unsigned32_saturating(256.75f32) == 255u8
+        && unsigned32_saturating(-0.75f32) == 0u8
+        && unsigned32_saturating(-1.0f32) == 0u8
+        && unsigned32_saturating(nan32) == 0u8
+        && unsigned32_saturating(infinity32) == 255u8
+        && unsigned32_saturating(-1.0f32 / 0.0f32) == 0u8
+        && unsigned32_saturating(-0.0f32) == 0u8
+        && signed64_plain(-128.75f64) == -128i8
+        && signed64_plain(127.75f64) == 127i8
+        && unsigned64_plain(-0.75f64) == 0u8
+        && unsigned64_plain(255.75f64) == 255u8
+        && signed64_trapping(-128.75f64) == -128i8
+        && signed64_trapping(127.75f64) == 127i8
+        && unsigned64_trapping(-0.75f64) == 0u8
+        && unsigned64_trapping(255.75f64) == 255u8
+        && signed64_saturating(-128.75f64) == -128i8
+        && signed64_saturating(127.75f64) == 127i8
+        && signed64_saturating(-129.75f64) == -128i8
+        && signed64_saturating(128.75f64) == 127i8
+        && signed64_saturating(nan64) == 0i8
+        && signed64_saturating(infinity64) == 127i8
+        && signed64_saturating(-1.0f64 / 0.0f64) == -128i8
+        && unsigned64_saturating(128.75f64) == 128u8
+        && unsigned64_saturating(256.75f64) == 255u8
+        && unsigned64_saturating(-0.75f64) == 0u8
+        && unsigned64_saturating(-1.0f64) == 0u8
+        && unsigned64_saturating(nan64) == 0u8
+        && unsigned64_saturating(infinity64) == 255u8
+        && unsigned64_saturating(-1.0f64 / 0.0f64) == 0u8
+        && unsigned64_saturating(-0.0f64) == 0u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

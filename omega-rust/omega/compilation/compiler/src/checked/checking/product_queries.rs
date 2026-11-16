@@ -46,16 +46,29 @@ impl ProductQueries {
         query: &BuildProductQuery,
         dependencies: Vec<ProductQueryDependency>,
     ) -> Result<BuildProductDescription, Vec<Diagnostic>> {
-        super::compile_thread::run_on_compile_thread(|| self.describe_inline(query, dependencies))
+        self.describe_with_source(query, dependencies, None)
+    }
+
+    pub fn describe_with_source(
+        &mut self,
+        query: &BuildProductQuery,
+        dependencies: Vec<ProductQueryDependency>,
+        named_source: Option<package_compilation::PackageCompilationInputs>,
+    ) -> Result<BuildProductDescription, Vec<Diagnostic>> {
+        super::compile_thread::run_on_compile_thread(|| {
+            self.describe_inline(query, dependencies, named_source)
+        })
     }
 
     fn describe_inline(
         &mut self,
         query: &BuildProductQuery,
         dependencies: Vec<ProductQueryDependency>,
+        named_source: Option<package_compilation::PackageCompilationInputs>,
     ) -> Result<BuildProductDescription, Vec<Diagnostic>> {
         let inputs = ProductQueryInputs::new(self.inputs.clone(), dependencies)
             .and_then(|inputs| inputs.with_prepared_build_dependencies(self.prepared.clone()))
+            .and_then(|inputs| inputs.with_named_source(named_source))
             .map_err(refuse)?;
         if self
             .retained
@@ -105,7 +118,38 @@ impl ProductQueries {
             refuse("Product query author lost its admitted source correspondence")
         })?;
         let occurrence = source::SourceSpan::new(selected, query.occurrence.span);
+        let selecting = query
+            .selecting_machine
+            .map(|span| {
+                let author = self
+                    .initial
+                    .typed()
+                    .symbols
+                    .source_file(span)
+                    .ok_or_else(|| refuse("declaration query lost its selecting source"))?;
+                let selected = source_map.rejoined_source_id(author).ok_or_else(|| {
+                    refuse("declaration query lost its selecting source correspondence")
+                })?;
+                Ok::<_, Vec<Diagnostic>>(source::SourceSpan::new(selected, span.span))
+            })
+            .transpose()?;
         match query.operation {
+            source_compiler::TerminalBuildQueryOperation::Parameter => source
+                .describe_parameter(
+                    occurrence,
+                    selecting.ok_or_else(|| refuse("parameter query lost its author"))?,
+                    &query.path,
+                )
+                .map(BuildProductDescription::Parameter)
+                .map_err(refuse),
+            source_compiler::TerminalBuildQueryOperation::Field => source
+                .describe_field(
+                    occurrence,
+                    selecting.ok_or_else(|| refuse("field query lost its author"))?,
+                    &query.path,
+                )
+                .map(BuildProductDescription::Field)
+                .map_err(refuse),
             source_compiler::TerminalBuildQueryOperation::SchemaPath
             | source_compiler::TerminalBuildQueryOperation::ProviderPath => Err(refuse(
                 "description inspection belongs to its issuing Build activation, not source resolution",

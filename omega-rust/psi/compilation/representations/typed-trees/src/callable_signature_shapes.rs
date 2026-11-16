@@ -562,6 +562,203 @@ pub fn compare_callable_signature_shapes<Error>(
     Ok(mismatches)
 }
 
+/// A checked signature normalization uses one elision scope for all formals
+/// and the result. Independent per-type identities lose that relationship.
+struct CallbackSignatureIdentity<'source> {
+    signature: (SymbolHandle, SymbolHandle),
+    lifetime_owner: (SymbolHandle, usize),
+    parameters: arena::RootRows<'source, StateParameter>,
+    result: TypeReferenceHandle,
+    binders: Vec<(SymbolHandle, String)>,
+    substitutions: &'source [(SymbolHandle, TypeReferenceHandle)],
+}
+
+impl CallbackSignatureIdentity<'_> {
+    fn types(
+        &self,
+        program: &crate::TypedTrees,
+        projection: Option<
+            &dyn Fn(
+                crate::type_identity::identity_context::SignatureRegion,
+            ) -> crate::type_identity::identity_context::SignatureRegion,
+        >,
+    ) -> Result<(Vec<String>, String), &'static str> {
+        program
+            .signature_types(
+                crate::type_identity::identity_context::SignatureTypeIdentityContext {
+                    binders: self.binders.clone(),
+                    signature: self.signature,
+                    lifetime_owners: &[self.lifetime_owner],
+                    substitutions: self.substitutions,
+                    region_projection: projection,
+                },
+                self.parameters,
+                self.result,
+            )
+            .map(|(parameters, result, _)| (parameters, result))
+            .ok_or("a callable signature has no complete lifetime/type identity")
+    }
+}
+
+impl crate::TypedTrees {
+    /// Compare the complete published type interface after enclosing type
+    /// substitutions. Only the callback's own lifetimes may instantiate; the
+    /// binder's regions and every captured region remain fixed. This establishes
+    /// type correspondence, not proof of the callback's contracts or loans.
+    pub fn compare_callback_signature_types(
+        &self,
+        required: &crate::signature::StateSignature,
+        supplied: &crate::machine::Machine,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        corresponding_parameters: &[(SymbolHandle, SymbolHandle)],
+    ) -> Result<Vec<CallableShapeMismatch>, &'static str> {
+        use crate::type_identity::identity_context::SignatureRegion;
+        use std::cell::{Cell, RefCell};
+
+        let symbols = self.symbols.symbols().nodes();
+        if !symbols.is_valid(required.symbol)
+            || !symbols.is_valid(supplied.symbol)
+            || substitutions.iter().any(|(parameter, actual)| {
+                !symbols.is_valid(*parameter) || !self.contains_type_reference(*actual)
+            })
+            || corresponding_parameters.iter().any(|(required, supplied)| {
+                !symbols.is_valid(*required) || !symbols.is_valid(*supplied)
+            })
+        {
+            return Err("a callable signature has a stale declaration or type argument");
+        }
+        let entry = self
+            .machine_states(supplied)
+            .first()
+            .ok_or("the callback has no entry")?;
+        let required_parameters = self.state_signature_parameters(required);
+        let supplied_parameters = self.state_parameters(entry);
+        if required_parameters.len() != supplied_parameters.len() {
+            return Ok(vec![CallableShapeMismatch::ParameterArity {
+                required: required_parameters.len(),
+                actual: supplied_parameters.len(),
+            }]);
+        }
+        let modes = required_parameters
+            .iter()
+            .zip(supplied_parameters)
+            .enumerate()
+            .filter(|(_, (required, supplied))| {
+                required.is_mutable != supplied.is_mutable
+                    || required.is_const != supplied.is_const
+                    || required.relevance != supplied.relevance
+            })
+            .map(|(position, _)| CallableShapeMismatch::ParameterMode { position })
+            .collect::<Vec<_>>();
+        if !modes.is_empty() {
+            return Ok(modes);
+        }
+        let binders = |required: bool| {
+            corresponding_parameters
+                .iter()
+                .enumerate()
+                .map(|(position, (binder, callback))| {
+                    (
+                        if required { *binder } else { *callback },
+                        format!("$T{position}"),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let supplied_owner = self.lifetime_declaration_owner(supplied.symbol);
+        let supplied_lifetimes =
+            crate::type_identity::declaration_lifetime_parameters(self, supplied_owner)
+                .ok_or("the callback lost its lifetime declaration")?;
+        let required_identity = CallbackSignatureIdentity {
+            signature: (required.symbol, required.symbol),
+            lifetime_owner: (
+                self.lifetime_declaration_owner(required.symbol),
+                required.lifetime_parameters.len(),
+            ),
+            parameters: required_parameters,
+            result: required.return_type,
+            binders: binders(true),
+            substitutions,
+        };
+        let supplied_identity = CallbackSignatureIdentity {
+            signature: (supplied.symbol, entry.symbol),
+            lifetime_owner: (supplied_owner, supplied_lifetimes.len()),
+            parameters: supplied_parameters,
+            result: entry.return_type,
+            binders: binders(false),
+            substitutions: &[],
+        };
+        let mismatches = |required: &(Vec<String>, String), supplied: &(Vec<String>, String)| {
+            required
+                .0
+                .iter()
+                .zip(&supplied.0)
+                .enumerate()
+                .filter(|(_, (required, supplied))| required != supplied)
+                .map(|(position, _)| CallableShapeMismatch::ParameterType { position })
+                .chain((required.1 != supplied.1).then_some(CallableShapeMismatch::ReturnType))
+                .collect::<Vec<_>>()
+        };
+        // Region projection proposes an instantiation without changing the type
+        // normalizer's treatment of nominal types, domains or const arguments.
+        // The final complete comparison below is the authority: discovery order
+        // alone must never establish correspondence, particularly when domain
+        // constraints normalize into a different order.
+        let required_regions = RefCell::new(Vec::new());
+        let supplied_regions = RefCell::new(Vec::new());
+        let erase_required = |region| {
+            required_regions.borrow_mut().push(region);
+            SignatureRegion::Bound(0)
+        };
+        let erase_supplied = |region| {
+            supplied_regions.borrow_mut().push(region);
+            SignatureRegion::Bound(0)
+        };
+        let required_shape = required_identity.types(self, Some(&erase_required))?;
+        let supplied_shape = supplied_identity.types(self, Some(&erase_supplied))?;
+        let shape_mismatches = mismatches(&required_shape, &supplied_shape);
+        if !shape_mismatches.is_empty() {
+            return Ok(shape_mismatches);
+        }
+        let required_regions = required_regions.into_inner();
+        let supplied_regions = supplied_regions.into_inner();
+        if required_regions.len() != supplied_regions.len() {
+            return Err("the callable signatures have no complete region correspondence");
+        }
+        let bound_count = supplied_regions
+            .iter()
+            .filter_map(|region| match region {
+                SignatureRegion::Bound(ordinal) => Some(*ordinal + 1),
+                SignatureRegion::Captured(_) | SignatureRegion::Argument { .. } => None,
+            })
+            .max()
+            .unwrap_or(0);
+        let mut bindings = vec![None; bound_count];
+        for (required, supplied) in required_regions.into_iter().zip(supplied_regions) {
+            if let SignatureRegion::Bound(ordinal) = supplied {
+                bindings[ordinal].get_or_insert(required);
+            }
+        }
+        let complete = Cell::new(true);
+        let instantiate = |region| match region {
+            SignatureRegion::Bound(ordinal) => match bindings.get(ordinal).copied().flatten() {
+                Some(required) => required,
+                None => {
+                    complete.set(false);
+                    region
+                }
+            },
+            SignatureRegion::Captured(_) | SignatureRegion::Argument { .. } => region,
+        };
+        let required_types = required_identity.types(self, None)?;
+        let supplied_types = supplied_identity.types(self, Some(&instantiate))?;
+        if !complete.get() {
+            return Err("a callback lifetime has no complete instantiation");
+        }
+        Ok(mismatches(&required_types, &supplied_types))
+    }
+}
+
 #[cfg(test)]
 mod invocation_lifetime_tests {
     use super::CallableDeclaration;
@@ -889,6 +1086,633 @@ mod invocation_lifetime_tests {
                 .instantiate_data_member_type(nominal, inputs[0])
                 .is_err(),
             "a retained incomplete elision cannot revive a data binder by spelling"
+        );
+    }
+}
+
+#[cfg(test)]
+mod callback_signature_tests {
+    use super::CallableShapeMismatch;
+    use crate::TypedTrees;
+    use crate::data::DataDefinition;
+    use crate::machine::Machine;
+    use crate::name::Identifier;
+    use crate::signature::{StateParameter, StateSignature};
+    use crate::state::State;
+    use crate::type_identity::LifetimeParameterIdentity;
+    use crate::types::{
+        FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    };
+    use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    struct Fixture {
+        program: TypedTrees,
+        required: SymbolHandle,
+        callback: SymbolHandle,
+        captured: SymbolHandle,
+        parameter: SymbolHandle,
+        carrier: SymbolHandle,
+        unit: TypeReferenceHandle,
+    }
+
+    impl Fixture {
+        fn new(callback_lifetimes: &[&str]) -> Self {
+            let mut symbols = SymbolTableBuilder::default();
+            let required =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("required"));
+            let callback =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("callback"));
+            let captured =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("captured"));
+            let parameter =
+                symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("T"));
+            let carrier = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Carrier"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            for (symbol, names) in [
+                (required, &["first", "second"][..]),
+                (callback, callback_lifetimes),
+                (captured, &["first", "second"][..]),
+            ] {
+                let mut machine = Machine {
+                    symbol,
+                    name: Identifier::generated(program.symbols.name(symbol)),
+                    lifetime_parameters: names.iter().map(|name| Identifier::from(*name)).collect(),
+                    ..Default::default()
+                };
+                program.push_machine_state(
+                    &mut machine,
+                    State {
+                        symbol,
+                        return_type: unit,
+                        ..Default::default()
+                    },
+                );
+                program.push_machine(machine);
+            }
+            program.push_data_definition(DataDefinition {
+                symbol: carrier,
+                name: Identifier::from("Carrier"),
+                lifetime_parameters: vec![Identifier::from("storage")],
+                ..Default::default()
+            });
+            Self {
+                program,
+                required,
+                callback,
+                captured,
+                parameter,
+                carrier,
+                unit,
+            }
+        }
+
+        fn reference(&mut self, tag: Option<&str>) -> TypeReferenceHandle {
+            self.program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: self.unit,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: tag.map(Identifier::from),
+                })
+        }
+
+        fn carrier(&mut self, tag: &str) -> TypeReferenceHandle {
+            self.program
+                .type_reference_table
+                .insert(TypeReferenceNode::Generic {
+                    base_symbol: self.carrier,
+                    base_name: Identifier::from("Carrier"),
+                    lifetime_arguments: vec![Identifier::from(tag)],
+                    arguments: Default::default(),
+                })
+        }
+
+        fn check(
+            &mut self,
+            required: &[TypeReferenceHandle],
+            supplied: &[TypeReferenceHandle],
+            result: (TypeReferenceHandle, TypeReferenceHandle),
+            substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        ) -> Result<Vec<CallableShapeMismatch>, &'static str> {
+            let parameters = |references: &[TypeReferenceHandle]| {
+                references
+                    .iter()
+                    .enumerate()
+                    .map(|(position, reference)| StateParameter {
+                        name: Identifier::generated(format!("value{position}")),
+                        type_reference: *reference,
+                        ..Default::default()
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let required = StateSignature {
+                symbol: self.required,
+                parameters: self
+                    .program
+                    .state_parameters
+                    .insert_many(parameters(required)),
+                return_type: result.0,
+                ..Default::default()
+            };
+            let mut callback = self
+                .program
+                .machine_by_symbol(self.callback)
+                .unwrap()
+                .clone();
+            callback.states = Default::default();
+            let state = State {
+                symbol: self.callback,
+                parameters: self
+                    .program
+                    .state_parameters
+                    .insert_many(parameters(supplied)),
+                return_type: result.1,
+                ..Default::default()
+            };
+            self.program.push_machine_state(&mut callback, state);
+            self.program
+                .compare_callback_signature_types(&required, &callback, substitutions, &[])
+        }
+    }
+
+    #[test]
+    fn callback_elision_instantiates_to_named_outer_regions() {
+        let mut fixture = Fixture::new(&[]);
+        let named = fixture.reference(Some("first"));
+        let elided = fixture.reference(None);
+        let unit = fixture.unit;
+        assert!(
+            fixture
+                .check(&[named, elided], &[elided, elided], (unit, unit), &[])
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn callback_lifetime_cannot_identify_independent_required_inputs() {
+        let mut fixture = Fixture::new(&["renamed"]);
+        let first = fixture.reference(Some("first"));
+        let second = fixture.reference(Some("second"));
+        let renamed = fixture.reference(Some("renamed"));
+        let unit = fixture.unit;
+        assert_eq!(
+            fixture
+                .check(&[first, second], &[renamed, renamed], (unit, unit), &[])
+                .unwrap(),
+            vec![CallableShapeMismatch::ParameterType { position: 1 }]
+        );
+        assert!(
+            fixture
+                .check(&[first, first], &[renamed, renamed], (unit, unit), &[])
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn callback_result_keeps_its_input_relationship() {
+        let mut fixture = Fixture::new(&["left", "right"]);
+        let first = fixture.reference(Some("first"));
+        let second = fixture.reference(Some("second"));
+        let left = fixture.reference(Some("left"));
+        let right = fixture.reference(Some("right"));
+        assert!(
+            fixture
+                .check(&[first, second], &[left, right], (first, left), &[])
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            fixture
+                .check(&[first, second], &[left, right], (first, right), &[])
+                .unwrap(),
+            vec![CallableShapeMismatch::ReturnType]
+        );
+    }
+
+    #[test]
+    fn callback_elided_result_uses_the_complete_input_tuple() {
+        let mut fixture = Fixture::new(&[]);
+        let first = fixture.reference(Some("first"));
+        let elided = fixture.reference(None);
+        assert!(
+            fixture
+                .check(&[first], &[elided], (first, elided), &[])
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            fixture
+                .check(&[first, first], &[elided, elided], (first, elided), &[])
+                .is_err(),
+            "ambiguous output elision must not select the first input"
+        );
+    }
+
+    #[test]
+    fn callback_captures_keep_declaration_identity_despite_equal_spelling() {
+        let mut fixture = Fixture::new(&[]);
+        let required = fixture.reference(Some("first"));
+        let captured = fixture.reference(Some("first"));
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetime_owner(captured, fixture.captured)
+            .unwrap();
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetimes(
+                captured,
+                [LifetimeParameterIdentity {
+                    declaration: fixture.captured,
+                    ordinal: 0,
+                }],
+            )
+            .unwrap();
+        let unit = fixture.unit;
+        assert_eq!(
+            fixture
+                .check(&[required], &[captured], (unit, unit), &[])
+                .unwrap(),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+        assert!(
+            fixture
+                .check(&[captured], &[captured], (unit, unit), &[])
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn callback_substitution_preserves_nested_carrier_regions() {
+        let mut fixture = Fixture::new(&["first"]);
+        let context = fixture.carrier("first");
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetime_owner(context, fixture.captured)
+            .unwrap();
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetimes(
+                context,
+                [LifetimeParameterIdentity {
+                    declaration: fixture.captured,
+                    ordinal: 0,
+                }],
+            )
+            .unwrap();
+        let parameter = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: fixture.parameter,
+                name: Identifier::from("T"),
+            });
+        let wrong = fixture.carrier("first");
+        let unit = fixture.unit;
+        let bindings = [(fixture.parameter, context)];
+        assert!(
+            fixture
+                .check(&[parameter], &[context], (unit, unit), &bindings)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            fixture
+                .check(&[parameter], &[wrong], (unit, unit), &bindings)
+                .unwrap()
+                .is_empty(),
+            "the callback may instantiate its own lifetime to the captured context region"
+        );
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetime_owner(wrong, fixture.required)
+            .unwrap();
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetimes(
+                wrong,
+                [LifetimeParameterIdentity {
+                    declaration: fixture.required,
+                    ordinal: 0,
+                }],
+            )
+            .unwrap();
+        assert_eq!(
+            fixture
+                .check(&[parameter], &[wrong], (unit, unit), &bindings)
+                .unwrap(),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+    }
+
+    #[test]
+    fn callback_generic_results_and_arrays_apply_enclosing_type_arguments() {
+        let mut fixture = Fixture::new(&[]);
+        let parameter = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: fixture.parameter,
+                name: Identifier::from("T"),
+            });
+        let array = |fixture: &mut Fixture, element_type, length| {
+            fixture
+                .program
+                .type_reference_table
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                })
+        };
+        let required = array(&mut fixture, parameter, 3);
+        let unit = fixture.unit;
+        let actual = array(&mut fixture, unit, 3);
+        let wrong = array(&mut fixture, unit, 4);
+        let arguments = fixture
+            .program
+            .type_reference_table
+            .insert_type_reference_handles([required]);
+        let required = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: fixture.carrier,
+                base_name: Identifier::from("Carrier"),
+                lifetime_arguments: vec![Identifier::from("first")],
+                arguments,
+            });
+        let arguments = fixture
+            .program
+            .type_reference_table
+            .insert_type_reference_handles([actual]);
+        let actual = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: fixture.carrier,
+                base_name: Identifier::from("Carrier"),
+                lifetime_arguments: vec![Identifier::from("first")],
+                arguments,
+            });
+        let arguments = fixture
+            .program
+            .type_reference_table
+            .insert_type_reference_handles([wrong]);
+        let wrong = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: fixture.carrier,
+                base_name: Identifier::from("Carrier"),
+                lifetime_arguments: vec![Identifier::from("first")],
+                arguments,
+            });
+        let bindings = [(fixture.parameter, unit)];
+        // These are the same captured region rather than a callback-owned tag.
+        for reference in [required, actual, wrong] {
+            fixture
+                .program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, fixture.required)
+                .unwrap();
+            fixture
+                .program
+                .type_reference_table
+                .retain_operand_lifetimes(
+                    reference,
+                    [LifetimeParameterIdentity {
+                        declaration: fixture.required,
+                        ordinal: 0,
+                    }],
+                )
+                .unwrap();
+        }
+        assert!(
+            fixture
+                .check(&[], &[], (required, actual), &bindings)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            fixture
+                .check(&[], &[], (required, wrong), &bindings)
+                .unwrap(),
+            vec![CallableShapeMismatch::ReturnType]
+        );
+    }
+
+    #[test]
+    fn callback_type_actuals_keep_caller_parameters_under_simultaneous_substitution() {
+        let mut fixture = Fixture::new(&[]);
+        let parameter = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: fixture.parameter,
+                name: Identifier::from("T"),
+            });
+        let actual = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: parameter,
+                length: FixedArrayLength::Literal(3),
+            });
+        let unit = fixture.unit;
+        let bindings = [(fixture.parameter, actual)];
+        assert!(
+            fixture
+                .check(&[parameter], &[actual], (unit, unit), &bindings)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn callback_substitution_refuses_an_invalid_type_argument() {
+        let mut fixture = Fixture::new(&[]);
+        let parameter = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: fixture.parameter,
+                name: Identifier::from("T"),
+            });
+        let unit = fixture.unit;
+        let bindings = [(fixture.parameter, TypeReferenceHandle::invalid())];
+        assert!(
+            fixture
+                .check(&[parameter], &[unit], (unit, unit), &bindings)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn callback_substitution_refuses_a_region_without_its_supplier() {
+        let mut fixture = Fixture::new(&["first"]);
+        let unowned = fixture.carrier("first");
+        let parameter = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: fixture.parameter,
+                name: Identifier::from("T"),
+            });
+        let unit = fixture.unit;
+        let bindings = [(fixture.parameter, unowned)];
+        assert!(
+            fixture
+                .check(&[parameter], &[unowned], (unit, unit), &bindings)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn callback_substitution_keeps_omitted_context_regions_rigid_and_correlated() {
+        let mut fixture = Fixture::new(&["outer", "inner"]);
+        let context = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: fixture.carrier,
+                base_name: Identifier::from("Carrier"),
+                lifetime_arguments: Vec::new(),
+                arguments: Default::default(),
+            });
+        let parameter = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: fixture.parameter,
+                name: Identifier::from("T"),
+            });
+        let required = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: parameter,
+                access: language_core::ReferenceAccess::Mutable,
+                lifetime: None,
+            });
+        let inner = fixture.carrier("inner");
+        let outer = fixture.carrier("outer");
+        let supplied = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: inner,
+                access: language_core::ReferenceAccess::Mutable,
+                lifetime: Some(Identifier::from("outer")),
+            });
+        let bindings = [(fixture.parameter, context)];
+        assert!(
+            fixture
+                .check(&[required], &[supplied], (parameter, inner), &bindings)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            fixture
+                .check(&[required], &[supplied], (parameter, outer), &bindings)
+                .unwrap(),
+            vec![CallableShapeMismatch::ReturnType]
+        );
+        let unit = fixture.unit;
+        let stronger = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: outer,
+                access: language_core::ReferenceAccess::Mutable,
+                lifetime: Some(Identifier::from("outer")),
+            });
+        assert_eq!(
+            fixture
+                .check(&[required], &[stronger], (unit, unit), &bindings)
+                .unwrap(),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+        let captured = fixture.carrier("first");
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetime_owner(captured, fixture.required)
+            .unwrap();
+        fixture
+            .program
+            .type_reference_table
+            .retain_operand_lifetimes(
+                captured,
+                [LifetimeParameterIdentity {
+                    declaration: fixture.required,
+                    ordinal: 0,
+                }],
+            )
+            .unwrap();
+        let captured = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: captured,
+                access: language_core::ReferenceAccess::Mutable,
+                lifetime: Some(Identifier::from("outer")),
+            });
+        assert_eq!(
+            fixture
+                .check(&[required], &[captured], (unit, unit), &bindings)
+                .unwrap(),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+    }
+
+    #[test]
+    fn callback_identity_keeps_domains_and_reference_access() {
+        let mut fixture = Fixture::new(&[]);
+        let shared = fixture.reference(None);
+        let mutable = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: fixture.unit,
+                access: language_core::ReferenceAccess::Mutable,
+                lifetime: None,
+            });
+        let constraints = fixture
+            .program
+            .type_reference_table
+            .insert_constraints([TypeConstraintNode::Named(Identifier::from("Checked"))]);
+        let qualified =
+            fixture
+                .program
+                .type_reference_table
+                .insert(TypeReferenceNode::Constrained {
+                    base_type: shared,
+                    constraints,
+                });
+        let unit = fixture.unit;
+        assert_eq!(
+            fixture
+                .check(&[shared], &[mutable], (unit, unit), &[])
+                .unwrap(),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
+        );
+        assert_eq!(
+            fixture
+                .check(&[shared], &[qualified], (unit, unit), &[])
+                .unwrap(),
+            vec![CallableShapeMismatch::ParameterType { position: 0 }]
         );
     }
 }

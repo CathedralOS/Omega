@@ -399,15 +399,8 @@ impl Qualifications {
             let symbol = declared.instance;
             let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
-                ValueType::Record(carrier, _, _) => {
-                    result.declare_structural(
-                        diagnostic,
-                        source,
-                        &sources,
-                        symbol,
-                        carrier,
-                        declared.predicate.clone(),
-                    )?;
+                ValueType::Record(_, _, _) => {
+                    result.declare_structural(diagnostic, source, &sources, declared)?;
                     continue;
                 }
                 ValueType::Rigid(_) => {
@@ -646,9 +639,7 @@ impl Qualifications {
         diagnostic: MachineId,
         source: &crate::read::Program<'_>,
         sources: &[(source::SourceId, [u8; 32])],
-        symbol: DomainInstance,
-        carrier: StructuralTypeId,
-        proposition: Option<semantic_vocabulary::Proposition>,
+        declared: &crate::read::DeclaredDomain,
     ) -> Checked<()> {
         let typed = source.typed;
         let unavailable = |detail| {
@@ -658,8 +649,21 @@ impl Qualifications {
                 Unserved::Declaration(detail),
             )
         };
+        let symbol = declared.instance;
+        let ValueType::Record(carrier, _, _) = declared.carrier else {
+            return Err(unavailable("structural domain has a nonstructural carrier"));
+        };
         let definition = source.domain_theory(diagnostic, symbol)?;
-        let predicate = proposition
+        // A complete empty theory has an explicit Truth predicate in the
+        // saved representation. None continues to mean unavailable theory.
+        let predicate = declared
+            .predicate
+            .clone()
+            .or_else(|| {
+                declared
+                    .complete_predicate_theory
+                    .then_some(semantic_vocabulary::Proposition::Truth)
+            })
             .map(|proposition| {
                 Ok::<_, terminal_check_tables::Refusal>(StructuralDomainPredicate {
                     subject: crate::body::self_place()
@@ -735,7 +739,7 @@ impl Qualifications {
             subject_identity: self.identities.intern(&subject_identity),
             access_policy: None,
             required_memberships: Some(Vec::new()),
-            complete_predicate_theory: true,
+            complete_predicate_theory: declared.complete_predicate_theory,
             predicate,
             id,
             semantic_domain,

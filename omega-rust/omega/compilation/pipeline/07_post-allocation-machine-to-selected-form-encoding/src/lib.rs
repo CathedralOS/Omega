@@ -5,10 +5,11 @@ translating each chosen machine alternative and physical operand footprint into
 target instruction bytes, decoded footprints, and unresolved fixup templates
 before block and instruction addresses are assigned.
 
-Both our producer (`stage_optimized_layout_independent_selected_form_encoding`)
-and our independent replay (`validate_optimized_layout_independent_selected_form_encoding`)
-walk the same lockstep correspondence (`for_each_row`, `:RowCorrespondence`)
-between `CurrentSelectedProgram` and `PostAllocationMachinePlan`:
+The producer reads `FramedMachineProgram`: its current physical choices,
+unchanged function-owned instruction and contract columns, and concrete frame
+coordinates. It joins those columns by their exact function, block and
+instruction identities. Independent replay additionally borrows the original
+admitted owners; ordinary encoding cannot recover an earlier program root.
 
     (SelectedFunction, SelectedInstruction, PostAllocationMachineFunction, PostAllocationMachineInstruction)
       |
@@ -53,16 +54,12 @@ not run replay on its own output.
 /*
 Provenance and custody boundaries:
 
-We read one form, `FramedMachineProgram` (`machine-code`), which the frame step
-in backend machine emission produces: the `PostAllocationMachinePlan` from
-Stage 06, its `TargetFrameLayoutPlan`, and the selected program and
-`ValidatedPhysicalRegisterModel` it was allocated against. Any input that can
-reach that form (`FramedMachineSource`) will do. We produce
-`StagedOptimizedSelectedFormEncoding`, which keeps that input beside an
-immutable `SelectedFormEncoding` (`machine-code`) bound by its canonical
-content digest and row-state counts. Stage 08
-(`selected-form-encoding-to-resolved-layout`) reads this output alone to assign
-dense function-relative byte offsets and encode deferred branch instructions.
+We consume one `FramedMachineProgram` (`machine-code`) and produce
+`StagedOptimizedSelectedFormEncoding`, which wraps an immutable
+`SelectedFormEncoding` (`machine-code`) bound by its canonical content digest
+and row-state counts. Stage 08 (`selected-form-encoding-to-resolved-layout`)
+consumes its `EncodedMachineProgram` to assign dense function-relative byte offsets and
+encode deferred branch instructions.
 */
 
 #![forbid(unsafe_code)]
@@ -83,80 +80,77 @@ use isa_x86_64::{
     X86_64SelectedFormEncodingError,
 };
 use machine_code::{
-    EncodedMachineSource, FramedMachineProgram, FramedMachineSource, SelectedFormEncodedRowStore,
-    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormEncodingState, TargetFrameLayoutPlan,
+    SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
+    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
+    TargetFrameLayoutPlan,
 };
 use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineIdentity, PostAllocationMachineInstruction,
     PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
 };
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     CurrentSelectedProgram, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlanIdentity, terminator_instruction,
 };
 
-/// Encode the framed machine program `source` carries. The output keeps
-/// `source`, so stage 08 and final assembly read the program this encoding
-/// was computed from instead of being handed it again.
-pub fn stage_optimized_layout_independent_selected_form_encoding<Source: FramedMachineSource>(
-    source: Source,
-) -> Result<StagedOptimizedSelectedFormEncoding<Source>, OptimizedSelectedFormEncodingError> {
-    let framed = source.framed_machine();
-    let artifact = compute(
-        framed.selected_program(),
-        &framed.machine,
-        &framed.physical,
-        Some(&framed.frame),
-    )?;
+pub fn stage_optimized_layout_independent_selected_form_encoding(
+    input: machine_code::FramedMachineProgram,
+) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+    let artifact = compute(&input.instructions, Some(&input.frame))?;
+    let program = Arc::new(artifact);
     Ok(StagedOptimizedSelectedFormEncoding {
-        source,
-        program: Arc::new(artifact),
+        current: machine_code::EncodedMachineProgram {
+            frame_identity: input.frame_identity,
+            protocol_identity: input.protocol_identity,
+            instructions: input.instructions,
+            frame: input.frame,
+            protocol: input.protocol,
+            encoding: Arc::clone(&program),
+        },
+        program,
     })
 }
 
-/// Replay the encoding from the framed machine program it retains.
-pub fn validate_optimized_layout_independent_selected_form_encoding<Source: FramedMachineSource>(
-    artifact: &StagedOptimizedSelectedFormEncoding<Source>,
+/// Independent replay borrows the original admitted owners separately from
+/// the current encoding. Ordinary encoding never receives these owners.
+pub struct SelectedFormEncodingValidation<'source> {
+    pub replay: post_allocation_machine::program_validation::PhysicalProgramReplay<'source>,
+    pub frame: Option<&'source TargetFrameLayoutPlan>,
+    pub artifact: &'source StagedOptimizedSelectedFormEncoding,
+}
+
+pub fn validate_optimized_layout_independent_selected_form_encoding(
+    input: SelectedFormEncodingValidation<'_>,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let framed = artifact.source.framed_machine();
+    let SelectedFormEncodingValidation {
+        replay,
+        frame,
+        artifact,
+    } = input;
+    post_allocation_machine::program_validation::validate_current_program(
+        &artifact.current.instructions,
+        replay,
+    )
+    .map_err(OptimizedSelectedFormEncodingError::CurrentProgram)?;
     validation::validate(
-        framed.selected_program(),
-        &framed.machine,
-        &framed.physical,
-        Some(&framed.frame),
+        replay.selected,
+        replay.machine,
+        replay.environment.physical(),
+        frame,
         artifact.program(),
     )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedSelectedFormEncoding<Source> {
-    source: Source, // The framed machine program this encoding was computed from.
+pub struct StagedOptimizedSelectedFormEncoding {
+    current: machine_code::EncodedMachineProgram,
     program: Arc<SelectedFormEncoding>,
 }
 
-impl<Source: FramedMachineSource> FramedMachineSource
-    for StagedOptimizedSelectedFormEncoding<Source>
-{
-    fn framed_machine(&self) -> &FramedMachineProgram {
-        self.source.framed_machine()
+impl StagedOptimizedSelectedFormEncoding {
+    pub fn current(&self) -> &machine_code::EncodedMachineProgram {
+        &self.current
     }
-}
-
-impl<Source: FramedMachineSource> EncodedMachineSource
-    for StagedOptimizedSelectedFormEncoding<Source>
-{
-    fn encoding(&self) -> &SelectedFormEncoding {
-        &self.program
-    }
-}
-
-impl<Source> StagedOptimizedSelectedFormEncoding<Source> {
-    pub const fn source(&self) -> &Source {
-        &self.source
-    }
-
     pub fn program(&self) -> &SelectedFormEncoding {
         &self.program
     }
@@ -198,6 +192,7 @@ impl<Source> StagedOptimizedSelectedFormEncoding<Source> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedSelectedFormEncodingError {
+    CurrentProgram(post_allocation_machine::program_validation::PhysicalProgramValidationError),
     SelectedRootMismatch,
     PhysicalModelMismatch,
     FunctionRosterMismatch,
@@ -230,41 +225,58 @@ impl std::fmt::Display for OptimizedSelectedFormEncodingError {
 impl std::error::Error for OptimizedSelectedFormEncodingError {}
 
 fn compute(
-    selected: CurrentSelectedProgram<'_>,
-    machine: &PostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
+    input: &post_allocation_machine::PostAllocationMachineProgram,
     frame: Option<&TargetFrameLayoutPlan>,
 ) -> Result<SelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+    let machine = &input.machine;
+    let physical = input.physical();
     frame_address::validate_frame_root(machine, frame)?;
-    if machine.selected != selected.identity {
-        return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
-    }
     if machine.physical_register_model != physical.identity() {
         return Err(OptimizedSelectedFormEncodingError::PhysicalModelMismatch);
     }
-    let target = selected.plan.target;
+    let target = machine.target;
     let row_count = machine.instructions().count();
     let mut rows = Vec::with_capacity(row_count);
     let mut encoded = SelectedFormEncodedRowStore::with_row_capacity(row_count);
-    for_each_row(
-        selected,
-        machine,
-        |selected_function, selected_instruction, machine_function, machine_instruction| {
-            rows.push(row_encoding::encode_row(
-                target,
-                selected_instruction,
-                machine_instruction,
-                physical,
-                selected_function,
-                frame_address::resolve(machine_function, frame, machine_instruction)?,
-                &mut encoded,
-            )?);
-            Ok(())
-        },
-    )?;
+    if input.functions.len() != machine.functions.len() {
+        return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
+    }
+    for (function, machine_function) in input.functions.iter().zip(&machine.functions) {
+        if function.machine != machine_function.machine
+            || function.blocks.len() != machine_function.blocks.len()
+        {
+            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
+        }
+        for (block, machine_block) in function.blocks.iter().zip(&machine_function.blocks) {
+            if block.id != machine_block.block
+                || block.instructions.len() + 1 != machine_block.instructions.len()
+            {
+                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
+            }
+            for (operation, machine_instruction) in block
+                .instructions
+                .iter()
+                .chain(std::iter::once(terminator_instruction(&block.terminator)))
+                .zip(&machine_block.instructions)
+            {
+                if operation.id != machine_instruction.instruction {
+                    return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
+                }
+                rows.push(row_encoding::encode_row(
+                    target,
+                    operation,
+                    machine_instruction,
+                    physical,
+                    &function.normalized_foreign_calls,
+                    frame_address::resolve(machine_function, frame, machine_instruction)?,
+                    &mut encoded,
+                )?);
+            }
+        }
+    }
     let counts = counts_of(&rows)?;
     let mut program = SelectedFormEncoding {
-        selected: selected.identity,
+        selected: machine.selected,
         machine: machine.identity,
         post_allocation_machine_optimization: None,
         identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),

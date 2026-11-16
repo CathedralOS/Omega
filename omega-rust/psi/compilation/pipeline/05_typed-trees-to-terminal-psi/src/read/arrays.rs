@@ -57,12 +57,21 @@ pub(super) fn source_sequence_view(
             if super::bytes::source_byte_view(typed, reference, lexical_owner, machine)?.is_some() {
                 return Ok(None);
             }
-            if *access != language_core::ReferenceAccess::Shared {
-                return Err(fail(
-                    "mutable typed sequence requires its actual exclusive backing and loan",
-                ));
-            }
-            (*referee, Some(terminal_psi::StructuralAccess::SharedBorrow))
+            // A declared view type describes access; it does not create a
+            // permission. Mutable formation and every transfer must still
+            // establish their actual exclusive backing through ordinary loans.
+            let access = match access {
+                language_core::ReferenceAccess::Shared => {
+                    terminal_psi::StructuralAccess::SharedBorrow
+                }
+                language_core::ReferenceAccess::Mutable => {
+                    terminal_psi::StructuralAccess::MutableBorrow
+                }
+                language_core::ReferenceAccess::WriteOnly => {
+                    return Err(fail("write-only typed sequence"));
+                }
+            };
+            (*referee, Some(access))
         }
         _ => return Ok(None),
     };
@@ -114,7 +123,7 @@ impl Program<'_> {
         let StorageShape::FixedArray {
             element,
             qualification: Qualification::NONE,
-            length: ArrayExtent::Literal(_),
+            length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
         } = actual.shape
         else {
             return None;
@@ -126,9 +135,9 @@ impl Program<'_> {
             .then_some(element)
     }
 
-    /// The element of a closed fixed array whose element storage and
-    /// qualification are exactly the typed view's. `WholeCollection`
-    /// establishment preserves identical element types directly
+    /// The element of fixed storage or an existing readable view with the
+    /// identical element and qualification. Reborrowing a view preserves its
+    /// own extent and backing; `WholeCollection` keeps fixed-array types
     /// (byte_views.md, "Collection view establishment"); this reader admits
     /// no layout-equal substitute, so a different element row is refused.
     fn typed_array_element(
@@ -141,13 +150,22 @@ impl Program<'_> {
             return None;
         };
         let actual = self.records.get(actual)?;
-        let StorageShape::FixedArray {
-            element: stored,
-            qualification: stored_qualification,
-            length: ArrayExtent::Literal(_),
-        } = actual.shape
-        else {
-            return None;
+        let (stored, stored_qualification) = match actual.shape {
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
+            }
+            | StorageShape::ElementView {
+                element,
+                qualification,
+                access:
+                    Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow,
+                    ),
+            } => (element, qualification),
+            _ => return None,
         };
         (actual.requires.is_empty() && stored == element && stored_qualification == qualification)
             .then_some(element)
@@ -354,21 +372,9 @@ impl Program<'_> {
         // exclusive descriptor live through the subslice.
         let element = match typed_element {
             None if byte_view => {
-                let retained = self
-                    .record_sources
-                    .get(backing)
-                    .and_then(|source| source.application.as_ref())
-                    .map(|source| source.reference)
-                    .ok_or_else(|| unavailable("byte range without its retained element type"))?;
-                let declared = super::bytes::source_byte_view(
-                    self.typed,
-                    retained,
-                    self.lifetime_owner,
-                    machine,
-                )?
-                .ok_or_else(|| unavailable("byte range without its retained element type"))?;
-                let value = self.value_type(machine, declared.element_type)?;
-                self.storage_type(machine, declared.element_type, value)?
+                let element = self.byte_view_element_type(machine, backing)?;
+                let value = self.value_type(machine, element)?;
+                self.storage_type(machine, element, value)?
             }
             None => self
                 .byte_array_element(base.result)
@@ -407,10 +413,12 @@ impl Program<'_> {
         }
         let mut regions = self.storage_loan_regions(machine, slots, &base)?;
         if typed_element.is_some() {
-            // A typed view prefixes its backing loan's region to the regions
-            // its elements hold, which the array value carries (`sequence_type`).
+            // Reborrowing replaces the view's outer loan. Only the element
+            // regions survive from its existing descriptor.
+            let elements =
+                self.collection_element_regions(machine, backing, backing_type.regions())?;
             let mut tuple = self.region_tuple(regions).to_vec();
-            tuple.extend_from_slice(self.region_tuple(backing_type.regions()));
+            tuple.extend_from_slice(self.region_tuple(elements));
             regions = self.intern_regions(tuple);
         }
         // Lend the actual collection before evaluating endpoints. A mutable
@@ -621,14 +629,7 @@ impl Program<'_> {
         }
         let (element, qualification, extent) = self.array_element(machine, array)?;
         let stored_length = matches!(extent, CollectionExtent::StoredLength);
-        if stored_length && access != Access::Read {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Typing("sequence index needs its current length and bounds judgment"),
-            ));
-        }
-        if stored_length && !self.data_type(machine, element)?.copyable {
+        if stored_length && access == Access::Read && !self.data_type(machine, element)?.copyable {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -713,6 +714,18 @@ impl Program<'_> {
                 qualification,
                 length: ArrayExtent::Literal(length),
             } => Ok((*element, *qualification, CollectionExtent::Fixed(*length))),
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: ArrayExtent::Parameter { owner, value },
+            } => Ok((
+                *element,
+                *qualification,
+                CollectionExtent::Parameter {
+                    owner: *owner,
+                    value: *value,
+                },
+            )),
             StorageShape::ElementView {
                 element,
                 qualification,
@@ -812,35 +825,61 @@ impl Program<'_> {
         machine: MachineId,
         reference: TypeReferenceHandle,
         element: TypeReferenceHandle,
-        _extent: &FixedArrayLength,
+        extent: &FixedArrayLength,
     ) -> Checked<ValueType> {
         use typed_trees::constant_recipes::DeclaredArrayExtent;
 
         let unserved = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
-        let length = match self.typed.declared_array_extent(reference) {
-            Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
-            Some(DeclaredArrayExtent::Recipe(recipe)) => {
-                let recipe = self.typed.constant_recipes.get(recipe);
-                let contexts = self
-                    .typed
-                    .constant_expression_contexts
-                    .span_or_empty(recipe.contexts);
-                let [context] = contexts else {
-                    return Err(unserved(
-                        "array extent has no unique retained evaluation context",
-                    ));
-                };
-                ArrayExtent::Application(
-                    self.scalar_evaluation(
-                        machine,
-                        context.evaluation_entry,
-                        context.evaluation_expression,
-                        context.result_type,
-                    )?
-                    .0,
-                )
+        let length = if let FixedArrayLength::ConstParameter { symbol, .. } = extent {
+            let key = (symbol.arena_index(), symbol.generation());
+            let position = self
+                .const_scope
+                .binary_search_by_key(&key, |binding| {
+                    (binding.symbol.arena_index(), binding.symbol.generation())
+                })
+                .map_err(|_| unserved("array extent without an owned const input"))?;
+            let binding = self.const_scope[position];
+            let Some(integer) = binding.scalar_type.as_integer() else {
+                return Err(unserved("array extent const input is not an integer"));
+            };
+            if integer.is_address()
+                || integer.sign() != IntegerSign::Unsigned
+                || integer.bits().is_none_or(|bits| bits > 64)
+            {
+                return Err(unserved(
+                    "array extent const input needs an unsigned carrier of at most 64 bits",
+                ));
             }
-            None => return Err(unserved("unresolved array extent")),
+            ArrayExtent::Parameter {
+                owner: binding.owner,
+                value: binding.value,
+            }
+        } else {
+            match self.typed.declared_array_extent(reference) {
+                Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
+                Some(DeclaredArrayExtent::Recipe(recipe)) => {
+                    let recipe = self.typed.constant_recipes.get(recipe);
+                    let contexts = self
+                        .typed
+                        .constant_expression_contexts
+                        .span_or_empty(recipe.contexts);
+                    let [context] = contexts else {
+                        return Err(unserved(
+                            "array extent has no unique retained evaluation context",
+                        ));
+                    };
+                    ArrayExtent::Application(
+                        self.scalar_evaluation(
+                            machine,
+                            context.evaluation_entry,
+                            context.evaluation_expression,
+                            context.result_type,
+                        )?
+                        .0,
+                    )
+                }
+                None => return Err(unserved("unresolved array extent")),
+            }
         };
         let value = self.value_type(machine, element)?;
         let (element, qualification) = self.collection_element_storage(machine, element, value)?;
@@ -870,7 +909,7 @@ impl Program<'_> {
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
     }
 
-    fn collection_element_storage(
+    pub(super) fn collection_element_storage(
         &mut self,
         machine: MachineId,
         reference: TypeReferenceHandle,

@@ -1,5 +1,10 @@
 /*
-We execute and validate function-relative layout optimizations (`ResolvedLayoutOptimization`) for Omega stage 09 (`resolved-layout-to-resolved-layout`). Starting from stage 08's output (`ResolvedLayoutSource`), which carries the baseline `ResolvedMachineLayout` and reaches the physical register model through the framed machine program, plus the phase optimization selections and the work budget as configuration, `execute_resolved_layout_optimization` consults `FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG` (`x86_rel8_selected`) to determine whether x86-64 conditional-branch relaxation (`Optimization::X86RelaxConditionalBranchesToRel8V1`) is selected. When enabled on an x86-64 target, we run the monotone batched fixed-point sweep in `x86_branch_relaxation` to shrink eligible six-byte near conditional branches (`Jcc rel32`) into two-byte short conditional branches (`Jcc rel8`) and reflow all function-relative offsets and branch displacements; when disabled, we preserve the baseline layout unchanged.
+We optimize one current `ResolvedMachineProgram` under the phase selection and
+work budget. Its instruction and encoding columns remain unchanged while the
+layout changes. `FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG` selects optional x86-64
+conditional-branch relaxation; when enabled, the monotone batched sweep narrows
+eligible six-byte near branches to two-byte short branches and reflows offsets.
+An empty selection preserves the baseline layout without a separate route.
 */
 
 /*
@@ -11,7 +16,7 @@ Even when no function-relative layout rewrite is enabled, routing the baseline l
   - `execute_resolved_layout_optimization`: checks the function-relative layout catalog and either runs x86-64 short-branch relaxation or forwards the baseline layout.
   - `validate_resolved_layout_optimization`: verifies that the artifact's phase selections, relaxation trace roots, work budget, and current layout agree with the baseline layout.
 - Custody:
-  - `ResolvedLayoutOptimization`: keeps stage 08's output and holds the current `Arc<ResolvedMachineLayout>`, the phase selections, the work budget, and the optional `StagedOptimizedX86BranchRelaxation` evidence carrier.
+  - `ResolvedLayoutOptimization`: holds the current `Arc<ResolvedMachineLayout>`, the phase selections, the work budget, and the optional `StagedOptimizedX86BranchRelaxation` evidence carrier.
   - `ResolvedLayoutOptimizationError` and `FunctionRelativeLayoutCatalogError`: report catalog phase mismatches, unsupported targets, relaxation failures, or current-program mismatches.
 - Support modules:
   - `x86_branch_relaxation`: owns the x86-64 `Jcc rel32` to `Jcc rel8` fixed-point sweep, predicate encoding/validation lanes, dense offset reflow, and work-budget accounting.
@@ -21,11 +26,12 @@ Even when no function-relative layout rewrite is enabled, routing the baseline l
 
 use std::sync::Arc;
 
-use machine_code::{ResolvedLayoutSource, ResolvedMachineLayout};
+use machine_code::ResolvedMachineLayout;
 use optimization_core::{
     Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationWorkBudget,
 };
+use register_model::ValidatedPhysicalRegisterModel;
 use target::Architecture;
 
 mod x86_branch_relaxation;
@@ -77,20 +83,22 @@ impl std::fmt::Display for ResolvedLayoutOptimizationError {
 impl std::error::Error for ResolvedLayoutOptimizationError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedLayoutOptimization<Source> {
-    source: Source, // Stage 08's layout, with the encoding and framed machine program it came from.
+pub struct ResolvedLayoutOptimization {
+    baseline: Arc<ResolvedMachineLayout>,
+    program: machine_code::ResolvedMachineProgram,
     current: Arc<ResolvedMachineLayout>, // Active resolved machine layout after optional relaxation.
     selections: OptimizationPhaseSelections, // Phase-projected optimization selections governing this run.
     budget: OptimizationWorkBudget,          // Work budget enforced across relaxation sweeps.
     relaxation: Option<StagedOptimizedX86BranchRelaxation>, // Retained x86-64 branch-relaxation trace when enabled.
 }
 
-impl<Source> ResolvedLayoutOptimization<Source> {
-    /// Stage 08's layout this run started from.
-    pub const fn source(&self) -> &Source {
-        &self.source
+impl ResolvedLayoutOptimization {
+    pub fn baseline(&self) -> &ResolvedMachineLayout {
+        &self.baseline
     }
-
+    pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
+        &self.program
+    }
     pub fn layout(&self) -> &ResolvedMachineLayout {
         &self.current
     }
@@ -112,16 +120,14 @@ impl<Source> ResolvedLayoutOptimization<Source> {
     }
 }
 
-/// Run the selected function-relative layout rules on the layout `source`
-/// carries. The physical register model comes from the framed machine program
-/// `source` reaches; the selections and budget are configuration.
-pub fn execute_resolved_layout_optimization<Source: ResolvedLayoutSource>(
-    source: Source,
+#[allow(clippy::too_many_arguments)]
+pub fn execute_resolved_layout_optimization(
+    program: &machine_code::ResolvedMachineProgram,
     selections: &OptimizationPhaseSelections,
     budget: OptimizationWorkBudget,
-) -> Result<ResolvedLayoutOptimization<Source>, ResolvedLayoutOptimizationError> {
-    let baseline = source.resolved_layout();
-    let physical = &source.framed_machine().physical;
+) -> Result<ResolvedLayoutOptimization, ResolvedLayoutOptimizationError> {
+    let physical = program.instructions.physical();
+    let baseline = &program.layout;
     let enabled = x86_rel8_selected(selections, baseline.target().architecture)
         .map_err(ResolvedLayoutOptimizationError::Catalog)?;
     let relaxation = if enabled {
@@ -137,7 +143,11 @@ pub fn execute_resolved_layout_optimization<Source: ResolvedLayoutSource>(
         None => Arc::clone(baseline),
     };
     Ok(ResolvedLayoutOptimization {
-        source,
+        baseline: Arc::clone(baseline),
+        program: machine_code::ResolvedMachineProgram {
+            layout: Arc::clone(&current),
+            ..program.clone()
+        },
         current,
         selections: selections.clone(),
         budget,
@@ -145,13 +155,12 @@ pub fn execute_resolved_layout_optimization<Source: ResolvedLayoutSource>(
     })
 }
 
-/// Replay the run from the layout it retains, under `selections`.
-pub fn validate_resolved_layout_optimization<Source: ResolvedLayoutSource>(
+pub fn validate_resolved_layout_optimization(
+    physical: &ValidatedPhysicalRegisterModel,
+    baseline: &ResolvedMachineLayout,
     selections: &OptimizationPhaseSelections,
-    artifact: &ResolvedLayoutOptimization<Source>,
+    artifact: &ResolvedLayoutOptimization,
 ) -> Result<(), ResolvedLayoutOptimizationError> {
-    let baseline: &ResolvedMachineLayout = artifact.source.resolved_layout();
-    let physical = &artifact.source.framed_machine().physical;
     if &artifact.selections != selections {
         return Err(ResolvedLayoutOptimizationError::SelectionMismatch);
     }

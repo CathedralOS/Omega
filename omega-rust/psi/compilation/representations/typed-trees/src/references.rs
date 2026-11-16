@@ -174,6 +174,12 @@ pub(crate) mod source_occurrences {
                                         || !call.machine_arguments.is_empty()
                                         || has_region_telescope(self, call.target_symbol)
                                         || implementation_namespace(self, call.receiver_symbol)
+                                        || (call.runtime_call.is_none()
+                                            && call.installed_interrupt_operation.is_none()
+                                            && call.static_requirement_dispatch.is_none()
+                                            && self
+                                                .trait_machine_signature(call.target_symbol)
+                                                .is_some())
                                         || (!call.static_machine_parameter.is_valid()
                                             && call.static_requirement_dispatch.is_none()
                                             && direct_declaration(self, call.target_symbol)
@@ -281,8 +287,8 @@ pub(crate) mod source_occurrences {
                 let original_arguments = call.machine_arguments.clone();
                 self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                 // An ordinary call still has a source application when its
-                // static tuple is empty. Result evidence needs that exact
-                // declaration and lexical owner too.
+                // static tuple is empty. Result evidence and selected requirement
+                // members need that exact declaration and lexical owner too.
                 let declaration = (!call.static_machine_parameter.is_valid()
                     && !call.requirement_application.is_valid()
                     && call.static_requirement_dispatch.is_none())
@@ -319,6 +325,8 @@ pub(crate) mod source_occurrences {
                 if call.machine_arguments.is_empty()
                     && !has_region_telescope(self, call.target_symbol)
                     && !implementation_namespace(self, namespace)
+                    && !(call.selects_only_nominal_route()
+                        && self.trait_machine_signature(call.target_symbol).is_some())
                     && declaration.is_none()
                 {
                     return Ok(());
@@ -538,7 +546,18 @@ pub(crate) mod source_occurrences {
                         complete = false;
                         continue;
                     }
-                    if argument.names_implementation(&self.symbols) {
+                    let names_type = self.symbols.symbols().nodes().is_valid(argument.symbol)
+                        && (matches!(
+                            self.symbols.get(argument.symbol).kind,
+                            symbols::SymbolKind::BuiltinType
+                                | symbols::SymbolKind::Data
+                                | symbols::SymbolKind::TypeAlias
+                        ) || self
+                            .data_type_parameter_by_symbol(argument.symbol)
+                            .is_some_and(|parameter| {
+                                parameter.kind == crate::data::TypeParameterKind::Type
+                            }));
+                    if names_type || argument.names_implementation(&self.symbols) {
                         if self.symbols.get(argument.symbol).kind
                             == symbols::SymbolKind::Conformance
                         {
@@ -559,8 +578,9 @@ pub(crate) mod source_occurrences {
                                 continue;
                             }
                         }
-                        // Capture the complete operand in its source scope before
-                        // a copied call or specialization changes the call owner.
+                        // Named types need the same retained source application as
+                        // implementations. A later query cannot reconstruct one
+                        // from its spelling after the call has been copied.
                         argument.type_reference =
                             self.static_operand_type_reference_in_scope(argument, owner)?;
                     } else if !argument.symbol.is_valid()
@@ -2399,6 +2419,9 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
+    if let Some(occurrence) = argument.authored_selection {
+        visit_authored_selection(program, retained, occurrence);
+    }
     // A literal supplies its value, not a declaration. Keep every nonempty
     // handle so the receiving owner still authenticates malformed references.
     if argument.symbol != SymbolHandle::invalid() {
@@ -3368,13 +3391,16 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            // Carrier and builtin policy casts have no nominal domain
-            // declaration. Preserve every present coordinate, including a
-            // malformed one, so publication still refuses missing custody.
+            // Intrinsic conversions, recasts and builtin policy entries may
+            // omit a named domain. Every nonempty coordinate still reaches
+            // authentication; an Exact entry with no domain reports that
+            // missing coordinate instead of silently losing the dependency.
             if cast.semantic_domain_symbol != SymbolHandle::invalid()
                 || !cast.semantic_domain.is_empty()
                 || !cast.semantic_domain_arguments.is_empty()
                 || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
+                || (cast.form.entry().is_some()
+                    && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact)
             {
                 visit_symbol(retained, cast.semantic_domain_symbol);
             }
@@ -4263,6 +4289,101 @@ mod conformance_occurrence_tests {
                 .expression_table
                 .static_machine_application(application)
         ));
+    }
+
+    #[test]
+    fn named_type_operands_retain_their_application_and_original_scope() {
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let root = symbols.insert_root(
+            symbols::SymbolKind::Root,
+            symbols::SymbolNameRef::Static("root"),
+        );
+        let children = symbols.insert_children(
+            root,
+            [
+                (
+                    symbols::SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("owner"),
+                ),
+                (
+                    symbols::SymbolKind::Data,
+                    symbols::SymbolNameRef::Static("Ticket"),
+                ),
+                (
+                    symbols::SymbolKind::Local,
+                    symbols::SymbolNameRef::Static("value"),
+                ),
+            ],
+        );
+        let owner = children.handle_at(0);
+        let ticket = children.handle_at(1);
+        let value = children.handle_at(2);
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let (expression, _) = occurrence_call(&mut program, owner);
+        let arguments = [ticket, value].map(|symbol| StaticMachineArgument {
+            symbol,
+            path: Box::new([crate::name::Identifier::generated(
+                program.symbols.name(symbol),
+            )]),
+            ..Default::default()
+        });
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            unreachable!();
+        };
+        call.machine_arguments = Box::new(arguments.clone());
+        // The original occurrence has not been prepared; retain exactly its
+        // authored tuple before asking the shared source-context owner.
+        let application = program.expression_table.retain_static_machine_application(
+            Default::default(),
+            Default::default(),
+            &arguments,
+        );
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            unreachable!();
+        };
+        call.authored_machine_application = application;
+        program
+            .retain_call_static_argument_context(expression, owner)
+            .unwrap();
+        let call = program.expression_table.call_node(expression).unwrap();
+        let retained = StaticArgumentCall::Expression(expression, call);
+        let [selected, local] = retained.arguments(&program) else {
+            unreachable!();
+        };
+        assert!(
+            program
+                .type_reference_table
+                .contains_type_reference(selected.type_reference)
+        );
+        assert_eq!(
+            program.type_reference_symbol(selected.type_reference),
+            ticket
+        );
+        assert_eq!(
+            program
+                .type_reference_table
+                .operand_lifetime_owner(selected.type_reference),
+            owner
+        );
+        assert!(
+            !local.type_reference.is_valid(),
+            "a runtime value is not a type operand"
+        );
+        assert_eq!(
+            call.machine_arguments.as_ref(),
+            retained.arguments(&program)
+        );
+        let prepared = program.clone();
+        program
+            .retain_call_static_argument_context(expression, owner)
+            .unwrap();
+        assert_eq!(
+            program, prepared,
+            "revisiting the same call must reuse its prepared operands"
+        );
     }
 
     #[test]

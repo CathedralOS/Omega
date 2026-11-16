@@ -1257,7 +1257,6 @@ pub(crate) mod signatures {
         }
     }
     pub(crate) mod lexical_context {
-        use crate::expressions::expression::lower_static_machine_argument;
         use diagnostics::Diagnostic;
         use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
         use symbol_resolved_trees as resolved;
@@ -1300,12 +1299,19 @@ pub(crate) mod signatures {
             exposure: Option<SelectionExposure>,
             callee: SymbolHandle,
             authored: &[resolved::expression::StaticMachineArgument],
+            occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
         ) -> Result<Box<[typed::expression::StaticMachineArgument]>, Diagnostic> {
             let mut arguments = captured_arguments(program, callee);
             for argument in authored {
-                arguments.push(lower_static_machine_argument(
-                    program, target, exposure, argument,
-                )?);
+                arguments.push(
+                    crate::expressions::expression::lower_static_machine_argument_with_occurrences(
+                        program,
+                        target,
+                        exposure,
+                        argument,
+                        occurrences,
+                    )?,
+                );
             }
             Ok(arguments.into_boxed_slice())
         }

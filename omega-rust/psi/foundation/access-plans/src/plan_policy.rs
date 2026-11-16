@@ -592,6 +592,27 @@ pub(crate) mod access_operations {
     }
 
     impl AccessOperation {
+        /// Reading displaced contents and changing them are independent
+        /// obligations. Atomic ordering and the receiver's loan remain
+        /// separate checks; a read-modify-write needs both caller grants.
+        pub const fn reads_and_writes(self) -> (bool, bool) {
+            match self {
+                Self::Read | Self::Atomic(AtomicAccessOperation::Load(_)) => (true, false),
+                Self::Write | Self::Atomic(AtomicAccessOperation::Store(_)) => (false, true),
+                Self::Take
+                | Self::CompoundMutation
+                | Self::Atomic(AtomicAccessOperation::FetchAdd(_))
+                | Self::Atomic(AtomicAccessOperation::FetchSub(_))
+                | Self::Atomic(AtomicAccessOperation::FetchXor(_))
+                | Self::Atomic(AtomicAccessOperation::FetchOr(_))
+                | Self::Atomic(AtomicAccessOperation::FetchAnd(_))
+                | Self::Atomic(AtomicAccessOperation::Swap(_))
+                | Self::Atomic(AtomicAccessOperation::CompareExchange { .. })
+                | Self::Atomic(AtomicAccessOperation::CompareExchangeOnce { .. })
+                | Self::Atomic(AtomicAccessOperation::TryExchangeOnce { .. }) => (true, true),
+            }
+        }
+
         pub const fn receiver_polarity(self) -> BorrowPolarity {
             match self {
                 Self::Read => BorrowPolarity::Shared,

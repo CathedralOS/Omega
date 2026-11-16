@@ -45,6 +45,7 @@ mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;
 mod mathematics;
+mod numeric_contracts;
 mod places;
 mod predicates;
 mod provider_selections;
@@ -83,9 +84,11 @@ pub(crate) struct TypeAlternative {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct WidthBinding {
+struct ConstBinding {
     symbol: SymbolHandle,
-    parameter: semantic_vocabulary::WidthParameter,
+    owner: semantic_vocabulary::MachineId,
+    value: semantic_vocabulary::ValueId,
+    scalar_type: semantic_vocabulary::ScalarType,
 }
 
 /// Source-unit permissions for local inference. Outcome inference changes
@@ -100,6 +103,7 @@ pub(crate) struct DeclaredDomain {
     pub instance: crate::body::DomainInstance,
     pub carrier: ValueType,
     pub predicate: Option<semantic_vocabulary::Proposition>,
+    pub complete_predicate_theory: bool,
 }
 
 pub(crate) struct PredicateDefinition {
@@ -222,8 +226,8 @@ pub(crate) struct Program<'t> {
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
     /// Static width binders retain the actual machine-local input identity.
     /// Sorted by source symbol within this declaration's selected telescope.
-    width_scope: Vec<WidthBinding>,
-    width_scopes: IdTable<MachineId, Vec<WidthBinding>>,
+    const_scope: Vec<ConstBinding>,
+    const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// The generic machines a generic check form's entry calls at its own
     /// type parameters, each read once per tuple of type arguments as its
     /// contract with no body (`Elaboration::applications`).
@@ -440,8 +444,8 @@ impl<'t> Program<'t> {
             scope: Vec::new(),
             schema_types: None,
             scopes: IdTable::default(),
-            width_scope: Vec::new(),
-            width_scopes: IdTable::default(),
+            const_scope: Vec::new(),
+            const_scopes: IdTable::default(),
             applications: Vec::new(),
             applied: Vec::new(),
             alternative: None,
@@ -826,6 +830,10 @@ mod tests {
                 ..Default::default()
             });
         }
+        let unprepared_instance = crate::body::DomainInstance {
+            declaration: domains[0],
+            identity: typed.semantic_domains.intern("unprepared instance"),
+        };
         let mut program = Program::new(&typed, false);
         let carrier = program.records.push(plain_record());
         program
@@ -837,6 +845,7 @@ mod tests {
                 },
                 carrier: ValueType::record(carrier),
                 predicate: None,
+                complete_predicate_theory: false,
             }));
         let bodies = semantic_vocabulary::IdTable::default();
         let components = crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
@@ -878,13 +887,42 @@ mod tests {
             [
                 Some(&Proposition::Falsehood),
                 Some(&Proposition::Truth),
-                None
+                Some(&Proposition::Truth)
             ]
         );
-        assert!(
+        assert_eq!(
             domains
                 .iter()
-                .all(|domain| !domain.complete_predicate_theory)
+                .map(|domain| domain.complete_predicate_theory)
+                .collect::<Vec<_>>(),
+            [true, true, true],
+            "translated clauses and an authored empty declaration have complete theories"
+        );
+        // A complete theory grants no establishment route or membership.
+        assert!(domains.iter().all(|domain| {
+            domain
+                .required_memberships
+                .as_ref()
+                .is_some_and(Vec::is_empty)
+                && domain.establishment_routes.is_none()
+        }));
+
+        // The same declaration cannot lend its predicate to another instance
+        // whose applied theory was never prepared.
+        let mut unprepared = Program::new(&typed, false);
+        let carrier = unprepared.records.push(plain_record());
+        unprepared.declared_domains.push(DeclaredDomain {
+            instance: unprepared_instance,
+            carrier: ValueType::record(carrier),
+            predicate: None,
+            complete_predicate_theory: false,
+        });
+        assert_eq!(
+            unprepared
+                .prepare_domain_predicates(machine())
+                .unwrap_err()
+                .detail,
+            "type domain application without its prepared theory"
         );
     }
 
@@ -999,13 +1037,178 @@ mod tests {
             refused(&typed, call(SymbolHandle::from_parts(9_999, 1))),
             "call without a bound target"
         );
-        // The twin: a bound call passes this refusal and its target is
-        // read. These machines have no source file, so the later visibility
-        // rule is what stops it.
+        // The twin passes target validation and reaches authored-source
+        // validation. This low-level reader has not admitted a caller.
         assert_eq!(
             refused(&typed, call(served)),
-            "call call between declarations without a source file"
+            "declaration authored occurrence without its source machine"
         );
+        for target_symbol in [SymbolHandle::invalid(), SymbolHandle::from_parts(9_999, 1)] {
+            let mut statements = typed.clone();
+            let handle =
+                statements
+                    .statement_table
+                    .insert(typed_trees::statement::StatementNode::Call(
+                        typed_trees::statement::TableCall {
+                            target_symbol,
+                            ..Default::default()
+                        },
+                    ));
+            let refusal = Program::new(&statements, false)
+                .call_statement_at(machine(), &[], handle)
+                .unwrap_err();
+            assert_eq!(refusal.detail, "call without a bound target");
+        }
+        // Runtime calls intentionally have no declaration target. They still
+        // require their actual authored owner, rather than acquiring one here.
+        let runtime_call = Some(typed_trees::callable_values::RuntimeCallBinding::default());
+        assert_eq!(
+            refused(
+                &typed,
+                ExpressionNode::Call(TableCallExpression {
+                    runtime_call,
+                    ..Default::default()
+                }),
+            ),
+            "declaration authored occurrence without its source machine"
+        );
+        let mut statements = typed.clone();
+        let handle =
+            statements
+                .statement_table
+                .insert(typed_trees::statement::StatementNode::Call(
+                    typed_trees::statement::TableCall {
+                        runtime_call,
+                        ..Default::default()
+                    },
+                ));
+        let refusal = Program::new(&statements, false)
+            .call_statement_at(machine(), &[], handle)
+            .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            "declaration authored occurrence without its source machine"
+        );
+    }
+
+    #[test]
+    fn targetless_runtime_calls_keep_their_actual_authored_caller() {
+        use typed_trees::callable_values::{RuntimeCallBinding, RuntimeCallableContract};
+        use typed_trees::expression::{
+            Expression as TypedExpression, NamePath, TableCallExpression,
+        };
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::{StateParameter, StateSignature};
+        use typed_trees::statement::{StatementNode, TableCall};
+
+        for statement in [false, true] {
+            let (mut typed, [caller, _]) = unit_machines();
+            let state = typed.machine_by_symbol(caller).unwrap().states.start();
+            let state_symbol = typed.machine_states.get(state).symbol;
+            let children = typed.symbols.insert_generated_children(
+                state_symbol,
+                [
+                    (SymbolKind::Parameter, "callback"),
+                    (SymbolKind::CallableContract, "contract"),
+                ],
+            );
+            let (parameter, signature) = (children.handle_at(0), children.handle_at(1));
+            let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+            let no_services = typed.service_reach_rows.intern(Vec::new());
+            let contract = typed
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    signature: StateSignature {
+                        symbol: signature,
+                        service_reach_row: no_services,
+                        return_type: unit,
+                        declares_no_crash_route: true,
+                        ..Default::default()
+                    },
+                    lexical_owner: caller,
+                    resolved_source: None,
+                });
+            typed.authored_service_reach_rows.push(
+                typed_trees::signature::AuthoredServiceReachRow {
+                    owner: signature,
+                    keyword_source_spans: Vec::new(),
+                    targets: Vec::new(),
+                    installation_bound: false,
+                },
+            );
+            let carrier = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Callable { contract });
+            let parameters = typed.state_parameters.insert_many([StateParameter {
+                symbol: parameter,
+                type_reference: carrier,
+                ..Default::default()
+            }]);
+            let callee =
+                typed
+                    .expression_table
+                    .insert_tree(&TypedExpression::Name(NamePath::resolved(
+                        vec![Identifier::generated("callback")],
+                        parameter,
+                        parameter,
+                    )));
+            let runtime_call = Some(RuntimeCallBinding { callee, contract });
+            let (body, node) = if statement {
+                let body = typed
+                    .statement_table
+                    .insert_statements([StatementNode::Call(TableCall {
+                        runtime_call,
+                        ..Default::default()
+                    })]);
+                (body, typed_trees::SourceNode::Statement(body.start()))
+            } else {
+                let handle =
+                    typed
+                        .expression_table
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call,
+                            ..Default::default()
+                        }));
+                let body = typed
+                    .statement_table
+                    .insert_statements([StatementNode::Expression(handle)]);
+                (body, typed_trees::SourceNode::Expression(handle))
+            };
+            let state = typed.machine_states.get_mut(state);
+            state.parameters = parameters;
+            state.statement_nodes = body;
+            let mut program = Program::new(&typed, false);
+            let id = program.machine(caller).expect("admit the actual caller");
+            let scalar_type = program.callable_type(id, contract).unwrap();
+            let slots = [Slot {
+                symbol: parameter,
+                value_type: ValueType::plain(scalar_type),
+                assignable: false,
+                homed: false,
+                erased: false,
+                borrowed: None,
+                borrowed_regions: crate::body::Regions::NONE,
+            }];
+            let read = match node {
+                typed_trees::SourceNode::Expression(handle) => {
+                    program.expression(id, &slots, handle, None)
+                }
+                typed_trees::SourceNode::Statement(handle) => {
+                    program.call_statement_at(id, &slots, handle)
+                }
+            }
+            .expect("a runtime call intentionally has no declaration target");
+            assert!(matches!(
+                read.kind,
+                ExpressionKind::Call {
+                    callee: crate::body::CallTarget::Selected { .. },
+                    ..
+                }
+            ));
+            assert!(matches!(read.source, crate::SourceOrigin::AuthoredNode {
+                source_member, owner, node: source_node, ..
+            } if source_member == id && owner == caller && source_node == node));
+        }
     }
 
     #[test]

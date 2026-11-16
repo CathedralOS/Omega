@@ -65,22 +65,22 @@ declarations! {
     Machine "F64::from_u16",
     Machine "F64::from_u32",
     Machine "F64::from_u64",
-    Operator "I8::from_f32",
+    Machine "I8::from_f32",
     Operator "I16::from_f32",
     Machine "I32::from_f32",
-    Operator "I64::from_f32",
-    Operator "U8::from_f32",
+    Machine "I64::from_f32",
+    Machine "U8::from_f32",
     Operator "U16::from_f32",
     Machine "U32::from_f32",
-    Operator "U64::from_f32",
-    Operator "I8::from_f64",
+    Machine "U64::from_f32",
+    Machine "I8::from_f64",
     Operator "I16::from_f64",
     Machine "I32::from_f64",
-    Operator "I64::from_f64",
-    Operator "U8::from_f64",
+    Machine "I64::from_f64",
+    Machine "U8::from_f64",
     Operator "U16::from_f64",
     Machine "U32::from_f64",
-    Operator "U64::from_f64",
+    Machine "U64::from_f64",
     Machine "F32::classify",
     Machine "F64::classify",
     Machine "F32::is_nan",
@@ -162,10 +162,14 @@ mod tests {
         );
         assert_eq!(
             declaration_form("I8::from_f32"),
-            Some(FloatDeclarationForm::Operator)
+            Some(FloatDeclarationForm::Machine)
         );
         assert_eq!(
             declaration_form("U64::from_f64"),
+            Some(FloatDeclarationForm::Machine)
+        );
+        assert_eq!(
+            declaration_form("I16::from_f32"),
             Some(FloatDeclarationForm::Operator)
         );
         assert_eq!(declaration_form("I7::from_f32"), None);

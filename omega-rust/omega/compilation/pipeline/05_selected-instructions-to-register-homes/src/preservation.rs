@@ -438,46 +438,6 @@ pub(crate) mod error {
         "allocated callee-saved requirement derivation failed"
     );
 }
-pub(crate) mod identity {
-    use super::{
-        AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-        AllocatedCalleeSavedRequirementPolicy, encode_callee_saved_modification_witness_identity,
-    };
-
-    pub(crate) fn allocated_callee_saved_requirement_identity(
-        plan: &AllocatedCalleeSavedRequirementPlan,
-    ) -> AllocatedCalleeSavedRequirementIdentity {
-        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.allocated-callee-saved-requirements.v2",
-        );
-        hasher.raw(&plan.selected.bytes());
-        hasher.raw(&plan.homes.bytes());
-        hasher.raw(&plan.post_allocation_manifest.bytes());
-        hasher.raw(&plan.register_environment.bytes());
-        hasher.raw(&plan.physical_register_model.bytes());
-        hasher.raw(&plan.target.identity_bytes());
-        hasher.byte(plan.abi.abi_tag());
-        register_model::sha256_register_units(&mut hasher, &plan.callee_saved_units);
-        hasher.byte(match plan.policy {
-            AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1 => 0,
-        });
-        hasher.raw(&plan.budget.encode());
-        hasher.raw(&plan.usage.encode());
-        register_model::sha256_length(&mut hasher, plan.functions.len());
-        for function in &plan.functions {
-            hasher.raw(&function.machine.get().to_le_bytes());
-            register_model::sha256_length(&mut hasher, function.modified_units.len());
-            for requirement in &function.modified_units {
-                hasher.raw(&requirement.unit.0.to_le_bytes());
-                register_model::sha256_length(&mut hasher, requirement.witnesses.len());
-                for witness in &requirement.witnesses {
-                    encode_callee_saved_modification_witness_identity(&mut hasher, *witness);
-                }
-            }
-        }
-        AllocatedCalleeSavedRequirementIdentity::from_bytes(hasher.finish())
-    }
-}
 pub(crate) mod replay {
     pub(crate) mod state {
         use std::collections::BTreeMap;
@@ -578,7 +538,7 @@ pub(crate) mod validation {
 
     use super::{
         AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,
-        ValidatedAllocatedCalleeSavedRequirements, custody, replay,
+        ValidatedAllocatedCalleeSavedRequirements, replay,
     };
 
     pub fn validate_allocated_callee_saved_requirements(
@@ -607,16 +567,14 @@ pub(crate) mod validation {
         {
             return Err(AllocatedCalleeSavedRequirementError::NonCanonicalRequirements);
         }
-        let receipt = custody::seal(&candidate);
-        Ok(ValidatedAllocatedCalleeSavedRequirements {
-            plan: candidate,
-            receipt,
-        })
+        Ok(ValidatedAllocatedCalleeSavedRequirements::from_plan(
+            candidate,
+        ))
     }
 }
 
 pub use error::AllocatedCalleeSavedRequirementError;
-pub(crate) use identity::allocated_callee_saved_requirement_identity;
+pub(crate) use register_homes::allocated_callee_saved_requirement_identity;
 pub use validation::validate_allocated_callee_saved_requirements;
 
 use crate::AllocationOutput;
@@ -634,8 +592,7 @@ pub fn stage_allocated_callee_saved_requirements(
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedAllocatedCalleeSavedRequirements, AllocatedCalleeSavedRequirementError> {
     let plan = compute::derive(current, policy, budget)?;
-    let receipt = custody::seal(&plan);
-    Ok(ValidatedAllocatedCalleeSavedRequirements { plan, receipt })
+    Ok(ValidatedAllocatedCalleeSavedRequirements::from_plan(plan))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -651,14 +608,29 @@ impl AllocatedCalleeSavedRequirementReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedAllocatedCalleeSavedRequirements {
-    pub(crate) plan: AllocatedCalleeSavedRequirementPlan,
+    requirements: register_homes::AllocatedCalleeSavedRequirements,
     pub(crate) receipt: AllocatedCalleeSavedRequirementReceipt,
 }
 
 impl ValidatedAllocatedCalleeSavedRequirements {
-    receipt_accessor_rows!(borrow ValidatedAllocatedCalleeSavedRequirements {
-        plan: &AllocatedCalleeSavedRequirementPlan,
-    });
+    fn from_plan(plan: AllocatedCalleeSavedRequirementPlan) -> Self {
+        let receipt = custody::seal(&plan);
+        Self {
+            requirements: register_homes::AllocatedCalleeSavedRequirements {
+                plan: std::sync::Arc::new(plan),
+                identity: receipt.identity(),
+            },
+            receipt,
+        }
+    }
+
+    pub fn plan(&self) -> &AllocatedCalleeSavedRequirementPlan {
+        self.requirements.plan()
+    }
+
+    pub fn retained(&self) -> &register_homes::AllocatedCalleeSavedRequirements {
+        &self.requirements
+    }
     receipt_accessor_rows!(ref ValidatedAllocatedCalleeSavedRequirements {
         receipt: AllocatedCalleeSavedRequirementReceipt,
     });

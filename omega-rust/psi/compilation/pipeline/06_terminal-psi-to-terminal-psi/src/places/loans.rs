@@ -1919,7 +1919,22 @@ impl<'a> Storage<'a> {
                     .ok_or_else(|| {
                         self.foreign(concerns, "successor borrow has no actual parent permission")
                     })?;
-                    if authority == parameter.access {
+                    let root = self
+                        .lowered
+                        .structural_place_type(argument.place)
+                        .ok_or_else(|| {
+                            self.foreign(
+                                concerns,
+                                "successor borrow has no original storage declaration",
+                            )
+                        })?;
+                    if authority == parameter.access
+                        && terminal_semantics::projection_stays_in_inline_storage(
+                            self.types.iter(),
+                            root,
+                            &argument.path,
+                        )
+                    {
                         continue;
                     }
                     let raw = self.argument(argument, concerns)?;
@@ -2073,6 +2088,51 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
+    /// The arrival's address loan stays in its activation-local carrier.
+    /// A different loan stored through that address is reference contents in
+    /// the original storage and still needs caller output correspondence.
+    fn retained_in_caller_storage(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        loan: &Formed,
+        name: &DescriptorLocation,
+        at: (semantic_vocabulary::BlockId, u32),
+        concerns: Construct,
+    ) -> Checked<bool> {
+        let borrowed_arrival =
+            matches!(
+                self.root_kind(name.root, concerns)?,
+                StructuralPlaceKind::BlockParameter { .. }
+            ) && terminal_semantics::structural_argument_source(self.lowered, name.root, 0)
+                .is_some_and(|parameter| {
+                    parameter.access != StructuralAccess::Owned
+                        && !terminal_semantics::descriptor_results::is_descriptor(
+                            self.types.iter(),
+                            parameter.structural_type,
+                        )
+                });
+        if !borrowed_arrival {
+            return Ok(self.incoming(name.root).is_some());
+        }
+        let selected = super::Lineage {
+            root: name.root,
+            segments: name.path.clone(),
+        };
+        let backing = self.backing(references, &selected, at.0, at.1 as usize, concerns)?;
+        if name.path.is_empty()
+            && matches!(&loan.lineage, LoanRegion::Storage(region) if *region == backing)
+        {
+            return Ok(false);
+        }
+        if backing == selected {
+            return Err(self.unsupported(
+                concerns,
+                "retained reference has no original arrival backing",
+            ));
+        }
+        Ok(self.incoming(backing.root).is_some())
+    }
+
     /// Returning a child keeps its incoming backing, but cannot leave an
     /// intermediate local parent or another child undisposed. Check each
     /// actual return against the existing occurrence/cohort judgment; names
@@ -2117,16 +2177,17 @@ impl<'a> Storage<'a> {
                 })?,
             );
             for loan in formed {
-                if loan
+                if let Some(names) = loan
                     .lifetime
                     .as_ref()
                     .and_then(|lifetime| lifetime.authorized.get(&at))
-                    .is_some_and(|names| {
-                        names.iter().any(|name| self.incoming(name.root).is_some())
-                    })
                 {
-                    return Err(self.unsupported(concerns,
-                        "a reference retained in caller storage needs its checked output-loan correspondence"));
+                    for name in names {
+                        if self.retained_in_caller_storage(references, loan, name, at, concerns)? {
+                            return Err(self.unsupported(concerns,
+                                "a reference retained in caller storage needs its checked output-loan correspondence"));
+                        }
+                    }
                 }
             }
             let mut returned = Vec::new();

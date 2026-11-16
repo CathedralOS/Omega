@@ -1760,14 +1760,34 @@ pub(crate) mod machine_instances {
     impl TypedTrees {
         pub fn static_machine_binding_position(
             &self,
-            mut owner: SymbolHandle,
+            owner: SymbolHandle,
             binder: SymbolHandle,
             target: SymbolHandle,
         ) -> Result<Option<u32>, &'static str> {
-            if !binder.is_valid() || self.retained_static_machine_contract(binder).is_none() {
+            self.static_machine_binding(owner, binder, target)
+                .map(|binding| binding.map(|(position, _)| position))
+        }
+
+        /// Return the selected operand with its binder position. Its authored
+        /// selection supplies visibility even after a library forwards it.
+        pub fn static_machine_binding(
+            &self,
+            mut owner: SymbolHandle,
+            binder: SymbolHandle,
+            target: SymbolHandle,
+        ) -> Result<Option<(u32, &crate::expression::StaticMachineArgument)>, &'static str>
+        {
+            let valid = |symbol| self.symbols.symbols().nodes().is_valid(symbol);
+            if !valid(binder)
+                || !valid(target)
+                || self.retained_static_machine_contract(binder).is_none()
+            {
                 return Ok(None);
             }
             let entry = |symbol| {
+                if !valid(symbol) {
+                    return None;
+                }
                 if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
                     self.machine_by_symbol(symbol)
                         .and_then(|machine| self.machine_states(machine).first())
@@ -1812,7 +1832,8 @@ pub(crate) mod machine_instances {
                         })
                         .map(u32::try_from)
                         .transpose()
-                        .map_err(|_| "static call has too many application binders");
+                        .map_err(|_| "static call has too many application binders")
+                        .map(|position| position.map(|position| (position, argument)));
                 }
                 owner = instance.template;
             }
@@ -3495,8 +3516,12 @@ pub(crate) mod payloads {
                                 Some(carrier) => self.type_reference(program, carrier)?,
                                 None => types::TypeReferenceHandle::invalid(),
                             };
-                            let replacement =
-                                Self::selected_value_expression(program, argument, carrier)?;
+                            let replacement = Self::selected_value_expression(
+                                program,
+                                argument,
+                                carrier,
+                                self.region_scope,
+                            )?;
                             Some(program.expression_table.expression(replacement).clone())
                         } else {
                             None
@@ -3604,7 +3629,9 @@ pub(crate) mod payloads {
             Ok(())
         }
 
-        fn apply_static_machine_application(
+        /// Copied statements, expressions and stored selections retain the same
+        /// complete invocation, including runtime-value expression payloads.
+        pub(crate) fn apply_static_machine_application(
             &mut self,
             program: &mut TypedTrees,
             application: static_applications::StaticMachineApplicationHandle,
@@ -4284,6 +4311,38 @@ mod declaration_invocations {
             {
                 return Ok(None);
             }
+            self.bodyless_machine_signature_for(machine, target)
+                .map(Some)
+        }
+
+        /// Read the complete actual machine header without granting call
+        /// eligibility. Boundary lookup and sealed intrinsic lookup establish
+        /// their own permitted supply roles before using this shared header.
+        pub fn bodyless_machine_signature(
+            &self,
+            target: SymbolHandle,
+        ) -> Result<Option<(SymbolHandle, StateSignature)>, &'static str> {
+            if !self.symbols.symbols().nodes().is_valid(target) {
+                return Err("bodyless call target has no live declaration");
+            }
+            let Some(machine) = self
+                .machine_by_symbol(target)
+                .or_else(|| self.machine_holding_state(target))
+            else {
+                return Ok(None);
+            };
+            if !machine.has_bodyless_signature() {
+                return Ok(None);
+            }
+            self.bodyless_machine_signature_for(machine, target)
+                .map(Some)
+        }
+
+        fn bodyless_machine_signature_for(
+            &self,
+            machine: &crate::machine::Machine,
+            target: SymbolHandle,
+        ) -> Result<(SymbolHandle, StateSignature), &'static str> {
             let states = self
                 .machine_states
                 .span(machine.states)
@@ -4310,7 +4369,7 @@ mod declaration_invocations {
             {
                 return Err("bodyless declaration has a stale parameter or contract roster");
             }
-            Ok(Some((
+            Ok((
                 machine.symbol,
                 StateSignature {
                     // The machine authored the contracts and effect rows;
@@ -4343,7 +4402,7 @@ mod declaration_invocations {
                     declares_no_crash_route: machine.declares_no_crash_route,
                     ..Default::default()
                 },
-            )))
+            ))
         }
     }
 }
@@ -5618,8 +5677,7 @@ pub(crate) mod selected_operands {
             let copied = self.apply_callable_type(supplied, &[], &[], owner)?;
             let references = self
                 .type_reference_table
-                .references()
-                .filter(|(handle, _)| handle.arena_index() as usize >= start)
+                .type_reference_rows_from(start)
                 .map(|(handle, _)| handle)
                 .collect::<Vec<_>>();
             for reference in references {
@@ -5641,6 +5699,7 @@ pub(crate) mod selected_operands {
             program: &mut TypedTrees,
             reference: types::TypeReferenceHandle,
             carrier: types::TypeReferenceHandle,
+            lexical_owner: symbols::SymbolHandle,
         ) -> Result<expression::ExpressionHandle, &'static str> {
             if let Some(literal) = program.static_const_literal_from_type_reference(reference) {
                 return Ok(program
@@ -5685,6 +5744,41 @@ pub(crate) mod selected_operands {
                             let initializer = declaration.materialized_initializer;
                             return Ok(program.expression_table.insert_copy(initializer));
                         }
+                    } else if let Some(record) = program.conformance_by_symbol(symbol) {
+                        if !record.lifetime_parameters.is_empty()
+                            || !program.conformance_type_parameters(record).is_empty()
+                        {
+                            return Err(
+                                "callable record value needs its complete closed application",
+                            );
+                        }
+                        if !program
+                            .type_reference_table
+                            .contains_type_reference(carrier)
+                            || !matches!(
+                                program.type_reference_node(carrier),
+                                types::TypeReferenceNode::Named { .. }
+                                    | types::TypeReferenceNode::Generic { .. }
+                            )
+                        {
+                            return Err("callable record value lost its exact declared carrier");
+                        }
+                        let required =
+                            crate::trait_definition::AppliedTraitScope::from_type_reference(
+                                program,
+                                carrier,
+                                lexical_owner,
+                            )
+                            .ok_or("callable record value lost its exact declared carrier")?;
+                        let actual = crate::trait_definition::AppliedTraitScope::from_conformance(
+                            program, record,
+                        )
+                        .ok_or("callable record value lost its complete schema application")?;
+                        if !required.same_application(program, &actual) {
+                            return Err("callable record value has another declared schema");
+                        }
+                        // Keep the exact named value. Member refinement and
+                        // ordinary value-use checks still own its obligations.
                     } else if !program
                         .data_type_parameter_by_symbol(symbol)
                         .is_some_and(|parameter| parameter.kind.is_const_or_value())
@@ -5785,6 +5879,140 @@ pub(crate) mod selected_operands {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn selected_record_values_keep_exact_names_and_require_closed_carrier_applications() {
+            use crate::{
+                data::{TypeParameter, TypeParameterKind},
+                name::Identifier,
+                trait_definition::{Conformance, TraitDefinition},
+            };
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let schema = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Schema"));
+            let other = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Other"));
+            let record = symbols.insert_root(SymbolKind::Conformance, SymbolNameRef::Static("Map"));
+            let open = symbols.insert_root(SymbolKind::Conformance, SymbolNameRef::Static("Open"));
+            let missing =
+                symbols.insert_root(SymbolKind::Conformance, SymbolNameRef::Static("Missing"));
+            let nonvalue = symbols.insert_root(SymbolKind::Local, SymbolNameRef::Static("local"));
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+            let parameter = symbols
+                .insert_children(
+                    schema,
+                    [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
+                )
+                .start();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let parameters = program.data_type_parameters.insert_many([TypeParameter {
+                symbol: parameter,
+                name: Identifier::generated("T"),
+                kind: TypeParameterKind::Type,
+                ..Default::default()
+            }]);
+            program.push_trait_definition(TraitDefinition {
+                symbol: schema,
+                name: Identifier::generated("Schema"),
+                type_parameters: parameters,
+                ..Default::default()
+            });
+            program.push_trait_definition(TraitDefinition {
+                symbol: other,
+                name: Identifier::generated("Other"),
+                ..Default::default()
+            });
+            let unit = program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::Unit);
+            let slice = program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::Slice { element_type: unit });
+            let arguments = program
+                .type_reference_table
+                .insert_type_reference_handles([unit]);
+            for (symbol, lifetime_parameters) in [
+                (record, Vec::new()),
+                (open, vec![Identifier::generated("a")]),
+            ] {
+                program.push_conformance(Conformance {
+                    symbol,
+                    trait_symbol: schema,
+                    trait_name: Identifier::generated("Schema"),
+                    arguments,
+                    lifetime_parameters,
+                    ..Default::default()
+                });
+            }
+            let named = |program: &mut TypedTrees, symbol| {
+                let name = Identifier::from(program.symbols.name(symbol));
+                program
+                    .type_reference_table
+                    .insert(types::TypeReferenceNode::Named { symbol, name })
+            };
+            let selected = named(&mut program, record);
+            let open = named(&mut program, open);
+            let missing = named(&mut program, missing);
+            let nonvalue = named(&mut program, nonvalue);
+            let other = named(&mut program, other);
+            let application = |program: &mut TypedTrees, argument| {
+                let arguments = program
+                    .type_reference_table
+                    .insert_type_reference_handles([argument]);
+                program
+                    .type_reference_table
+                    .insert(types::TypeReferenceNode::Generic {
+                        base_symbol: schema,
+                        base_name: Identifier::generated("Schema"),
+                        lifetime_arguments: Vec::new(),
+                        arguments,
+                    })
+            };
+            let carrier = application(&mut program, unit);
+            let wrong_application = application(&mut program, slice);
+            let value = CallableApplication::selected_value_expression(
+                &mut program,
+                selected,
+                carrier,
+                owner,
+            )
+            .expect("the exact closed operation record is a named value");
+            let name = program.expression_table.name_path_node(value).unwrap();
+            assert_eq!(name.symbol, record);
+            assert_eq!(name.head_symbol, record);
+            for carrier in [
+                types::TypeReferenceHandle::invalid(),
+                unit,
+                other,
+                wrong_application,
+            ] {
+                assert!(
+                    CallableApplication::selected_value_expression(
+                        &mut program,
+                        selected,
+                        carrier,
+                        owner,
+                    )
+                    .is_err(),
+                    "the record needs its exact declared carrier application"
+                );
+            }
+            for selected in [open, missing, nonvalue] {
+                assert!(
+                    CallableApplication::selected_value_expression(
+                        &mut program,
+                        selected,
+                        carrier,
+                        owner,
+                    )
+                    .is_err(),
+                    "a schema cannot admit an open, undeclared, or nonvalue name"
+                );
+            }
+        }
 
         #[test]
         fn supplied_operand_does_not_acquire_preexisting_region_node() {
@@ -8583,15 +8811,31 @@ impl TypedTrees {
                 self.state_parameters.get_mut(parameter).type_reference = applied;
             }
             for handle in state.statement_nodes.handles() {
-                let Some(local) = self.statement_table.statement(handle).as_local_data() else {
-                    continue;
-                };
-                let original = local.type_reference;
-                let applied = application.type_reference(self, original)?;
-                if let crate::statement::StatementNode::LocalData(local) =
-                    self.statement_table.statement_mut(handle)
-                {
-                    local.type_reference = applied;
+                match self.statement_table.statement(handle).clone() {
+                    crate::statement::StatementNode::LocalData(mut local) => {
+                        local.type_reference =
+                            application.type_reference(self, local.type_reference)?;
+                        *self.statement_table.statement_mut(handle) =
+                            crate::statement::StatementNode::LocalData(local);
+                    }
+                    crate::statement::StatementNode::Call(mut call) => {
+                        if let Some(runtime) = &mut call.runtime_call {
+                            runtime.contract =
+                                application.runtime_contract(self, runtime.contract)?;
+                        }
+                        if let Some(request) = &mut call.installed_interrupt_operation {
+                            request.invalidate_preparation();
+                        }
+                        application.static_arguments(self, &mut call.machine_arguments)?;
+                        for invocation in
+                            crate::references::StaticArgumentCall::Statement(&call).applications()
+                        {
+                            application.apply_static_machine_application(self, invocation)?;
+                        }
+                        *self.statement_table.statement_mut(handle) =
+                            crate::statement::StatementNode::Call(call);
+                    }
+                    _ => {}
                 }
             }
             let call_targets = application.expression_call_targets(self, &rows)?;

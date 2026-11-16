@@ -1306,13 +1306,15 @@ pub mod product_operand {
         }
     }
 
-    const PRODUCT_ROLES: [ProductOperandKind; 6] = [
+    const PRODUCT_ROLES: [ProductOperandKind; 8] = [
         ProductOperandKind::BoundarySubject,
         ProductOperandKind::Provider,
         ProductOperandKind::Requirement,
         ProductOperandKind::TestRequirement,
         ProductOperandKind::Data,
         ProductOperandKind::Representation,
+        ProductOperandKind::Formal,
+        ProductOperandKind::Field,
     ];
 
     fn product_role_position(role: ProductOperandKind) -> Option<usize> {
@@ -1329,7 +1331,7 @@ pub mod product_operand {
 
     #[derive(Default)]
     pub(crate) struct ProductDeclarationIndex {
-        roles: [Vec<ProductDeclarationName>; 6],
+        roles: [Vec<ProductDeclarationName>; 8],
         token_bound_machines: Vec<SymbolHandle>,
     }
 
@@ -1384,11 +1386,46 @@ pub mod product_operand {
         }
     }
 
-    fn product_candidates(
+    pub fn product_candidates(
         program: &TypedTrees,
         kind: ProductOperandKind,
     ) -> Vec<(SymbolHandle, bool)> {
         match kind {
+            ProductOperandKind::Formal => program
+                .traits()
+                .iter()
+                .filter(|owner| owner.is_boundary)
+                .flat_map(|owner| {
+                    program
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .flat_map(move |signature| {
+                            program
+                                .state_signature_parameters(signature)
+                                .iter()
+                                .map(move |formal| (formal.symbol, owner.is_public))
+                        })
+                })
+                .collect(),
+            ProductOperandKind::Field => {
+                let mut fields = Vec::new();
+                for data in program.data_definitions() {
+                    for member in program.data_members(data) {
+                        match member {
+                            crate::data::DataMember::Field(field) => {
+                                fields.push((field.symbol, data.is_public))
+                            }
+                            crate::data::DataMember::Variant(case) => fields.extend(
+                                program
+                                    .data_payload_fields(case)
+                                    .iter()
+                                    .map(|field| (field.symbol, data.is_public)),
+                            ),
+                        }
+                    }
+                }
+                fields
+            }
             ProductOperandKind::WireCompatibilityFact => Vec::new(),
             ProductOperandKind::BoundarySubject => program
                 .traits()

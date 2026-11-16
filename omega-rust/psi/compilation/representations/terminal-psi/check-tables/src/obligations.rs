@@ -258,12 +258,32 @@ mod tests {
     }
 }
 
+/// The rigid const inputs named by array extents, including dormant nested
+/// storage. Inventory validates identity and carrier, and grants no N > 0 fact.
+pub fn array_extent_parameters(
+    module: &terminal_psi::TerminalModule,
+) -> Result<
+    Vec<(semantic_vocabulary::MachineId, Vec<ValueId>)>,
+    (semantic_vocabulary::MachineId, &'static str),
+> {
+    parameter_inputs(module, true)
+}
+
 /// The actual width inputs each machine's declared carriers use, in machine
-/// order, including empty rows. This is an inventory, not a positivity fact.
-/// Header storage is followed even when unread or behind a zero-sized array:
-/// type formation does not depend on whether execution observes a value.
+/// order, including empty rows. Header storage is followed even when unread
+/// or behind a zero-sized array. This inventory grants no positivity fact.
 pub fn integer_width_parameters(
     module: &terminal_psi::TerminalModule,
+) -> Result<
+    Vec<(semantic_vocabulary::MachineId, Vec<ValueId>)>,
+    (semantic_vocabulary::MachineId, &'static str),
+> {
+    parameter_inputs(module, false)
+}
+
+fn parameter_inputs(
+    module: &terminal_psi::TerminalModule,
+    extents: bool,
 ) -> Result<
     Vec<(semantic_vocabulary::MachineId, Vec<ValueId>)>,
     (semantic_vocabulary::MachineId, &'static str),
@@ -282,7 +302,7 @@ pub fn integer_width_parameters(
     if catalog.windows(2).any(|pair| pair[0].id == pair[1].id) {
         return Err((
             diagnostic,
-            "integer width inventory has duplicate structural types",
+            "dependent const input inventory has duplicate structural types",
         ));
     }
     let mut referents = module
@@ -294,7 +314,7 @@ pub fn integer_width_parameters(
     if referents.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err((
             diagnostic,
-            "integer width inventory has duplicate referent identities",
+            "dependent const input inventory has duplicate referent identities",
         ));
     }
 
@@ -309,7 +329,7 @@ pub fn integer_width_parameters(
     for declaration in &catalog {
         roots.clear();
         let seed_start = seeds.len();
-        width_type_parts(declaration, &mut roots, &mut seeds);
+        width_type_parts(declaration, &mut roots, &mut seeds, extents);
         seed_ranges.push(seed_start..seeds.len());
         let child_start = children.len();
         for child in &roots {
@@ -370,7 +390,9 @@ pub fn integer_width_parameters(
             .iter()
             .chain(&machine.erased_scalar_formals)
         {
-            width_scalar(machine.id, formal.scalar_type, &mut widths)?;
+            if !extents {
+                width_scalar(machine.id, formal.scalar_type, &mut widths)?;
+            }
         }
         roots.extend(machine.attachment);
         roots.extend(
@@ -395,13 +417,17 @@ pub fn integer_width_parameters(
         match &machine.result {
             TerminalMachineResult::Unit => {}
             TerminalMachineResult::Scalar(result) => {
-                width_scalar(machine.id, result.scalar_type, &mut widths)?
+                if !extents {
+                    width_scalar(machine.id, result.scalar_type, &mut widths)?;
+                }
             }
             TerminalMachineResult::Structural(result) => roots.push(result.structural_type),
         }
         for block in &machine.blocks {
             for value in block.parameters.iter().chain(&block.erased_scalar_formals) {
-                width_scalar(machine.id, value.scalar_type, &mut widths)?;
+                if !extents {
+                    width_scalar(machine.id, value.scalar_type, &mut widths)?;
+                }
             }
             roots.extend(
                 block
@@ -410,7 +436,9 @@ pub fn integer_width_parameters(
                     .map(|formal| formal.structural_type),
             );
             for operation in &block.operations {
-                if let Some(value) = operation.result.as_scalar() {
+                if let Some(value) = operation.result.as_scalar()
+                    && !extents
+                {
                     width_scalar(machine.id, value.scalar_type, &mut widths)?;
                 }
                 if let Some(result) = operation.result.as_structural() {
@@ -455,12 +483,28 @@ pub fn integer_width_parameters(
             );
             for width in &widths {
                 let Ok(position) = inputs.binary_search_by_key(width, |(value, _)| *value) else {
-                    return Err((machine.id, "integer width is not a declared scalar input"));
-                };
-                if inputs[position].1 != carrier {
                     return Err((
                         machine.id,
-                        "integer width input does not have the exact u64 carrier",
+                        "dependent const input is not a declared scalar input",
+                    ));
+                };
+                let valid = if extents {
+                    inputs[position].1.as_integer().is_some_and(|integer| {
+                        !integer.is_address()
+                            && integer.sign() == IntegerSign::Unsigned
+                            && integer.bits().is_some_and(|bits| bits <= 64)
+                    })
+                } else {
+                    inputs[position].1 == carrier
+                };
+                if !valid {
+                    return Err((
+                        machine.id,
+                        if extents {
+                            "array extent input needs an unsigned carrier of at most 64 bits"
+                        } else {
+                            "integer width input does not have the exact u64 carrier"
+                        },
                     ));
                 }
             }
@@ -526,9 +570,11 @@ fn width_type_parts(
     declaration: &terminal_psi::StructuralTypeDeclaration,
     children: &mut Vec<semantic_vocabulary::StructuralTypeId>,
     widths: &mut Vec<semantic_vocabulary::WidthParameter>,
+    extents: bool,
 ) {
     use terminal_psi::StructuralTypeShape;
     children.extend(declaration.quotient_carrier);
+    let start = widths.len();
     if let Some(restriction) = &declaration.scalar_restriction {
         widths.extend(restriction.scalar_type().and_then(scalar_width));
         children.extend(restriction.as_structural());
@@ -552,6 +598,16 @@ fn width_type_parts(
             }
         }
         StructuralTypeShape::Opaque | StructuralTypeShape::ByteSequence(_) => {}
+    }
+    if extents {
+        widths.truncate(start);
+        if let StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Parameter { owner, value },
+            ..
+        } = declaration.shape
+        {
+            widths.push(semantic_vocabulary::WidthParameter { owner, value });
+        }
     }
 }
 

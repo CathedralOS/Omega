@@ -40,7 +40,7 @@ fn rejoin_call_custody<'publication>(
 ) -> Result<&'publication legalized_operations::LegalizedScalarCall, &'static str> {
     let owner = CallSiteOwner::from(occurrence.invocation_site());
     let mut functions = publication
-        .selected_plan()
+        .physical_program()
         .functions
         .iter()
         .filter(|function| function.machine == occurrence.machine());

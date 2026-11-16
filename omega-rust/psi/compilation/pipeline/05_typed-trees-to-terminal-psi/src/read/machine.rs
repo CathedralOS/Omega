@@ -564,7 +564,7 @@ impl<'t> Program<'t> {
             ));
         }
         let outer = std::mem::take(&mut self.scope);
-        let outer_widths = std::mem::take(&mut self.width_scope);
+        let outer_widths = std::mem::take(&mut self.const_scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(symbol));
@@ -573,7 +573,7 @@ impl<'t> Program<'t> {
         self.lifetime_owner = owner;
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
-        let widths = std::mem::replace(&mut self.width_scope, outer_widths);
+        let widths = std::mem::replace(&mut self.const_scope, outer_widths);
         let (signature, names, value_parameters) = read.map_err(|refusal| {
             if self.collected.is_some() && !self.refused_signatures.contains(&symbol) {
                 self.refused_signatures.push(symbol);
@@ -614,7 +614,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(value_parameters);
         self.value_arguments.push(Vec::new());
         self.scopes.push(scope);
-        self.width_scopes.push(widths);
+        self.const_scopes.push(widths);
         Ok(())
     }
 
@@ -640,6 +640,26 @@ impl<'t> Program<'t> {
         self.read_machine(id, symbol, Reading::Applied(arguments.clone()))?;
         self.applied.push((id, arguments));
         self.requirements.push(id);
+        self.applications.push(id);
+        Ok(id)
+    }
+
+    pub(super) fn const_application(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if let Some(id) = self.applications.iter().copied().find(|id| {
+            self.symbols.get(*id) == Some(&symbol)
+                && self
+                    .value_parameters
+                    .get(*id)
+                    .is_some_and(|count| *count != 0)
+        }) {
+            return Ok(id);
+        }
+        let id = self.next_identity()?;
+        self.read_machine(id, symbol, Reading::GenericEntry)?;
+        // Const inputs are ordinary rigid scalar formals, so this form can
+        // read the actual generic body and infer its complete effects. A
+        // bodyless placeholder cannot infer an omitted service ceiling.
+        // Retain the application for its independent template check too.
         self.applications.push(id);
         Ok(id)
     }
@@ -780,7 +800,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(self.scope.clone());
-        self.width_scopes.push(Vec::new());
+        self.const_scopes.push(Vec::new());
         Ok(id)
     }
 
@@ -857,7 +877,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(parameters);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
-        self.width_scopes.push(Vec::new());
+        self.const_scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
     }
@@ -1303,7 +1323,7 @@ impl<'t> Program<'t> {
         Ok(witnesses)
     }
 
-    fn prepare_width_scope(
+    fn prepare_const_scope(
         &mut self,
         id: MachineId,
         machine: &Machine,
@@ -1375,37 +1395,36 @@ impl<'t> Program<'t> {
             );
         let result = result && self.declared_value_shape(id, state.return_type, &scope)?;
         let values = crate::body::formal_value_ids(shapes.iter().copied(), result);
-        let mut widths = Vec::new();
+        let mut inputs = Vec::new();
         for (position, (symbol, type_reference)) in binders.iter().enumerate() {
-            let TypeReferenceNode::Named {
-                symbol: carrier, ..
-            } = typed.type_reference_table.type_reference(*type_reference)
-            else {
-                continue;
-            };
-            if typed.symbols.builtin_type_atom(*carrier)
-                != Some(symbols::BuiltinTypeAtom::Integer(
-                    numerics::integer_carrier::FixedInteger::U64,
-                ))
-            {
+            // Dependent integer carriers are read after their width inputs
+            // have been prepared, as before. Array extents currently require
+            // a closed carrier, so only direct scalar binders enter this map.
+            if !matches!(
+                typed.type_reference_table.type_reference(*type_reference),
+                TypeReferenceNode::Named { .. }
+            ) {
                 continue;
             }
+            let scalar_type = self.scalar_type(id, *type_reference)?;
             let value = values[formals.len() + position].ok_or_else(|| {
                 refuse(
                     id,
                     Construct::Machine,
-                    Unserved::Parameter("const width without an input identity"),
+                    Unserved::Parameter("const parameter without an input identity"),
                 )
             })?;
-            widths.push(super::WidthBinding {
+            inputs.push(super::ConstBinding {
                 symbol: *symbol,
-                parameter: semantic_vocabulary::WidthParameter { owner: id, value },
+                owner: id,
+                value,
+                scalar_type,
             });
         }
-        widths.sort_unstable_by_key(|binding| {
+        inputs.sort_unstable_by_key(|binding| {
             (binding.symbol.arena_index(), binding.symbol.generation())
         });
-        self.width_scope = widths;
+        self.const_scope = inputs;
         Ok(PreparedFormalValues {
             shapes,
             result,
@@ -1518,7 +1537,7 @@ impl<'t> Program<'t> {
         let prepared = if matches!(reading, Reading::GenericEntry)
             || (self.rigid && matches!(reading, Reading::Implementation))
         {
-            Some(self.prepare_width_scope(id, machine, state)?)
+            Some(self.prepare_const_scope(id, machine, state)?)
         } else {
             None
         };
@@ -2233,7 +2252,7 @@ impl<'t> Program<'t> {
                 "numeric primitive differs from its canonical scalar signature",
             ));
         }
-        Ok(Signature {
+        let signature = Signature {
             operational: crate::body::OperationalCeilings {
                 suspension: Some(false),
                 blocking: Some(false),
@@ -2268,7 +2287,9 @@ impl<'t> Program<'t> {
             invokes: crate::Ceiling::Authored(Vec::new()),
             termination: Termination::Promised,
             ranking: None,
-        })
+        };
+        self.numeric_contract_sources(id, &requirement, &signature)?;
+        Ok(signature)
     }
 
     /// Read the types, logical clauses and ceilings of a requirement.
@@ -3483,8 +3504,8 @@ impl<'t> Program<'t> {
         }
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
+        self.const_scope = self.const_scopes.get(id).cloned().unwrap_or_default();
         self.lifetime_owner = symbol;
-        self.width_scope = self.width_scopes.get(id).cloned().unwrap_or_default();
         let formals = span(
             |span| typed.state_parameters.span(span),
             state.parameters,
@@ -3706,7 +3727,9 @@ impl<'t> Program<'t> {
                     let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
                         self.read_failure_at(refusal, local.symbol, "the local binding")
                     })?;
-                    if let Some(truth) = self.static_truth(local.initial_value) {
+                    if !local.is_mutable
+                        && let Some(truth) = self.static_truth(local.initial_value)
+                    {
                         self.static_truths.push((local.symbol, truth));
                     }
                     slots.push(slot);
@@ -3732,7 +3755,15 @@ impl<'t> Program<'t> {
                     // unread; a true one is taken unconditionally.
                     let decided = match transition.guard {
                         typed_trees::statement::TransitionGuardNode::When(guard) => {
-                            self.static_truth(guard)
+                            match self.read_static_truth(
+                                id,
+                                symbol,
+                                guard,
+                                super::types::Reading::Value,
+                            )? {
+                                Some(super::types::TypeTruth::Known(truth)) => Some(truth),
+                                _ => None,
+                            }
                         }
                         typed_trees::statement::TransitionGuardNode::Always => None,
                     };

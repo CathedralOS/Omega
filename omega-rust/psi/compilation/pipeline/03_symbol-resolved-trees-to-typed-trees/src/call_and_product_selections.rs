@@ -27,8 +27,30 @@ pub(crate) fn names_replaced_prelude_operation(
     else {
         return false;
     };
+    let authored_declaration = if program.symbols.get(selected).kind == symbols::SymbolKind::State {
+        program.symbols.get(selected).parent
+    } else {
+        selected
+    };
+    let core_query = match program.core_vocabulary(authored_declaration) {
+        Some(language_core::core_vocabulary::CoreVocabulary::Reflection(
+            language_core::core_vocabulary::ReflectionDeclaration::Parameter,
+        )) => Some("describe_parameter"),
+        Some(language_core::core_vocabulary::CoreVocabulary::Reflection(
+            language_core::core_vocabulary::ReflectionDeclaration::Field,
+        )) => Some("describe_field"),
+        _ => None,
+    };
     selected != target
-        && program.symbols.is_build_prelude_symbol(selected)
+        && (program.symbols.is_build_prelude_symbol(selected)
+            || core_query.is_some_and(|name| {
+                program.symbols.name(target) == name
+                    && language_semantics::build_requests::is_build_protocol(
+                        &program.symbols,
+                        program.symbols.get(target).parent,
+                        language_semantics::build_requests::SELECTION_PROTOCOL,
+                    )
+            }))
         && program.symbols.is_build_prelude_symbol(target)
         // The protocol call targets a requirement: a member of a trait.
         // The symbol table says so before the typed trees hold the trait.
@@ -205,7 +227,11 @@ pub(crate) mod build_selections {
         } else {
             Protocol::Prepare
         };
-        let preparation = find(preparing)?;
+        let describes = matches!(
+            operation,
+            Protocol::DescribeParameter | Protocol::DescribeField
+        );
+        let preparation = (!describes).then(|| find(preparing)).transpose()?;
         let commit = find(operation)?;
         let mut value_helpers = match (&request, operation) {
             (BuildSelectionRequest::Exclusion(request), _) => {
@@ -221,7 +247,7 @@ pub(crate) mod build_selections {
             }
             _ => Vec::new(),
         };
-        if !tests_facet {
+        if !tests_facet && !describes {
             value_helpers.insert(0, (0, "build_selection_receiver"));
         }
         let table = &mut target.expression_table;
@@ -235,9 +261,14 @@ pub(crate) mod build_selections {
             owner.symbol,
             owner.symbol,
         )));
-        let prepared_selection = table.insert_build_selection_call(BuildSelectionCall {
-            request: request.clone(),
-            operation: preparing,
+        let prepared_selection = preparation.map(|preparation| {
+            (
+                preparation,
+                table.insert_build_selection_call(BuildSelectionCall {
+                    request: request.clone(),
+                    operation: preparing,
+                }),
+            )
         });
         let committed_selection =
             table.insert_build_selection_call(BuildSelectionCall { request, operation });
@@ -302,15 +333,18 @@ pub(crate) mod build_selections {
                 Default::default(),
             );
         }
-        let prepared = emit(
-            preparation.symbol,
-            crate::lowerer::name::lower_name(&preparation.name),
-            receiver,
-            vec![arguments[0]],
-            prepared_selection,
-            Default::default(),
-        );
-        arguments[0] = prepared;
+        let prepared = prepared_selection.map(|(preparation, selection)| {
+            let prepared = emit(
+                preparation.symbol,
+                crate::lowerer::name::lower_name(&preparation.name),
+                receiver,
+                vec![arguments[0]],
+                selection,
+                Default::default(),
+            );
+            arguments[0] = prepared;
+            (prepared, selection)
+        });
         let committed = emit(
             commit.symbol,
             crate::lowerer::name::lower_name(&commit.name),
@@ -319,17 +353,19 @@ pub(crate) mod build_selections {
             committed_selection,
             acknowledgement,
         );
-        table
-            .retain_build_selection_inputs(
-                prepared,
-                BuildSelectionInputs {
-                    request: prepared_selection,
-                    lexical_owner,
-                    phase: BuildSelectionPhase::Preparation,
-                    inputs: Vec::new(),
-                },
-            )
-            .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
+        if let Some((prepared, selection)) = prepared {
+            table
+                .retain_build_selection_inputs(
+                    prepared,
+                    BuildSelectionInputs {
+                        request: selection,
+                        lexical_owner,
+                        phase: BuildSelectionPhase::Preparation,
+                        inputs: Vec::new(),
+                    },
+                )
+                .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
+        }
         table
             .retain_build_selection_inputs(
                 committed,
@@ -1759,6 +1795,17 @@ pub(crate) mod construction_destinations {
         arguments: &[ExpressionHandle],
         calls: &mut Vec<ConstructionCall>,
     ) {
+        // Compiler operations have their own operand rules, not a declared
+        // machine parameter list. Their typing and admission checks still
+        // validate the operands; asking here would reject embed(old(value))
+        // before those checks can interpret its nested call.
+        if program
+            .symbols
+            .builtin_function_for_symbol(target_symbol)
+            .is_some()
+        {
+            return;
+        }
         if !arguments
             .iter()
             .any(|argument| needs_destination(program, *argument))
@@ -2896,18 +2943,29 @@ pub(crate) mod construction_destinations {
             let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
             let declarations = symbols.insert_children(
                 root,
-                [
-                    (SymbolKind::Machine, SymbolNameRef::Static("caller")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("callee")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
-                    (
-                        SymbolKind::MathematicalDefinition,
-                        SymbolNameRef::Static("measure"),
-                    ),
-                ],
+                symbols::builtin_type_symbols()
+                    .into_iter()
+                    .chain(symbols::builtin_function_symbols())
+                    .chain([
+                        (SymbolKind::Machine, SymbolNameRef::Static("caller")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("callee")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
+                        (
+                            SymbolKind::MathematicalDefinition,
+                            SymbolNameRef::Static("measure"),
+                        ),
+                        (SymbolKind::Module, SymbolNameRef::Static("foreign")),
+                    ]),
             );
-            let [caller, callee, bystander, measure] =
-                [0, 1, 2, 3].map(|position| declarations.handle_at(position));
+            let offset = symbols::BUILTIN_TYPE_COUNT + symbols::BuiltinFunction::COUNT;
+            let [caller, callee, bystander, measure, foreign] = [0, 1, 2, 3, 4]
+                .map(|position| declarations.handle_at(u32::try_from(offset + position).unwrap()));
+            let same_spelling = symbols
+                .insert_children(
+                    foreign,
+                    [(SymbolKind::Machine, SymbolNameRef::Static("embed"))],
+                )
+                .start();
             let [run, entry, idle] =
                 [(caller, "run"), (callee, "entry"), (bystander, "idle")].map(|(machine, name)| {
                     symbols
@@ -3012,6 +3070,21 @@ pub(crate) mod construction_destinations {
                 program
             };
             let array = || ExpressionNode::ArrayLiteral(Default::default());
+            // This pass does not invent a machine signature for a compiler
+            // operation. Its own reader still decides operand type and arity;
+            // an ordinary callee without a state remains refused below.
+            let embed = base
+                .symbols
+                .builtin_function_symbol(symbols::BuiltinFunction::IntegerEmbed)
+                .unwrap();
+            assert!(build(embed, array(), false).deferred_refusals.is_empty());
+            assert_eq!(
+                build(same_spelling, array(), false)
+                    .deferred_refusal(caller)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::CallParameterSelection),
+                "a same-spelled ordinary declaration still needs its actual parameters",
+            );
 
             // The callee's entry state selects its parameters: nothing is
             // deferred. The twin's callee has no state to select them from,
@@ -3370,6 +3443,78 @@ pub(crate) mod product_queries {
     use typed_trees::expression::{
         ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
     };
+
+    /// An unresolved declaration path in a Build query belongs to Product,
+    /// not to the Build's runtime values. Keep its original source coordinate
+    /// until the existing Product query owner can select it with that author.
+    pub(crate) fn description_request(
+        source: &SymbolResolvedTrees,
+        target: SymbolHandle,
+        qualifier: Option<SymbolHandle>,
+        operand: Option<&symbol_resolved_trees::expression::ExpressionNode>,
+        members: &[symbol_resolved_trees::name::DiagnosticName],
+        span: source::SourceSpan,
+    ) -> Option<typed_trees::expression::BuildSelectionRequest> {
+        use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
+        use language_semantics::declaration_selection::{
+            BuildOperation, BuildSelectionRequest, ProductDeclarationOperand,
+            ProductDeclarationRequest,
+        };
+        if source.symbols.source_file(span)?.dependency_scope != source::DependencyScope::Build {
+            return None;
+        }
+        let declaration = match source.symbols.get(target).kind {
+            symbols::SymbolKind::State => source.symbols.get(target).parent,
+            symbols::SymbolKind::Machine => target,
+            _ => return None,
+        };
+        if qualifier.is_some_and(|qualifier| qualifier != source.symbols.symbol_module(declaration))
+        {
+            return None;
+        }
+        let operation = match source.symbols.core_vocabulary(declaration)? {
+            CoreVocabulary::Reflection(ReflectionDeclaration::Parameter) => {
+                BuildOperation::ParameterDescription
+            }
+            CoreVocabulary::Reflection(ReflectionDeclaration::Field) => {
+                BuildOperation::FieldDescription
+            }
+            _ => return None,
+        };
+        let symbol_resolved_trees::expression::ExpressionNode::Name(path) = operand? else {
+            return None;
+        };
+        // A resolved Build declaration keeps ordinary reflection. Neither a
+        // value expression nor an applied operand is reinterpreted as a path.
+        if path.symbol.is_valid()
+            || path.head_symbol.is_valid()
+            || path.static_application.is_valid()
+            || path.reserved_result_of.is_valid()
+            || members.is_empty()
+        {
+            return None;
+        }
+        use symbols::JoinedPath;
+        let source_span = source::SourceSpan::new(
+            members.first()?.source_span().source_id,
+            source::Span::new(
+                members.first()?.source_span().span.start,
+                members.last()?.source_span().span.end,
+            ),
+        );
+        Some(BuildSelectionRequest::Declaration(std::sync::Arc::new(
+            ProductDeclarationRequest {
+                source_span: span,
+                operation,
+                operands: vec![ProductDeclarationOperand {
+                    path: members.joined_path(),
+                    source_span,
+                    application: None,
+                }]
+                .into_boxed_slice(),
+            },
+        )))
+    }
 
     pub(crate) struct ProductQueryOperation {
         pub namespace: SymbolHandle,
