@@ -137,7 +137,7 @@ pub struct PlacedInternalMachineCallResolution {
     pub caller: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub owner: target_operations::CallSiteOwner,
+    pub owner: target_vocabulary::CallSiteOwner,
     pub callee: MachineId,
     pub call_function_offset: u64,
     pub call_section_offset: u64,
@@ -473,7 +473,7 @@ mod tests {
                     caller,
                     block: SelectedBlockId(0),
                     instruction: SelectedInstructionId(0),
-                    owner: target_operations::CallSiteOwner::Operation(OperationId::new(21).unwrap()),
+                    owner: target_vocabulary::CallSiteOwner::Operation(OperationId::new(21).unwrap()),
                     callee,
                     call_function_offset: 0,
                     call_section_offset: 0,
@@ -518,11 +518,11 @@ mod tests {
             row.instruction = SelectedInstructionId(2)
         });
         assert_resolution_mutation_changes_identity(|row| {
-            row.owner = target_operations::CallSiteOwner::Operation(OperationId::new(32).unwrap())
+            row.owner = target_vocabulary::CallSiteOwner::Operation(OperationId::new(32).unwrap())
         });
         for (edge, action_ordinal) in [(31, 0), (31, 1), (32, 0)] {
             assert_resolution_mutation_changes_identity(|row| {
-                row.owner = target_operations::CallSiteOwner::CleanupAction {
+                row.owner = target_vocabulary::CallSiteOwner::CleanupAction {
                     edge: semantic_vocabulary::EdgeId::new(edge).unwrap(),
                     action_ordinal,
                 };

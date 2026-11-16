@@ -416,7 +416,7 @@ mod tests {
             panic!("the source transition must reject");
         };
         assert!(
-            error.contains("ambiguous source transition `cherry-pick:"),
+            error.contains("unverifiable cherry-pick checkpoint `cherry-pick:"),
             "{error}"
         );
     }

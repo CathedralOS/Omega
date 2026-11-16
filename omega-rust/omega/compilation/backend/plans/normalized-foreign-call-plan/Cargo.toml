@@ -14,9 +14,9 @@ test-support = [
     "dep:calling-conventions",
     "dep:function-identity",
     "dep:legalized-operations",
-    "dep:optimization-unit",
+    "dep:native-vocabulary",
     "dep:task-plans",
-    "dep:target-operations",
+    "dep:target-vocabulary",
     "dep:terminal-psi",
 ]
 
@@ -29,7 +29,7 @@ target = { path = "../../target" }
 calling-conventions = { path = "../../calling-conventions", optional = true }
 function-identity = { path = "../../../../foundation/function-identity", optional = true }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations", optional = true }
-optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit", optional = true }
+native-vocabulary = { path = "../../../representations/native-vocabulary", optional = true }
 task-plans = { path = "../../runtime/task-plans", optional = true }
-target-operations = { path = "../../../representations/target-operations", optional = true }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary", optional = true }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi", optional = true }

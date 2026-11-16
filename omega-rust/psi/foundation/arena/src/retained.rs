@@ -265,6 +265,29 @@ impl<T: Default> RetainedArena<T> {
         self.storage_len() - self.retired
     }
 
+    /// Whether every retained and append page fits a consumer's row bound.
+    /// Checks physical slots, including any retired rows; decoding must not
+    /// hide an oversized copy-on-write allocation behind a small live count.
+    pub fn pages_fit(&self, maximum_rows: usize) -> bool {
+        self.appended.storage_slice().len() <= maximum_rows
+            && self
+                .directory
+                .pages
+                .iter()
+                .all(|page| page.rows.storage_slice().len() <= maximum_rows)
+    }
+
+    /// Dense rows that can issue further spans in their existing generation.
+    /// The empty append page matters too: its next handle must keep the same
+    /// generation as retained rows, rather than only looking equal today.
+    pub fn has_dense_generation(&self) -> bool {
+        let generation = self.appended.storage_view().fresh_generation;
+        self.retired == 0
+            && self
+                .stored_rows()
+                .all(|(_, row_generation, occupied)| occupied && row_generation == generation)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

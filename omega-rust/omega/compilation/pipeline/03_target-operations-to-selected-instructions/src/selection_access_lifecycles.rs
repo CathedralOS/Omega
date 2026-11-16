@@ -2554,7 +2554,7 @@ pub(crate) mod resource_profile {
                                         additional_input_qualifications: Vec::new(),
                                     };
                                     LegalizedCallUnitParameter {
-                                        target: target_operations::TargetStructuralParameter {
+                                        target: target_vocabulary::TargetStructuralParameter {
                                             place,
                                             structural_type,
                                             multiplicity: semantic.multiplicity,
@@ -2574,7 +2574,7 @@ pub(crate) mod resource_profile {
                                 machine: MachineId::new(1).unwrap(),
                                 attachment: None,
                                 nominal_cleanup_subject: None,
-                                provenance: target_operations::TerminalPsiProvenance {
+                                provenance: target_vocabulary::TerminalPsiProvenance {
                                     operations: vec![row.operation],
                                     edges: vec![],
                                 },

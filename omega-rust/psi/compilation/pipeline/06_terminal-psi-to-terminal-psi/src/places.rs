@@ -3095,7 +3095,7 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         if let Reached::Extent(producer) = reached {
-            return self.extent_equation(operation, producer, &budget);
+            return self.extent_equation(tables, operation, producer, &budget);
         }
         let Reached::Value(held) = reached else {
             return Ok(None);
@@ -4020,6 +4020,19 @@ impl<'a> Storage<'a> {
                         Vec::new(),
                     ));
                 }
+                StructuralPlaceKind::BlockParameter { .. }
+                    if self
+                        .declaration(self.root_type(place, concerns).map_err(refused)?, concerns)
+                        .map_err(refused)?
+                        .shape
+                        .is_shared_readable_byte_view() =>
+                {
+                    return Ok(ScalarTerm::byte_sequence_predicate(
+                        predicate,
+                        place,
+                        Vec::new(),
+                    ));
+                }
                 StructuralPlaceKind::OperationResult { producer, .. } => {
                     match &self.operation(producer, concerns).map_err(refused)?.kind {
                         OperationKind::MoveStructuralValue { source } if source.path.is_empty() => {
@@ -4027,6 +4040,33 @@ impl<'a> Storage<'a> {
                         }
                         OperationKind::StructuralLeafCopy { source, path } if path.is_empty() => {
                             place = *source;
+                        }
+                        OperationKind::ByteSequenceSubslice { .. }
+                            if self
+                                .declaration(
+                                    self.root_type(place, concerns).map_err(refused)?,
+                                    concerns,
+                                )
+                                .map_err(refused)?
+                                .shape
+                                .is_shared_readable_byte_view() =>
+                        {
+                            let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                            required.insert(predicate);
+                            if terminal_semantics::byte_sequence_source_predicates(
+                                self.module,
+                                self.lowered,
+                                place,
+                            )
+                            .is_some_and(|known| known.implies(required))
+                            {
+                                return Ok(ScalarTerm::Boolean(true));
+                            }
+                            return Ok(ScalarTerm::byte_sequence_predicate(
+                                predicate,
+                                place,
+                                Vec::new(),
+                            ));
                         }
                         _ => {
                             return Err(crate::Unbound::Unsupported(
@@ -4045,6 +4085,61 @@ impl<'a> Storage<'a> {
         Err(crate::Unbound::Unsupported(
             "a byte predicate of a view copied in a cycle",
         ))
+    }
+
+    /// A shared subslice inherits predicates that hold for every window of
+    /// its source. Name the actual producer's result and keep the source
+    /// condition in the proof so each loop arrival must establish it.
+    pub(crate) fn subslice_predicate_premises(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Vec<Proposition>> {
+        use semantic_vocabulary::ByteSequencePredicate;
+
+        let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Operation(operation.id);
+        let result = operation
+            .result
+            .structural()
+            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no structural result"))?;
+        if !self
+            .declaration(result.structural_type, concerns)?
+            .shape
+            .is_shared_readable_byte_view()
+        {
+            return Ok(Vec::new());
+        }
+        let source = self.argument(source, concerns)?;
+        let mut known = Vec::new();
+        for predicate in ByteSequencePredicate::ALL {
+            if !predicate.is_subslice_preserving() {
+                continue;
+            }
+            let term = match self.byte_source(predicate, &source, concerns) {
+                Ok(term) => term,
+                Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
+                Err(_) => continue,
+            };
+            for inherited in ByteSequencePredicate::ALL {
+                if predicate.implies(inherited) {
+                    let destination =
+                        ScalarTerm::byte_sequence_predicate(inherited, result.place, Vec::new());
+                    known.push(Proposition::Implication {
+                        premise: Box::new(Proposition::Equal(
+                            term.clone(),
+                            ScalarTerm::Boolean(true),
+                        )),
+                        conclusion: Box::new(Proposition::Equal(
+                            destination,
+                            ScalarTerm::Boolean(true),
+                        )),
+                    });
+                }
+            }
+        }
+        Ok(known)
     }
 
     /// The octets of the literal whose home is `place`, when `place` is a
@@ -5427,7 +5522,7 @@ impl Held<'_, '_> {
                     ProgramPoint::AfterOperation(block.operations[previous].id)
                 });
             return storage
-                .extent_contents(producer, point, scalar_type, &budget)
+                .extent_contents(self.tables, producer, point, scalar_type, &budget)
                 .map_err(crate::Unbound::Refused)?
                 .ok_or(crate::Unbound::Unproved(
                     "the descriptor's extent has no current endpoint correspondence",
@@ -6113,6 +6208,7 @@ machine entry() {
                 .unwrap();
             let extent = storage
                 .extent_contents(
+                    tables,
                     producer,
                     point,
                     operation.result.scalar_ref().unwrap().scalar_type,

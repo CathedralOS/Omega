@@ -160,7 +160,6 @@ boundary trait PosixFilesystemDarwin {
 }
 // The negated `errno` of the call that just failed.
 machine darwin_failure_i32() -> i32
-invokes PosixFilesystemDarwin
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
     let mut code: [u8; 4];
@@ -170,7 +169,6 @@ invokes PosixFilesystemDarwin
 }
 
 machine darwin_failure_i64() -> i64
-invokes PosixFilesystemDarwin
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
     let mut code: [u8; 4];
@@ -181,7 +179,6 @@ invokes PosixFilesystemDarwin
 
 // Capture libc errno before restoring caller storage after a native write.
 machine darwin_normalize_i64(outcome: i64) -> i64
-invokes PosixFilesystemDarwin
 {
     transition outcome < 0 { true -> darwin_failure_i64() _ -> outcome }
 }

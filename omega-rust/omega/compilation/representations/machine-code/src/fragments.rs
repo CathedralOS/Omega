@@ -13,16 +13,16 @@ and image-address fixups.
 pub mod identity;
 pub mod publication;
 
-use abstract_operations::ValueBinding;
+use native_vocabulary::provenance::WorkSettlement;
+use native_vocabulary::values::ValueBinding;
 use optimization_core::FunctionFragmentEmissionIdentity;
-use optimization_unit::WorkSettlement;
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance,
 };
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::layout::{
@@ -96,7 +96,7 @@ pub mod control_flow {
         },
         InternalCall {
             target: selected_instructions::SelectedCallTarget,
-            owner: target_operations::CallSiteOwner,
+            owner: target_vocabulary::CallSiteOwner,
         },
         NormalizedForeignCall {
             invocation_site: semantic_vocabulary::InvocationSite,
@@ -286,7 +286,7 @@ mod tests {
     };
     use semantic_vocabulary::{MachineId, ValueId, WorkScheduleIdentity};
     use target::NativeTarget;
-    use target_operations::TerminalPsiProvenance;
+    use target_vocabulary::TerminalPsiProvenance;
     use terminal_psi::TerminalPsiIdentity;
 
     fn zero_span_plan() -> FunctionFragmentEmissionPlan {

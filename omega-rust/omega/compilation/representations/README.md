@@ -45,11 +45,23 @@ Three more representation packages sit inside their program families:
   [selects instructions from it](../pipeline/03_target-operations-to-selected-instructions/src/selection.rs)
   without reading anything behind it. The package also holds the layout
   queries both stages ask of the plan's structural declarations.
+- [`target-operations/target-vocabulary/`](target-operations/target-vocabulary/src/lib.rs)
+  owns the records a target program is made of (call contracts and argument
+  sources, boundary realizations, call-site owners, structural homes, value
+  expressions), apart from `TargetOperationPlan` and its control graph.
+  `target-operations` re-exports them. The plan, selected instructions and
+  every later form name them from here, and `check-boundary` refuses any path
+  from those forms to `target-operations` itself.
 - [`native-vocabulary/`](native-vocabulary/src/lib.rs) owns the leaf types
   every native form carries unchanged: provenance and work records,
   structural store destinations, access-reference backings, and the pure
-  predicates over structural declarations. It holds no program, so a later
-  stage can name these without being able to read an earlier one.
+  predicates over structural declarations, integer arithmetic policies, call
+  targets and formals, completion claim sources, ownership-frontier facts,
+  and the canonical scalar and integer type encoders. It holds no program, so
+  a later stage can name these without being able to read an earlier one.
+  `check-boundary` proves that `target-operations`, `legalized-operations`,
+  `selected-instructions` and its analyses cannot reach `abstract-operations`
+  through any production dependency.
 
 Nesting keeps each package separate. It shows an intermediate form's family;
 it does not make the package a module of its parent or producing stage.

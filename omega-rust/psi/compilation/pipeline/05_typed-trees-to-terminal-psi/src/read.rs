@@ -200,10 +200,10 @@ pub(crate) struct Program<'t> {
     pub applications: Vec<MachineId>,
     /// The type arguments each of those was read at.
     applied: Vec<(MachineId, Vec<ValueType>)>,
-    /// The types a finite family's alternative fixes the entry's type
-    /// parameters to, in declaration order, when this program is that
-    /// alternative's check (`Reading::Alternative`).
-    pub alternative: Option<Vec<ValueType>>,
+    /// The source types a finite alternative fixes the entry's parameters to.
+    /// Materialize them under this reader's numbering before checking its body;
+    /// record IDs from the reader that discovered the family cannot cross here.
+    pub alternative: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
@@ -703,7 +703,9 @@ mod tests {
         };
         use typed_trees::domain::{DomainDefinition, ProofFact};
 
-        let text = "Never Always Bare";
+        // Each domain's subject is the record `Point`: lowering refuses a
+        // record domain whose subject type has no exact identity.
+        let text = "Never Always Bare Point";
         let mut sources = SourceMap::default();
         let source = sources
             .add_checked_instance(
@@ -718,21 +720,29 @@ mod tests {
             .source_id;
         let mut builder = SymbolTableBuilder::with_sources(Some(std::sync::Arc::new(sources)));
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let domains = builder.insert_children(
+        let declarations = builder.insert_children(
             root,
-            [(0, 5), (6, 12), (13, 17)].map(|(start, end)| {
+            [
+                (SymbolKind::Domain, (0, 5)),
+                (SymbolKind::Domain, (6, 12)),
+                (SymbolKind::Domain, (13, 17)),
+                (SymbolKind::Data, (18, 23)),
+            ]
+            .map(|(kind, (start, end))| {
                 (
-                    SymbolKind::Domain,
+                    kind,
                     SymbolNameRef::Source(SourceSpan::new(source, source::Span::new(start, end))),
                 )
             }),
         );
+        let domains = declarations.handles().take(3).collect::<Vec<_>>();
+        let point = declarations.handle_at(3);
         let subjects = domains
-            .handles()
+            .iter()
             .map(|domain| {
                 builder
                     .insert_children(
-                        domain,
+                        *domain,
                         [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
                     )
                     .handle_at(0)
@@ -742,8 +752,12 @@ mod tests {
             symbols: builder.finish(),
             ..Default::default()
         };
-        for (((symbol, name), predicate), subject_symbol) in domains
-            .handles()
+        let target_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: point,
+            name: "Point".into(),
+        });
+        for (((&symbol, name), predicate), subject_symbol) in domains
+            .iter()
             .zip(["Never", "Always", "Bare"])
             .zip([Some(false), Some(true), None])
             .zip(subjects)
@@ -767,6 +781,7 @@ mod tests {
                 name: name.into(),
                 semantic_id,
                 subject_symbol,
+                target_type,
                 predicate_presence,
                 facts,
                 ..Default::default()
@@ -776,7 +791,7 @@ mod tests {
         let carrier = program.records.push(plain_record());
         program
             .declared_domains
-            .extend(domains.handles().map(|symbol| DeclaredDomain {
+            .extend(domains.iter().map(|&symbol| DeclaredDomain {
                 instance: crate::body::DomainInstance {
                     declaration: symbol,
                     identity: typed.domain_definition(symbol).unwrap().semantic_id,

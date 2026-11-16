@@ -9,7 +9,7 @@ pub(crate) mod constraints {
     use crate::BoundExecutionPlan;
     use selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConstraints};
     use semantic_vocabulary::MachineId;
-    use target_operations::MachineRegister;
+    use target_vocabulary::MachineRegister;
 
     use register_environment::ValidatedTargetRegisterEnvironment;
 
