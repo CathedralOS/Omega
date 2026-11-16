@@ -52,10 +52,11 @@ machine windows_filesystem_native_completion_status(succeeded: i32) -> i32
 machine windows_filesystem_native_create_file(path: &[u8] in Path, desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path, &mut wide);
+    let count: i64 = windows_wide_path(path as -Path, &mut wide);
     wide[4095] = 0;
+    let native_wide: [u16; 4096] in WindowsNativePath = wide as +WindowsNativePath;
     transition count > 0 && (flags_and_attributes & 1073741824) == 0 {
-        true -> (windows_filesystem_native_normalize_handle(block WindowsFilesystemIo::c_create_file(&wide, desired_access, share_mode, 0, creation_disposition, flags_and_attributes, 0)))
+        true -> (windows_filesystem_native_normalize_handle(block WindowsFilesystemIo::c_create_file(&native_wide, desired_access, share_mode, 0, creation_disposition, flags_and_attributes, 0)))
         _ -> (windows_filesystem_native_invalid_handle())
     }
 }
@@ -103,12 +104,14 @@ machine windows_filesystem_native_move_file(from: &[u8] in Path, to: &[u8] in Pa
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut wide_from: [u16; 4096];
     let mut wide_to: [u16; 4096];
-    let from_count: i64 = windows_wide_path(from, &mut wide_from);
+    let from_count: i64 = windows_wide_path(from as -Path, &mut wide_from);
     wide_from[4095] = 0;
-    let to_count: i64 = windows_wide_path(to, &mut wide_to);
+    let native_wide_from: [u16; 4096] in WindowsNativePath = wide_from as +WindowsNativePath;
+    let to_count: i64 = windows_wide_path(to as -Path, &mut wide_to);
     wide_to[4095] = 0;
+    let native_wide_to: [u16; 4096] in WindowsNativePath = wide_to as +WindowsNativePath;
     transition from_count > 0 && to_count > 0 {
-        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_move_file(&wide_from, &wide_to, flags)))
+        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_move_file(&native_wide_from, &native_wide_to, flags)))
         _ -> (-87)
     }
 }
@@ -117,12 +120,14 @@ machine windows_filesystem_native_rename_file(from: &[u8] in Path, to: &[u8] in 
 reaches FilesystemNamespaceMutation {
     let mut wide_from: [u16; 4096];
     let mut wide_to: [u16; 4096];
-    let from_count: i64 = windows_wide_path(from, &mut wide_from);
+    let from_count: i64 = windows_wide_path(from as -Path, &mut wide_from);
     wide_from[4095] = 0;
-    let to_count: i64 = windows_wide_path(to, &mut wide_to);
+    let native_wide_from: [u16; 4096] in WindowsNativePath = wide_from as +WindowsNativePath;
+    let to_count: i64 = windows_wide_path(to as -Path, &mut wide_to);
     wide_to[4095] = 0;
+    let native_wide_to: [u16; 4096] in WindowsNativePath = wide_to as +WindowsNativePath;
     transition from_count > 0 && to_count > 0 {
-        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_rename_file(&wide_from, &wide_to, 1)))
+        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_rename_file(&native_wide_from, &native_wide_to, 1)))
         _ -> (-87)
     }
 }
@@ -130,12 +135,14 @@ machine windows_filesystem_native_hard_link(original: &[u8] in Path, link: &[u8]
 reaches FilesystemNamespaceMutation {
     let mut wide_original: [u16; 4096];
     let mut wide_link: [u16; 4096];
-    let original_count: i64 = windows_wide_path(original, &mut wide_original);
+    let original_count: i64 = windows_wide_path(original as -Path, &mut wide_original);
     wide_original[4095] = 0;
-    let link_count: i64 = windows_wide_path(link, &mut wide_link);
+    let native_wide_original: [u16; 4096] in WindowsNativePath = wide_original as +WindowsNativePath;
+    let link_count: i64 = windows_wide_path(link as -Path, &mut wide_link);
     wide_link[4095] = 0;
+    let native_wide_link: [u16; 4096] in WindowsNativePath = wide_link as +WindowsNativePath;
     transition original_count > 0 && link_count > 0 {
-        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_hard_link(&wide_link, &wide_original, 0)))
+        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_hard_link(&native_wide_link, &native_wide_original, 0)))
         false -> (-87)
     }
 }
@@ -173,40 +180,44 @@ reaches FilesystemMetadataQuery {
 machine windows_filesystem_native_set_file_attributes(path: &[u8] in Path, attributes: u32) -> i32
 reaches FilesystemMetadataMutation {
     let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path, &mut wide);
+    let count: i64 = windows_wide_path(path as -Path, &mut wide);
     wide[4095] = 0;
+    let native_wide: [u16; 4096] in WindowsNativePath = wide as +WindowsNativePath;
     transition count > 0 {
-        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_set_file_attributes(&wide, attributes)))
+        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_set_file_attributes(&native_wide, attributes)))
         _ -> (-87)
     }
 }
 machine windows_filesystem_native_create_directory(path: &[u8] in Path) -> i32
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path, &mut wide);
+    let count: i64 = windows_wide_path(path as -Path, &mut wide);
     wide[4095] = 0;
+    let native_wide: [u16; 4096] in WindowsNativePath = wide as +WindowsNativePath;
     transition count > 0 {
-        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_create_directory(&wide, 0)))
+        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_create_directory(&native_wide, 0)))
         _ -> (-87)
     }
 }
 machine windows_filesystem_native_remove_directory(path: &[u8] in Path) -> i32
 reaches FilesystemNamespaceMutation {
     let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path, &mut wide);
+    let count: i64 = windows_wide_path(path as -Path, &mut wide);
     wide[4095] = 0;
+    let native_wide: [u16; 4096] in WindowsNativePath = wide as +WindowsNativePath;
     transition count > 0 {
-        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_remove_directory(&wide)))
+        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_remove_directory(&native_wide)))
         _ -> (-87)
     }
 }
 machine windows_filesystem_native_delete_file(path: &[u8] in Path) -> i32
 reaches FilesystemNamespaceMutation {
     let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path, &mut wide);
+    let count: i64 = windows_wide_path(path as -Path, &mut wide);
     wide[4095] = 0;
+    let native_wide: [u16; 4096] in WindowsNativePath = wide as +WindowsNativePath;
     transition count > 0 {
-        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_delete_file(&wide)))
+        true -> (windows_filesystem_native_completion_status(block WindowsFilesystemIo::c_delete_file(&native_wide)))
         _ -> (-87)
     }
 }

@@ -55,6 +55,6 @@ machine windows_filesystem_native_unlock_file(handle: u64) -> i32
 
 machine windows_lock_completion(duplicate: i64 in WindowsSynchronousFileOrAbsent, status: i32) -> i32
 requires (duplicate as -WindowsSynchronousFileOrAbsent) != 0 {
-    let closed: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(duplicate as i64));
+    let closed: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(duplicate as -WindowsSynchronousFileOrAbsent));
     transition status < 0 { true -> (status) false -> (closed) }
 }
