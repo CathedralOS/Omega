@@ -22,7 +22,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::layout::{
@@ -96,7 +96,7 @@ pub mod control_flow {
         },
         InternalCall {
             target: selected_instructions::SelectedCallTarget,
-            owner: target_operations::CallSiteOwner,
+            owner: target_vocabulary::CallSiteOwner,
         },
         NormalizedForeignCall {
             invocation_site: semantic_vocabulary::InvocationSite,
@@ -286,7 +286,7 @@ mod tests {
     };
     use semantic_vocabulary::{MachineId, ValueId, WorkScheduleIdentity};
     use target::NativeTarget;
-    use target_operations::TerminalPsiProvenance;
+    use target_vocabulary::TerminalPsiProvenance;
     use terminal_psi::TerminalPsiIdentity;
 
     fn zero_span_plan() -> FunctionFragmentEmissionPlan {

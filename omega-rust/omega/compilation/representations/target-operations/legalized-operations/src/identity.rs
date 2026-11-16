@@ -41,7 +41,7 @@ use structural_types::{
     encode_entry_claim, encode_structural_parameter, encode_structural_type,
     encode_target_structural_parameter,
 };
-use target_operations::{MachineRegister, TargetAccessCallAssociation, TargetAccessCallBinding};
+use target_vocabulary::{MachineRegister, TargetAccessCallAssociation, TargetAccessCallBinding};
 use terminal_psi::{StructuralAccess, StructuralOperationResult, TerminalAccessViewInput};
 
 pub fn legalized_operation_plan_identity(

@@ -14,8 +14,8 @@ use native_vocabulary::provenance::WorkSettlement;
 use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::ServiceId;
-use target_operations::ClaimCompletionOnlyRealization;
-use target_operations::ProviderExecutionBinding;
+use target_vocabulary::ClaimCompletionOnlyRealization;
+use target_vocabulary::ProviderExecutionBinding;
 use terminal_psi::CompletionReceipt;
 use terminal_psi::EntryClaim;
 use terminal_psi::StructuralArgument;
@@ -68,10 +68,10 @@ pub struct LegalizedBoundarySettlement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedCallUnitParameter {
     pub semantic: StructuralParameterDeclaration,
-    pub target: target_operations::TargetStructuralParameter,
+    pub target: target_vocabulary::TargetStructuralParameter,
 }
 
-pub use target_operations::NativeCallOrigin;
+pub use target_vocabulary::NativeCallOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedCallSourceError {

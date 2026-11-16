@@ -26,7 +26,7 @@ use semantic_vocabulary::{
     EdgeId, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, ReferenceOriginExtent,
     ServiceId, StructuralDomainId, StructuralTypeId,
 };
-use target_operations::{
+use target_vocabulary::{
     ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
 use terminal_codec::{encode_access_lifecycle_catalog, encode_access_view_input_catalog};
@@ -366,12 +366,12 @@ pub(super) fn encode_boundary_settlement(
             bytes.push(2);
             push_encoded(bytes, edge.get().to_le_bytes());
             match execution {
-                target_operations::BoundaryExecutionBinding::AdmittedProvider(provider) => {
+                target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(provider) => {
                     bytes.push(0);
                     encode_provider_execution(bytes, *provider);
                 }
-                target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                    target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                    target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                 ) => bytes.push(1),
                 _ => {
                     return Err(terminal_codec::CodecError::MalformedStructuralFoundation(
@@ -441,11 +441,11 @@ pub(super) fn decode_boundary_settlement(
             return Ok(SelectedBoundarySettlementPayload::HostedExitProcessI32 {
                 edge: decode_id(cursor, EdgeId::new)?,
                 execution: match cursor.byte()? {
-                    0 => target_operations::BoundaryExecutionBinding::AdmittedProvider(
+                    0 => target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(
                         decode_provider_execution(cursor)?,
                     ),
-                    1 => target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                    1 => target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                     ),
                     tag => {
                         return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag));
@@ -580,7 +580,7 @@ pub(super) fn decode_call_source(
         }
         tag @ (2 | 4) => {
             let assumption = if tag == 4 {
-                Some(target_operations::InstalledAssumedBindingEvidence {
+                Some(target_vocabulary::InstalledAssumedBindingEvidence {
                     required: decode_id(cursor, BoundaryMachineId::new)?,
                     supplied_requirement: decode_id(cursor, BoundaryMachineId::new)?,
                     selected_requirement: decode_id(cursor, BoundaryMachineId::new)?,
@@ -625,15 +625,15 @@ pub(super) fn decode_provider_execution(
 
 pub(super) fn decode_external_execution(
     cursor: &mut Cursor<'_>,
-) -> Result<target_operations::ExternalExecutionBinding, FixedViewCopyDecodeError> {
+) -> Result<target_vocabulary::ExternalExecutionBinding, FixedViewCopyDecodeError> {
     match cursor.byte()? {
         0 => decode_provider_execution(cursor).map(Into::into),
-        1 => target_operations::NativeBindingExecution::from_commitments(
+        1 => target_vocabulary::NativeBindingExecution::from_commitments(
             cursor.array::<32>()?,
             cursor.array::<32>()?,
             cursor.array::<32>()?,
         )
-        .map(target_operations::ExternalExecutionBinding::NativeBinding)
+        .map(target_vocabulary::ExternalExecutionBinding::NativeBinding)
         .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution),
         _ => Err(FixedViewCopyDecodeError::InvalidProviderExecution),
     }

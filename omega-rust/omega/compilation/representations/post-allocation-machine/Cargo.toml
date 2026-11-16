@@ -9,6 +9,7 @@ name = "post_allocation_machine"
 path = "src/lib.rs"
 
 [dependencies]
+target-vocabulary = { path = "../target-operations/target-vocabulary" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 register-homes = { path = "../register-homes" }
 register-model = { path = "../../backend/register-model" }

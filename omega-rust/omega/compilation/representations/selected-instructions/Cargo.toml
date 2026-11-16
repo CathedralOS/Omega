@@ -14,6 +14,7 @@ name = "selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
+target-vocabulary = { path = "../target-operations/target-vocabulary" }
 native-vocabulary = { path = "../native-vocabulary" }
 function-identity = { path = "../../../foundation/function-identity" }
 arena = { path = "../../../../psi/foundation/arena" }
@@ -22,7 +23,6 @@ optimization-core = { path = "../../../foundation/optimization-core" }
 register-model = { path = "../../backend/register-model" }
 target = { path = "../../backend/target" }
 legalized-operations = { path = "../target-operations/legalized-operations" }
-target-operations = { path = "../target-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

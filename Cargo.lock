@@ -1008,7 +1008,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
+ "target-vocabulary",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -1050,7 +1050,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-psi",
 ]
@@ -1300,7 +1300,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-psi",
 ]
@@ -1544,6 +1544,7 @@ dependencies = [
  "sha2",
  "target",
  "target-operations",
+ "target-vocabulary",
  "terminal-psi",
 ]
 
@@ -1791,7 +1792,7 @@ dependencies = [
  "sha2",
  "symbols",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-codec",
  "terminal-psi",
@@ -1975,7 +1976,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
  "terminal-psi",
 ]
 
@@ -1993,7 +1994,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
+ "target-vocabulary",
  "terminal-codec",
  "terminal-psi",
 ]
@@ -2338,6 +2339,7 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "target",
+ "target-vocabulary",
  "task-plans",
  "terminal-installation",
  "terminal-psi",
@@ -2363,7 +2365,25 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
+name = "target-vocabulary"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "native-vocabulary",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "task-plans",
+ "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]

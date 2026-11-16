@@ -11,7 +11,7 @@ custody from the enclosing settlement rather than trusting serialized report coo
 use crate::ForeignCallScalarArgumentRecord;
 use calling_conventions::{ConventionalSumLayout, ValuePlacement};
 use semantic_vocabulary::{BoundaryMachineId, EdgeId, OperationId, ScalarType, ServiceId, ValueId};
-use target_operations::{
+use target_vocabulary::{
     BoundaryExecutionBinding, BoundaryRealization, BoundaryScalarArgument,
     CompilerBuiltinExecution, CompletionClaimSource, ExternalExecutionBinding,
     NativeBindingExecution, ProviderExecutionBinding,

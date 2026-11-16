@@ -68,7 +68,7 @@ pub(super) fn encode_structural_parameter(
 
 pub(super) fn encode_target_structural_parameter(
     bytes: &mut Vec<u8>,
-    parameter: &target_operations::TargetStructuralParameter,
+    parameter: &target_vocabulary::TargetStructuralParameter,
 ) {
     crate::codec_bytes::push_encoded(bytes, parameter.place.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, parameter.structural_type.get().to_le_bytes());
@@ -128,7 +128,7 @@ pub(super) fn encode_reference_origin(
 
 pub(super) fn encode_target_structural_argument(
     bytes: &mut Vec<u8>,
-    argument: &target_operations::TargetStructuralArgument,
+    argument: &target_vocabulary::TargetStructuralArgument,
 ) {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
@@ -149,32 +149,32 @@ pub(super) fn encode_target_structural_argument(
         crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
     }
     match &argument.source {
-        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+        target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(5);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+        target_vocabulary::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation,
         } => {
             bytes.push(4);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+        target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place } => {
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+        target_vocabulary::TargetStructuralArgumentSource::Placement(placement) => {
             bytes.push(0);
             encode_placement(bytes, placement);
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+        target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView {
             psi_operation,
         } => {
             bytes.push(1);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+        target_vocabulary::TargetStructuralArgumentSource::EstablishedElementView {
             psi_operation,
         } => {
             bytes.push(6);
@@ -738,7 +738,7 @@ mod tests {
             additional_input_qualifications: Vec::new(),
         };
         let shape = ValueShape::integer(8, 8);
-        let target = target_operations::TargetStructuralParameter {
+        let target = target_vocabulary::TargetStructuralParameter {
             place: semantic.place,
             structural_type: semantic.structural_type,
             multiplicity: semantic.multiplicity,
@@ -755,7 +755,7 @@ mod tests {
             encode_structural_parameter(&mut bytes, parameter);
             bytes
         };
-        let encode_target = |parameter: &target_operations::TargetStructuralParameter| {
+        let encode_target = |parameter: &target_vocabulary::TargetStructuralParameter| {
             let mut bytes = Vec::new();
             encode_target_structural_parameter(&mut bytes, parameter);
             bytes

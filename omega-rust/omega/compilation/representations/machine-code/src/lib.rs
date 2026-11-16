@@ -35,7 +35,7 @@ use register_model::RegisterViewId;
 use selected_instructions::{MachineIdentityBytes, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, MachineId, OperationId, PlaceId};
 use target::NativeTarget;
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
@@ -138,8 +138,8 @@ pub(crate) mod identity_encoding {
                 bytes.identity_bytes(&[4]);
                 bytes.identity_bytes(&operation.get().to_le_bytes());
                 bytes.identity_bytes(&[match role {
-                    target_operations::InstallationCallRole::Validate => 0,
-                    target_operations::InstallationCallRole::Work => 1,
+                    target_vocabulary::InstallationCallRole::Validate => 0,
+                    target_vocabulary::InstallationCallRole::Work => 1,
                 }]);
             }
             CallSiteOwner::CleanupAction {

@@ -4,6 +4,7 @@ Target-lowered functions preserve explicit basic-block control graphs, block-par
 Keeping the function container and its control graph together makes clear how function-level ABI declarations (`scalar_abi`, `mixed_structural_scalar_abi`, `call_plan`) bind to entry block parameters and return/invocation terminators.
 */
 
+use crate::TargetCasePointerSlot;
 use crate::{
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetBooleanExpression,
     TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
@@ -171,19 +172,6 @@ pub enum TargetControlTerminator {
         when_true: TargetControlSuccessor,
         when_false: TargetControlSuccessor,
     },
-}
-
-/// One pointer word between a sum and the storage selection has to load.
-///
-/// `index_start..index_end` selects this word's runtime indices in the
-/// operation's flattened index list. The list is prepared once, on the
-/// target operation that projected the sum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetCasePointerSlot {
-    pub byte_offset: u32,
-    pub index_start: u32,
-    pub index_end: u32,
-    pub scalar_descriptor: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
