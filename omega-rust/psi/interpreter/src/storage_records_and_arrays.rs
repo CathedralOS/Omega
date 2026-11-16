@@ -210,48 +210,54 @@ pub(crate) mod record {
         fn bind_constructor_claims(
             origin: ResultClaimOrigin,
             result: &StructuralOperationResult,
-            live: &BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
-            mut remaining: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
-            mut transported: BTreeMap<semantic_vocabulary::ClaimId, Vec<StructuralPathSegment>>,
+            is_live: impl Fn(semantic_vocabulary::ClaimId) -> bool,
+            mut transported: Vec<(semantic_vocabulary::ClaimId, Vec<StructuralPathSegment>)>,
             nominal_root: Option<semantic_vocabulary::ClaimId>,
             active: impl Fn(&[StructuralPathSegment]) -> Result<bool, TerminalInterpretError>,
-        ) -> Result<BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>, TerminalInterpretError>
+        ) -> Result<Vec<(semantic_vocabulary::ClaimId, LiveClaim)>, TerminalInterpretError>
         {
             let invalid = || TerminalInterpretError::ClaimTransferMismatch;
             if origin == ResultClaimOrigin::Transfer && nominal_root.is_some() {
                 return Err(invalid());
             }
+            transported.sort_unstable_by_key(|(id, _)| *id);
+            if transported.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return Err(invalid());
+            }
+            let mut bound = Vec::with_capacity(result.claims.len());
             for binding in &result.claims {
+                let transported_position =
+                    transported.binary_search_by_key(&binding.claim, |(id, _)| *id);
                 if !active(&binding.path)? {
-                    if transported.contains_key(&binding.claim) || live.contains_key(&binding.claim)
-                    {
+                    if transported_position.is_ok() || is_live(binding.claim) {
                         return Err(invalid());
                     }
                     continue;
                 }
-                match transported.remove(&binding.claim) {
-                    Some(path) if path == binding.path => {}
-                    None if nominal_root == Some(binding.claim) => {}
+                match transported_position {
+                    Ok(position) if transported[position].1 == binding.path => {
+                        transported.remove(position);
+                    }
+                    Err(_) if nominal_root == Some(binding.claim) => {}
                     _ => return Err(invalid()),
                 }
-                if remaining
-                    .insert(
-                        binding.claim,
-                        LiveClaim::at(
-                            result.place,
-                            binding.path.clone(),
-                            StructuralMultiplicity::Linear,
-                        ),
-                    )
-                    .is_some()
-                {
-                    return Err(invalid());
-                }
+                bound.push((
+                    binding.claim,
+                    LiveClaim::at(
+                        result.place,
+                        binding.path.clone(),
+                        StructuralMultiplicity::Linear,
+                    ),
+                ));
             }
             if !transported.is_empty() {
                 return Err(invalid());
             }
-            Ok(remaining)
+            bound.sort_unstable_by_key(|(id, _)| *id);
+            if bound.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return Err(invalid());
+            }
+            Ok(bound)
         }
 
         impl TerminalExecution<'_> {
@@ -427,7 +433,7 @@ pub(crate) mod record {
                     _ => None,
                 };
                 let mut remaining = self.live_claims.clone();
-                let mut transported = BTreeMap::new();
+                let mut transported = Vec::new();
                 for (argument, destination) in operands {
                     for (identity, claim) in &self.live_claims {
                         if claim.place != Some(argument.place) {
@@ -438,22 +444,25 @@ pub(crate) mod record {
                         };
                         let mut path = destination.clone();
                         path.extend_from_slice(suffix);
-                        if transported.insert(*identity, path).is_some()
-                            || remaining.remove(identity).is_none()
-                        {
+                        if remaining.remove(identity).is_none() {
                             return Err(invalid());
                         }
+                        transported.push((*identity, path));
                     }
                 }
-                let remaining = bind_constructor_claims(
+                let bound = bind_constructor_claims(
                     origin,
                     result,
-                    &self.live_claims,
-                    remaining,
+                    |identity| self.live_claims.contains_key(&identity),
                     transported,
                     nominal_root,
                     |path| self.constructor_claim_is_active(result, path, case_membership),
                 )?;
+                for (identity, claim) in bound {
+                    if remaining.insert(identity, claim).is_some() {
+                        return Err(invalid());
+                    }
+                }
                 self.stage_result_affine_frontier(result, frontier, case_membership)?;
                 Ok(remaining)
             }
@@ -590,8 +599,7 @@ pub(crate) mod record {
                 let bound = bind_constructor_claims(
                     ResultClaimOrigin::Transfer,
                     &result,
-                    &BTreeMap::new(),
-                    BTreeMap::new(),
+                    |_| false,
                     transported,
                     None,
                     |_| Ok(true),
@@ -599,7 +607,11 @@ pub(crate) mod record {
                 .unwrap();
                 assert_eq!(bound.len(), 2);
                 for binding in &result.claims {
-                    let claim = &bound[&binding.claim];
+                    let claim = &bound
+                        .iter()
+                        .find(|(identity, _)| *identity == binding.claim)
+                        .unwrap()
+                        .1;
                     assert_eq!(claim.place, Some(result.place));
                     assert_eq!(claim.path, binding.path);
                     assert_eq!(claim.multiplicity, Some(StructuralMultiplicity::Linear));
@@ -613,9 +625,8 @@ pub(crate) mod record {
                 let fresh = bind_constructor_claims(
                     ResultClaimOrigin::Construction,
                     &result,
-                    &BTreeMap::new(),
-                    BTreeMap::new(),
-                    BTreeMap::new(),
+                    |_| false,
+                    Vec::new(),
                     Some(root),
                     |_| Ok(true),
                 )
@@ -625,9 +636,8 @@ pub(crate) mod record {
                     bind_constructor_claims(
                         ResultClaimOrigin::Transfer,
                         &result,
-                        &BTreeMap::new(),
-                        BTreeMap::new(),
-                        BTreeMap::new(),
+                        |_| false,
+                        Vec::new(),
                         Some(root),
                         |_| Ok(true)
                     )
@@ -643,8 +653,7 @@ pub(crate) mod record {
                     bind_constructor_claims(
                         ResultClaimOrigin::Construction,
                         &result,
-                        &BTreeMap::new(),
-                        BTreeMap::new(),
+                        |_| false,
                         children,
                         Some(root),
                         |_| Ok(true)
@@ -677,8 +686,7 @@ pub(crate) mod record {
                 let bound = bind_constructor_claims(
                     ResultClaimOrigin::Transfer,
                     &result,
-                    &BTreeMap::new(),
-                    BTreeMap::new(),
+                    |_| false,
                     transported,
                     None,
                     |path| Ok(path == first),
@@ -695,8 +703,7 @@ pub(crate) mod record {
                     bind_constructor_claims(
                         ResultClaimOrigin::Transfer,
                         &result,
-                        &BTreeMap::new(),
-                        BTreeMap::new(),
+                        |_| false,
                         transported,
                         None,
                         |path| Ok(path == first)

@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Shared builds bypass the cache on every checksum-enabled compilation
+- Category: Verifying costs more than writing
+- Where: [.cargo/config.toml](.cargo/config.toml), mbx 1.29.2 Rust compiler adapter
+- Saw: Worker 1's ordinary focused build recorded `unknown-flag` for `-Zchecksum-hash-algorithm=blake3` in `/tmp/omega-worker1-cache-bypasses.jsonl`. Cargo emits that flag for the repository's content-based fingerprints. The adapter in upstream mbx 1.30.0 also rejects it. The shared cache therefore supplies no objects for these compilations.
+- Cost: Independent worktrees rebuild unchanged dependencies. Teach the cache adapter to retain the checksum option in its input identity and preserve checksum dependency output; confirm reuse in the next ordinary build. Do not disable fingerprint checks or change a running build's configuration. Root owns this measured workflow defect alongside the active compiler work.
+- Reported: 2026-11-16, Codex, during the draft PR takeovers
+
 ### Changing storage analysis rebuilds the native compiler
 - Category: Verifying costs more than writing
 - Where: [semantic analysis package](omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml), [declaration lookup in optimization](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs#L619), [target descriptor inputs](omega-rust/omega/compilation/representations/target-operations/target-vocabulary/src/descriptor_input.rs)

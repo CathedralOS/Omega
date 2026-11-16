@@ -22,11 +22,12 @@ pub struct ClaimLocation {
     pub path: Vec<Path>,
 }
 
+// Keep only live claims, sorted by identity. They are a sparse subset of a
+// machine's declared claims; storage must not grow to a supplied ID.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) struct ClaimsState(
-    pub BTreeMap<ClaimId, ClaimLocation>,
-    BTreeMap<PlaceId, BTreeMap<Vec<Path>, ClaimId>>,
-);
+pub(super) struct ClaimsState {
+    pub live: Vec<ClaimLocation>,
+}
 
 impl ClaimsState {
     pub(super) fn meet(&self, other: &Self) -> Result<Self, Error> {
@@ -36,23 +37,6 @@ impl ClaimsState {
             ));
         }
         Ok(self.clone())
-    }
-    fn remove(&mut self, id: ClaimId) -> Result<ClaimLocation, Error> {
-        let claim = self
-            .0
-            .remove(&id)
-            .ok_or_else(|| Error::malformed("claim capture lost its exact identity"))?;
-        let paths = self
-            .1
-            .get_mut(&claim.place)
-            .ok_or_else(|| Error::malformed("claim capture lost its owner index"))?;
-        if paths.remove(&claim.path) != Some(id) {
-            return Err(Error::malformed("claim owner index changes its identity"));
-        }
-        if paths.is_empty() {
-            self.1.remove(&claim.place);
-        }
-        Ok(claim)
     }
     fn take(&mut self, argument: &StructuralArgument) -> Result<Vec<ClaimLocation>, Error> {
         if argument.access != StructuralAccess::Owned {
@@ -67,93 +51,82 @@ impl ClaimsState {
                 "owned claim transport requires an exact inline path",
             ));
         }
-        let Some(paths) = self.1.get(&argument.place) else {
-            return Ok(Vec::new());
-        };
-        if paths
-            .range(..=argument.path.clone())
-            .next_back()
-            .is_some_and(|(path, _)| argument.path.starts_with(path) && argument.path != *path)
+        let held = self
+            .live
+            .iter()
+            .filter(|claim| claim.place == argument.place);
+        if held
+            .clone()
+            .any(|claim| argument.path.starts_with(&claim.path) && argument.path != claim.path)
         {
             return Err(Error::unsupported(
                 "a projected move would split an intrinsic logical claim",
             ));
         }
-        let ids = paths
-            .range(argument.path.clone()..)
-            .take_while(|(path, _)| path.starts_with(&argument.path))
-            .map(|(_, id)| *id)
-            .collect::<Vec<_>>();
-        let mut moved = Vec::with_capacity(ids.len());
-        for id in ids {
-            let mut claim = self.remove(id)?;
-            claim.path.drain(..argument.path.len());
-            moved.push(claim);
-        }
-        moved.sort_by_key(|claim| claim.identity);
-        Ok(moved)
+        Ok(self
+            .live
+            .extract_if(.., |claim| {
+                claim.place == argument.place && claim.path.starts_with(&argument.path)
+            })
+            .map(|mut claim| {
+                claim.path.drain(..argument.path.len());
+                claim
+            })
+            .collect())
     }
     fn put(&mut self, claim: ClaimLocation) -> Result<(), Error> {
-        if self.0.contains_key(&claim.identity) {
-            return Err(Error::malformed(
-                "claim transport duplicates a live identity",
-            ));
-        }
-        if let Some(paths) = self.1.get(&claim.place)
-            && (paths
-                .range(..=claim.path.clone())
-                .next_back()
-                .is_some_and(|(path, _)| claim.path.starts_with(path))
-                || paths
-                    .range(claim.path.clone()..)
-                    .next()
-                    .is_some_and(|(path, _)| path.starts_with(&claim.path)))
+        let position = match self
+            .live
+            .binary_search_by_key(&claim.identity, |row| row.identity)
         {
+            Ok(_) => {
+                return Err(Error::malformed(
+                    "claim transport duplicates a live identity",
+                ));
+            }
+            Err(position) => position,
+        };
+        if self.live.iter().any(|held| {
+            held.place == claim.place
+                && (held.path.starts_with(&claim.path) || claim.path.starts_with(&held.path))
+        }) {
             return Err(Error::malformed("claim transport overlaps an owned path"));
         }
-        self.1
-            .entry(claim.place)
-            .or_default()
-            .insert(claim.path.clone(), claim.identity);
-        self.0.insert(claim.identity, claim);
+        self.live.insert(position, claim);
         Ok(())
     }
-    fn overlaps(&self, place: PlaceId, path: &[Path]) -> bool {
-        self.1.get(&place).is_some_and(|paths| {
-            paths
-                .range(..=path.to_vec())
-                .next_back()
-                .is_some_and(|(ancestor, _)| path.starts_with(ancestor))
-                || paths
-                    .range(path.to_vec()..)
-                    .next()
-                    .is_some_and(|(descendant, _)| descendant.starts_with(path))
-        })
-    }
     fn under(&self, place: PlaceId) -> Vec<Binding> {
-        let mut rows = self
-            .1
-            .get(&place)
-            .into_iter()
-            .flat_map(|paths| paths.iter())
-            .map(|(path, id)| Binding {
-                claim: *id,
-                path: path.clone(),
+        self.live
+            .iter()
+            .filter(|claim| claim.place == place)
+            .map(|claim| Binding {
+                claim: claim.identity,
+                path: claim.path.clone(),
             })
-            .collect::<Vec<_>>();
-        rows.sort_by_key(|row| row.claim);
-        rows
+            .collect()
     }
+}
+
+#[derive(Clone, Debug)]
+struct OperationClaims {
+    operation: OperationId,
+    bindings: Vec<Binding>,
+}
+
+#[derive(Clone, Debug)]
+struct ReturnClaims {
+    edge: EdgeId,
+    bindings: Option<Vec<Binding>>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct ClaimsPlan {
     pub entry_claims: Vec<EntryClaim>,
     pub block_entry_claims: Vec<EntryClaim>,
-    pub operation_results: BTreeMap<OperationId, Vec<Binding>>,
+    operation_results: Vec<OperationClaims>,
     pub call_transfers: BTreeMap<InvocationSite, Vec<ClaimTransfer>>,
     pub completion_receipts: BTreeMap<InvocationSite, Vec<CompletionReceipt>>,
-    pub returned_claims: BTreeMap<EdgeId, Vec<Binding>>,
+    returned_claims: Vec<ReturnClaims>,
     frontiers: BTreeMap<InvocationSite, Vec<ClaimLocation>>,
     unreachable: BTreeSet<InvocationSite>,
 }
@@ -174,8 +147,9 @@ impl ClaimsPlan {
                 if let terminal_psi::OperationResult::Structural(result) = &mut operation.result {
                     result.claims = self
                         .operation_results
-                        .get(&operation.id)
-                        .cloned()
+                        .binary_search_by_key(&operation.id, |row| row.operation)
+                        .ok()
+                        .map(|position| self.operation_results[position].bindings.clone())
                         .unwrap_or_default();
                 }
                 let site = InvocationSite::Operation(operation.id);
@@ -232,7 +206,12 @@ impl ClaimsPlan {
                 ..
             } = &mut block.terminator
             {
-                *returned_claims = self.returned_claims.get(edge).cloned().unwrap_or_default();
+                *returned_claims = self
+                    .returned_claims
+                    .binary_search_by_key(edge, |row| row.edge)
+                    .ok()
+                    .and_then(|position| self.returned_claims[position].bindings.clone())
+                    .unwrap_or_default();
             }
         }
         Ok(())
@@ -245,24 +224,54 @@ pub(super) enum Mode {
     Verify,
 }
 
-#[derive(Default)]
-struct Catalogues(BTreeMap<StructuralTypeId, Vec<Vec<Path>>>);
+struct TypeClaims {
+    structural_type: StructuralTypeId,
+    paths: Option<Vec<Vec<Path>>>,
+}
+struct Catalogues(Vec<TypeClaims>);
 impl Catalogues {
+    fn new(types: &[StructuralTypeDeclaration]) -> Result<Self, Error> {
+        let mut rows = types
+            .iter()
+            .map(|row| TypeClaims {
+                structural_type: row.id,
+                paths: None,
+            })
+            .collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|row| row.structural_type);
+        if rows
+            .windows(2)
+            .any(|pair| pair[0].structural_type == pair[1].structural_type)
+        {
+            return Err(Error::malformed(
+                "claim catalogue repeats a structural type",
+            ));
+        }
+        Ok(Self(rows))
+    }
     fn paths(
         &mut self,
         types: &[StructuralTypeDeclaration],
         root: StructuralTypeId,
     ) -> Result<&[Vec<Path>], Error> {
-        if let std::collections::btree_map::Entry::Vacant(entry) = self.0.entry(root) {
-            let paths = crate::owned_structure::claim_catalogue(
-                |id| terminal_psi::find_structural_type(types, id),
-                root,
-                usize::MAX,
-            )
-            .map_err(Error::malformed)?;
-            entry.insert(paths.into_iter().collect());
+        let position = self
+            .0
+            .binary_search_by_key(&root, |row| row.structural_type)
+            .map_err(|_| Error::malformed("claim catalogue names an absent structural type"))?;
+        let paths = &mut self.0[position].paths;
+        if paths.is_none() {
+            *paths = Some(
+                crate::owned_structure::claim_catalogue(
+                    |id| terminal_psi::find_structural_type(types, id),
+                    root,
+                    usize::MAX,
+                )
+                .map_err(Error::malformed)?
+                .into_iter()
+                .collect(),
+            );
         }
-        Ok(self.0.get(&root).expect("queried claim catalogue retained"))
+        Ok(paths.as_deref().expect("queried claim catalogue retained"))
     }
 }
 fn fresh(next: &mut u64) -> Result<ClaimId, Error> {
@@ -297,7 +306,7 @@ pub fn publish_contract_claims(
     contract: &mut MachineContract,
     types: &[StructuralTypeDeclaration],
 ) -> Result<(), Error> {
-    let mut cache = Catalogues::default();
+    let mut cache = Catalogues::new(types)?;
     let mut next = 1;
     let mut entries = Vec::new();
     for formal in &contract.structural_parameters {
@@ -320,7 +329,7 @@ pub fn publish_contract_claims(
 pub(super) struct Flow {
     mode: Mode,
     catalogues: Catalogues,
-    fresh_results: BTreeMap<OperationId, Vec<Binding>>,
+    fresh_results: Vec<OperationClaims>,
     pub plan: ClaimsPlan,
 }
 impl Flow {
@@ -333,7 +342,7 @@ impl Flow {
         if mode == Mode::Publish {
             publish_contract_claims(&mut contract, types)?;
         }
-        let mut cache = Catalogues::default();
+        let mut cache = Catalogues::new(types)?;
         let mut assigned = BTreeSet::new();
         let mut next = 1;
         let mut check_id = |id: ClaimId| -> Result<(), Error> {
@@ -373,7 +382,7 @@ impl Flow {
                 })?;
             }
         }
-        if contract.entry_claims.len() != state.0.len() {
+        if contract.entry_claims.len() != state.live.len() {
             return Err(Error::malformed("entry claim names an absent formal"));
         }
         let mut block_claims = Vec::new();
@@ -421,7 +430,7 @@ impl Flow {
         if mode == Mode::Verify && block_claims.len() != machine.block_entry_claims.len() {
             return Err(Error::malformed("block claim names an absent formal"));
         }
-        let mut fresh_results = BTreeMap::new();
+        let mut fresh_results = Vec::new();
         for operation in machine.operations() {
             let Some(result) = operation.result.as_structural() else {
                 continue;
@@ -450,7 +459,45 @@ impl Flow {
             ) {
                 validate_bindings(expected, &rows)?;
             }
-            fresh_results.insert(operation.id, rows);
+            fresh_results.push(OperationClaims {
+                operation: operation.id,
+                bindings: rows,
+            });
+        }
+        fresh_results.sort_unstable_by_key(|row| row.operation);
+        if fresh_results
+            .windows(2)
+            .any(|pair| pair[0].operation == pair[1].operation)
+        {
+            return Err(Error::malformed("claim results repeat an operation"));
+        }
+        let operation_results = fresh_results
+            .iter()
+            .map(|row| OperationClaims {
+                operation: row.operation,
+                bindings: Vec::new(),
+            })
+            .collect();
+        let mut returned_claims = machine
+            .blocks
+            .iter()
+            .filter_map(|block| {
+                if let Terminator::ReturnStructural { edge, .. } = &block.terminator {
+                    Some(ReturnClaims {
+                        edge: *edge,
+                        bindings: None,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        returned_claims.sort_unstable_by_key(|row| row.edge);
+        if returned_claims
+            .windows(2)
+            .any(|pair| pair[0].edge == pair[1].edge)
+        {
+            return Err(Error::malformed("claim returns repeat an edge"));
         }
         Ok((
             Self {
@@ -460,11 +507,19 @@ impl Flow {
                 plan: ClaimsPlan {
                     entry_claims: contract.entry_claims,
                     block_entry_claims: block_claims,
+                    operation_results,
+                    returned_claims,
                     ..ClaimsPlan::default()
                 },
             },
             state,
         ))
+    }
+    fn fresh_result(&self, operation: OperationId) -> Option<&[Binding]> {
+        self.fresh_results
+            .binary_search_by_key(&operation, |row| row.operation)
+            .ok()
+            .map(|position| self.fresh_results[position].bindings.as_slice())
     }
     fn record_result(&mut self, operation: &Operation, state: &ClaimsState) -> Result<(), Error> {
         if let Some(result) = operation.result.as_structural() {
@@ -474,7 +529,12 @@ impl Flow {
                     "operation result claims do not match transported custody",
                 ));
             }
-            self.plan.operation_results.insert(operation.id, bindings);
+            let position = self
+                .plan
+                .operation_results
+                .binary_search_by_key(&operation.id, |row| row.operation)
+                .map_err(|_| Error::malformed("claim result names an undeclared operation"))?;
+            self.plan.operation_results[position].bindings = bindings;
         }
         Ok(())
     }
@@ -511,9 +571,7 @@ impl Flow {
     }
     fn snapshot(&mut self, site: InvocationSite, state: &ClaimsState, settled: bool) {
         if settled {
-            self.plan
-                .frontiers
-                .insert(site, state.0.values().cloned().collect());
+            self.plan.frontiers.insert(site, state.live.clone());
         }
     }
     pub fn operation(
@@ -545,7 +603,7 @@ impl Flow {
         );
         if is_call {
             self.snapshot(site, state, settled);
-            let held = state.0.values().cloned().collect::<Vec<_>>();
+            let held = state.live.clone();
             let mut transfers = Vec::new();
             for (ordinal, argument) in terminal_psi::call_structural_arguments(&operation.kind)
                 .iter()
@@ -607,7 +665,7 @@ impl Flow {
                 }
             }
             if let Some(result) = operation.result.as_structural() {
-                for binding in self.fresh_results.get(&operation.id).into_iter().flatten() {
+                for binding in self.fresh_result(operation.id).into_iter().flatten() {
                     state.put(ClaimLocation {
                         identity: binding.claim,
                         place: result.place,
@@ -627,7 +685,7 @@ impl Flow {
                     path,
                     field,
                 } => {
-                    let selected = if state.1.contains_key(source) {
+                    let selected = if state.live.iter().any(|claim| claim.place == *source) {
                         Self::field_path(types, root_type(*source)?, path, *field)?
                     } else {
                         Vec::new()
@@ -652,7 +710,7 @@ impl Flow {
                     value,
                     ..
                 } => {
-                    if state.1.contains_key(&value.place) {
+                    if state.live.iter().any(|claim| claim.place == value.place) {
                         let selected =
                             Self::field_path(types, root_type(*destination)?, path, *field)?;
                         Self::relocate(state, value, *destination, &selected)?;
@@ -677,8 +735,7 @@ impl Flow {
                             .is_some_and(|ty| ty.owns_linear_claim)
                         {
                             let row = self
-                                .fresh_results
-                                .get(&operation.id)
+                                .fresh_result(operation.id)
                                 .and_then(|rows| rows.iter().find(|row| row.path.is_empty()))
                                 .ok_or_else(|| {
                                     Error::malformed(
@@ -719,8 +776,23 @@ impl Flow {
                         ));
                     }
                 }
-                Op::StructuralLeafCopy { source, path } if state.overlaps(*source, path) => {
-                    return Err(Error::malformed("a copy duplicates logical claim custody"));
+                Op::StructuralLeafCopy { source, path } => {
+                    for claim in state.live.iter().filter(|claim| claim.place == *source) {
+                        let overlaps = crate::structural_claim_paths_may_overlap(
+                            types.iter(),
+                            root_type(*source)?,
+                            &claim.path,
+                            path,
+                        )
+                        .ok_or_else(|| {
+                            Error::malformed("claim copy has an invalid storage path")
+                        })?;
+                        if overlaps {
+                            return Err(Error::malformed(
+                                "a copy duplicates logical claim custody",
+                            ));
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -748,23 +820,10 @@ impl Flow {
         let Some(selected) = cases.iter().find(|case| case.edge == edge) else {
             return Ok(());
         };
-        let inactive = state
-            .1
-            .get(source)
-            .into_iter()
-            .flat_map(|paths| {
-                paths
-                    .range(path.clone()..)
-                    .take_while(|(candidate, _)| candidate.starts_with(path))
-            })
-            .filter_map(|(candidate, id)| {
-                matches!(candidate.get(path.len()),Some(Path::Case(case)) if *case!=selected.case)
-                    .then_some(*id)
-            })
-            .collect::<Vec<_>>();
-        for id in inactive {
-            state.remove(id)?;
-        }
+        state.live.retain(|claim| {
+            !(claim.place == *source && claim.path.starts_with(path)
+                && matches!(claim.path.get(path.len()), Some(Path::Case(case)) if *case != selected.case))
+        });
         Ok(())
     }
     pub fn successor(
@@ -879,7 +938,12 @@ impl Flow {
                 ));
             }
             if settled {
-                self.plan.returned_claims.insert(*edge, returned);
+                let position = self
+                    .plan
+                    .returned_claims
+                    .binary_search_by_key(edge, |row| row.edge)
+                    .map_err(|_| Error::malformed("claim return names an undeclared edge"))?;
+                self.plan.returned_claims[position].bindings = Some(returned);
             }
         }
         if matches!(
@@ -887,7 +951,7 @@ impl Flow {
             Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
                 | Terminator::ReturnStructural { .. }
-        ) && !state.0.is_empty()
+        ) && !state.live.is_empty()
         {
             return Err(Error::unsupported(
                 "a normal return leaves an untransferred logical claim",
@@ -912,7 +976,7 @@ impl Flow {
                     .map_err(|_| Error::malformed("cleanup claim ordinal overflows"))?,
             };
             self.snapshot(site, state, settled);
-            if state.0.values().any(|claim| claim.place == action.place()) {
+            if state.live.iter().any(|claim| claim.place == action.place()) {
                 return Err(Error::unsupported(
                     "claim-bearing cleanup needs its exact consuming disposition",
                 ));
@@ -922,10 +986,13 @@ impl Flow {
     }
     pub fn unreachable_block(&mut self, block: &terminal_psi::Block) {
         for operation in &block.operations {
-            if let Some(bindings) = self.fresh_results.get(&operation.id) {
-                self.plan
-                    .operation_results
-                    .insert(operation.id, bindings.clone());
+            if let Ok(position) = self
+                .fresh_results
+                .binary_search_by_key(&operation.id, |row| row.operation)
+            {
+                self.plan.operation_results[position]
+                    .bindings
+                    .clone_from(&self.fresh_results[position].bindings);
             }
             if matches!(
                 operation.kind,
@@ -991,7 +1058,11 @@ impl Flow {
             .map_err(Error::malformed)?
             .into_iter()
             .collect::<Vec<_>>();
-            let returns = self.plan.returned_claims.values().map(Vec::as_slice);
+            let returns = self
+                .plan
+                .returned_claims
+                .iter()
+                .filter_map(|row| row.bindings.as_deref());
             if !crate::result_claim_paths_match_returns(&paths, returns) {
                 return Err(Error::malformed(
                     "normal result claim paths differ from the guarded declared result type",
