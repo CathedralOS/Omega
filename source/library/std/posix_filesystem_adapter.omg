@@ -10,6 +10,7 @@ use omega::language::core::FilesystemNamespaceMutation;
 // Portable operations and directory traversal are shared. Target files own
 // stat layouts, directory-record geometry, flags, errno translation and libc
 // imports; only a target with that complete implementation installs defaults.
+use omega::language::core::widen_i32_to_i64;
 use omega::language::core::widen_u8_to_u64;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega::language::core::narrow_i32_to_u64_wrapping;
@@ -1807,13 +1808,27 @@ boundary trait PosixCanonicalLibc {
     machine resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
     reaches FilesystemMetadataQuery
     crashes none;
-    machine error_location() -> u64
-    reaches none
-    crashes none;
-    machine copy_error(destination: &mut [u8; 4], source: u64, count: u64) -> u64
+}
+
+// libc keeps `errno` in the calling thread's storage and exposes it only as
+// the address `__errno_location` (glibc) or `___error` (libSystem) returns.
+// The requirement admits that address as a shared view of the thread's `int`
+// slot, so std reads it as a checked reference instead of handing a bare
+// address to a copy routine. Any later libc call may overwrite the slot, so
+// `posix_errno` copies the value out before the view's loan ends and keeps no
+// view across another call.
+boundary trait PosixErrno {
+    machine slot() -> &i32
     reaches none
     crashes none;
 }
+
+// The `errno` of the libc call that just failed, read through the admitted view.
+machine posix_errno() -> i32 {
+    posix_errno_value(PosixErrno::slot())
+}
+
+machine posix_errno_value(slot: &i32) -> i32 { slot }
 // `PosixCanonicalLibc` requirements are bound by Build rows in the std package
 // (`std/build.omg`); no provider machine forwards them.
 machine posix_canonicalize(path: &[u8] in Path, output: &mut [u8]) -> i64
@@ -1869,18 +1884,9 @@ reaches FilesystemMetadataQuery
     machine failed() -> i64 { -34 }
 }
 
-// libc retains errno in the current thread. Copy the complete int immediately
-// after a failed realpath, preserving every byte rather than assuming a small
-// errno catalog. No ambient error slot survives the portable call.
+// The negated `errno` of a failed realpath. No ambient error slot survives
+// the portable call.
 machine posix_canonical_error() -> i64 {
-    let location: u64 = PosixCanonicalLibc::error_location();
-    let mut code: [u8; 4];
-    let copied: u64 = PosixCanonicalLibc::copy_error(&mut code, location, 4);
-    let first: i64 = code[0] as i64;
-    let second: i64 = code[1] as i64;
-    let third: i64 = code[2] as i64;
-    let fourth: i64 = code[3] as i64;
-    let value: i64 = first | (second << 8) | (third << 16) | (fourth << 24);
-    let negative: i64 in Wrapping = (0 as i64 in Wrapping) - (value as i64 in Wrapping);
-    negative as i64
+    let code: i64 = widen_i32_to_i64(posix_errno());
+    0 - code
 }
