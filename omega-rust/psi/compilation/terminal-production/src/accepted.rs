@@ -846,9 +846,13 @@ mod tests {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let [entry] = typed.machines() else {
-            panic!("publication fixture must retain its one actual source machine");
-        };
+        let machines = typed.machines();
+        assert_eq!(
+            machines.len(),
+            1,
+            "publication fixture must retain its one actual source machine"
+        );
+        let entry = machines.at(0);
         typed_trees_to_terminal_psi::elaborate_for(
             &typed,
             Compilation {

@@ -1424,8 +1424,33 @@ impl<'source> Declarations<'source> {
             scope = parent;
         }
         if !visible {
-            return Err(refused(
-                "selected local binding is outside its actual lexical context",
+            let description = |symbol: SymbolHandle| {
+                let provenance = self
+                    .typed
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .map(|span| {
+                        (
+                            self.typed.symbols.source_file(span).map(|file| &file.path),
+                            span,
+                        )
+                    });
+                (
+                    self.typed.symbols.display_path(symbol, "::"),
+                    symbol,
+                    self.typed.symbols.get(symbol).kind,
+                    provenance,
+                )
+            };
+            return Err(selection_context(
+                refused("selected local binding is outside its actual lexical context"),
+                format_args!(
+                    "lexical owner {:?}; selected binding {:?}; declared owner {:?}; visited lexical scopes {:?}",
+                    description(lexical_owner),
+                    description(symbol),
+                    description(declared_owner),
+                    scopes.into_iter().map(description).collect::<Vec<_>>(),
+                ),
             ));
         }
         let kind = match self.typed.symbols.get(symbol).kind {

@@ -3172,12 +3172,31 @@ pub mod trait_definition {
                             .callable_substitutions
                             .span_or_empty(frame.arguments)
                         {
+                            // A retained application can be visited from the
+                            // required trait rather than either binder's author.
+                            retained.enter_lexical_scope(frame.declaration);
                             retained.declaration_description_dependency(binding.parameter);
+                            retained.leave_lexical_scope();
+
+                            // Copies retain an operand's original source scope.
+                            // The application supplier owns only operands without
+                            // a more specific retained author; target parentage
+                            // cannot supply missing lexical authority.
+                            let owner = program
+                                .type_reference_table
+                                .operand_lifetime_owner(binding.actual);
+                            let owner = if owner.is_valid() {
+                                owner
+                            } else {
+                                self.argument_owner
+                            };
+                            retained.enter_lexical_scope(owner);
                             crate::references::visit_type_reference(
                                 program,
                                 retained,
                                 binding.actual,
                             );
+                            retained.leave_lexical_scope();
                         }
                     }
                 }
@@ -3220,6 +3239,152 @@ pub mod trait_definition {
                         substitution_scope_starts: scope_starts,
                         region_scopes,
                     })
+                }
+            }
+
+            #[cfg(test)]
+            mod retained_reference_tests {
+                use super::*;
+                use crate::references::TypedReferences;
+                use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+                struct ScopedReferences {
+                    owner: SymbolHandle,
+                    outer: Vec<SymbolHandle>,
+                    descriptions: Vec<(SymbolHandle, SymbolHandle)>,
+                    names: Vec<(SymbolHandle, SymbolHandle)>,
+                }
+                impl Extend<SymbolHandle> for ScopedReferences {
+                    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                        self.names
+                            .extend(symbols.into_iter().map(|symbol| (self.owner, symbol)));
+                    }
+                }
+                impl TypedReferences for ScopedReferences {
+                    fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
+                        self.outer.push(self.owner);
+                        self.owner = owner;
+                    }
+                    fn leave_lexical_scope(&mut self) {
+                        self.owner = self.outer.pop().expect("paired retained scopes");
+                    }
+                    fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+                        self.descriptions.push((self.owner, symbol));
+                    }
+                }
+
+                #[test]
+                fn retained_trait_bindings_keep_formal_and_actual_authors() {
+                    let mut symbols = SymbolTableBuilder::default();
+                    let observed =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Required"));
+                    let formal_owner =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Generic"));
+                    let nested_owner =
+                        symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Nested"));
+                    let supplier =
+                        symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("Supplier"));
+                    let retained_supplier = symbols.insert_root(
+                        SymbolKind::Machine,
+                        SymbolNameRef::Static("OriginalSupplier"),
+                    );
+                    let formal = symbols
+                        .insert_children(
+                            formal_owner,
+                            [(
+                                SymbolKind::ConformanceParameter,
+                                SymbolNameRef::Static("Policy"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let nested_formal = symbols
+                        .insert_children(
+                            nested_owner,
+                            [(SymbolKind::TypeParameter, SymbolNameRef::Static("Element"))],
+                        )
+                        .handle_at(0);
+                    let actual = symbols
+                        .insert_children(
+                            supplier,
+                            [(
+                                SymbolKind::ConformanceParameter,
+                                SymbolNameRef::Static("Selected"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let nested_actual = symbols
+                        .insert_children(
+                            retained_supplier,
+                            [(
+                                SymbolKind::TypeParameter,
+                                SymbolNameRef::Static("OriginalElement"),
+                            )],
+                        )
+                        .handle_at(0);
+                    let mut program = TypedTrees {
+                        symbols: symbols.finish(),
+                        ..Default::default()
+                    };
+                    let actual_type = program.type_reference_table.insert(
+                        crate::types::TypeReferenceNode::Named {
+                            symbol: actual,
+                            name: Identifier::generated("Selected"),
+                        },
+                    );
+                    let nested_type = program.type_reference_table.insert(
+                        crate::types::TypeReferenceNode::Named {
+                            symbol: nested_actual,
+                            name: Identifier::generated("OriginalElement"),
+                        },
+                    );
+                    program
+                        .type_reference_table
+                        .retain_operand_lifetime_owner(nested_type, retained_supplier)
+                        .unwrap();
+                    let scope = TraitApplicationEnvironment {
+                        declaration: observed,
+                        argument_owner: supplier,
+                        substitutions: vec![(formal, actual_type), (nested_formal, nested_type)],
+                        scope_starts: vec![0, 1],
+                        region_scopes: vec![
+                            AppliedDeclarationRegionScope {
+                                declaration: formal_owner,
+                                lifetimes: Vec::new(),
+                            },
+                            AppliedDeclarationRegionScope {
+                                declaration: nested_owner,
+                                lifetimes: Vec::new(),
+                            },
+                        ],
+                    }
+                    .retain(&mut program)
+                    .unwrap();
+                    let mut references = ScopedReferences {
+                        owner: observed,
+                        outer: Vec::new(),
+                        descriptions: Vec::new(),
+                        names: Vec::new(),
+                    };
+                    scope.visit_references(&program, &mut references);
+                    assert!(references.descriptions.contains(&(observed, supplier)));
+                    assert!(references.descriptions.contains(&(observed, formal_owner)));
+                    assert!(references.descriptions.contains(&(observed, nested_owner)));
+                    assert!(references.descriptions.contains(&(formal_owner, formal)));
+                    assert!(
+                        references
+                            .descriptions
+                            .contains(&(nested_owner, nested_formal))
+                    );
+                    assert!(!references.descriptions.contains(&(observed, formal)));
+                    assert!(references.names.contains(&(supplier, actual)));
+                    assert!(
+                        references
+                            .names
+                            .contains(&(retained_supplier, nested_actual))
+                    );
+                    assert!(!references.names.contains(&(supplier, nested_actual)));
+                    assert_eq!(references.owner, observed);
+                    assert!(references.outer.is_empty());
                 }
             }
         }
