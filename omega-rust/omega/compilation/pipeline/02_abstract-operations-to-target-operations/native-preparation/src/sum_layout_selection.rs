@@ -125,6 +125,130 @@ fn a_literal_edge_can_retire_its_descriptor_home() {
 }
 
 #[test]
+fn byte_literal_lookup_refuses_every_producer_the_scan_refused() {
+    use crate::legalization_function_inputs::FunctionInputs;
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::StructuralPlaceDeclaration;
+
+    // One function establishes a single literal view. The indexed lookup must
+    // find its producer, and refuse each mutation that leaves the place
+    // without exactly one matching literal producer.
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut view = reference_type(1, names.intern("literal bytes"), ty(1));
+    view.shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        });
+    let literal = StructuralPlaceDeclaration {
+        id: place(1),
+        kind: StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: 0,
+            structural_type: view.id,
+        },
+    };
+    let establish = AbstractOperation::EstablishByteSequenceLiteral {
+        psi_operation: op(1),
+        place: literal,
+        structural_type: view.clone(),
+        bytes: b"dir/file".to_vec(),
+        qualifications: Vec::new(),
+    };
+    let plan = plan(
+        names,
+        vec![view.clone()],
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![
+                    establish,
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
+        ),
+    );
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let function = &unit.functions[0];
+    assert_eq!(
+        FunctionInputs::new(function).byte_literal(literal.id),
+        Some((op(1), view.id))
+    );
+    assert_eq!(FunctionInputs::new(function).byte_literal(place(9)), None);
+
+    let refused = |mutate: &dyn Fn(&mut optimization_unit::PsiOptimizationFunction)| {
+        let mut changed = function.clone();
+        mutate(&mut changed);
+        FunctionInputs::new(&changed).byte_literal(literal.id)
+    };
+    // No producer remains for the declared literal.
+    assert_eq!(
+        refused(&|f| {
+            f.blocks[0].nodes.remove(0);
+        }),
+        None
+    );
+    // Two producers establish the same place.
+    assert_eq!(
+        refused(&|f| {
+            let duplicate = f.blocks[0].nodes[0].clone();
+            f.blocks[0].nodes.insert(0, duplicate);
+        }),
+        None
+    );
+    // The place is declared twice.
+    assert_eq!(refused(&|f| f.structural_places.push(literal)), None);
+    // The declaration is not a literal home.
+    assert_eq!(
+        refused(&|f| {
+            for declaration in &mut f.structural_places {
+                if declaration.id == literal.id {
+                    declaration.kind = StructuralPlaceKind::Parameter { position: 0 };
+                }
+            }
+        }),
+        None
+    );
+    // The producer names another type or declaration, or a type that is not
+    // a borrowed byte view.
+    let producer =
+        |change: &dyn Fn(&mut StructuralPlaceDeclaration, &mut StructuralTypeDeclaration)| {
+            refused(&|f| {
+                if let AbstractOperation::EstablishByteSequenceLiteral {
+                    place,
+                    structural_type,
+                    ..
+                } = &mut f.blocks[0].nodes[0].operation
+                {
+                    change(place, structural_type);
+                }
+            })
+        };
+    assert_eq!(producer(&|_, declared| declared.id = ty(2)), None);
+    assert_eq!(
+        producer(&|place, _| {
+            place.kind = StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: 1,
+                structural_type: view.id,
+            }
+        }),
+        None
+    );
+    assert_eq!(
+        producer(&|_, declared| {
+            declared.shape =
+                StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                    capacity: 8,
+                })
+        }),
+        None
+    );
+}
+
+#[test]
 fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_custody() {
     let integer = u64_type();
     let plan = plan(
@@ -521,11 +645,12 @@ fn function_storage_contract_projects_without_source_and_audits_every_field() {
         .unwrap();
     let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let source = crate::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
     let audit = |function: &TargetFunction| {
         crate::legalization_scalar_graph::validate_structural_contract(
             function,
             &plan.functions[0],
-            &unit.functions[0],
+            &inputs,
             &source,
         )
     };
@@ -3467,6 +3592,7 @@ fn validate_stored_geometry(
     let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let plan = &crate::native_geometry::NativeInput::with_types(plan, &geometry, fixture_types());
     let function = &unit.functions[0];
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(function);
     for block in &target.functions[0].graph.blocks {
         if let TargetControlTerminator::StructuralCase {
             source,
@@ -3477,7 +3603,7 @@ fn validate_stored_geometry(
         } = &block.terminator
         {
             dispatch_projection(
-                function,
+                &inputs,
                 source.place(),
                 path,
                 plan,
@@ -3495,7 +3621,7 @@ fn validate_stored_geometry(
             } = operation
             {
                 membership_layout(
-                    function,
+                    &inputs,
                     *source,
                     path,
                     *case,
@@ -3585,11 +3711,11 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     // From here selection sees the prepared plan and nothing behind it.
     let selected = target_operations_to_selected_instructions::select_instructions_for_plan(
         &prepared,
-        target_operations_to_selected_instructions::BoundInstallations {
-            interrupts: &interrupts,
-            entry_execution: None,
-            stack_requirements: &[],
-        },
+        &provider_admission::installed_interrupt_helpers::bind_installations(
+            &interrupts,
+            None,
+            &[],
+        ),
         &environment,
     )
     .unwrap_or_else(|error| panic!("{name}: select {error:?}"));

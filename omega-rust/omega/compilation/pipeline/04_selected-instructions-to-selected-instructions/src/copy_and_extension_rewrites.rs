@@ -1025,6 +1025,7 @@ pub(crate) mod copy_removal {
             admitted: &Admission<'_>,
             function: &mut SelectedFunction,
         ) -> Result<(), CopyRemovalError> {
+            let contracts = std::sync::Arc::make_mut(&mut function.contracts);
             let block = function
                 .blocks
                 .get_mut(admitted.block_index)
@@ -1032,7 +1033,7 @@ pub(crate) mod copy_removal {
             if block.id != admitted.block {
                 return Err(CopyRemovalError::SourceMismatch);
             }
-            let removed_register = function
+            let removed_register = contracts
                 .virtual_registers
                 .get(admitted.register_index)
                 .map(|register| register.id)
@@ -1043,7 +1044,7 @@ pub(crate) mod copy_removal {
                     .ok_or(CopyRemovalError::SourceMismatch)?
                     .virtual_register = admitted.input;
             }
-            function.boundary_settlements = super::super::shifted_boundary_settlements(
+            contracts.boundary_settlements = super::super::shifted_boundary_settlements(
                 admitted.function,
                 admitted.block,
                 admitted.copy_index,
@@ -1051,7 +1052,7 @@ pub(crate) mod copy_removal {
                 || CopyRemovalError::IdentityOverflow,
             )?;
             block.instructions.remove(admitted.copy_index);
-            function.virtual_registers.remove(admitted.register_index);
+            contracts.virtual_registers.remove(admitted.register_index);
             redensify(function, removed_register)
         }
 

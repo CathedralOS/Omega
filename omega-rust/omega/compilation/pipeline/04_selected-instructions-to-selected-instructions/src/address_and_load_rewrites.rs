@@ -1245,22 +1245,26 @@ pub(crate) mod load_forwarding {
             #[test]
             fn backing_write_cannot_be_disjoint_by_descriptor_identity_or_offset() {
                 let function = SelectedFunction {
-                    machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: target_operations::TerminalPsiProvenance {
-                        operations: vec![],
-                        edges: vec![],
-                    },
-                    structural: None,
-                    local_storage_slots: vec![],
-                    outgoing_arguments: vec![],
-                    calls: vec![],
-                    normalized_foreign_calls: vec![],
-                    memory_accesses: vec![],
-                    boundary_settlements: vec![],
+                    contracts: std::sync::Arc::new(
+                        selected_instructions::SelectedFunctionContracts {
+                            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                            attachment: None,
+                            nominal_cleanup_subject: None,
+                            provenance: target_operations::TerminalPsiProvenance {
+                                operations: vec![],
+                                edges: vec![],
+                            },
+                            structural: None,
+                            local_storage_slots: vec![],
+                            outgoing_arguments: vec![],
+                            calls: vec![],
+                            normalized_foreign_calls: vec![],
+                            memory_accesses: vec![],
+                            boundary_settlements: vec![],
+                            virtual_registers: vec![],
+                        },
+                    ),
                     entry_block: selected_instructions::SelectedBlockId(0),
-                    virtual_registers: vec![],
                     blocks: vec![].into(),
                 };
                 let forwarded = Forwarded {

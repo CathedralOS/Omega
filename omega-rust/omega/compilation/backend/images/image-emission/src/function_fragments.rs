@@ -6091,19 +6091,23 @@ mod source {
                     })
                     .collect::<Vec<_>>();
                 SelectedFunction {
-                    machine: MachineId::new(1).unwrap(),
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: vec![],
-                    outgoing_arguments: vec![],
-                    calls: vec![],
-                    normalized_foreign_calls: vec![],
-                    memory_accesses: vec![],
-                    boundary_settlements: vec![],
+                    contracts: std::sync::Arc::new(
+                        selected_instructions::SelectedFunctionContracts {
+                            machine: MachineId::new(1).unwrap(),
+                            attachment: None,
+                            nominal_cleanup_subject: None,
+                            provenance: Default::default(),
+                            structural: None,
+                            local_storage_slots: vec![],
+                            outgoing_arguments: vec![],
+                            calls: vec![],
+                            normalized_foreign_calls: vec![],
+                            memory_accesses: vec![],
+                            boundary_settlements: vec![],
+                            virtual_registers: vec![],
+                        },
+                    ),
                     entry_block: SelectedBlockId(0),
-                    virtual_registers: vec![],
                     blocks: blocks.into(),
                 }
             }
@@ -9931,7 +9935,7 @@ mod source {
 
         pub(super) fn retained(
             operation: &abstract_operations::AbstractOperation,
-            helpers: &target_operations_to_selected_instructions::PreparedInstalledInterruptHelpers,
+            helpers: &provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers,
             replay: &PreparedHelperReplay<'_>,
         ) -> Result<bool, super::Error> {
             use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
@@ -14320,44 +14324,48 @@ mod source {
                     },
                 }];
                 SelectedFunction {
-                    machine: MachineId::new(1).unwrap(),
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: vec![],
-                    outgoing_arguments: vec![],
-                    calls: vec![],
-                    normalized_foreign_calls: vec![],
-                    memory_accesses: vec![],
-                    boundary_settlements: vec![],
+                    contracts: std::sync::Arc::new(
+                        selected_instructions::SelectedFunctionContracts {
+                            machine: MachineId::new(1).unwrap(),
+                            attachment: None,
+                            nominal_cleanup_subject: None,
+                            provenance: Default::default(),
+                            structural: None,
+                            local_storage_slots: vec![],
+                            outgoing_arguments: vec![],
+                            calls: vec![],
+                            normalized_foreign_calls: vec![],
+                            memory_accesses: vec![],
+                            boundary_settlements: vec![],
+                            virtual_registers: (0..4)
+                                .map(|raw| VirtualRegister {
+                                    id: VirtualRegisterId(raw),
+                                    scalar_type: if raw == 0 {
+                                        integer(sign, 32)
+                                    } else {
+                                        integer(IntegerSign::Unsigned, 64)
+                                    },
+                                    class: RegisterClassId(0),
+                                    definition_site: None,
+                                    entry_fixed_view: None,
+                                    origin: if raw == 0 {
+                                        VirtualRegisterOrigin::EntryParameter {
+                                            source_value: ValueId::new(7).unwrap(),
+                                            parameter_index: 0,
+                                        }
+                                    } else {
+                                        VirtualRegisterOrigin::AbiTransport {
+                                            instruction: SelectedInstructionId(raw - 1),
+                                            place: PlaceId::new(1).unwrap(),
+                                            byte_offset: 0,
+                                        }
+                                    },
+                                })
+                                .collect(),
+                        },
+                    ),
                     entry_block: SelectedBlockId(0),
                     blocks: blocks.into(),
-                    virtual_registers: (0..4)
-                        .map(|raw| VirtualRegister {
-                            id: VirtualRegisterId(raw),
-                            scalar_type: if raw == 0 {
-                                integer(sign, 32)
-                            } else {
-                                integer(IntegerSign::Unsigned, 64)
-                            },
-                            class: RegisterClassId(0),
-                            definition_site: None,
-                            entry_fixed_view: None,
-                            origin: if raw == 0 {
-                                VirtualRegisterOrigin::EntryParameter {
-                                    source_value: ValueId::new(7).unwrap(),
-                                    parameter_index: 0,
-                                }
-                            } else {
-                                VirtualRegisterOrigin::AbiTransport {
-                                    instruction: SelectedInstructionId(raw - 1),
-                                    place: PlaceId::new(1).unwrap(),
-                                    byte_offset: 0,
-                                }
-                            },
-                        })
-                        .collect(),
                 }
             }
 
@@ -19747,7 +19755,7 @@ mod source {
             )
         });
         let interrupt_helpers =
-            target_operations_to_selected_instructions::PreparedInstalledInterruptHelpers::new(
+            provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
                 abstract_plan.psi,
                 source.lowering_facts().module(),
                 source.lowering_facts().installed_interrupts(),
@@ -21278,19 +21286,23 @@ mod source {
 
             fn function(machine: u64) -> SelectedFunction {
                 SelectedFunction {
-                    machine: MachineId::new(machine).unwrap(),
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: Vec::new(),
-                    outgoing_arguments: Vec::new(),
-                    calls: Vec::new(),
-                    normalized_foreign_calls: Vec::new(),
-                    memory_accesses: Vec::new(),
-                    boundary_settlements: Vec::new(),
+                    contracts: std::sync::Arc::new(
+                        selected_instructions::SelectedFunctionContracts {
+                            machine: MachineId::new(machine).unwrap(),
+                            attachment: None,
+                            nominal_cleanup_subject: None,
+                            provenance: Default::default(),
+                            structural: None,
+                            local_storage_slots: Vec::new(),
+                            outgoing_arguments: Vec::new(),
+                            calls: Vec::new(),
+                            normalized_foreign_calls: Vec::new(),
+                            memory_accesses: Vec::new(),
+                            boundary_settlements: Vec::new(),
+                            virtual_registers: Vec::new(),
+                        },
+                    ),
                     entry_block: SelectedBlockId(0),
-                    virtual_registers: Vec::new(),
                     blocks: (vec![SelectedBlock {
                         id: SelectedBlockId(0),
                         origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
@@ -21801,31 +21813,34 @@ mod structural {
                     }],
                 };
                 let mut selected = SelectedFunction {
-                    machine,
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: target_operations::TerminalPsiProvenance {
-                        operations: vec![],
-                        edges: vec![],
-                    },
-                    structural: Some(legalized_operations::LegalizedStructuralContract {
-                        result: None,
-                        structural_types: vec![structural_declaration(
-                            structural_type,
-                            terminal_psi::TerminalIdentityIndex(1),
-                            StructuralTypeShape::Sum {
-                                cases: vec![
-                                    terminal_psi::StructuralCaseDeclaration {
-                                        declaration_identity: Default::default(),
-                                        id: StructuralCaseId::new(1).unwrap(),
-                                        identity: terminal_psi::TerminalIdentityIndex(2),
-                                        fields: vec![],
-                                    },
-                                    terminal_psi::StructuralCaseDeclaration {
-                                        declaration_identity: Default::default(),
-                                        id: StructuralCaseId::new(2).unwrap(),
-                                        identity: terminal_psi::TerminalIdentityIndex(3),
-                                        fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    contracts: std::sync::Arc::new(
+                        selected_instructions::SelectedFunctionContracts {
+                            machine,
+                            attachment: None,
+                            nominal_cleanup_subject: None,
+                            provenance: target_operations::TerminalPsiProvenance {
+                                operations: vec![],
+                                edges: vec![],
+                            },
+                            structural: Some(legalized_operations::LegalizedStructuralContract {
+                                result: None,
+                                structural_types: vec![structural_declaration(
+                                    structural_type,
+                                    terminal_psi::TerminalIdentityIndex(1),
+                                    StructuralTypeShape::Sum {
+                                        cases: vec![
+                                            terminal_psi::StructuralCaseDeclaration {
+                                                declaration_identity: Default::default(),
+                                                id: StructuralCaseId::new(1).unwrap(),
+                                                identity: terminal_psi::TerminalIdentityIndex(2),
+                                                fields: vec![],
+                                            },
+                                            terminal_psi::StructuralCaseDeclaration {
+                                                declaration_identity: Default::default(),
+                                                id: StructuralCaseId::new(2).unwrap(),
+                                                identity: terminal_psi::TerminalIdentityIndex(3),
+                                                fields:
+                                                    vec![terminal_psi::StructuralFieldDeclaration {
                                             declaration_identity: Default::default(),
                                             inline_carrier: None,
                                             storage: None,
@@ -21836,24 +21851,26 @@ mod structural {
                                                 scalar_type,
                                             ),
                                         }],
+                                            },
+                                        ],
                                     },
-                                ],
-                            },
-                        )]
-                        .into(),
-                        parameters: vec![],
-                        structural_places: vec![],
-                        entry_claims: vec![],
-                        published_service_ceiling: vec![],
-                    }),
-                    local_storage_slots: vec![],
-                    outgoing_arguments: vec![],
-                    calls: vec![],
-                    normalized_foreign_calls: Vec::new(),
-                    memory_accesses: vec![],
-                    boundary_settlements: vec![],
+                                )]
+                                .into(),
+                                parameters: vec![],
+                                structural_places: vec![],
+                                entry_claims: vec![],
+                                published_service_ceiling: vec![],
+                            }),
+                            local_storage_slots: vec![],
+                            outgoing_arguments: vec![],
+                            calls: vec![],
+                            normalized_foreign_calls: Vec::new(),
+                            memory_accesses: vec![],
+                            boundary_settlements: vec![],
+                            virtual_registers: vec![],
+                        },
+                    ),
                     entry_block: SelectedBlockId(0),
-                    virtual_registers: vec![],
                     blocks: (vec![]).into(),
                 };
                 for number in [2, 1] {
@@ -23064,82 +23081,87 @@ mod structural {
                     },
                 };
                 let selected = SelectedFunction {
-                    machine: function.machine,
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: Default::default(),
-                    structural: Some(legalized_operations::LegalizedStructuralContract {
-                        result: None,
-                        structural_types: vec![structural_declaration(
-                            structural_type,
-                            terminal_psi::TerminalIdentityIndex(1),
-                            StructuralTypeShape::PrimitiveScalar(scalar_type),
-                        )]
-                        .into(),
-                        parameters: vec![],
-                        structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
-                            id: place,
-                            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                                producer: operation,
-                                structural_type,
-                            },
-                        }],
-                        entry_claims: vec![],
-                        published_service_ceiling: vec![],
-                    }),
-                    local_storage_slots: vec![SelectedLocalStorageSlot {
-                        id: slot,
-                        byte_size: 8,
-                        alignment: 8,
-                    }],
-                    outgoing_arguments: vec![],
-                    calls: vec![],
-                    normalized_foreign_calls: Vec::new(),
-                    boundary_settlements: vec![],
-                    memory_accesses: vec![
-                        SelectedMemoryAccess {
-                            instruction: SelectedInstructionId(0),
-                            origin: SelectedMemoryAccessOrigin::Operation(operation),
-                            place,
-                            byte_offset: 0,
-                            byte_count: 8,
-                            role: SelectedMemoryAccessRole::AddressLocal { slot },
+                    contracts: std::sync::Arc::new(
+                        selected_instructions::SelectedFunctionContracts {
+                            machine: function.machine,
+                            attachment: None,
+                            nominal_cleanup_subject: None,
+                            provenance: Default::default(),
+                            structural: Some(legalized_operations::LegalizedStructuralContract {
+                                result: None,
+                                structural_types: vec![structural_declaration(
+                                    structural_type,
+                                    terminal_psi::TerminalIdentityIndex(1),
+                                    StructuralTypeShape::PrimitiveScalar(scalar_type),
+                                )]
+                                .into(),
+                                parameters: vec![],
+                                structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
+                                    id: place,
+                                    kind:
+                                        semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                                            producer: operation,
+                                            structural_type,
+                                        },
+                                }],
+                                entry_claims: vec![],
+                                published_service_ceiling: vec![],
+                            }),
+                            local_storage_slots: vec![SelectedLocalStorageSlot {
+                                id: slot,
+                                byte_size: 8,
+                                alignment: 8,
+                            }],
+                            outgoing_arguments: vec![],
+                            calls: vec![],
+                            normalized_foreign_calls: Vec::new(),
+                            boundary_settlements: vec![],
+                            memory_accesses: vec![
+                                SelectedMemoryAccess {
+                                    instruction: SelectedInstructionId(0),
+                                    origin: SelectedMemoryAccessOrigin::Operation(operation),
+                                    place,
+                                    byte_offset: 0,
+                                    byte_count: 8,
+                                    role: SelectedMemoryAccessRole::AddressLocal { slot },
+                                },
+                                SelectedMemoryAccess {
+                                    instruction: SelectedInstructionId(1),
+                                    origin: SelectedMemoryAccessOrigin::Operation(operation),
+                                    place,
+                                    byte_offset: 0,
+                                    byte_count: 8,
+                                    role: SelectedMemoryAccessRole::WritePlace,
+                                },
+                            ],
+                            virtual_registers: vec![
+                                VirtualRegister {
+                                    id: VirtualRegisterId(0),
+                                    scalar_type,
+                                    class: RegisterClassId(0),
+                                    origin: VirtualRegisterOrigin::AbiTransport {
+                                        instruction: SelectedInstructionId(0),
+                                        place,
+                                        byte_offset: 0,
+                                    },
+                                    definition_site: None,
+                                    entry_fixed_view: None,
+                                },
+                                VirtualRegister {
+                                    id: VirtualRegisterId(1),
+                                    scalar_type,
+                                    class: RegisterClassId(0),
+                                    origin: VirtualRegisterOrigin::EntryParameter {
+                                        source_value: value.value,
+                                        parameter_index: 0,
+                                    },
+                                    definition_site: None,
+                                    entry_fixed_view: None,
+                                },
+                            ],
                         },
-                        SelectedMemoryAccess {
-                            instruction: SelectedInstructionId(1),
-                            origin: SelectedMemoryAccessOrigin::Operation(operation),
-                            place,
-                            byte_offset: 0,
-                            byte_count: 8,
-                            role: SelectedMemoryAccessRole::WritePlace,
-                        },
-                    ],
+                    ),
                     entry_block: SelectedBlockId(0),
-                    virtual_registers: vec![
-                        VirtualRegister {
-                            id: VirtualRegisterId(0),
-                            scalar_type,
-                            class: RegisterClassId(0),
-                            origin: VirtualRegisterOrigin::AbiTransport {
-                                instruction: SelectedInstructionId(0),
-                                place,
-                                byte_offset: 0,
-                            },
-                            definition_site: None,
-                            entry_fixed_view: None,
-                        },
-                        VirtualRegister {
-                            id: VirtualRegisterId(1),
-                            scalar_type,
-                            class: RegisterClassId(0),
-                            origin: VirtualRegisterOrigin::EntryParameter {
-                                source_value: value.value,
-                                parameter_index: 0,
-                            },
-                            definition_site: None,
-                            entry_fixed_view: None,
-                        },
-                    ],
                     blocks: (vec![SelectedBlock {
                         id: SelectedBlockId(0),
                         origin: SelectedBlockOrigin::Source(function.entry),
@@ -23196,9 +23218,10 @@ mod structural {
                         4 => changed.blocks[0].instructions[1].provenance.values.clear(),
                         5 => changed.local_storage_slots[0].byte_size = 16,
                         6 => changed.local_storage_slots[0].alignment = 4,
-                        7 => changed
-                            .local_storage_slots
-                            .push(changed.local_storage_slots[0].clone()),
+                        7 => {
+                            let duplicate = changed.local_storage_slots[0].clone();
+                            changed.local_storage_slots.push(duplicate);
+                        }
                         8 => changed.memory_accesses[1].place = PlaceId::new(2).unwrap(),
                         9 => changed.memory_accesses[1].role = SelectedMemoryAccessRole::ReadPlace,
                         10 => {
