@@ -55,8 +55,8 @@ pub use callback_entries::project_native_callback_arguments;
 pub use compiler_builtins::{
     AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin,
     TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement, admit_terminal_intrinsics,
-    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
-    validate_external_provider_owners,
+    derive_selected_intrinsic_settlement_proposals, numeric_boundary_execution,
+    prepare_retained_compiler_builtins, validate_external_provider_owners,
 };
 pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedCallbackEntry,

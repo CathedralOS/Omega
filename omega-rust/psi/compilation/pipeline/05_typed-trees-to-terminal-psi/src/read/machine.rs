@@ -1949,8 +1949,21 @@ impl<'t> Program<'t> {
             .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
         let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
             .map_err(unavailable)?;
-        if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
-            || result != Some(ValueType::plain(expected_result))
+        let qualification = match terminal_semantics::numeric_primitives::result_policy(meaning)
+            .map_err(unavailable)?
+        {
+            None => Qualification::NONE,
+            Some(domain) => {
+                Qualification::of_policy(crate::body::Policy::of_domain(domain).ok_or_else(
+                    || unavailable("numeric primitive has an unsupported result policy"),
+                )?)
+            }
+        };
+        if parameters.len() != expected.operand_count
+            || parameters
+                .iter()
+                .any(|parameter| *parameter != ValueType::plain(expected_operand))
+            || result != Some(ValueType::Scalar(expected_result, qualification))
         {
             return Err(unavailable(
                 "numeric primitive differs from its canonical scalar signature",

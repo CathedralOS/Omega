@@ -1107,3 +1107,251 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contract() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+            use semantic_vocabulary::{
+                BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
+            };
+            let main = repository()
+                .join("tests/fixtures/run/float/saturating_integer_conversion/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_planning::direct_compiler_primitive_leaves(
+                module,
+                &schemas,
+                "macos_arm64",
+                module.boundary_machines.iter().map(|row| row.id),
+            )
+            .unwrap();
+            for source in [NumericType::F32, NumericType::F64] {
+                for target in [FixedInteger::signed(32), FixedInteger::unsigned(32)] {
+                    let meaning = NumericIntrinsic::Conversion {
+                        source,
+                        target: NumericType::Integer(target),
+                        domain: ArithmeticDomain::Saturating,
+                    };
+                    let boundary = module
+                        .boundary_machines
+                        .iter()
+                        .find(|row| row.numeric_intrinsic == Some(meaning))
+                        .unwrap();
+                    terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                        .unwrap();
+                    assert_eq!(boundary.kind, BoundaryRequirementKind::Machine);
+                    assert!(boundary.scalar_requires.is_empty(), "saturation is total");
+                    let [Proposition::FloatIntegerConversion(relation)] =
+                        boundary.scalar_ensures.as_slice()
+                    else {
+                        panic!("the complete integer-result graph must survive publication")
+                    };
+                    relation.validate().unwrap();
+                    let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result
+                    else {
+                        panic!("scalar conversion result")
+                    };
+                    assert_ne!(result.qualifications, ScalarQualificationSetId::ZERO);
+                    assert!(terminal_semantics::numeric_primitives::result_matches(
+                        module, meaning, result
+                    ));
+                    let execution =
+                        terminal_psi_to_abstract_operations::provider_admission::numeric_boundary_execution(
+                            module, boundary,
+                        )
+                        .unwrap();
+                    let target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation,
+                        ..
+                    } = execution
+                    else {
+                        panic!("numeric execution")
+                    };
+                    assert!(matches!(
+                        operation,
+                        target_operations::IeeeFloatArithmeticOperation::TruncateToInteger {
+                            domain: target_operations::IeeeFloatToIntegerDomain::Saturating,
+                            ..
+                        }
+                    ));
+                    let mut missing_meaning = boundary.clone();
+                    missing_meaning.numeric_intrinsic = None;
+                    assert!(
+                        terminal_psi_to_abstract_operations::provider_admission::numeric_boundary_execution(
+                            module,
+                            &missing_meaning
+                        )
+                        .is_err()
+                    );
+
+                    let leaf = leaves
+                        .iter()
+                        .find(|leaf| {
+                            leaf.callable_identity
+                                == module.identities.text(boundary.identity).unwrap()
+                        })
+                        .unwrap();
+                    leaf.validate_bound_calling_custody(module).unwrap();
+                    let method = &leaf.satisfied_schema.declaration.methods[0];
+                    assert_eq!(
+                        method.requirement_owner,
+                        if target.is_signed() { "I32" } else { "U32" }
+                    );
+                    assert_eq!(
+                        method.name,
+                        if source == NumericType::F32 {
+                            "from_f32"
+                        } else {
+                            "from_f64"
+                        }
+                    );
+                    for mutation in 0..3 {
+                        let mut changed = module.clone();
+                        let row = changed
+                            .boundary_machines
+                            .iter_mut()
+                            .find(|row| row.id == boundary.id)
+                            .unwrap();
+                        match mutation {
+                            0 => {
+                                let terminal_psi::BoundaryMachineResult::Scalar(result) =
+                                    &mut row.result
+                                else {
+                                    unreachable!()
+                                };
+                                result.qualifications = ScalarQualificationSetId::ZERO;
+                            }
+                            1 => {
+                                row.scalar_ensures =
+                                    terminal_semantics::numeric_primitives::ensures(
+                                        NumericIntrinsic::Conversion {
+                                            source,
+                                            target: NumericType::Integer(target),
+                                            domain: ArithmeticDomain::Exact,
+                                        },
+                                    )
+                                    .unwrap()
+                            }
+                            2 => row.kind = BoundaryRequirementKind::Operator,
+                            _ => unreachable!(),
+                        }
+                        let error = receiving_error(changed);
+                        assert!(error.contains("MalformedStructuralFoundation"), "{error}");
+                    }
+                    let mut changed = module.clone();
+                    let [domain_id] =
+                        terminal_semantics::scalar_qualifications::qualification_domains(
+                            module,
+                            result.qualifications,
+                        )
+                        .unwrap()
+                    else {
+                        panic!("singleton policy")
+                    };
+                    let domain = changed
+                        .scalar_qualifications
+                        .domains
+                        .iter_mut()
+                        .find(|row| row.id == *domain_id)
+                        .unwrap();
+                    domain.carrier = semantic_vocabulary::ScalarType::Boolean;
+                    assert!(!terminal_semantics::numeric_primitives::result_matches(
+                        &changed, meaning, result
+                    ));
+                }
+            }
+            // Recheck actual native rows, rather than only the declaration's
+            // projection: equal scalar signatures cannot replace saturation.
+            let request = compiler::CompileRequest::for_targets(
+                main.clone(),
+                std::env::temp_dir().join(format!("omega-saturating-custody-{}", std::process::id())),
+                vec![Some(target::TargetProfile::MacosArm64)],
+            ).with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+            let outcomes = orchestration::compile_sources(
+                &mut compiler::CompilationSession::default(), request,
+            ).unwrap_or_else(|errors| panic!("{errors:?}"));
+            let outcome = &outcomes.outcomes()[0];
+            let report = outcome.report().unwrap_or_else(|| panic!("{:?}", outcome.diagnostics()));
+            let target = report.retained_native_artifact().unwrap().object()
+                .retained_fragment_source().unwrap().source().source().source().source().optimized_target();
+            let optimized = target.optimized();
+            let verify = |plan, abstracted, unit| {
+                native_preparation::verify_target_operation_plan_with_closed_module(
+                    plan, abstracted, unit, target.boundary_origins(),
+                    target.lowering_facts().installed_interrupts(),
+                    target.lowering_facts().closed_module(),
+                )
+            };
+            verify(target.target_operations(), optimized.plan(), optimized.unit()).unwrap();
+            let mut changed_target = target.target_operations().clone();
+            let mut mutated_boundary = None;
+            for operation in changed_target.functions.iter_mut().flat_map(|function| &mut function.graph.blocks)
+                .flat_map(|block| &mut block.operations)
+            {
+                if let target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+                    boundary, realization, execution, ..
+                } = &mut operation.kind
+                    && let target_operations::IeeeFloatArithmeticOperation::TruncateToInteger { target, domain: target_operations::IeeeFloatToIntegerDomain::Saturating } = realization.operation
+                {
+                    mutated_boundary = Some(*boundary);
+                    realization.operation = target_operations::IeeeFloatArithmeticOperation::TruncateToInteger { target, domain: target_operations::IeeeFloatToIntegerDomain::Exact };
+                    *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation: realization.operation, format: realization.format },
+                    );
+                    break;
+                }
+            }
+            let mutated_boundary = mutated_boundary.expect("actual saturation occurrence");
+            assert!(verify(&changed_target, optimized.plan(), optimized.unit()).is_err());
+            let mut changed_abstract = optimized.plan().clone();
+            let mut changed_unit = optimized.unit().clone();
+            for rows in [&mut changed_abstract.boundary_machines, &mut changed_unit.boundary_machines] {
+                let declaration = rows.iter_mut().find(|row| row.id == mutated_boundary).unwrap();
+                let terminal_psi::BoundaryMachineResult::Scalar(result) = &mut declaration.result else { panic!("scalar result") };
+                assert!(!result.qualifications.is_empty());
+                result.qualifications = ScalarQualificationSetId::ZERO;
+            }
+            assert!(verify(target.target_operations(), &changed_abstract, &changed_unit).is_err());
+            let invalid = repository()
+                .join("tests/fixtures/fail/float/saturating_integer_conversion/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("Saturating must be explicitly removed")
+            .into_diagnostics();
+            assert!(!diagnostics.is_empty());
+            assert!(
+                diagnostics
+                    .iter()
+                    .all(|row| !row.message.contains("not supported yet")),
+                "{diagnostics:?}"
+            );
+            eprintln!("policy removal diagnostics: {diagnostics:?}");
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
