@@ -404,7 +404,7 @@ machine main() { let valid: bool = byte_observation::ascii_only("Room A1"); }
                     .unwrap()
                     .symbol;
                 let machine = typed.machine_by_symbol(symbol).unwrap();
-                let [entry] = typed.machine_states(machine) else {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
                     panic!("one actual entry");
                 };
                 let reference = typed.state_parameters(entry)[0].type_reference;
