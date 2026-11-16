@@ -174,6 +174,12 @@ pub(crate) mod source_occurrences {
                                         || !call.machine_arguments.is_empty()
                                         || has_region_telescope(self, call.target_symbol)
                                         || implementation_namespace(self, call.receiver_symbol)
+                                        || (call.runtime_call.is_none()
+                                            && call.installed_interrupt_operation.is_none()
+                                            && call.static_requirement_dispatch.is_none()
+                                            && self
+                                                .trait_machine_signature(call.target_symbol)
+                                                .is_some())
                                         || (!call.static_machine_parameter.is_valid()
                                             && call.static_requirement_dispatch.is_none()
                                             && direct_declaration(self, call.target_symbol)
@@ -281,8 +287,8 @@ pub(crate) mod source_occurrences {
                 let original_arguments = call.machine_arguments.clone();
                 self.retain_static_operand_sources(&mut call.machine_arguments, owner)?;
                 // An ordinary call still has a source application when its
-                // static tuple is empty. Result evidence needs that exact
-                // declaration and lexical owner too.
+                // static tuple is empty. Result evidence and selected requirement
+                // members need that exact declaration and lexical owner too.
                 let declaration = (!call.static_machine_parameter.is_valid()
                     && !call.requirement_application.is_valid()
                     && call.static_requirement_dispatch.is_none())
@@ -319,6 +325,8 @@ pub(crate) mod source_occurrences {
                 if call.machine_arguments.is_empty()
                     && !has_region_telescope(self, call.target_symbol)
                     && !implementation_namespace(self, namespace)
+                    && !(call.selects_only_nominal_route()
+                        && self.trait_machine_signature(call.target_symbol).is_some())
                     && declaration.is_none()
                 {
                     return Ok(());
@@ -3368,7 +3376,17 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            visit_symbol(retained, cast.semantic_domain_symbol);
+            // Ordinary carrier conversions and representation recasts have no
+            // named domain declaration. A retained named domain still needs
+            // its exact declaration, including when that coordinate is missing;
+            // every nonempty coordinate also reaches receiver authentication.
+            if cast.semantic_domain_symbol != SymbolHandle::invalid()
+                || !cast.semantic_domain.is_empty()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
+            {
+                visit_symbol(retained, cast.semantic_domain_symbol);
+            }
             for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
