@@ -75,13 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### A callee's write through a `&mut` held inside a lent record leaves the caller's facts about the referent standing
-- Category: One idea, several implementations
-- Where: [call logs only argument places](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L582), [Referent frame falls back to the argument](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2248), [cleanup follows carried references](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/owned_cleanup.rs#L393), [same-machine test only](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L296)
-- Saw: [mutation frames](wiki/spec/language/dependent_values.md) says a caller's fact survives a call only "when its storage dependencies are provably disjoint from the frame, aliases included", and [store vocabulary](wiki/spec/terminal-psi/structural_access.md#L700) says referent backing survives callee frames "so a completed write remains visible to the caller". `Storage::stored_by` logs a call's write only on each `&mut` argument's own place, and `call_write_regions` returns `None` when the frame crosses a `Referent`, falling back to that place. With `machine update(carrier: &mut Carrier, incoming: u64) { carrier.cell.value = incoming; }`, `let mut carrier = Carrier { cell: &mut cell }; update(&mut carrier, 73); need(cell.value);` proves `need`'s `requires value == 5` from the literal, while `cell.value` is 73 at run time. `owned_cleanup::writes` already walks carried references, but only for cleanup calls. Traced, not run.
-- Cost: The checker accepts a call whose precondition is false at run time. Log a write row for each referent backing a call can reach through lent or moved values carrying `&mut`, reusing the cleanup walk, and pin it with the in-callee twin of `a_store_through_a_stored_reference_ends_facts_about_the_original_cell`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/dependent_values.md
-
 ### A call writing a field through a `&mut` loan never reopens the enclosing record's `requires`
 - Category: Knowledge crossing a boundary
 - Where: [owed returns nothing for calls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L1289), [windows open only from DataDomain rows](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L903), [stale README rows](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#L549), [callee trusts its formal's type](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/contents.rs#L342)
