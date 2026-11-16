@@ -74,6 +74,7 @@ pub struct PreparedBuild {
     pub timings: CompileTimings,
 }
 
+#[derive(Clone)]
 pub struct PreparedProductSource {
     pub build_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,

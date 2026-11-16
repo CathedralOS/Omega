@@ -305,7 +305,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Requirement-based tests
 
-- **TEST-GROUP-FILESYSTEM-TARGETS.** Supply the [test runner's private filesystem](wiki/spec/build/testing.md#group-configuration-and-authority) beyond the Linux kernel calls: the interpreter answers only `linux_x86_64`/`linux_arm64` kernel filesystem calls and refuses `canonicalize` (libc `realpath` and its `errno` copy), and the native runner needs Linux user namespaces, so macOS and Windows targets and hosts report the engine unavailable.
+- **TEST-GROUP-FILESYSTEM-TARGETS.** The runner refuses every `builder.tests.service<Group, Slot>()` slot until [`test-runner-filesystem-slot`](OWNER_QUESTIONS.md#test-runner-filesystem-slot) settles how it identifies std's `FilesystemService` without trusting a package name. Then supply the [test runner's private filesystem](wiki/spec/build/testing.md#group-configuration-and-authority) beyond the Linux kernel calls: the interpreter answers only `linux_x86_64`/`linux_arm64` kernel filesystem calls and refuses `canonicalize` (libc `realpath` and its `errno` copy), and the native runner needs Linux user namespaces, so macOS and Windows targets and hosts report the engine unavailable.
 
 ## Checked boundary topology
 
