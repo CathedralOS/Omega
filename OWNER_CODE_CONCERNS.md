@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Byte range selection reconstructs the operand type after typing
+- Category: re-deriving
+- Where: [typed indexed expression](omega-rust/psi/compilation/representations/typed-trees/src/values.rs#L4578), [collection operand lookup](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L320), [qualified range refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L378), [Windows create_dir_all](source/library/std/targets/windows_x86_64/filesystem/paths.omg#L235)
+- Saw: The typed indexed expression carries the collection and index handles. The range reader recovers its operands from the structural record row and refuses a byte view with named domains. In a macOS arm64 check of the note_vault source repair with the attached-constant and bounded-distance candidates, taking a Windows directory prefix reached this refusal. A small Path-qualified prefix reproduces it independently.
+- Cost: One provider's range selection stops the package-wide check. Carry the exact selected operand type and operation through typed indexing so ordinary range lowering can preserve access, bounds and backing identity. The new prefix still owes its own Path qualification before use in a filesystem call.
+- Reported: 2026-11-15, Codex, while restoring note_vault's filesystem and wall-clock workflow.
+
 ### Named predicates skip declaration-time arithmetic totality
 - Category: a verdict with nothing behind it
 - Where: [unused partial predicate](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg), [governance assertion](omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs#L185), [operator lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [proof arithmetic rules](wiki/spec/proofs/contracts.md#total-arithmetic)

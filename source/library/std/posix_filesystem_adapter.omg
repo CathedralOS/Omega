@@ -630,7 +630,7 @@ invokes PosixFilesystemHost
     machine write(filesystem: &mut PosixFilesystem, descriptor: i32, bytes: &[u8], position: u64) -> UnitResult
     requires position < bytes.len
     {
-        let count: i64 = PosixFilesystemHost::write(descriptor, bytes[position..bytes.len]);
+        let count: i64 = PosixFilesystemHost::write(descriptor, &bytes[position..bytes.len]);
         transition count > 0 {
             true -> progressed(filesystem, descriptor, bytes, position, count)
             false -> stalled(filesystem, descriptor, bytes, position, count)
@@ -788,7 +788,7 @@ invokes PosixFilesystemHost
     machine write(filesystem: &mut PosixFilesystem, descriptor: i32, buffer: &mut [u8], count: u64, mode: u32) -> IoResult
     requires count <= buffer.len
     {
-        let outcome: UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, buffer[0..count]);
+        let outcome: UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, &buffer[0..count]);
         transition outcome { UnitResult::Ok -> permissions(filesystem, descriptor, count, mode) UnitResult::Error { kind } -> write_failed(descriptor, kind) }
     }
     machine permissions(filesystem: &mut PosixFilesystem, descriptor: i32, count: u64, mode: u32) -> IoResult {
@@ -1055,7 +1055,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     }
     machine issue_mk(filesystem: &mut PosixFilesystem, i: u64) -> i32 {
 
-        let rc: i32 = PosixFilesystemHost::create_dir_name(filesystem.mkall_scratch[0..i], filesystem.dir_mode);
+        let rc: i32 = PosixFilesystemHost::create_dir_name(&filesystem.mkall_scratch[0..i], filesystem.dir_mode);
         rc
     }
     machine issue_skip(filesystem: &mut PosixFilesystem) -> i32 { 0 }
@@ -1364,7 +1364,8 @@ invokes
     }
     machine rd_empty() -> IoResult { IoResult::Ok { count: 0 } }
     machine rd_ok(filesystem: &mut PosixFilesystem) -> IoResult {
-        let count: u64 = narrow_i32_to_u64_wrapping((filesystem.rd_count - 2) as -Wrapping);
+        let remaining: i32 in Wrapping = filesystem.rd_count - 2;
+        let count: u64 = narrow_i32_to_u64_wrapping(remaining as -Wrapping);
         IoResult::Ok { count: count }
     }
     machine rd_err_i32(filesystem: &mut PosixFilesystem, result: i32) -> IoResult {
@@ -1530,7 +1531,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         requires name_length <= 255
     {
         let outcome: i32 = PosixFilesystemHost::read_metadata_at(filesystem.directory_descriptor,
-            filesystem.entry_name[0..name_length], &mut filesystem.stat_buf,
+            &filesystem.entry_name[0..name_length], &mut filesystem.stat_buf[..],
             PosixFilesystemTarget::metadata_no_follow_flag());
         transition outcome == 0 { true -> rdef_classify(filesystem) _ -> rdef_err(filesystem, outcome as i64) }
     }
