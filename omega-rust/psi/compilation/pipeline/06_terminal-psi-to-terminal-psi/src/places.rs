@@ -3071,7 +3071,7 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         if let Reached::Extent(producer) = reached {
-            return self.extent_equation(operation, producer, &budget);
+            return self.extent_equation(tables, operation, producer, &budget);
         }
         let Reached::Value(held) = reached else {
             return Ok(None);
@@ -5373,7 +5373,7 @@ impl Held<'_, '_> {
                     ProgramPoint::AfterOperation(block.operations[previous].id)
                 });
             return storage
-                .extent_contents(producer, point, scalar_type, &budget)
+                .extent_contents(self.tables, producer, point, scalar_type, &budget)
                 .map_err(crate::Unbound::Refused)?
                 .ok_or(crate::Unbound::Unproved(
                     "the descriptor's extent has no current endpoint correspondence",
@@ -6059,6 +6059,7 @@ machine entry() {
                 .unwrap();
             let extent = storage
                 .extent_contents(
+                    tables,
                     producer,
                     point,
                     operation.result.scalar_ref().unwrap().scalar_type,

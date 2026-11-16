@@ -2036,7 +2036,18 @@ impl<'a> Lowering<'a> {
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
+                    access: match self.record_type(record)?.shape {
+                        StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(access),
+                            },
+                        )
+                        | StorageShape::ElementView {
+                            access: Some(access),
+                            ..
+                        } => access,
+                        _ => return Err(self.internal("a range lost its descriptor access")),
+                    },
                 };
                 let exact = self.exact_root(captured)?;
                 self.name_contents(exact, ValueType::record(record))?;

@@ -124,6 +124,7 @@ pub(super) fn source_byte_view(
         },
         identity,
         domains,
+        element_type: *element_type,
     }))
 }
 
@@ -133,6 +134,7 @@ pub(super) struct SourceByteView {
     pub(super) carrier: ByteSequenceCarrier,
     pub(super) identity: String,
     pub(super) domains: Vec<crate::body::DomainInstance>,
+    pub(super) element_type: TypeReferenceHandle,
 }
 
 // Both the formal and its source record use the declared slice's identity.
@@ -614,6 +616,7 @@ impl Program<'_> {
             carrier,
             identity,
             domains,
+            ..
         }) = source_byte_view(self.typed, reference, lexical_owner, machine)?
         else {
             return match super::arrays::source_sequence_view(

@@ -19,15 +19,6 @@ fn count_type() -> ScalarType {
     )
 }
 
-fn is_shared_bytes(shape: &StructuralTypeShape) -> bool {
-    matches!(
-        shape,
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: Some(StructuralAccess::SharedBorrow),
-        })
-    )
-}
-
 impl Storage<'_> {
     fn descriptor_access(
         &self,
@@ -101,7 +92,7 @@ impl Storage<'_> {
             return Ok(false);
         };
         let (
-            terminal_psi::StructuralTypeShape::FixedArray { .. },
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. },
             terminal_psi::StructuralTypeShape::ByteSequence(_),
         ) = (
             &selected.shape,
@@ -110,9 +101,8 @@ impl Storage<'_> {
         else {
             return Ok(false);
         };
-        let Some(backing) = self.byte_array_backing(argument, parameter.position, concerns)? else {
-            return Ok(false);
-        };
+        let backing =
+            self.collection_backing_source(argument, parameter.position, *element, concerns)?;
         if terminal_semantics::fixed_byte_array_loan(
             self.types.iter(),
             self.module.structural_domains.iter(),
@@ -132,21 +122,19 @@ impl Storage<'_> {
 
     /// A call and a new view can borrow the same array. Check its original
     /// input or result here before either route decides how to carry the view.
-    fn byte_array_backing(
+    fn collection_backing_source(
         &self,
         argument: &StructuralArgument,
         position: u32,
+        element: semantic_vocabulary::StructuralTypeId,
         concerns: Construct,
-    ) -> Checked<Option<std::borrow::Cow<'_, terminal_psi::StructuralParameterDeclaration>>> {
+    ) -> Checked<std::borrow::Cow<'_, terminal_psi::StructuralParameterDeclaration>> {
         let selected = terminal_semantics::runtime_structural_path_tip(
             self.types.iter(),
             self.root_type(argument.place, concerns)?,
             &argument.path,
         )
         .ok_or_else(|| self.foreign(concerns, "array backing lost its typed storage path"))?;
-        let StructuralTypeShape::FixedArray { element, .. } = selected.shape else {
-            return Ok(None);
-        };
         let backing =
             terminal_semantics::structural_argument_source(self.lowered, argument.place, position)
                 .ok_or_else(|| {
@@ -182,12 +170,15 @@ impl Storage<'_> {
                 "an array view without plain element storage and unclaimed backing",
             ));
         }
-        Ok(Some(backing))
+        Ok(backing)
     }
 
     /// Forming a view retains the array's storage and creates a descriptor;
     /// the separate loan judgment still checks authority and the view's lifetime.
-    pub(super) fn array_view_formation(&self, operation: &Operation) -> Checked<u64> {
+    pub(super) fn array_view_formation(
+        &self,
+        operation: &Operation,
+    ) -> Checked<terminal_semantics::CollectionExtent> {
         use terminal_psi::{ByteSequenceCarrier, ElementViewRegion, StructuralPathQualification};
         let concerns = Construct::Operation(operation.id);
         let (destination, source, element, region, access, multiplicity) = match &operation.kind {
@@ -284,13 +275,42 @@ impl Storage<'_> {
             &source.path,
         )
         .ok_or_else(|| self.foreign(concerns, "array view lost its captured storage"))?;
+        let backing =
+            terminal_semantics::collection_backing(self.types.iter(), selected.id, element)
+                .ok_or_else(|| {
+                    self.foreign(concerns, "collection view changes its element type")
+                })?;
+        if backing.storage == terminal_semantics::CollectionStorage::Borrowed {
+            let actual = self.collection_backing_source(source, 0, element, concerns)?;
+            let (whole, projected) = StructuralPathQualification::select(
+                &actual.qualifications,
+                &actual.projected_qualifications,
+                &source.path,
+            );
+            if !whole.is_empty()
+                || !projected.is_empty()
+                || !actual.additional_input_qualifications.is_empty()
+                || !self.descriptor_access(source.place, &source.path, concerns, access)?
+                || !terminal_semantics::descriptor_reborrow_shapes_match(
+                    &selected.shape,
+                    source.access,
+                    Some(access),
+                    &self.declaration(result.structural_type, concerns)?.shape,
+                    access,
+                )
+            {
+                return Err(self.unsupported(
+                    concerns,
+                    "collection view needs its exact plain backing and access",
+                ));
+            }
+            return Ok(backing.extent);
+        }
         if !matches!(selected.shape, StructuralTypeShape::FixedArray { element: actual, .. } if actual == element)
         {
             return Err(self.foreign(concerns, "array view changes its element type"));
         }
-        let actual = self
-            .byte_array_backing(source, 0, concerns)?
-            .ok_or_else(|| self.foreign(concerns, "array view lost its source declaration"))?;
+        let actual = self.collection_backing_source(source, 0, element, concerns)?;
         let window = if typed {
             // A typed view of a byte array would hide the byte descriptor
             // the specification requires; an erased empty array has no
@@ -335,7 +355,7 @@ impl Storage<'_> {
                 "array view needs its whole plain backing without qualification loss",
             ));
         }
-        Ok(window.length)
+        Ok(terminal_semantics::CollectionExtent::Fixed(window.length))
     }
 
     /// `left == right` over two byte views, a `ByteSequenceEqual`.
@@ -542,7 +562,7 @@ impl Storage<'_> {
         Ok(())
     }
 
-    pub(super) fn shared_subslice(&self, operation: &Operation) -> Checked<()> {
+    pub(super) fn subslice(&self, operation: &Operation) -> Checked<()> {
         use terminal_semantics::descriptor_results::DescriptorCallOrigin;
         let (source, typed) = match &operation.kind {
             OperationKind::ByteSequenceSubslice { source, .. } => (source, false),
@@ -554,7 +574,25 @@ impl Storage<'_> {
             .result
             .as_structural()
             .ok_or_else(|| self.foreign(concerns, "a subslice has no descriptor result"))?;
-        if result.multiplicity != StructuralMultiplicity::Unrestricted
+        let destination = &self.declaration(result.structural_type, concerns)?.shape;
+        let access = terminal_semantics::descriptor_results::descriptor_value_access(
+            self.types.iter(),
+            result.structural_type,
+            result.multiplicity,
+        )
+        .filter(|access| {
+            matches!(
+                access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+        })
+        .ok_or_else(|| self.foreign(concerns, "a subslice has no descriptor permission"))?;
+        let multiplicity = if access == StructuralAccess::MutableBorrow {
+            StructuralMultiplicity::Affine
+        } else {
+            StructuralMultiplicity::Unrestricted
+        };
+        if result.multiplicity != multiplicity
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.qualification_establishments.is_empty()
@@ -568,48 +606,43 @@ impl Storage<'_> {
         {
             return Err(self.foreign(
                 concerns,
-                "a shared subslice must produce its exact plain unrestricted descriptor",
+                "a subslice must produce its exact plain descriptor and ownership",
             ));
         }
-        let destination = &self.declaration(result.structural_type, concerns)?.shape;
         let selected = self.byte_shape(source.place, &source.path, concerns)?;
         let element = match selected {
             StructuralTypeShape::ElementView { element, .. } if typed => Some(element),
             _ => None,
         };
-        let is_shared_descriptor = |shape: &StructuralTypeShape| {
+        let is_descriptor = |shape: &StructuralTypeShape| {
             if typed {
                 matches!(
                     shape,
                     StructuralTypeShape::ElementView {
                         element: selected,
-                        access: Some(StructuralAccess::SharedBorrow),
-                    } if Some(*selected) == element
+                        access: declared,
+                    } if Some(*selected) == element && declared.is_none_or(|declared| access.admits_referent(declared))
                 )
             } else {
-                is_shared_bytes(shape)
+                matches!(shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { access: declared })
+                    if declared.is_none_or(|declared| access.admits_referent(declared)))
             }
         };
-        if !is_shared_descriptor(&selected)
-            || !is_shared_descriptor(destination)
-            || source.access != StructuralAccess::SharedBorrow
-            || !self.descriptor_access(
-                source.place,
-                &source.path,
-                concerns,
-                StructuralAccess::SharedBorrow,
-            )?
+        if !is_descriptor(&selected)
+            || !is_descriptor(destination)
+            || source.access != access
+            || !self.descriptor_access(source.place, &source.path, concerns, access)?
             || !terminal_semantics::descriptor_reborrow_shapes_match(
                 &selected,
                 source.access,
-                Some(StructuralAccess::SharedBorrow),
+                Some(access),
                 destination,
-                StructuralAccess::SharedBorrow,
+                access,
             )
         {
             return Err(self.unsupported(
                 concerns,
-                "a subslice without shared source and result access",
+                "a subslice without matching source and result access",
             ));
         }
         let location = self
@@ -636,21 +669,14 @@ impl Storage<'_> {
                 self.unsupported(concerns, "a subslice without established shared backing")
             })?;
         for origin in origins {
-            let shared = match origin {
+            let authenticated = match origin {
                 DescriptorCallOrigin::Argument { source, projection } => {
                     if matches!(
                         self.root_kind(source, concerns)?,
                         StructuralPlaceKind::Parameter { .. }
-                    ) && is_shared_descriptor(&self.byte_shape(
-                        source,
-                        &projection.path,
-                        concerns,
-                    )?) && self.descriptor_access(
-                        source,
-                        &projection.path,
-                        concerns,
-                        StructuralAccess::SharedBorrow,
-                    )? {
+                    ) && is_descriptor(&self.byte_shape(source, &projection.path, concerns)?)
+                        && self.descriptor_access(source, &projection.path, concerns, access)?
+                    {
                         continue;
                     }
                     let enclosing = projection.enclosing_storage().ok_or_else(|| {
@@ -677,27 +703,25 @@ impl Storage<'_> {
                         )
                         .is_some()
                     };
-                    fixed
-                        && self.descriptor_access(
-                            source,
-                            &enclosing.path,
-                            concerns,
-                            StructuralAccess::SharedBorrow,
-                        )?
+                    fixed && self.descriptor_access(source, &enclosing.path, concerns, access)?
                 }
-                DescriptorCallOrigin::Literal { machine, place } if !typed => self
-                    .module
-                    .machine(machine)
-                    .and_then(|machine| machine.structural_place(place))
-                    .is_some_and(|place| {
-                        matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
-                    }),
+                DescriptorCallOrigin::Literal { machine, place }
+                    if !typed && access == StructuralAccess::SharedBorrow =>
+                {
+                    self.module
+                        .machine(machine)
+                        .and_then(|machine| machine.structural_place(place))
+                        .is_some_and(|place| {
+                            matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+                        })
+                }
                 _ => false,
             };
-            if !shared {
-                return Err(
-                    self.unsupported(concerns, "a subslice without authenticated shared backing")
-                );
+            if !authenticated {
+                return Err(self.unsupported(
+                    concerns,
+                    "a subslice without authenticated backing and access",
+                ));
             }
         }
         // Storage::uses separately proves the selected descriptor is available
@@ -780,6 +804,7 @@ impl Storage<'_> {
     /// this length observation onto that producer, not an equal-sized view.
     pub(super) fn extent_equation(
         &self,
+        tables: &terminal_check_tables::MachineTables,
         measurement: &Operation,
         producer: OperationId,
         trace: &super::Reaching,
@@ -789,6 +814,7 @@ impl Storage<'_> {
             return Err(self.foreign(concerns, "a length measurement has no scalar result"));
         };
         let Some(extent) = self.extent_contents(
+            tables,
             producer,
             ProgramPoint::AfterOperation(measurement.id),
             result.scalar_type,
@@ -826,6 +852,7 @@ impl Storage<'_> {
     /// it does not manufacture a length measurement or its bounds evidence.
     pub(super) fn extent_contents(
         &self,
+        tables: &terminal_check_tables::MachineTables,
         producer: OperationId,
         at: ProgramPoint,
         scalar: ScalarType,
@@ -843,42 +870,102 @@ impl Storage<'_> {
         let ScalarType::Integer(integer) = scalar else {
             unreachable!()
         };
-        let term = match &self.operation(producer, concerns)?.kind {
-            OperationKind::EstablishByteSequenceLiteral { bytes, .. } => {
-                ScalarTerm::integer(integer, IntegerValue::Unsigned(bytes.len() as u128))
-            }
-            OperationKind::EstablishElementView { .. }
-            | OperationKind::EstablishMutableElementView { .. } => ScalarTerm::integer(
-                integer,
-                IntegerValue::Unsigned(
-                    self.array_view_formation(self.operation(producer, concerns)?)? as u128,
-                ),
-            ),
-            // A sequence literal's descriptor holds exactly its elements. Only
-            // an element sequence has an extent leaf to ask about; a fixed
-            // array's length is its type's (`Held::extent_of`).
-            OperationKind::EstablishStructuralArray { elements } => {
-                ScalarTerm::integer(integer, IntegerValue::Unsigned(elements.len() as u128))
-            }
-            OperationKind::ByteSequenceSubslice { start, end, .. }
-            | OperationKind::ElementViewSubslice { start, end, .. } => {
-                if !self.current_extent(producer, trace)? && self.repeated_extent(producer)? {
-                    return Ok(None);
-                }
-                ScalarTerm::exact_integer_subtract(
-                    integer,
-                    ScalarTerm::value(*end, scalar),
-                    ScalarTerm::value(*start, scalar),
+        let mut producer = producer;
+        let mut history = self.budget();
+        loop {
+            history.remaining = history.remaining.checked_sub(1).ok_or_else(|| {
+                self.unsupported(
+                    concerns,
+                    "collection extent correspondence exceeds its traversal budget",
                 )
+            })?;
+            let term = match &self.operation(producer, concerns)?.kind {
+                OperationKind::EstablishByteSequenceLiteral { bytes, .. } => {
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(bytes.len() as u128))
+                }
+                OperationKind::EstablishElementView { source, .. }
+                | OperationKind::EstablishMutableElementView { source, .. } => {
+                    match self.array_view_formation(self.operation(producer, concerns)?)? {
+                        terminal_semantics::CollectionExtent::Fixed(length) => {
+                            ScalarTerm::integer(integer, IntegerValue::Unsigned(length as u128))
+                        }
+                        terminal_semantics::CollectionExtent::StoredLength => {
+                            if (!self.current_extent(producer, trace)?
+                                || !self.current_extent(producer, &history)?)
+                                && self.repeated_extent(producer)?
+                            {
+                                return Ok(None);
+                            }
+                            let mut leaf = self.argument(source, concerns)?;
+                            leaf.segments
+                                .push(terminal_check_tables::bindings::Segment::Extent);
+                            let (block, after) =
+                                self.graph.locate(ProgramPoint::AfterOperation(producer))?;
+                            match self.reaching(
+                                tables,
+                                super::Asked::Contents(&leaf),
+                                block,
+                                after - 1,
+                                &mut history,
+                                concerns,
+                            )? {
+                                super::Reached::Extent(previous) => {
+                                    producer = previous;
+                                    continue;
+                                }
+                                super::Reached::Value(value) => {
+                                    let actual = terminal_check_tables::row(
+                                        &tables.values,
+                                        value,
+                                        self.machine,
+                                        concerns,
+                                    )?;
+                                    if actual.scalar_type != scalar {
+                                        return Err(self.foreign(
+                                            concerns,
+                                            "collection extent has another scalar type",
+                                        ));
+                                    }
+                                    return Ok(Some(ScalarTerm::value(value, scalar)));
+                                }
+                                _ => return Ok(None),
+                            }
+                        }
+                        terminal_semantics::CollectionExtent::LiveLength { .. } => {
+                            return Err(self
+                                .unsupported(concerns, "collection view has no captured length"));
+                        }
+                    }
+                }
+                // A sequence literal's descriptor holds exactly its elements. Only
+                // an element sequence has an extent leaf to ask about; a fixed
+                // array's length is its type's (`Held::extent_of`).
+                OperationKind::EstablishStructuralArray { elements } => {
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(elements.len() as u128))
+                }
+                OperationKind::ByteSequenceSubslice { start, end, .. }
+                | OperationKind::ElementViewSubslice { start, end, .. } => {
+                    if (!self.current_extent(producer, trace)?
+                        || !self.current_extent(producer, &history)?)
+                        && self.repeated_extent(producer)?
+                    {
+                        return Ok(None);
+                    }
+                    ScalarTerm::exact_integer_subtract(
+                        integer,
+                        ScalarTerm::value(*end, scalar),
+                        ScalarTerm::value(*start, scalar),
+                    )
+                }
+                _ => return Ok(None),
             }
-            _ => return Ok(None),
+            .map_err(|error| {
+                self.foreign(
+                    concerns,
+                    &format!("descriptor extent has invalid scalar semantics: {error:?}"),
+                )
+            })?;
+            return Ok(Some(term));
         }
-        .map_err(|error| {
-            self.foreign(
-                concerns,
-                &format!("descriptor extent has invalid scalar semantics: {error:?}"),
-            )
-        })?;
-        Ok(Some(term))
     }
 }
