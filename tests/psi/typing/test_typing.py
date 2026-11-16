@@ -1031,6 +1031,27 @@ def main() -> None:
     rejected(program, "empty-braces-are-not-a-tag-only-pattern", packet.replace(b"FIELDS", b""), "MissingPatternField", b"Packet::Data")
     rejected(program, "rest-does-not-admit-duplicate-waivers", packet.replace(b"FIELDS", b"value as _, value as _, .."), "DuplicatePatternField", b"value as _!2")
 
+    # `field: value` is projected equality, so an arm that tests a field
+    # matches only some values of its case and does not close it
+    # (wiki/spec/language/patterns.md#pattern-subjects-and-bindings).
+    reading = (
+        b"data Reading [copy] { case Value(level: u8); case Missing; }\n"
+        b"machine f(r: Reading) -> u8 { transition r { ARMS Reading::Missing -> 1 } }"
+    )
+    accepted(
+        program,
+        "a-binder-arm-closes-its-case",
+        reading.replace(b"ARMS", b"Reading::Value { level: 0 } -> 0 Reading::Value { level as _ } -> 2"),
+        (),
+    )
+    rejected(
+        program,
+        "a-valued-field-does-not-close-its-case",
+        reading.replace(b"ARMS", b"Reading::Value { level: 0 } -> 0"),
+        "UncoveredDispatch",
+        b"transition r { Reading::Value { level: 0 } -> 0 Reading::Missing -> 1 }",
+    )
+
     # A value-position match (wiki/spec/language/patterns.md): its patterns
     # meet its subject, its arms' values meet one type and its arms cover the
     # subject. Arms of anonymous numbers make an anonymous choice that lands
