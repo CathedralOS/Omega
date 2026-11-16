@@ -1442,31 +1442,35 @@ fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
     }
 }
 
+fn encode_review_calling_abi(abi: &semantic_vocabulary::CallingAbiIdentity) -> Vec<u8> {
+    let mut bytes = abi.id().get().to_le_bytes().to_vec();
+    for field in [&abi.requirement_identity, &abi.declaring_application] {
+        bytes.extend_from_slice(&(field.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(field.as_bytes());
+    }
+    bytes.extend_from_slice(&(abi.operands.len() as u64).to_le_bytes());
+    for operand in &abi.operands {
+        bytes.extend_from_slice(&operand.ordinal.to_le_bytes());
+        bytes.push(operand.kind as u8);
+        bytes.extend_from_slice(&(operand.identity.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(operand.identity.as_bytes());
+    }
+    bytes
+}
+
 fn assert_recovery_rejects_swapped_native_abi(
     policy: &review_evidence::record::PackagePolicyBaseline,
     method: &review_evidence::record::PackagePolicyServiceMethod,
 ) {
     use review_evidence::encoding::PackagePolicyRecoveryLimits;
     use review_evidence::record::PackagePolicyBaseline;
-    use semantic_vocabulary::CallingAbiIdentity;
-
-    fn encode_closed_abi(abi: &CallingAbiIdentity) -> Vec<u8> {
-        assert!(abi.operands.is_empty());
-        let mut bytes = abi.id().get().to_le_bytes().to_vec();
-        for field in [&abi.requirement_identity, &abi.declaring_application] {
-            bytes.extend_from_slice(&(field.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(field.as_bytes());
-        }
-        bytes.extend_from_slice(&0u64.to_le_bytes());
-        bytes
-    }
 
     let [application] = method.calling() else {
         panic!("one validated calling application");
     };
     let abi = application.abi();
     let original = policy.canonical_bytes().unwrap();
-    let key = encode_closed_abi(abi);
+    let key = encode_review_calling_abi(abi);
     let matches = original
         .windows(key.len())
         .enumerate()
@@ -1501,7 +1505,10 @@ fn assert_recovery_rejects_swapped_native_abi(
         // Recompute the coordinate too, so a matching checksum cannot conceal
         // disagreement with the recovered method telescope.
         let mut bytes = original.clone();
-        bytes.splice(*offset..*offset + key.len(), encode_closed_abi(&forged));
+        bytes.splice(
+            *offset..*offset + key.len(),
+            encode_review_calling_abi(&forged),
+        );
         let error = PackagePolicyBaseline::recover_canonical(
             &bytes,
             PackagePolicyRecoveryLimits::default(),
@@ -1576,6 +1583,20 @@ machine build(builder: &mut Build) {
     let [first, second] = recovered.native_bindings() else {
         panic!("both exact Build applications must survive review");
     };
+    let originals = recovered
+        .callables()
+        .callables()
+        .iter()
+        .filter(|callable| callable.identity() == first.method().requirement())
+        .collect::<Vec<_>>();
+    let [original_method] = originals.as_slice() else {
+        panic!("one original generic declaration, not one universal method per closed call");
+    };
+    assert_eq!(original_method.type_parameters().len(), 1);
+    assert!(
+        !original_method.contracts().is_empty(),
+        "the written value <= Limit requirement must remain visible"
+    );
     let first_application = first.application().expect("closed first application");
     let second_application = second.application().expect("closed second application");
     assert_ne!(first_application, second_application);
@@ -1593,6 +1614,36 @@ machine build(builder: &mut Build) {
     assert_ne!(first_application, first_calling.abi().requirement_identity);
 
     let original = recovered.canonical_bytes().unwrap();
+    let abi_bytes = encode_review_calling_abi(first_calling.abi());
+    let abi_positions = original
+        .windows(abi_bytes.len())
+        .enumerate()
+        .filter(|(_, bytes)| *bytes == abi_bytes)
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    let [abi_position] = abi_positions.as_slice() else {
+        panic!("one complete ABI occurrence for the first application");
+    };
+    let mut changed_kind = first_calling.abi().clone();
+    assert_eq!(changed_kind.operands.len(), 1);
+    assert_eq!(
+        changed_kind.operands[0].kind,
+        semantic_vocabulary::CallingOperandKind::Const
+    );
+    changed_kind.operands[0].kind = semantic_vocabulary::CallingOperandKind::Value;
+    let mut changed_kind_bytes = original.clone();
+    changed_kind_bytes.splice(
+        *abi_position..*abi_position + abi_bytes.len(),
+        encode_review_calling_abi(&changed_kind),
+    );
+    assert!(
+        PackagePolicyBaseline::recover_canonical(
+            &changed_kind_bytes,
+            PackagePolicyRecoveryLimits::default()
+        )
+        .is_err(),
+        "a recomputed ABI coordinate cannot change the original const binder into a value binder"
+    );
     let positions = original
         .windows(first_application.len())
         .enumerate()
