@@ -16630,10 +16630,9 @@ pub mod descriptor_results {
     };
     pub use replay::{
         DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind,
-        DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStorageAccessPath,
-        DescriptorStoredCallEffect, DescriptorStoredEffect, DescriptorStoredOrigin,
-        descriptor_slot_inventory, descriptor_slots, reconstruct_source_origins,
-        reconstruct_stored_effects,
+        DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStoredCallEffect,
+        DescriptorStoredEffect, DescriptorStoredOrigin, descriptor_slot_inventory,
+        descriptor_slots, reconstruct_source_origins, reconstruct_stored_effects,
     };
 
     #[derive(Clone)]

@@ -578,13 +578,15 @@ pub(crate) mod analysis {
                 .and_then(|writes| writes.as_ref().as_deref()))
         }
 
-        /// Describe original operations reached through actual invocations.
-        /// None is an unserved call, not a proof that the body accesses no
-        /// storage. These paths grant no memory or invocation permission.
-        pub fn storage_access_paths(
+        /// Keep each operation at its original instruction and operand. A
+        /// complete frame also requires complete frames for actual callees,
+        /// reached through the existing invocation graph. Callers traverse
+        /// that shared graph with their own argument context; the summary
+        /// never expands all possible call paths.
+        pub fn storage_access_frame(
             &mut self,
             identity: MachineId,
-        ) -> Result<Option<&[DescriptorStorageAccessPath]>, &'static str> {
+        ) -> Result<Option<&[(DescriptorPosition, usize)]>, &'static str> {
             self.replay.prepare_access_frame(identity)?;
             Ok(self
                 .replay
@@ -597,20 +599,14 @@ pub(crate) mod analysis {
 
         pub fn storage_access(
             &self,
-            path: &DescriptorStorageAccessPath,
+            identity: MachineId,
+            (position, input): (DescriptorPosition, usize),
         ) -> Option<(
             access_plans::AccessOperation,
             &crate::descriptor_lifetimes::DescriptorFlowSource,
         )> {
-            for pair in path.sites.windows(2) {
-                let caller = self.replay.machine(pair[0].0)?;
-                if caller.known_invocation(&pair[0].1)?.callee() != Some(pair[1].0) {
-                    return None;
-                }
-            }
-            let &(machine, position) = path.sites.last()?;
-            let step = self.replay.machine(machine)?.flow.get(&position)?;
-            let (operation, source) = step.inputs.get(path.input)?.1.as_ref()?;
+            let step = self.replay.machine(identity)?.flow.get(&position)?;
+            let (operation, source) = step.inputs.get(input)?.1.as_ref()?;
             Some((*operation, source))
         }
 
@@ -4049,7 +4045,7 @@ pub(crate) mod engine {
     #[derive(Clone, Default)]
     pub(crate) struct StorageFrame {
         pub(crate) writes: Option<Arc<Option<Vec<DescriptorLocation>>>>,
-        pub(crate) accesses: Option<Arc<Option<Vec<DescriptorStorageAccessPath>>>>,
+        pub(crate) accesses: Option<Arc<Option<Vec<(DescriptorPosition, usize)>>>>,
     }
 
     impl StorageFrame {
@@ -4364,7 +4360,7 @@ pub(crate) mod engine {
                 return Ok(());
             }
             summary.storage_frame.accesses = Some(Arc::new(None));
-            let accesses = self.infer_access_paths(identity)?;
+            let accesses = self.infer_access_frame(identity)?;
             self.summaries
                 .get_mut(&identity)
                 .and_then(Option::as_mut)
@@ -4374,10 +4370,10 @@ pub(crate) mod engine {
             Ok(())
         }
 
-        fn infer_access_paths(
+        fn infer_access_frame(
             &mut self,
             identity: MachineId,
-        ) -> Result<Option<Vec<DescriptorStorageAccessPath>>, &'static str> {
+        ) -> Result<Option<Vec<(DescriptorPosition, usize)>>, &'static str> {
             if self.prepare_states(identity).is_none() {
                 return Ok(None);
             }
@@ -4403,10 +4399,7 @@ pub(crate) mod engine {
                     .ok_or("storage access cut disappeared")?;
                 for (input, (_, access)) in step.inputs.iter().enumerate() {
                     if access.is_some() {
-                        accesses.push(DescriptorStorageAccessPath {
-                            sites: vec![(identity, position)],
-                            input,
-                        });
+                        accesses.push((position, input));
                     }
                 }
                 let Some(invocation) = machine.calls.get(&position) else {
@@ -4421,23 +4414,14 @@ pub(crate) mod engine {
                     return Ok(None);
                 };
                 self.prepare_access_frame(callee)?;
-                let Some(called) = self
+                let complete = self
                     .summaries
                     .get(&callee)
                     .and_then(Option::as_ref)
                     .and_then(|summary| summary.storage_frame.accesses.as_ref())
-                    .and_then(|accesses| accesses.as_ref().as_ref())
-                else {
+                    .is_some_and(|accesses| accesses.as_ref().is_some());
+                if !complete {
                     return Ok(None);
-                };
-                for access in called {
-                    let mut sites = Vec::with_capacity(access.sites.len() + 1);
-                    sites.push((identity, position));
-                    sites.extend_from_slice(&access.sites);
-                    accesses.push(DescriptorStorageAccessPath {
-                        sites,
-                        input: access.input,
-                    });
                 }
             }
             Ok(Some(accesses))
@@ -7439,7 +7423,7 @@ pub(crate) mod engine {
         }
 
         #[test]
-        fn storage_access_paths_keep_helper_identity_and_unknown_calls() {
+        fn storage_access_frames_keep_helper_identity_and_unknown_calls() {
             use crate::descriptors::descriptor_lifetimes::{
                 DescriptorFlowSource, DescriptorFlowStep,
             };
@@ -7503,46 +7487,47 @@ pub(crate) mod engine {
             let mut graph = vec![caller, helper];
             {
                 let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
-                let paths = analysis
-                    .storage_access_paths(caller_id)
+                // The caller points to the helper in the existing invocation
+                // graph. Its summary does not copy the helper's event rows.
+                assert_eq!(
+                    analysis.storage_access_frame(caller_id).unwrap(),
+                    Some([].as_slice())
+                );
+                assert_eq!(
+                    graph[0].known_invocation(&entry).unwrap().callee(),
+                    Some(helper_id)
+                );
+                let inputs = analysis
+                    .storage_access_frame(helper_id)
                     .unwrap()
                     .unwrap()
                     .to_vec();
-                assert_eq!(paths.len(), 2);
-                for (path, (input, operation)) in paths
-                    .iter()
-                    .zip([(1, AccessOperation::Read), (2, AccessOperation::Write)])
+                assert_eq!(inputs, [(entry, 1), (entry, 2)]);
+                for (input, operation) in inputs
+                    .into_iter()
+                    .zip([AccessOperation::Read, AccessOperation::Write])
                 {
-                    assert_eq!(path.sites, [(caller_id, entry), (helper_id, entry)]);
-                    assert_eq!(path.input, input);
-                    assert_eq!(analysis.storage_access(path), Some((operation, &source)));
-                    let mut wrong_callee = path.clone();
-                    wrong_callee.sites[1].0 = caller_id;
-                    assert!(analysis.storage_access(&wrong_callee).is_none());
+                    assert!(matches!(analysis.storage_access(helper_id, input),
+                        Some((actual_operation, DescriptorFlowSource::Location(actual)))
+                        if actual_operation == operation
+                            && matches!(&source, DescriptorFlowSource::Location(expected) if actual == expected)
+                    ));
+                    // Equal instruction and operand numbers in a different
+                    // machine cannot select the helper's memory operation.
+                    assert!(analysis.storage_access(caller_id, input).is_none());
                 }
-                // The same operation number in the caller is not the
-                // helper's operation. Its own body has no direct accesses.
-                assert!(graph[0].flow[&entry].inputs.is_empty());
-                assert_eq!(
-                    analysis
-                        .storage_access_paths(helper_id)
-                        .unwrap()
-                        .unwrap()
-                        .len(),
-                    2
-                );
             }
             graph[0].calls.insert(entry, None);
             assert!(
                 DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
-                    .storage_access_paths(caller_id)
+                    .storage_access_frame(caller_id)
                     .unwrap()
                     .is_none()
             );
             graph[0].calls.clear();
             assert_eq!(
                 DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
-                    .storage_access_paths(caller_id)
+                    .storage_access_frame(caller_id)
                     .unwrap(),
                 Some([].as_slice())
             );
@@ -7569,7 +7554,7 @@ pub(crate) mod engine {
             );
             assert!(
                 DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
-                    .storage_access_paths(caller_id)
+                    .storage_access_frame(caller_id)
                     .unwrap()
                     .is_none()
             );
@@ -8177,7 +8162,7 @@ pub(crate) mod provider {
     }
 }
 pub(crate) mod summary_interface {
-    use super::engine::{Replay, Summary};
+    use super::engine::{Replay, StorageFrame, Summary};
     use super::*;
 
     impl Replay<'_> {
@@ -8259,18 +8244,6 @@ pub(crate) mod summary_interface {
     }
 }
 use crate::runtime_structural_path_tip;
-/// Each intermediate site is an actual call; the last site identifies the
-/// instruction whose original input is selected. A path is descriptive only:
-/// its source query still needs backing, lifetime and policy checks.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DescriptorStorageAccessPath {
-    pub sites: Vec<(
-        semantic_vocabulary::MachineId,
-        crate::descriptor_lifetimes::DescriptorPosition,
-    )>,
-    pub input: usize,
-}
-
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
 use engine::Replay;
 use terminal_psi::find_structural_type;

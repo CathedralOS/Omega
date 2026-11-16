@@ -1617,8 +1617,7 @@ pub(crate) mod access_ram_origins {
                             .filter(|caller| self.reachable.contains(&caller.id))
                             .flat_map(|caller| {
                                 caller
-                                    .calls
-                                    .iter()
+                                    .known_invocations()
                                     .filter(move |(_, call)| call.callee() == Some(machine))
                                     .map(move |(position, _)| (caller.id, *position))
                             })
