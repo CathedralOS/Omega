@@ -183,9 +183,9 @@ machine carrier<'left, 'right>(first: &'left mut i32, second: &'right mut i64) -
         .iter()
         .find(|caller| caller.name.as_str() == "carrier")
         .unwrap();
-    let [state] = program.machine_states(caller) else {
-        panic!("one caller state");
-    };
+    let mut states = program.machine_states(caller).iter();
+    let state = states.next().expect("one caller state");
+    assert!(states.next().is_none(), "one caller state");
     let parameters = program.state_parameters(state);
     let scalar = |position: usize| {
         let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = program
