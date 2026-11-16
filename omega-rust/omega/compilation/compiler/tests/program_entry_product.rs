@@ -248,7 +248,8 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                         typed
                             .trait_machine_signature(projection.source)
                             .is_some_and(|(owner, signature)| {
-                                owner.name == expected_owner && signature.name == "enter"
+                                owner.name.as_str() == expected_owner
+                                    && signature.name.as_str() == "enter"
                             })
                             && typed
                                 .symbols

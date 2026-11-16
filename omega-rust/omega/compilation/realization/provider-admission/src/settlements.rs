@@ -282,7 +282,8 @@ fn external_calling_application<'row>(
     let dispatch_only = matches!(
         row.binding,
         calling_conventions::ExternalBindingKind::TableFunction { .. }
-    ).then_some(0);
+    )
+    .then_some(0);
     if application.dispatch_only_formal != dispatch_only {
         return Err(vec![Diagnostic::error(
             "external calling application has another dispatch projection",
