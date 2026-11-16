@@ -64,7 +64,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         }
     }
     machine advance(main: &mut Main, generation: i32) {
-        Clock::sleep(90);
+        block Clock::sleep(90);
         let advanced: bool = advance_generation(&mut main.grid);
         transition advanced {
             true -> block next_generation(main, generation)

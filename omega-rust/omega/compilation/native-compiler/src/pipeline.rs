@@ -10,6 +10,13 @@ installations to instruction selection (`Omega 03`), selected-instruction optimi
 allocation (`Omega 05`), post-allocation machine planning (`Omega 06`),
 layout-independent encoding (`Omega 07`), resolved layout (`Omega 08`), layout
 optimization (`Omega 09`), and fragment object emission.
+
+Emission reads the current machine program plus `EmissionFacts`, the few facts
+settled before instruction selection that it still needs, which `emit_target`
+copies out of stage 02's output. Stage 02's output and the original
+allocation, encoding and layout inputs reach emission only when a validator
+request asked to retain them (`retain_native_stage_inputs`); otherwise they
+are dropped as soon as their successor stage has run.
 */
 
 use crate::observations::{NativePipelineObservation, NativePipelineStage};
@@ -163,6 +170,9 @@ pub(crate) fn emit_target(
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
     }?;
+    let facts = emission_facts(&target_input);
+    let original_target = retain_native_stage_inputs
+        .then(|| image_emission::RetainedTargetOperations::new(target_input));
     let selected = {
         observation.enter(NativePipelineStage::SelectedOptimization);
         optimize_selected_instructions(SelectedOptimizationInput {
@@ -224,7 +234,6 @@ pub(crate) fn emit_target(
     let realization = if retain_native_stage_inputs {
         realization.retain_replay_for_validation(machine_emission::FunctionRealizationReplay {
             allocation,
-            target_input: std::sync::Arc::clone(&target_input),
             machine,
             encoding,
             baseline_layout: layout,
@@ -237,18 +246,33 @@ pub(crate) fn emit_target(
         drop((allocation, machine, encoding, layout, selected_optimization));
         realization
     };
-    let physical = StagedOptimizedFunctionFragmentEmissionSource::new(
-        realization,
-        target_input,
-        installations,
-    )
-    .map_err(|error| {
-        BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
-            "native artifact function-fragment emission failed: {error}"
-        ))])
-    })?;
+    let physical =
+        StagedOptimizedFunctionFragmentEmissionSource::new(realization, facts, installations)
+            .map_err(|error| {
+                BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
+                    "native artifact function-fragment emission failed: {error}"
+                ))])
+            })?;
     observation.enter(NativePipelineStage::FragmentEmission);
-    native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
+    native_artifact::emit_fragment_object(physical, original_target)
+        .map_err(BodyEmissionError::Object)
+}
+
+/// Copy what emission needs from stage 02's output and cannot read from the
+/// current machine program: the admitted lowering facts and the optimized
+/// abstract program with its projection identities. The program is shared,
+/// not copied.
+fn emission_facts(target: &ValidatedOptimizedTargetOperations) -> machine_emission::EmissionFacts {
+    let optimized = target.optimized();
+    machine_emission::EmissionFacts {
+        lowering: target.lowering_facts().clone(),
+        abstract_program: optimized.shared_program(),
+        projection: machine_emission::OptimizedProgramProjection {
+            identity: optimized.projection(),
+            terminal: optimized.projection_psi(),
+            final_unit: optimized.final_unit(),
+        },
+    }
 }
 
 pub(crate) enum BodyEmissionError {

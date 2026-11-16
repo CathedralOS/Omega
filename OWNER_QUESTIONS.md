@@ -275,3 +275,42 @@ recommendation, not a settled rule.
 **Until answered.** The compiler accepts the header anywhere. The language guide
 advises writing it before the file's declarations and says the compiler does
 not check the position.
+
+<a id="test-runner-filesystem-slot"></a>
+
+### 6. How does the test runner identify std's `FilesystemService` slot?
+
+Decision name: `test-runner-filesystem-slot`.
+
+**Context.** A test group may ask the runner to back one service slot with a
+private filesystem the runner creates empty for each test
+(`builder.tests.service<Group, Slot>()`). The runner checks the named slot
+before any test runs. Until now it accepted the slot when the declaration was
+named `FilesystemService` inside a package named `omega_language_std`, so any
+package that took that name could have its slot backed.
+
+**Gap.** [Testing](wiki/spec/build/testing.md#group-configuration-and-authority)
+says "the runner backs only std's `FilesystemService`". The
+[ordinary-library-packages decision](wiki/spec/build/declarations.md#ordinary-library-packages)
+and [toolchain](wiki/spec/packages/toolchain.md) say std is an ordinary package
+whose name, lineage, path and same-spelled declarations confer no authority.
+They allow recognizing an ordinary declaration only through an accepted
+semantic binding chosen by consumer policy, and name entry/profile
+integration and risk classification as its uses. No binding role covers the
+test runner's filesystem, and neither page says whether the runner may
+recognize a slot at all.
+
+**Question.** How does the runner decide that a named slot is the one it backs?
+Options: (a) a new accepted semantic binding role, supplied by the root's
+consumer policy like the `FilesystemHostService` role; (b) the runner backs any
+boundary trait whose normalized schema matches the `FilesystemService`
+contract, whatever package declares it; (c) the runner's filesystem moves to
+core, so the slot has a toolchain owner.
+
+**Recommendation.** (a): it reuses the existing mechanism, binds the exact
+declaration and schema, and keeps std ordinary. This is a recommendation, not a
+settled rule.
+
+**Until answered.** The runner refuses every named service slot before any
+test runs (`omega-rust/omega/compilation/compiler/src/checked/test_roots.rs`).
+Test groups without services register and run on both engines.

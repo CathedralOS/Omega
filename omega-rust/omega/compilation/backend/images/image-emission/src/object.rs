@@ -891,11 +891,10 @@ pub(crate) mod private_object_composition {
             return Ok(());
         };
         validate_function_fragment_object_artifact(
-            &source
+            source
                 .fragment_replay
                 .as_ref()
-                .ok_or(Error::Mismatch("composition root lacks fragment custody"))?
-                .0,
+                .ok_or(Error::Mismatch("composition root lacks fragment custody"))?,
             source,
         )?;
         let origins = crate::entries::private_entry_origin::EntryOrigins::new(artifact)?;
@@ -906,7 +905,7 @@ pub(crate) mod private_object_composition {
                 .fragment_replay
                 .as_ref()
                 .ok_or(Error::Mismatch("private object lacks fragment custody"))?;
-            validate_function_fragment_object_artifact(&replay.0, &private.body)?;
+            validate_function_fragment_object_artifact(replay, &private.body)?;
             origins.verify(private)?;
             crate::entries::callable_entry_transport::validate_entry_transport(private)?;
             inputs.push(PrivateFunctionObject {

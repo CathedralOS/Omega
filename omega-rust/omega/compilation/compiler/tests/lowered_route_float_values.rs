@@ -1510,14 +1510,15 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
                 main.clone(),
                 std::env::temp_dir().join(format!("omega-saturating-custody-{}", std::process::id())),
                 vec![Some(target::TargetProfile::MacosArm64)],
-            ).with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+            ).with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+            .with_retained_native_stage_inputs(true);
             let outcomes = orchestration::compile_sources(
                 &mut compiler::CompilationSession::default(), request,
             ).unwrap_or_else(|errors| panic!("{errors:?}"));
             let outcome = &outcomes.outcomes()[0];
             let report = outcome.report().unwrap_or_else(|| panic!("{:?}", outcome.diagnostics()));
             let target = report.retained_native_artifact().unwrap().object()
-                .retained_fragment_source().unwrap().source().source().source().source().optimized_target();
+                .retained_target_operations().unwrap();
             let optimized = target.optimized();
             let verify = |plan, abstracted, unit| {
                 native_preparation::verify_target_operation_plan_with_closed_module(

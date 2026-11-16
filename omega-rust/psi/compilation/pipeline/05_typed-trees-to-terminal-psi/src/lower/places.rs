@@ -1282,10 +1282,25 @@ pub(super) enum Step {
     },
 }
 
+impl Step {
+    /// The type of the value this step goes into: the record, sum, array or
+    /// reference that holds what the step reaches.
+    pub(super) fn owner(&self) -> StructuralTypeId {
+        match self {
+            Self::Field { owner, .. }
+            | Self::Payload { owner, .. }
+            | Self::Index { owner, .. }
+            | Self::Referent { owner } => *owner,
+        }
+    }
+}
+
 /// One dispatch arm the open block lies in. For a case arm: the sum place
 /// the dispatch selected on, the case, and for each payload field in
 /// declaration order the block parameter it arrived as, `None` for a data
 /// payload field, which has no value identity. The wildcard arm has no case.
+/// The parameters are cleared once a write or exclusive loan in the arm may
+/// change the subject, since they hold its payload at dispatch time.
 /// control_flow.md: "Selected payload fields become scalar parameters on
 /// that case's edge before cleanup."
 #[derive(Debug, Clone)]
@@ -1435,7 +1450,56 @@ impl<'a> Lowering<'a> {
             &mut self.tables.places,
             &mut self.tables.writes,
             WriteRow { place, at, content },
-        )
+        )?;
+        self.touch_selected(place)
+    }
+
+    /// A store, move or exclusive loan reaching `place` may change any
+    /// enclosing dispatch subject it overlaps, so that arm's payload block
+    /// parameters no longer hold the subject's current payload. Later reads
+    /// of the payload are ordinary `Case` reads the checker judges.
+    /// structural_access.md: "A read is not equality with the initializer or
+    /// a previous read: intervening stores and calls can change storage".
+    fn touch_selected(&mut self, place: ExactPlaceId) -> Checked<()> {
+        for position in 0..self.selected.len() {
+            let chosen = &self.selected[position];
+            if !chosen.parameters.is_empty() && self.may_touch(chosen.place, place)? {
+                self.selected[position].parameters.clear();
+            }
+        }
+        Ok(())
+    }
+
+    /// The root and segments that reach `place`, root first.
+    fn lineage(&self, mut place: ExactPlaceId) -> Checked<(PlaceId, Vec<Segment>)> {
+        let mut segments = Vec::new();
+        loop {
+            let row = self
+                .tables
+                .places
+                .get(place)
+                .ok_or_else(|| self.internal("an exact place has no row"))?;
+            match row.origin {
+                PlaceOrigin::Root(root) => {
+                    segments.reverse();
+                    return Ok((root, segments));
+                }
+                PlaceOrigin::Projection { parent, segment } => {
+                    segments.push(segment);
+                    place = parent;
+                }
+            }
+        }
+    }
+
+    /// Whether a write to `place` may change `subject`, by the checker's own
+    /// relation: distinct roots are distinct storage, and beneath one root
+    /// `place_paths::may_overlap` decides.
+    fn may_touch(&self, subject: ExactPlaceId, place: ExactPlaceId) -> Checked<bool> {
+        let (subject_root, subject_path) = self.lineage(subject)?;
+        let (root, path) = self.lineage(place)?;
+        Ok(subject_root == root
+            && terminal_semantics::storage::place_paths::may_overlap(&subject_path, &path))
     }
 
     /// Register a demanded scalar leaf. Logical identities are allocated in
@@ -2919,6 +2983,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a loan has another type than its captured place"));
         }
         self.name_contents(exact, value_type)?;
+        if lent_access != StructuralAccess::SharedBorrow {
+            self.touch_selected(exact)?;
+        }
         let lender = if self.borrowed_roots.contains(&root) {
             Lender::Incoming
         } else {
@@ -3606,7 +3673,8 @@ impl<'a> Lowering<'a> {
 
     /// The scalar payload field `field` of case `case` of the sum `base`
     /// names. Inside the arm of a dispatch on that same place and case it
-    /// is the arm block's parameter. Anywhere else it is a read whose
+    /// is the arm block's parameter, until a write or exclusive loan touches
+    /// the subject (`touch_selected`). Anywhere else it is a read whose
     /// carrier ends in the `Case` step (structural_access.md: "One `Case`
     /// step may end the carrier when the preceding carrier steps reach a
     /// sum. The final field is then a relevant scalar payload field of that
@@ -4166,13 +4234,7 @@ impl<'a> Lowering<'a> {
         }
         let mut owed = 0;
         for step in &steps {
-            let owner = match step {
-                Step::Field { owner, .. }
-                | Step::Payload { owner, .. }
-                | Step::Index { owner, .. }
-                | Step::Referent { owner } => *owner,
-            };
-            owed += self.record_type(owner)?.requires.len();
+            owed += self.record_type(step.owner())?.requires.len();
         }
         self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
@@ -4560,7 +4622,7 @@ impl<'a> Lowering<'a> {
     /// Mints the `DataDomain` obligations of `operation`, one per clause it
     /// owes, at the point before it. data_and_literals.md: "Construction and
     /// every restoring write prove the owning default-domain clauses."
-    fn owe_domains(
+    pub(super) fn owe_domains(
         &mut self,
         operation: OperationId,
         clauses: usize,

@@ -177,6 +177,52 @@ crashes Trap
     parser_advance(parser, input);
 }
 
+// Take the integer literal token at the cursor and keep its decoded value as
+// a row of `SyntaxTrees::integer_literals`. The result is the row's handle;
+// the caller has checked the token is an integer.
+machine take_integer_literal(parser: &mut Parser, input: &TokenStream) -> u64 in Trapping
+crashes Trap
+{
+    let token: Token = input.tokens[parser.current_index];
+    let handle: u64 in Trapping = parser.output.integer_literal_count as u64 in Trapping;
+    transition token.kind {
+        TokenKind::Integer { empty_digits, magnitude, exact, suffix, .. } -> decoded(parser, input, handle, magnitude, exact, empty_digits, suffix)
+        _ -> other(parser, input)
+    }
+
+    machine decoded(
+        parser: &mut Parser,
+        input: &TokenStream,
+        handle: u64 in Trapping,
+        magnitude: u64 in Wrapping,
+        exact: bool,
+        empty_digits: bool,
+        suffix: IntegerSuffix
+    ) -> u64 in Trapping {
+        let literal: IntegerLiteral = IntegerLiteral { magnitude: magnitude, exact: exact, empty_digits: empty_digits, suffix: suffix };
+        transition handle < 65536 {
+            true -> store(parser, input, handle, literal)
+            _ -> full(parser, input)
+        }
+    }
+
+    machine store(parser: &mut Parser, input: &TokenStream, handle: u64 in Trapping, literal: IntegerLiteral) -> u64 in Trapping {
+        parser.output.integer_literals[handle] = literal;
+        parser.output.integer_literal_count = parser.output.integer_literal_count + 1;
+        take_current(parser, input);
+        handle
+    }
+
+    machine full(parser: &mut Parser, input: &TokenStream) -> u64 in Trapping {
+        reject_current(parser, input, ParseDiagnosticCode::IntegerLiteralCapacityExceeded);
+        0
+    }
+
+    machine other(parser: &mut Parser, input: &TokenStream) -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
 machine reject_current(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode)
 crashes Trap
 {

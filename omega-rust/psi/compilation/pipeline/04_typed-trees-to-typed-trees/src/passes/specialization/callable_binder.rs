@@ -171,6 +171,9 @@ pub(super) fn satisfies_binder(
             "it declares a precondition on its inputs that the binder does not publish, so a caller of the binder could not establish it",
         ));
     }
+    // Only authored routes are known here. A private callback's inferred
+    // routes exist after lowering, so Terminal Psi closure compares them with
+    // the binder's `crashes none` (`ClosedReachMachineBinding`).
     if contracts.iter().any(|contract| contract.is_crashes()) && binder.declares_no_crash_route {
         return Err(refuse(
             "it may crash, and the binder declares `crashes none`",
