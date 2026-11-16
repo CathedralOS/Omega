@@ -3245,7 +3245,7 @@ pub mod descriptor_results {
 
         pub(crate) fn descriptor_storage_use_source(
             types: &[StructuralTypeDeclaration],
-            place_types: &std::collections::BTreeMap<PlaceId, StructuralTypeId>,
+            root_type: Option<StructuralTypeId>,
             operation: &terminal_psi::OperationKind,
             used: terminal_psi::StructuralStorageUse<'_>,
             select: impl Fn(semantic_vocabulary::ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
@@ -3262,11 +3262,11 @@ pub mod descriptor_results {
                 ),
                 StructuralStorageUse::Projection(source) => (
                     source.root,
-                    place_types.get(&source.root).and_then(|ty| {
+                    root_type.and_then(|ty| {
                         descriptor_contents_query_with(
                             types,
                             source.root,
-                            *ty,
+                            ty,
                             source.path,
                             source.field,
                             &select,
@@ -3275,22 +3275,22 @@ pub mod descriptor_results {
                 ),
                 StructuralStorageUse::Canonical { root, path } => (
                     root,
-                    place_types.get(&root).and_then(|ty| {
+                    root_type.and_then(|ty| {
                         let location = crate::descriptor_lifetimes::canonical_descriptor_location(
-                            types, root, *ty, path,
+                            types, root, ty, path,
                         )?;
                         Some(DescriptorContentsQuery::from_location(&location))
                     }),
                 ),
                 StructuralStorageUse::ObservedField { root, path, field } => (
                     root,
-                    place_types.get(&root).and_then(|ty| {
+                    root_type.and_then(|ty| {
                         let mut selected = path.to_vec();
                         selected.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                             field,
                         ));
                         let location = crate::descriptor_lifetimes::canonical_descriptor_location(
-                            types, root, *ty, &selected,
+                            types, root, ty, &selected,
                         )?;
                         Some(DescriptorContentsQuery::from_location(&location))
                     }),
@@ -3314,7 +3314,7 @@ pub mod descriptor_results {
                         if let Some(field) = descriptor.field {
                             let field = crate::projected_field_declaration(
                                 types.iter(),
-                                *place_types.get(&descriptor.root)?,
+                                root_type?,
                                 descriptor.path,
                                 field,
                             )?;
@@ -3325,7 +3325,7 @@ pub mod descriptor_results {
                         descriptor_contents_query_with(
                             types,
                             descriptor.root,
-                            *place_types.get(&descriptor.root)?,
+                            root_type?,
                             &selected,
                             None,
                             &select,
@@ -3340,11 +3340,11 @@ pub mod descriptor_results {
             // represented here, neither a header nor a payload query can be
             // used as an exact byte access. Ordinary liveness is unchanged.
             let query = query.filter(|query| {
-                let Some(root_type) = place_types.get(&root) else {
+                let Some(root_type) = root_type else {
                     return false;
                 };
                 query
-                    .selected_type_using(types, *root_type, |carrier, path, _| {
+                    .selected_type_using(types, root_type, |carrier, path, _| {
                         let source_path = descriptor_path(types, carrier, path)?;
                         let selected = descriptor_location_type(types, carrier, path);
                         if selected.is_none()
@@ -12519,7 +12519,7 @@ pub mod descriptor_results {
                             assert!(
                                 matches!(
                                     crate::descriptor_results::descriptor_storage_use_source(
-                                        &module.structural_types, &graph[0].place_types, &length, uses[0].0, |_| None,
+                                        &module.structural_types, graph[0].place_types.get(&source).copied(), &length, uses[0].0, |_| None,
                                     ),
                                     crate::descriptor_lifetimes::DescriptorFlowSource::Unavailable(root) if root == source
                                 ),
@@ -14806,7 +14806,7 @@ pub mod descriptor_results {
                                     access,
                                     descriptor_storage_use_source(
                                         &module.structural_types,
-                                        &graph.place_types,
+                                        graph.place_types.get(&root).copied(),
                                         &operation.kind,
                                         used,
                                         |value| scalar_expressions.expression(value),
@@ -14824,7 +14824,7 @@ pub mod descriptor_results {
                                     access,
                                     descriptor_storage_use_source(
                                         &module.structural_types,
-                                        &graph.place_types,
+                                        graph.place_types.get(&root).copied(),
                                         &operation.kind,
                                         used,
                                         |value| scalar_expressions.expression(value),
