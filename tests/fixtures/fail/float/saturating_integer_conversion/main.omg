@@ -1,0 +1,63 @@
+// Expected rejection: the Saturating policy is not implicitly removed from the result.
+// Saturating conversions keep their result policy until explicitly removed.
+use omega::language::core::I32;
+use omega::language::core::U32;
+use omega::language::core::I32::from_f32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::U32::from_f32;
+use omega::language::core::U32::from_f64;
+machine signed32(value: f32) -> i32
+requires true {
+    let converted: i32 in Saturating = I32::from_f32(value);
+    converted
+}
+machine signed64(value: f64) -> i32
+requires true {
+    let converted: i32 in Saturating = I32::from_f64(value);
+    converted as -Saturating
+}
+machine unsigned32(value: f32) -> u32
+requires true {
+    let converted: u32 in Saturating = U32::from_f32(value);
+    converted as -Saturating
+}
+machine unsigned64(value: f64) -> u32
+requires true {
+    let converted: u32 in Saturating = U32::from_f64(value);
+    converted as -Saturating
+}
+machine main() crashes Trap {
+    let nan32: f32 = 0.0f32 / 0.0f32;
+    let nan64: f64 = 0.0f64 / 0.0f64;
+    let infinity32: f32 = 1.0f32 / 0.0f32;
+    let infinity64: f64 = 1.0f64 / 0.0f64;
+    transition signed32(42.75f32) == 42i32
+        && signed32(-42.75f32) == -42i32
+        && signed64(42.75f64) == 42i32
+        && signed64(-42.75f64) == -42i32
+        && unsigned32(42.75f32) == 42u32
+        && unsigned64(42.75f64) == 42u32
+        && unsigned32(-42.75f32) == 0u32
+        && unsigned64(-42.75f64) == 0u32
+        && signed32(nan32) == 0i32 && signed64(nan64) == 0i32
+        && unsigned32(nan32) == 0u32 && unsigned64(nan64) == 0u32
+        && signed32(infinity32) == 2147483647i32
+        && signed64(infinity64) == 2147483647i32
+        && signed32(-1.0f32 / 0.0f32) == -2147483648i32
+        && signed64(-1.0f64 / 0.0f64) == -2147483648i32
+        && unsigned32(infinity32) == 4294967295u32
+        && unsigned64(infinity64) == 4294967295u32
+        && unsigned32(-1.0f32 / 0.0f32) == 0u32
+        && unsigned64(-1.0f64 / 0.0f64) == 0u32
+        && signed32(2147483648.0f32) == 2147483647i32
+        && signed64(-2147483649.0f64) == -2147483648i32
+        && unsigned32(4294967296.0f32) == 4294967295u32
+        && unsigned64(4294967296.0f64) == 4294967295u32
+        && signed32(-0.0f32) == 0i32 && signed64(0.0f64) == 0i32
+        && unsigned32(0.0f32) == 0u32 && unsigned64(-0.0f64) == 0u32 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -719,7 +719,13 @@ impl Program<'_> {
             }
             ExpressionNode::Unary(unary) => {
                 text.push_text(unary.operator.display_name());
+                let grouped = matches!(
+                    table.expression(unary.operand),
+                    ExpressionNode::Binary(_)
+                );
+                if grouped { text.push_text("("); }
                 self.write_clause_text(slots, unary.operand, text);
+                if grouped { text.push_text(")"); }
             }
             ExpressionNode::Member(member) => {
                 self.write_clause_text(slots, member.receiver, text);

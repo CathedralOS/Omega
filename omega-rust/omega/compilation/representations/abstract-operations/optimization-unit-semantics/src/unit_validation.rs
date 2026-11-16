@@ -8235,6 +8235,14 @@ pub(crate) mod function_structure {
                             source,
                         )
                         .is_some_and(|actual| match storage {
+                            Some(storage) if storage.stored_scalar.is_none() => {
+                                crate::unit_validation::references::aggregate_recast_source_compatible(
+                                    function,
+                                    structural_types.values().copied(),
+                                    source,
+                                    result.structural_type,
+                                )
+                            }
                             Some(storage) => {
                                 terminal_semantics::reference_storage_source_compatible(
                                     structural_types.values().copied(),
@@ -15357,6 +15365,23 @@ pub(crate) mod references {
         path.contains(&StructuralPathSegment::Referent)
             || (!function.entry_claim_declared(source.place)
                 && !function.content_entry_claim_declared(source.place))
+    }
+
+    pub(crate) fn aggregate_recast_source_compatible<'types>(
+        function: &PsiOptimizationFunction,
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: &StructuralArgument,
+        reference: StructuralTypeId,
+    ) -> bool {
+        structural_source_contract(function, source.place).is_some_and(|contract| {
+            terminal_semantics::reference_storage_region_source_compatible(
+                types,
+                contract.structural_type,
+                &source.path,
+                reference,
+                None,
+            )
+        })
     }
 
     pub(crate) fn reference_source_type(

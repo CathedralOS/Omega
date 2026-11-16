@@ -452,15 +452,22 @@ impl<'t> Program<'t> {
         {
             return unserved("static call has no authored selection");
         }
-        let generated = match self.typed.closed_requirement_application(target) {
-            Some(application) => Some(application.template),
+        let closed_requirement = self
+            .typed
+            .closed_requirement_application(target)
+            .map(|application| application.template);
+        let generated = match closed_requirement {
+            Some(template) => Some(template),
             None => self
                 .typed
                 .executable_callable_template(target)
                 .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?,
         };
-        let names_target =
-            |symbol: SymbolHandle| symbol == target || self.instantiates_callable(target, symbol);
+        let names_target = |symbol: SymbolHandle| {
+            symbol == target
+                || closed_requirement == Some(symbol)
+                || self.instantiates_callable(target, symbol)
+        };
         let selects_target = |symbol| {
             names_target(symbol)
                 || self.entered_machine(symbol).is_some_and(|selected| {

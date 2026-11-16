@@ -1,113 +1,173 @@
-//! Core owns the public numeric declaration roster. Receiving checks exact
-//! operation membership; targets supply realizations for these same names.
-//! Neither the roster nor a matching spelling grants source custody.
+//! Core owns the public numeric declaration roster and each declaration's
+//! actual source form. Targets use the name view; receiving checks the form
+//! as well as the source, signature and complete contract.
 
-/// The canonical operation names, as the core catalog spells their public
-/// requirements. Spelled operators (`Float::add`) are families whose `f32`
-/// and `f64` coordinates share one entry.
-pub const CANONICAL_FLOAT_OPERATIONS: [&str; 104] = [
-    "Float::add",
-    "Float::subtract",
-    "Float::multiply",
-    "Float::divide",
-    "Float::equal",
-    "Float::not_equal",
-    "Float::less",
-    "Float::less_or_equal",
-    "Float::greater",
-    "Float::greater_or_equal",
-    "F32::negate",
-    "F64::negate",
-    "F32::multiply_then_add",
-    "F64::multiply_then_add",
-    "F32::fused_multiply_add",
-    "F64::fused_multiply_add",
-    "F32::square_root",
-    "F64::square_root",
-    "F32::minimum",
-    "F64::minimum",
-    "F32::maximum",
-    "F64::maximum",
-    "F32::from_f64",
-    "F64::from_f32",
-    "F32::from_i8",
-    "F32::from_i16",
-    "F32::from_i32",
-    "F32::from_i64",
-    "F32::from_u8",
-    "F32::from_u16",
-    "F32::from_u32",
-    "F32::from_u64",
-    "F64::from_i8",
-    "F64::from_i16",
-    "F64::from_i32",
-    "F64::from_i64",
-    "F64::from_u8",
-    "F64::from_u16",
-    "F64::from_u32",
-    "F64::from_u64",
-    "I8::from_f32",
-    "I16::from_f32",
-    "I32::from_f32",
-    "I64::from_f32",
-    "U8::from_f32",
-    "U16::from_f32",
-    "U32::from_f32",
-    "U64::from_f32",
-    "I8::from_f64",
-    "I16::from_f64",
-    "I32::from_f64",
-    "I64::from_f64",
-    "U8::from_f64",
-    "U16::from_f64",
-    "U32::from_f64",
-    "U64::from_f64",
-    "F32::classify",
-    "F64::classify",
-    "F32::is_nan",
-    "F64::is_nan",
-    "F32::is_infinite",
-    "F64::is_infinite",
-    "F32::is_finite",
-    "F64::is_finite",
-    "F32::is_normal",
-    "F64::is_normal",
-    "F32::is_subnormal",
-    "F64::is_subnormal",
-    "F32::add_toward_zero",
-    "F64::add_toward_zero",
-    "F32::add_toward_positive",
-    "F64::add_toward_positive",
-    "F32::add_toward_negative",
-    "F64::add_toward_negative",
-    "F32::subtract_toward_zero",
-    "F64::subtract_toward_zero",
-    "F32::subtract_toward_positive",
-    "F64::subtract_toward_positive",
-    "F32::subtract_toward_negative",
-    "F64::subtract_toward_negative",
-    "F32::multiply_toward_zero",
-    "F64::multiply_toward_zero",
-    "F32::multiply_toward_positive",
-    "F64::multiply_toward_positive",
-    "F32::multiply_toward_negative",
-    "F64::multiply_toward_negative",
-    "F32::divide_toward_zero",
-    "F64::divide_toward_zero",
-    "F32::divide_toward_positive",
-    "F64::divide_toward_positive",
-    "F32::divide_toward_negative",
-    "F64::divide_toward_negative",
-    "F32::square_root_toward_zero",
-    "F64::square_root_toward_zero",
-    "F32::square_root_toward_positive",
-    "F64::square_root_toward_positive",
-    "F32::square_root_toward_negative",
-    "F64::square_root_toward_negative",
-    "F32::fused_multiply_add_toward_zero",
-    "F64::fused_multiply_add_toward_zero",
-    "F32::fused_multiply_add_toward_positive",
-    "F64::fused_multiply_add_toward_positive",
-    "F32::fused_multiply_add_toward_negative",
-    "F64::fused_multiply_add_toward_negative",
-];
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatDeclarationForm {
+    Machine,
+    Operator,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FloatDeclaration {
+    pub name: &'static str,
+    pub form: FloatDeclarationForm,
+}
+
+macro_rules! declarations {
+    ($($form:ident $name:literal),+ $(,)?) => {
+        pub const CANONICAL_FLOAT_DECLARATIONS: [FloatDeclaration; 104] = [
+            $(FloatDeclaration { name: $name, form: FloatDeclarationForm::$form }),+
+        ];
+        /// The original target-table view of the same declaration roster.
+        pub const CANONICAL_FLOAT_OPERATIONS: [&str; 104] = [$($name),+];
+    };
+}
+
+declarations! {
+    Machine "Float::add",
+    Machine "Float::subtract",
+    Machine "Float::multiply",
+    Machine "Float::divide",
+    Machine "Float::equal",
+    Machine "Float::not_equal",
+    Machine "Float::less",
+    Machine "Float::less_or_equal",
+    Machine "Float::greater",
+    Machine "Float::greater_or_equal",
+    Machine "F32::negate",
+    Machine "F64::negate",
+    Machine "F32::multiply_then_add",
+    Machine "F64::multiply_then_add",
+    Machine "F32::fused_multiply_add",
+    Machine "F64::fused_multiply_add",
+    Machine "F32::square_root",
+    Machine "F64::square_root",
+    Machine "F32::minimum",
+    Machine "F64::minimum",
+    Machine "F32::maximum",
+    Machine "F64::maximum",
+    Machine "F32::from_f64",
+    Machine "F64::from_f32",
+    Machine "F32::from_i8",
+    Machine "F32::from_i16",
+    Machine "F32::from_i32",
+    Machine "F32::from_i64",
+    Machine "F32::from_u8",
+    Machine "F32::from_u16",
+    Machine "F32::from_u32",
+    Machine "F32::from_u64",
+    Machine "F64::from_i8",
+    Machine "F64::from_i16",
+    Machine "F64::from_i32",
+    Machine "F64::from_i64",
+    Machine "F64::from_u8",
+    Machine "F64::from_u16",
+    Machine "F64::from_u32",
+    Machine "F64::from_u64",
+    Operator "I8::from_f32",
+    Operator "I16::from_f32",
+    Machine "I32::from_f32",
+    Operator "I64::from_f32",
+    Operator "U8::from_f32",
+    Operator "U16::from_f32",
+    Machine "U32::from_f32",
+    Operator "U64::from_f32",
+    Operator "I8::from_f64",
+    Operator "I16::from_f64",
+    Machine "I32::from_f64",
+    Operator "I64::from_f64",
+    Operator "U8::from_f64",
+    Operator "U16::from_f64",
+    Machine "U32::from_f64",
+    Operator "U64::from_f64",
+    Machine "F32::classify",
+    Machine "F64::classify",
+    Machine "F32::is_nan",
+    Machine "F64::is_nan",
+    Machine "F32::is_infinite",
+    Machine "F64::is_infinite",
+    Machine "F32::is_finite",
+    Machine "F64::is_finite",
+    Machine "F32::is_normal",
+    Machine "F64::is_normal",
+    Machine "F32::is_subnormal",
+    Machine "F64::is_subnormal",
+    Machine "F32::add_toward_zero",
+    Machine "F64::add_toward_zero",
+    Machine "F32::add_toward_positive",
+    Machine "F64::add_toward_positive",
+    Machine "F32::add_toward_negative",
+    Machine "F64::add_toward_negative",
+    Machine "F32::subtract_toward_zero",
+    Machine "F64::subtract_toward_zero",
+    Machine "F32::subtract_toward_positive",
+    Machine "F64::subtract_toward_positive",
+    Machine "F32::subtract_toward_negative",
+    Machine "F64::subtract_toward_negative",
+    Machine "F32::multiply_toward_zero",
+    Machine "F64::multiply_toward_zero",
+    Machine "F32::multiply_toward_positive",
+    Machine "F64::multiply_toward_positive",
+    Machine "F32::multiply_toward_negative",
+    Machine "F64::multiply_toward_negative",
+    Machine "F32::divide_toward_zero",
+    Machine "F64::divide_toward_zero",
+    Machine "F32::divide_toward_positive",
+    Machine "F64::divide_toward_positive",
+    Machine "F32::divide_toward_negative",
+    Machine "F64::divide_toward_negative",
+    Machine "F32::square_root_toward_zero",
+    Machine "F64::square_root_toward_zero",
+    Machine "F32::square_root_toward_positive",
+    Machine "F64::square_root_toward_positive",
+    Machine "F32::square_root_toward_negative",
+    Machine "F64::square_root_toward_negative",
+    Machine "F32::fused_multiply_add_toward_zero",
+    Machine "F64::fused_multiply_add_toward_zero",
+    Machine "F32::fused_multiply_add_toward_positive",
+    Machine "F64::fused_multiply_add_toward_positive",
+    Machine "F32::fused_multiply_add_toward_negative",
+    Machine "F64::fused_multiply_add_toward_negative",
+}
+
+pub fn declaration_form(name: &str) -> Option<FloatDeclarationForm> {
+    CANONICAL_FLOAT_DECLARATIONS
+        .iter()
+        .find(|row| row.name == name)
+        .map(|row| row.form)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn named_integer_declarations_keep_their_actual_source_form() {
+        assert_eq!(
+            CANONICAL_FLOAT_OPERATIONS.len(),
+            CANONICAL_FLOAT_DECLARATIONS.len()
+        );
+        for (index, declaration) in CANONICAL_FLOAT_DECLARATIONS.iter().enumerate() {
+            assert_eq!(CANONICAL_FLOAT_OPERATIONS[index], declaration.name);
+            assert!(!CANONICAL_FLOAT_OPERATIONS[..index].contains(&declaration.name));
+        }
+        assert_eq!(
+            declaration_form("I32::from_f32"),
+            Some(FloatDeclarationForm::Machine)
+        );
+        assert_eq!(
+            declaration_form("U32::from_f64"),
+            Some(FloatDeclarationForm::Machine)
+        );
+        assert_eq!(
+            declaration_form("I8::from_f32"),
+            Some(FloatDeclarationForm::Operator)
+        );
+        assert_eq!(
+            declaration_form("U64::from_f64"),
+            Some(FloatDeclarationForm::Operator)
+        );
+        assert_eq!(declaration_form("I7::from_f32"), None);
+    }
+}

@@ -273,7 +273,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     },
                     request.target(),
                     boundary,
-                    &input.plan().structural_types,
+                    input.module(),
                 )
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
@@ -390,30 +390,47 @@ fn compiler_builtin_completion(execution: CompilerBuiltinExecution) -> BoundaryC
     }
 }
 
+/// Project an authenticated numeric declaration through the same closed
+/// execution catalog used by provider admission. This returns a comparison
+/// value, not admitted execution authority.
+pub fn numeric_boundary_execution(
+    module: &terminal_psi::TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> Result<CompilerBuiltinExecution, &'static str> {
+    terminal_semantics::numeric_primitives::validate_boundary(module, boundary)?;
+    let meaning = boundary
+        .numeric_intrinsic
+        .ok_or("numeric boundary has no numeric meaning")?;
+    SettledCompilerBuiltin::from_identity(meaning.into(), boundary.id, None)
+        .map(SettledCompilerBuiltin::execution)
+        .ok_or("numeric boundary has no closed execution catalog entry")
+}
+
 fn float_arithmetic_realization(
     realization: NearestIeeeFloatArithmeticRealization,
     target: target::NativeTarget,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &terminal_psi::TerminalModule,
 ) -> Result<NearestIeeeFloatArithmeticRealization, String> {
     if !realization.supports_target(target) {
         return Err(format!(
             "has no local target catalog realization on {target:?}"
         ));
     }
-    float_arithmetic_signature(realization, boundary, structural_types)
+    float_arithmetic_signature(realization, boundary, module)
 }
 
 fn float_arithmetic_signature(
     realization: NearestIeeeFloatArithmeticRealization,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &terminal_psi::TerminalModule,
 ) -> Result<NearestIeeeFloatArithmeticRealization, String> {
     if realization.operation == target_operations::IeeeFloatArithmeticOperation::Classify {
         let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
             return Err("does not match its structural classification result".to_owned());
         };
-        let mut declarations = structural_types
+        let mut declarations = module
+            .structural_types
             .iter()
             .filter(|declaration| declaration.id == result.structural_type);
         if declarations
@@ -437,7 +454,18 @@ fn float_arithmetic_signature(
     let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
         return Err("does not match its Terminal boundary signature".to_owned());
     };
-    if !result.qualifications.is_empty()
+    let result_matches = if result.qualifications.is_empty() {
+        true
+    } else {
+        terminal_psi::find_boundary_machine(&module.boundary_machines, boundary.id)
+            == Some(boundary)
+            && numeric_boundary_execution(module, boundary).ok()
+                == Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                    operation: realization.operation,
+                    format: realization.format,
+                })
+    };
+    if !result_matches
         || !realization.signature_matches(&boundary.scalar_parameters, result.scalar_type)
         || !boundary.structural_parameters.is_empty()
     {

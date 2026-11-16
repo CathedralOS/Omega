@@ -618,6 +618,14 @@ pub mod control_flow {
         }
 
         impl Machine {
+            /// A qualified header can name a module. Only resolved data
+            /// attachment makes this a data-owned declaration.
+            pub fn has_data_owner(&self) -> bool {
+                self.attached_data_symbol.is_valid()
+                    || self.attached_data_application.is_valid()
+                    || self.generic_data_template.is_valid()
+            }
+
             pub fn has_specialization_parameters(&self) -> bool {
                 !self.type_parameters.is_empty() || !self.conformance_bounds.is_empty()
             }

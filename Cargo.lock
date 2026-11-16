@@ -1164,7 +1164,6 @@ dependencies = [
  "register-model",
  "runtime-abi",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "sha2",
  "target",
@@ -1523,6 +1522,7 @@ dependencies = [
  "platform-custody",
  "products",
  "proof-admission",
+ "provider-admission",
  "review-evidence",
  "semantic-vocabulary",
  "sha2",
@@ -1533,7 +1533,6 @@ dependencies = [
  "target",
  "terminal-codec",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-work",
  "tokens",
 ]

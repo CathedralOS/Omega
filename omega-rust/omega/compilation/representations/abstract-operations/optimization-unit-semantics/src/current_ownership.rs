@@ -4020,8 +4020,9 @@ pub(crate) mod references {
     use crate::unit_validation::references::{
         LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceOriginIdentity,
         ReferenceParent, access_path_type, access_reference_source_compatible,
-        access_referent_tail, contains_reference, formal_origin, leaf_access_within, leaf_paths,
-        leaf_referent, leaf_type, reference_access, reference_source_type, storage_projection,
+        access_referent_tail, aggregate_recast_source_compatible, contains_reference,
+        formal_origin, leaf_access_within, leaf_paths, leaf_referent, leaf_type, reference_access,
+        reference_source_type, storage_projection,
     };
     use abstract_operations::AbstractOperation as O;
     use abstract_operations::AbstractStructuralCallResult;
@@ -7140,6 +7141,17 @@ pub(crate) mod references {
                                     actual,
                                     result.structural_type,
                                     correspondence,
+                                )
+                            }
+                            O::EstablishReference {
+                                storage: Some(storage),
+                                ..
+                            } if storage.stored_scalar.is_none() => {
+                                aggregate_recast_source_compatible(
+                                    function,
+                                    structural_types.values().copied(),
+                                    &source,
+                                    result.structural_type,
                                 )
                             }
                             O::EstablishReference {

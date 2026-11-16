@@ -52,6 +52,9 @@ pub enum DeferredRequest {
     /// A call naming something that is not called this way: a machine reached
     /// through a value, or a declaration of a kind with no call form.
     UncallableCallTarget,
+    /// An already resolved ordinary machine has a different complete result
+    /// domain set from its receiving context (or the default empty set).
+    CallResultDomainMismatch,
     /// A literal assigned to a place whose declared type typing does not
     /// compute: the literal is left without the type it must be built at.
     AssignmentLiteralDestination,
@@ -133,7 +136,10 @@ impl DeferredRequest {
     pub fn is_violation(self) -> bool {
         matches!(
             self,
-            Self::UndeclaredCallName | Self::UndeclaredValueName | Self::CaseCalledAsMachine
+            Self::UndeclaredCallName
+                | Self::UndeclaredValueName
+                | Self::CaseCalledAsMachine
+                | Self::CallResultDomainMismatch
         )
     }
 
@@ -183,7 +189,7 @@ impl DeferredRequest {
                 "holding a mathematical call with an argument no pass builds at its parameter's type yet"
             }
             Self::CallParameterSelection => {
-                "holding a call whose callee's parameter types typing does not select yet"
+                "holding a call without selected call parameter types for argument construction"
             }
             Self::TargetFamilyGenericSignature => {
                 "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
@@ -193,6 +199,9 @@ impl DeferredRequest {
             }
             Self::ConstArgumentAdmission => {
                 "using a type application whose const argument typing does not admit yet"
+            }
+            Self::CallResultDomainMismatch => {
+                "this call's declared result-domain set does not equal its expected result-domain set; without an expected result, a call selects the empty set"
             }
             Self::UndeclaredCallName => {
                 "this call has no visible declaration in its source scope: an unknown machine name is an \

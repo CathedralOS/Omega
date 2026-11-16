@@ -675,6 +675,115 @@ fn a_sum_bounds_each_cases_payload_under_that_case() {
     }
 }
 
+/// A nested machine's inferred requirement may name the length of a
+/// `&mut [u8]` formal: `write_byte` stores `out[index]`, so it owes
+/// `index < out.len`, which its caller's guard `index + 1 < out.len`
+/// supplies. A borrowed byte view is a descriptor with a count, like an
+/// element view (`wiki/spec/terminal-psi/byte_views.md`), so the checker
+/// forms that length in the requirement instead of refusing it.
+///
+/// The twin differs only in the guard: `index < path.len` says nothing about
+/// `out`, so the store is rejected.
+#[test]
+fn a_nested_requirement_names_a_mutable_byte_views_length() {
+    let program = |guard: &str| {
+        format!(
+            "machine put(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+             transition index < path.len {{ true -> byte(path, out, index) _ -> done() }}\n    \
+             machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    }}\n    \
+             machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             out[index] = path[index];\n        transition {{ _ -> done() }}\n    }}\n    \
+             machine done() {{ }}\n}}\n\
+             machine main() {{\n    let mut out: [u8; 4];\n    put(\"abc\", &mut out[..], 1);\n}}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("guarded_by_out_len", &program("index + 1 < out.len")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("guarded_by_path_len", &program("index < path.len")),
+        ["rejected"]
+    );
+}
+
+/// When a `terminates by` recursion forwards `&mut [u8]` to a nested byte
+/// writer, `index` varies across recursive calls and `out` can have different
+/// lengths at different call sites, so constant bounds cannot discharge
+/// `out[index]`: the checker proves `index < out.len` from `byte`'s guard
+/// `index + 1 < out.len` while `terminator` writes the trailing zero under
+/// `index < out.len`.
+///
+/// The two negative twins each change one token: guarding `byte` by
+/// `index < path.len` leaves `out` unchecked, and writing `out[index + 1]`
+/// under `index < out.len` overruns `out` by one byte.
+#[test]
+fn a_recursive_caller_preserves_a_mutable_byte_views_extent_bound() {
+    let program = |guard: &str, write_index: &str| {
+        format!(
+            "machine copy_path_from(path: &[u8], out: &mut [u8], index: u64, remaining: u64)\n\
+             terminates by remaining\n\
+             {{\n    \
+                 put_path_byte(path, out, index);\n    \
+                 transition index < path.len && remaining > 0 {{\n        \
+                     true -> copy_path_from(path, out, index + 1, remaining - 1)\n        \
+                     _ -> done()\n    \
+                 }}\n    \
+                 machine done() {{ }}\n\
+             }}\n\
+             machine put_path_byte(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+                 transition index < path.len {{\n        \
+                     true -> byte(path, out, index)\n        \
+                     _ -> terminator(out, index)\n    \
+                 }}\n    \
+                 machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                     transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    \
+                 }}\n    \
+                 machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                     out[{write_index}] = path[index];\n        \
+                     transition {{ _ -> done() }}\n    \
+                 }}\n    \
+                 machine terminator(out: &mut [u8], index: u64) {{\n        \
+                     transition index < out.len {{ true -> write_terminator(out, index) _ -> done() }}\n    \
+                 }}\n    \
+                 machine write_terminator(out: &mut [u8], index: u64) {{\n        \
+                     out[index] = 0;\n        \
+                     transition {{ _ -> done() }}\n    \
+                 }}\n    \
+                 machine done() {{ }}\n\
+             }}\n\
+             machine main() {{\n    \
+                 let mut short: [u8; 2];\n    \
+                 let mut full: [u8; 4];\n    \
+                 copy_path_from(\"a\", &mut short[..], 0, 1);\n    \
+                 copy_path_from(\"abc\", &mut full[..], 0, 3);\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts(
+            "recursive_guarded_by_out_len",
+            &program("index + 1 < out.len", "index"),
+        ),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts(
+            "recursive_guarded_by_path_len",
+            &program("index < path.len", "index"),
+        ),
+        ["rejected"]
+    );
+    assert_eq!(
+        verdicts(
+            "recursive_store_past_guarded_extent",
+            &program("index < out.len", "index + 1"),
+        ),
+        ["rejected"]
+    );
+}
+
 /// A case payload in a domain with predicates owes them of a value in that
 /// case (`wiki/spec/language/data_and_literals.md`: "case-dependent
 /// projections require established case knowledge"), exactly as if the sum's

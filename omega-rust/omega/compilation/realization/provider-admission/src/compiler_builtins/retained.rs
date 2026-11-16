@@ -511,7 +511,7 @@ pub fn admit_terminal_intrinsics<'selection>(
                 x86_scalar_fma: None,
             },
             boundary,
-            &module.structural_types,
+            module,
         )
         .map_err(|reason| refuse(&reason))?;
         if operations.iter().any(|(slot, _)| *slot == boundary.id) {

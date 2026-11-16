@@ -18,6 +18,118 @@ fn receiving_error(module: terminal_psi::TerminalModule) -> String {
     }
 }
 
+#[test]
+fn trapping_float_integer_conversions_retain_the_guarded_crash_contract() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::arithmetic::ArithmeticDomain;
+            use semantic_vocabulary::{CrashCause, Proposition};
+            let main =
+                repository().join("tests/fixtures/run/float/trapping_integer_conversion/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            let mut conversions = Vec::new();
+            for boundary in &module.boundary_machines {
+                let Some(
+                    meaning @ NumericIntrinsic::Conversion {
+                        source: NumericType::F32 | NumericType::F64,
+                        target: NumericType::Integer(_),
+                        domain: ArithmeticDomain::Trapping,
+                    },
+                ) = boundary.numeric_intrinsic
+                else {
+                    continue;
+                };
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .unwrap();
+                assert!(boundary.scalar_requires.is_empty());
+                let [Proposition::FloatIntegerConversion(relation)] =
+                    boundary.scalar_ensures.as_slice()
+                else {
+                    panic!("normal completion retains the integer-result graph")
+                };
+                relation.validate().unwrap();
+                let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
+                    panic!("integer result")
+                };
+                assert!(terminal_semantics::numeric_primitives::result_matches(
+                    module, meaning, result
+                ));
+                let [route] = boundary.crash_routes.as_slice() else {
+                    panic!("one complete Trap route")
+                };
+                assert_eq!(route.cause, CrashCause::Trap);
+                let [terminal_psi::CrashRouteGuard::Predicate(guard)] =
+                    route.alternatives.as_slice()
+                else {
+                    panic!("a guarded route, not unconditional permission")
+                };
+                let Proposition::Disjunction(alternatives) = guard.proposition() else {
+                    panic!("the NaN and two out-of-range alternatives survive")
+                };
+                assert_eq!(alternatives.len(), 3);
+                conversions.push(boundary.id);
+            }
+            assert_eq!(conversions.len(), 4);
+            for mutation in 0..3 {
+                let mut changed = module.clone();
+                let boundary = changed
+                    .boundary_machines
+                    .iter_mut()
+                    .find(|boundary| boundary.id == conversions[0])
+                    .unwrap();
+                match mutation {
+                    0 => boundary.crash_routes.clear(),
+                    1 => boundary.crash_routes[0].cause = CrashCause::Abort,
+                    2 => {
+                        boundary.crash_routes[0].alternatives =
+                            vec![terminal_psi::CrashRouteGuard::Truth]
+                    }
+                    _ => unreachable!(),
+                }
+                let error = receiving_error(changed);
+                assert!(error.contains("MalformedStructuralFoundation"), "{error}");
+            }
+            let invalid =
+                repository().join("tests/fixtures/fail/float/trapping_integer_conversion/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("a crashes-none helper must exclude the conversion's Trap guard")
+            .into_diagnostics();
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+            assert!(
+                diagnostics[0].message.starts_with(
+                    "machine `signed32` has an uncovered Trap crash; publish a same-cause `crashes` route whose guard covers this site."
+                ),
+                "{diagnostics:?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
 fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
     use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
@@ -1101,6 +1213,399 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
                     && row.message.contains("exactly representable in f32")),
                 "{diagnostics:?}"
             );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
+#[test]
+fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contract() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+            use semantic_vocabulary::{
+                BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
+            };
+            let main = repository()
+                .join("tests/fixtures/run/float/saturating_integer_conversion/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_planning::direct_compiler_primitive_leaves(
+                module,
+                &schemas,
+                "macos_arm64",
+                module.boundary_machines.iter().map(|row| row.id),
+            )
+            .unwrap();
+            for source in [NumericType::F32, NumericType::F64] {
+                for target in [FixedInteger::signed(32), FixedInteger::unsigned(32)] {
+                    let meaning = NumericIntrinsic::Conversion {
+                        source,
+                        target: NumericType::Integer(target),
+                        domain: ArithmeticDomain::Saturating,
+                    };
+                    let boundary = module
+                        .boundary_machines
+                        .iter()
+                        .find(|row| row.numeric_intrinsic == Some(meaning))
+                        .unwrap();
+                    terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                        .unwrap();
+                    assert_eq!(boundary.kind, BoundaryRequirementKind::Machine);
+                    assert!(boundary.scalar_requires.is_empty(), "saturation is total");
+                    let [Proposition::FloatIntegerConversion(relation)] =
+                        boundary.scalar_ensures.as_slice()
+                    else {
+                        panic!("the complete integer-result graph must survive publication")
+                    };
+                    relation.validate().unwrap();
+                    let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result
+                    else {
+                        panic!("scalar conversion result")
+                    };
+                    assert_ne!(result.qualifications, ScalarQualificationSetId::ZERO);
+                    assert!(terminal_semantics::numeric_primitives::result_matches(
+                        module, meaning, result
+                    ));
+                    let execution =
+                        terminal_psi_to_abstract_operations::provider_admission::numeric_boundary_execution(
+                            module, boundary,
+                        )
+                        .unwrap();
+                    let target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation,
+                        ..
+                    } = execution
+                    else {
+                        panic!("numeric execution")
+                    };
+                    assert!(matches!(
+                        operation,
+                        target_operations::IeeeFloatArithmeticOperation::TruncateToInteger {
+                            domain: target_operations::IeeeFloatToIntegerDomain::Saturating,
+                            ..
+                        }
+                    ));
+                    let mut missing_meaning = boundary.clone();
+                    missing_meaning.numeric_intrinsic = None;
+                    assert!(
+                        terminal_psi_to_abstract_operations::provider_admission::numeric_boundary_execution(
+                            module,
+                            &missing_meaning
+                        )
+                        .is_err()
+                    );
+
+                    let leaf = leaves
+                        .iter()
+                        .find(|leaf| {
+                            leaf.callable_identity
+                                == module.identities.text(boundary.identity).unwrap()
+                        })
+                        .unwrap();
+                    leaf.validate_bound_calling_custody(module).unwrap();
+                    let method = &leaf.satisfied_schema.declaration.methods[0];
+                    assert_eq!(
+                        method.requirement_owner,
+                        if target.is_signed() { "I32" } else { "U32" }
+                    );
+                    assert_eq!(
+                        method.name,
+                        if source == NumericType::F32 {
+                            "from_f32"
+                        } else {
+                            "from_f64"
+                        }
+                    );
+                    for mutation in 0..3 {
+                        let mut changed = module.clone();
+                        let row = changed
+                            .boundary_machines
+                            .iter_mut()
+                            .find(|row| row.id == boundary.id)
+                            .unwrap();
+                        match mutation {
+                            0 => {
+                                let terminal_psi::BoundaryMachineResult::Scalar(result) =
+                                    &mut row.result
+                                else {
+                                    unreachable!()
+                                };
+                                result.qualifications = ScalarQualificationSetId::ZERO;
+                            }
+                            1 => {
+                                row.scalar_ensures =
+                                    terminal_semantics::numeric_primitives::ensures(
+                                        NumericIntrinsic::Conversion {
+                                            source,
+                                            target: NumericType::Integer(target),
+                                            domain: ArithmeticDomain::Exact,
+                                        },
+                                    )
+                                    .unwrap()
+                            }
+                            2 => row.kind = BoundaryRequirementKind::Operator,
+                            _ => unreachable!(),
+                        }
+                        let error = receiving_error(changed);
+                        assert!(error.contains("MalformedStructuralFoundation"), "{error}");
+                    }
+                    let mut changed = module.clone();
+                    let [domain_id] =
+                        terminal_semantics::scalar_qualifications::qualification_domains(
+                            module,
+                            result.qualifications,
+                        )
+                        .unwrap()
+                    else {
+                        panic!("singleton policy")
+                    };
+                    let domain = changed
+                        .scalar_qualifications
+                        .domains
+                        .iter_mut()
+                        .find(|row| row.id == *domain_id)
+                        .unwrap();
+                    domain.carrier = semantic_vocabulary::ScalarType::Boolean;
+                    assert!(!terminal_semantics::numeric_primitives::result_matches(
+                        &changed, meaning, result
+                    ));
+                }
+            }
+            // Recheck actual native rows, rather than only the declaration's
+            // projection: equal scalar signatures cannot replace saturation.
+            let request = compiler::CompileRequest::for_targets(
+                main.clone(),
+                std::env::temp_dir().join(format!("omega-saturating-custody-{}", std::process::id())),
+                vec![Some(target::TargetProfile::MacosArm64)],
+            ).with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+            let outcomes = orchestration::compile_sources(
+                &mut compiler::CompilationSession::default(), request,
+            ).unwrap_or_else(|errors| panic!("{errors:?}"));
+            let outcome = &outcomes.outcomes()[0];
+            let report = outcome.report().unwrap_or_else(|| panic!("{:?}", outcome.diagnostics()));
+            let target = report.retained_native_artifact().unwrap().object()
+                .retained_fragment_source().unwrap().source().source().source().source().optimized_target();
+            let optimized = target.optimized();
+            let verify = |plan, abstracted, unit| {
+                native_preparation::verify_target_operation_plan_with_closed_module(
+                    plan, abstracted, unit, target.boundary_origins(),
+                    target.lowering_facts().installed_interrupts(),
+                    target.lowering_facts().closed_module(),
+                )
+            };
+            verify(target.working_program_for_validation(), optimized.plan(), optimized.unit()).unwrap();
+            let mut changed_target = target.working_program_for_validation().clone();
+            let mut mutated_boundary = None;
+            for operation in changed_target.functions.iter_mut().flat_map(|function| &mut function.graph.blocks)
+                .flat_map(|block| &mut block.operations)
+            {
+                if let target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+                    boundary, realization, execution, ..
+                } = &mut operation.kind
+                    && let target_operations::IeeeFloatArithmeticOperation::TruncateToInteger { target, domain: target_operations::IeeeFloatToIntegerDomain::Saturating } = realization.operation
+                {
+                    mutated_boundary = Some(*boundary);
+                    realization.operation = target_operations::IeeeFloatArithmeticOperation::TruncateToInteger { target, domain: target_operations::IeeeFloatToIntegerDomain::Exact };
+                    *execution = target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation: realization.operation, format: realization.format },
+                    );
+                    break;
+                }
+            }
+            let mutated_boundary = mutated_boundary.expect("actual saturation occurrence");
+            assert!(verify(&changed_target, optimized.plan(), optimized.unit()).is_err());
+            let mut changed_abstract = optimized.plan().clone();
+            let mut changed_unit = optimized.unit().clone();
+            for rows in [&mut changed_abstract.boundary_machines, &mut changed_unit.boundary_machines] {
+                let declaration = rows.iter_mut().find(|row| row.id == mutated_boundary).unwrap();
+                let terminal_psi::BoundaryMachineResult::Scalar(result) = &mut declaration.result else { panic!("scalar result") };
+                assert!(!result.qualifications.is_empty());
+                result.qualifications = ScalarQualificationSetId::ZERO;
+            }
+            assert!(verify(target.working_program_for_validation(), &changed_abstract, &changed_unit).is_err());
+            let invalid = repository()
+                .join("tests/fixtures/fail/float/saturating_integer_conversion/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("Saturating must be explicitly removed")
+            .into_diagnostics();
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+            assert!(diagnostics[0].message.contains("this value's type carries `Saturating` and the machine's result declares no domain")
+                && diagnostics[0].message.contains("while reading the body of `signed32`"), "{diagnostics:?}");
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
+#[test]
+fn trapping_float_integer_bad_inputs_crash_at_the_named_boundary() {
+    let Some(profile) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+            let fixture = repository().join("tests/fixtures/run/float/trapping_integer_conversion");
+            let kept = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+            let (helpers, _) = kept.split_once("machine main() crashes Trap {").unwrap();
+            // These derived programs permit the live route rather than asking
+            // crashes-none helpers to admit invalid arguments.
+            let helpers = helpers
+                .lines()
+                .filter(|line| !line.starts_with("//"))
+                .map(|line| {
+                    if line.starts_with("requires ") {
+                        "requires true"
+                    } else if line == "crashes none {" {
+                        "crashes Trap {"
+                    } else {
+                        line
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "omega-trapping-integer-runtime-{}-{nonce}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&root).unwrap();
+            for (name, helper, input, source, target) in [
+                ("nan", "signed32", "0.0f32 / 0.0f32", NumericType::F32, FixedInteger::signed(32)),
+                ("overflow", "signed64", "2147483648.0f64", NumericType::F64, FixedInteger::signed(32)),
+                ("negative", "unsigned32", "-1.0f32", NumericType::F32, FixedInteger::unsigned(32)),
+                ("infinity", "unsigned64", "1.0f64 / 0.0f64", NumericType::F64, FixedInteger::unsigned(32)),
+            ] {
+                let directory = root.join(name);
+                std::fs::create_dir(&directory).unwrap();
+                let main = directory.join("main.omg");
+                // Normal completion deliberately exits successfully. No
+                // fallback Trap could conceal saturation or an unchecked call.
+                std::fs::write(
+                    &main,
+                    format!(
+                        "{helpers}\nmachine main() crashes Trap {{\n    let observed: {target} = {helper}({input});\n}}\n"
+                    ),
+                )
+                .unwrap();
+                std::fs::copy(fixture.join("build.omg"), directory.join("build.omg")).unwrap();
+                let output = directory.join("output");
+                let request = compiler::CompileRequest::for_targets(
+                    main,
+                    output.clone(),
+                    vec![Some(profile)],
+                )
+                .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+                let report = orchestration::compile_sources(
+                    &mut compiler::CompilationSession::default(),
+                    request,
+                )
+                .and_then(compiler::CompileOutcomes::into_single_report)
+                .unwrap_or_else(|diagnostics| panic!("{name}: {diagnostics:?}"));
+                let artifact = report.retained_native_artifact().unwrap().psi_artifact();
+                let reloaded =
+                    terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                        .unwrap();
+                let meaning = NumericIntrinsic::Conversion {
+                    source,
+                    target: NumericType::Integer(target),
+                    domain: ArithmeticDomain::Trapping,
+                };
+                let boundary = reloaded
+                    .semantic_module()
+                    .boundary_machines
+                    .iter()
+                    .find(|boundary| boundary.numeric_intrinsic == Some(meaning))
+                    .unwrap()
+                    .id;
+                let observation =
+                    terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+                        native_image: report.retained_native_artifact(),
+                        entry: None,
+                        filesystem: Default::default(),
+                        native_services: Default::default(),
+                        native_provider: None,
+                        x86_flags: None,
+                        memory_ordering: None,
+                        provider_proposal: None,
+                        artifact: &reloaded,
+                        target: Some(profile.target_name()),
+                        provisions: report.runtime_provisions(),
+                        work_budget: 100_000,
+                        domain_exit:
+                            terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+                        standard_input: None,
+                        clock: None,
+                    })
+                    .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+                assert!(
+                    matches!(
+                        observation.status,
+                        terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)
+                            if crash.cause == semantic_vocabulary::CrashCause::Trap
+                                && matches!(
+                                    crash.site,
+                                    terminal_interpreter::TerminalCrashSite::BoundaryCall {
+                                        boundary: actual, ..
+                                    } if actual == boundary
+                                )
+                    ),
+                    "{name}: {:?}",
+                    observation.status
+                );
+                let published = products::publication::publish_compilation(report, &output).unwrap();
+                let observed = std::process::Command::new(
+                    published.checked_native_executable_path().unwrap(),
+                )
+                .output()
+                .unwrap();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    let signal = match profile.native_target().architecture {
+                        target::Architecture::Aarch64 => 5,
+                        target::Architecture::X86_64 => 4,
+                    };
+                    assert_eq!(observed.status.signal(), Some(signal), "{name}: {observed:?}");
+                }
+                #[cfg(windows)]
+                assert_eq!(
+                    observed.status.code().map(|code| code as u32),
+                    Some(0xc000001d),
+                    "{name}: {observed:?}"
+                );
+            }
+            std::fs::remove_dir_all(root).unwrap();
         })
         .unwrap()
         .join()

@@ -75,6 +75,27 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Native compilation stops halfway for Build's constant evaluator
+- Category: knowledge crossing a boundary
+- Where: [native completion](omega-rust/omega/build-system/orchestration/src/compile/native_completion.rs#L123), [scalar completion](omega-rust/omega/compilation/native-compiler/src/scalar_completion.rs), [Build's completer](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L20)
+- Saw: `native_compiler::prepare` returns a half-built compile. Each caller then runs `build_settings::scalar_completion::complete`, the Psi constant evaluator, on every `NativeScalarCompletion` and hands the results back before `native_compiler::compile` lowers anything. The demand comes from the native execution scope (`scalar_application_demand`), which reads only the Terminal module and target layouts.
+- Cost: The Omega pipeline leaves for another pipeline in the middle and every caller repeats the prepare, evaluate, compile sequence. Complete the demand from the Terminal product and target inputs before the native driver starts, pass the completed scalars in `NativeCompileRequest`, and delete `NativeScalarCompletion` and the split entry.
+- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
+
+### Emission libraries keep earlier stage outputs beside the final layout
+- Category: knowledge crossing a boundary
+- Where: [fragment source](omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L463), [driver join](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L202), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
+- Saw: `StagedOptimizedFunctionFragmentEmissionSource::new` joins the stage 09 realization with stage 02's whole output, and frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side. `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
+- Cost: Emission can read anything an earlier stage knew, so a missing fact never has to be carried forward. Move the stage output types emission names into `compilation/representations`, carry the rows emission needs in each stage's output, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
+- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
+
+### Borrowed field recasts lose the target carrier layout of the enclosing record
+- Category: re-deriving
+- Where: [reference view geometry](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references/representation_geometry.rs#L147), [sum geometry](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L4450)
+- Saw: A recast checks the enclosing record's alignment, but its geometry query has no carrier layout for a sibling sum. The checker supplies the retained target's record resolver without its case-tag layout. An exact `PosixFilesystem` reduction refuses a whole aligned 144-byte field. Changing only the sibling `ErrorKind` field to `u32` yields native and Psi exit 0 on macOS arm64.
+- Cost: The standard-library POSIX stat decoders still refuse the whole buffer. Pass the existing target carrier layout to projected storage checks, preserve the short and misaligned refusals, and replay the unchanged [note vault](https://github.com/CathedralOS/Omega/pull/3722).
+- Reported: 2026-11-15, Codex, while validating shared recasts of an aligned record field.
+
 ### Specialization failures discard the reason they stopped
 - Category: Verifying costs more than writing
 - Where: [specialization](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs)
