@@ -1613,13 +1613,17 @@ mod operation_permissions {
         module: &'a TerminalModule,
         graph: &'a [DescriptorMachine],
         analysis: DescriptorAnalysis<'a>,
-        // Only an index into existing call rows; no actual arguments, queries
-        // or transitive call paths are copied into this roster.
+        // One borrowed lookup serves this pass. Source declarations and
+        // blocks keep their original order in the module.
+        declarations: Vec<(&'a TerminalMachine, Vec<&'a terminal_psi::Block>)>,
+        // These rows borrow original calls. No operand vectors, descriptor
+        // queries or transitive call paths are copied into this index.
         incoming: Vec<(
             MachineId,
             MachineId,
             DescriptorPosition,
             terminal_psi::InvocationOwner,
+            Judged<terminal_psi::ModuleInvocationInputs<'a>>,
         )>,
     }
     fn failure(machine: MachineId, detail: &'static str) -> StructuralQualificationError {
@@ -1628,14 +1632,48 @@ mod operation_permissions {
             detail,
         }
     }
-    impl Permissions<'_> {
-        fn machine(&self, identity: MachineId) -> Judged<&TerminalMachine> {
-            self.module.machine(identity).ok_or_else(|| {
-                failure(
-                    identity,
-                    "the compiler cannot find the function performing this access",
-                )
-            })
+    impl<'a> Permissions<'a> {
+        fn declaration(&self, identity: MachineId) -> Judged<usize> {
+            self.declarations
+                .binary_search_by_key(&identity, |(body, _)| body.id)
+                .map_err(|_| {
+                    failure(
+                        identity,
+                        "the compiler cannot find the function performing this access",
+                    )
+                })
+        }
+        fn machine(&self, identity: MachineId) -> Judged<&'a TerminalMachine> {
+            Ok(self.declarations[self.declaration(identity)?].0)
+        }
+        fn block(&self, identity: MachineId, block: BlockId) -> Judged<&'a terminal_psi::Block> {
+            let blocks = &self.declarations[self.declaration(identity)?].1;
+            blocks
+                .binary_search_by_key(&block, |row| row.id)
+                .map(|index| blocks[index])
+                .map_err(|_| failure(identity, "memory access has no original block"))
+        }
+        fn original_call(
+            &self,
+            caller: MachineId,
+            position: DescriptorPosition,
+            owner: terminal_psi::InvocationOwner,
+        ) -> Judged<terminal_psi::ModuleInvocationInputs<'a>> {
+            let block = self.block(caller, position.0)?;
+            match owner {
+                terminal_psi::InvocationOwner::Operation(id) => block.operations
+                    .get(position.1 as usize)
+                    .filter(|operation| operation.id == id)
+                    .and_then(|operation| operation.module_invocation()),
+                terminal_psi::InvocationOwner::InvokeNoNormal(edge)
+                    if position.1 as usize == block.operations.len()
+                        && matches!(block.terminator, terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge) =>
+                {
+                    block.terminator.module_invocation()
+                }
+                _ => None,
+            }.ok_or_else(|| failure(caller,
+                "memory access call has no supported original invocation"))
         }
         fn descriptor(&self, identity: MachineId) -> Judged<&DescriptorMachine> {
             self.graph
@@ -1692,9 +1730,9 @@ mod operation_permissions {
                 .and_then(|index| descriptor.places[index].producer);
             if let Some(producer) = producer {
                 let empty = self
-                    .machine(machine)?
-                    .block(&producer.0)
-                    .and_then(|block| block.operations.get(producer.1 as usize))
+                    .block(machine, producer.0)?
+                    .operations
+                    .get(producer.1 as usize)
                     .is_some_and(|operation| {
                         matches!(operation.kind, OperationKind::EstablishStructuralLocal {})
                     });
@@ -1830,10 +1868,10 @@ mod operation_permissions {
         fn callers(&mut self, subject: &Subject) -> Judged<Vec<Subject>> {
             let current = self.descriptor(subject.machine)?;
             let query = self.query(subject.machine, &subject.source)?;
-            if !current.places.iter().any(|row| {
-                row.place == query.root
-                    && matches!(row.definition, DescriptorDefinition::Parameter { .. })
-            }) {
+            if !matches!(
+                current.place_definition(query.root),
+                Some(DescriptorDefinition::Parameter { .. })
+            ) {
                 return Ok(Vec::new());
             }
             let range = self.incoming.partition_point(|row| row.0 < subject.machine)
@@ -1842,27 +1880,8 @@ mod operation_permissions {
                     .partition_point(|row| row.0 <= subject.machine);
             let mut result = Vec::new();
             for index in range {
-                let (_, caller, position, owner) = self.incoming[index];
-                let body = self.machine(caller)?;
-                let block = body
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == position.0)
-                    .ok_or_else(|| failure(caller, "memory access call has no original block"))?;
-                let invocation = match owner {
-                    terminal_psi::InvocationOwner::Operation(id) => block.operations
-                        .get(position.1 as usize)
-                        .filter(|operation| operation.id == id)
-                        .and_then(|operation| operation.module_invocation()),
-                    terminal_psi::InvocationOwner::InvokeNoNormal(edge)
-                        if position.1 as usize == block.operations.len()
-                            && matches!(block.terminator, terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge) =>
-                    {
-                        block.terminator.module_invocation()
-                    }
-                    _ => None,
-                }
-                .ok_or_else(|| failure(caller, "memory access call has no supported original invocation"))?;
+                let (_, caller, position, owner, ref invocation) = self.incoming[index];
+                let invocation = invocation.as_ref().map_err(Clone::clone)?;
                 if invocation.required_contract.is_some() {
                     return Err(failure(
                         caller,
@@ -2163,15 +2182,32 @@ mod operation_permissions {
                     .unwrap_or("memory access storage history cannot be reconstructed"),
             })?;
         graph.sort_by_key(|row| row.id);
-        let mut incoming = Vec::new();
-        for caller in &graph {
-            for (position, call) in caller.known_invocations() {
-                if let Some(callee) = call.callee() {
-                    incoming.push((callee, caller.id, *position, call.owner));
+        let mut declarations = module
+            .machines
+            .iter()
+            .filter(|body| graph.binary_search_by_key(&body.id, |row| row.id).is_ok())
+            .map(|body| {
+                let mut blocks = body.blocks.iter().collect::<Vec<_>>();
+                blocks.sort_unstable_by_key(|block| block.id);
+                if blocks.windows(2).any(|rows| rows[0].id == rows[1].id) {
+                    return Err(failure(
+                        body.id,
+                        "memory access function repeats a block identity",
+                    ));
                 }
-            }
+                Ok((body, blocks))
+            })
+            .collect::<Judged<Vec<_>>>()?;
+        declarations.sort_unstable_by_key(|(body, _)| body.id);
+        if let Some(rows) = declarations
+            .windows(2)
+            .find(|rows| rows[0].0.id == rows[1].0.id)
+        {
+            return Err(failure(
+                rows[0].0.id,
+                "memory access repeats a function identity",
+            ));
         }
-        incoming.sort();
         let mut permissions = Permissions {
             module,
             graph: &graph,
@@ -2179,8 +2215,33 @@ mod operation_permissions {
                 &module.structural_types,
                 &graph,
             ),
-            incoming,
+            declarations,
+            incoming: Vec::new(),
         };
+        for caller in &graph {
+            for (position, call) in caller.known_invocations() {
+                if let Some(callee) = call.callee() {
+                    let invocation = permissions
+                        .original_call(caller.id, *position, call.owner)
+                        .and_then(|invocation| {
+                            if invocation.callee == callee {
+                                Ok(invocation)
+                            } else {
+                                Err(failure(
+                                    caller.id,
+                                    "memory access call has a different source target",
+                                ))
+                            }
+                        });
+                    permissions
+                        .incoming
+                        .push((callee, caller.id, *position, call.owner, invocation));
+                }
+            }
+        }
+        permissions
+            .incoming
+            .sort_by_key(|row| (row.0, row.1, row.2, row.3));
         for identity in roots {
             permissions
                 .analysis
