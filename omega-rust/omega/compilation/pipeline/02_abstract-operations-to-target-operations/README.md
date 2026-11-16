@@ -1,9 +1,43 @@
 # Abstract operations to target operations
 
-This stage turns abstract operations into target operations and places call
-values. Start at [lib.rs](src/lib.rs). The target representation holds the
-resulting control flow, values, storage, calls and boundary data; this stage
-assigns no registers or frame offsets.
+This stage turns abstract operations into target operations, places call
+values, and publishes the execution plan instruction selection reads. Start at
+[lib.rs](src/lib.rs). The target representation holds the resulting control
+flow, values, storage, calls and boundary data; this stage assigns no
+registers or frame offsets.
+
+## The stage's output is one execution plan
+
+`lower_optimized_to_target_operations` ends by calling
+[`prepare_execution_plan`](native-preparation/src/legalization.rs). That joins
+the target operations to what this stage already holds: the optimized
+program's accepted obligation and ownership-frontier facts, the admitted
+boundary origins and interrupt installations, and the integer types the
+sealed module retains. The result is a sealed
+[`PreparedExecutionPlan`](../../representations/target-operations/legalized-operations/src/lib.rs):
+
+| The plan carries | Where |
+| --- | --- |
+| Concrete scalar types, with sign and width | Value definitions, parameters, block parameters and typed operations |
+| Calling plans and argument and result placements | Function and call records |
+| The identity of each accepted proof | The operation, edge or terminator it licenses |
+| Ownership-frontier facts | Each function |
+| Interrupt installations that survived lowering | A plan-level list |
+| Which integer types the sealed module retains | A plan-level record, used to close the leaf scalars structural declarations still state in the checking form |
+
+A fact, type or installation the plan needs and cannot find refuses the
+program here, as `LoweringError::Preparation`. Instruction selection then
+needs the plan, the installations the driver binds to it, and the register
+environment; `ValidatedOptimizedTargetOperations::execution_plan` hands the
+plan over. The target operations remain this stage's working form and are
+still read by image emission's evidence checks and by the validator below.
+
+[`verify_execution_plan`](native-preparation/src/legalization.rs) is the
+stage's validator. It derives the plan's functions a second way, from the
+abstract program and the optimization unit, and requires the published plan
+to equal that derivation, to match its sources' header and retained types,
+and to still hash to its seal. It runs on `omega --validator
+TargetOperationCorrespondence` and in tests, never in an ordinary compile.
 
 [Omega 00](../00_terminal-psi-to-abstract-operations/src/native_execution_scope.rs)
 admits providers, callbacks and authority. This stage checks its lowering of
@@ -27,8 +61,8 @@ block, and edges keep complete ordered transfers.
 
 [Function contracts](src/function_contract.rs) keep the semantic structural
 parameters, place declarations, entry claims, service ceiling and result beside
-each function's target ABI. Selection reads that contract without fetching the
-earlier body; Omega 03's audit checks it against the source.
+each function's target ABI. Preparation reads that contract without fetching
+the earlier body; this stage's validator checks it against the source.
 
 Each ordinary target instruction also records its input operation, scalar
 definition, work charge, effect order and custody events (who owns which
@@ -61,8 +95,8 @@ produces the program, and rejects a raw fused-multiply-add plan. The same
 compile does not recheck the output; output breaking this stage's contract is
 a bug here, for focused tests and explicit validator requests to find.
 
-The [independent audit](../03_target-operations-to-selected-instructions/src/legalization_target.rs)
-in the target-to-selected stage matches every graph to its source and
+The [independent audit](native-preparation/src/legalization_target.rs)
+in this stage's validator matches every graph to its source and
 optimized operations. Direct-native tests run it on the saved artifact, outside
 graph construction; a default compile does not. It checks source order, value
 identity, exact ABI, and proof, call and cleanup obligations. Root and roster

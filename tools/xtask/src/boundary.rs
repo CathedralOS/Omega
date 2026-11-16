@@ -507,6 +507,66 @@ fn line_has_retired_string_representation_spelling(line: &str) -> bool {
     false
 }
 
+/// The entry points of stage 02's validator.
+const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
+    "verify_execution_plan(",
+    "verify_target_operation_plan(",
+    "verify_target_operation_plan_with_closed_module(",
+];
+/// The crate that defines the validator, and the one production caller: the
+/// explicit stage-validator request (`omega --validator ...`).
+const PLAN_VALIDATOR_OWNER: &str = "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/";
+const PLAN_VALIDATOR_REQUEST: &str =
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs";
+
+fn is_test_source(relative: &str) -> bool {
+    relative.contains("/tests/") || relative.ends_with("tests.rs")
+}
+
+fn line_calls_plan_validator(line: &str) -> bool {
+    let code = line.trim_start();
+    !code.starts_with("//")
+        && PLAN_VALIDATOR_ENTRIES
+            .iter()
+            .any(|entry| code.contains(entry))
+}
+
+/// Ordinary compilation does not re-verify its own stage output
+/// (omega-rust/pipeline.md, "Verification placement"). Stage 02's validator
+/// derives the execution plan a second time, so a call to it from the default
+/// path would both hide a preparation bug and double the stage's work. Only
+/// the explicit validator request and tests may call it.
+pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
+    let mut violations = Vec::new();
+    let mut files = Vec::new();
+    collect_rs_files(&root.join(OMEGA), &mut files);
+    for path in files {
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel.starts_with(PLAN_VALIDATOR_OWNER)
+            || rel == PLAN_VALIDATOR_REQUEST
+            || is_test_source(&rel)
+        {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        for (index, line) in text.lines().enumerate() {
+            if line_calls_plan_validator(line) {
+                violations.push(format!(
+                    "{rel}:{}: stage 02's plan validator is called outside the explicit validator request and tests",
+                    index + 1
+                ));
+            }
+        }
+    }
+    violations
+}
+
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for owner in [PSI, OMEGA] {
@@ -568,6 +628,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = representation_spelling_violations(&root);
+        violations.extend(plan_validator_call_violations(&root));
         violations.extend(psi_omega_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
@@ -699,6 +760,31 @@ mod tests {
                 "{owner} -> {dependency}: {violations:?}"
             );
         }
+    }
+
+    #[test]
+    fn only_requests_and_tests_may_call_the_plan_validator() {
+        assert!(line_calls_plan_validator(
+            "    native_preparation::verify_execution_plan(plan, target)?;"
+        ));
+        assert!(line_calls_plan_validator(
+            "let _ = verify_target_operation_plan_with_closed_module("
+        ));
+        assert!(!line_calls_plan_validator(
+            "    /// (`native_preparation::verify_execution_plan(...)`)."
+        ));
+        assert!(!line_calls_plan_validator(
+            "    native_preparation::prepare_execution_plan(target, evidence)?;"
+        ));
+        assert!(is_test_source(
+            "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs"
+        ));
+        assert!(is_test_source(
+            "omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs"
+        ));
+        assert!(!is_test_source(
+            "omega-rust/omega/compilation/native-compiler/src/pipeline.rs"
+        ));
     }
 
     #[test]

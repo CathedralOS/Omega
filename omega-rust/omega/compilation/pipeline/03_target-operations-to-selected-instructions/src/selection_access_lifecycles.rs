@@ -4645,6 +4645,7 @@ pub(crate) mod tests {
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
             retained_integers: legalized_operations::RetainedIntegerTypes::Unsealed,
+            installation_operations: Vec::new(),
         };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(

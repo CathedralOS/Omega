@@ -32,6 +32,14 @@ pub(crate) mod model {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LegalizationError {
+        /// The plan stage 02 published differs from the plan the validator
+        /// derived independently from the abstract program. `machine` names
+        /// the first function that differs; `None` means the plan's header,
+        /// its retained types or its seal.
+        PublishedPlanMismatch {
+            machine: Option<semantic_vocabulary::MachineId>,
+            part: &'static str,
+        },
         InstructionMetadata {
             machine: Option<semantic_vocabulary::MachineId>,
             operation: Option<semantic_vocabulary::OperationId>,
@@ -487,6 +495,20 @@ pub(crate) fn legalize_target_operations(
     )
 }
 
+/// The interrupt installations still present after lowering, in the order
+/// the plan records them.
+fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabulary::OperationId> {
+    let mut operations: Vec<_> = target
+        .functions
+        .iter()
+        .flat_map(|function| function.graph.operations())
+        .filter_map(|operation| operation.installation_operation())
+        .collect();
+    operations.sort_unstable();
+    operations.dedup();
+    operations
+}
+
 /// Build the execution plan from the target operations stage 02 lowered.
 ///
 /// Every target row keeps the identity and obligations of the operation it
@@ -512,6 +534,7 @@ pub fn prepare_execution_plan(
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
         retained_integers,
+        installation_operations: surviving_installations(target),
     };
     Ok(legalized_operations::PreparedExecutionPlan::seal(
         plan,
@@ -575,12 +598,123 @@ fn verify_target_operation_plan_input(
     audit_target_operation_plan(target, abstract_plan, unit, closed_types)
 }
 
+/// Compare the target operations with a plan prepared from them here and
+/// now. Use this where no published plan exists: fixtures, and a retained
+/// private body that was never sealed.
 pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<(), LegalizationError> {
+    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types)?;
+    let retained = source::derive_target_function_rosters(
+        target,
+        PreparationEvidence {
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            accepted_obligation_facts: &unit.accepted_obligation_facts,
+            ownership_frontier_facts: &unit.ownership_frontier_facts,
+        },
+        closed_types,
+    )?;
+    if expected.scalar_functions != retained.scalar_functions {
+        return Err(LegalizationError::custody());
+    }
+    Ok(())
+}
+
+/// Validate the execution plan stage 02 actually published.
+///
+/// The validator derives every function of the plan a second way, from the
+/// abstract program and the optimization unit, and requires the published
+/// plan to equal that derivation row for row: concrete types, placements and
+/// transports, the proof identity at each operation, edge and terminator, and
+/// each function's ownership-frontier facts. It also requires the plan's
+/// header and retained types to match its sources and the plan to still hash
+/// to the identity it was sealed under. Ordinary compilation never calls
+/// this; it runs on an explicit validator request and in tests.
+pub fn verify_execution_plan(
+    prepared: &legalized_operations::PreparedExecutionPlan,
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    origins: target_operations::BoundaryOriginFacts<'_>,
+    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
+    closed_module: &terminal_codec::ClosedTerminalModule,
+) -> Result<(), LegalizationError> {
+    let mismatch = |machine, part| LegalizationError::PublishedPlanMismatch { machine, part };
+    let closed_types =
+        crate::native_geometry::retained_types(closed_module, target.psi, origins.module)
+            .ok_or_else(LegalizationError::custody)?;
+    let plan = prepared.plan();
+    if !prepared.is_intact() {
+        return Err(mismatch(None, "the plan no longer matches its seal"));
+    }
+    if prepared.receipt().validator() != legalization_validator_identity() {
+        return Err(mismatch(None, "the plan was sealed by another preparation"));
+    }
+    if plan.psi != target.psi
+        || plan.target != target.target
+        || plan.profile != target.profile
+        || plan.entry != target.entry
+        || plan.optimization_unit != unit.identity
+        || plan.work_schedule != unit.work_schedule
+    {
+        return Err(mismatch(None, "the plan header differs from its sources"));
+    }
+    if plan.installation_operations != surviving_installations(target) {
+        return Err(mismatch(
+            None,
+            "the surviving installations differ from the target's",
+        ));
+    }
+    if plan.retained_integers != closed_types {
+        return Err(mismatch(
+            None,
+            "the retained integer types differ from the module's",
+        ));
+    }
+    crate::installed_interrupts::validate_target(
+        target,
+        origins.module,
+        installed_interrupts,
+        abstract_plan,
+    )?;
+    validate_boundary_origins(target, origins)?;
+    let expected = derive_expected_functions(target, abstract_plan, unit, &closed_types)?;
+    if expected.scalar_functions.len() != plan.scalar_functions.len() {
+        return Err(mismatch(None, "the plan has a different set of functions"));
+    }
+    for (expected, published) in expected.scalar_functions.iter().zip(&plan.scalar_functions) {
+        if expected != published {
+            let part = if expected.machine != published.machine {
+                "the plan orders its functions differently"
+            } else if expected.ownership_frontier_facts != published.ownership_frontier_facts {
+                "ownership-frontier facts"
+            } else if expected.parameters != published.parameters
+                || expected.call_plan != published.call_plan
+                || expected.structural != published.structural
+            {
+                "the function contract"
+            } else {
+                "a block, instruction or terminator"
+            };
+            return Err(mismatch(Some(published.machine), part));
+        }
+    }
+    Ok(())
+}
+
+/// Check the target operations against their sources and derive, from the
+/// abstract program and the optimization unit alone, the functions a plan
+/// prepared from them must contain.
+fn derive_expected_functions(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    closed_types: &legalized_operations::RetainedIntegerTypes,
+) -> Result<source::SourceFunctionRosters, LegalizationError> {
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
         abstract_plan.structural_types.owned_sequence_bounds(),
@@ -627,21 +761,7 @@ pub(crate) fn audit_target_operation_plan(
         )
         .map_err(|error| error.attributed(function.machine, None))?;
     }
-    let expected = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
-    let retained = source::derive_target_function_rosters(
-        target,
-        PreparationEvidence {
-            optimization_unit: unit.identity,
-            work_schedule: unit.work_schedule,
-            accepted_obligation_facts: &unit.accepted_obligation_facts,
-            ownership_frontier_facts: &unit.ownership_frontier_facts,
-        },
-        closed_types,
-    )?;
-    if expected.scalar_functions != retained.scalar_functions {
-        return Err(LegalizationError::custody());
-    }
-    Ok(())
+    derive_source_function_rosters(target, abstract_plan, unit, closed_types)
 }
 
 /// Independent source correspondence, never called by ordinary construction.

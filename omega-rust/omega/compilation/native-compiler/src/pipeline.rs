@@ -3,9 +3,10 @@ Sequence the native representation transformations for both application entries
 and separately emitted callable bodies.
 
 `lower_to_target` drives abstract optimization (`Omega 01`) and target lowering
-(`Omega 02`). The caller captures runtime layout and installed-callback stack
-companions from that result before `emit_target` runs instruction selection
-(`Omega 03`), selected-instruction optimization (`Omega 04`), register
+(`Omega 02`), which ends by publishing the prepared execution plan. The caller
+resolves the installations that plan lists (callback bodies, handler stacks)
+and attaches them before `emit_target` hands the plan and those bound
+installations to instruction selection (`Omega 03`), selected-instruction optimization (`Omega 04`), register
 allocation (`Omega 05`), post-allocation machine planning (`Omega 06`),
 layout-independent encoding (`Omega 07`), resolved layout (`Omega 08`), layout
 optimization (`Omega 09`), and fragment object emission.

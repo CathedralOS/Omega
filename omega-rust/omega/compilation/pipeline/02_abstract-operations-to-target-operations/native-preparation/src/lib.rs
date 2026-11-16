@@ -48,7 +48,8 @@ mod legalization_target;
 pub(crate) use legalization::LegalizationError;
 pub use legalization::{
     LegalizationError as TargetOperationAuditError, PreparationEvidence, prepare_execution_plan,
-    verify_target_operation_plan, verify_target_operation_plan_with_closed_module,
+    verify_execution_plan, verify_target_operation_plan,
+    verify_target_operation_plan_with_closed_module,
 };
 pub use legalized_operations::native_geometry::retained_types;
 

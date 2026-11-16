@@ -2,7 +2,7 @@
 Canonical identity construction for `LegalizedOperationPlan` and its subordinate representations.
 
 We compute collision-resistant SHA-256 identity digests (`LegalizedOperationPlanIdentity`) over
-the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v82\0` and
+the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v83\0` and
 `ordinary-scalar-graph.v43\0`). Every optional field uses a tagged `0` / `1 + payload` frame
 (`encode_option`) so an absent row and an empty payload never share bytes.
 */
@@ -47,7 +47,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v82\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v83\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -68,6 +68,10 @@ pub fn legalized_operation_plan_identity(
                 encode_integer_type(&mut bytes, integer.as_checking());
             }
         }
+    }
+    encode_len(&mut bytes, plan.installation_operations.len());
+    for operation in &plan.installation_operations {
+        crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
     }
     bytes.extend_from_slice(b"ordinary-scalar-graph.v43\0");
     encode_len(&mut bytes, plan.scalar_functions.len());

@@ -1453,8 +1453,6 @@ pub(crate) mod boolean_value {
         else {
             return Err(SelectedInstructionError::custody());
         };
-        let left_type = left_type;
-        let right_type = right_type;
         if left_type.is_address()
             || right_type.is_address()
             || !matches!(left_type.bits(), 8 | 16 | 32 | 64)

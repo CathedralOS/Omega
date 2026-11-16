@@ -3980,7 +3980,10 @@ pub(crate) mod replay {
             .source()
             .optimized_target();
         let optimized = current.optimized();
-        native_preparation::verify_target_operation_plan_with_closed_module(
+        // The validator judges the plan stage 02 published for this object,
+        // not a plan prepared again here.
+        native_preparation::verify_execution_plan(
+            current.execution_plan(),
             current.target_operations(),
             optimized.plan(),
             optimized.unit(),
@@ -4290,7 +4293,8 @@ mod source {
             .source()
             .source()
             .optimized_target()
-            .target_operations()
+            .execution_plan()
+            .plan()
             .profile
     }
 

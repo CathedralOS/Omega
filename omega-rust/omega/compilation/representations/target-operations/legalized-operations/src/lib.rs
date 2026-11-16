@@ -58,6 +58,21 @@ pub struct LegalizedOperationPlan {
     pub entry: MachineId,
     pub scalar_functions: Vec<LegalizedScalarFunction>, // Ordinary ordered scalar and Unit graphs with explicit ABI transport.
     pub retained_integers: RetainedIntegerTypes,
+    /// Interrupt installations that survived lowering, sorted and unique.
+    /// These are what the driver must resolve (callback bodies, handler
+    /// stacks) and bind before selection; the plan says which, the bound
+    /// authority says with what.
+    pub installation_operations: Vec<semantic_vocabulary::OperationId>,
+}
+
+impl LegalizedOperationPlan {
+    /// The function selection starts from, with the calling plan its callers
+    /// and the entry bridge must follow.
+    pub fn entry_function(&self) -> Option<&LegalizedScalarFunction> {
+        self.scalar_functions
+            .iter()
+            .find(|function| function.machine == self.entry)
+    }
 }
 
 /// The execution plan stage 02 publishes for instruction selection.
