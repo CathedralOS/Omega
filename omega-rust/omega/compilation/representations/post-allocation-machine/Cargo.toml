@@ -10,7 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 optimization-core = { path = "../../../foundation/optimization-core" }
-optimization-unit = { path = "../abstract-operations/optimization-unit" }
 register-homes = { path = "../register-homes" }
 register-model = { path = "../../backend/register-model" }
 selected-instructions = { path = "../selected-instructions" }

@@ -19,8 +19,8 @@ use crate::{
     ScalarCallStackEvidence, UnitCallStackEvidence, UnitScalarHomeRecord,
     UnitScalarParameterLocationRecord,
 };
-use abstract_operations::AbstractResult;
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
+use native_vocabulary::values::AbstractResult;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
     PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -450,7 +450,8 @@ pub mod internal {
             boundary: BoundaryMachineId,
             provider: Box<ProviderCandidateConformance>,
             assumption: Option<target_operations::InstalledAssumedBindingEvidence>,
-            completion_claim_sources: Vec<abstract_operations::CompletionClaimSource>,
+            completion_claim_sources:
+                Vec<native_vocabulary::completion_claims::CompletionClaimSource>,
             completion_receipts: Vec<CompletionReceipt>,
         },
     }

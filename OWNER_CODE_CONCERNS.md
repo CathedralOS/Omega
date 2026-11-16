@@ -97,12 +97,12 @@ framework or a list of unimplemented features.
 - Cost: A future change can make selection read target operations again without any check failing. Move the leaf types the plan embeds into `legalized-operations` or `native-vocabulary`, then forbid stage 03 the `target-operations` crate.
 - Reported: 2026-11-16, Claude Code, while auditing the stage 02 to stage 03 boundary.
 
-### Stages 04 to 09 are not held to their inputs
+### Stages 07 and 08 and final assembly are handed several forms at once
 - Category: knowledge crossing a boundary
-- Where: [stage 04 manifest](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/Cargo.toml), [stage 05 manifest](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/Cargo.toml), [driver](omega-rust/omega/compilation/native-compiler/src/pipeline.rs)
-- Saw: Stages 04 and 05 declare `isa-x86_64`, `isa-aarch64`, `terminal-psi`, `abstract-operations`, `target-operations`, `legalized-operations`, `terminal-codec` and `calling-conventions` and use them little or not at all outside tests. Stages 07 and 08 are each handed the selected program, the machine plan and the register model instead of one input form, and `assemble_fixed_frame_realization` takes the products of stages 02 through 09 at once. Only the adjacent-stage rule applies to these stages.
-- Cost: Unused edges make the dependency graph misleading and make the next shortcut free. Remove the unused dependencies, give stages 07 and 08 one input each, and extend the transitive rule stage by stage.
-- Reported: 2026-11-16, Claude Code, while auditing the native pipeline after the stage 02 to stage 03 repair.
+- Where: [driver](omega-rust/omega/compilation/native-compiler/src/pipeline.rs), [assembly](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs), [later forms](omega-rust/omega/compilation/representations/machine-code/Cargo.toml)
+- Saw: No stage from 04 to 09, no form from the prepared plan onward, and not the target register setup can reach `abstract-operations` any longer; `check-boundary` follows every production edge from them. But the driver hands stage 07 the selected program, the machine plan, the register model and the frame layout, and stage 08 those plus the encoding, instead of one input form each. `assemble_fixed_frame_realization` takes stage 02's output and the products of stages 05 through 09 at once. The later forms also embed records defined in `target-operations` and `legalized-operations` (call records, structural contracts, call-site owners), so `selected-instructions`, `register-homes` and `machine-code` depend on those crates.
+- Cost: These stages read across several earlier forms, so a change to one form can silently change another stage's result. Fold what stages 07 and 08 need into the machine plan's form, give assembly one input, and move the embedded records to the form that owns them.
+- Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
 
 ### Bound installations are attached to stage 02's output
 - Category: knowledge crossing a boundary

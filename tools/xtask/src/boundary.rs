@@ -393,8 +393,8 @@ pub fn stale_allowance_violations(
 const EARLIER_PROGRAM_FORMS: &str =
     "omega-rust/omega/compilation/representations/abstract-operations";
 
-/// Representations that instruction selection reads or writes, and the leaf
-/// vocabulary they share. Instruction selection is handed only the prepared
+/// The forms from the prepared plan onward, the stages that turn one into the
+/// next, the target setup they share, and the leaf vocabulary they carry. Instruction selection is handed only the prepared
 /// execution plan; if one of these crates could reach an earlier program form,
 /// so could selection, one dependency away. The check follows every production
 /// edge, so a new path through a helper crate is caught too.
@@ -404,6 +404,16 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
     "omega-rust/omega/compilation/representations/selected-instructions",
     "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+    "omega-rust/omega/compilation/representations/register-homes",
+    "omega-rust/omega/compilation/representations/post-allocation-machine",
+    "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/backend/register-environment",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
 ];
 
 /// Report each of `roots` that can reach a crate under `forbidden` through
