@@ -136,3 +136,93 @@ machine write(buffer: &mut [u8], count: u64) -> u64 {requires} {{
     // Without the bound the window may end past the bytes it views.
     assert_eq!(verdict(&program("")), "rejected");
 }
+
+#[test]
+fn representation_target_constraints_must_be_established() {
+    let source = |predicate: &str| {
+        format!(
+            "data Target {predicate} {{ value: i32; }}
+machine reinterpret(words: &[i32]) requires words.len <= 8 {{
+    let values: &[Target] = words as &[Target];
+    take(values);
+}}
+machine take(values: &[Target]) {{ }}"
+        )
+    };
+    assert_eq!(verdict(&source("")), "accepted");
+    let actual = verdict(&source("requires value > 0"));
+    assert!(
+        actual.starts_with("not supported: ") && actual.contains("target validity"),
+        "the source bits do not establish the target invariant: {actual}"
+    );
+}
+
+#[test]
+fn representation_byte_target_keeps_canonical_element_identity() {
+    let source = "data ByteBox { value: u8; }
+machine retain(value: ByteBox) -> u8 { value.value }
+machine bytes_of(words: &[i32]) requires words.len <= 8 {
+    let bytes: &[u8] = words as &[u8];
+    take(bytes);
+}
+machine take(bytes: &[u8]) { }";
+    let RouteVerdict::Accepted(accepted) = super::entryless::judged(source, false) else {
+        panic!("the original bounded byte view must be admitted");
+    };
+    let mut changed = accepted.elaboration.clone();
+    let mut wrappers = changed.module.structural_types.iter().filter_map(|row| {
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &row.shape else {
+            return None;
+        };
+        let [field] = fields.as_slice() else {
+            return None;
+        };
+        let terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) =
+            field.field_type
+        else {
+            return None;
+        };
+        (integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned).then_some(row.id)
+    });
+    let wrapper = wrappers
+        .next()
+        .expect("the source retains its ByteBox declaration");
+    assert!(
+        wrappers.next().is_none(),
+        "the wrapper declaration is unique"
+    );
+    let formation = changed
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishElementView {
+                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                    ..
+                }
+            )
+        })
+        .expect("the original source has one whole representation view");
+    let terminal_psi::OperationKind::EstablishElementView { element, .. } = &mut formation.kind
+    else {
+        unreachable!()
+    };
+    *element = wrapper;
+    match judge(Ok(changed)) {
+        Err(refusal) => {
+            assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+            assert!(
+                refusal
+                    .detail
+                    .contains("a byte view re-views elements that are not bytes"),
+                "{}",
+                refusal.detail
+            );
+        }
+        Ok(_) => panic!("a nominal byte wrapper must not authenticate the canonical u8 element"),
+    }
+}
