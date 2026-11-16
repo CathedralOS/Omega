@@ -220,6 +220,61 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             // The semantic arrival is shared; each of the four bound targets
             // contributes its own physical arrival before source judgment.
             assert_eq!(module.calling_abi_signatures.len(), 5);
+            let typed = accepted.source();
+            let catalog = typed.boundary_signatures();
+            let mut expected_abis = [
+                ("ProgramStorageEntry", "source/library/core/extent.omg"),
+                (
+                    "LinuxArm64PhysicalEntry",
+                    "source/library/std/targets/linux_arm64/entry.omg",
+                ),
+                (
+                    "LinuxX86_64PhysicalEntry",
+                    "source/library/std/targets/linux_x86_64/entry.omg",
+                ),
+                (
+                    "MacosArm64PhysicalEntry",
+                    "source/library/std/targets/macos_arm64/entry.omg",
+                ),
+                (
+                    "WindowsProcessEntry",
+                    "source/library/std/targets/windows_x86_64/entry.omg",
+                ),
+            ]
+            .map(|(expected_owner, expected_source)| {
+                let path = repository.join(expected_source);
+                let mut rows = catalog.abi_signatures().iter().filter(|row| {
+                    row.projections.iter().any(|projection| {
+                        typed
+                            .trait_machine_signature(projection.source)
+                            .is_some_and(|(owner, signature)| {
+                                owner.name == expected_owner && signature.name == "enter"
+                            })
+                            && typed
+                                .symbols
+                                .symbol_provenance_source_span(projection.source)
+                                .and_then(|span| typed.symbols.source_file(span))
+                                .is_some_and(|source| source.path == path)
+                    })
+                });
+                let row = rows
+                    .next()
+                    .expect("the fixed source owns its exact arrival ABI");
+                assert!(rows.next().is_none(), "one ABI per fixed source arrival");
+                semantic_vocabulary::CallingAbiIdentity {
+                    requirement_identity: row.requirement_identity.clone(),
+                    declaring_application: row.declaring_application.clone(),
+                    operands: row.operands.clone(),
+                }
+            });
+            expected_abis.sort_by_key(|abi| abi.id());
+            let mut actual_abis = module
+                .calling_abi_signatures
+                .iter()
+                .map(|row| row.identity(&module.identities).unwrap())
+                .collect::<Vec<_>>();
+            actual_abis.sort_by_key(|abi| abi.id());
+            assert_eq!(actual_abis, expected_abis);
             let native_code = executable
                 .produce(
                     Default::default(),
