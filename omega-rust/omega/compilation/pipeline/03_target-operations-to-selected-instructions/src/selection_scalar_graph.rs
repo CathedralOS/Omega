@@ -7334,13 +7334,22 @@ pub(crate) fn select_function(
             {
                 continue;
             }
-            if let LegalizedScalarInstructionKind::PortWrite { port, value, .. } = operation.kind {
+            if let LegalizedScalarInstructionKind::PortWrite {
+                service,
+                port,
+                value,
+            } = operation.kind
+            {
                 if operation.result.is_some() {
                     return Err(invalid());
                 }
                 let key = builder.constraints.keys.port_write.ok_or_else(invalid)?;
                 builder.emit(
-                    SelectedInstructionKind::PortWrite { port, value },
+                    SelectedInstructionKind::PortWrite {
+                        service,
+                        port,
+                        value,
+                    },
                     key,
                     &[],
                     SelectedInstructionProvenance {

@@ -357,8 +357,18 @@ fn validate(
                     .ok_or(Error::Overflow)
             })?;
     super::byte_literals::validate(source, artifact, code_text_len)?;
-    super::code_descriptors::validate(source, artifact)?;
-    super::native_code_layouts::validate(source, artifact)?;
+    let current = source
+        .source()
+        .source()
+        .source()
+        .source()
+        .physical_program();
+    let image_selections = super::current_image_selections::CurrentImageSelections::prepare_for(
+        &text.unresolved_image_addresses,
+        current.functions.iter(),
+    )?;
+    super::code_descriptors::validate(source, artifact, image_selections.as_ref())?;
+    super::native_code_layouts::validate(source, artifact, image_selections.as_ref())?;
     super::image_residence::validate(source, artifact)?;
     let private_identities = super::private_addresses::identities(
         &artifact.foreign_calls,

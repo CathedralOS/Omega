@@ -237,9 +237,9 @@ mod tests {
             }
             source.identity = pre_allocation_machine_effect_identity(&source);
             let encoded = source.encode();
-            assert_eq!(&encoded[8..12], &50_u32.to_le_bytes());
+            assert_eq!(&encoded[8..12], &51_u32.to_le_bytes());
             assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
-            for version in (0_u32..50).chain([51]) {
+            for version in (0_u32..51).chain([52]) {
                 let mut wrong_version = encoded.clone();
                 crate::codec_bytes::patch_encoded(&mut wrong_version, 8, version.to_le_bytes());
                 assert_eq!(
@@ -1152,7 +1152,7 @@ mod tests {
             MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
         source.identity = pre_allocation_machine_effect_identity(&source);
         let mut bytes = source.encode();
-        assert_eq!(&bytes[8..12], &50_u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &51_u32.to_le_bytes());
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
             source
