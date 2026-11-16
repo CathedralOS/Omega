@@ -1261,6 +1261,51 @@ impl TerminalExecution<'_> {
             phase,
             cause: Box::new(cause),
         };
+        // A whole move retired this owned root's home. A whole assignment
+        // stores into the same home, so it re-establishes it vacant first,
+        // with the root's own declaration; the checker settles the store as
+        // `Vacant` only there.
+        if disposition == terminal_psi::StructuralStoreDisposition::Vacant
+            && path.is_empty()
+            && field.is_none()
+            && !self.result_place_in_use(destination)
+        {
+            let declared = match machine.producing_operation(destination) {
+                Some((producer, _)) => producer.result.structural().map(|result| {
+                    (
+                        result.structural_type,
+                        result.qualifications.clone(),
+                        result.multiplicity,
+                        matches!(producer.kind, OperationKind::EstablishStructuralLocal {}),
+                    )
+                }),
+                None => machine.structural_parameter(destination).map(|parameter| {
+                    (
+                        parameter.structural_type,
+                        parameter.qualifications.clone(),
+                        parameter.multiplicity,
+                        false,
+                    )
+                }),
+            };
+            let (structural_type, qualifications, multiplicity, reserved) =
+                declared.ok_or(malformed())?;
+            let home = TerminalStructuralValue::minted(
+                self.local_structural_identities.allocate()?,
+                structural_type,
+                qualifications,
+            );
+            if reserved && multiplicity == StructuralMultiplicity::Linear {
+                self.linear_homes.insert(destination, home)?;
+            } else {
+                self.structural_values.insert(destination, home)?;
+            }
+            if multiplicity == StructuralMultiplicity::Affine {
+                self.live_affine_frontier
+                    .insert(whole_path_discard(destination, structural_type));
+            }
+        }
+        let machine = self.program.machine(self.current_machine)?;
         let mut identity_cursor = self.local_structural_identities.cursor();
         let reserved = self.linear_homes.get(&destination).cloned();
         let (storage, window) = if let Some(home) = &reserved {

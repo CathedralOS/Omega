@@ -1,5 +1,7 @@
 //! Replay source correspondence and backing geometry against stage 02.
-//! Production reads the prepared plan; only validators may enter this module.
+//! Production reads the current program and the facts the driver carried;
+//! only validators may enter this module, and only with stage 02's output
+//! retained for that audit (`RetainedTargetOperations`).
 
 use super::placed_reference::backing_geometry;
 use super::{
@@ -10,20 +12,20 @@ use super::{
     element_operation_retained, empty_run_release_retained, fixed_byte_length_is_static, fragments,
     ieee_float_builtin_retained, ieee_literal_retained, installed_calls, installed_interrupts,
     parameter_abi, placed_reference, placed_scalar_retained, primitive_accesses,
-    privileged_termination, program_image_retained, static_interrupts, structural_case,
-    structural_fields,
+    program_image_retained, static_interrupts, structural_case, structural_fields,
 };
 use target_operations::TargetUnitOperation;
 
 /// The optimized function and stage 02's lowered function for `machine`.
 /// Only the replay validators call this; ordinary emission reads the
 /// prepared plan.
-pub(in crate::function_fragments) fn audited_function(
-    source: &StagedOptimizedRelocationFreeObjectContainer,
+pub(in crate::function_fragments) fn audited_function<'a>(
+    source: &'a StagedOptimizedRelocationFreeObjectContainer,
+    original: &'a crate::RetainedTargetOperations,
     machine: MachineId,
-) -> Result<(&AbstractFunction, &target_operations::TargetFunction), Error> {
+) -> Result<(&'a AbstractFunction, &'a target_operations::TargetFunction), Error> {
     let abstracted = abstract_function(source, machine)?;
-    let mut targeted = crate::retained_working_program::target_operations(source)
+    let mut targeted = crate::retained_working_program::target_operations(original)
         .functions
         .iter()
         .filter(|function| function.machine == machine);
@@ -37,10 +39,11 @@ pub(in crate::function_fragments) fn audited_function(
 
 pub(in crate::function_fragments) fn establish_geometry(
     source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+    original: &crate::RetainedTargetOperations,
 ) -> Result<(), super::Error> {
     let current = source.source().source().source().source();
-    let abstracted = current.optimized_target().optimized().plan();
-    let targeted = crate::retained_working_program::target_operations(source);
+    let abstracted = original.target().optimized().plan();
+    let targeted = crate::retained_working_program::target_operations(original);
     let selected = current.physical_program();
     if !targeted.functions.iter().any(|function| {
         function.graph.operations().any(|operation| {
@@ -80,6 +83,76 @@ pub(in crate::function_fragments) fn establish_geometry(
                         reason,
                     })?;
             }
+        }
+    }
+    Ok(())
+}
+
+// Original selection correspondence belongs beside the other retained-source
+// checks. Ordinary pool validation reads exact current instruction owners.
+fn validate_image_selection_origins(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+) -> Result<(), Error> {
+    use selected_instructions::SelectedImageAddressReference as Reference;
+    let catalogs = super::code_catalogs(source);
+    for address in &source.source().text_section().unresolved_image_addresses {
+        if !matches!(
+            address.reference,
+            Reference::MachineDescriptor { .. }
+                | Reference::ImplementationTable { .. }
+                | Reference::NativeCodeLayout { .. }
+        ) {
+            continue;
+        }
+        let function = abstract_function(source, address.machine)?;
+        let matches = function
+            .operations()
+            .filter(|operation| match (address.reference, operation) {
+                (
+                    Reference::ImplementationTable { table },
+                    AbstractOperation::SelectImplementation {
+                        psi_operation,
+                        table: original,
+                        ..
+                    },
+                ) => *psi_operation == address.operation && *original == table,
+                (
+                    Reference::MachineDescriptor { descriptor },
+                    AbstractOperation::SelectMachine {
+                        psi_operation,
+                        descriptor: original,
+                        result,
+                    },
+                ) => {
+                    *psi_operation == address.operation
+                        && *original == descriptor
+                        && catalogs
+                            .callables()
+                            .descriptor(descriptor)
+                            .is_some_and(|row| {
+                                result.scalar_type
+                                    == semantic_vocabulary::ScalarType::Callable(row.contract)
+                            })
+                }
+                (
+                    Reference::NativeCodeLayout { machine },
+                    AbstractOperation::EstablishNativeCodeLayout {
+                        psi_operation,
+                        machine: original,
+                        ..
+                    },
+                ) => *psi_operation == address.operation && *original == machine,
+                _ => false,
+            })
+            .count();
+        if matches != 1 {
+            return Err(Error::Mismatch(
+                if matches!(address.reference, Reference::NativeCodeLayout { .. }) {
+                    "native metadata address differs from its exact query"
+                } else {
+                    "code descriptor address differs from its checked selection"
+                },
+            ));
         }
     }
     Ok(())
@@ -160,6 +233,7 @@ fn validate_byte_writer_rows(
 
 pub(in crate::function_fragments) fn admit(
     source: &StagedOptimizedRelocationFreeObjectContainer,
+    original: &crate::RetainedTargetOperations,
 ) -> Result<(), Error> {
     let fragments = fragments(source);
     if fragments.functions.is_empty()
@@ -171,7 +245,7 @@ pub(in crate::function_fragments) fn admit(
         ));
     }
     let current = source.source().source().source().source();
-    let published = current.optimized_target().execution_plan().plan();
+    let published = original.target().execution_plan().plan();
     let contracts = &current.physical_program().contracts;
     if contracts.profile() != published.profile
         || contracts.function_abis().as_ref() != published.function_abis.as_ref()
@@ -190,16 +264,13 @@ pub(in crate::function_fragments) fn admit(
             "current callable facts differ from the prepared execution input",
         ));
     }
+    validate_image_selection_origins(source)?;
     validate_byte_writers(published, current.physical_program())?;
-    let abstract_plan = current.optimized_target().optimized().plan();
-    privileged_termination::validate(
-        current.installation_authority().installed_entry_execution(),
-        current.physical_program(),
-    )?;
+    let abstract_plan = original.target().optimized().plan();
     placed_reference::backing_geometry::validate_activation_residence(
         abstract_plan,
         current.physical_program(),
-        crate::retained_working_program::target_operations(source),
+        crate::retained_working_program::target_operations(original),
         current
             .installation_authority()
             .installed_stack_requirements(),
@@ -215,7 +286,7 @@ pub(in crate::function_fragments) fn admit(
         .then(|| {
             placed_reference::backing_geometry::completed_graph(
                 abstract_plan,
-                crate::retained_working_program::target_operations(source),
+                crate::retained_working_program::target_operations(original),
             )
         })
         .flatten();
@@ -223,18 +294,18 @@ pub(in crate::function_fragments) fn admit(
         placed_reference::backing_geometry::BackingGeometry::new(
             abstract_plan,
             current.physical_program(),
-            crate::retained_working_program::target_operations(source),
+            crate::retained_working_program::target_operations(original),
             graph,
         )
     });
     let interrupt_helpers =
         provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers::new(
             abstract_plan.psi,
-            source.lowering_facts().module(),
-            source.lowering_facts().installed_interrupts(),
+            source.emission_facts().lowering.module(),
+            source.emission_facts().lowering.installed_interrupts(),
         );
     for fragment in &fragments.functions {
-        let (abstracted, targeted) = audited_function(source, fragment.machine)?;
+        let (abstracted, targeted) = audited_function(source, original, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
         let selected = current
             .physical_program()
@@ -243,8 +314,8 @@ pub(in crate::function_fragments) fn admit(
         let interrupt_replay = static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
         installed_calls::validate(abstracted, targeted, selected)?;
         let installed_scopes = installed_interrupts::validate(
-            source.lowering_facts().module(),
-            source.lowering_facts().installed_interrupts(),
+            source.emission_facts().lowering.module(),
+            source.emission_facts().lowering.installed_interrupts(),
             current
                 .installation_authority()
                 .installed_stack_requirements(),
@@ -257,8 +328,8 @@ pub(in crate::function_fragments) fn admit(
             .map_err(Error::Mismatch)?;
         let structural = selected.structural.as_ref();
         let graph_result = aggregate_results::header(abstracted, targeted, selected);
-        let mut declarations = current
-            .optimized_target()
+        let mut declarations = original
+            .target()
             .optimized()
             .unit()
             .functions
@@ -376,9 +447,9 @@ pub(in crate::function_fragments) fn admit(
                         _ => false,
                     }
                 }
-                AbstractOperation::PortWrite { psi_operation, port, value, .. } => {
+                AbstractOperation::PortWrite { psi_operation, service, port, value } => {
                     selected.instructions().any(|instruction| {
-                        instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { port: *port, value: *value }
+                        instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { service: *service, port: *port, value: *value }
                             && instruction.provenance.operations.as_slice() == [*psi_operation]
                     })
                 }
@@ -425,7 +496,7 @@ pub(in crate::function_fragments) fn admit(
                             operation,
                             Some(targeted),
                             &selected.memory_accesses,
-                            &current.optimized_target().optimized().plan().structural_types,
+                            &original.target().optimized().plan().structural_types,
                         )
                 }
                 AbstractOperation::StorageAddress { .. }
@@ -485,7 +556,7 @@ pub(in crate::function_fragments) fn admit(
                     matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
                     && instruction.provenance.operations.contains(psi_operation)).count()==1,
                 AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
-                    let catalog=&current.optimized_target().optimized().plan().dynamic_dispatch;
+                    let catalog=&original.target().optimized().plan().dynamic_dispatch;
                     catalog.interface(*interface).and_then(|interface|interface.slots.get(*slot as usize)).is_some_and(|shape|shape.result.scalar()==Some(result.scalar_type))
                         && selected.calls.iter().filter(|row|row.owner == target_operations::CallSiteOwner::Operation(*psi_operation)
                             && row.call.target==target_operations::NativeCallTarget::Dynamic {selector:*selector,interface:*interface,slot:*slot}
@@ -497,7 +568,7 @@ pub(in crate::function_fragments) fn admit(
                     result: AbstractStructuralCallResult::Scalar(result),
                     ..
                 } => {
-                    let (body, target) = audited_function(source, *callee)?;
+                    let (body, target) = audited_function(source, original, *callee)?;
                     let call_plan = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
                         (Some(abi), None) => Some(&abi.call_plan),
                         (None, Some(abi)) => Some(&abi.call_plan),
@@ -539,8 +610,7 @@ pub(in crate::function_fragments) fn admit(
                     byte_operation_retained(operation, targeted)
                         || fixed_byte_length_is_static(
                             abstracted,
-                            current
-                                .optimized_target()
+                            original.target()
                                 .optimized()
                                 .plan()
                                 .structural_types
@@ -564,7 +634,7 @@ pub(in crate::function_fragments) fn admit(
                     crash_continuations,
                     ..
                 } => {
-                    let (body, target) = audited_function(source, *callee)?;
+                    let (body, target) = audited_function(source, original, *callee)?;
                     let call_plan = target
                         .scalar_abi
                         .as_ref()
@@ -604,7 +674,7 @@ pub(in crate::function_fragments) fn admit(
                     psi_edge, callee, arguments, structural_arguments, claim_transfers,
                     requirement_obligations, crash_continuations,
                 } => {
-                    let (_, target) = audited_function(source, *callee)?;
+                    let (_, target) = audited_function(source, original, *callee)?;
                     let call_plan = &target.graph.call_plan;
                     selected.calls.iter().filter(|row| {
                         row.owner == target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
@@ -673,7 +743,7 @@ pub(in crate::function_fragments) fn admit(
                         *source,
                         path,
                         cases,
-                        current.optimized_target().optimized().unit(),
+                        original.target().optimized().unit(),
                         &mut addresses,
                     )
                 }

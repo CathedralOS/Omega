@@ -96,7 +96,15 @@ just inserted. Inserting bytes is not publication.
 
 [Fragment emission](src/fragment_emission.rs) takes validated function
 realization and turns resolved machine bytes into unplaced function
-fragments. [Text placement](src/text_placement.rs) keeps the source and
+fragments. Beside the realization it keeps only the bound installation
+receipt and [`EmissionFacts`](src/emission_facts.rs): the facts settled
+before instruction selection that the current program does not carry and
+object and image emission still read (admitted lowering facts and the
+optimized abstract program with its projection identities). The native
+driver copies them out of Omega 02's output; emission never holds that
+output. Construction refuses cohorts the receipt did not admit, facts naming
+another Terminal program or entry, and execution roots whose pre-physical
+manifest differs from the allocation's. [Text placement](src/text_placement.rs) keeps the source and
 applied-frame identities while resolving internal calls and section offsets.
 Each stage has an independent checker in its module. The checkers serve
 retained-artifact readers and tests; no stage replays output the same

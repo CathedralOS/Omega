@@ -700,3 +700,48 @@ machine build_entry(named: &mut Named) {{
         "{overlapped}"
     );
 }
+
+/// `lent` holds `engine` exclusively until `start(lent)`. Copying
+/// `engine.mode` while it does is refused (ownership.md: an exclusive child
+/// suspends its parent branch), and a `match` reads the same storage.
+const LENT_MODE: &str = "data Mode { case Idle; case Busy(level: u64); }
+data Engine { mode: Mode; count: u64; }
+machine start(engine: &mut Engine) { engine.mode = Mode::Busy { level: 7 }; }
+machine entry() crashes Trap {
+    let mut engine: Engine = Engine { mode: Mode::Idle, count: 3 };
+    let lent: &mut Engine = &mut engine;
+    BEFORE
+    start(lent);
+    AFTER
+    transition engine.mode {
+        Mode::Busy { level } -> check(level, engine.count)
+        Mode::Idle -> bad()
+    }
+    machine check(level: u64, count: u64) crashes Trap {
+        transition level == 7 && count == 3 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}";
+
+#[test]
+fn a_match_on_storage_lent_to_a_live_exclusive_reference_is_rejected() {
+    let observe =
+        "let busy: bool = match engine.mode { Mode::Busy { level } -> true  Mode::Idle -> false };";
+    let after = LENT_MODE.replace("BEFORE", "").replace("AFTER", observe);
+    assert_eq!(
+        run(&after),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+    let before = LENT_MODE.replace("BEFORE", observe).replace("AFTER", "");
+    let result = run(&before).unwrap_err();
+    assert!(
+        result.contains("ConflictingUse") && result.contains("ObserveWhileExclusive"),
+        "{result}"
+    );
+}

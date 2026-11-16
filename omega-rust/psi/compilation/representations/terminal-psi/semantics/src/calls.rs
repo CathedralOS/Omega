@@ -2372,6 +2372,14 @@ pub mod closed_reach {
                                 "selected callback operational contract exceeds its requirement bound",
                             );
                         }
+                        // effects.md: `crashes none` on a callback binder
+                        // admits only crash-free selections, inferred routes
+                        // included.
+                        if binding.selected_may_crash && binding.upper_bound_crashes_none {
+                            return Err(
+                                "selected callback may crash, and its requirement declares `crashes none`",
+                            );
+                        }
                         row(&binding.selected_reach)?;
                         if let Some(upper_bound) = &binding.upper_bound {
                             row(upper_bound)?;
@@ -2401,6 +2409,7 @@ pub mod closed_reach {
                                         || declaration.published_may_block
                                             != binding.selected_may_block
                                 })
+                                || callee.crash_routes.is_empty() == binding.selected_may_crash
                             {
                                 return Err(
                                     "closed reach selection differs from its retained callee contract",

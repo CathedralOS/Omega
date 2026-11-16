@@ -23,6 +23,12 @@ mod error {
             operation: semantic_vocabulary::OperationId,
             application: semantic_vocabulary::ScalarApplicationId,
         },
+        /// A build-time application returned a host address, which names
+        /// storage in the evaluating process and means nothing in the program.
+        HostAddressScalarApplication {
+            operation: semantic_vocabulary::OperationId,
+            application: semantic_vocabulary::ScalarApplicationId,
+        },
         InvalidActivationStorage(semantic_vocabulary::OperationId),
         UnsupportedReferenceCustody(semantic_vocabulary::OperationId),
         UnsupportedDynamicDispatch(semantic_vocabulary::OperationId),

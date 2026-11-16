@@ -4098,6 +4098,75 @@ impl<'a> Storage<'a> {
         Ok(changes)
     }
 
+    /// What a block's terminator reads and changes, judged against retained
+    /// loans as an operation's effects are. A dispatch or an empty-domain
+    /// observation reads its subject; an owned transfer on an edge or a
+    /// return relinquishes its storage; a borrowed argument is read, and an
+    /// exclusive one may also be changed by the callee. Cleanup actions are
+    /// judged on their own rosters.
+    fn terminator_effects(&self, block: &Block) -> Checked<(Vec<Lineage>, Vec<Lineage>)> {
+        let mut reads = Vec::new();
+        let mut changes = Vec::new();
+        let mut transfer = |argument: &StructuralArgument, concerns: Construct| -> Checked<()> {
+            let place = self.argument(argument, concerns)?;
+            match argument.access {
+                StructuralAccess::Owned => changes.push(place),
+                StructuralAccess::SharedBorrow => reads.push(place),
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
+                    reads.push(place.clone());
+                    changes.push(place);
+                }
+            }
+            Ok(())
+        };
+        match &block.terminator {
+            Terminator::StructuralCase { source, path, .. } => {
+                reads.push(self.stored_at(*source, path, Construct::Block(block.id))?);
+            }
+            Terminator::EliminateEmpty { edge, source, path } => {
+                reads.push(self.stored_at(*source, path, Construct::Edge(*edge))?);
+            }
+            Terminator::ReturnStructural { edge, source, .. } => transfer(
+                &StructuralArgument::whole(*source, StructuralAccess::Owned),
+                Construct::Edge(*edge),
+            )?,
+            Terminator::Jump {
+                edge,
+                structural_arguments,
+                ..
+            }
+            | Terminator::InvokeNoNormal {
+                edge,
+                structural_arguments,
+                ..
+            }
+            | Terminator::ExternalCompletion {
+                edge,
+                structural_arguments,
+                ..
+            } => {
+                for argument in structural_arguments {
+                    transfer(argument, Construct::Edge(*edge))?;
+                }
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for successor in [when_true, when_false] {
+                    for argument in &successor.structural_arguments {
+                        transfer(argument, Construct::Edge(successor.edge))?;
+                    }
+                }
+            }
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::Crash { .. } => {}
+        }
+        Ok((reads, changes))
+    }
+
     fn call_payload_arguments(&self, operation: &Operation, writes: bool) -> Checked<Vec<Lineage>> {
         let concerns = Construct::Operation(operation.id);
         let Some(call) = operation.declared_invocation() else {

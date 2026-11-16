@@ -150,7 +150,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         let row: i32 in Saturating = I32::from_f64(main.by);
         main.ball_x = column as i32;
         main.ball_y = row as i32;
-        Clock::sleep(40);
+        block Clock::sleep(40);
         transition main.frame < 70 { true -> block frame_bump(main) _ -> block frame_loop(main) }
     }
     machine frame_bump(main: &mut Main) {
