@@ -42,7 +42,7 @@ use semantic_vocabulary::{
     IeeeFloatValue, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType, StructuralFieldId,
     StructuralTypeId, ValueId,
 };
-use target_operations::MachineRegister;
+use target_vocabulary::MachineRegister;
 use terminal_psi::StructuralPathSegment;
 
 use crate::InternalUnitScalarArgumentSourceRecord;
@@ -71,7 +71,7 @@ pub struct UnitParameterRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParameterFunctionAbiRecord {
     pub call_plan: CallPlan,
-    pub parameters: Vec<target_operations::ScalarAbiValue>,
+    pub parameters: Vec<target_vocabulary::ScalarAbiValue>,
     pub entry_register_spills: Vec<UnitEntryRegisterSpillRecord>, // Entry stores preserving incoming register values
 }
 
@@ -284,7 +284,7 @@ pub struct ScalarStructuralScalarFieldStoreRecord {
     pub field_byte_offset: u32,
     pub defining_operation: OperationId,
     pub source_value: ValueId,
-    pub immediate: target_operations::TargetScalarImmediate,
+    pub immediate: target_vocabulary::TargetScalarImmediate,
     pub return_operation: OperationId,
     pub return_source_value: ValueId,
     pub return_field: StructuralFieldId,

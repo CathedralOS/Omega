@@ -131,7 +131,7 @@ provenance; dense producer IDs alone establish no correspondence.
 | Block parameter | Owner, unique block, exact direct scalar parameter membership, and format. |
 | Call result | Owner, producing scalar-result call, exact declared result, and format. |
 | Structural float leaf | Owner, direct structural-parameter root, canonical relevant path, and exact IEEE leaf format. |
-| Semantic application | Catalog contract identity (row ordinal, catalog version, signature commitment), declared result format, and operands position by position, each a sealed IEEE format or the meaning ID of an earlier row. |
+| Semantic application | Catalog contract identity (row ordinal, catalog version, signature commitment), declared result format, and operands position by position, each a sealed IEEE format, the meaning ID of an earlier row, or an integer scalar with the exact carrier required by the catalog signature. |
 
 The classes are disjoint. A parameter cannot stand in for a result, nor a block
 parameter for a machine parameter. Unit/structural results cannot replace scalar
@@ -147,9 +147,12 @@ rejoins the contract identity to that row independently; the row's result must
 be a meaning, the operands must spell the row's complete signature in order, a
 format operand must equal the declared result format, and each meaning operand
 must name a strictly earlier row of the same table (on rows without a format
-parameter, of the declared format). When every meaning operand reconstructs a
-literal, the row's kernel is discharged and its result must agree with the
-named contract. Rows whose catalog result is Boolean, a class, or an integer
+parameter, of the declared format). An integer operand retains its exact signed
+or unsigned carrier and scalar source; the ordinary source-owner and contract
+substitution checks establish that source's correspondence. It is not an IEEE
+meaning projection. When every meaning operand reconstructs a literal and every
+integer operand is closed, the row's kernel is discharged and its result must
+agree with the named contract. Rows whose catalog result is Boolean, a class, or an integer
 cannot occupy this carrier.
 
 A structural leaf path may traverse relevant record/mixed fields, fixed-array

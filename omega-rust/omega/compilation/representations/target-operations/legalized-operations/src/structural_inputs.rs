@@ -484,7 +484,7 @@ pub mod structural_reference_input {
     }
 
     pub fn primitive_store(
-        destination: &abstract_operations::StructuralScalarStoreDestination,
+        destination: &native_vocabulary::structural_stores::StructuralScalarStoreDestination,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
         declarations: &NativeGeometry<'_>,
@@ -497,7 +497,7 @@ pub mod structural_reference_input {
             return None;
         }
         match destination {
-            abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
                 if !matches!(
                     parameter.access,
                     terminal_psi::StructuralAccess::Owned
@@ -507,14 +507,14 @@ pub mod structural_reference_input {
                     return None;
                 }
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
                 result, ..
             } => {
                 if !result.qualification_establishments.is_empty() || !result.claims.is_empty() {
                     return None;
                 }
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
                 parameter,
                 ..
             } => {
@@ -701,7 +701,7 @@ pub mod structural_reference_input {
     }
 
     pub fn parameter_shape<'declaration>(
-        parameter: impl Into<abstract_operations::StructuralCallFormal<'declaration>>,
+        parameter: impl Into<native_vocabulary::calls::StructuralCallFormal<'declaration>>,
         declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
         use terminal_psi::StructuralAccess;
@@ -2577,7 +2577,7 @@ pub mod structural_unit_input {
     #[derive(Clone, Copy)]
     pub struct Parameter<'a> {
         pub semantic: &'a terminal_psi::StructuralParameterDeclaration,
-        pub target: &'a target_operations::TargetStructuralParameter,
+        pub target: &'a target_vocabulary::TargetStructuralParameter,
     }
 
     pub fn parameter_views(contract: &crate::LegalizedStructuralContract) -> Vec<Parameter<'_>> {

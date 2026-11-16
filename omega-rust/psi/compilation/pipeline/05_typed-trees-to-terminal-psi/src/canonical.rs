@@ -349,6 +349,19 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
         })
     }
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            self.place(root)?,
+            path.to_vec(),
+        ))
+    }
+
     fn case(
         &mut self,
         _: semantic_vocabulary::PlaceId,

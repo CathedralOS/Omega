@@ -22,7 +22,7 @@ use semantic_vocabulary::{
     AffineConstructionElement, BlockId, BoundedIntegerType, IeeeFloatFormat, OperationId, PlaceId,
     ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
 };
-use target_operations::{
+use target_vocabulary::{
     TargetStructuralArgument, TargetStructuralParameter, TargetStructuralRuntimeIndex,
 };
 use terminal_psi::{

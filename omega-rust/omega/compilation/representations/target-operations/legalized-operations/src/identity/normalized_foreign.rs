@@ -18,7 +18,7 @@ use super::{
 use crate::LegalizedNormalizedForeignCall;
 use calling_conventions::encode_state_plan_identity;
 use target::ForeignLocatorCandidate;
-use target_operations::{
+use target_vocabulary::{
     NormalizedForeignCallBinding, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
 };
 
@@ -41,15 +41,15 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
         super::scalar_graph::encode_runtime_indices(bytes, indices);
     }
     match &call.result {
-        target_operations::TargetBoundaryResult::Scalar(home) => {
+        target_vocabulary::TargetBoundaryResult::Scalar(home) => {
             bytes.push(1);
             encode_scalar_home(bytes, home);
         }
-        target_operations::TargetBoundaryResult::Unit => bytes.push(0),
-        target_operations::TargetBoundaryResult::Structural(home) => {
+        target_vocabulary::TargetBoundaryResult::Unit => bytes.push(0),
+        target_vocabulary::TargetBoundaryResult::Structural(home) => {
             bytes.push(2);
             match &home.origin {
-                target_operations::TargetStructuralHomeOrigin::OperationResult {
+                target_vocabulary::TargetStructuralHomeOrigin::OperationResult {
                     operation,
                     result,
                 } => {
@@ -57,7 +57,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                     super::structural::encode_operation_result(bytes, result);
                 }
-                target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                target_vocabulary::TargetStructuralHomeOrigin::BlockParameter {
                     block,
                     declaration,
                 } => {
@@ -67,11 +67,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
                 }
             }
             match &home.layout {
-                target_operations::TargetStructuralHomeLayout::Aggregate(shape) => {
+                target_vocabulary::TargetStructuralHomeLayout::Aggregate(shape) => {
                     bytes.push(0);
                     encode_shape(bytes, *shape);
                 }
-                target_operations::TargetStructuralHomeLayout::Sum(layout) => {
+                target_vocabulary::TargetStructuralHomeLayout::Sum(layout) => {
                     bytes.push(1);
                     encode_layout(bytes, layout);
                 }
@@ -92,7 +92,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
 
 pub fn encode_native_callback_argument(
     bytes: &mut Vec<u8>,
-    callback: &target_operations::TargetNativeCallbackArgument,
+    callback: &target_vocabulary::TargetNativeCallbackArgument,
 ) {
     crate::codec_bytes::push_encoded(bytes, callback.terminal_operation.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, (callback.placement_index as u64).to_le_bytes());
@@ -134,7 +134,7 @@ pub fn encode_machine_function_identity(
 
 pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     let contribution = match &binding.mechanism {
-        target_operations::NormalizedForeignCallMechanism::HostedImport {
+        target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
             locator,
             receipt,
             requirement_identity,
@@ -147,14 +147,14 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
             return;
         }
-        target_operations::NormalizedForeignCallMechanism::Import {
+        target_vocabulary::NormalizedForeignCallMechanism::Import {
             locator,
             same_stack_contribution,
         } => {
             encode_locator(bytes, locator);
             same_stack_contribution
         }
-        target_operations::NormalizedForeignCallMechanism::Component {
+        target_vocabulary::NormalizedForeignCallMechanism::Component {
             locator,
             provider,
             candidate,
@@ -171,7 +171,7 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             bytes.extend_from_slice(locator.slot_commitment());
             same_stack_contribution
         }
-        target_operations::NormalizedForeignCallMechanism::Table {
+        target_vocabulary::NormalizedForeignCallMechanism::Table {
             target,
             byte_offset,
             dispatch_only,
@@ -183,7 +183,7 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             bytes.push(u8::from(*dispatch_only));
             same_stack_contribution
         }
-        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+        target_vocabulary::NormalizedForeignCallMechanism::SystemCall(kernel) => {
             encode_string(bytes, "");
             encode_string(bytes, kernel.target.target_name());
             crate::codec_bytes::push_encoded(bytes, kernel.number.to_le_bytes());
@@ -216,15 +216,15 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
 
 pub(super) fn encode_foreign_execution(
     bytes: &mut Vec<u8>,
-    execution: target_operations::NormalizedForeignExecution,
+    execution: target_vocabulary::NormalizedForeignExecution,
 ) {
     match execution {
-        target_operations::NormalizedForeignExecution::ProviderPlan { report, commitment } => {
+        target_vocabulary::NormalizedForeignExecution::ProviderPlan { report, commitment } => {
             bytes.push(0);
             bytes.extend_from_slice(&report.to_le_bytes());
             bytes.extend_from_slice(&commitment);
         }
-        target_operations::NormalizedForeignExecution::NativeBinding(binding) => {
+        target_vocabulary::NormalizedForeignExecution::NativeBinding(binding) => {
             bytes.push(1);
             bytes.extend_from_slice(&binding);
         }
@@ -352,8 +352,8 @@ impl LegalizedNormalizedForeignCall {
 
     pub fn canonical_bytes_with_effects(
         &self,
-        effect: optimization_unit::EffectLink,
-        ownership: &[optimization_unit::OwnershipEvent],
+        effect: native_vocabulary::provenance::EffectLink,
+        ownership: &[native_vocabulary::provenance::OwnershipEvent],
     ) -> Vec<u8> {
         let mut bytes = self.canonical_bytes();
         super::structural::encode_effect(&mut bytes, effect);

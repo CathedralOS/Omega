@@ -7138,7 +7138,8 @@ mod elaboration {
             fn new(proof: &'proof ProofNode) -> Result<Self, BoundedDenotationError> {
                 use ProofRule::*;
                 let children = match &proof.rule {
-                    Primitive(_)
+                    IntegerFloatExact
+                    | Primitive(_)
                     | Assumption { index: _ }
                     | SemanticAxiom { index: _ }
                     | IntegerCorrelatedForbiddenRoots { witness: _ } => Children::fixed([None; 3]),
@@ -7727,6 +7728,15 @@ mod elaboration {
             operands: &mut walk::ChildEvidence<'_>,
         ) -> Result<TermHandle, BoundedDenotationError> {
             match &proof.rule {
+                ProofRule::IntegerFloatExact => {
+                    crate::check_integer_float_exact(self.context, &proof.conclusion).map_err(
+                        |error| certificate!(ProofError::FloatIntegerConversion(Box::new(error))),
+                    )?;
+                    self.rules.insert(AcceptedProofRule::IntegerFloatExact);
+                    Err(BoundedDenotationError::Unsupported(
+                        "integer to float exact representability",
+                    ))
+                }
                 ProofRule::FloatIntegerConversion { premise, computed } => {
                     crate::check_float_integer_conversion(
                         self.context,

@@ -12064,8 +12064,7 @@ mod source {
                     let caller = descriptor_machine(graph, caller)
                         .ok_or("selected caller has no reference-origin graph")?;
                     let mut calls = caller
-                        .calls
-                        .iter()
+                        .known_invocations()
                         .filter(|(_, call)| call.operation == operation);
                     let (Some((position, call)), None) = (calls.next(), calls.next()) else {
                         return Err("selected call has no unique reference-origin observation");
@@ -12223,9 +12222,8 @@ mod source {
                             continue;
                         };
                         if caller
-                            .calls
-                            .values()
-                            .any(|call| call.operation == *psi_operation)
+                            .known_invocations()
+                            .any(|(_, call)| call.operation == *psi_operation)
                         {
                             continue;
                         }
@@ -12306,7 +12304,7 @@ mod source {
                         }
                         caller.calls.insert(
                             position,
-                            terminal_semantics::descriptor_results::DescriptorInvocation {
+                            Some(terminal_semantics::descriptor_results::DescriptorInvocation {
                                 scalar_arguments: Vec::new(),
                                 operation: *psi_operation,
                                 target:
@@ -12316,7 +12314,7 @@ mod source {
                                 arguments: recorded,
                                 argument_contents: contents,
                                 result: None,
-                            },
+                            }),
                         );
                     }
                 }

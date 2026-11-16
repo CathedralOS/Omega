@@ -92,7 +92,8 @@ mod budget {
                     self.scalar(&clause.source, depth + 1)?;
                     self.scalar(&clause.result, depth + 1)?;
                 }
-                Proposition::IeeeFloatIntegerExact { source, .. } => {
+                Proposition::IeeeFloatIntegerExact { source, .. }
+                | Proposition::IntegerIeeeFloatExact { source, .. } => {
                     self.scalar(source, depth + 1)?
                 }
                 Proposition::FloatMeaningEqual(clause) => {
@@ -282,7 +283,8 @@ mod value_equalities {
                     clause.result =
                         self.scalar(&clause.result, budget, depth + 1, &mut Vec::new())?;
                 }
-                Proposition::IeeeFloatIntegerExact { source, .. } => {
+                Proposition::IeeeFloatIntegerExact { source, .. }
+                | Proposition::IntegerIeeeFloatExact { source, .. } => {
                     *source = self.scalar(source, budget, depth + 1, &mut Vec::new())?;
                 }
                 Proposition::FloatMeaningEqual(clause) => {

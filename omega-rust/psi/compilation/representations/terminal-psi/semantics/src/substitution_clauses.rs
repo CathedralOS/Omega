@@ -154,6 +154,18 @@ pub fn substitute_clause<Error: From<&'static str>>(
                 target: *target,
             }
         }
+        Proposition::IntegerIeeeFloatExact { source, target } => {
+            let mapped = substitute_clause_term(source, bindings)?;
+            if mapped.scalar_type() != source.scalar_type() {
+                return Err(Error::from(
+                    "exact float integer cast substitution changes its source carrier",
+                ));
+            }
+            Proposition::IntegerIeeeFloatExact {
+                source: mapped,
+                target: *target,
+            }
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         // An opaque proposition has no bindable scalar or storage name.

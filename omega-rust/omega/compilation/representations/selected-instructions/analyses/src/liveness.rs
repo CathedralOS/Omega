@@ -1197,7 +1197,7 @@ pub(crate) mod edge_values {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use optimization_unit::WorkSettlement;
+        use native_vocabulary::provenance::WorkSettlement;
         use selected_instructions::{
             SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
             SelectedInstructionProvenance,
@@ -1238,7 +1238,7 @@ pub(crate) mod edge_values {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
                 nominal_cleanup_subject: None,
-                provenance: target_operations::TerminalPsiProvenance {
+                provenance: target_vocabulary::TerminalPsiProvenance {
                     operations: vec![operation],
                     edges: vec![returned],
                 },
@@ -1318,7 +1318,7 @@ pub(crate) mod edge_values {
                     2 => instruction.provenance.operations.clear(),
                     3 => instruction.kind = SelectedInstructionKind::ReturnUnit,
                     _ => instruction.provenance.work.push(WorkSettlement {
-                        site: optimization_unit::PsiProvenance::Operation(*operation),
+                        site: native_vocabulary::provenance::PsiProvenance::Operation(*operation),
                         units: 1,
                     }),
                 }
@@ -1390,7 +1390,9 @@ pub(crate) mod edge_values {
                     [0]
                 .work
                 .push(WorkSettlement {
-                    site: optimization_unit::PsiProvenance::Operation(OperationId::new(2).unwrap()),
+                    site: native_vocabulary::provenance::PsiProvenance::Operation(
+                        OperationId::new(2).unwrap(),
+                    ),
                     units: 1,
                 })
             });
@@ -1689,9 +1691,9 @@ pub(crate) mod edge_values {
                             call.call.target,
                         ))
                     || call.owner
-                        != (target_operations::CallSiteOwner::Installation {
+                        != (target_vocabulary::CallSiteOwner::Installation {
                             operation: *operation,
-                            role: target_operations::InstallationCallRole::Work,
+                            role: target_vocabulary::InstallationCallRole::Work,
                         })
                     || instruction.provenance.operations.as_slice() != [*operation]
                     || !instruction.provenance.edges.is_empty()
@@ -1866,10 +1868,12 @@ pub(crate) mod edge_values {
             return Ok(destination);
         }
         if destination_register.definition_site
-            != Some(optimization_unit::ValueDefinitionSite::BlockParameter {
-                block: successor.source_target,
-                position: u32::try_from(parameter_index).map_err(|_| mismatch())?,
-            })
+            != Some(
+                native_vocabulary::provenance::ValueDefinitionSite::BlockParameter {
+                    block: successor.source_target,
+                    position: u32::try_from(parameter_index).map_err(|_| mismatch())?,
+                },
+            )
         {
             return Err(mismatch());
         }

@@ -2040,6 +2040,11 @@ pub(crate) mod proposition_wire {
                 encode_scalar_term(writer, source)?;
                 encode_integer_type(writer, *target)?;
             }
+            Proposition::IntegerIeeeFloatExact { source, target } => {
+                writer.u8(22);
+                encode_scalar_term(writer, source)?;
+                encode_ieee_float_format(writer, *target);
+            }
             Proposition::StructuralIdentity { left, right } => {
                 writer.u8(18);
                 for subject in [left, right] {
@@ -2143,6 +2148,10 @@ pub(crate) mod proposition_wire {
                 source: decode_scalar_term(reader)?,
                 target: decode_integer_type(reader)?,
             },
+            22 => Proposition::IntegerIeeeFloatExact {
+                source: decode_scalar_term(reader)?,
+                target: decode_ieee_float_format(reader)?,
+            },
             tag => return Err(CodecError::InvalidTag("Proposition", tag)),
         })
     }
@@ -2177,6 +2186,14 @@ pub(crate) mod proposition_wire {
                 FloatIntegerConversion::new(source.clone(), result, operation.contract_identity())
                     .unwrap();
             for original in [
+                Proposition::IntegerIeeeFloatExact {
+                    source: ScalarTerm::integer(
+                        target,
+                        semantic_vocabulary::IntegerValue::Signed(42),
+                    )
+                    .unwrap(),
+                    target: IeeeFloatFormat::Binary32,
+                },
                 Proposition::FloatIntegerConversion(graph.clone()),
                 Proposition::IeeeFloatIntegerExact { source, target },
             ] {

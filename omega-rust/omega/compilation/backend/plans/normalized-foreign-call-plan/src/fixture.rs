@@ -33,7 +33,7 @@ use target::{
     ForeignLocatorCandidate, NativeTarget, NormalizedForeignLocator, TargetProfile,
     normalize_foreign_locator,
 };
-use target_operations::{
+use target_vocabulary::{
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, ProviderExecutionBinding,
     ProviderPlanReportIdentity, TargetBoundaryResult, TargetNativeCallbackArgument,
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
@@ -216,7 +216,7 @@ pub fn record(
             result: completion,
             callbacks: Vec::new(),
         },
-        effect: optimization_unit::EffectLink {
+        effect: native_vocabulary::provenance::EffectLink {
             input: 1,
             output: 2,
         },

@@ -867,3 +867,273 @@ fn empty_or_unidentified_interval_never_silently_audits_the_full_session() {
         assert!(invalid.stdout.is_empty());
     }
 }
+
+const CLAUDE_SESSION: &str = "33333333-3333-4333-8333-333333333333";
+
+/// Claude Code transcripts for one session: the main conversation and any
+/// subagent conversations below `<session>/subagents/`.
+struct ClaudeSession {
+    home: PathBuf,
+}
+
+impl ClaudeSession {
+    fn new(home: &Path) -> Self {
+        fs::create_dir_all(
+            home.join(".claude/projects/-fixture")
+                .join(CLAUDE_SESSION)
+                .join("subagents"),
+        )
+        .unwrap();
+        Self {
+            home: home.to_owned(),
+        }
+    }
+
+    fn write(&self, relative: &str, records: &[serde_json::Value]) -> PathBuf {
+        let path = self.home.join(".claude/projects/-fixture").join(relative);
+        let bytes = records
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&path, bytes).unwrap();
+        path
+    }
+
+    fn main(&self, records: &[serde_json::Value]) -> PathBuf {
+        self.write(&format!("{CLAUDE_SESSION}.jsonl"), records)
+    }
+
+    fn subagent(&self, id: &str, records: &[serde_json::Value]) -> PathBuf {
+        self.write(
+            &format!("{CLAUDE_SESSION}/subagents/agent-{id}.jsonl"),
+            records,
+        )
+    }
+
+    fn audit(&self, root: &Path, arguments: &[&str]) -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_xtask"));
+        command
+            .arg("provenance")
+            .args(arguments)
+            .current_dir(root)
+            .stdin(Stdio::null())
+            .env("USERPROFILE", &self.home)
+            .env("HOME", &self.home)
+            .env("CLAUDECODE", "1")
+            .env("CLAUDE_CODE_SESSION_ID", CLAUDE_SESSION)
+            .env("CLAUDE_EFFORT", "medium");
+        for name in [
+            "ANTIGRAVITY_CONVERSATION_ID",
+            "ANTIGRAVITY_AGENT",
+            "CODEX_THREAD_ID",
+            "CODEX_SANDBOX",
+            "CODEX_CI",
+        ] {
+            command.env_remove(name);
+        }
+        command.output().unwrap()
+    }
+
+    fn line(&self, root: &Path, arguments: &[&str]) -> String {
+        let output = self.audit(root, arguments);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    }
+}
+
+fn claude_user(timestamp: &str, content: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({"type":"user","parentUuid":null,"timestamp":timestamp,"message":{"role":"user","content":content}})
+}
+
+fn claude_response(
+    timestamp: &str,
+    id: &str,
+    input: u64,
+    blocks: &[serde_json::Value],
+) -> Vec<serde_json::Value> {
+    // Claude Code writes one record per content block, each repeating the
+    // response's whole usage.
+    blocks
+        .iter()
+        .map(|block| serde_json::json!({"type":"assistant","parentUuid":"p","timestamp":timestamp,"message":{"id":id,"model":"claude-fixture","content":[block],"usage":{"input_tokens":input,"cache_read_input_tokens":0,"output_tokens":1}}}))
+        .collect()
+}
+
+fn tool_call(id: &str, command: &str) -> serde_json::Value {
+    serde_json::json!({"type":"tool_use","id":id,"name":"Bash","input":{"command":command}})
+}
+
+fn tool_result(timestamp: &str, id: &str) -> serde_json::Value {
+    claude_user(
+        timestamp,
+        serde_json::json!([{"type":"tool_result","tool_use_id":id,"content":"ok"}]),
+    )
+}
+
+fn sidechain(mut records: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    for record in &mut records {
+        record["isSidechain"] = true.into();
+    }
+    records
+}
+
+#[test]
+fn claude_steers_count_only_messages_a_person_typed() {
+    let transcripts = Transcripts::new();
+    let session = ClaudeSession::new(&transcripts.0);
+    let at = "2026-01-03T00:00:00Z";
+    let mut records = vec![claude_user(at, "Fix the parser".into())];
+    records.extend(claude_response(
+        at,
+        "msg_1",
+        100,
+        &[
+            serde_json::json!({"type":"thinking","thinking":""}),
+            tool_call("call_1", "ls"),
+            tool_call("call_2", "pwd"),
+        ],
+    ));
+    records.push(tool_result(at, "call_1"));
+    records.push(tool_result(at, "call_2"));
+    let mut notification = claude_user(at, "A background task finished".into());
+    notification["origin"] = serde_json::json!({"kind":"task-notification"});
+    records.push(notification);
+    let mut peer = claude_user(at, "Subagent report".into());
+    peer["origin"] = serde_json::json!({"kind":"peer"});
+    records.push(peer);
+    records.push(claude_user(
+        at,
+        "<system-reminder>hook feedback</system-reminder>".into(),
+    ));
+    let mut meta = claude_user(at, "Caveat: injected".into());
+    meta["isMeta"] = true.into();
+    records.push(meta);
+    let mut typed = claude_user(at, "Also handle commas".into());
+    typed["origin"] = serde_json::json!({"kind":"human"});
+    records.push(typed);
+    records.extend(claude_response(
+        at,
+        "msg_2",
+        10,
+        &[tool_call("call_3", "cargo xtask provenance --full-session")],
+    ));
+    session.main(&records);
+    let line = session.line(Path::new(env!("CARGO_MANIFEST_DIR")), &["--full-session"]);
+    assert!(line.contains("Steers: 1"), "{line}");
+    assert!(line.contains("Steps: 2"), "{line}");
+    assert!(line.contains("Tokens: 110 in"), "{line}");
+    assert!(line.contains("Effort: medium"), "{line}");
+}
+
+#[test]
+fn claude_subagent_audits_its_own_transcript_not_the_coordinators() {
+    let transcripts = Transcripts::new();
+    let session = ClaudeSession::new(&transcripts.0);
+    let at = "2026-01-03T00:00:00Z";
+    let mut coordinator = vec![claude_user(at, "Coordinate".into())];
+    coordinator.extend(claude_response(
+        at,
+        "msg_c",
+        1,
+        &[tool_call("call_c", "Agent")],
+    ));
+    session.main(&coordinator);
+    let mut worker = vec![claude_user(
+        at,
+        "Subagent prompt from the coordinator".into(),
+    )];
+    worker.extend(claude_response(
+        at,
+        "msg_a",
+        500,
+        &[tool_call("call_a", "ls")],
+    ));
+    worker.push(tool_result(at, "call_a"));
+    worker.extend(claude_response(
+        at,
+        "msg_b",
+        500,
+        &[tool_call("call_b", "mbx xtask provenance --full-session")],
+    ));
+    session.subagent("worker", &sidechain(worker));
+    let line = session.line(Path::new(env!("CARGO_MANIFEST_DIR")), &["--full-session"]);
+    assert!(line.contains("Tokens: 1.0k in"), "{line}");
+    assert!(line.contains("Steps: 2"), "{line}");
+    assert!(line.contains("Steers: 0"), "{line}");
+}
+
+#[test]
+fn claude_subagent_in_a_worktree_slot_audits_that_slots_interval() {
+    let fixture = WorktreeInterval::new();
+    let session = ClaudeSession::new(&fixture.transcripts.0);
+    let before = "2026-01-01T00:00:00Z";
+    let after = "2026-01-03T00:00:00Z";
+    let worker_path = fixture.worker.display().to_string();
+    let mut coordinator = vec![claude_user(before, "Coordinate".into())];
+    coordinator.extend(claude_response(
+        before,
+        "msg_c",
+        1,
+        &[tool_call("call_c", "Agent")],
+    ));
+    session.main(&coordinator);
+
+    // No agent is running `provenance`: refuse instead of auditing another.
+    let refused = session.audit(&fixture.worker, &[]);
+    assert!(!refused.status.success());
+    assert!(refused.stdout.is_empty());
+    let error = String::from_utf8(refused.stderr).unwrap();
+    assert!(
+        error.contains("shows this `provenance` command running"),
+        "{error}"
+    );
+
+    // Earlier work in the same subagent belongs to the previous outcome.
+    let mut worker = vec![claude_user(before, "Subagent prompt".into())];
+    worker.extend(claude_response(
+        before,
+        "msg_old",
+        9000,
+        &[tool_call("call_old", "ls")],
+    ));
+    worker.push(tool_result(before, "call_old"));
+    worker.extend(claude_response(
+        after,
+        "msg_new",
+        40,
+        &[tool_call("call_new", "ls")],
+    ));
+    worker.push(tool_result(after, "call_new"));
+    worker.extend(claude_response(
+        after,
+        "msg_audit",
+        2,
+        &[tool_call(
+            "call_audit",
+            &format!("cd {worker_path} && cargo xtask provenance"),
+        )],
+    ));
+    session.subagent("worker", &sidechain(worker));
+    // A sibling subagent auditing another checkout at the same moment.
+    let mut sibling = vec![claude_user(after, "Sibling prompt".into())];
+    sibling.extend(claude_response(
+        after,
+        "msg_s",
+        7000,
+        &[tool_call(
+            "call_s",
+            "cd /elsewhere/.agents/worktree/worker-9 && cargo xtask provenance",
+        )],
+    ));
+    session.subagent("sibling", &sidechain(sibling));
+
+    let line = session.line(&fixture.worker, &[]);
+    assert!(line.contains("Tokens: 42 in"), "{line}");
+    assert!(line.contains("Steps: 2"), "{line}");
+    assert!(line.contains("Steers: 0"), "{line}");
+}

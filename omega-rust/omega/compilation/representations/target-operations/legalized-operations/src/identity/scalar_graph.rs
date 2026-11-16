@@ -27,7 +27,7 @@ use crate::{
     LegalizedScalarTerminator,
 };
 use crate::{SaturatingCarrier, SaturatingOperation};
-use optimization_unit::encode_value_definition_site_identity;
+use native_vocabulary::provenance::encode_value_definition_site_identity;
 use semantic_vocabulary::{ObligationId, ValueId};
 
 macro_rules! push_bytes {
@@ -39,7 +39,10 @@ macro_rules! push_bytes {
 pub(super) fn encode(
     bytes: &mut Vec<u8>,
     function: &LegalizedScalarFunction,
-    cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
+    cached_catalog: &mut Option<(
+        native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+        Vec<u8>,
+    )>,
 ) {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(bytes, function.attachment.map(|value| value.get()));
@@ -434,7 +437,7 @@ pub(super) fn encode(
                     super::structural::encode_operation_result(bytes, result);
                     super::structural_types::encode_structural_argument(bytes, source);
                     match correspondence {
-                        abstract_operations::AccessReferenceBacking::OrdinaryRam(
+                        native_vocabulary::access_references::AccessReferenceBacking::OrdinaryRam(
                             correspondence,
                         ) => {
                             bytes.push(0);
@@ -459,7 +462,7 @@ pub(super) fn encode(
                                 encode_scalar_type(bytes, field.stored_scalar);
                             }
                         }
-                        abstract_operations::AccessReferenceBacking::Resident(resident) => {
+                        native_vocabulary::access_references::AccessReferenceBacking::Resident(resident) => {
                             bytes.push(1);
                             for identity in [
                                 resident.owner.get(),
@@ -474,7 +477,7 @@ pub(super) fn encode(
                             }
                             bytes.extend_from_slice(&resident.placement_commitment);
                         }
-                        abstract_operations::AccessReferenceBacking::BorrowedExtent(backing) => {
+                        native_vocabulary::access_references::AccessReferenceBacking::BorrowedExtent(backing) => {
                             bytes.push(2);
                             for identity in [
                                 backing.owner.get(),
@@ -566,16 +569,18 @@ pub(super) fn encode(
                     indices,
                 } => {
                     bytes.push(match path {
-                        abstract_operations::StructuralCopyPath::Ordinary(_) => 86,
-                        abstract_operations::StructuralCopyPath::Case(_) => 92,
+                        native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(_) => 86,
+                        native_vocabulary::structural_stores::StructuralCopyPath::Case(_) => 92,
                     });
                     super::structural::encode_operation_result(bytes, result);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                     match path {
-                        abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                        native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(
+                            path,
+                        ) => {
                             super::structural_types::encode_structural_path(bytes, path);
                         }
-                        abstract_operations::StructuralCopyPath::Case(path) => {
+                        native_vocabulary::structural_stores::StructuralCopyPath::Case(path) => {
                             encode_len(bytes, path.len());
                             for segment in path {
                                 use semantic_vocabulary::CanonicalStructuralPathSegment;
@@ -1443,32 +1448,32 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
 
 fn encode_cleanup_calls(
     bytes: &mut Vec<u8>,
-    calls: &[(target_operations::CallSiteOwner, crate::LegalizedScalarCall)],
+    calls: &[(target_vocabulary::CallSiteOwner, crate::LegalizedScalarCall)],
 ) {
     encode_len(bytes, calls.len());
     for (owner, call) in calls {
         match owner {
-            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+            target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
                 bytes.push(3);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+            target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                 bytes.push(2);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::Operation(operation) => {
+            target_vocabulary::CallSiteOwner::Operation(operation) => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::Installation { operation, role } => {
+            target_vocabulary::CallSiteOwner::Installation { operation, role } => {
                 bytes.push(4);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                 bytes.push(match role {
-                    target_operations::InstallationCallRole::Validate => 0,
-                    target_operations::InstallationCallRole::Work => 1,
+                    target_vocabulary::InstallationCallRole::Validate => 0,
+                    target_vocabulary::InstallationCallRole::Work => 1,
                 });
             }
-            target_operations::CallSiteOwner::CleanupAction {
+            target_vocabulary::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
             } => {
@@ -1515,13 +1520,13 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_len(bytes, invocation.len());
             bytes.extend_from_slice(&invocation);
             match declared_result {
-                abstract_operations::AbstractFunctionResult::Unit => bytes.push(0),
-                abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                native_vocabulary::values::AbstractFunctionResult::Unit => bytes.push(0),
+                native_vocabulary::values::AbstractFunctionResult::Scalar(result) => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
                     encode_scalar_type(bytes, result.scalar_type);
                 }
-                abstract_operations::AbstractFunctionResult::Structural(result) => {
+                native_vocabulary::values::AbstractFunctionResult::Structural(result) => {
                     bytes.push(2);
                     super::structural::encode_result(bytes, result);
                 }
@@ -1550,11 +1555,11 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.push(1),
             }
             match binding {
-                target_operations::ExternalCompletionBinding::Boundary(binding) => {
+                target_vocabulary::ExternalCompletionBinding::Boundary(binding) => {
                     bytes.push(0);
                     super::calling::encode_binding(bytes, binding);
                 }
-                target_operations::ExternalCompletionBinding::Checked {
+                target_vocabulary::ExternalCompletionBinding::Checked {
                     callee,
                     origin,
                     call_plan,
@@ -1757,9 +1762,9 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
 
 fn encode_store_destination(
     bytes: &mut Vec<u8>,
-    destination: &abstract_operations::StructuralScalarStoreDestination,
+    destination: &native_vocabulary::structural_stores::StructuralScalarStoreDestination,
 ) {
-    use abstract_operations::StructuralScalarStoreDestination as Destination;
+    use native_vocabulary::structural_stores::StructuralScalarStoreDestination as Destination;
     match destination {
         Destination::Parameter(parameter) => {
             bytes.push(0);

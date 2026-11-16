@@ -22,7 +22,7 @@ use crate::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, NativeCallOrigin,
 };
 use calling_conventions::{EntryControl, ValueLocation, ValuePlacement, ValueShape};
-use optimization_unit::OwnershipEvent;
+use native_vocabulary::provenance::OwnershipEvent;
 use terminal_psi::{ClaimTransfer, StructuralMultiplicity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,14 +110,14 @@ impl LegalizedScalarCall {
             if previous.is_some_and(|previous| previous >= binding.argument_index)
                 || binding.argument_index != binding.input.runtime_position
                 || self.target
-                    != target_operations::NativeCallTarget::Machine(binding.input.machine)
+                    != target_vocabulary::NativeCallTarget::Machine(binding.input.machine)
                 || argument.access != binding.input.access
                 || argument.access == terminal_psi::StructuralAccess::Owned
                 || match &binding.association {
-                    target_operations::TargetAccessCallAssociation::Captured {
+                    target_vocabulary::TargetAccessCallAssociation::Captured {
                         carrier, ..
                     } => *carrier != argument.structural_type,
-                    target_operations::TargetAccessCallAssociation::CallerFormal(input) => {
+                    target_vocabulary::TargetAccessCallAssociation::CallerFormal(input) => {
                         input.carrier_identity != binding.input.carrier_identity
                             || input.view_identity != binding.input.view_identity
                             || input.policy_identity != binding.input.policy_identity
@@ -238,7 +238,7 @@ fn validate_call_source(
 fn validate_completion(
     call: &LegalizedScalarCall,
     ownership: &[OwnershipEvent],
-    claim_sources: &[abstract_operations::CompletionClaimSource],
+    claim_sources: &[native_vocabulary::completion_claims::CompletionClaimSource],
     receipts: &[terminal_psi::CompletionReceipt],
 ) -> Result<(), LegalizedCallSourceError> {
     let structural_count = call
@@ -365,9 +365,7 @@ impl LegalizedScalarInstruction {
         };
         self.result.is_none()
             && self.ownership
-                == [optimization_unit::OwnershipEvent::ClaimCompletion(
-                    Vec::new(),
-                )]
+                == [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(Vec::new())]
             && result.multiplicity == StructuralMultiplicity::Affine
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
@@ -414,7 +412,7 @@ mod tests {
                     structural_result: None,
                     source: crate::NativeCallOrigin::Authored,
                     claim_transfers: Vec::new(),
-                    target: target_operations::NativeCallTarget::Machine(
+                    target: target_vocabulary::NativeCallTarget::Machine(
                         semantic_vocabulary::MachineId::new(1).unwrap(),
                     ),
                     arguments: Vec::new(),

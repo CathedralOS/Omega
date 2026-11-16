@@ -59,7 +59,6 @@ nothing else: lowering never asks what a place holds.
 
 #[path = "places_contents.rs"]
 mod contents;
-pub(super) use contents::ContentDemand;
 
 use crate::body::Qualification;
 use semantic_vocabulary::{
@@ -71,7 +70,7 @@ use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::{ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
-    Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
+    Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId, Refusal, RefusalReason,
 };
 use terminal_psi::{
     NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
@@ -1195,7 +1194,16 @@ impl<'a> Lowering<'a> {
     /// Register a demanded scalar leaf. Logical identities are allocated in
     /// exact-place order after lowering, including leaves named only in clauses.
     fn initial_content(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<()> {
-        self.demand_content(leaf, scalar_type, false)
+        let index = usize::try_from(leaf.get() - 1)
+            .map_err(|_| self.internal("place identity exceeds the address space"))?;
+        if self.demanded_contents.len() <= index {
+            self.demanded_contents.resize(index + 1, None);
+        }
+        if self.demanded_contents[index].is_some_and(|previous| previous != scalar_type) {
+            return Err(self.internal("a demanded storage leaf has two scalar types"));
+        }
+        self.demanded_contents[index] = Some(scalar_type);
+        Ok(())
     }
 
     /// Register the storage leaves a use or type contract observes. Calls and
@@ -1514,11 +1522,16 @@ impl<'a> Lowering<'a> {
         } else {
             (Vec::new(), Vec::new())
         };
-        if held == whole && shown == displayed {
-            if !clauses.is_empty() {
+        let changes_memberships = held != whole || shown != displayed;
+        if !changes_memberships {
+            if clauses.is_empty() {
+                return self.located(operand);
+            }
+            // A byte view's qualification is a predicate over its backing
+            // bytes. The ordinary predicate edge proves it of the operand.
+            if !self.is_byte_sequence(record) || before == after {
                 return Err(self.internal("a cast that proves predicates adds no domain"));
             }
-            return self.located(operand);
         }
         let added: Vec<_> = whole
             .iter()
@@ -1575,7 +1588,7 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("cast subject place identity"))?;
             let mut predicate = Vec::with_capacity(clauses.len());
             for clause in clauses {
-                self.name_block_clause_contents(clause, &[(subject, exact)])?;
+                self.name_clause_contents(clause, &[(subject, exact)], None)?;
                 predicate.push(crate::canonical::substitute_parameters(
                     clause,
                     &[],
@@ -1596,24 +1609,27 @@ impl<'a> Lowering<'a> {
                 arrivals: Vec::new(),
             });
         }
-        let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
-            .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
+        let edge_ordinal = self.tables.edges.len() as u64 + 1;
         self.jump_with_structural(
             cast,
             Vec::new(),
             vec![StructuralArgument::whole(value, StructuralAccess::Owned)],
             expression.source,
         )?;
-        self.qualifications
-            .structural_changes
-            .push(terminal_psi::StructuralQualificationChange {
-                machine: id,
-                edge,
-                argument_ordinal: 0,
-                source: value,
-                destination: place,
-                establishments,
-            });
+        if changes_memberships {
+            let edge = semantic_vocabulary::EdgeId::new(edge_ordinal)
+                .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
+            self.qualifications.structural_changes.push(
+                terminal_psi::StructuralQualificationChange {
+                    machine: id,
+                    edge,
+                    argument_ordinal: 0,
+                    source: value,
+                    destination: place,
+                    establishments,
+                },
+            );
+        }
         self.enter(cast);
         Ok(Reached::Value(Located {
             root: place,
@@ -2031,7 +2047,18 @@ impl<'a> Lowering<'a> {
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
+                    access: match self.record_type(record)?.shape {
+                        StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(access),
+                            },
+                        )
+                        | StorageShape::ElementView {
+                            access: Some(access),
+                            ..
+                        } => access,
+                        _ => return Err(self.internal("a range lost its descriptor access")),
+                    },
                 };
                 let exact = self.exact_root(captured)?;
                 self.name_contents(exact, ValueType::record(record))?;

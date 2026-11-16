@@ -528,7 +528,7 @@ pub(crate) mod vocabulary {
 
         pub const fn get(self) -> u16 {
             // Float conversions retain integer inputs, results and exactness.
-            138
+            139
         }
     }
 }
