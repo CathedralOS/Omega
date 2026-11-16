@@ -318,6 +318,10 @@ pub struct AllocatedProgramRef<'program> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct AllocatedProgramFacts<'program> {
+    pub preservation: &'program AllocatedCalleeSavedRequirements,
+    pub environment: &'program register_environment::ValidatedTargetRegisterEnvironment,
+    pub selections: &'program optimization_core::OptimizationSelections,
+    pub budget: optimization_core::OptimizationWorkBudget,
     pub selected: CurrentSelectedProgram<'program>, // Current selected program
     pub effects: &'program Arc<PreAllocationMachineEffectPlan>, // Pre-allocation machine effects
     pub ranges: &'program LiveRangePlan,            // Live-range plan
@@ -327,11 +331,6 @@ pub struct AllocatedProgramFacts<'program> {
     pub homes: &'program RegisterHomePlan,          // Register-home plan
     pub homes_identity: RegisterHomeIdentity,       // Register-home plan identity
     pub manifest: &'program PostAllocationOptimizationManifest, // Post-allocation manifest
-}
-
-/// Keeps the allocation available to later forms without copying its plans.
-pub trait AllocatedProgramSource {
-    fn allocation_facts(&self) -> AllocatedProgramFacts<'_>;
 }
 
 identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }
@@ -670,6 +669,57 @@ impl AllocatedCalleeSavedRequirementPlan {
             .iter()
             .flat_map(|function| &function.modified_units)
     }
+}
+
+/// The allocation's settled preservation facts, without its executable graph.
+/// Later forms share this exact body and the identity its producer sealed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AllocatedCalleeSavedRequirements {
+    pub plan: Arc<AllocatedCalleeSavedRequirementPlan>,
+    pub identity: AllocatedCalleeSavedRequirementIdentity,
+}
+
+impl AllocatedCalleeSavedRequirements {
+    pub fn plan(&self) -> &AllocatedCalleeSavedRequirementPlan {
+        &self.plan
+    }
+
+    pub const fn identity(&self) -> AllocatedCalleeSavedRequirementIdentity {
+        self.identity
+    }
+}
+
+pub fn allocated_callee_saved_requirement_identity(
+    plan: &AllocatedCalleeSavedRequirementPlan,
+) -> AllocatedCalleeSavedRequirementIdentity {
+    let mut hasher =
+        digest_encoder::DomainDigestEncoder::new(b"omega.allocated-callee-saved-requirements.v2");
+    hasher.raw(&plan.selected.bytes());
+    hasher.raw(&plan.homes.bytes());
+    hasher.raw(&plan.post_allocation_manifest.bytes());
+    hasher.raw(&plan.register_environment.bytes());
+    hasher.raw(&plan.physical_register_model.bytes());
+    hasher.raw(&plan.target.identity_bytes());
+    hasher.byte(plan.abi.abi_tag());
+    register_model::sha256_register_units(&mut hasher, &plan.callee_saved_units);
+    hasher.byte(match plan.policy {
+        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1 => 0,
+    });
+    hasher.raw(&plan.budget.encode());
+    hasher.raw(&plan.usage.encode());
+    register_model::sha256_length(&mut hasher, plan.functions.len());
+    for function in &plan.functions {
+        hasher.raw(&function.machine.get().to_le_bytes());
+        register_model::sha256_length(&mut hasher, function.modified_units.len());
+        for requirement in &function.modified_units {
+            hasher.raw(&requirement.unit.0.to_le_bytes());
+            register_model::sha256_length(&mut hasher, requirement.witnesses.len());
+            for witness in &requirement.witnesses {
+                encode_callee_saved_modification_witness_identity(&mut hasher, *witness);
+            }
+        }
+    }
+    AllocatedCalleeSavedRequirementIdentity::from_bytes(hasher.finish())
 }
 
 pub mod codec {

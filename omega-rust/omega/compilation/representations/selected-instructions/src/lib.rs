@@ -142,9 +142,6 @@ pub use instructions::{
     SelectedInstructionKind, float_bit_transfer_properties, ieee_float_arithmetic_is_trapping,
     instruction_position, is_float_bit_transfer,
 };
-pub use legalized_operations::{
-    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
-};
 pub use live_ranges::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
@@ -163,6 +160,9 @@ pub use provenance::SelectedInstructionProvenance;
 pub use structural_case::{
     SelectedCaseDispatchSource, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
     SelectedStructuralCaseEdge,
+};
+pub use target_vocabulary::{
+    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };
 pub use terminal_psi::{
     ByteSequencePredicate, ControlRegister, GlobalDescriptorTableOperation, InterruptControlKind,

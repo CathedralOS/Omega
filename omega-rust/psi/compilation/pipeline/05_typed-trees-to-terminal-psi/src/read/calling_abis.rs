@@ -397,7 +397,7 @@ impl Program<'_> {
         previous.ok_or_else(|| "calling ABI has no retained source storage projection".into())
     }
 
-    fn calling_abi_storage(
+    pub(super) fn calling_abi_storage(
         &mut self,
         entry: MachineId,
         reference: TypeReferenceHandle,

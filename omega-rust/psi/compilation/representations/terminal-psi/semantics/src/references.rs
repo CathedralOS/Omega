@@ -4213,6 +4213,9 @@ pub(crate) mod reference_storage_geometry {
                             return Err(StorageGeometryError::InvalidRecordStorage(root));
                         };
                         let element_count = match length {
+                            terminal_psi::ArrayExtent::Parameter { .. } => {
+                                return Err(StorageGeometryError::UnresolvedLayout(array));
+                            }
                             terminal_psi::ArrayExtent::Literal(count) => *count,
                             terminal_psi::ArrayExtent::Application(application) => {
                                 (self.extents)(*application)?
@@ -4367,6 +4370,7 @@ pub(crate) mod reference_storage_geometry {
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let length = match length {
+                    terminal_psi::ArrayExtent::Parameter { .. } => None,
                     terminal_psi::ArrayExtent::Literal(length) => Some(*length),
                     terminal_psi::ArrayExtent::Application(application) => extents(*application)?,
                 };

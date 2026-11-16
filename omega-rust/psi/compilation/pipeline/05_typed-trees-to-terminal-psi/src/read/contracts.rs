@@ -280,15 +280,9 @@ impl Program<'_> {
             return logical.membership_clause(self, scope, membership).map(Some);
         }
         let expression = self.fact(id, fact)?;
-        let (nothing, operators) = self.states_nothing(id, expression, requirement)?;
-        if !operators.is_empty() {
+        if self.states_nothing(id, expression, requirement)? {
             let owner = self.contract_operator_owner(id, scope)?;
-            self.complete_type_clause_operators(
-                id,
-                operators.into_iter().map(|expression| (owner, expression)),
-            )?;
-        }
-        if nothing {
+            let _ = self.read_static_truth(id, owner, expression, super::types::Reading::Clause)?;
             return Ok(None);
         }
         Ok(Some((
@@ -832,7 +826,8 @@ impl Program<'_> {
                 | ExpressionNode::Unary(_)
                 | ExpressionNode::Binary(_)
         ) {
-            match self.clause_truth(expression) {
+            let owner = self.contract_operator_owner(id, scope)?;
+            match self.read_static_truth(id, owner, expression, super::types::Reading::Clause)? {
                 Some(TypeTruth::Known(truth)) => {
                     return Ok((
                         ScalarTerm::Boolean(truth),

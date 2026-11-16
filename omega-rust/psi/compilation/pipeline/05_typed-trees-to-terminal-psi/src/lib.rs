@@ -936,6 +936,9 @@ fn finish_logical_witness<'source>(
         Some(program.typed),
         Some(&program),
     )?;
+    // Abstract ceilings still name real applied services. Retain their exact
+    // declarations without deriving executable reach from the synthetic body.
+    witness.program.reach.names = services.publish(entry, &mut witness.program.module)?;
     witness.source.records = program.source_record_correspondence(entry)?;
     witness.program.machines = program.symbols;
     witness.program.names = program.names;
@@ -1159,7 +1162,18 @@ fn finish_reading_into<'source>(
         elaboration
             .undeclared
             .sort_unstable_by_key(|(machine, _)| *machine);
+        let mut requirements = elaboration.requirements.clone();
+        requirements.sort_unstable();
         for slot in &mut elaboration.module.callables.machine_envelopes {
+            // A bodyless requirement retains its exact abstract ceiling in
+            // requirement_ceilings, not a named executable declaration.
+            if slot
+                .as_ref()
+                .is_some_and(|row| requirements.binary_search(&row.machine).is_ok())
+            {
+                *slot = None;
+                continue;
+            }
             if slot.as_ref().is_some_and(|row| {
                 elaboration
                     .undeclared

@@ -759,7 +759,7 @@ fn machine(
     // Certificates next; a published clause is then decided from its exits.
     // A machine stage 04 generated takes each one its generic form proved,
     // and searches only where none is carried (`discharge_carrying`).
-    let carrier = carried.and_then(|carried| carried.carrier(tables, lowered));
+    let carrier = carried.and_then(|carried| carried.carrier(tables, lowered, module));
     let mut layout_conditions = module
         .layout_call_conditions(lowered)
         .map_err(|detail| {

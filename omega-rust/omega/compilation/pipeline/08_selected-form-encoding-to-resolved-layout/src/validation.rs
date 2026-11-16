@@ -50,7 +50,7 @@ pub(crate) fn validate(
     {
         return Err(Error::RootMismatch);
     }
-    let expected_policy = select(selected_plan)?;
+    let expected_policy = select(&selected_plan.functions)?;
     validate_roots(
         selected,
         machine,

@@ -780,7 +780,7 @@ impl Program<'_> {
         let borrowed = matches!(
             self.data_type(id, collection)?.shape,
             crate::StorageShape::ElementView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                access: Some(_),
                 ..
             }
         );

@@ -1,107 +1,157 @@
 # Rust compiler completion
 
-Temporary acceptance plan for finishing the Rust reference compiler before
-resuming Omega self-hosting. All six gates and four hosted runs below remain
-required; this document does not claim they pass. Delete the plan after closure,
-retaining the release evidence and maintained regression gates with their owners.
-It defines readiness for this migration, not language semantics or routine
-development landing requirements.
+Finish the Rust reference compiler against the accepted language and toolchain
+contracts, then resume Omega self-hosting. All six gates below must pass on the
+same source revision across the four hosted targets. This document specifies the
+checks; it does not claim they pass.
+
+This is release validation, not the test scope for every pull request. Routine
+repairs follow the focused [sample loop](../../../AGENTS.md#the-sample-loop).
+Use existing crate tests, kept fixtures and sample tooling. Do not recreate a
+fixture corpus, persistent results ledger or second task board.
 
 ## Scope
 
-This contract covers the Rust implementation from authored `.omg` source
-through the lowered-form checker, canonical Terminal Psi, and the four hosted native
-products required for completion:
+The product compiles authored `.omg` source through the lowered-form checker and
+Psi publication to hosted native execution on Linux x86-64, Linux AArch64,
+macOS AArch64 and Windows x86-64.
 
-- Linux x86-64;
-- Linux AArch64;
-- macOS AArch64; and
-- Windows x86-64.
+The accepted surface is defined by the [specification and guide](../../README.md),
+not whatever the compiler happens to accept. Unsupported constructs are honest
+implementation refusals, not a reduction in the promised completion surface.
+A narrower release scope requires an explicit owner decision. Unaccepted
+proposals are not required features.
 
-Freestanding EFI work remains a separately stated target milestone until it is
-promoted into this hosted matrix. Optimization quality, the Alpha-through-Epsilon
-bootstrap implementations, and the Omega-written compiler are separate
-programs of work. They cannot compensate for a failed row here, and unfinished
-bootstrap work does not by itself keep a passing Rust product open.
-
-The accepted surface is defined by the [specification and guide](../README.md),
-not inferred from what the compiler happens to accept. Every accepted feature
-needs exercising positive, negative, and runtime fixtures as appropriate. An
-implementation fence rejects explicitly and cannot silently reduce the promised
-completion surface. Unaccepted experiments are not counted as accepted features.
+Freestanding EFI, optimization quality, the bootstrap chain and the Omega-written
+compiler are separate work. They cannot compensate for a failed hosted gate and
+do not silently become prerequisites for it. The Rust implementation remains an
+independent comparison compiler after self-hosting resumes.
 
 ## Release matrix
 
-| Gate | Capability that must be true | Automated invocation |
+| Gate | Required result | Evidence source |
 | --- | --- | --- |
-| `RC-REPOSITORY` | The pinned toolchain formats, lints, type-checks, and preserves architectural dependency boundaries. | The baseline command block below. |
-| `RC-SOURCE-SEMANTICS` | Every accepted positive fixture reaches its promised checked or product stage; every negative fixture rejects; individual semantic integration tests pass. | None: the corpus gate was deleted (below). |
-| `RC-BUILD-AND-PACKAGES` | Build declarations, immutable inputs, package identities, reviewed evidence, resolution, and compilation handoff agree without path/name inference or hidden ambient mutation. | The package/build command block below. |
-| `RC-NATIVE-MATRIX` | Each hosted target produces independently validated machine code, object/image bytes, ABI behavior, provider settlement, and observable execution on its matching host. | None: the corpus gate was deleted (below). `mbx xtask sample-gate` covers the samples on each required host in the platform table below. |
-| `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | None: the corpus gate was deleted (below). |
-| `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample is accepted by the lowered-form checker; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx xtask sample-gate` on every required host. |
+| `RC-REPOSITORY` | Formatting, lint, compilation and architectural dependency rules pass. | Repository commands below. |
+| `RC-SOURCE-SEMANTICS` | Accepted features have exercising positive and negative tests. Valid source reaches its promised stage; invalid source fails at the intended obligation. | Workspace library and integration tests and the fixtures they actually read. Missing coverage remains open. |
+| `RC-BUILD-AND-PACKAGES` | Build, immutable inputs, package identity, review, resolution and compilation handoff agree without hidden authority or name-based reconstruction. | Package/build tests and the relevant workspace integration tests. |
+| `RC-NATIVE-MATRIX` | Required targets produce independently validated calling/ABI behavior and machine/object/image bytes, with matching-host native observations. | Target and independent-validator tests, plus native/Psi sample runs on each required host. |
+| `RC-DIAGNOSTICS` | Rejections report stable, actionable diagnostics rather than panic, an unrelated unsupported construct or accidental acceptance. | Diagnostic/rejection tests and the sample gate's pinned rejection results. |
+| `RC-REPRESENTATIVE-PROGRAMS` | Maintained samples check; authored hosted entries produce native products; documented deterministic exit/output oracles pass. | Unfiltered `sample-gate` on each required host, with result categories inspected. |
 
-The corpus gates this table named no longer exist: the
-fixture corpus and its gates were deleted on the owner's ruling of 2026-11-13
-(`tests/README.md`). Until the owner restates these gates, their evidence is the
-Rust tests of the crates involved, the kept programs under `tests/fixtures/`
-and `samples/`.
+One run may supply several gates. Passing available tests does not establish a
+feature they never exercise. Add or repair focused coverage at its owner rather
+than creating another repository-wide inventory. Retain the actual commands and
+selected test sets with the release evidence; an empty or filtered run cannot
+stand in for full coverage.
 
-`RC-REPOSITORY` is:
+## Commands
 
-```bash
+Run from a clean checkout with the pinned toolchain and the host budget in
+[testing prerequisites](../../../AGENTS.md#commands). These are existing commands,
+not a new corpus runner.
+
+Repository checks:
+
+```text
 mbx xtask fmt --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx check --workspace --all-targets
-mbx nextest run --workspace --lib --no-fail-fast
+mbx xtask check-boundary
 ```
 
-`RC-BUILD-AND-PACKAGES` is:
+Library and integration tests:
+
+```text
+mbx nextest run --workspace --no-fail-fast
+```
+
+Do not limit the release run to `--lib`: compiler integration tests own source,
+publication and diagnostic controls too. Nextest does not run doctests. Package
+and Build checks, including the separate doctest run, are:
 
 ```text
 mbx nextest run -p build-declarations -p source-acquisition -p resolver-execution --no-fail-fast
 mbx test --doc -p build-declarations -p source-acquisition -p resolver-execution
 ```
 
-Commands work in PowerShell and a POSIX shell as written; follow
-[testing prerequisites](../../../AGENTS.md#commands).
-Unset canary/sample filters for release coverage and retain the exact selected
-test set. Nextest does not run doctests; the separate invocations above preserve
-that coverage. A filtered or empty run cannot satisfy a full gate.
+On each matching hosted runner:
+
+```text
+mbx xtask sample-gate
+```
+
+Unset filters and retain the discovered sample set. The existing `--out` option
+may write a requested result file with that run's evidence. `checked`,
+`no-oracle` and `not-host-runnable` are not native execution passes. A library or
+check-only sample needs its declared check result; a runnable sample with an
+oracle needs actual execution. An intended-invalid program must reach its
+stated rejection, not just fail for some other reason.
+
+These commands exercise maintained coverage. They do not turn unexpected skips,
+unavailable validators or missing accepted features into successful evidence.
+
+## Integration and trust checks
+
+Complete original customers rather than isolated demonstrations. Allocation and
+collection delivery must establish backing, create and lend elements, end loans,
+handle failed growth, dispose of contained values and return backing. The
+[allocation contract](../../spec/resources/allocation.md) and its existing task
+own this lifecycle; there is no second collection API here.
+
+Early computations use the ordinary checked evaluation route with their actual
+dependencies. A syntax evaluator or convenient pass order cannot replace a
+missing constant, selected operation or target fact. See
+[semantic evaluation](../../spec/language/evaluation.md).
+
+The [automatic proof floor](../../spec/proofs/contracts.md#required-automatic-discharge)
+is part of source conformance. Its goals need no hint or increased search
+allowance. Exercise the specified `--floor-only` behavior; missing required
+reasoning or an unimplemented option leaves the relevant gate open.
+
+Publication repairs exercise a separately consumed artifact without the
+producer's live source objects. Preserve exact applications, borrowed subjects,
+writes and evidence dependencies. Negative controls alter the relevant claim or
+association and fail at its owning boundary. Native/Psi agreement cannot detect
+source-meaning errors already shared by both routes; expected-result, rejection
+and applicable independent-validator tests remain necessary.
+
+A repair should generalize across ordinary uses of the same operation. Choose a
+small witness exposing the mechanism's assumption, such as a loan forwarded
+through a generic helper and a published contract. Do not make a separate
+producer or exhaustive placement matrix for every source shape.
+
+Release-facing examples must agree with current rules and have owning tests for
+the behavior they advertise. Invalid examples need the advertised rejection.
+A documentation edit is not execution evidence.
 
 ## Required platform runs
 
 | Runner | Product identity | Required native observation |
 | --- | --- | --- |
-| Linux x86-64 | `linux_x86_64` | Directly execute the emitted ELF x86-64 programs. |
-| Linux AArch64 | `linux_arm64` | Directly execute the emitted ELF AArch64 programs. Emulation is acceptable only when the release record names the emulator and version. |
-| macOS AArch64 | `macos_arm64` | Directly execute the emitted Mach-O AArch64 programs. |
-| Windows x86-64 | `windows_x86_64` | Directly execute the emitted PE x86-64 programs. |
+| Linux x86-64 | `linux_x86_64` | Execute emitted ELF x86-64 programs. |
+| Linux AArch64 | `linux_arm64` | Execute emitted ELF AArch64 programs. Permitted emulation must name the emulator and version. |
+| macOS AArch64 | `macos_arm64` | Execute emitted Mach-O AArch64 programs. |
+| Windows x86-64 | `windows_x86_64` | Execute emitted PE x86-64 programs. |
 
-Cross-target byte generation on a different host is useful coverage but cannot
-replace matching-host execution. A platform test may skip only when it is
-irrelevant to that runner. A missing runner, unavailable runtime dependency,
-unexpected ignored test, timeout, or resource exhaustion leaves the row open;
-it is not a pass.
+Cross-target byte generation does not replace matching-host execution. A
+platform-specific test may be inapplicable elsewhere; a missing runner,
+unavailable engine, unexpected ignored test, timeout or exhausted resources
+leaves a required result open. State expected exclusions beside the result,
+not in an averaged pass percentage.
 
 ## Closure rule
 
-The contract closes only when all six named gates pass from a clean checkout
-of the same commit and all four required platform runs are recorded. The
-release record must contain the commit, pinned Rust toolchain, host OS and
-architecture, commands, results, elapsed time, and the exact list of expected
-skips. There is no partial percentage and no averaging between rows.
+All six gates close only for one clean revision with the required hosted runs.
+Record the commit, pinned toolchain, OS/architecture, commands, selected tests,
+results, elapsed time and expected exclusions with that release's evidence.
+Keep measurements tied to their actual source and host. Git holds superseded
+runs and decisions, not current instructions.
 
-Any accepted language or product change must exercise an existing gate, or
-deliberately revise this finite matrix in the same change. Adding a crate,
-an evidence carrier, or an isolated unit test without exercising a matrix
-capability is not completion progress.
+A regression reopens its gate. A prohibitively slow, flaky or routinely
+resource-exhausting gate stays open until repaired or replaced by equal or
+stronger deterministic coverage. Do not silently narrow the accepted surface,
+weaken a check or mark an unavailable check passed.
 
-A regression reopens its row. A flaky, prohibitively slow, or routinely
-resource-exhausting gate is also open until repaired or replaced by equal or
-stronger deterministic coverage. Deleting or weakening a gate requires an
-explicit contract revision; it cannot be treated as a successful run.
-
-Once every row closes, remaining Rust work is maintenance and differential-
-compiler support. Self-hosting may resume without deleting the Rust compiler:
-the maintained Rust implementation remains an independent comparison compiler.
+Current work stays in [TASKS.md](../../../TASKS.md). Delete this temporary plan
+after closure, retaining the maintained tests and completed product's evidence
+with their owners.

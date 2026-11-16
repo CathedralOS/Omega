@@ -7,7 +7,6 @@ Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v109
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
 use native_vocabulary::provenance::{
     EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement,
 };
@@ -33,6 +32,7 @@ use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralDomainId, StructuralFieldId, StructuralTypeId,
     ValueId, WorkScheduleIdentity,
 };
+use target_vocabulary::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
 use terminal_psi::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, NominalDeclarationIdentity, SemanticFingerprint,
     TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
@@ -1565,7 +1565,7 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
 
 #[test]
 fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identity() {
-    use legalized_operations::LegalizedDescriptorOrigin as Origin;
+    use target_vocabulary::LegalizedDescriptorOrigin as Origin;
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let mut function = structural_function();
     function.calls[0].call.descriptor_origins = vec![

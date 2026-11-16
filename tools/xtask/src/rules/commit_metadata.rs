@@ -18,6 +18,7 @@ const SUBJECT_LIMIT: usize = 85;
 const AGENT_NAMES: &[&str] = &[
     "Claude Code",
     "Codex",
+    "ChatGPT",
     "Cursor",
     "Devin",
     "Antigravity",
@@ -178,4 +179,29 @@ pub(super) fn spec_violations(title: &str, body: &str, root: &Path) -> Vec<Strin
         }
     }
     violations
+}
+
+#[cfg(test)]
+mod tests {
+    use super::provenance_violations;
+
+    #[test]
+    fn chatgpt_provenance_keeps_its_actual_agent_name() {
+        let body = "Summary\n\nAgent: ChatGPT | Model: unavailable | Effort: unavailable | Tokens: unavailable in (unavailable cached), unavailable out | Steps: unavailable | Time: unavailable | Steers: unavailable\n";
+        assert!(provenance_violations(body).is_empty());
+    }
+
+    #[test]
+    fn missing_unknown_and_near_match_agent_names_still_reject() {
+        for body in [
+            "Summary without an agent line\n",
+            "Agent: \n",
+            "Agent: Unknown | Model: unavailable\n",
+            "Agent: ChatGPT-other | Model: unavailable\n",
+            "Agent: chatgpt | Model: unavailable\n",
+            "Summary mentions Agent: ChatGPT\n",
+        ] {
+            assert!(!provenance_violations(body).is_empty(), "{body:?}");
+        }
+    }
 }

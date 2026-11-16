@@ -70,27 +70,7 @@ impl Program<'_> {
     /// The predicates of every declared domain in `qualification`, in the
     /// domains' order and each domain's authored order. A clause that says
     /// nothing (`requires true`) is left out.
-    fn predicates(
-        &mut self,
-        id: MachineId,
-        qualification: Qualification,
-    ) -> Checked<Vec<Predicate>> {
-        let mut operators = Vec::new();
-        let predicates = self.predicate_rows(id, qualification, &mut |owner, expressions| {
-            operators.extend(expressions.iter().map(|expression| (owner, *expression)));
-        })?;
-        self.complete_type_clause_operators(id, operators)?;
-        Ok(predicates)
-    }
-
-    // Diagnostic rendering borrows this same query without publishing reads.
-    // Only the semantic consumer above completes source questions.
-    fn predicate_rows(
-        &self,
-        id: MachineId,
-        qualification: Qualification,
-        read: &mut impl FnMut(SymbolHandle, &[ExpressionHandle]),
-    ) -> Checked<Vec<Predicate>> {
+    fn predicates(&self, id: MachineId, qualification: Qualification) -> Checked<Vec<Predicate>> {
         let mut predicates = Vec::new();
         for domain in qualification.domains.members() {
             let definition = self.domain_theory(id, domain)?;
@@ -105,9 +85,7 @@ impl Program<'_> {
             )?;
             for fact in facts {
                 let expression = self.fact(id, fact)?;
-                let (nothing, operators) = self.states_nothing(id, expression, false)?;
-                read(definition.symbol, &operators);
-                if !nothing {
+                if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
                         instance: domain,
                         owner: definition.symbol,
@@ -454,7 +432,7 @@ impl Program<'_> {
     /// diagnostic.
     fn stated(&self, id: MachineId, added: Qualification) -> Checked<String> {
         Ok(self
-            .predicate_rows(id, added, &mut |_, _| {})?
+            .predicates(id, added)?
             .iter()
             .map(|predicate| {
                 format!(

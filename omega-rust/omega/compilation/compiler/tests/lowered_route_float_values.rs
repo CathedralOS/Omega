@@ -20,12 +20,26 @@ fn receiving_error(module: terminal_psi::TerminalModule) -> String {
 
 #[test]
 fn wide_float_integer_conversions_publish_all_result_policies() {
+    assert_integer_conversion_policies("wide_integer_conversion", 64);
+}
+
+#[test]
+fn byte_float_integer_conversions_publish_all_result_policies() {
+    assert_integer_conversion_policies("byte_integer_conversion", 8);
+}
+
+#[test]
+fn i16_u16_float_integer_conversions_publish_all_result_policies() {
+    assert_integer_conversion_policies("i16_u16_conversion", 16);
+}
+
+fn assert_integer_conversion_policies(fixture: &str, width: u64) {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{BoundaryRequirementKind, Proposition, ScalarQualificationSetId};
-            let main = repository().join("tests/fixtures/run/float/wide_integer_conversion/main.omg");
+            let main = repository().join(format!("tests/fixtures/run/float/{fixture}/main.omg"));
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -36,7 +50,7 @@ fn wide_float_integer_conversions_publish_all_result_policies() {
             ).unwrap();
             let module = reopened.module();
             for source in [NumericType::F32, NumericType::F64] {
-                for target in [FixedInteger::signed(64), FixedInteger::unsigned(64)] {
+                for target in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
                     for domain in [ArithmeticDomain::Exact, ArithmeticDomain::Trapping, ArithmeticDomain::Saturating] {
                         let meaning = NumericIntrinsic::Conversion {
                             source, target: NumericType::Integer(target), domain,
@@ -49,7 +63,7 @@ fn wide_float_integer_conversions_publish_all_result_policies() {
                         };
                         relation.validate().unwrap();
                         let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
-                            panic!("64-bit scalar result");
+                            panic!("integer scalar result");
                         };
                         assert_eq!(result.qualifications == ScalarQualificationSetId::ZERO, domain == ArithmeticDomain::Exact);
                         assert_eq!(boundary.scalar_requires.len(), if domain == ArithmeticDomain::Exact {3} else {0});
@@ -57,7 +71,7 @@ fn wide_float_integer_conversions_publish_all_result_policies() {
                     }
                 }
             }
-            let invalid = repository().join("tests/fixtures/fail/float/wide_integer_conversion/main.omg");
+            let invalid = repository().join(format!("tests/fixtures/fail/float/{fixture}/main.omg"));
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -1634,6 +1648,84 @@ fn wide_float_integer_bad_inputs_crash_at_the_named_boundary() {
                 "1.0f64 / 0.0f64",
                 NumericType::F64,
                 FixedInteger::unsigned(64),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn byte_float_integer_bad_inputs_crash_at_the_named_boundary() {
+    use language_semantics::numeric_intrinsics::NumericType;
+    use numerics::integer_carrier::FixedInteger;
+    assert_bad_integer_conversion_inputs(
+        "byte_integer_conversion",
+        &[
+            (
+                "nan",
+                "signed32_trapping",
+                "0.0f32 / 0.0f32",
+                NumericType::F32,
+                FixedInteger::signed(8),
+            ),
+            (
+                "overflow",
+                "signed64_trapping",
+                "128.0f64",
+                NumericType::F64,
+                FixedInteger::signed(8),
+            ),
+            (
+                "negative",
+                "unsigned32_trapping",
+                "-1.0f32",
+                NumericType::F32,
+                FixedInteger::unsigned(8),
+            ),
+            (
+                "infinity",
+                "unsigned64_trapping",
+                "1.0f64 / 0.0f64",
+                NumericType::F64,
+                FixedInteger::unsigned(8),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn i16_u16_float_integer_bad_inputs_crash_at_the_named_boundary() {
+    use language_semantics::numeric_intrinsics::NumericType;
+    use numerics::integer_carrier::FixedInteger;
+    assert_bad_integer_conversion_inputs(
+        "i16_u16_conversion",
+        &[
+            (
+                "nan",
+                "signed32_trapping",
+                "0.0f32 / 0.0f32",
+                NumericType::F32,
+                FixedInteger::signed(16),
+            ),
+            (
+                "overflow",
+                "signed64_trapping",
+                "32768.0f64",
+                NumericType::F64,
+                FixedInteger::signed(16),
+            ),
+            (
+                "negative",
+                "unsigned32_trapping",
+                "-1.0f32",
+                NumericType::F32,
+                FixedInteger::unsigned(16),
+            ),
+            (
+                "infinity",
+                "unsigned64_trapping",
+                "1.0f64 / 0.0f64",
+                NumericType::F64,
+                FixedInteger::unsigned(16),
             ),
         ],
     );

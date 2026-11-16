@@ -20,6 +20,8 @@ mod carriers {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
+        pub(crate) installation_authority:
+            std::sync::Arc<provider_admission::BoundInstallationAuthority>,
         pub(crate) program_contracts:
             std::sync::Arc<selected_instructions::SelectedProgramContracts>,
         pub(crate) projected: crate::object::function_fragments::ProjectedObject,
@@ -153,11 +155,10 @@ mod carriers {
                 .source();
             Some(NativeInstructionSourceRows {
                 frame_application: source.fragment_replay.as_ref()?.0.source().source(),
-                selected: current.selected_plan(),
+                selected: current.physical_program(),
                 physical: current
-                    .machine()
-                    .machine()
-                    .plan()
+                    .physical_program()
+                    .machine
                     .functions
                     .iter()
                     .flat_map(|function| {
@@ -172,15 +173,7 @@ mod carriers {
         pub(crate) fn installed_entry_execution(
             &self,
         ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
-            self.fragment_replay
-                .as_ref()?
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .installed_entry_execution()
+            self.installation_authority.installed_entry_execution()
         }
 
         pub fn installation_environment_assumptions(
@@ -191,12 +184,14 @@ mod carriers {
                 rows: &mut Vec<&'a installation_evidence::InstallationEnvironmentAssumption>,
             ) {
                 let source = object.composition_source.as_deref().unwrap_or(object);
-                if let Some(replay) = &source.fragment_replay {
-                    for scope in replay.0.lowering_facts().installed_interrupts().scopes() {
-                        for assumption in scope.installation_assumptions() {
-                            if !rows.contains(&assumption) {
-                                rows.push(assumption);
-                            }
+                for scope in source
+                    .installation_authority
+                    .installed_interrupts()
+                    .scopes()
+                {
+                    for assumption in scope.installation_assumptions() {
+                        if !rows.contains(&assumption) {
+                            rows.push(assumption);
                         }
                     }
                 }
@@ -363,7 +358,7 @@ mod carriers {
 
     pub struct NativeInstructionSourceRows<'a> {
         pub frame_application: &'a machine_emission::StagedFunctionFragmentFrameApplication,
-        pub selected: &'a selected_instructions::SelectedInstructionPlan,
+        pub selected: &'a post_allocation_machine::PostAllocationMachineProgram,
         pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
     }
 
@@ -1136,9 +1131,7 @@ pub(crate) mod installed_stack {
         use selected_instructions::{
             MachineEncodedTrapBehavior as Trap, SelectedInstructionKind as Kind,
         };
-        use selected_instructions::{
-            SelectedInstruction, SelectedInstructionId, SelectedInstructionPlan,
-        };
+        use selected_instructions::{SelectedInstruction, SelectedInstructionId};
         use semantic_vocabulary::MachineId;
         mod ram {
             use crate::FunctionFragmentObjectArtifactError as Error;
@@ -1146,13 +1139,12 @@ pub(crate) mod installed_stack {
             use provider_admission::{
                 AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort,
             };
-            use selected_instructions::SelectedInstructionPlan;
             use semantic_vocabulary::MachineId;
             use target_operations::{CallSiteOwner, NativeCallTarget};
 
             pub(super) fn validate(
                 source: &AbstractOperationPlan,
-                selected: &SelectedInstructionPlan,
+                selected: &post_allocation_machine::PostAllocationMachineProgram,
                 cohort: &AdmittedInstalledInterruptCohort,
                 execution: &AdmittedInstalledEntryExecution,
                 machines: &[MachineId],
@@ -1189,7 +1181,7 @@ pub(crate) mod installed_stack {
                         "installed RAM helper identity is duplicated",
                     ));
                 }
-                for function in &selected.functions {
+                for function in selected.functions.iter() {
                     let body = bodies
                         .binary_search_by_key(&function.machine, |body| body.machine)
                         .ok()
@@ -1276,8 +1268,8 @@ pub(crate) mod installed_stack {
                 "installed fault analysis requires the exact retained native pipeline",
             ))?;
             let current = replay.0.source().source().source().source();
-            let selected = current.selected_plan();
-            let physical = current.machine().machine().plan();
+            let selected = current.physical_program();
+            let physical = &current.physical_program().machine;
             if selected.psi != body.psi()
                 || selected.entry != body.entry()
                 || physical.target != body.target()
@@ -1314,10 +1306,7 @@ pub(crate) mod installed_stack {
             ram::validate(
                 current.optimized_target().optimized().plan(),
                 selected,
-                current
-                    .optimized_target()
-                    .lowering_facts()
-                    .installed_interrupts(),
+                body.installation_authority.installed_interrupts(),
                 execution,
                 &machines,
             )?;
@@ -1435,7 +1424,7 @@ pub(crate) mod installed_stack {
         }
 
         pub fn correlate_native_instruction_sources(
-            selected: &SelectedInstructionPlan,
+            selected: &post_allocation_machine::PostAllocationMachineProgram,
             physical: impl IntoIterator<Item = (MachineId, SelectedInstructionId)>,
         ) -> Result<Vec<(MachineId, &SelectedInstruction)>, Error> {
             let mut instructions: Vec<_> = selected
@@ -1568,18 +1557,9 @@ pub(crate) mod installed_stack {
         }
         for body in std::iter::once(root).chain(private_objects.iter().map(|row| row.body.as_ref()))
         {
-            let Some(replay) = &body.fragment_replay else {
-                continue;
-            };
-            let target = replay
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target();
+            let authority = &body.installation_authority;
             let mut actual_requirements = Vec::new();
-            for expected in target.installed_stack_requirements() {
+            for expected in authority.installed_stack_requirements() {
                 let identity = function_identity::MachineFunctionIdentity::callback_thunk(
                     expected.psi,
                     expected.placement_index,
@@ -1600,7 +1580,7 @@ pub(crate) mod installed_stack {
                     expected.operation,
                 )?);
             }
-            for scope in target.lowering_facts().installed_interrupts().scopes() {
+            for scope in authority.installed_interrupts().scopes() {
                 let first =
                     actual_requirements.partition_point(|row| row.operation < scope.operation());
                 let last =
@@ -1608,14 +1588,13 @@ pub(crate) mod installed_stack {
                 if first == last {
                     continue;
                 }
-                let entries: Vec<_> = target
-                    .lowering_facts()
+                let entries: Vec<_> = authority
                     .installed_interrupts()
                     .entries()
                     .iter()
                     .filter(|entry| entry.operation == scope.operation())
                     .collect();
-                let proposed_root = target.installed_stack_requirements()[first]
+                let proposed_root = authority.installed_stack_requirements()[first]
                     .arrival
                     .as_ref()
                     .map(|arrival| arrival.physical_entry);
@@ -1633,7 +1612,7 @@ pub(crate) mod installed_stack {
                     proposed_root,
                 )?;
             }
-            if actual_requirements != target.installed_stack_requirements() {
+            if actual_requirements != authority.installed_stack_requirements() {
                 return Err(Error::Mismatch(
                     "installed stack guard differs from final body and complete arrival demand",
                 ));
@@ -1659,17 +1638,7 @@ pub(crate) mod installed_stack {
                 .iter()
                 .map(|entry| entry.body.as_ref()),
         ) {
-            let Some(replay) = &body.fragment_replay else {
-                continue;
-            };
-            let target = replay
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target();
-            for requirement in target.installed_stack_requirements() {
+            for requirement in body.installation_authority.installed_stack_requirements() {
                 let Some(arrival) = &requirement.arrival else {
                     continue;
                 };
@@ -1698,15 +1667,8 @@ pub(crate) mod installed_stack {
                     .iter()
                     .map(|entry| entry.body.as_ref()),
             )
-            .filter_map(|body| body.fragment_replay.as_ref())
-            .any(|replay| {
-                replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target()
+            .any(|body| {
+                body.installation_authority
                     .installed_stack_requirements()
                     .iter()
                     .any(|row| row.arrival.is_some())
@@ -1985,11 +1947,11 @@ mod normalized_foreign_calls {
         let section = source.source().text_section();
         let emissions = source.source().source().source().source();
         let optimized = emissions.optimized_target();
-        let selected = emissions.selected_plan();
+        let selected = emissions.physical_program();
         let layout = emissions.frame_layout();
         let architecture = source.source().source().fragments().target.architecture;
         let mut custody = Vec::new();
-        for function in &selected.functions {
+        for function in selected.functions.iter() {
             let fragment =
                 caller_fragment(section, function.machine).ok_or(ObjectError::TextSizeOverflow)?;
             if function.normalized_foreign_calls.is_empty() {

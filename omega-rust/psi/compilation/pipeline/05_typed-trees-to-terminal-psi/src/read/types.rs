@@ -25,6 +25,23 @@ pub(super) enum TypeTruth {
     Open,
 }
 
+/// One operator the static evaluator decided in this source scope. Callee
+/// contract expressions never acquire the caller's occurrence ownership.
+pub(super) struct StaticOperatorRead {
+    expression: ExpressionHandle,
+    type_equation: bool,
+}
+
+impl StaticOperatorRead {
+    pub(super) fn expression(&self) -> ExpressionHandle {
+        self.expression
+    }
+
+    pub(super) fn is_type_equation(&self) -> bool {
+        self.type_equation
+    }
+}
+
 /// The refusal of a value its rigid type parameter's premises leave open:
 /// the body would need to be read once per carrier family, which no reading
 /// does yet.
@@ -343,17 +360,25 @@ impl Program<'_> {
                     return unserved("integer width without an owned const binder");
                 };
                 let key = (symbol.arena_index(), symbol.generation());
-                let Ok(position) = self.width_scope.binary_search_by_key(&key, |binding| {
+                let Ok(position) = self.const_scope.binary_search_by_key(&key, |binding| {
                     (binding.symbol.arena_index(), binding.symbol.generation())
                 }) else {
                     return unserved("integer width without an owned const u64 binder");
                 };
+                if self.const_scope[position].scalar_type
+                    != ScalarType::Integer(IntegerType::width_binder())
+                {
+                    return unserved("integer width without an owned const u64 binder");
+                }
                 Ok(ScalarType::Integer(IntegerType::parameterized(
                     match sign {
                         numerics::integer_carrier::IntegerSign::Signed => IntegerSign::Signed,
                         numerics::integer_carrier::IntegerSign::Unsigned => IntegerSign::Unsigned,
                     },
-                    self.width_scope[position].parameter,
+                    semantic_vocabulary::WidthParameter {
+                        owner: self.const_scope[position].owner,
+                        value: self.const_scope[position].value,
+                    },
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
@@ -580,32 +605,67 @@ impl Program<'_> {
         expression: ExpressionHandle,
         reading: Reading,
     ) -> Option<TypeTruth> {
-        self.read_type_truth(scope, expression, reading, &mut |_| {})
+        self.observed_type_truth(scope, expression, reading, &mut |_| {})
     }
 
-    pub(super) fn clause_truth_reads(
+    pub(super) fn type_truth_operators(
         &self,
         expression: ExpressionHandle,
-        operators: &mut Vec<ExpressionHandle>,
-    ) -> Option<TypeTruth> {
-        self.read_type_truth(Scope::Own, expression, Reading::Clause, &mut |expression| {
-            operators.push(expression)
-        })
+        reading: Reading,
+    ) -> (Option<TypeTruth>, Vec<StaticOperatorRead>) {
+        let mut operators = Vec::new();
+        let truth = self.observed_type_truth(Scope::Own, expression, reading, &mut |operator| {
+            operators.push(operator);
+        });
+        (truth, operators)
     }
 
-    fn read_type_truth(
+    fn observed_type_truth(
         &self,
         scope: Scope<'_>,
         expression: ExpressionHandle,
         reading: Reading,
-        read: &mut impl FnMut(ExpressionHandle),
+        observe: &mut impl FnMut(StaticOperatorRead),
+    ) -> Option<TypeTruth> {
+        let truth = self.evaluate_type_truth(scope, expression, reading, observe);
+        if matches!(scope, Scope::Own) && matches!(truth, Some(TypeTruth::Known(_))) {
+            let table = &self.typed.expression_table;
+            let type_equation = match table.expression(expression) {
+                ExpressionNode::Binary(binary) => {
+                    binary.operator == typed_trees::expression::BinaryOperator::Equal
+                        && matches!(
+                            table.expression(binary.left),
+                            ExpressionNode::TypeExpression(_)
+                        )
+                        && matches!(
+                            table.expression(binary.right),
+                            ExpressionNode::TypeExpression(_)
+                        )
+                }
+                ExpressionNode::Unary(_) => false,
+                _ => return truth,
+            };
+            observe(StaticOperatorRead {
+                expression,
+                type_equation,
+            });
+        }
+        truth
+    }
+
+    fn evaluate_type_truth(
+        &self,
+        scope: Scope<'_>,
+        expression: ExpressionHandle,
+        reading: Reading,
+        observe: &mut impl FnMut(StaticOperatorRead),
     ) -> Option<TypeTruth> {
         use typed_trees::expression::{BinaryOperator, UnaryOperator};
         if !expression.is_valid() {
             return None;
         }
         let table = &self.typed.expression_table;
-        let found = match table.expression(expression) {
+        match table.expression(expression) {
             ExpressionNode::Boolean(value) if reading == Reading::Stated => {
                 Some(TypeTruth::Known(*value))
             }
@@ -629,10 +689,10 @@ impl Program<'_> {
             }
             ExpressionNode::Call(call) if reading != Reading::Value => {
                 let (bindings, value) = self.contract_value(scope, call)?;
-                self.read_type_truth(Scope::Callee(&bindings), value, Reading::Stated, read)
+                self.observed_type_truth(Scope::Callee(&bindings), value, Reading::Stated, observe)
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => Some(
-                match self.read_type_truth(scope, unary.operand, reading, read)? {
+                match self.observed_type_truth(scope, unary.operand, reading, observe)? {
                     TypeTruth::Known(truth) => TypeTruth::Known(!truth),
                     TypeTruth::Open => TypeTruth::Open,
                 },
@@ -664,35 +724,35 @@ impl Program<'_> {
                                 .is_valid()
                                 .then(|| table.expression(binary.right)),
                         ) {
-                            self.closed_type_equation(scope, *left, *right)
-                                .map(TypeTruth::Known)
-                        } else {
-                            match (
-                                self.read_type_truth(scope, binary.left, reading, read),
-                                self.read_type_truth(scope, binary.right, reading, read),
-                            ) {
-                                (Some(TypeTruth::Known(left)), Some(right)) => {
-                                    Some(compare(right, left))
-                                }
-                                (Some(left), Some(TypeTruth::Known(right))) => {
-                                    Some(compare(left, right))
-                                }
-                                (Some(TypeTruth::Open), Some(TypeTruth::Open)) => {
-                                    Some(TypeTruth::Open)
-                                }
-                                (Some(truth), None) => {
-                                    literal(binary.right).map(|value| compare(truth, value))
-                                }
-                                (None, Some(truth)) => {
-                                    literal(binary.left).map(|value| compare(truth, value))
-                                }
-                                (None, None) => None,
+                            return self
+                                .closed_type_equation(scope, *left, *right)
+                                .map(TypeTruth::Known);
+                        }
+                        match (
+                            self.observed_type_truth(scope, binary.left, reading, observe),
+                            self.observed_type_truth(scope, binary.right, reading, observe),
+                        ) {
+                            (Some(TypeTruth::Known(left)), Some(right)) => {
+                                Some(compare(right, left))
                             }
+                            (Some(left), Some(TypeTruth::Known(right))) => {
+                                Some(compare(left, right))
+                            }
+                            (Some(TypeTruth::Open), Some(TypeTruth::Open)) => Some(TypeTruth::Open),
+                            (Some(truth), None) => {
+                                literal(binary.right).map(|value| compare(truth, value))
+                            }
+                            (None, Some(truth)) => {
+                                literal(binary.left).map(|value| compare(truth, value))
+                            }
+                            (None, None) => None,
                         }
                     }
                     BinaryOperator::And => {
-                        let left = self.read_type_truth(scope, binary.left, reading, read)?;
-                        let right = self.read_type_truth(scope, binary.right, reading, read)?;
+                        let left =
+                            self.observed_type_truth(scope, binary.left, reading, observe)?;
+                        let right =
+                            self.observed_type_truth(scope, binary.right, reading, observe)?;
                         Some(match (left, right) {
                             (TypeTruth::Known(false), _) | (_, TypeTruth::Known(false)) => {
                                 TypeTruth::Known(false)
@@ -704,8 +764,10 @@ impl Program<'_> {
                         })
                     }
                     BinaryOperator::Or => {
-                        let left = self.read_type_truth(scope, binary.left, reading, read)?;
-                        let right = self.read_type_truth(scope, binary.right, reading, read)?;
+                        let left =
+                            self.observed_type_truth(scope, binary.left, reading, observe)?;
+                        let right =
+                            self.observed_type_truth(scope, binary.right, reading, observe)?;
                         Some(match (left, right) {
                             (TypeTruth::Known(true), _) | (_, TypeTruth::Known(true)) => {
                                 TypeTruth::Known(true)
@@ -720,20 +782,7 @@ impl Program<'_> {
                 }
             }
             _ => None,
-        };
-        // A caller cannot answer the questions in a callee's stored contract.
-        // Only this form's successfully read operators belong to its source
-        // account; the contract's own form checks its expressions separately.
-        if found.is_some()
-            && matches!(scope, Scope::Own)
-            && matches!(
-                table.expression(expression),
-                ExpressionNode::Binary(_) | ExpressionNode::Unary(_)
-            )
-        {
-            read(expression);
         }
-        found
     }
 
     /// A formal's, local's, result's or field's type: a record when the

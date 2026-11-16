@@ -1,7 +1,7 @@
 /*
 We bind fragment-published object custody to a validated optimized physical
 evidence scope, retaining the relocation-free object plan, placed text section,
-and selected instruction plan so physical derivation can rejoin unresolved
+and current physical instruction/contract columns so derivation can rejoin unresolved
 import fields and instruction spans directly.
 */
 
@@ -56,15 +56,15 @@ impl FragmentPublicationBinding {
         self.source.source().text_section()
     }
 
-    pub(super) fn selected_plan(&self) -> &selected_instructions::SelectedInstructionPlan {
-        &self
-            .source
+    pub(super) fn physical_program(
+        &self,
+    ) -> &post_allocation_machine::PostAllocationMachineProgram {
+        self.source
             .source()
             .source()
             .source()
             .source()
-            .program()
-            .selected
+            .physical_program()
     }
 }
 

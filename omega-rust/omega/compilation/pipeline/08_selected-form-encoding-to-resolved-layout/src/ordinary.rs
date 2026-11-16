@@ -13,12 +13,11 @@ use machine_code::{
     SelectedFormMachineDisposition, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
-use post_allocation_machine::PostAllocationMachineInstruction;
+use post_allocation_machine::{PhysicalFunction, PostAllocationMachineInstruction};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineAlternativeFamily, SelectedBlock, SelectedBlockId, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedSuccessor, SelectedTerminator,
+    MachineAlternativeFamily, SelectedBlock, SelectedBlockId, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
 };
 use target::Architecture;
 
@@ -46,17 +45,16 @@ pub(crate) struct LayoutPlan {
 }
 
 pub(crate) fn select(
-    selected: &SelectedInstructionPlan,
+    functions: &selected_instructions::SelectedFunctions,
 ) -> Result<SelectedFunctionLayoutPolicy, Error> {
-    let single_entry_count = selected
-        .functions
+    let single_entry_count = functions
         .iter()
         .filter(|function| is_single_entry(function))
         .count();
-    if single_entry_count == selected.functions.len() {
+    if single_entry_count == functions.len() {
         Ok(SelectedFunctionLayoutPolicy::SingleEntryBlockV1)
     } else if single_entry_count == 0
-        && selected.functions.iter().all(|function| {
+        && functions.iter().all(|function| {
             matches!(
                 function.blocks.first().map(|block| &block.terminator),
                 Some(SelectedTerminator::ConditionalBranch { .. })
@@ -65,7 +63,7 @@ pub(crate) fn select(
     {
         Ok(SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1)
     } else if single_entry_count == 0
-        && selected.functions.iter().all(|function| {
+        && functions.iter().all(|function| {
             matches!(
                 function.blocks.first().map(|block| &block.terminator),
                 Some(selected_instructions::conditional_branch_less_pair_pattern!(..))
@@ -73,17 +71,17 @@ pub(crate) fn select(
         })
     {
         Ok(SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1)
-    } else if selected.functions.iter().all(is_admitted_canonical_shape) {
+    } else if functions.iter().all(is_admitted_canonical_shape) {
         Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
     } else {
         Err(Error::UnsupportedFunctionShape(
-            selected.functions[single_entry_count].machine,
+            functions[single_entry_count].machine,
         ))
     }
 }
 
 pub(crate) fn derive_order(
-    function: &SelectedFunction,
+    function: &PhysicalFunction,
     policy: SelectedFunctionLayoutPolicy,
 ) -> Result<Vec<&SelectedBlock>, Error> {
     let invalid = || Error::UnsupportedFunctionShape(function.machine);
@@ -154,7 +152,7 @@ pub(crate) fn derive_order(
 
 pub(crate) fn layout(
     architecture: Architecture,
-    function: &SelectedFunction,
+    function: &PhysicalFunction,
     pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
     machine_rows: &BTreeMap<SelectedInstructionId, &PostAllocationMachineInstruction>,
     physical: &ValidatedPhysicalRegisterModel,
@@ -1024,5 +1022,6 @@ fn resolve_branch(
 
 #[cfg(test)]
 mod tests {
-    crate::order_suite::order_suite!(super::derive_order);
+    use super::derive_order;
+    crate::order_suite::order_suite!(derive_order);
 }

@@ -27,8 +27,8 @@ re-running the legalization solver.
 We group the target-legal representation into four subordinate owners beneath
 `LegalizedOperationPlan`:
 1. `legality` — checked exact arithmetic operators that retain their semantic integer carrier.
-2. `calls` — structural function signatures, boundary settlements, and call-origin errors.
-3. `control_flow` — saturating and trapping integer forms, scalar instruction graphs, and case
+2. `calls` — re-exports shared structural signatures, boundary settlements, and call-origin errors.
+3. `control_flow` — scalar instruction graphs, shared arithmetic forms, and case
    dispatch edges.
 4. `identity` and `validation` — canonical SHA-256 identity digests (`LegalizedOperationPlanIdentity`)
    and representation-owned call/instruction shape checks.

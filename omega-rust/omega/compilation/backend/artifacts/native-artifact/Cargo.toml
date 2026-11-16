@@ -16,6 +16,7 @@ terminal-installation = { path = "../../../../../psi/compilation/terminal-instal
 platform-custody = { path = "../../../../foundation/platform-custody" }
 register-model = { path = "../../register-model" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
+post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
 abstract-operations = { path = "../../../representations/abstract-operations" }
 boundary-applications = { path = "../boundary-applications" }
 calling-conventions = { path = "../../calling-conventions" }

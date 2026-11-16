@@ -2419,6 +2419,9 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
+    if let Some(occurrence) = argument.authored_selection {
+        visit_authored_selection(program, retained, occurrence);
+    }
     // A literal supplies its value, not a declaration. Keep every nonempty
     // handle so the receiving owner still authenticates malformed references.
     if argument.symbol != SymbolHandle::invalid() {
@@ -3388,14 +3391,16 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            // Ordinary carrier conversions and representation recasts have no
-            // named domain declaration. A retained named domain still needs
-            // its exact declaration, including when that coordinate is missing;
-            // every nonempty coordinate also reaches receiver authentication.
+            // Intrinsic conversions, recasts and builtin policy entries may
+            // omit a named domain. Every nonempty coordinate still reaches
+            // authentication; an Exact entry with no domain reports that
+            // missing coordinate instead of silently losing the dependency.
             if cast.semantic_domain_symbol != SymbolHandle::invalid()
                 || !cast.semantic_domain.is_empty()
                 || !cast.semantic_domain_arguments.is_empty()
                 || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
+                || (cast.form.entry().is_some()
+                    && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact)
             {
                 visit_symbol(retained, cast.semantic_domain_symbol);
             }
