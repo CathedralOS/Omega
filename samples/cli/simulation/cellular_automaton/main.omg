@@ -203,7 +203,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // Sleep first (the host call would kill facts), then re-guard `gen < 32`
     // so the increment proves into [0..=32].
     machine gen_next(main: &mut Main) {
-        Clock::sleep(50);
+        block Clock::sleep(50);
         transition main.gen < 32 { true -> block gen_bump(main) _ -> block gen_loop(main) }
     }
     machine gen_bump(main: &mut Main) {
