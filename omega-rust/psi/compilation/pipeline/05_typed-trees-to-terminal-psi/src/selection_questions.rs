@@ -1538,6 +1538,7 @@ mod tests {
                 &DeclarationSelection::from_symbols([owner]),
                 &CompletedOperators::default(),
                 &[],
+                &[],
             )
             .expect("an intrinsic cast has no semantic-domain declaration dependency");
             assert_eq!(
@@ -1565,6 +1566,7 @@ mod tests {
             &typed,
             &DeclarationSelection::from_symbols([owner]),
             &CompletedOperators::default(),
+            &[],
             &[],
         )
         .expect("a declared semantic domain keeps its exact dependency");
@@ -1617,6 +1619,7 @@ mod tests {
                 &typed,
                 &DeclarationSelection::from_symbols([owner]),
                 &CompletedOperators::default(),
+                &[],
                 &[],
             )
             .expect_err("a declared cast coordinate must remain exact");

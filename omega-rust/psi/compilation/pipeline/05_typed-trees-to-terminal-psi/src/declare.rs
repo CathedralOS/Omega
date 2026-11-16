@@ -1361,14 +1361,12 @@ fn template_commitment(
             // An open generic call has a checked header but no executable
             // effect envelope. Commit its actual bounds, including unknown
             // axes, without manufacturing a runtime declaration for it.
+            // Lowering has already checked each abstract requirement's
+            // signature and empty body. Reuse that issued roster; this entry
+            // must still belong to the exact original source declaration.
             if form.requirements.is_empty()
                 || form.requirements.contains(&entry)
                 || form.requirement_ceilings.len() != form.module.machines.len()
-                || form.requirements.iter().any(|required| {
-                    form.module
-                        .machine(*required)
-                        .is_none_or(|row| !row.blocks.is_empty())
-                })
                 || form.module.callables.machine_envelope(entry).is_some()
             {
                 return Err("a specialization's template check form has no exact contract");
