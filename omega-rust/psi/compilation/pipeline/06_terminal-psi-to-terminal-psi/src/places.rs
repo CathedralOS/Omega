@@ -2993,6 +2993,90 @@ impl<'a> Storage<'a> {
         Ok(block == self.graph.entry() || self.graph.in_cycle(block)?)
     }
 
+    /// Whether a window on a block formal is closed at a point outside the
+    /// formal's scope. A block formal names storage only in its own block and
+    /// the blocks that block dominates; an edge that passes it on renames it
+    /// to the receiving block's formal. Walk forward from the formal's block:
+    /// an edge that passes the formal on whole is a whole use that consumes
+    /// the window, so the clause is proved there (dependent_values.md,
+    /// "Invariant windows"), and the receiving formal's binding establishes a
+    /// whole value, so that path ends; an edge into a dominated block keeps
+    /// the formal in scope and the walk continues. When the opening write
+    /// lies in the walked scope, the asked point does not, and no edge leaves
+    /// the scope without passing the formal, every path from the opening
+    /// write to the point is closed: a path that never enters the scope never
+    /// passed the opening write. Any other shape, including a dispatch arm
+    /// that binds the formal, keeps the ordinary walk, which refuses a
+    /// backing it cannot name.
+    fn window_handed_off(
+        &self,
+        place: &Lineage,
+        opened_by: OperationId,
+        (block, up_to): (BlockId, usize),
+        used: Option<ProgramPoint>,
+        concerns: Construct,
+    ) -> Checked<bool> {
+        let StructuralPlaceKind::BlockParameter { block: owner, .. } =
+            self.root_kind(place.root, concerns)?
+        else {
+            return Ok(false);
+        };
+        let used = match used {
+            Some(used) => used,
+            None => {
+                let operations = &self.block(block)?.operations;
+                match up_to.min(operations.len()).checked_sub(1) {
+                    Some(last) => ProgramPoint::AfterOperation(operations[last].id),
+                    None => ProgramPoint::BlockEntry(block),
+                }
+            }
+        };
+        let scope = ProgramPoint::BlockEntry(owner);
+        if self.graph.dominates(scope, used)? {
+            return Ok(false);
+        }
+        let (opened_in, _) = self.graph.locate(ProgramPoint::AfterOperation(opened_by))?;
+        let mut walked = vec![false; self.graph.block_count()];
+        let mut pending = vec![owner];
+        while let Some(current) = pending.pop() {
+            let slot = walked
+                .get_mut(index(current.get()))
+                .ok_or_else(|| self.foreign(concerns, "a block is outside its machine"))?;
+            if std::mem::replace(slot, true) {
+                continue;
+            }
+            let terminator = &self.block(current)?.terminator;
+            let successors = terminator.successor_edges();
+            let bindings = terminator.successor_block_arguments();
+            if successors.len() != bindings.len() {
+                return Err(self.foreign(concerns, "an edge has no complete binding roster"));
+            }
+            // Only a jump's arguments are a whole use that consumes the
+            // window (`touches`); a dispatch arm's binding is not.
+            let consumes = matches!(terminator, Terminator::Jump { .. });
+            for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
+                let mut passed = false;
+                for argument in arguments.iter().filter(|_| consumes) {
+                    let argument = self.argument(argument, Construct::Edge(edge))?;
+                    passed |= argument.root == place.root
+                        && place.segments.starts_with(&argument.segments);
+                }
+                if passed {
+                    continue;
+                }
+                if into == owner
+                    || !self
+                        .graph
+                        .dominates(scope, ProgramPoint::BlockEntry(into))?
+                {
+                    return Ok(false);
+                }
+                pending.push(into);
+            }
+        }
+        Ok(walked.get(index(opened_in.get())).copied().unwrap_or(false))
+    }
+
     fn reaching(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -3002,6 +3086,11 @@ impl<'a> Storage<'a> {
         trace: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
+        if let Asked::Window { place, by, .. } = asked
+            && self.window_handed_off(place, by, (block, up_to), trace.used, concerns)?
+        {
+            return Ok(Reached::Closed);
+        }
         let root =
             self.reaching_supply(references, tables, asked, block, up_to, trace, concerns)?;
         let Supply::Transfer { source, depth, .. } = root else {

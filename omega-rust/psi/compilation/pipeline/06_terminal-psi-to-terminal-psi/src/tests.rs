@@ -91,6 +91,7 @@ mod type_parameters;
 mod uninhabited_results;
 mod value_parameters;
 mod width_parameters;
+mod window_handoffs;
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
