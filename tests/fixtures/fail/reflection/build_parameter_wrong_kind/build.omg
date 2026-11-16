@@ -1,0 +1,25 @@
+use omega::language::core::reflect;
+use omega::language::core::reflect::ParameterInfo;
+use omega::language::core::reflect::FieldInfo;
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_parameter_description");
+    let mut description: DependencyDescription = dependency::from_source(Source::Path { location: "../../../run/reflection/build_parameter_description/library" });
+    dependency::with_alias(&mut description, "api");
+    let registration: DependencyRegistration = Build::dependency(builder, description);
+    let parameter: ParameterInfo = reflect::parameter(api::Table::invoke);
+    let field: FieldInfo = reflect::field(api::Table::invoke);
+    transition parameter.declaration_position == 1u64 && field.declaration_position == 1u64
+        && field.name == "invoke" && parameter.parameter_identity != ""
+        && parameter.requirement_application != "" && field.owner_application != ""
+        && parameter.source_revision != "" && field.source_revision != "" {
+        true -> accept(builder)
+        false -> reject()
+    }
+    machine accept(builder: &mut Build) {
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    }
+    machine reject() crashes Trap { crash Trap; }
+}

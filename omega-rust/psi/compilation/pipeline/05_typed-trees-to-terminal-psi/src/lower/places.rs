@@ -1858,32 +1858,32 @@ impl<'a> Lowering<'a> {
             })?
             .structural_parameters
             .push(parameter);
-        if !clauses.is_empty() {
-            let subject = crate::body::self_place()
-                .ok_or_else(|| self.internal("cast subject place identity"))?;
-            let mut predicate = Vec::with_capacity(clauses.len());
-            for clause in clauses {
-                self.name_clause_contents(clause, &[(subject, exact)], None)?;
-                predicate.push(crate::canonical::substitute_parameters(
-                    clause,
-                    &[],
-                    &[place],
-                    &self.tables.values,
-                    id,
-                )?);
-            }
-            if let Some(stated) = stated {
-                self.sources
-                    .predicate_establishments
-                    .push((cast, stated.clone()));
-            }
-            self.invariants.push(terminal_psi::ScalarBlockInvariant {
-                machine: id,
-                header: cast,
-                predicate: crate::canonical::conjunction(predicate, id)?,
-                arrivals: Vec::new(),
-            });
+        // Entering the cast result always owes its conjunction. Empty source
+        // theory is Truth; it is not a missing arrival for the saved domain.
+        let subject = crate::body::self_place()
+            .ok_or_else(|| self.internal("cast subject place identity"))?;
+        let mut predicate = Vec::with_capacity(clauses.len());
+        for clause in clauses {
+            self.name_clause_contents(clause, &[(subject, exact)], None)?;
+            predicate.push(crate::canonical::substitute_parameters(
+                clause,
+                &[],
+                &[place],
+                &self.tables.values,
+                id,
+            )?);
         }
+        if let Some(stated) = stated {
+            self.sources
+                .predicate_establishments
+                .push((cast, stated.clone()));
+        }
+        self.invariants.push(terminal_psi::ScalarBlockInvariant {
+            machine: id,
+            header: cast,
+            predicate: crate::canonical::conjunction(predicate, id)?,
+            arrivals: Vec::new(),
+        });
         let edge_ordinal = self.tables.edges.len() as u64 + 1;
         self.jump_with_structural(
             cast,
@@ -3891,13 +3891,6 @@ impl<'a> Lowering<'a> {
         let right = continuing!(self.located(right));
         let mut operands = Vec::with_capacity(2);
         for at in [left, right] {
-            if !at.path.is_empty() {
-                return Err(refuse(
-                    self.id,
-                    Construct::Machine,
-                    Unserved::Expression("comparison of a view stored in a field"),
-                ));
-            }
             operands.push(self.measured_byte_view(&at, source)?);
         }
         let right = operands.pop().expect("two operands");

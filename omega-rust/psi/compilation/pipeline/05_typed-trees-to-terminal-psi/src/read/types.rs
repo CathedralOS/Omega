@@ -1136,6 +1136,7 @@ impl Program<'_> {
                 instance: domain,
                 carrier: plain,
                 predicate: None,
+                complete_predicate_theory: false,
             });
         }
         Ok(())

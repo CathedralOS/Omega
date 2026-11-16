@@ -482,6 +482,13 @@ impl TerminalBuildActivation {
         Ok(())
     }
 
+    /// A named query uses only the role already issued by this activation.
+    /// This validates the current ledger; it does not complete the Build or
+    /// promise that a later request will preserve the same declaration.
+    pub fn project_declaration(&self) -> Result<build_declarations::BuildDeclaration, String> {
+        project::declaration(&self.requests).map_err(|reason| format!("Product declaration query requires an already-issued named package or application: {reason}"))
+    }
+
     pub fn requests(&self) -> &[IssuedBuildRequest] {
         &self.requests
     }

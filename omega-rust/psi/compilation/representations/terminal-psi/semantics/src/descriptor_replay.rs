@@ -764,11 +764,7 @@ pub(crate) mod analysis {
             position: DescriptorPosition,
             origin: &DescriptorSourceOrigin,
         ) -> Option<Vec<DescriptorSourceOrigin>> {
-            let owner = self
-                .replay
-                .machine(identity)?
-                .operation_call(position)?
-                .owner;
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
             self.substitute_call_source_at(identity, position, owner, origin)
         }
         pub fn substitute_call_source_at(
@@ -786,11 +782,7 @@ pub(crate) mod analysis {
             position: DescriptorPosition,
             origin: &DescriptorSourceOrigin,
         ) -> Option<Vec<DescriptorSourceOrigin>> {
-            let owner = self
-                .replay
-                .machine(identity)?
-                .operation_call(position)?
-                .owner;
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
             self.substitute_stored_effect_source_at(identity, position, owner, origin)
         }
         pub fn substitute_stored_effect_source_at(
@@ -943,11 +935,7 @@ pub(crate) mod analysis {
             position: DescriptorPosition,
             origin: &DescriptorCallOrigin,
         ) -> Option<DescriptorCallOrigin> {
-            let owner = self
-                .replay
-                .machine(identity)?
-                .operation_call(position)?
-                .owner;
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
             self.substitute_call_storage_at(identity, position, owner, origin)
         }
         pub fn substitute_call_storage_at(
@@ -1023,7 +1011,7 @@ pub(crate) mod analysis {
                     .replay
                     .machine(caller)
                     .ok_or("descriptor preservation has no caller")?;
-                let Some(call) = machine.operation_call(position) else {
+                let Some(call) = machine.direct_call(position) else {
                     return Ok(false);
                 };
                 let Some(callee) = call.stored_effects_callee() else {
@@ -1120,11 +1108,7 @@ pub(crate) mod analysis {
             identity: MachineId,
             position: DescriptorPosition,
         ) -> Option<Vec<DescriptorStoredCallEffect>> {
-            let owner = self
-                .replay
-                .machine(identity)?
-                .operation_call(position)?
-                .owner;
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
             self.call_stored_effects_at(identity, position, owner)
         }
         pub fn call_stored_effects_at(
@@ -1155,11 +1139,7 @@ pub(crate) mod analysis {
             identity: MachineId,
             position: DescriptorPosition,
         ) -> Option<Vec<DescriptorStoredCallEffect<DescriptorSourceOrigin>>> {
-            let owner = self
-                .replay
-                .machine(identity)?
-                .operation_call(position)?
-                .owner;
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
             self.symbolic_call_stored_effects_at(identity, position, owner)
         }
         pub fn symbolic_call_stored_effects_at(
@@ -1411,7 +1391,7 @@ pub(crate) mod analysis {
                     }
                 }
                 if let Some(call) = machine
-                    .operation_call(*position)
+                    .direct_call(*position)
                     .filter(|call| call.argument_contents.iter().all(Option::is_some))
                 {
                     self.append_invocation_flow(
@@ -3037,7 +3017,7 @@ pub(crate) mod contents_queries {
                 (machine.producer(location.root) == Some(position)).then_some(position)
             });
             let position = captured.or_else(|| machine.producer(location.root))?;
-            let call = machine.operation_call(position)?;
+            let call = machine.direct_call(position)?;
             let result = call.result.as_ref()?;
             let suffix = location.path.strip_prefix(result.path.as_slice())?;
             if result.root != location.root {
@@ -3816,7 +3796,7 @@ pub(crate) mod contents_queries {
                 return None;
             }
             let position = (block, completed.checked_sub(1)?);
-            let call = machine.operation_call(position)?;
+            let call = machine.direct_call(position)?;
             let before = self.target_state(machine, state, Some((owner, position)), depth)?;
             let reads =
                 DescriptorReadDepth::at(machine, before, depth.history.map(|(_, states)| states));
@@ -4677,6 +4657,21 @@ pub(crate) mod engine {
             if machine.unresolved_contents_writes.contains(&position) {
                 return Ok(None);
             }
+            if matches!(machine.calls.get(&position), Some(None)) {
+                return Ok(None);
+            }
+            for call in machine.calls_at(position) {
+                if self
+                    .invocation_state(identity, position, call.owner)
+                    .is_none()
+                {
+                    continue;
+                }
+                let DescriptorInvocationTarget::Machine(callee) = &call.target else {
+                    return Ok(None);
+                };
+                self.prepare_write_frame(*callee)?;
+            }
             let states = self
                 .snapshots
                 .get(&identity)
@@ -4686,10 +4681,18 @@ pub(crate) mod engine {
             let Some(before) = states.get(&position) else {
                 return Ok(Some(Vec::new()));
             };
-            let Some(queries) = super::case_flow::written_queries(machine, position) else {
-                return Ok(None);
-            };
             let mut writes = step.definitions.clone();
+            // A known direct call uses its checked frame instead of the
+            // conservative source-call ceiling. Cleanup remains additional to
+            // the terminator's own writes and uses each action's real prestate.
+            let queries = if machine.direct_call(position).is_some() {
+                Vec::new()
+            } else {
+                let Some(queries) = super::case_flow::written_queries(machine, position) else {
+                    return Ok(None);
+                };
+                queries
+            };
             for query in queries {
                 let Some(root_type) = machine.place_types.get(&query.root) else {
                     return Err("storage write has no declared root type");
@@ -4750,6 +4753,40 @@ pub(crate) mod engine {
                     return Ok(None);
                 };
                 located.push(write);
+            }
+            for call in machine.calls_at(position) {
+                let Some(before) = self.invocation_state(identity, position, call.owner) else {
+                    // An infeasible cleanup action has no executable effects.
+                    continue;
+                };
+                let DescriptorInvocationTarget::Machine(callee) = &call.target else {
+                    return Ok(None);
+                };
+                let Some(frame) = self
+                    .summaries
+                    .get(callee)
+                    .and_then(Option::as_ref)
+                    .and_then(|summary| summary.storage_frame.writes.as_ref())
+                    .and_then(|writes| writes.as_ref().as_ref())
+                else {
+                    return Ok(None);
+                };
+                let callee = self
+                    .machine(*callee)
+                    .ok_or("write frame call has no callee")?;
+                for written in frame {
+                    let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
+                        return Err("published write does not name a callee formal");
+                    };
+                    let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
+                        return Ok(None);
+                    };
+                    let Some(actual) = self.canonical_storage(machine, before, &actual, None)
+                    else {
+                        return Ok(None);
+                    };
+                    located.push(actual);
+                }
             }
             located.sort_unstable();
             located.dedup();
@@ -4892,65 +4929,20 @@ pub(crate) mod engine {
             let machine = self
                 .machine(identity)
                 .ok_or("write frame owner disappeared")?;
-            let states = self
+            let positions: Vec<_> = self
                 .snapshots
                 .get(&identity)
                 .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .ok_or("write frame has no prepared storage flow")?
-                .clone();
+                .keys()
+                .copied()
+                .collect();
             let mut frame = Vec::new();
-            for position in machine.flow.keys().copied() {
-                if !states.contains_key(&position) {
-                    continue;
-                }
-                let Some(mut writes) = self.storage_writes(identity, position)? else {
+            for position in positions {
+                let Some(writes) = self.storage_writes(identity, position)? else {
                     return Ok(None);
                 };
-                if matches!(machine.calls.get(&position), Some(None)) {
-                    return Ok(None);
-                }
-                for call in machine.calls_at(position) {
-                    // Each action uses its own genuine prestate. Infeasible
-                    // branch actions have no snapshot and publish no writes.
-                    let Some(before) = self
-                        .invocation_state(identity, position, call.owner)
-                        .cloned()
-                    else {
-                        continue;
-                    };
-                    // A public requirement needs its retained selection and
-                    // checked correspondence, not a possible implementation.
-                    let DescriptorInvocationTarget::Machine(callee) = &call.target else {
-                        return Ok(None);
-                    };
-                    self.prepare_write_frame(*callee)?;
-                    let Some(callee_frame) = self
-                        .summaries
-                        .get(callee)
-                        .and_then(Option::as_ref)
-                        .and_then(|summary| summary.storage_frame.writes.as_ref())
-                        .and_then(|writes| writes.as_ref().as_ref())
-                    else {
-                        return Ok(None);
-                    };
-                    let callee = self
-                        .machine(*callee)
-                        .ok_or("write frame call has no callee")?;
-                    for written in callee_frame {
-                        let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
-                            return Err("published write does not name a callee formal");
-                        };
-                        let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
-                            return Ok(None);
-                        };
-                        let Some(actual) = self.canonical_storage(machine, &before, &actual, None)
-                        else {
-                            return Ok(None);
-                        };
-                        writes.push(actual);
-                    }
-                }
                 for write in writes {
                     let Some(place) =
                         exactly_one(machine.places.iter(), |row| row.place == write.root)
@@ -6243,7 +6235,8 @@ pub(crate) mod engine {
         ) -> Option<&State> {
             self.machine(machine)?.invocation(position, owner)?;
             match owner {
-                DescriptorInvocationOwner::Operation(_) => {
+                DescriptorInvocationOwner::Operation(_)
+                | DescriptorInvocationOwner::InvokeNoNormal(_) => {
                     self.snapshots.get(&machine)?.ready()?.before.get(&position)
                 }
                 DescriptorInvocationOwner::Cleanup { .. } => self
@@ -6323,7 +6316,11 @@ pub(crate) mod engine {
                 let mut exit_edge = None;
                 let mut operation_seen = false;
                 for call in calls {
-                    if matches!(call.owner, DescriptorInvocationOwner::Operation(_)) {
+                    if matches!(
+                        call.owner,
+                        DescriptorInvocationOwner::Operation(_)
+                            | DescriptorInvocationOwner::InvokeNoNormal(_)
+                    ) {
                         if operation_seen {
                             return None;
                         }
@@ -6397,7 +6394,7 @@ pub(crate) mod engine {
                     if step.may_escape
                         || machine.unresolved_contents_writes.contains(&position)
                         || machine
-                            .operation_call(position)
+                            .direct_call(position)
                             .is_some_and(|call| !call.argument_contents.iter().all(Option::is_some))
                     {
                         after.cases = Arc::default();
@@ -6449,7 +6446,7 @@ pub(crate) mod engine {
                                 .insert(location.clone(), Some(BTreeSet::from([origin])));
                         }
                     }
-                    if let Some(call) = machine.operation_call(position)
+                    if let Some(call) = machine.direct_call(position)
                         && call.argument_contents.iter().all(Option::is_some)
                     {
                         *failure = incomplete(
@@ -6968,7 +6965,7 @@ pub(crate) mod engine {
             if let Some((position, origins)) =
                 self.returned_roster_origins(machine, backing, None, None)
             {
-                let call = machine.operation_call(position)?;
+                let call = machine.direct_call(position)?;
                 let before = states.get(&position)?;
                 let reads = DescriptorReadDepth::at(machine, before, Some(states));
                 let expected = machine.location_type(self.types, backing, None);

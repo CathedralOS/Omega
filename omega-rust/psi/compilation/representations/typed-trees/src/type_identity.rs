@@ -8416,13 +8416,34 @@ impl TypedTrees {
             return Ok(identity);
         }
         let path = self.symbols.display_path(symbol, "::");
-        if let Some(package) = self.symbols.symbol_package_identity(symbol) {
-            let mut owner = String::with_capacity(64);
-            use std::fmt::Write as _;
-            for byte in package.digest() {
-                let _ = write!(owner, "{byte:02x}");
+        // Overloads share a source path but are different declarations. Keep
+        // the existing callable signature with that path, so selecting one
+        // overload cannot name another declaration with different parameters.
+        let callable = if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+            let machine = self
+                .machine_declaration_for_lexical_scope(symbol)
+                .ok_or("a machine identity has no retained declaration")?;
+            Some(
+                self.machine_callable_identity_text(machine)
+                    .ok_or("a machine declaration has no complete callable identity")?,
+            )
+        } else if let Some((owner, signature)) = self.trait_machine_signature(symbol) {
+            Some(self.trait_requirement_callable_identity_text(owner, signature))
+        } else {
+            None
+        };
+        let path = match callable {
+            Some(callable) => {
+                language_semantics::type_identity::encoding::callable_declaration_path(
+                    &path, &callable,
+                )
             }
-            return Ok(format!("package:{owner}::{path}"));
+            None => path,
+        };
+        if let Some(package) = self.symbols.symbol_package_identity(symbol) {
+            return Ok(
+                language_semantics::type_identity::package_declaration_identity(package, &path),
+            );
         }
         match self.symbols.symbol_source_origin(symbol) {
             Some(source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
@@ -9121,6 +9142,31 @@ mod closed_requirement_declaration_tests {
     use symbols::{SymbolHandle, SymbolKind};
 
     #[test]
+    fn incomplete_machine_declarations_do_not_fall_back_to_a_source_path() {
+        let mut fixture = Fixture::new();
+        let symbol = fixture.symbol("size");
+        assert!(
+            fixture
+                .program
+                .normalized_hermetic_symbol_identity(symbol)
+                .unwrap_err()
+                .contains("no retained declaration")
+        );
+        fixture.program.push_machine(crate::machine::Machine {
+            symbol,
+            name: Identifier::generated("size"),
+            ..Default::default()
+        });
+        assert!(
+            fixture
+                .program
+                .normalized_hermetic_symbol_identity(symbol)
+                .unwrap_err()
+                .contains("no complete callable identity")
+        );
+    }
+
+    #[test]
     fn closed_requirement_identities_retain_template_and_all_arguments() {
         let mut fixture = Fixture::new();
         let receiver = fixture.symbol("Hooks");
@@ -9253,11 +9299,12 @@ mod closed_requirement_declaration_tests {
         });
         for (ordinal, identity) in identities.iter().enumerate() {
             assert!(
-                identity.contains(
+                identity.contains(&super::atom(
+                    super::CoordinateTag::Template,
                     &program
                         .normalized_hermetic_symbol_identity(template)
-                        .unwrap()
-                )
+                        .unwrap(),
+                ))
             );
             assert!(
                 identities[..ordinal]

@@ -68,6 +68,15 @@ fn typed_with_external_binding(
     prelude: &str,
     external_binding: Option<&str>,
 ) -> typed_trees::TypedTrees {
+    typed_with_core_sources(build, prelude, external_binding, &[])
+}
+
+fn typed_with_core_sources(
+    build: &str,
+    prelude: &str,
+    external_binding: Option<&str>,
+    core: &[(&str, &str)],
+) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::new();
@@ -107,6 +116,19 @@ fn typed_with_external_binding(
         inputs.push((
             "source/library/core/external_binding.omg",
             external_binding,
+            "source/library/core",
+            None,
+            source::SourceOrigin::Toolchain,
+        ));
+    }
+    let core_paths = core
+        .iter()
+        .map(|(name, _)| format!("source/library/core/{name}"))
+        .collect::<Vec<_>>();
+    for ((_, text), path) in core.iter().zip(&core_paths) {
+        inputs.push((
+            path,
+            *text,
             "source/library/core",
             None,
             source::SourceOrigin::Toolchain,
@@ -801,13 +823,12 @@ machine build(builder: &mut Build) {
     );
 }
 
-/// A selection is two generated calls, and each records the protocol
-/// operation typing chose for it. Publication takes a row's action from that
-/// record: when the record is changed, the published action follows it while
-/// the called requirement stays the same, so no reader re-derives the
-/// operation from the requirement's name.
+/// Generated selection calls retain both their operation and its exact input
+/// association. Editing only the operation must fail at source admission,
+/// before the request can become a host action.
+
 #[test]
-fn a_selection_row_takes_its_action_from_the_operation_typing_recorded() {
+fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
     use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
     use typed_trees::expression::ExpressionNode;
     let build = "machine build(builder: &mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
@@ -855,6 +876,24 @@ fn a_selection_row_takes_its_action_from_the_operation_typing_recorded() {
         ]
     );
 
+    let published = accepted_frontier(recorded, terminal_codec::TerminalPublication::Invocation)
+        .expect("the untouched generated calls are accepted")
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .expect("the untouched generated calls publish their host actions");
+    let calls = published
+        .build_bindings()
+        .calls_for(published.view())
+        .unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(
+        calls
+            .iter()
+            .any(|call| call.action == TerminalBuildBindingOperation::BindNative)
+    );
+
     // The failing twin: the same program with the commit's record changed.
     let mut edited = typed();
     let (_, commit, call) = selections(&edited)
@@ -876,17 +915,14 @@ fn a_selection_row_takes_its_action_from_the_operation_typing_recorded() {
         unreachable!("the row was read from a call")
     };
     call.build_selection = replaced;
-    let refused = accepted_frontier(edited, terminal_codec::TerminalPublication::Invocation)
-        .unwrap()
-        .produce(
-            TerminalProductionCustody::default(),
-            &mut UnmeasuredProduction,
-        )
-        .expect_err("a native request recorded as a plain selection is refused");
+    let Err(refused) = accepted_frontier(edited, terminal_codec::TerminalPublication::Invocation)
+    else {
+        panic!("an edited operation cannot reuse the original input association");
+    };
     assert!(
         refused.iter().any(|diagnostic| diagnostic
             .to_string()
-            .contains("native Build binding disagrees with its protocol operation")),
+            .contains("Build input association names another request or generation")),
         "{refused:?}"
     );
 }
@@ -1326,4 +1362,106 @@ machine build(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
     assert_eq!(initializer.occurrence.source_id, source::SourceId(0));
     assert_eq!(result.occurrence.source_id, source::SourceId(0));
     assert!(initializer.occurrence.span.start < result.occurrence.span.start);
+}
+
+#[test]
+fn boundary_declaration_facts_do_not_admit_pure_execution() {
+    use semantic_vocabulary::{TargetMachineCallable, compiler_evaluation::DeclarationCustody};
+    let external = "use omega::language::core::Never; use omega::language::core::ProcessExit; machine build() -> Never reaches ProcessExit crashes none terminates { ProcessExit::exit_process(0); }";
+    let core = [
+        (
+            "never.omg",
+            include_str!("../../../../../source/library/core/never.omg"),
+        ),
+        (
+            "process_exit.omg",
+            include_str!("../../../../../source/library/core/process_exit.omg"),
+        ),
+    ];
+    for (build, reason, external_completion) in [
+        (
+            "machine build(builder: &Build) { BuildRequestOperations::artifact_only(builder); }",
+            "compiler evaluation needs admitted boundary execution",
+            false,
+        ),
+        (
+            external,
+            "compiler evaluation needs admitted external completion",
+            true,
+        ),
+    ] {
+        let typed = typed_with_core_sources(
+            build,
+            PRELUDE,
+            None,
+            if external_completion { &core } else { &[] },
+        );
+        let program = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+            .unwrap()
+            .produce(
+                TerminalProductionCustody::default(),
+                &mut UnmeasuredProduction,
+            )
+            .unwrap();
+        let view = program.view();
+        let module = view.module();
+        assert_eq!(
+            module
+                .machines
+                .iter()
+                .any(|machine| machine.blocks.iter().any(|block| matches!(
+                    block.terminator,
+                    terminal_psi::Terminator::ExternalCompletion { .. }
+                ))),
+            external_completion
+        );
+        if !external_completion {
+            assert!(module.operations().any(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BoundaryCall { .. }
+            )));
+        }
+        let entry = module.entry.unwrap();
+        assert!(matches!(entry, TargetMachineCallable::Machine(_)));
+        let scope = &module.scalar_applications.proof_scope;
+        let root = scope.callable_declaration(entry).unwrap();
+        let facts = scope
+            .callable_headers
+            .iter()
+            .find(|(_, header)| header.declaration == root)
+            .unwrap()
+            .1
+            .compiler_evaluation
+            .as_ref()
+            .unwrap();
+        assert!(!facts.name.is_empty());
+        assert_eq!(facts.custody, DeclarationCustody::Package(package()));
+        assert_eq!(facts.invocation_refusal.as_deref(), Some(reason));
+        program
+            .source_selections()
+            .unwrap()
+            .admit(
+                view,
+                &terminal_installation::selection_questions::SelectionAuthorities {
+                    build: None,
+                    product: None,
+                },
+            )
+            .unwrap();
+        let providers =
+            terminal_installation::admit_provider_execution_installation(view, &[], &[]).unwrap();
+        let refusal = terminal_installation::admit_compiler_evaluation(
+            view,
+            None,
+            root,
+            providers,
+            DeclarationCustody::Package(package()),
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(
+            refusal, reason,
+            "the same accepted artifact remains unavailable for pure invocation"
+        );
+    }
 }

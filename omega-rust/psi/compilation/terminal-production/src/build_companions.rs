@@ -68,6 +68,7 @@ pub(crate) fn produce(
 ) -> Result<BuildCompanions, Diagnostic> {
     let source = accepted.source().as_ref();
     let elaboration = &accepted.closure().elaboration;
+    let correspondence = accepted.correspondence();
     let mut companions = BuildCompanions::default();
     capture_declared_inputs(accepted, module, &mut companions)?;
     let mut shapes = NativeLocatorShapes::new(module)?;
@@ -131,7 +132,67 @@ pub(crate) fn produce(
             };
             if protocol(SELECTION_PROTOCOL) {
                 designated += 1;
-                let row = binding(accepted, module, &call, &mut shapes)?;
+                let designated = designated_selection(correspondence, &call)?;
+                let selection = source
+                    .expression_table
+                    .build_selection_call(designated.request)
+                    .ok_or_else(|| refused("a Build selection lost its designated operands"))?;
+                if call.name != selection.operation.requirement_name() {
+                    return Err(refused(
+                        "a Build selection changed its exact protocol requirement",
+                    ));
+                }
+                if matches!(
+                    selection.operation,
+                    SelectionProtocolOperation::DescribeParameter
+                        | SelectionProtocolOperation::DescribeField
+                ) {
+                    let BuildSelectionRequest::Declaration(request) = &selection.request else {
+                        return Err(refused("a declaration query lost its selected operand"));
+                    };
+                    request.validate_shape().map_err(refused)?;
+                    let (operation, 0) = request
+                        .operation
+                        .product_recording_operation()
+                        .ok_or_else(|| refused("a declaration query has another request role"))?
+                    else {
+                        return Err(refused("a declaration query has ordinary operands"));
+                    };
+                    if operation != selection.operation {
+                        return Err(refused("a declaration query changed its description role"));
+                    }
+                    let terminal_psi::BoundaryMachineResult::Structural(result) = &elaboration
+                        .module
+                        .boundary_machine(boundary)
+                        .ok_or_else(|| refused("a declaration query lost its boundary"))?
+                        .result
+                    else {
+                        return Err(refused("a declaration query has no record result"));
+                    };
+                    let result_shape = collect_shape(module, result.structural_type, &mut shapes)?;
+                    companions.queries.push(TerminalBuildQueryCall {
+                        site: call.site,
+                        action: if operation == SelectionProtocolOperation::DescribeParameter {
+                            TerminalBuildQueryOperation::Parameter
+                        } else {
+                            TerminalBuildQueryOperation::Field
+                        },
+                        occurrence: request.source_span,
+                        request: Some(Arc::clone(request)),
+                        selecting_machine: Some(authored_span(
+                            source,
+                            *elaboration
+                                .machines
+                                .get(designated.selecting)
+                                .ok_or_else(|| {
+                                    refused("a declaration query lost its selecting machine")
+                                })?,
+                        )?),
+                        result_shape: Some(result_shape),
+                    });
+                    continue;
+                }
+                let row = binding(accepted, module, &call, &mut shapes, designated, selection)?;
                 if row.action == TerminalBuildBindingOperation::BindNative {
                     let BuildSelectionRequest::Declaration(request) = &row.request else {
                         return Err(refused(
@@ -195,6 +256,9 @@ pub(crate) fn produce(
                     site: call.site,
                     action: query_operation(call.name)?,
                     occurrence,
+                    request: None,
+                    selecting_machine: None,
+                    result_shape: None,
                 };
                 companions.queries.push(row);
             } else if counted {
@@ -285,16 +349,11 @@ fn activated_machines(
     )
 }
 
-fn binding(
-    accepted: &AcceptedTerminalSource,
-    module: &TerminalModule,
+fn designated_selection<'a>(
+    correspondence: &'a typed_trees_to_terminal_psi::SourceFormCorrespondence,
     call: &ProtocolCall<'_>,
-    shapes: &mut NativeLocatorShapes,
-) -> Result<TerminalBuildBindingCall, Diagnostic> {
-    let source = accepted.source().as_ref();
-    let elaboration = &accepted.closure().elaboration;
-    let correspondence = accepted.correspondence();
-    let designated = correspondence
+) -> Result<&'a typed_trees_to_terminal_psi::DesignatedOperands, Diagnostic> {
+    correspondence
         .designated
         .get(call.site.machine)
         .and_then(|sources| {
@@ -302,17 +361,23 @@ fn binding(
                 .iter()
                 .find(|(operation, _)| *operation == call.site.operation)
         })
-        .map(|(_, designated)| *designated)
-        .ok_or_else(|| refused("a Build selection call carries no designated operands"))?;
-    // Typing chose the protocol operation when it generated this call and
-    // recorded it on the call's selection row; the row, not the spelling of
-    // the requirement, says which operation the host performs.
-    let selection = source
-        .expression_table
-        .build_selection_call(designated.request)
-        .ok_or_else(|| refused("a Build selection lost its designated operands"))?;
+        .map(|(_, designated)| designated)
+        .ok_or_else(|| refused("a Build selection call carries no designated operands"))
+}
+
+fn binding(
+    accepted: &AcceptedTerminalSource,
+    module: &TerminalModule,
+    call: &ProtocolCall<'_>,
+    shapes: &mut NativeLocatorShapes,
+    designated: &typed_trees_to_terminal_psi::DesignatedOperands,
+    selection: &typed_trees::expression::BuildSelectionCall,
+) -> Result<TerminalBuildBindingCall, Diagnostic> {
+    let source = accepted.source().as_ref();
+    let elaboration = &accepted.closure().elaboration;
+    let correspondence = accepted.correspondence();
     let request = &selection.request;
-    let action = protocol_action(selection.operation);
+    let action = protocol_action(selection.operation)?;
     let native = matches!(request, BuildSelectionRequest::Declaration(declaration)
         if declaration.operation == BuildOperation::NativeBinding);
     if (action == TerminalBuildBindingOperation::BindNative && !native)
@@ -414,10 +479,15 @@ fn authored_span(
 /// The host row's action for a selection protocol operation. A description
 /// binding and an authored-path binding are the same host action; they
 /// differ only in the operands the request carries.
-fn protocol_action(operation: SelectionProtocolOperation) -> TerminalBuildBindingOperation {
+fn protocol_action(
+    operation: SelectionProtocolOperation,
+) -> Result<TerminalBuildBindingOperation, Diagnostic> {
     use SelectionProtocolOperation as Protocol;
     use TerminalBuildBindingOperation as Action;
-    match operation {
+    Ok(match operation {
+        Protocol::DescribeParameter | Protocol::DescribeField => {
+            return Err(refused("a description query cannot mutate Build bindings"));
+        }
         Protocol::AwaitProvider => Action::AwaitProvider,
         Protocol::Prepare => Action::Prepare,
         Protocol::PrepareTests => Action::PrepareTests,
@@ -426,7 +496,7 @@ fn protocol_action(operation: SelectionProtocolOperation) -> TerminalBuildBindin
         Protocol::Select => Action::Select,
         Protocol::SelectProvider => Action::SelectProvider,
         Protocol::Exclude => Action::Exclude,
-    }
+    })
 }
 
 fn unknown(protocol: &str, operation: &str) -> Diagnostic {
@@ -646,6 +716,35 @@ fn collect_shape(
     }
     let shape = match &row.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => TerminalBuildValueShape::Scalar(*scalar),
+        StructuralTypeShape::ByteSequence(carrier) if carrier.is_shared_readable_view() => {
+            TerminalBuildValueShape::Bytes
+        }
+        StructuralTypeShape::Record { fields, .. } => {
+            let mut retained = Vec::with_capacity(fields.len());
+            for field in fields {
+                if field.relevance.is_erased() {
+                    return Err(refused("a Build record contains an erased field"));
+                }
+                let shape = match field.field_type {
+                    StructuralFieldType::Scalar(scalar) => {
+                        Arc::new(TerminalBuildValueShape::Scalar(scalar))
+                    }
+                    StructuralFieldType::Structural(child) => collect_shape(module, child, shapes)?,
+                    StructuralFieldType::ByteSequence(carrier)
+                        if carrier.is_shared_readable_view() =>
+                    {
+                        Arc::new(TerminalBuildValueShape::Bytes)
+                    }
+                    _ => return Err(refused("a Build record has unsupported field storage")),
+                };
+                retained.push(TerminalBuildValueField {
+                    id: field.id,
+                    name: label(module, field.identity)?.to_owned(),
+                    shape,
+                });
+            }
+            TerminalBuildValueShape::Record { fields: retained }
+        }
         StructuralTypeShape::FixedArray { element, length } => TerminalBuildValueShape::Array {
             length: length.literal().ok_or_else(|| Diagnostic::error(
                 "native locator requires a closed array extent",

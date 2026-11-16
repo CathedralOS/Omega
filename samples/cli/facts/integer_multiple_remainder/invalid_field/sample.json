@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "data `EvenLength` literal cannot prove the default domain"
+    "cannot prove requires clause 1 of a data type"
   ]
 }

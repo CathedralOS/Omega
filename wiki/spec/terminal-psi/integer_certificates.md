@@ -208,6 +208,22 @@ value, the premises in the other order, a `Truth` child, a strict or reversed
 conclusion, or a Wrapping quotient rejects. An acceptance records this form as
 `IntegerQuotientAtMostDividend`, also a provisional row.
 
+For an exact remainder by a nonzero literal divisor (or an SSA value fixed to
+one by a cited earlier equality) on a fixed non-address carrier, excluding
+signed `-1`, a witness with `root == target` (either the direct remainder
+expression or its one canonical result value) establishes `0 <= target` and
+`target <= 0` when the dividend expands over exact add, subtract, multiply,
+widen and exact cast into a polynomial whose every integer coefficient is
+divisible by the divisor. Steps unfolded through cited earlier
+`definition_axioms` already completed in their carrier and enter premise
+closure; any inline partial exact operation inside the dividend owes its exact
+carrier lower and upper bounds in `root_bound` (`Truth` only when no inline
+partial operation occurs). Zero divisors, signed `-1`, non-multiple
+coefficients, wrapping or saturating arithmetic, unused or reordered
+definitions, and missing inline carrier bounds reject. An acceptance records
+this form as `IntegerMultipleRemainder`, a provisional row of the
+[certificate rules](../proofs/classicality.md).
+
 An additive translation word also admits a relative comparison with its own
 root. Its child proves `root <= root` together with every independently
 reconstructed no-wrap condition for the word’s Wrapping steps. The checked

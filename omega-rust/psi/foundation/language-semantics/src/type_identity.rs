@@ -68,6 +68,15 @@ pub mod encoding {
         }
     }
 
+    /// A declaration's name and selected signature identify one overload.
+    /// Source producers and receiving checks must frame both the same way.
+    pub fn callable_declaration_path(path: &str, callable: &str) -> String {
+        compound(
+            CoordinateTag::Declaration,
+            [atom(CoordinateTag::Path, path), callable.to_owned()],
+        )
+    }
+
     pub fn bare(tag: impl Spelled) -> String {
         tag.spelling().to_owned()
     }
@@ -1551,6 +1560,20 @@ pub mod vocabulary {
 }
 pub use callable_display::callable_display_path;
 pub use lifetime_partition::normalize_requirement_lifetime_partition;
+
+/// Source publication and receiving checks must name a package declaration
+/// with the same package digest and declaration path.
+pub fn package_declaration_identity(
+    package: semantic_vocabulary::PackageKeyIdentity,
+    path: &str,
+) -> String {
+    use std::fmt::Write as _;
+    let mut owner = String::with_capacity(64);
+    for byte in package.digest() {
+        let _ = write!(owner, "{byte:02x}");
+    }
+    format!("package:{owner}::{path}")
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypeIdentityVisitError {
