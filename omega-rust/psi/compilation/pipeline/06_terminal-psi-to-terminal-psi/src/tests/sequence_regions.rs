@@ -305,6 +305,42 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
 }
 
 #[test]
+fn bare_ranges_lend_shared_element_views_of_noncopy_records() {
+    // expressions.md, "Borrowed range access": a bare range forms a shared
+    // view when a call receives it as a reference, exactly as `&items[..]`.
+    let source = r#"
+        data Cell { value: u32; }
+        machine first(items: &[Cell]) -> u32 {
+            transition items.len > 0u64 { true -> read(items) false -> 0u32 }
+            machine read(items: &[Cell]) -> u32 requires items.len > 0u64 {
+                items[0u64].value
+            }
+        }
+        machine build_entry() -> u32 {
+            let items: [Cell; 3] = [Cell { value: 1u32 }, Cell { value: 7u32 }, Cell { value: 9u32 }];
+            let suffix: u32 = first(items[1u64..]);
+            let whole: u32 = first(items[..]);
+            transition whole == 1u32 { true -> suffix false -> 0u32 }
+        }
+    "#;
+    let positive = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}")
+    };
+    assert_integer_result(*accepted, 7);
+
+    // An expected `&mut [T]` never inserts the mutable borrow.
+    let mutable = source
+        .replace("items: &[Cell]", "items: &mut [Cell]")
+        .replace("let items: [Cell; 3]", "let mut items: [Cell; 3]");
+    let negative = judge_build(&mutable);
+    assert!(
+        !matches!(negative, Ok(RouteVerdict::Accepted(_))),
+        "{negative:?}"
+    );
+}
+
+#[test]
 fn inferred_array_extent_is_retained_in_a_lexical_child() {
     let source = r#"
         machine extent<const N: u64>(items: &[u8; N]) -> u64 {
