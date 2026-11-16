@@ -535,7 +535,7 @@ impl Storage<'_> {
             }
             OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::ElementViewSubslice { .. } => {
-                self.shared_subslice(operation)?;
+                self.subslice(operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
             OperationKind::EstablishReference { .. }

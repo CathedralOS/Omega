@@ -2496,7 +2496,11 @@ impl<'t> Program<'t> {
 
     /// Whether a value of this type lends observation only: a shared
     /// reference, or a shared view of bytes or elements.
-    fn observes_only(&self, id: MachineId, value_type: Option<ValueType>) -> Checked<bool> {
+    pub(super) fn observes_only(
+        &self,
+        id: MachineId,
+        value_type: Option<ValueType>,
+    ) -> Checked<bool> {
         use crate::StorageShape;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
         let Some(ValueType::Record(row, _, _)) = value_type else {
