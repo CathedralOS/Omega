@@ -377,7 +377,7 @@ pub(crate) mod boundary_predicates {
     pub(crate) use proof_admission::closed_guard;
 
     #[cfg(test)]
-    mod tests {
+    pub(crate) mod tests {
         use super::{InputObservations, closed_guard};
         use proof_admission::ClosedIntegerEvaluator;
         use semantic_vocabulary::{
@@ -491,7 +491,7 @@ pub(crate) mod boundary_predicates {
             assert_eq!(closed_guard(&mismatched, &mut integers).unwrap(), None);
         }
 
-        fn idle_boundary() -> terminal_psi::BoundaryMachineDeclaration {
+        pub(crate) fn idle_boundary() -> terminal_psi::BoundaryMachineDeclaration {
             let identity = terminal_psi::TerminalIdentityIndex(0);
             terminal_psi::BoundaryMachineDeclaration {
                 numeric_intrinsic: None,
@@ -2384,7 +2384,7 @@ pub(crate) mod results {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::results::{TerminalCrash, TerminalCrashSite};
     use crate::boundary::values::{
-        TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue,
+        TerminalAggregateValue, TerminalScalarValue, TerminalStructuralValue,
     };
     use crate::engine::execution::TerminalExecution;
     use semantic_vocabulary::StructuralTypeId;
@@ -2426,7 +2426,7 @@ pub(crate) mod results {
         Crash(CrashCause),
         Unit,
         Scalar(TerminalScalarValue),
-        ScalarAggregate(TerminalScalarAggregateValue),
+        Aggregate(TerminalAggregateValue),
         Structural(TerminalStructuralValue),
         ByteSequence(TerminalByteSequenceValue),
         CapturedReference(super::storage_inputs::TerminalBoundaryReferenceSelection),
@@ -2435,7 +2435,7 @@ pub(crate) mod results {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalReferencePayload {
-        ScalarAggregate(TerminalScalarAggregateValue),
+        Aggregate(TerminalAggregateValue),
         Zeroed,
     }
 
@@ -2513,7 +2513,7 @@ pub(crate) mod results {
                 && ((requires_materialized_host_custody(
                     &self.structural_types(),
                     result.structural_type,
-                ) && !self.supports_scalar_aggregate_result(result)
+                ) && !self.supports_boundary_aggregate_result(boundary, result)
                     && !self.supports_byte_sequence_result(result)
                     && !self.supports_captured_reference_result(boundary, result)
                     && !(self.supports_host_reference_result(result)
@@ -2618,11 +2618,11 @@ pub(crate) mod results {
                         self.structural_types()
                             .get(&referent)
                             .is_some_and(|declaration| {
-                                crate::boundary::values::ScalarAggregatePlan::new(
+                                crate::boundary::values::AggregatePlan::new(
                                     declaration,
                                     |identity| self.structural_types().get(&identity),
                                 )
-                                .is_ok()
+                                .is_ok_and(|plan| plan.is_scalar())
                             })
                             || terminal_semantics::zeroed_structural_leaves_modulo_references(
                                 self.structural_types().values(),
@@ -2632,7 +2632,7 @@ pub(crate) mod results {
                     })
         }
 
-        fn supports_scalar_aggregate_result(
+        fn supports_aggregate_result(
             &self,
             result: &terminal_psi::StructuralOperationResult,
         ) -> bool {
@@ -2643,29 +2643,51 @@ pub(crate) mod results {
                     .structural_types()
                     .get(&result.structural_type)
                     .is_some_and(|declaration| {
-                        let scalar_fields =
+                        let plain_fields =
                             |fields: &[terminal_psi::StructuralFieldDeclaration]| {
                                 fields.iter().all(|field| {
                                     !field.relevance.is_erased()
-                                        && field.field_type.scalar_type().is_some()
+                                        && crate::boundary::values::AggregatePlan::is_plain_leaf(
+                                            &field.field_type,
+                                        )
                                 })
                             };
                         match &declaration.shape {
                             StructuralTypeShape::Record { .. }
                             | StructuralTypeShape::FixedArray { .. }
-                            | StructuralTypeShape::PrimitiveScalar(_) => {
-                                crate::boundary::values::ScalarAggregatePlan::new(
+                            | StructuralTypeShape::PrimitiveScalar(_)
+                            | StructuralTypeShape::ByteSequence(_)
+                            | StructuralTypeShape::ElementView { .. } => {
+                                crate::boundary::values::AggregatePlan::new(
                                     declaration,
                                     |identity| self.structural_types().get(&identity),
                                 )
                                 .is_ok()
                             }
                             StructuralTypeShape::Sum { cases } => {
-                                cases.iter().all(|case| scalar_fields(&case.fields))
+                                cases.iter().all(|case| plain_fields(&case.fields))
                             }
                             _ => false,
                         }
                     })
+        }
+
+        fn supports_boundary_aggregate_result(
+            &self,
+            boundary: &BoundaryMachineDeclaration,
+            result: &terminal_psi::StructuralOperationResult,
+        ) -> bool {
+            // Copied immutable contents acquire backing under this result's
+            // actual root. They neither supply an unknown lifetime frontier
+            // nor locate a returned reference in an input. Keep the published
+            // lifetime debts; spatial reference returns use their existing
+            // captured/reference completion instead of fresh byte contents.
+            self.supports_aggregate_result(result)
+                && terminal_semantics::boundary_result_lifetimes(
+                    &self.program.catalogs.structural_types,
+                    boundary,
+                )
+                .is_ok()
         }
     }
 
@@ -2781,15 +2803,15 @@ pub(crate) mod results {
                 (
                     OperationResult::Structural(declaration),
                     BoundaryMachineResult::Structural(expected),
-                    TerminalEffectResult::ScalarAggregate(value),
+                    TerminalEffectResult::Aggregate(value),
                 ) if declaration.structural_type == expected.structural_type
                     && declaration.multiplicity == expected.multiplicity
                     && declaration.qualifications == expected.qualifications
                     && declaration.projected_qualifications.is_empty()
                     && expected.projected_qualifications.is_empty()
-                    && self.supports_scalar_aggregate_result(declaration) =>
+                    && self.supports_aggregate_result(declaration) =>
                 {
-                    self.publish_scalar_aggregate(declaration, value)?;
+                    self.publish_aggregate(declaration, value)?;
                 }
                 (
                     OperationResult::Structural(declaration),
@@ -2888,6 +2910,249 @@ pub(crate) mod results {
             );
             drop(adopted);
             assert_eq!(sponsor.live_payload_bytes(), 0);
+        }
+
+        #[test]
+        fn host_aggregate_results_require_complete_typed_backing_before_publication() {
+            use crate::boundary::values::{
+                StructuralByteSequenceRuntimeField, StructuralFieldNamespace,
+                StructuralRuntimePlace, StructuralScalarRuntimeField,
+            };
+            use crate::{TerminalBoundaryStorageValue, TerminalStorageContents};
+            use semantic_vocabulary::{
+                CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue,
+                ScalarType, StructuralFieldId,
+            };
+            use terminal_psi::{
+                BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+                StructuralRecordStorage, TerminalIdentityIndex,
+            };
+            for invalid in 0..7 {
+                let structural_type = StructuralTypeId::new(1).unwrap();
+                let scalar_field = StructuralFieldId::new(1).unwrap();
+                let byte_field = StructuralFieldId::new(2).unwrap();
+                let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+                let scalar_type = ScalarType::Integer(integer);
+                let value = TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(37),
+                };
+                let mut program = empty_program();
+                Arc::get_mut(&mut program)
+                    .unwrap()
+                    .fixture_module_mut()
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        requires: Vec::new(),
+                        quotient_carrier: None,
+                        id: structural_type,
+                        identity: TerminalIdentityIndex(0),
+                        owns_linear_claim: false,
+                        copyable: true,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: true,
+                        nominal_cleanup: None,
+                        shape: StructuralTypeShape::Record {
+                            fields: [
+                                (scalar_field, StructuralFieldType::Scalar(scalar_type)),
+                                (
+                                    byte_field,
+                                    StructuralFieldType::ByteSequence(
+                                        ByteSequenceCarrier::BorrowedView {
+                                            access: Some(if invalid == 5 {
+                                                StructuralAccess::MutableBorrow
+                                            } else {
+                                                StructuralAccess::SharedBorrow
+                                            }),
+                                        },
+                                    ),
+                                ),
+                            ]
+                            .into_iter()
+                            .map(|(id, field_type)| StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
+                                inline_carrier: None,
+                                id,
+                                identity: TerminalIdentityIndex(if id == scalar_field {
+                                    1
+                                } else {
+                                    2
+                                }),
+                                relevance: BindingRelevance::Relevant,
+                                field_type,
+                                storage: None,
+                            })
+                            .collect(),
+                            storage: StructuralRecordStorage::Packed,
+                        },
+                        scalar_restriction: None,
+                    });
+                let mut execution = TerminalExecution::start_with_program(
+                    program,
+                    &[],
+                    crate::TerminalStructuralInputs::default(),
+                    None,
+                    None,
+                )
+                .unwrap();
+                let declaration = terminal_psi::StructuralOperationResult {
+                    place: PlaceId::new(1).unwrap(),
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                };
+                let expected =
+                    BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
+                        structural_type,
+                        multiplicity: declaration.multiplicity,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    });
+                if invalid == 0 {
+                    let mut boundary =
+                        crate::boundary::effects::boundary_predicates::tests::idle_boundary();
+                    boundary.result = expected.clone();
+                    let operation_result = OperationResult::Structural(declaration.clone());
+                    assert!(
+                        execution
+                            .preflight_boundary_result(&boundary, &operation_result)
+                            .is_err(),
+                        "a missing lifetime frontier is unavailable"
+                    );
+                    let lifetime = terminal_psi::DeclaredResultLifetime {
+                        inputs: Vec::new(),
+                        results: vec![vec![terminal_psi::StructuralPathSegment::Field(
+                            TerminalIdentityIndex(2),
+                        )]],
+                    };
+                    boundary.result_lifetimes = Some(vec![lifetime.clone()]);
+                    execution
+                        .preflight_boundary_result(&boundary, &operation_result)
+                        .unwrap();
+                    boundary.result_lifetimes = Some(Vec::new());
+                    assert!(
+                        execution
+                            .preflight_boundary_result(&boundary, &operation_result)
+                            .is_err(),
+                        "every borrowed result needs its declared lifetime"
+                    );
+                    boundary.result_lifetimes = Some(vec![terminal_psi::DeclaredResultLifetime {
+                        inputs: Vec::new(),
+                        results: vec![vec![terminal_psi::StructuralPathSegment::Field(
+                            TerminalIdentityIndex(1),
+                        )]],
+                    }]);
+                    assert!(
+                        execution
+                            .preflight_boundary_result(&boundary, &operation_result)
+                            .is_err(),
+                        "a sibling field cannot supply lifetime coverage"
+                    );
+                    boundary.result_lifetimes = Some(vec![lifetime]);
+                    boundary.result_reference_regions.push(
+                        terminal_psi::TerminalDynamicReferenceRegion {
+                            path: vec![terminal_psi::StructuralPathSegment::Field(
+                                TerminalIdentityIndex(2),
+                            )],
+                            origin: terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                                argument_index: 0,
+                            },
+                            source_path: Vec::new(),
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    );
+                    assert!(
+                        execution
+                            .preflight_boundary_result(&boundary, &operation_result)
+                            .is_err(),
+                        "fresh immutable contents cannot replace a spatial input reference"
+                    );
+                }
+                let mut original: Arc<[u8]> = Arc::from(&b"selector"[..]);
+                let mut fields = vec![
+                    TerminalBoundaryStorageValue {
+                        path: vec![Path::Field(scalar_field)],
+                        contents: TerminalStorageContents::Scalar {
+                            value,
+                            stored_scalar: scalar_type,
+                        },
+                    },
+                    TerminalBoundaryStorageValue {
+                        path: vec![Path::Field(byte_field)],
+                        contents: TerminalStorageContents::Bytes(Arc::clone(&original)),
+                    },
+                ];
+                match invalid {
+                    1 => {
+                        fields.pop();
+                    }
+                    2 => fields.push(fields[1].clone()),
+                    3 => {
+                        fields[0].contents = TerminalStorageContents::Scalar {
+                            value,
+                            stored_scalar: ScalarType::Boolean,
+                        };
+                    }
+                    4 => fields[1].path = vec![Path::Field(scalar_field)],
+                    _ => {}
+                }
+                let response = if invalid == 6 {
+                    TerminalEffectResult::Structural(TerminalStructuralValue::minted(
+                        7,
+                        structural_type,
+                        Vec::new(),
+                    ))
+                } else {
+                    TerminalEffectResult::Aggregate(TerminalAggregateValue {
+                        structural_type,
+                        result_case: None,
+                        fields,
+                    })
+                };
+                let accepted = execution.commit_boundary_result(
+                    &OperationResult::Structural(declaration.clone()),
+                    &expected,
+                    response,
+                );
+                assert_eq!(
+                    accepted.is_ok(),
+                    invalid == 0,
+                    "control {invalid}: {accepted:?}"
+                );
+                if invalid == 0 {
+                    let root = StructuralRuntimePlace::from(
+                        execution.structural_values.get(&declaration.place).unwrap(),
+                    );
+                    assert_eq!(
+                        execution
+                            .structural_scalar_fields
+                            .get(&StructuralScalarRuntimeField::member(
+                                root.clone(),
+                                scalar_field
+                            ))
+                            .map(|cell| cell.read().unwrap()),
+                        Some(value)
+                    );
+                    Arc::make_mut(&mut original)[0] = b'X';
+                    let bytes = execution
+                        .structural_byte_sequence_fields
+                        .get(&StructuralByteSequenceRuntimeField {
+                            parent: root,
+                            namespace: StructuralFieldNamespace::Member,
+                            field: byte_field,
+                        })
+                        .unwrap();
+                    assert_eq!(bytes.immutable().unwrap().bytes(), b"selector");
+                } else {
+                    assert!(!execution.structural_values.contains_key(&declaration.place));
+                    assert!(execution.structural_scalar_fields.keys().next().is_none());
+                }
+            }
         }
 
         #[test]
