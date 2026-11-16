@@ -1,1 +1,1 @@
-cannot prove index
+cannot prove index is within length 3
