@@ -570,7 +570,9 @@ pub(crate) mod contracts {
                     };
                     assert_eq!(
                         program.symbols.builtin_type_atom(*symbol),
-                        Some(symbols::BuiltinTypeAtom::U32)
+                        Some(symbols::BuiltinTypeAtom::Integer(
+                            numerics::integer_carrier::FixedInteger::unsigned(32)
+                        ))
                     );
                 }
 
