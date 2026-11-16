@@ -1585,7 +1585,8 @@ mod operation_permissions {
     use crate::descriptor_results::{
         DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorMachine,
         DescriptorPayloadTarget, DescriptorSourceOrigin, contents_membership_path,
-        terminal_borrowed_storage_graph_from, terminal_payload_contract,
+        require_unchanged_produced_payload_in, terminal_borrowed_storage_graph_from,
+        terminal_payload_contract,
     };
     use access_plans::AccessOperation;
 
@@ -1636,8 +1637,9 @@ mod operation_permissions {
                 .map_err(|_| failure(identity, "memory access has no storage history"))
         }
         fn requirements(
-            &self,
+            &mut self,
             machine: MachineId,
+            position: DescriptorPosition,
             query: &DescriptorContentsQuery,
             requirements: &mut Vec<(StructuralDomainId, Vec<StructuralPathSegment>)>,
         ) -> Judged<()> {
@@ -1663,6 +1665,39 @@ mod operation_permissions {
                 .ok_or_else(|| {
                     failure(machine, "memory access does not follow its subject's type")
                 })?;
+            // Reserving a home declares what a later store must deliver; it
+            // does not install that value's rules on empty storage. Exempt
+            // only a positively proved, untouched empty producer. A moved-out
+            // hole or an unknown write cannot recreate that initial state.
+            let descriptor = self.descriptor(machine)?;
+            let producer = descriptor
+                .places
+                .binary_search_by_key(&query.root, |place| place.place)
+                .ok()
+                .and_then(|index| descriptor.places[index].producer);
+            if let Some(producer) = producer {
+                let empty = self
+                    .machine(machine)?
+                    .block(&producer.0)
+                    .and_then(|block| block.operations.get(producer.1 as usize))
+                    .is_some_and(|operation| {
+                        matches!(operation.kind, OperationKind::EstablishStructuralLocal {})
+                    });
+                if empty
+                    && require_unchanged_produced_payload_in(
+                        &self.module.structural_types,
+                        self.graph,
+                        &mut self.analysis,
+                        machine,
+                        producer,
+                        position,
+                        &crate::descriptor_lifetimes::DescriptorLocation::whole(query.root),
+                    )
+                    .is_ok()
+                {
+                    return Ok(());
+                }
+            }
             let selected = contents_membership_path(
                 &self.module.structural_types,
                 contract.carrier,
@@ -1972,7 +2007,7 @@ mod operation_permissions {
                 }
                 let query = self.query(subject.machine, &subject.source)?;
                 let mut requirements = Vec::new();
-                self.requirements(subject.machine, &query, &mut requirements)?;
+                self.requirements(subject.machine, subject.position, &query, &mut requirements)?;
                 self.rules(&original, &subject, operation, requirements)?;
                 pending.extend(self.callers(&subject)?);
             }
@@ -1998,7 +2033,7 @@ mod operation_permissions {
                 }
             };
             let mut requirements = Vec::new();
-            self.requirements(machine, &query, &mut requirements)?;
+            self.requirements(machine, position, &query, &mut requirements)?;
             let targets = self
                 .analysis
                 .payload_targets(machine, position, &query)

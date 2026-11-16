@@ -9098,10 +9098,35 @@ pub mod descriptor_results {
             observation: DescriptorPosition,
             payload: &DescriptorLocation,
         ) -> Result<(), &'static str> {
+            let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
+            require_unchanged_produced_payload_in(
+                types,
+                graph,
+                &mut analysis,
+                identity,
+                producer,
+                observation,
+                payload,
+            )
+        }
+
+        /// Reuse the caller's prepared storage history. A missing or changed
+        /// version is an error, including an unresolved write on any arrival.
+        pub fn require_unchanged_produced_payload_in(
+            types: &[StructuralTypeDeclaration],
+            graph: &[DescriptorMachine],
+            analysis: &mut DescriptorAnalysis<'_>,
+            identity: MachineId,
+            producer: DescriptorPosition,
+            observation: DescriptorPosition,
+            payload: &DescriptorLocation,
+        ) -> Result<(), &'static str> {
+            if !analysis.uses_source_graph(types, graph) {
+                return Err("produced storage analysis belongs to another immutable source graph");
+            }
             let machine =
                 descriptor_machine(graph, identity).ok_or("produced payload machine is absent")?;
-            let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
-            require_version(machine, &mut analysis, producer, observation, payload)
+            require_version(machine, analysis, producer, observation, payload)
         }
 
         fn require_version(
@@ -13821,9 +13846,9 @@ pub mod descriptor_results {
         ProducedPayloadVersion, ScalarCaptureAnalysis, ScalarCaptureFailure,
         projected_stored_sources_in, require_completed_scalar_capture,
         require_unchanged_entry_storage, require_unchanged_observed_storage,
-        require_unchanged_produced_payload, unchanged_payload_producer,
-        unchanged_stored_projection_sources_in, unchanged_stored_scalar_sources,
-        unchanged_stored_sources,
+        require_unchanged_produced_payload, require_unchanged_produced_payload_in,
+        unchanged_payload_producer, unchanged_stored_projection_sources_in,
+        unchanged_stored_scalar_sources, unchanged_stored_sources,
     };
     pub(crate) use scalar_captures::scalar_storage_writes;
     pub use scalar_captures::{

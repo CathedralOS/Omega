@@ -616,7 +616,22 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
             let Err(error) = judged else {
                 panic!("an empty route list denies that axis");
             };
-            assert!(format!("{error:?}").contains(axis), "{error:?}");
+            let detail = format!("{error:?}");
+            assert!(
+                detail.contains(&format!(
+                    "this function is not allowed to {axis} this value"
+                )),
+                "{detail}"
+            );
+            let owner = if axis == "read" {
+                "number"
+            } else {
+                "write_number"
+            };
+            assert!(
+                detail.contains(&format!("in machine `{owner}`")),
+                "{detail}"
+            );
             continue;
         }
         let accepted = judged.expect("the listed writer delegates to its ordinary helper");
