@@ -3658,3 +3658,98 @@ pub(crate) mod invocation_inputs {
         Ok(())
     }
 }
+
+/// Whether one call's scalar actuals establish the exact extent indices of
+/// its structural actual. Parameter identities stay local to each machine;
+/// the invocation supplies the only substitution between them.
+pub fn const_array_argument_matches(
+    module: &terminal_psi::TerminalModule,
+    caller: &terminal_psi::TerminalMachine,
+    callee: &terminal_psi::TerminalMachine,
+    arguments: &[semantic_vocabulary::ValueId],
+    actual: semantic_vocabulary::StructuralTypeId,
+    expected: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    fn paired(
+        module: &terminal_psi::TerminalModule,
+        caller: &terminal_psi::TerminalMachine,
+        callee: &terminal_psi::TerminalMachine,
+        arguments: &[semantic_vocabulary::ValueId],
+        actual: semantic_vocabulary::StructuralTypeId,
+        expected: semantic_vocabulary::StructuralTypeId,
+        depth: usize,
+    ) -> bool {
+        use terminal_psi::{ArrayExtent, StructuralTypeShape};
+        if actual == expected {
+            return true;
+        }
+        if depth > 128 || arguments.len() != callee.parameters.len() {
+            return false;
+        }
+        let (Some(actual), Some(expected)) = (
+            module.structural_type(actual),
+            module.structural_type(expected),
+        ) else {
+            return false;
+        };
+        if actual.declaration_identity != expected.declaration_identity
+            || actual.owns_linear_claim != expected.owns_linear_claim
+            || actual.copyable != expected.copyable
+            || actual.no_code_affine_cleanup != expected.no_code_affine_cleanup
+            || actual.descriptor_cleanup != expected.descriptor_cleanup
+            || actual.nominal_cleanup.is_some()
+            || expected.nominal_cleanup.is_some()
+            || actual.quotient_carrier.is_some()
+            || expected.quotient_carrier.is_some()
+            || actual.scalar_restriction.is_some()
+            || expected.scalar_restriction.is_some()
+            || !actual.requires.is_empty()
+            || !expected.requires.is_empty()
+        {
+            return false;
+        }
+        let (
+            StructuralTypeShape::FixedArray {
+                element: ae,
+                length: al,
+            },
+            StructuralTypeShape::FixedArray {
+                element: ee,
+                length: el,
+            },
+        ) = (&actual.shape, &expected.shape)
+        else {
+            return false;
+        };
+        let length = if al == el {
+            true
+        } else if let ArrayExtent::Parameter { owner, value } = el {
+            if *owner != callee.id {
+                return false;
+            }
+            let Some(position) = callee
+                .parameters
+                .iter()
+                .position(|formal| formal.id == *value)
+            else {
+                return false;
+            };
+            let Some(actual_value) = arguments.get(position) else {
+                return false;
+            };
+            match al {
+                ArrayExtent::Parameter { owner, value } => {
+                    *owner == caller.id && value == actual_value
+                }
+                ArrayExtent::Literal(length) => {
+                    crate::constant_runtime_index(caller, *actual_value) == Some(*length)
+                }
+                ArrayExtent::Application(_) => false,
+            }
+        } else {
+            false
+        };
+        length && paired(module, caller, callee, arguments, *ae, *ee, depth + 1)
+    }
+    paired(module, caller, callee, arguments, actual, expected, 0)
+}

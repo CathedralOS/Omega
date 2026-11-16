@@ -2573,6 +2573,9 @@ pub(crate) mod element_view {
             };
             let window_start = byte_window.map_or(0, |(start, _)| start);
             let leading: u64 = match backing.extent {
+                terminal_semantics::CollectionExtent::Parameter { .. } => {
+                    return Err("an array extent is still a rigid const input");
+                }
                 terminal_semantics::CollectionExtent::LiveLength { .. } => 8,
                 terminal_semantics::CollectionExtent::Fixed(_)
                 | terminal_semantics::CollectionExtent::StoredLength => 0,

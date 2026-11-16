@@ -2724,7 +2724,9 @@ pub(crate) mod primitive_place {
                 (
                     StructuralPathSegment::FixedIndex(index),
                     StructuralTypeShape::FixedArray { element, length },
-                ) if length.literal().is_none_or(|length| *index < length) => {
+                ) if !matches!(length, terminal_psi::ArrayExtent::Parameter { .. })
+                    && length.literal().is_none_or(|length| *index < length) =>
+                {
                     step(
                         length
                             .literal()
@@ -2865,6 +2867,54 @@ pub(crate) mod primitive_place {
                         length: terminal_psi::ArrayExtent::Literal(extent),
                         ..
                     } => super::static_path::runtime_index_bound(index, carrier, extent),
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Parameter { value: length, .. },
+                        ..
+                    } => {
+                        let Some(length_type) = values.value_type(length) else {
+                            error = RuntimeIndexGoalError::MissingExtent;
+                            return false;
+                        };
+                        let Some(integer) =
+                            carrier.as_integer().filter(|integer| !integer.is_address())
+                        else {
+                            error = RuntimeIndexGoalError::UnsupportedSelector;
+                            return false;
+                        };
+                        let index_term = semantic_vocabulary::ScalarTerm::value(index, carrier);
+                        let length_term =
+                            semantic_vocabulary::ScalarTerm::value(length, length_type);
+                        let upper = if carrier == length_type {
+                            Proposition::LessThan(index_term.clone(), length_term)
+                        } else {
+                            let Some(left) =
+                                semantic_vocabulary::IntegerMathTerm::embed(index_term.clone())
+                            else {
+                                return false;
+                            };
+                            let Some(right) =
+                                semantic_vocabulary::IntegerMathTerm::embed(length_term)
+                            else {
+                                return false;
+                            };
+                            Proposition::IntegerMathLessThan(left, right)
+                        };
+                        Some(if integer.sign() == IntegerSign::Signed {
+                            Proposition::Conjunction(vec![
+                                Proposition::LessOrEqual(
+                                    semantic_vocabulary::ScalarTerm::integer(
+                                        integer,
+                                        semantic_vocabulary::IntegerValue::Signed(0),
+                                    )
+                                    .expect("zero fits an integer"),
+                                    index_term,
+                                ),
+                                upper,
+                            ])
+                        } else {
+                            upper
+                        })
+                    }
                     StructuralTypeShape::ElementView { .. } => {
                         let count = ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),

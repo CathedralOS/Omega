@@ -122,7 +122,7 @@ impl Program<'_> {
         let StorageShape::FixedArray {
             element,
             qualification: Qualification::NONE,
-            length: ArrayExtent::Literal(_),
+            length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
         } = actual.shape
         else {
             return None;
@@ -152,7 +152,7 @@ impl Program<'_> {
         let StorageShape::FixedArray {
             element: stored,
             qualification: stored_qualification,
-            length: ArrayExtent::Literal(_),
+            length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
         } = actual.shape
         else {
             return None;
@@ -581,6 +581,18 @@ impl Program<'_> {
                 qualification,
                 length: ArrayExtent::Literal(length),
             } => Ok((*element, *qualification, CollectionExtent::Fixed(*length))),
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: ArrayExtent::Parameter { owner, value },
+            } => Ok((
+                *element,
+                *qualification,
+                CollectionExtent::Parameter {
+                    owner: *owner,
+                    value: *value,
+                },
+            )),
             StorageShape::ElementView {
                 element,
                 qualification,
@@ -680,35 +692,61 @@ impl Program<'_> {
         machine: MachineId,
         reference: TypeReferenceHandle,
         element: TypeReferenceHandle,
-        _extent: &FixedArrayLength,
+        extent: &FixedArrayLength,
     ) -> Checked<ValueType> {
         use typed_trees::constant_recipes::DeclaredArrayExtent;
 
         let unserved = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
-        let length = match self.typed.declared_array_extent(reference) {
-            Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
-            Some(DeclaredArrayExtent::Recipe(recipe)) => {
-                let recipe = self.typed.constant_recipes.get(recipe);
-                let contexts = self
-                    .typed
-                    .constant_expression_contexts
-                    .span_or_empty(recipe.contexts);
-                let [context] = contexts else {
-                    return Err(unserved(
-                        "array extent has no unique retained evaluation context",
-                    ));
-                };
-                ArrayExtent::Application(
-                    self.scalar_evaluation(
-                        machine,
-                        context.evaluation_entry,
-                        context.evaluation_expression,
-                        context.result_type,
-                    )?
-                    .0,
-                )
+        let length = if let FixedArrayLength::ConstParameter { symbol, .. } = extent {
+            let key = (symbol.arena_index(), symbol.generation());
+            let position = self
+                .const_scope
+                .binary_search_by_key(&key, |binding| {
+                    (binding.symbol.arena_index(), binding.symbol.generation())
+                })
+                .map_err(|_| unserved("array extent without an owned const input"))?;
+            let binding = self.const_scope[position];
+            let Some(integer) = binding.scalar_type.as_integer() else {
+                return Err(unserved("array extent const input is not an integer"));
+            };
+            if integer.is_address()
+                || integer.sign() != IntegerSign::Unsigned
+                || integer.bits().is_none_or(|bits| bits > 64)
+            {
+                return Err(unserved(
+                    "array extent const input needs an unsigned carrier of at most 64 bits",
+                ));
             }
-            None => return Err(unserved("unresolved array extent")),
+            ArrayExtent::Parameter {
+                owner: binding.owner,
+                value: binding.value,
+            }
+        } else {
+            match self.typed.declared_array_extent(reference) {
+                Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
+                Some(DeclaredArrayExtent::Recipe(recipe)) => {
+                    let recipe = self.typed.constant_recipes.get(recipe);
+                    let contexts = self
+                        .typed
+                        .constant_expression_contexts
+                        .span_or_empty(recipe.contexts);
+                    let [context] = contexts else {
+                        return Err(unserved(
+                            "array extent has no unique retained evaluation context",
+                        ));
+                    };
+                    ArrayExtent::Application(
+                        self.scalar_evaluation(
+                            machine,
+                            context.evaluation_entry,
+                            context.evaluation_expression,
+                            context.result_type,
+                        )?
+                        .0,
+                    )
+                }
+                None => return Err(unserved("unresolved array extent")),
+            }
         };
         let value = self.value_type(machine, element)?;
         let (element, qualification) = self.collection_element_storage(machine, element, value)?;

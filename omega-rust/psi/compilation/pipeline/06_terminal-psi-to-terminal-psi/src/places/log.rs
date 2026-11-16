@@ -658,6 +658,22 @@ impl Storage<'_> {
                 }
                 return Ok(());
             }
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+            } => {
+                let element = self.declaration(*element, concerns)?;
+                if element.requires.is_empty()
+                    && element.scalar_restriction.is_none()
+                    && matches!(element.shape, StructuralTypeShape::PrimitiveScalar(_))
+                {
+                    return Ok(());
+                }
+                return Err(self.unsupported(
+                    concerns,
+                    "symbolic array zero requires an ungated scalar element",
+                ));
+            }
             StructuralTypeShape::Record { fields, .. } => (None, fields),
             StructuralTypeShape::Sum { cases } => {
                 let first = cases

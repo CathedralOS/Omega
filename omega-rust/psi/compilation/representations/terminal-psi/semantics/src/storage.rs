@@ -3322,8 +3322,14 @@ pub(crate) mod collection_backing {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum CollectionExtent {
+        Parameter {
+            owner: semantic_vocabulary::MachineId,
+            value: semantic_vocabulary::ValueId,
+        },
         Fixed(u64),
-        LiveLength { capacity: u64 },
+        LiveLength {
+            capacity: u64,
+        },
         StoredLength,
     }
 
@@ -3400,6 +3406,13 @@ pub(crate) mod collection_backing {
                 length: terminal_psi::ArrayExtent::Literal(length),
             } if actual == element => Some(CollectionBacking {
                 extent: CollectionExtent::Fixed(length),
+                storage: CollectionStorage::Inline,
+            }),
+            StructuralTypeShape::FixedArray {
+                element: actual,
+                length: terminal_psi::ArrayExtent::Parameter { owner, value },
+            } if actual == element => Some(CollectionBacking {
+                extent: CollectionExtent::Parameter { owner, value },
                 storage: CollectionStorage::Inline,
             }),
             StructuralTypeShape::ByteSequence(carrier)

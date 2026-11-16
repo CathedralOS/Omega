@@ -1511,6 +1511,15 @@ impl<'a> Lowering<'a> {
                 qualification,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => Ok((element, qualification, CollectionExtent::Fixed(length))),
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: terminal_psi::ArrayExtent::Parameter { owner, value },
+            } => Ok((
+                element,
+                qualification,
+                CollectionExtent::Parameter { owner, value },
+            )),
             StorageShape::ElementView {
                 element,
                 qualification,
@@ -4356,6 +4365,22 @@ impl<'a> Lowering<'a> {
                     prefix.pop();
                 }
                 return Ok(());
+            }
+            StorageShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                qualification: Qualification::NONE,
+            } => {
+                let element = self.record_type(element)?;
+                if element.requires.is_empty()
+                    && matches!(
+                        element.shape,
+                        StorageShape::PrimitiveScalar { policy: None, .. }
+                    )
+                {
+                    return Ok(());
+                }
+                return Err(self.internal("symbolic array zero requires an ungated scalar element"));
             }
             StorageShape::FixedArray { .. } => {
                 return Err(self.internal("zero array without a closed extent"));

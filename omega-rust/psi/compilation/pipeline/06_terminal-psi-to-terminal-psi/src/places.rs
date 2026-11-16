@@ -1056,6 +1056,22 @@ impl<'a> Storage<'a> {
                 }
                 return Ok(());
             }
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+            } => {
+                let element = self.declaration(*element, concerns)?;
+                if element.requires.is_empty()
+                    && element.scalar_restriction.is_none()
+                    && matches!(element.shape, StructuralTypeShape::PrimitiveScalar(_))
+                {
+                    return Ok(());
+                }
+                return Err(self.unsupported(
+                    concerns,
+                    "symbolic array zero requires an ungated scalar element",
+                ));
+            }
             StructuralTypeShape::Record { fields, .. } => {
                 found.push((at.clone(), structural_type));
                 (None, fields)
@@ -1851,6 +1867,10 @@ impl<'a> Storage<'a> {
                             }
                             element
                         }
+                        StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Parameter { .. },
+                        } if matches!(segment, Segment::RuntimeIndex { .. }) => element,
                         StructuralTypeShape::ElementView { element, .. }
                             if matches!(segment, Segment::RuntimeIndex { .. }) =>
                         {
@@ -1938,6 +1958,14 @@ impl<'a> Storage<'a> {
             // backing. An exclusive descriptor is readable too; copying it
             // still requires the separate unrestricted-copy judgment.
             shape if shape.is_view_descriptor() => found.push(at.clone()),
+            // A symbolic array can be established whole without enumerating
+            // N elements. Every selected read still owes its own index bound.
+            StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                ..
+            } => {
+                found.push(at.clone());
+            }
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),

@@ -76,9 +76,11 @@ pub(crate) struct TypeAlternative {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct WidthBinding {
+struct ConstBinding {
     symbol: SymbolHandle,
-    parameter: semantic_vocabulary::WidthParameter,
+    owner: semantic_vocabulary::MachineId,
+    value: semantic_vocabulary::ValueId,
+    scalar_type: semantic_vocabulary::ScalarType,
 }
 
 /// Source-unit permissions for local inference. Outcome inference changes
@@ -202,8 +204,8 @@ pub(crate) struct Program<'t> {
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
     /// Static width binders retain the actual machine-local input identity.
     /// Sorted by source symbol within this declaration's selected telescope.
-    width_scope: Vec<WidthBinding>,
-    width_scopes: IdTable<MachineId, Vec<WidthBinding>>,
+    const_scope: Vec<ConstBinding>,
+    const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// The generic machines a generic check form's entry calls at its own
     /// type parameters, each read once per tuple of type arguments as its
     /// contract with no body (`Elaboration::applications`).
@@ -419,8 +421,8 @@ impl<'t> Program<'t> {
             scope: Vec::new(),
             schema_types: None,
             scopes: IdTable::default(),
-            width_scope: Vec::new(),
-            width_scopes: IdTable::default(),
+            const_scope: Vec::new(),
+            const_scopes: IdTable::default(),
             applications: Vec::new(),
             applied: Vec::new(),
             alternative: None,

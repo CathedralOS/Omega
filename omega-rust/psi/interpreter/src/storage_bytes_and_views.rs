@@ -4295,7 +4295,8 @@ pub(crate) mod element_views {
                     let bound = match collection.extent {
                         terminal_semantics::CollectionExtent::Fixed(length) => length,
                         terminal_semantics::CollectionExtent::LiveLength { capacity } => capacity,
-                        terminal_semantics::CollectionExtent::StoredLength => {
+                        terminal_semantics::CollectionExtent::StoredLength
+                        | terminal_semantics::CollectionExtent::Parameter { .. } => {
                             return Err(malformed());
                         }
                     };

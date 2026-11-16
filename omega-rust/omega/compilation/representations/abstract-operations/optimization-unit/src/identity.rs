@@ -1841,6 +1841,11 @@ pub(crate) mod structural_encoding {
                 bytes.u8(3);
                 bytes.id(*element);
                 match length {
+                    terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                        bytes.u8(2);
+                        bytes.id(*owner);
+                        bytes.id(*value);
+                    }
                     terminal_psi::ArrayExtent::Literal(length) => {
                         bytes.u8(0);
                         bytes.u64(*length);

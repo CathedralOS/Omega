@@ -284,13 +284,19 @@ pub mod scalar_applications {
     pub enum ArrayExtent {
         Literal(u64),
         Application(ScalarApplicationId),
+        /// A generic body's exact const input. Zero is admitted: unlike an
+        /// integer width, an array extent contributes no positivity premise.
+        Parameter {
+            owner: semantic_vocabulary::MachineId,
+            value: semantic_vocabulary::ValueId,
+        },
     }
 
     impl ArrayExtent {
         pub const fn literal(self) -> Option<u64> {
             match self {
                 Self::Literal(length) => Some(length),
-                Self::Application(_) => None,
+                Self::Application(_) | Self::Parameter { .. } => None,
             }
         }
     }
@@ -308,6 +314,12 @@ pub mod scalar_applications {
                 Self::Application(application) => {
                     write!(formatter, "pending application #{}", application.get())
                 }
+                Self::Parameter { owner, value } => write!(
+                    formatter,
+                    "const input #{} of machine #{}",
+                    value.get(),
+                    owner.get()
+                ),
             }
         }
     }

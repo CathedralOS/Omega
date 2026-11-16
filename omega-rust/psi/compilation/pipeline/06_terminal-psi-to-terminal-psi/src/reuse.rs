@@ -754,6 +754,7 @@ impl Carried<'_> {
         &'s self,
         tables: &'s MachineTables,
         lowered: &'s TerminalMachine,
+        module: &'s terminal_psi::TerminalModule,
     ) -> Option<Carry<'s>> {
         let template = MachineId::new(1)?;
         self.forms.iter().find_map(|form| {
@@ -765,6 +766,7 @@ impl Carried<'_> {
                 &form.selections,
                 tables,
                 lowered,
+                module,
             )
             .ok()
         })
@@ -851,6 +853,7 @@ pub fn reverify_specialization(
         selections,
         tables,
         lowered,
+        module,
     )?;
     let mut verdicts = Vec::new();
     for (obligation, row) in tables.obligations.iter() {
@@ -909,6 +912,7 @@ impl Instantiation {
     /// canonical order, which a literal in place of a formal can change).
     /// Refused when there is no such instantiation: `specialization` is then
     /// not that body's contract at any value of its parameters.
+    #[allow(clippy::too_many_arguments)]
     fn of(
         generic: &TerminalMachine,
         generic_tables: &MachineTables,
@@ -916,6 +920,8 @@ impl Instantiation {
         specialization: &TerminalMachine,
         tables: &MachineTables,
         machine: MachineId,
+        generic_module: &terminal_psi::TerminalModule,
+        module: &terminal_psi::TerminalModule,
     ) -> Checked<Self> {
         let refuse = |detail| {
             Err(refusal(
@@ -1012,6 +1018,63 @@ impl Instantiation {
                 return refuse("a width argument is absent or disagrees across the specialization");
             }
         }
+        // Borrowed inputs occupy the structural telescope, not scalar value
+        // rows. Their exact shapes can be the only occurrences of an extent
+        // binder, so pair those declarations before moving any certificate.
+        if generic.structural_parameters.len() != specialization.structural_parameters.len() {
+            return refuse("the specialization changes the structural input telescope");
+        }
+        let mut visited = Vec::new();
+        for (theirs, mine) in generic
+            .structural_parameters
+            .iter()
+            .zip(&specialization.structural_parameters)
+        {
+            let mut paired = theirs.clone();
+            paired.structural_type = mine.structural_type;
+            if paired != *mine
+                || !found.structural_type(
+                    generic_module,
+                    module,
+                    generic,
+                    theirs.structural_type,
+                    mine.structural_type,
+                    &mut visited,
+                )
+            {
+                return refuse(
+                    "a structural input is not the generic body's at one const argument",
+                );
+            }
+        }
+        match (&generic.result, &specialization.result) {
+            (
+                terminal_psi::TerminalMachineResult::Structural(theirs),
+                terminal_psi::TerminalMachineResult::Structural(mine),
+            ) => {
+                let mut paired = theirs.clone();
+                paired.structural_type = mine.structural_type;
+                if paired != *mine
+                    || !found.structural_type(
+                        generic_module,
+                        module,
+                        generic,
+                        theirs.structural_type,
+                        mine.structural_type,
+                        &mut visited,
+                    )
+                {
+                    return refuse(
+                        "a structural result is not the generic body's at one const argument",
+                    );
+                }
+            }
+            (terminal_psi::TerminalMachineResult::Structural(_), _)
+            | (_, terminal_psi::TerminalMachineResult::Structural(_)) => {
+                return refuse("the specialization changes the structural result telescope");
+            }
+            _ => {}
+        }
         if rigid == 0 {
             return Ok(found);
         }
@@ -1036,6 +1099,132 @@ impl Instantiation {
             return refuse("the requirements of the specialization are not the generic body's");
         }
         Ok(found)
+    }
+
+    /// Relate structural declarations through the same substitution as scalar
+    /// clauses. Extents are inferred from actual specialized shapes; neither
+    /// equal storage size nor a matching type spelling supplies an argument.
+    #[allow(clippy::too_many_arguments)]
+    fn structural_type(
+        &mut self,
+        generic_module: &terminal_psi::TerminalModule,
+        module: &terminal_psi::TerminalModule,
+        generic: &TerminalMachine,
+        theirs: semantic_vocabulary::StructuralTypeId,
+        mine: semantic_vocabulary::StructuralTypeId,
+        visited: &mut Vec<(
+            semantic_vocabulary::StructuralTypeId,
+            semantic_vocabulary::StructuralTypeId,
+        )>,
+    ) -> bool {
+        use terminal_psi::{ArrayExtent, StructuralTypeShape as Shape};
+        if visited.contains(&(theirs, mine)) {
+            return true;
+        }
+        let (Some(theirs), Some(mine)) = (
+            generic_module.structural_type(theirs),
+            module.structural_type(mine),
+        ) else {
+            return false;
+        };
+        visited.push((theirs.id, mine.id));
+        if generic_module.identities.text(theirs.declaration_identity)
+            != module.identities.text(mine.declaration_identity)
+            || theirs.quotient_carrier.is_some()
+            || mine.quotient_carrier.is_some()
+            || theirs
+                .scalar_restriction
+                .as_ref()
+                .and_then(|restriction| restriction.as_structural())
+                .is_some()
+            || mine
+                .scalar_restriction
+                .as_ref()
+                .and_then(|restriction| restriction.as_structural())
+                .is_some()
+            || theirs.nominal_cleanup.is_some()
+            || mine.nominal_cleanup.is_some()
+        {
+            return false;
+        }
+        // Ownership, cleanup, restrictions and declaration requirements stay
+        // exact. Generated shape identities may change with the const input.
+        let mut paired = theirs.clone();
+        paired.id = mine.id;
+        paired.identity = mine.identity;
+        paired.declaration_identity = mine.declaration_identity;
+        paired.shape = mine.shape.clone();
+        if paired != *mine {
+            return false;
+        }
+        match (&theirs.shape, &mine.shape) {
+            (Shape::PrimitiveScalar(theirs), Shape::PrimitiveScalar(mine)) => {
+                self.scalar_type(*theirs) == Some(*mine)
+            }
+            (
+                Shape::Reference {
+                    referent: theirs,
+                    access: a,
+                },
+                Shape::Reference {
+                    referent: mine,
+                    access: b,
+                },
+            ) if a == b => {
+                self.structural_type(generic_module, module, generic, *theirs, *mine, visited)
+            }
+            (
+                Shape::FixedArray {
+                    element: theirs,
+                    length,
+                },
+                Shape::FixedArray {
+                    element: mine,
+                    length: actual,
+                },
+            ) => {
+                let same_length = match (*length, *actual) {
+                    (ArrayExtent::Parameter { owner, value }, ArrayExtent::Literal(length))
+                        if owner == generic.id =>
+                    {
+                        generic
+                            .parameters
+                            .iter()
+                            .find(|parameter| parameter.id == value)
+                            .and_then(|parameter| parameter.scalar_type.as_integer())
+                            .and_then(|integer| {
+                                ScalarTerm::integer(
+                                    integer,
+                                    semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+                                )
+                                .ok()
+                            })
+                            .is_some_and(|literal| self.bind(value, literal))
+                    }
+                    (ArrayExtent::Literal(theirs), ArrayExtent::Literal(mine)) => theirs == mine,
+                    _ => false,
+                };
+                same_length
+                    && self.structural_type(
+                        generic_module,
+                        module,
+                        generic,
+                        *theirs,
+                        *mine,
+                        visited,
+                    )
+            }
+            (Shape::Opaque | Shape::ByteSequence(_) | Shape::AtomicCell(_), _) => {
+                theirs.shape == mine.shape
+                    && generic_module.identities.text(theirs.identity)
+                        == module.identities.text(mine.identity)
+                    && generic_module.identities.text(theirs.declaration_identity)
+                        == module.identities.text(mine.declaration_identity)
+            }
+            // A container needs correspondence of every child and nominal
+            // application. Equal local child IDs cannot establish that.
+            _ => false,
+        }
     }
 
     fn bind(&mut self, value: ValueId, literal: ScalarTerm) -> bool {
@@ -1272,6 +1461,7 @@ impl<'a> Carry<'a> {
         selections: &'a [Selection<'a>],
         tables: &'a MachineTables,
         lowered: &'a TerminalMachine,
+        module: &'a terminal_psi::TerminalModule,
     ) -> Checked<Self> {
         let rigid = generic.value_parameters.get(template).copied().unwrap_or(0);
         let generic_tables = terminal_check_tables::row(
@@ -1287,6 +1477,8 @@ impl<'a> Carry<'a> {
             lowered,
             tables,
             specialization,
+            &generic.module,
+            module,
         )?;
         let carry = Carry {
             specialization,

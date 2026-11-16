@@ -303,17 +303,25 @@ impl Program<'_> {
                     return unserved("integer width without an owned const binder");
                 };
                 let key = (symbol.arena_index(), symbol.generation());
-                let Ok(position) = self.width_scope.binary_search_by_key(&key, |binding| {
+                let Ok(position) = self.const_scope.binary_search_by_key(&key, |binding| {
                     (binding.symbol.arena_index(), binding.symbol.generation())
                 }) else {
                     return unserved("integer width without an owned const u64 binder");
                 };
+                if self.const_scope[position].scalar_type
+                    != ScalarType::Integer(IntegerType::width_binder())
+                {
+                    return unserved("integer width without an owned const u64 binder");
+                }
                 Ok(ScalarType::Integer(IntegerType::parameterized(
                     match sign {
                         numerics::integer_carrier::IntegerSign::Signed => IntegerSign::Signed,
                         numerics::integer_carrier::IntegerSign::Unsigned => IntegerSign::Unsigned,
                     },
-                    self.width_scope[position].parameter,
+                    semantic_vocabulary::WidthParameter {
+                        owner: self.const_scope[position].owner,
+                        value: self.const_scope[position].value,
+                    },
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),

@@ -13927,13 +13927,22 @@ pub mod descriptor_results {
                     &actual.path,
                 );
                 if actual.access != formal.access
-                    || (!selected.is_some_and(|selected| selected.id == formal.structural_type)
-                        && crate::borrowed_primitive_projection_declaration(
-                            module.structural_types.iter(),
-                            root_type,
-                            &actual.path,
-                            Some(formal.structural_type),
-                        ) != Some(formal.structural_type))
+                    || (!selected.is_some_and(|selected| {
+                        selected.id == formal.structural_type
+                            || crate::calls::const_array_argument_matches(
+                                module,
+                                machine,
+                                callee,
+                                arguments,
+                                selected.id,
+                                formal.structural_type,
+                            )
+                    }) && crate::borrowed_primitive_projection_declaration(
+                        module.structural_types.iter(),
+                        root_type,
+                        &actual.path,
+                        Some(formal.structural_type),
+                    ) != Some(formal.structural_type))
                 {
                     return None;
                 }

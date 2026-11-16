@@ -910,6 +910,11 @@ impl<'t> Program<'t> {
         }
         if self.checking_generic_entry(id) {
             let invocation = self.static_invocation(StaticArgumentCall::Statement(call));
+            if let Some(read) =
+                self.generic_value_call(id, slots, &invocation, SourceOrigin::of(call.source_span))?
+            {
+                return Ok(read);
+            }
             if let Some(arguments) = self.type_arguments(id, &invocation)? {
                 return self.generic_call(
                     id,
@@ -1053,6 +1058,9 @@ impl<'t> Program<'t> {
             // parameters, `same<T>(left, right)`: held to that machine's
             // contract at them.
             let invocation = self.static_invocation(StaticArgumentCall::Expression(handle, call));
+            if let Some(read) = self.generic_value_call(id, slots, &invocation, source)? {
+                return Ok(read);
+            }
             if let Some(arguments) = self.type_arguments(id, &invocation)? {
                 return self.generic_call(id, slots, invocation, arguments, source);
             }
@@ -1534,6 +1542,7 @@ impl<'t> Program<'t> {
             dispatch.realization_machine,
             application_handle,
             raw_arguments,
+            false,
         )?;
         if !dispatch.evidence_parameter.is_valid() {
             return unserved("static requirement dispatch");
@@ -1786,6 +1795,16 @@ impl<'t> Program<'t> {
         binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
         application: typed_trees::static_applications::StaticMachineApplicationHandle,
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
+        self.bound_scalar_values_in_scope(id, binders, application, false)
+    }
+
+    fn bound_scalar_values_in_scope(
+        &self,
+        id: MachineId,
+        binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        rigid: bool,
+    ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
         use semantic_vocabulary::{ScalarTerm, ScalarType};
         use typed_trees::static_applications::StaticMachineBindingValue;
         use typed_trees::types::PrimitiveType;
@@ -1829,6 +1848,16 @@ impl<'t> Program<'t> {
             let StaticMachineBindingValue::Const(reference) = binding.value else {
                 return Err(unserved("value parameter is not bound to a static value"));
             };
+            if rigid
+                && let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                    self.typed.type_reference_table.type_reference(reference)
+                && let Some(input) = self.const_scope.iter().find(|input| {
+                    input.symbol == *symbol && input.owner == id && input.scalar_type == scalar_type
+                })
+            {
+                values.push(ScalarTerm::value(input.value, scalar_type));
+                continue;
+            }
             let primitive = match scalar_type {
                 ScalarType::Integer(carrier) if !carrier.is_address() => {
                     let fixed = carrier
@@ -1882,6 +1911,7 @@ impl<'t> Program<'t> {
         declaration: SymbolHandle,
         application_handle: typed_trees::static_applications::StaticMachineApplicationHandle,
         authored_arguments: &[typed_trees::expression::StaticMachineArgument],
+        rigid: bool,
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let table = &self.typed.expression_table;
@@ -1931,7 +1961,7 @@ impl<'t> Program<'t> {
             return unserved("requirement call lost its binding declaration");
         };
         let binders = self.value_binder_correspondence(id, binders, (&parameters).into())?;
-        self.bound_scalar_values(id, &binders, application_handle)
+        self.bound_scalar_values_in_scope(id, &binders, application_handle, rigid)
     }
 
     /// The types a call in a generic check form's entry applies its callee's
@@ -1997,6 +2027,120 @@ impl<'t> Program<'t> {
             arguments.push(argument);
         }
         Ok(Some(arguments))
+    }
+
+    /// A const application in a generic body forwards actual rigid inputs as
+    /// ordinary check-form operands. The callee keeps its own formal IDs;
+    /// the checker independently authenticates dependent array correspondence.
+    fn generic_value_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &StaticInvocation<'_>,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        use semantic_vocabulary::ScalarTerm;
+        let target = self.call_target_symbol(id, call.target)?;
+        let Some(machine) = self.typed.machine_by_symbol(target) else {
+            return Ok(None);
+        };
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty()
+            || parameters.iter().any(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                )
+            })
+        {
+            return Ok(None);
+        }
+        if call.unsupported || call.runtime_receiver || !machine.conformance_bounds.is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("const application with another call feature"),
+            ));
+        }
+        self.direct_selection(id, call.target, call.selection, call.binding)?;
+        let binders = parameters
+            .iter()
+            .map(|parameter| {
+                let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                else {
+                    unreachable!()
+                };
+                Ok((parameter.symbol, self.scalar_type(id, type_reference)?))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        let values = self.static_value_arguments(
+            id,
+            &binders,
+            target,
+            call.application,
+            call.authored_arguments,
+            true,
+        )?;
+        let mut operands = Vec::with_capacity(values.len());
+        for value in &values {
+            let scalar_type = value.scalar_type();
+            let kind = match value {
+                ScalarTerm::Value { id: value, .. } => {
+                    let input = self
+                        .const_scope
+                        .iter()
+                        .find(|input| {
+                            input.value == *value
+                                && input.owner == id
+                                && input.scalar_type == scalar_type
+                        })
+                        .ok_or_else(|| {
+                            refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Call("const actual has no caller input"),
+                            )
+                        })?;
+                    let slot = slots
+                        .iter()
+                        .position(|slot| slot.symbol == input.symbol)
+                        .ok_or_else(|| {
+                            refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Call("const actual has no caller slot"),
+                            )
+                        })?;
+                    ExpressionKind::Slot(slot)
+                }
+                ScalarTerm::Integer { value, .. } => ExpressionKind::Integer(*value),
+                ScalarTerm::Boolean(value) => ExpressionKind::Boolean(*value),
+                _ => {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("const actual is neither a literal nor an owned input"),
+                    ));
+                }
+            };
+            operands.push(Expression {
+                call_context: None,
+                kind,
+                result: Some(ValueType::plain(scalar_type)),
+                source,
+            });
+        }
+        let callee = self.const_application(target)?;
+        self.call_of_values(
+            id,
+            slots,
+            (callee.into(), None),
+            call.arguments,
+            source,
+            None,
+            &operands,
+        )
+        .map(Some)
     }
 
     /// A generic check form calls the callee's contract at the entry's exact
@@ -2214,6 +2358,7 @@ impl<'t> Program<'t> {
             requirement.symbol,
             application,
             authored_arguments,
+            false,
         )?;
         let callee = self.requirement(requirement, &value_arguments)?;
         self.call_of(id, slots, (callee.into(), None), arguments, source, None)
@@ -2527,6 +2672,30 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
+        self.call_of_values(
+            id,
+            slots,
+            (callee, required_contract),
+            arguments,
+            source,
+            expected,
+            &[],
+        )
+    }
+
+    fn call_of_values(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        (callee, required_contract): (
+            semantic_vocabulary::TargetMachineCallable,
+            Option<semantic_vocabulary::ContractId>,
+        ),
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+        expected: Option<crate::body::ValueType>,
+        const_values: &[Expression],
+    ) -> Checked<Expression> {
         let free: Vec<_> = if let Some(required) = required_contract {
             let requirement = self
                 .declaration_sources
@@ -2582,7 +2751,7 @@ impl<'t> Program<'t> {
             })
             .collect();
         let declared_result = signature.result;
-        if formals.len() != arguments.len() {
+        if formals.len() != arguments.len() + const_values.len() {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -2643,6 +2812,7 @@ impl<'t> Program<'t> {
                 self.unify(id, &free, *declared, actual, &mut bound)?;
             }
         }
+        read.extend_from_slice(const_values);
         lent_storage_is_untouched(
             id,
             &read,
@@ -2682,6 +2852,15 @@ impl<'t> Program<'t> {
             } else {
                 self.agrees(actual.result, formal)
             };
+            let agrees = agrees
+                || self.const_array_argument_agrees(
+                    id,
+                    callee,
+                    actual.result,
+                    formal,
+                    const_values,
+                    slots,
+                );
             if !agrees {
                 if borrowed.as_ref().is_some_and(|borrowed| {
                     borrowed.referent == crate::body::BorrowedReferent::Slice
@@ -2773,6 +2952,126 @@ impl<'t> Program<'t> {
             result,
             source,
         })
+    }
+
+    fn const_array_argument_agrees(
+        &self,
+        caller: MachineId,
+        callee: semantic_vocabulary::TargetMachineCallable,
+        actual: Option<ValueType>,
+        expected: ValueType,
+        values: &[Expression],
+        slots: &[Slot],
+    ) -> bool {
+        let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee else {
+            return false;
+        };
+        let (Some(ValueType::Record(actual, aq, ar)), ValueType::Record(expected, eq, er)) =
+            (actual, expected)
+        else {
+            return false;
+        };
+        if aq != eq || ar != er || values.is_empty() {
+            return false;
+        }
+        fn matches(
+            program: &Program<'_>,
+            caller: MachineId,
+            callee: MachineId,
+            actual: semantic_vocabulary::StructuralTypeId,
+            expected: semantic_vocabulary::StructuralTypeId,
+            values: &[Expression],
+            slots: &[Slot],
+            depth: usize,
+        ) -> bool {
+            if actual == expected {
+                return true;
+            }
+            if depth > 128 {
+                return false;
+            }
+            let (Some(actual), Some(expected)) =
+                (program.records.get(actual), program.records.get(expected))
+            else {
+                return false;
+            };
+            let (
+                crate::StorageShape::FixedArray {
+                    element: ae,
+                    qualification: aq,
+                    length: al,
+                },
+                crate::StorageShape::FixedArray {
+                    element: ee,
+                    qualification: eq,
+                    length: el,
+                },
+            ) = (&actual.shape, &expected.shape)
+            else {
+                return false;
+            };
+            if aq != eq
+                || actual.copyable != expected.copyable
+                || actual.owns_linear_claim != expected.owns_linear_claim
+                || !actual.requires.is_empty()
+                || !expected.requires.is_empty()
+                || actual.cleanup.is_some()
+                || expected.cleanup.is_some()
+            {
+                return false;
+            }
+            let length = if al == el {
+                true
+            } else if let terminal_psi::ArrayExtent::Parameter { owner, value } = el {
+                if *owner != callee {
+                    return false;
+                }
+                let Some(inputs) = program.const_scopes.get(callee) else {
+                    return false;
+                };
+                let Some(position) = inputs.iter().position(|input| input.value == *value) else {
+                    return false;
+                };
+                // const_scope is symbol-sorted; recover declaration order.
+                let Some(symbol) = program
+                    .symbols
+                    .get(callee)
+                    .and_then(|symbol| program.typed.machine_by_symbol(*symbol))
+                else {
+                    return false;
+                };
+                let parameters = program.typed.machine_type_parameters(symbol);
+                let Some(position) = parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == inputs[position].symbol)
+                else {
+                    return false;
+                };
+                match (al, values.get(position).map(|value| &value.kind)) {
+                    (
+                        terminal_psi::ArrayExtent::Parameter { owner, value },
+                        Some(ExpressionKind::Slot(slot)),
+                    ) if *owner == caller => slots.get(*slot).is_some_and(|slot| {
+                        program.const_scope.iter().any(|input| {
+                            input.owner == caller
+                                && input.value == *value
+                                && input.symbol == slot.symbol
+                        })
+                    }),
+                    (
+                        terminal_psi::ArrayExtent::Literal(length),
+                        Some(ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
+                            value,
+                        ))),
+                    ) => u128::from(*length) == *value,
+                    _ => false,
+                }
+            } else {
+                false
+            };
+            length && matches(program, caller, callee, *ae, *ee, values, slots, depth + 1)
+        }
+        matches(self, caller, callee, actual, expected, values, slots, 0)
     }
 
     /// Whether a value of this type lends observation only: a shared
