@@ -280,23 +280,29 @@ impl Storage<'_> {
                 .ok_or_else(|| {
                     self.foreign(concerns, "collection view changes its element type")
                 })?;
-        if backing.storage == terminal_semantics::CollectionStorage::Borrowed {
-            let actual = self.collection_backing_source(source, 0, element, concerns)?;
-            let (whole, projected) = StructuralPathQualification::select_restorable(
-                &actual.qualifications,
-                &actual.projected_qualifications,
-                &source.path,
+        let actual = self.collection_backing_source(source, 0, element, concerns)?;
+        let (whole, projected) = StructuralPathQualification::select_restorable(
+            &actual.qualifications,
+            &actual.projected_qualifications,
+            &source.path,
+        )
+        .ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "a collection view cannot discard an enclosing qualification",
             )
-            .ok_or_else(|| {
-                self.unsupported(
-                    concerns,
-                    "a collection view cannot discard an enclosing qualification",
-                )
-            })?;
-            if !whole.is_empty()
-                || !projected.is_empty()
-                || !actual.additional_input_qualifications.is_empty()
-                || !self.descriptor_access(source.place, &source.path, concerns, access)?
+        })?;
+        if !whole.is_empty()
+            || !projected.is_empty()
+            || !actual.additional_input_qualifications.is_empty()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "collection view needs its whole plain backing without qualification loss",
+            ));
+        }
+        if backing.storage == terminal_semantics::CollectionStorage::Borrowed {
+            if !self.descriptor_access(source.place, &source.path, concerns, access)?
                 || !terminal_semantics::descriptor_reborrow_shapes_match(
                     &selected.shape,
                     source.access,
@@ -316,7 +322,6 @@ impl Storage<'_> {
         {
             return Err(self.foreign(concerns, "array view changes its element type"));
         }
-        let actual = self.collection_backing_source(source, 0, element, concerns)?;
         let window = if typed {
             // A typed view of a byte array would hide the byte descriptor
             // the specification requires; an erased empty array has no
@@ -343,18 +348,9 @@ impl Storage<'_> {
                 "array view has no closed whole-array storage window",
             )
         })?;
-        let (whole, projected) = StructuralPathQualification::select(
-            &actual.qualifications,
-            &actual.projected_qualifications,
-            window.backing_path,
-        );
         if window.backing_path != source.path
             || window.offset != 0
             || window.length != window.backing_length
-            || !whole.is_empty()
-            || !projected.is_empty()
-            || !actual.additional_input_qualifications.is_empty()
-            || !window.backing_path.is_empty() && !actual.qualifications.is_empty()
         {
             return Err(self.unsupported(
                 concerns,
