@@ -48,8 +48,8 @@ pub use rooted::{RootRows, RootRowsIter, RootedArena};
 
 pub use arena::{
     Arena, ArenaIter, ArenaSlotStorage, ArenaSpanInserter, ArenaStorageView, Handle, HandleSpan,
-    HierarchyArena, HierarchyNode, OrderedRootArena, OrderedRootArenaIter, SpanHandles,
-    unique_handles_in_order,
+    HierarchyArena, HierarchyNode, HierarchyStorage, OrderedRootArena, OrderedRootArenaIter,
+    SpanHandles, unique_handles_in_order,
 };
 pub use owned_index::*;
 pub use paged::{
