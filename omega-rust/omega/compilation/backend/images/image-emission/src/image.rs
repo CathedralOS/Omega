@@ -565,12 +565,16 @@ pub(crate) mod final_image_validation {
                 }
             }
             for descriptor in &pool.descriptors {
-                let entries = target_entries(&pool.catalog, &pool.callables, descriptor.source)
-                    .map_err(|reason| {
-                        Diagnostic::error(format!(
-                            "final selected machine storage is invalid: {reason:?}"
-                        ))
-                    })?;
+                let entries = target_entries(
+                    pool.catalogs.dynamic_dispatch(),
+                    pool.catalogs.callables(),
+                    descriptor.source,
+                )
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "final selected machine storage is invalid: {reason:?}"
+                    ))
+                })?;
                 for (slot, machine) in entries.enumerate() {
                     let expected_target = if let Some(machine) = machine {
                         let function = artifact.function_on_machine(machine).ok_or_else(|| {
