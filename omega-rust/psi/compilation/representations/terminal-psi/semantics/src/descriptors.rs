@@ -3303,9 +3303,14 @@ pub mod descriptor_results {
                     })
                     .is_some_and(|selected| {
                         selected.is_none_or(|selected| {
-                            find_structural_type(types, selected).is_some_and(|declaration| {
-                                !matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
-                            })
+                            terminal_psi::find_structural_type(types, selected).is_some_and(
+                                |declaration| {
+                                    !matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::ByteSequence(_)
+                                    )
+                                },
+                            )
                         })
                     })
             });
