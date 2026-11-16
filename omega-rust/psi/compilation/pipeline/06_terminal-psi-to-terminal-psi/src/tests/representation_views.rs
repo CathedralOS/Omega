@@ -152,7 +152,9 @@ machine take(values: &[Target]) {{ }}"
     assert_eq!(verdict(&source("")), "accepted");
     let actual = verdict(&source("requires value > 0"));
     assert!(
-        actual.starts_with("not supported: ") && actual.contains("target validity"),
+        actual.starts_with(
+            "not supported: an array view without plain element storage and unclaimed backing"
+        ),
         "the source bits do not establish the target invariant: {actual}"
     );
 }
@@ -170,6 +172,15 @@ machine take(bytes: &[u8]) { }";
         panic!("the original bounded byte view must be admitted");
     };
     let mut changed = accepted.elaboration.clone();
+    let publication = accepted
+        .publish_invocation()
+        .expect("the original view publishes");
+    terminal_codec::EvidenceSealValidator::new(
+        publication.artifact.view().module(),
+        &publication.seals.seals,
+    )
+    .validate_all()
+    .expect("the original element owns its count evidence");
     let mut wrappers = changed.module.structural_types.iter().filter_map(|row| {
         let terminal_psi::StructuralTypeShape::Record { fields, .. } = &row.shape else {
             return None;
@@ -212,6 +223,16 @@ machine take(bytes: &[u8]) { }";
         unreachable!()
     };
     *element = wrapper;
+    let changed_evidence =
+        terminal_codec::EvidenceSealValidator::new(&changed.module, &publication.seals.seals)
+            .validate_all();
+    assert!(
+        matches!(
+            changed_evidence,
+            Err(terminal_codec::EvidenceSealValidationError::SealMismatch { .. })
+        ),
+        "the wrapper must not own the canonical byte element's evidence: {changed_evidence:?}"
+    );
     match judge(Ok(changed)) {
         Err(refusal) => {
             assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
