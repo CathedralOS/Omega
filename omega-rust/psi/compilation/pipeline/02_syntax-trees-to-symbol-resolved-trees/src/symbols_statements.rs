@@ -268,6 +268,9 @@ mod routing {
                 assign_expr!(assignment.value);
             }
             symbol_resolved_trees::statement::Statement::Call(call) => {
+                if call.callee.is_valid() {
+                    assign_expr!(call.callee);
+                }
                 assign_expression_span_symbols(
                     symbols,
                     machine,
@@ -285,23 +288,33 @@ mod routing {
                     call.receiver_symbol = symbol;
                 }
 
-                call.target_symbol = crate::symbols::targets::normalize_statement_module_call(
-                    symbols,
-                    statement_path_members,
-                    call,
-                )
-                .unwrap_or_else(|| {
-                    resolve_call_target_symbol(
-                        machine,
-                        parameters,
-                        !call.receiver.is_empty(),
-                        call.receiver_symbol,
-                        &call.target,
-                        child_type_references,
+                let value_callee =
+                    symbol_resolved_trees::callable_values::callee_uses_value_binding(
                         symbols,
+                        expression_table,
+                        call.callee,
+                    );
+                call.target_symbol = if value_callee {
+                    SymbolHandle::invalid()
+                } else {
+                    crate::symbols::targets::normalize_statement_module_call(
+                        symbols,
+                        statement_path_members,
+                        call,
                     )
-                });
-                call.unresolved_name = if call.target_symbol.is_valid() {
+                    .unwrap_or_else(|| {
+                        resolve_call_target_symbol(
+                            machine,
+                            parameters,
+                            !call.receiver.is_empty(),
+                            call.receiver_symbol,
+                            &call.target,
+                            child_type_references,
+                            symbols,
+                        )
+                    })
+                };
+                call.unresolved_name = if value_callee || call.target_symbol.is_valid() {
                     Default::default()
                 } else {
                     crate::symbols::expressions::unresolved_call_name(

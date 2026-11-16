@@ -204,6 +204,8 @@ fn accepted_frontier_with_subjects(
             subjects,
             purpose: DependencyScope::Build,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
             supplies: &[],
         },
@@ -575,7 +577,7 @@ fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
         // or source protocol declaration is supplied by these bytes.
         let mut output = RecordWriter::new(RecordLimits::default());
         output.record(|output| {
-            2_u32.write(output)?;
+            u64::from_le_bytes(*b"OMGBLD02").write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
             Arc::<[terminal_production::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<language_semantics::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
@@ -789,11 +791,14 @@ machine build(builder: &mut Build) {
             &mut UnmeasuredProduction,
         )
         .expect_err("a same-shaped edited source cannot supply the native vocabulary");
-    assert!(refused.iter().any(|diagnostic| {
-        diagnostic
-            .to_string()
-            .contains("bundled core ForeignBinding declaration")
-    }));
+    assert!(
+        refused.iter().any(|diagnostic| {
+            diagnostic.to_string().contains(
+                "native binding requires the exact compiler-owned `ForeignBinding` declaration",
+            )
+        }),
+        "{refused:?}"
+    );
 }
 
 /// A selection is two generated calls, and each records the protocol
@@ -995,6 +1000,92 @@ machine build(builder: &mut Build) { Probe::send<u64>(9u64); Probe::send(11u64);
 }
 
 #[test]
+fn distinct_closed_boundary_arguments_keep_distinct_source_declarations() {
+    let prelude = PRELUDE.replace(
+        "machine poke(value: u64) reaches none crashes none;",
+        "machine poke(value: u64) reaches none crashes none;\n    machine send<T>(value: T) reaches none crashes none;",
+    );
+    let accepted = accepted_frontier(
+        typed_with_prelude(
+            r#"
+machine build(builder: &mut Build) {
+    Probe::send<u64>(9u64);
+    Probe::send(11u64);
+    Probe::send<u32>(9u32);
+    Probe::send(11u32);
+}
+"#,
+            &prelude,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap_or_else(|refused| panic!("both closed applications must be checked: {refused:?}"));
+    let program = accepted
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    let view = program.view();
+    let module = view.module();
+    assert_eq!(module.boundary_machines.len(), 2);
+    let identities = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| {
+            module
+                .identities
+                .text(
+                    boundary
+                        .declaration
+                        .as_ref()
+                        .unwrap()
+                        .source
+                        .semantic_declaration,
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(identities[0], identities[1]);
+    let selections = program.source_selections().unwrap();
+    let packet = selections.questions_for(view).unwrap();
+    for identity in identities {
+        let declarations = packet
+            .declarations
+            .iter()
+            .filter(|(_, declaration)| declaration.identity == identity)
+            .collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 1);
+        assert_eq!(
+            declarations[0].1.custody,
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain
+        );
+        assert_eq!(
+            declarations[0].1.purpose,
+            semantic_vocabulary::source_selections::SelectionPurpose::Build
+        );
+    }
+    selections
+        .admit(
+            view,
+            &terminal_installation::selection_questions::SelectionAuthorities {
+                build: None,
+                product: None,
+            },
+        )
+        .unwrap();
+
+    let mut repeated = packet.clone();
+    let duplicate = repeated.declarations.values().next().unwrap().clone();
+    repeated.declarations.push(duplicate);
+    assert!(
+        terminal_installation::selection_questions::validate_selection_questions(module, &repeated)
+            .unwrap_err()
+            .contains("dictionary repeats a declaration in one purpose")
+    );
+}
+
+#[test]
 fn inferred_const_arguments_still_have_to_fit_their_declared_carriers() {
     let prelude = PRELUDE.replace(
         "machine poke(value: u64) reaches none crashes none;",
@@ -1111,13 +1202,44 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
         "machine bind(activation: u64) reaches none crashes none;",
         "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
     );
-    let accepted = accepted_frontier(
-        typed_with_prelude(
-            "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
-            &prelude,
-        ),
-        terminal_codec::TerminalPublication::Invocation,
-    ).unwrap_or_else(|refused| panic!("the Build records a provider choice for later Product resolution: {refused:?}"));
+    let typed = typed_with_prelude(
+        "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
+        &prelude,
+    );
+    let probe = typed
+        .traits
+        .iter()
+        .find_map(|(_, declaration)| {
+            (declaration.name.as_str() == "Probe").then_some(declaration.symbol)
+        })
+        .expect("the prelude declares Probe");
+    let resolved_inputs = typed
+        .expression_table
+        .expression_entries()
+        .filter_map(|(expression, _)| {
+            typed
+                .expression_table
+                .build_selection_inputs(expression)
+                .unwrap()
+        })
+        .flat_map(|inputs| inputs.inputs.iter())
+        .filter(|input| {
+            input
+                .target
+                .as_resolved()
+                .is_some_and(|target| target.selected_symbol() == probe)
+        })
+        .map(|input| {
+            assert_eq!(input.resolved_target, Some(probe));
+            (input.occurrence.ordinal(), input.argument_ordinal)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(resolved_inputs.len(), 1);
+    let (occurrence, operand) = resolved_inputs[0];
+    let accepted = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+        .unwrap_or_else(|refused| {
+            panic!("the Build records a provider choice for later Product resolution: {refused:?}")
+        });
     let program = accepted
         .produce(
             TerminalProductionCustody::default(),
@@ -1131,6 +1253,46 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
             .unwrap()
             .iter()
             .any(|call| call.action == TerminalBuildBindingOperation::SelectProvider)
+    );
+    use semantic_vocabulary::source_selections::{
+        SelectionNode, SelectionPurpose, SelectionReference, SelectionRole,
+    };
+    let packet = program
+        .source_selections()
+        .unwrap()
+        .questions_for(program.view())
+        .unwrap();
+    let published = packet
+        .questions
+        .iter()
+        .filter(|(_, question)| {
+            matches!(
+                question.occurrence.node,
+                SelectionNode::AuthoredSelection { occurrence: selected, .. }
+                    if selected == occurrence
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(published.len(), 1);
+    let question = published[0].1;
+    let SelectionRole::ProductDesignation(designation) = &question.role else {
+        panic!("the resolved Probe operand must retain its Product designation");
+    };
+    assert_eq!(designation.operand, operand);
+    assert_eq!(question.purpose, SelectionPurpose::Product);
+    assert_eq!(
+        packet
+            .declarations
+            .get(question.occurrence.lexical_owner)
+            .unwrap()
+            .purpose,
+        SelectionPurpose::Build
+    );
+    assert_eq!(
+        question.selected,
+        SelectionReference::ProductInput {
+            input_selection: designation.input_selection,
+        }
     );
 }
 

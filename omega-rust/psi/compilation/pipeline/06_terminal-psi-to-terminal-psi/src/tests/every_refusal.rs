@@ -32,6 +32,8 @@ fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> 
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -136,6 +138,8 @@ fn a_direct_reading_still_refuses_at_the_first() {
     let refused = typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -185,6 +189,8 @@ fn every_machine_lowering_cannot_plan_is_its_own_verdict() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[None],

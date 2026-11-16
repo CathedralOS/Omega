@@ -283,12 +283,12 @@ impl TerminalEffectHandler for AllocationImport {
                 };
                 Ok(match &self.location {
                     admission::AddressLocation::RecordResult(structural_type, path) => {
-                        TerminalEffectResult::ScalarAggregate(
-                            terminal_interpreter::TerminalScalarAggregateValue {
-                                structural_type: *structural_type,
-                                result_case: None,
-                                fields: vec![(path.clone(), minted)],
-                            },
+                        TerminalEffectResult::Aggregate(
+                            terminal_interpreter::TerminalAggregateValue::from_scalars(
+                                *structural_type,
+                                None,
+                                vec![(path.clone(), minted)],
+                            ),
                         )
                     }
                     _ => TerminalEffectResult::Scalar(minted),

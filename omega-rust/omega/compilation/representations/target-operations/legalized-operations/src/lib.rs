@@ -101,10 +101,27 @@ impl LegalizedOperationPlan {
 pub struct PreparedExecutionPlan {
     plan: LegalizedOperationPlan,
     receipt: PreparationReceipt,
+    callable_invocations:
+        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    /// Exact independently prepared summaries, sorted by activated entry.
+    entry_invocations: Vec<(
+        MachineId,
+        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    )>,
 }
 
 impl PreparedExecutionPlan {
-    pub fn seal(plan: LegalizedOperationPlan, validator: OptimizationValidatorIdentity) -> Self {
+    pub fn seal(
+        plan: LegalizedOperationPlan,
+        validator: OptimizationValidatorIdentity,
+        callable_invocations: std::sync::Arc<
+            terminal_semantics::callable_values::ReachableCallableInvocations,
+        >,
+        entry_invocations: Vec<(
+            MachineId,
+            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+        )>,
+    ) -> Self {
         let receipt = PreparationReceipt {
             identity: legalized_operation_plan_identity(&plan),
             validator,
@@ -113,7 +130,12 @@ impl PreparedExecutionPlan {
             target: plan.target,
             function_count: plan.scalar_functions.len(),
         };
-        Self { plan, receipt }
+        Self {
+            plan,
+            receipt,
+            callable_invocations,
+            entry_invocations,
+        }
     }
 
     pub const fn plan(&self) -> &LegalizedOperationPlan {
@@ -122,6 +144,48 @@ impl PreparedExecutionPlan {
 
     pub const fn receipt(&self) -> PreparationReceipt {
         self.receipt
+    }
+
+    /// Actual invocation facts prepared from this plan's optimized unit,
+    /// schedule and entry before instruction selection begins.
+    pub fn callable_invocations(
+        &self,
+    ) -> &terminal_semantics::callable_values::ReachableCallableInvocations {
+        &self.callable_invocations
+    }
+
+    /// Retain the exact prepared entry roster when carrying this publication.
+    pub fn entry_callable_invocations(
+        &self,
+    ) -> &[(
+        MachineId,
+        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    )] {
+        &self.entry_invocations
+    }
+
+    /// Lookup only: every root's input-sensitive summary was prepared before
+    /// selection under this exact unit, schedule and target entry association.
+    pub fn callable_invocations_from(
+        &self,
+        entry: MachineId,
+    ) -> Option<&terminal_semantics::callable_values::ReachableCallableInvocations> {
+        if !self
+            .plan
+            .scalar_functions
+            .iter()
+            .any(|function| function.machine == entry)
+        {
+            return None;
+        }
+        if entry == self.plan.entry {
+            return Some(&self.callable_invocations);
+        }
+        let position = self
+            .entry_invocations
+            .binary_search_by_key(&entry, |(entry, _)| *entry)
+            .ok()?;
+        Some(&self.entry_invocations[position].1)
     }
 
     /// Whether the plan still hashes to the identity it was sealed under.

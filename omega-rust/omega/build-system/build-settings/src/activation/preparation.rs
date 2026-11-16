@@ -2,9 +2,9 @@
 Prepare an `AdmittedBuildProgram` for Terminal execution and settle its
 normal-return `ComputedBuildConfig` (`PreparedBuildExecution`).
 
-`PreparedBuildExecution::prepare` lowers the checked `Build` program into an
-invocation-scoped Terminal Psi artifact (`TerminalPublication::Invocation`),
-admits its `BuildProviderPlans` against the produced artifact view, and opens a
+`PreparedBuildExecution::prepare` takes the one invocation-scoped program whose
+source selections were admitted by `admit_build_program`, admits its
+`BuildProviderPlans` against that same produced artifact view, and opens a
 `100,000`-work `EvaluationInvocationAccount` under the caller's
 `BuildEvaluationSponsor` (or a standalone per-invocation sponsor with Terminal
 measurement identity if none was supplied).
@@ -46,6 +46,7 @@ impl PreparedBuildExecution {
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
+            produced,
             providers,
             machine,
             filesystem_scope,
@@ -56,10 +57,6 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let produced = prepared.produce(
-            Default::default(),
-            &mut source_compiler::UnmeasuredProduction,
-        )?;
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();
@@ -88,8 +85,8 @@ impl PreparedBuildExecution {
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
             execution_purpose,
-            produced: Arc::new(produced),
             accepted: prepared,
+            produced,
             providers: Arc::new(providers),
             account,
             evaluation_sponsor: supplied_sponsor,
@@ -112,6 +109,7 @@ impl PreparedBuildExecution {
         machine: symbols::SymbolHandle,
         source: package_compilation::BuildSourceSelection,
         package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+        anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
         crate::admit_build_program(
             prepared,
@@ -123,6 +121,7 @@ impl PreparedBuildExecution {
             false,
             source,
             package_inputs,
+            anonymous_source,
         )
     }
 
@@ -135,6 +134,7 @@ impl PreparedBuildExecution {
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
+            produced,
             providers,
             mut machine,
             filesystem_scope,
@@ -147,14 +147,10 @@ impl PreparedBuildExecution {
         // Files an earlier stage staged are settled when the last one
         // returns, whether or not that stage reaches the filesystem itself.
         machine.filesystem_reachable |= self.machine.filesystem_reachable;
-        let produced = prepared.produce(
-            Default::default(),
-            &mut source_compiler::UnmeasuredProduction,
-        )?;
         let providers = providers.admit(produced.view())?;
         Ok(Self {
             execution_purpose: self.execution_purpose,
-            produced: Arc::new(produced),
+            produced,
             providers: Arc::new(providers),
             // Package review reads the contracts of the accepted program
             // this execution holds: for a staged Build, its last stage.

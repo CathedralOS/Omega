@@ -291,6 +291,7 @@ pub(crate) mod operations {
         profile: Option<target::TargetProfile>,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
         boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
         settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
         selected_calls: &crate::selected_boundary_calls::SelectedCallsByCall,
@@ -753,6 +754,28 @@ pub(crate) mod operations {
             AbstractOperation::ReleaseReference { .. } => {
                 super::references::release(operation, site)
             }
+            AbstractOperation::SelectMachine {
+                psi_operation,
+                result,
+                descriptor,
+            } => {
+                let selected = callables
+                    .descriptor(*descriptor)
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                if result.scalar_type
+                    != semantic_vocabulary::ScalarType::Callable(selected.contract)
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                let result_home =
+                    super::primitive_storage::retain_result(*psi_operation, *result, site.live)?;
+                site.provenance.operations.push(*psi_operation);
+                site.operations.push(TargetUnitOperation::SelectMachine {
+                    result_home,
+                    descriptor: *descriptor,
+                });
+                Ok(())
+            }
             AbstractOperation::SelectImplementation {
                 psi_operation,
                 result,
@@ -777,6 +800,7 @@ pub(crate) mod operations {
                 target,
                 functions,
                 dynamic_dispatch,
+                callables,
                 scalar_abis,
                 prepared,
                 parameters_by_place,

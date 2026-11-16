@@ -43,6 +43,7 @@ pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     if elaboration.private_inputs.is_empty() {
@@ -63,13 +64,14 @@ pub(crate) fn infer(
             &mut loop_inputs,
             unreached,
             inhabitation,
+            activity,
         )?;
     }
     for (callee, arrivals) in loop_inputs.iter() {
         if !arrivals.is_empty() {
             let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
             if predicate != Proposition::Truth {
-                scope.require(callee, predicate, &sites)?;
+                scope.require(callee, predicate, &sites, activity)?;
             }
         }
     }
@@ -97,7 +99,7 @@ pub(crate) fn infer(
             if !arrivals.is_empty() {
                 let predicate = canonical(joins::connective(arrivals, false), id)?;
                 if predicate != Proposition::Truth {
-                    scope.require(id, predicate, &sites)?;
+                    scope.require(id, predicate, &sites, activity)?;
                 }
             }
         }
@@ -109,6 +111,7 @@ pub(crate) fn infer(
             &mut incoming,
             unreached,
             inhabitation,
+            activity,
         )?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
@@ -130,6 +133,7 @@ fn describe_calls(
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     let original =
@@ -161,7 +165,7 @@ fn describe_calls(
         inhabitation,
     )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
-    let references = prepared.references(&elaboration.module.structural_types);
+    let mut references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
         id,
         lowered,
@@ -170,7 +174,7 @@ fn describe_calls(
         &prepared.graph,
         &tables,
         &prepared.types,
-        &references,
+        &mut references,
     )?;
     let declared = joins::prepare(
         lowered,
@@ -180,6 +184,8 @@ fn describe_calls(
         &prepared.context,
         &elaboration.module.scalar_block_invariants,
         &storage,
+        &mut references,
+        activity,
     )?;
 
     let mut decided = (0..tables.obligations.len())
@@ -201,13 +207,16 @@ fn describe_calls(
         },
         &mut tables,
         &mut decided,
+        activity,
+        &mut references,
     )?;
     for &(edge, callee) in edges {
         let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
         let target = terminal_machine(&elaboration.module.machines, callee, id)?;
         let point = ProgramPoint::Edge(edge);
         let known = known_at(&tables, &prepared.graph, &prepared.context, id, point)?;
-        let fields = storage.at_join(
+        let mut fields = storage.at_join(
+            &mut references,
             &tables,
             &target.structural_parameters,
             structural,
@@ -260,7 +269,8 @@ fn describe_calls(
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
             .collect();
         let known = known_at(&tables, &prepared.graph, &prepared.context, id, site.before)?;
-        let fields = storage.at_call(
+        let mut fields = storage.at_call(
+            &mut references,
             &tables,
             &call.actuals,
             &target.structural_parameters,
@@ -293,6 +303,7 @@ fn describe_calls(
             site.before,
             &crossing,
             &beyond,
+            activity,
         )?;
         // What the helper learns of such a formal describes an operation
         // the integer rules do not reach, in the caller.
@@ -626,6 +637,7 @@ fn derived(
     point: ProgramPoint,
     crossing: &[(ScalarTerm, ValueId)],
     beyond: &[ValueId],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Derived> {
     let mut assumptions = Vec::new();
     let mut axioms = Vec::new();
@@ -644,7 +656,8 @@ fn derived(
             }
         }
     }
-    let mut prover = crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values);
+    let mut prover =
+        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),
@@ -728,6 +741,11 @@ pub(crate) fn describe(
     let mut computation_names = Vec::new();
     let mut transport = crate::known::TransportInputs::new(known.equations.len());
     for (name, here) in crossing {
+        // Callable identity and selection have no mathematical equality.
+        // Its declared type crosses independently of inferred predicates.
+        if matches!(name.scalar_type(), ScalarType::Callable(_)) {
+            continue;
+        }
         let definition = known.expand_value(context, *here, name.scalar_type(), &mut transport);
         if let Ok(term) = crate::bound(&definition, &mut *bindings)
             && *name != term
@@ -979,6 +997,7 @@ pub(super) fn require(
     callee: MachineId,
     predicate: Proposition,
     sites: &CallSites,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     // An inferred condition becomes a premise for later callers in this
     // pass. Its arithmetic must form before publishing that new contract.
@@ -986,7 +1005,7 @@ pub(super) fn require(
         .contract
         .clone();
     proposed.requires.push(predicate.clone());
-    crate::formation::contract(&elaboration.module, callee, &proposed)?;
+    crate::formation::contract(&elaboration.module, callee, &proposed, activity)?;
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,

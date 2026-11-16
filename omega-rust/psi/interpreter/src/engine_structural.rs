@@ -12,7 +12,7 @@ use crate::boundary::structural_inputs::case_membership::StructuralCaseContents;
 use crate::boundary::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::boundary::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
 use crate::boundary::values::{
-    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue,
+    TerminalAggregateValue, TerminalScalarValue, TerminalStructuralValue,
 };
 use crate::engine::custody::whole_path_discard;
 use crate::engine::execution::{
@@ -63,10 +63,10 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let value = TerminalScalarAggregateValue {
-            structural_type: result.structural_type,
-            result_case: Some(result_case),
-            fields: fields
+        let mut value = TerminalAggregateValue::from_scalars(
+            result.structural_type,
+            Some(result_case),
+            fields
                 .iter()
                 .map(|binding| {
                     Ok((
@@ -75,37 +75,48 @@ impl TerminalExecution<'_> {
                     ))
                 })
                 .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
-        };
-        self.publish_scalar_aggregate(result, value)?;
+        );
+        value.set_declared_scalar_storage(
+            self.structural_declaration(result.structural_type)?,
+            |identity| self.structural_types().get(&identity),
+        )?;
+        self.publish_aggregate(result, value)?;
         Ok(OperationFlow::Advance)
     }
 
-    pub(crate) fn publish_scalar_aggregate(
+    pub(crate) fn publish_aggregate(
         &mut self,
         result: &terminal_psi::StructuralOperationResult,
-        aggregate: TerminalScalarAggregateValue,
+        aggregate: TerminalAggregateValue,
     ) -> Result<(), TerminalInterpretError> {
         if aggregate.structural_type != result.structural_type
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
             || !result.projected_qualifications.is_empty()
             || (!result.claims.is_empty() && result.multiplicity != StructuralMultiplicity::Linear)
+            || self
+                .structural_declaration(result.structural_type)?
+                .quotient_carrier
+                .is_some()
         {
             return Err(malformed());
         }
-        aggregate.validate_against(
-            self.structural_declaration(result.structural_type)?,
-            |identity| self.structural_types().get(&identity),
-        )?;
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
             result.qualifications.clone(),
         );
-        let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
-        storage.stage_scalar_aggregate(self, &aggregate, &root)?;
+        let mut cursor = self.local_structural_identities.cursor();
+        self.stage_structural_result_contents(
+            result.place,
+            &value,
+            &aggregate.canonical_contents(),
+            &mut storage,
+            &mut cursor,
+        )?;
         storage.publish(self)?;
+        self.local_structural_identities.commit_cursor(cursor);
         self.structural_values.insert(result.place, value)?;
         self.track_affine_result(result);
         Ok(())
@@ -158,16 +169,16 @@ impl TerminalExecution<'_> {
         referent: StructuralTypeId,
         supply: &crate::boundary::effects::results::TerminalReferenceResult,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        if let crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
-            aggregate,
-        ) = &supply.referent
+        if let crate::boundary::effects::results::TerminalReferencePayload::Aggregate(aggregate) =
+            &supply.referent
         {
             if aggregate.structural_type != referent {
                 return Err(malformed());
             }
-            aggregate.validate_against(self.structural_declaration(referent)?, |identity| {
-                self.structural_types().get(&identity)
-            })?;
+            aggregate
+                .validate_scalar_against(self.structural_declaration(referent)?, |identity| {
+                    self.structural_types().get(&identity)
+                })?;
         }
         let mut declared = Vec::new();
         self.referent_reference_paths(referent, &mut Vec::new(), &mut declared)?;
@@ -186,13 +197,18 @@ impl TerminalExecution<'_> {
             path: Vec::new(),
         };
         match &supply.referent {
-            crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
-                aggregate,
-            ) => {
-                let root = StructuralRuntimePlace::from(&view);
+            crate::boundary::effects::results::TerminalReferencePayload::Aggregate(aggregate) => {
                 let mut storage = ConstructorStorage::new(self.account.as_ref());
-                storage.stage_scalar_aggregate(self, aggregate, &root)?;
+                let mut cursor = self.local_structural_identities.cursor();
+                self.stage_structural_result_contents(
+                    source,
+                    &view,
+                    &aggregate.canonical_contents(),
+                    &mut storage,
+                    &mut cursor,
+                )?;
                 storage.publish(self)?;
+                self.local_structural_identities.commit_cursor(cursor);
             }
             crate::boundary::effects::results::TerminalReferencePayload::Zeroed => {
                 if supply.references.is_empty() {
@@ -618,6 +634,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let zero = |scalar_type: ScalarType| -> Option<TerminalScalarValue> {
             match scalar_type {
+                ScalarType::Callable(_) => None,
                 ScalarType::Boolean => Some(TerminalScalarValue::Boolean(false)),
                 ScalarType::Integer(integer_type) => Some(TerminalScalarValue::Integer {
                     scalar_type: integer_type,

@@ -277,6 +277,8 @@ fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
     let mut elaboration = typed_trees_to_terminal_psi::elaborate_for(
         &typed,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[],
             subjects: &[None],

@@ -2310,6 +2310,19 @@ pub(crate) mod declaration_tables {
             &self.tables.authored_declaration_selections
         }
 
+        /// Complete an existing typed intrinsic occurrence without inventing a
+        /// nominal declaration or changing an already selected target.
+        pub fn finalize_authored_intrinsic_selection(
+            &mut self,
+            occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+            binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+            intrinsic: language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
+        ) -> Result<(), language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError>{
+            self.tables
+                .authored_declaration_selections
+                .finalize_intrinsic(occurrence, binding, intrinsic)
+        }
+
         pub fn const_declaration_by_symbol(
             &self,
             symbol: symbols::SymbolHandle,
@@ -2654,6 +2667,15 @@ pub(crate) mod declaration_tables {
             let index = proof_fact_source_span_index(handle);
             self.tables.proof_fact_source_spans.resize(index + 1, None);
             self.tables.proof_fact_source_spans[index] = Some(source_span);
+        }
+
+        pub fn proposition_definition_by_symbol(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> Option<&proposition::PropositionDefinition> {
+            self.propositions()
+                .iter()
+                .find(|definition| definition.symbol == symbol)
         }
 
         pub fn push_mathematical_definition(&mut self, definition: MathematicalDefinition) {
@@ -3741,7 +3763,8 @@ pub(crate) mod trait_and_machine_tables {
                         TypeReferenceNode::Unit => self.shape.push(Shape::Unit),
                         TypeReferenceNode::Constrained { .. }
                         | TypeReferenceNode::FixedArray { .. }
-                        | TypeReferenceNode::ConstExpression(_) => self.closed = false,
+                        | TypeReferenceNode::ConstExpression(_)
+                        | TypeReferenceNode::Callable { .. } => self.closed = false,
                     }
                 }
             }
@@ -4918,6 +4941,7 @@ pub(crate) mod type_reference_queries {
                         TypeReferenceNode::Slice { .. } => return Some(2),
                         TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::Reference { .. }
+                        | TypeReferenceNode::Callable { .. }
                         | TypeReferenceNode::Unit => return Some(1),
                         TypeReferenceNode::Named { symbol, .. }
                         | TypeReferenceNode::Generic {
@@ -5452,6 +5476,7 @@ pub(crate) mod type_reference_queries {
                         .map(|definition| definition.properties.multiplicity)
                         .unwrap_or(Multiplicity::Affine)
                 }
+                TypeReferenceNode::Callable { .. } => Multiplicity::Unrestricted,
                 TypeReferenceNode::Slice { .. } => Multiplicity::Affine,
             }
         }

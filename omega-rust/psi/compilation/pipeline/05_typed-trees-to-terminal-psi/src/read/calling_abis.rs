@@ -19,14 +19,6 @@ pub(crate) struct PreparedCallingAbis {
     entry: MachineId,
     declarations: Vec<PreparedAbi>,
     boundary_applications: Vec<terminal_psi::CallingSignatureDeclaration>,
-    policies: Vec<PreparedCallingPolicy>,
-}
-
-pub(super) struct PreparedCallingPolicy {
-    declaration: String,
-    application: String,
-    machine: MachineId,
-    signatures: Vec<CallingSignatureId>,
 }
 
 struct PreparedAbi {
@@ -58,7 +50,7 @@ impl Program<'_> {
     /// A calling policy is checked with the product's other executable roots.
     /// Target evaluation later supplies ABI geometry to this same retained body.
     pub(crate) fn prepare_calling_policy_roots(&mut self, entry: MachineId) -> Checked<()> {
-        if self.declaration_metadata.is_empty() && self.boundary_symbols.is_empty() {
+        if self.declaration_metadata.is_empty() && self.boundaries.rows.is_empty() {
             return Ok(());
         }
         let typed = self.typed;
@@ -77,17 +69,14 @@ impl Program<'_> {
                 continue;
             }
             let wanted = self.declaration_metadata.contains(&request.boundary)
-                || self.boundary_symbols.iter().any(|(_, requirement)| {
+                || self.boundaries.rows.iter().any(|(_, boundary)| {
                     typed
-                        .trait_machine_signature(*requirement)
+                        .trait_machine_signature(boundary.source)
                         .is_some_and(|(owner, _)| owner.symbol == request.boundary)
                 });
             if !wanted {
                 continue;
             }
-            let declaration = typed
-                .normalized_hermetic_symbol_identity(request.boundary)
-                .map_err(|reason| unavailable(entry, reason))?;
             for instance in signatures.calling().instances(request).map_err(|errors| {
                 unavailable(entry, format!("calling policy selection: {errors:?}"))
             })? {
@@ -114,12 +103,9 @@ impl Program<'_> {
                 .ok_or_else(|| {
                     unavailable(entry, "calling policy lost its complete owner application")
                 })?;
-                let application = scope
-                    .portable_application_identity(typed)
-                    .and_then(|identity| typed.type_identity_text(identity))
-                    .ok_or_else(|| {
-                        unavailable(entry, "calling policy has no portable owner identity")
-                    })?;
+                // The retained scope joins the one canonical policy/schema
+                // owner before publication. It grants no calling authority here.
+                self.require_boundary_parent_contract(entry, &scope)?;
                 let mut applications = Vec::new();
                 for applied in signatures.calling().signatures(instance) {
                     if let Some(reason) = &applied.abi_refusal {
@@ -137,13 +123,7 @@ impl Program<'_> {
                         "calling policy has no declared ABI application",
                     ));
                 }
-                let machine = self.subject_machine(realization.symbol)?;
-                self.calling_policy_roots.push(PreparedCallingPolicy {
-                    declaration: declaration.clone(),
-                    application,
-                    machine,
-                    signatures: applications,
-                });
+                self.subject_machine(realization.symbol)?;
             }
             self.calling_policy_boundaries.push(request.boundary);
         }
@@ -159,18 +139,17 @@ impl Program<'_> {
         entry: MachineId,
         boundaries: &[SymbolHandle],
     ) -> Checked<PreparedCallingAbis> {
-        if !self.descriptor_storage {
+        if self.type_purpose != super::storage_metadata::TypePurpose::StorageDescription {
             return Err(unavailable(
                 entry,
                 "calling ABI storage requested before the complete body closure",
             ));
         }
-        if boundaries.is_empty() && self.boundary_symbols.is_empty() {
+        if boundaries.is_empty() && self.boundaries.rows.is_empty() {
             return Ok(PreparedCallingAbis {
                 entry,
                 declarations: Vec::new(),
                 boundary_applications: Vec::new(),
-                policies: Vec::new(),
             });
         }
         let typed = self.typed;
@@ -196,8 +175,8 @@ impl Program<'_> {
         // ABI, including uncalled members of a supplied slot. An open schema
         // keeps its reason for lacking a physical application; reading its
         // declaration does not choose static arguments for it.
-        for (_, symbol) in self.boundary_symbols.iter() {
-            if let Some(Ok(application)) = signatures.abi_for_boundary(*symbol) {
+        for (_, boundary) in self.boundaries.rows.iter() {
+            if let Some(Ok(application)) = signatures.abi_for_boundary(boundary.source) {
                 add(*application);
             }
         }
@@ -256,13 +235,14 @@ impl Program<'_> {
         // Keep the association from the same exact source declaration and
         // catalog application that produced the requested ABI.
         let boundary_applications = self
-            .boundary_symbols
+            .boundaries
+            .rows
             .iter()
             .map(
-                |(boundary, symbol)| terminal_psi::CallingSignatureDeclaration {
+                |(boundary, source)| terminal_psi::CallingSignatureDeclaration {
                     boundary,
                     application: signatures
-                        .abi_for_boundary(*symbol)
+                        .abi_for_boundary(source.source)
                         .cloned()
                         .unwrap_or_else(|| {
                             Err("boundary declaration has no retained ABI application".into())
@@ -301,23 +281,21 @@ impl Program<'_> {
                         "metadata ABI coordinate differs from its exact identity",
                     ));
                 }
-                let selected = row.projections_in_context(typed, self.purpose).next();
+                let selected = row
+                    .projections_in_context(typed, self.purpose)
+                    .next()
+                    .ok_or_else(|| {
+                        unavailable(
+                            entry,
+                            "calling ABI has no declaration in the selected checked context",
+                        )
+                    })?;
                 let storage = self.calling_abi_projected_storage(entry, row);
                 declarations.push(PreparedAbi {
                     identity,
-                    formals: selected
-                        .map(|projection| projection.formals.clone())
-                        .unwrap_or_default(),
-                    default_eligible: selected
-                        .is_some_and(|projection| projection.default_eligible),
-                    physical_owner: selected
-                        .map(|projection| projection.physical_owner.clone())
-                        .unwrap_or_else(|| {
-                            Err(
-                                "calling ABI has no declaration in the selected checked context"
-                                    .into(),
-                            )
-                        }),
+                    formals: selected.formals.clone(),
+                    default_eligible: selected.default_eligible,
+                    physical_owner: selected.physical_owner.clone(),
                     storage,
                 });
             }
@@ -325,7 +303,6 @@ impl Program<'_> {
                 entry,
                 declarations,
                 boundary_applications,
-                policies: std::mem::take(&mut self.calling_policy_roots),
             })
         })();
         self.scope = outer;
@@ -547,38 +524,13 @@ impl PreparedCallingAbis {
                 }
             })
             .collect::<Vec<_>>();
-        for policy in self.policies {
-            module.calling_policy_requests.push(CallingPolicyRequest {
-                declaration: Ok(identities.intern(&policy.declaration)),
-                display_name: policy.declaration,
-                instances: Ok(vec![CallingPolicyInstance {
-                    declaring_application: identities.intern(&policy.application),
-                    policy_declaration: Err(
-                        "calling policy proof declaration has not been published".into(),
-                    ),
-                    policy: Ok(terminal_psi::TargetMachineCallable::Machine(policy.machine)),
-                    signatures: Ok(policy.signatures),
-                }]),
-            });
-        }
         module.identities = identities.build();
-        for row in rows {
-            if let Some(existing) = module
-                .calling_abi_signatures
-                .iter()
-                .find(|existing| existing.id == row.id)
-            {
-                if existing != &row {
-                    return Err(unavailable(
-                        self.entry,
-                        "calling ABI metadata conflicts with an existing exact declaration",
-                    ));
-                }
-            } else {
-                module.calling_abi_signatures.push(row);
-            }
-        }
-        module.calling_abi_signatures.sort_by_key(|row| row.id);
+        module.calling_abi_signatures = crate::calling_publication::join_abi_declarations(
+            self.entry,
+            &module.identities,
+            &module.calling_abi_signatures,
+            &rows,
+        )?;
         for application in self.boundary_applications {
             if module.boundary_machine(application.boundary).is_none() {
                 return Err(unavailable(
@@ -994,20 +946,14 @@ mod descriptor_storage_tests {
             ))
         );
         let bodies = IdTable::default();
-        let signatures = IdTable::default();
-        let boundaries = IdTable::default();
-        let completions = IdTable::default();
+
         let declared = crate::lower::places::declare(
             entry,
             &program.records,
             &bodies,
-            crate::body::Signatures {
-                machines: &signatures,
-                declarations: &IdTable::default(),
-                declaration_aliases: None,
-                boundaries: &boundaries,
-                completions: &completions,
-            },
+            std::iter::empty::<&crate::Signature>(),
+            &program.byte_domains,
+            Some(program.typed),
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();

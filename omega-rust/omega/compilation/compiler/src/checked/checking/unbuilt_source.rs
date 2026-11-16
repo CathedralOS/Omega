@@ -173,6 +173,9 @@ fn frozen_frontier(
         program: typed,
         accounting,
         compilation: source_compiler::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[subject],
@@ -199,6 +202,8 @@ fn frozen_frontier(
     .prepare()
     .map_err(CompileFailure::from)?;
     Ok(TypedFrontier {
+        normalization: Default::default(),
+        supplies: Vec::new(),
         typed: prepared.program.as_ref().clone(),
         source_completion_accounting: prepared.accounting,
         entries,

@@ -268,6 +268,7 @@ pub(crate) mod byte_sequence_predicates {
     }
 
     pub fn byte_field_root(
+        module: &TerminalModule,
         machine: &TerminalMachine,
         source: PlaceId,
     ) -> Option<(StructuralTypeId, StructuralAccess)> {
@@ -299,8 +300,13 @@ pub(crate) mod byte_sequence_predicates {
                         result.multiplicity,
                         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                     )
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
+                    && pure_byte_qualifications(
+                        module.structural_types.iter(),
+                        module.structural_domains.iter(),
+                        structural_type,
+                        &result.qualifications,
+                        &result.projected_qualifications,
+                    )
                     && result.qualification_establishments.is_empty()
                     && result.claims.is_empty())
                 .then_some((structural_type, StructuralAccess::Owned));
@@ -310,8 +316,13 @@ pub(crate) mod byte_sequence_predicates {
         (matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty())
+        ) && pure_byte_qualifications(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            parameter.structural_type,
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        ))
         .then_some((parameter.structural_type, parameter.access))
     }
 
@@ -343,6 +354,31 @@ pub(crate) mod byte_sequence_predicates {
         )
     }
 
+    /// The octet predicate may represent only its own complete logical
+    /// theory, never an additional generic clause on the same domain.
+    pub(crate) fn primitive_byte_domain_theory_matches(
+        domain: &terminal_psi::StructuralDomainDeclaration,
+    ) -> bool {
+        let Some(primitive) = domain.byte_predicate else {
+            return false;
+        };
+        let Some(theory) = &domain.predicate else {
+            return true;
+        };
+        if theory.proposition == semantic_vocabulary::Proposition::Truth {
+            return true;
+        }
+        let mut required = ByteSequencePredicateSet::EMPTY;
+        required.insert(primitive);
+        theory.proposition
+            == byte_predicate_requirement(
+                required,
+                ByteSequencePredicateSet::EMPTY,
+                theory.subject,
+                &[],
+            )
+    }
+
     pub fn byte_qualification_predicates_in<'domain>(
         domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
         carrier: StructuralTypeId,
@@ -358,6 +394,7 @@ pub(crate) mod byte_sequence_predicates {
                 || domain.content_projection.is_some()
                 || domain.establishment_routes.is_some()
                 || !domain.has_no_required_memberships()
+                || !primitive_byte_domain_theory_matches(domain)
             {
                 return None;
             }
@@ -547,6 +584,97 @@ pub(crate) mod byte_sequence_predicates {
         Some(field.field_type.byte_predicates())
     }
 
+    /// Read the predicates of the actual argument, including a stored view
+    /// projection. A write-only argument supplies no observation of its bytes.
+    pub fn byte_sequence_argument_predicates(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        source: &terminal_psi::StructuralArgument,
+    ) -> Option<ByteSequencePredicateSet> {
+        if source.access == StructuralAccess::WriteOnlyBorrow {
+            return None;
+        }
+        if source.path.is_empty() {
+            return byte_sequence_source_predicates(module, machine, source.place);
+        }
+        let (root, access) = byte_field_root(module, machine, source.place)?;
+        if access == StructuralAccess::WriteOnlyBorrow {
+            return None;
+        }
+        shared_byte_field_copy_predicates(module.structural_types.iter(), root, &source.path)
+    }
+
+    /// A transfer must establish its byte qualifications from the source.
+    /// Its own result annotations cannot justify the qualifications they add.
+    pub fn byte_transfer_qualifications_hold(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Result<Option<bool>, &'static str> {
+        let (source, source_path, access) = match &operation.kind {
+            OperationKind::StructuralLeafCopy { source, path } => {
+                (*source, path.as_slice(), StructuralAccess::SharedBorrow)
+            }
+            OperationKind::MoveStructuralValue { source } => {
+                (source.place, source.path.as_slice(), source.access)
+            }
+            _ => return Ok(None),
+        };
+        let result = operation
+            .result
+            .structural()
+            .ok_or("byte transfer has no structural result")?;
+        let mut checked = false;
+        for (path, id) in result.qualifications.iter().map(|id| (&[][..], id)).chain(
+            result
+                .projected_qualifications
+                .iter()
+                .map(|row| (row.path.as_slice(), &row.domain)),
+        ) {
+            let mut matching = module.structural_domains.iter().filter(|row| row.id == *id);
+            let domain = matching.next().ok_or("byte transfer domain is absent")?;
+            if matching.next().is_some() {
+                return Err("byte transfer domain is ambiguous");
+            }
+            if domain.byte_predicate.is_none() {
+                continue;
+            }
+            let carrier = crate::qualification_path_carrier(
+                module.structural_types.iter(),
+                result.structural_type,
+                path,
+            )
+            .ok_or("byte transfer qualification has no exact carrier")?;
+            if !byte_predicate_carrier(module.structural_types.iter(), carrier) {
+                return Err("byte transfer qualification carrier is not bytes");
+            }
+            let required = byte_qualification_predicates_in(
+                module.structural_domains.iter(),
+                carrier,
+                std::slice::from_ref(id),
+            )
+            .ok_or("byte transfer qualification is not a complete primitive byte domain")?;
+            if source == result.place {
+                return Err("byte transfer cannot use its own result as evidence");
+            }
+            let mut combined_path = Vec::with_capacity(source_path.len() + path.len());
+            combined_path.extend_from_slice(source_path);
+            combined_path.extend_from_slice(path);
+            let argument = terminal_psi::StructuralArgument {
+                place: source,
+                path: combined_path,
+                access,
+            };
+            let supplied = byte_sequence_argument_predicates(module, machine, &argument)
+                .ok_or("byte transfer source predicates are unavailable")?;
+            checked = true;
+            if !supplied.implies(required) {
+                return Ok(Some(false));
+            }
+        }
+        Ok(checked.then_some(true))
+    }
+
     pub fn byte_sequence_concatenation_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -704,7 +832,7 @@ pub(crate) mod byte_sequence_predicates {
                 if source.path.is_empty() {
                     return resolve_whole(source.place);
                 }
-                let (root, _) = byte_field_root(machine, source.place)?;
+                let (root, _) = byte_field_root(module, machine, source.place)?;
                 let selected = runtime_structural_path_tip(
                     module.structural_types.iter(),
                     root,
@@ -726,7 +854,7 @@ pub(crate) mod byte_sequence_predicates {
                 )
             }
             terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
-                let (structural_type, access) = byte_field_root(machine, source.place)?;
+                let (structural_type, access) = byte_field_root(module, machine, source.place)?;
                 if source.access != StructuralAccess::SharedBorrow
                     || !matches!(
                         access,
@@ -793,12 +921,14 @@ pub(crate) mod byte_sequence_predicates {
                 | StructuralPlaceKind::BlockParameter { .. } => {
                     let parameter =
                         crate::storage::arrival_storage::arrival_parameter(machine, source)?;
-                    let owned_buffer = parameter.access == StructuralAccess::Owned
+                    // A join owns its shared descriptor, whose byte facts
+                    // arrive with the parameter just as a buffer's do.
+                    let owned_readable = parameter.access == StructuralAccess::Owned
                         && module.structural_types.iter().any(|row| {
                             row.id == parameter.structural_type
-                                && row.shape.is_bounded_owned_byte_sequence()
+                                && row.shape.is_owned_or_shared_byte_carrier()
                         });
-                    if !owned_buffer
+                    if !owned_readable
                         && !matches!(
                             parameter.access,
                             terminal_psi::reading_borrow_pair_pattern!()
@@ -865,7 +995,8 @@ pub(crate) mod byte_sequence_predicates {
                             if backing.path.is_empty() {
                                 source_predicates(module, machine, backing.place, work, memo)?
                             } else {
-                                let (root, access) = byte_field_root(machine, backing.place)?;
+                                let (root, access) =
+                                    byte_field_root(module, machine, backing.place)?;
                                 if access == StructuralAccess::WriteOnlyBorrow
                                     || backing.access == StructuralAccess::WriteOnlyBorrow
                                 {
@@ -899,7 +1030,7 @@ pub(crate) mod byte_sequence_predicates {
                         let captured = if path.is_empty() {
                             source_predicates(module, machine, backing, work, memo)?
                         } else {
-                            let (root, access) = byte_field_root(machine, backing)?;
+                            let (root, access) = byte_field_root(module, machine, backing)?;
                             if access == StructuralAccess::WriteOnlyBorrow {
                                 return None;
                             }
@@ -1036,8 +1167,10 @@ pub(crate) mod byte_sequence_predicates {
                     .find(|domain| domain.id == *identity)
                     .is_some_and(|domain| {
                         domain.carrier == carrier
+                            && domain.is_pure_predicate()
+                            && primitive_byte_domain_theory_matches(domain)
                             && domain
-                                .pure_byte_predicate()
+                                .byte_predicate
                                 .is_some_and(|predicate| predicate.holds_for(bytes))
                     })
             })

@@ -1167,6 +1167,7 @@ pub(crate) mod domain_scopes {
                     .collect(),
                 declaration_symbols: Default::default(),
                 active_requirements: Vec::new(),
+                active_runtime_contracts: Vec::new(),
                 source_binders: parameters
                     .iter()
                     .map(|parameter| (parameter.name.clone(), parameter.symbol))
@@ -3261,6 +3262,11 @@ pub(crate) mod payloads {
                 types::TypeReferenceNode::ConstExpression(expression) => {
                     types::TypeReferenceNode::ConstExpression(self.expression(program, expression)?)
                 }
+                types::TypeReferenceNode::Callable { contract } => {
+                    types::TypeReferenceNode::Callable {
+                        contract: self.runtime_contract(program, contract)?,
+                    }
+                }
                 types::TypeReferenceNode::Unit => types::TypeReferenceNode::Unit,
             };
             let mut origins = program
@@ -3542,6 +3548,12 @@ pub(crate) mod payloads {
                         ))
                     }
                     expression::ExpressionNode::Call(mut call) => {
+                        if let Some(runtime) = &mut call.runtime_call {
+                            runtime.contract = self.runtime_contract(program, runtime.contract)?;
+                        }
+                        if let Some(request) = &mut call.installed_interrupt_operation {
+                            request.invalidate_preparation();
+                        }
                         call.requirement_application =
                             self.type_reference(program, call.requirement_application)?;
                         call.exact_coercion_target =
@@ -3554,78 +3566,21 @@ pub(crate) mod payloads {
                             crate::references::StaticArgumentCall::Expression(handle, &call)
                                 .applications()
                         {
-                            let lifetimes = program
-                                .static_machine_application_lifetimes(application)
-                                .iter()
-                                .map(
-                                    |binding| static_applications::StaticMachineLifetimeBinding {
-                                        parameter: binding.parameter.clone(),
-                                        argument: self.lifetime(&binding.argument),
-                                    },
-                                )
-                                .collect::<Vec<_>>();
-                            let declaration = program
-                                .static_machine_application(application)
-                                .lifetime_binding_declaration;
-                            program
-                                .expression_table
-                                .set_static_machine_application_lifetimes(
-                                    application,
-                                    declaration,
-                                    &lifetimes,
-                                );
-                            let mut arguments = program
-                                .static_machine_application_arguments(application)
-                                .to_vec();
-                            self.static_arguments(program, &mut arguments)?;
-                            program
-                                .expression_table
-                                .static_machine_application_arguments_mut(application)
-                                .clone_from_slice(&arguments);
-                            let mut selected = program
-                                .expression_table
-                                .static_machine_application_selected_machines(application)
-                                .to_vec();
-                            self.static_arguments(program, &mut selected)?;
-                            program
-                                .expression_table
-                                .static_machine_application_selected_machines_mut(application)
-                                .clone_from_slice(&selected);
-                            let mut bindings = program
-                                .static_machine_application_bindings(application)
-                                .to_vec();
-                            for binding in &mut bindings {
-                                match &mut binding.value {
-                                static_applications::StaticMachineBindingValue::Type(reference)
-                                | static_applications::StaticMachineBindingValue::Const(
-                                    reference,
-                                ) => *reference = self.type_reference(program, *reference)?,
-                                static_applications::StaticMachineBindingValue::RuntimeValue {
-                                    type_reference,
-                                    ..
-                                } => {
-                                    *type_reference =
-                                        self.type_reference(program, *type_reference)?
-                                }
-                                static_applications::StaticMachineBindingValue::Machine(
-                                    argument,
-                                )
-                                | static_applications::StaticMachineBindingValue::Conformance(
-                                    argument,
-                                ) => {
-                                    self.static_arguments(program, std::slice::from_mut(argument))?
-                                }
-                            }
-                            }
-                            program
-                                .expression_table
-                                .static_machine_application_bindings_mut(application)
-                                .clone_from_slice(&bindings);
+                            self.apply_static_machine_application(program, application)?;
                         }
                         if let Some(target) = call_target {
                             self.apply_call_target(program, &mut call, target)?;
                         }
                         Some(expression::ExpressionNode::Call(call))
+                    }
+                    expression::ExpressionNode::MachineValue(mut value) => {
+                        value.type_reference =
+                            self.type_reference(program, value.type_reference)?;
+                        self.static_arguments(program, std::slice::from_mut(&mut value.selected))?;
+                        self.apply_static_machine_application(program, value.application)?;
+                        value.conformance = self.symbol(value.conformance);
+                        value.requirement = self.symbol(value.requirement);
+                        Some(expression::ExpressionNode::MachineValue(value))
                     }
                     expression::ExpressionNode::SavedSubject(_)
                     | expression::ExpressionNode::ArrayLiteral(_)
@@ -3646,6 +3601,75 @@ pub(crate) mod payloads {
                     *program.expression_table.expression_mut(handle) = applied;
                 }
             }
+            Ok(())
+        }
+
+        fn apply_static_machine_application(
+            &mut self,
+            program: &mut TypedTrees,
+            application: static_applications::StaticMachineApplicationHandle,
+        ) -> Result<(), &'static str> {
+            let lifetimes = program
+                .static_machine_application_lifetimes(application)
+                .iter()
+                .map(
+                    |binding| static_applications::StaticMachineLifetimeBinding {
+                        parameter: binding.parameter.clone(),
+                        argument: self.lifetime(&binding.argument),
+                    },
+                )
+                .collect::<Vec<_>>();
+            let declaration = program
+                .static_machine_application(application)
+                .lifetime_binding_declaration;
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, declaration, &lifetimes);
+            let mut arguments = program
+                .static_machine_application_arguments(application)
+                .to_vec();
+            self.static_arguments(program, &mut arguments)?;
+            program
+                .expression_table
+                .static_machine_application_arguments_mut(application)
+                .clone_from_slice(&arguments);
+            let mut selected = program
+                .expression_table
+                .static_machine_application_selected_machines(application)
+                .to_vec();
+            self.static_arguments(program, &mut selected)?;
+            program
+                .expression_table
+                .static_machine_application_selected_machines_mut(application)
+                .clone_from_slice(&selected);
+            let mut bindings = program
+                .static_machine_application_bindings(application)
+                .to_vec();
+            for binding in &mut bindings {
+                match &mut binding.value {
+                    static_applications::StaticMachineBindingValue::Type(reference)
+                    | static_applications::StaticMachineBindingValue::Const(reference) => {
+                        *reference = self.type_reference(program, *reference)?
+                    }
+                    static_applications::StaticMachineBindingValue::RuntimeValue {
+                        type_reference,
+                        expression,
+                        ..
+                    } => {
+                        *type_reference = self.type_reference(program, *type_reference)?;
+                        *expression = self.expression(program, *expression)?;
+                    }
+                    static_applications::StaticMachineBindingValue::Machine(argument)
+                    | static_applications::StaticMachineBindingValue::Conformance(argument) => {
+                        self.static_arguments(program, std::slice::from_mut(argument))?
+                    }
+                }
+            }
+            program
+                .expression_table
+                .static_machine_application_bindings_mut(application)
+                .clone_from_slice(&bindings);
+
             Ok(())
         }
 
@@ -4510,6 +4534,300 @@ pub(crate) mod requirement_instances {
                     })
         }
 
+        fn requirement_argument_handles_are_live(
+            &self,
+            argument: &crate::expression::StaticMachineArgument,
+        ) -> bool {
+            (!argument.symbol.is_valid()
+                || self.symbols.symbols().nodes().is_valid(argument.symbol))
+                && (!argument.type_reference.is_valid()
+                    || self.contains_type_reference(argument.type_reference))
+        }
+
+        fn requirement_application_bindings_match(
+            &self,
+            left_application: static_applications::StaticMachineApplicationHandle,
+            right_application: static_applications::StaticMachineApplicationHandle,
+        ) -> bool {
+            let lexical_owner = self
+                .static_machine_application(right_application)
+                .lexical_owner;
+            let bindings = self.static_machine_application_bindings(right_application);
+            self.static_machine_application(left_application)
+                .lifetime_binding_declaration
+                == self
+                    .static_machine_application(right_application)
+                    .lifetime_binding_declaration
+                && self.static_machine_application_lifetimes(left_application)
+                    == self.static_machine_application_lifetimes(right_application)
+                && (self
+                    .static_machine_application_lifetimes(right_application)
+                    .is_empty()
+                    || self
+                        .static_machine_application(left_application)
+                        .lexical_owner
+                        == lexical_owner)
+                && self
+                    .static_machine_application_bindings(left_application)
+                    .len()
+                    == bindings.len()
+                && self
+                    .static_machine_application_bindings(left_application)
+                    .iter()
+                    .zip(bindings)
+                    .all(|(left, right)| {
+                        let left_parameter = left.parameter;
+                        let left_value = &left.value;
+                        left.parameter == right.parameter
+                            && match (&left.value, &right.value) {
+                                (
+                                    static_applications::StaticMachineBindingValue::Type(left),
+                                    static_applications::StaticMachineBindingValue::Type(right),
+                                )
+                                | (
+                                    static_applications::StaticMachineBindingValue::Const(left),
+                                    static_applications::StaticMachineBindingValue::Const(right),
+                                ) => {
+                                    let existing_owner = self
+                                        .static_machine_application(left_application)
+                                        .lexical_owner;
+                                    applied_type_identity(self, *left, existing_owner, &[])
+                                        .zip(applied_type_identity(
+                                            self,
+                                            *right,
+                                            lexical_owner,
+                                            &[],
+                                        ))
+                                        .is_some_and(|(left, right)| left == right)
+                                }
+                                (
+                                    static_applications::StaticMachineBindingValue::RuntimeValue {
+                                        type_reference: left,
+                                        ..
+                                    },
+                                    static_applications::StaticMachineBindingValue::RuntimeValue {
+                                        type_reference: right,
+                                        ..
+                                    },
+                                ) => applied_type_identity(self, *left, lexical_owner, &[])
+                                    .zip(applied_type_identity(self, *right, lexical_owner, &[]))
+                                    .is_some_and(|(left, right)| left == right),
+                                // Without this arm two calls selecting one operand
+                                // each get their own instance under one canonical
+                                // identity, which lowering rejects as a duplicate.
+                                (
+                                    static_applications::StaticMachineBindingValue::Machine(_),
+                                    static_applications::StaticMachineBindingValue::Machine(right),
+                                ) => self
+                                    .data_type_parameter_by_symbol(left_parameter)
+                                    .is_some_and(|parameter| {
+                                        self.static_binding_matches_argument(
+                                            &parameter.kind,
+                                            left_value,
+                                            right,
+                                            lexical_owner,
+                                            self.static_machine_application(left_application)
+                                                .lexical_owner,
+                                        )
+                                    }),
+                                (
+                                    static_applications::StaticMachineBindingValue::Conformance(
+                                        left,
+                                    ),
+                                    static_applications::StaticMachineBindingValue::Conformance(
+                                        right,
+                                    ),
+                                ) => self.same_static_machine_operand(
+                                    left,
+                                    self.static_machine_application(left_application)
+                                        .lexical_owner,
+                                    right,
+                                    lexical_owner,
+                                ),
+                                (left, right) => left == right,
+                            }
+                    })
+        }
+
+        /// Authenticate the retained application of a closed requirement call.
+        /// Equivalent source applications may share one closed signature, so
+        /// application handles alone do not identify the supplied argument tuple.
+        pub fn require_closed_requirement_call_application(
+            &self,
+            instance: SymbolHandle,
+            application: static_applications::StaticMachineApplicationHandle,
+        ) -> Result<(), &'static str> {
+            let table = &self.expression_table;
+            if !self.symbols.symbols().nodes().is_valid(instance)
+                || !table.static_machine_application_is_valid(application)
+            {
+                return Err("closed requirement call has a stale declaration or application");
+            }
+            let closed = self
+                .closed_requirement_application(instance)
+                .ok_or("closed requirement call has no prepared signature")?;
+            if !table.static_machine_application_is_valid(closed.application) {
+                return Err("closed requirement call has a stale prepared application");
+            }
+            if !self.symbols.symbols().nodes().is_valid(closed.template)
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(closed.declaring_trait)
+            {
+                return Err("closed requirement call lost its declaration owners");
+            }
+            let actual = table.static_machine_application(application);
+            if actual.registration_operation != closed.template
+                || actual.binding_declaration != closed.template
+            {
+                return Err("closed requirement call applies another declaration");
+            }
+            for source in [closed.application, application] {
+                let source_row = self.static_machine_application(source);
+                if source_row.registration_operation != closed.template
+                    || source_row.binding_declaration != closed.template
+                {
+                    return Err("closed requirement call applies another declaration");
+                }
+                if !source_row.selected_machine_arguments.is_empty()
+                    || !source_row.input_selections.is_empty()
+                    || source_row.conformance_selection.is_some()
+                    || source_row.callable_contract_source.is_valid()
+                {
+                    return Err(
+                        "closed requirement call has an unrepresented static application feature",
+                    );
+                }
+                if source_row.lifetime_binding_declaration.is_valid()
+                    && !self
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(source_row.lifetime_binding_declaration)
+                {
+                    return Err("closed requirement call has a stale lifetime declaration");
+                }
+                if !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source_row.lexical_owner)
+                {
+                    return Err("closed requirement call lost its supplying declaration");
+                }
+                for binding in self.static_machine_application_bindings(source) {
+                    if !self.symbols.symbols().nodes().is_valid(binding.parameter) {
+                        return Err("closed requirement call has a stale local binder");
+                    }
+                    use static_applications::StaticMachineBindingValue;
+                    match &binding.value {
+                        StaticMachineBindingValue::Type(reference)
+                        | StaticMachineBindingValue::Const(reference) => {
+                            if !self.contains_type_reference(*reference) {
+                                return Err("closed requirement call has a stale operand input");
+                            }
+                        }
+                        StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Conformance(argument) => {
+                            if !self.requirement_argument_handles_are_live(argument) {
+                                return Err("closed requirement call has a stale operand input");
+                            }
+                        }
+                        StaticMachineBindingValue::RuntimeValue { .. } => {
+                            return Err(
+                                "closed requirement call has no runtime value argument admission receipt",
+                            );
+                        }
+                    }
+                }
+                for argument in self.static_machine_application_arguments(source) {
+                    if !self.requirement_argument_handles_are_live(argument) {
+                        return Err("closed requirement call has a stale operand input");
+                    }
+                }
+            }
+            if closed
+                .trait_arguments
+                .iter()
+                .copied()
+                .chain(
+                    closed
+                        .local_arguments
+                        .iter()
+                        .map(|local| local.type_reference()),
+                )
+                .any(|reference| !self.contains_type_reference(reference))
+            {
+                return Err("closed requirement call has a stale operand input");
+            }
+            let (owner, declared) = self
+                .trait_machine_signature(closed.template)
+                .filter(|(owner, signature)| {
+                    owner.symbol == closed.declaring_trait && signature.symbol == closed.template
+                })
+                .ok_or("closed requirement call lost its authored signature")?;
+            let scope = closed
+                .trait_scope
+                .scope(self)
+                .ok_or("closed requirement call lost its declaring trait scope")?;
+            if scope.declaration.symbol != owner.symbol
+                || scope.application_identity(self) != Some(closed.trait_application_identity)
+                || scope.portable_application_identity(self)
+                    != Some(closed.portable_trait_application_identity)
+                || !self.requirement_application_matches_contract_scope(instance, &scope)
+            {
+                return Err("closed requirement call lost its complete declaring application");
+            }
+            let parameters = self.state_signature_type_parameters(declared);
+            let arguments = self.static_machine_application_arguments(application);
+            let bindings = self.static_machine_application_bindings(application);
+            let prepared_bindings = self.static_machine_application_bindings(closed.application);
+            if parameters.len() != arguments.len()
+                || parameters.len() != bindings.len()
+                || parameters.len() != prepared_bindings.len()
+                || parameters.len() != closed.local_arguments.len()
+                || parameters.len() != closed.portable_local_arguments.len()
+            {
+                return Err("closed requirement call has an incomplete bound argument tuple");
+            }
+            let prepared_owner = self
+                .static_machine_application(closed.application)
+                .lexical_owner;
+            for (ordinal, parameter) in parameters.iter().enumerate() {
+                let binding = &bindings[ordinal];
+                let prepared = &prepared_bindings[ordinal];
+                if binding.parameter != parameter.symbol || prepared.parameter != parameter.symbol {
+                    return Err("closed requirement call binds another local parameter");
+                }
+                if !self.static_binding_matches_argument(
+                    &parameter.kind,
+                    &binding.value,
+                    &arguments[ordinal],
+                    actual.lexical_owner,
+                    actual.lexical_owner,
+                ) {
+                    return Err(
+                        "closed requirement call argument differs from its retained binding",
+                    );
+                }
+                if closed.local_arguments[ordinal].portable_identity(
+                    self,
+                    &parameter.kind,
+                    &prepared.value,
+                    prepared_owner,
+                ) != Some(closed.portable_local_arguments[ordinal])
+                {
+                    return Err("closed requirement call lost its portable local operand identity");
+                }
+            }
+            if !self.requirement_application_bindings_match(closed.application, application) {
+                return Err("closed requirement call selects another bound application");
+            }
+            Ok(())
+        }
+
         pub fn instantiate_requirement_application(
             &mut self,
             environment: &crate::trait_definition::TraitApplicationEnvironment,
@@ -4604,99 +4922,7 @@ pub(crate) mod requirement_instances {
                             std::mem::discriminant(left) == std::mem::discriminant(right)
                         })
                     && self
-                        .static_machine_application(existing.application)
-                        .lifetime_binding_declaration
-                        == self
-                            .static_machine_application(application)
-                            .lifetime_binding_declaration
-                    && self.static_machine_application_lifetimes(existing.application)
-                        == self.static_machine_application_lifetimes(application)
-                    && (self
-                        .static_machine_application_lifetimes(application)
-                        .is_empty()
-                        || self
-                            .static_machine_application(existing.application)
-                            .lexical_owner
-                            == lexical_owner)
-                    && self
-                        .static_machine_application_bindings(existing.application)
-                        .len()
-                        == bindings.len()
-                    && self
-                        .static_machine_application_bindings(existing.application)
-                        .iter()
-                        .zip(&bindings)
-                        .all(|(left, right)| {
-                            let left_parameter = left.parameter;
-                            let left_value = &left.value;
-                            left.parameter == right.parameter && match (&left.value, &right.value) {
-                                (
-                                    static_applications::StaticMachineBindingValue::Type(left),
-                                    static_applications::StaticMachineBindingValue::Type(right),
-                                )
-                                | (
-                                    static_applications::StaticMachineBindingValue::Const(left),
-                                    static_applications::StaticMachineBindingValue::Const(right),
-                                ) => {
-                                    let existing_owner = self
-                                        .static_machine_application(existing.application)
-                                        .lexical_owner;
-                                    applied_type_identity(self, *left, existing_owner, &[])
-                                        .zip(applied_type_identity(
-                                            self,
-                                            *right,
-                                            lexical_owner,
-                                            &[],
-                                        ))
-                                        .is_some_and(|(left, right)| left == right)
-                                }
-                                (
-                                    static_applications::StaticMachineBindingValue::RuntimeValue {
-                                        type_reference: left,
-                                        ..
-                                    },
-                                    static_applications::StaticMachineBindingValue::RuntimeValue {
-                                        type_reference: right,
-                                        ..
-                                    },
-                                ) => applied_type_identity(self, *left, lexical_owner, &[])
-                                    .zip(applied_type_identity(self, *right, lexical_owner, &[]))
-                                    .is_some_and(|(left, right)| left == right),
-                                // Without this arm two calls selecting one operand
-                                // each get their own instance under one canonical
-                                // identity, which lowering rejects as a duplicate.
-                                (
-                                    static_applications::StaticMachineBindingValue::Machine(_),
-                                    static_applications::StaticMachineBindingValue::Machine(right),
-                                ) => self
-                                    .data_type_parameter_by_symbol(left_parameter)
-                                    .is_some_and(|parameter| {
-                                        self.static_binding_matches_argument(
-                                            &parameter.kind,
-                                            left_value,
-                                            right,
-                                            lexical_owner,
-                                            self.static_machine_application(existing.application)
-                                                .lexical_owner,
-                                        )
-                                    }),
-                                (
-                                    static_applications::StaticMachineBindingValue::Conformance(
-                                        left,
-                                    ),
-                                    static_applications::StaticMachineBindingValue::Conformance(
-                                        right,
-                                    ),
-                                ) => self.same_static_machine_operand(
-                                    left,
-                                    self.static_machine_application(existing.application)
-                                        .lexical_owner,
-                                    right,
-                                    lexical_owner,
-                                ),
-                                (left, right) => left == right,
-                            }
-                        })
+                        .requirement_application_bindings_match(existing.application, application)
             }) {
                 return Ok(existing.signature.symbol);
             }
@@ -5741,23 +5967,28 @@ pub(crate) mod signatures {
                         (symbol, kind, name.to_owned())
                     })
                     .collect::<Vec<_>>();
-                let owner = self.symbol(declared.symbol);
-                if owner.is_valid() && owner == self.owned_signature {
-                    let children = program.symbols.insert_generated_children_from(
-                        owner,
-                        pending
-                            .iter()
-                            .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
-                    );
+                if !pending.is_empty() {
+                    let owner = self.symbol(declared.symbol);
+                    if !owner.is_valid() || !program.symbols.symbols().nodes().is_valid(owner) {
+                        return Err("applied callable signature has no retained declaration owner");
+                    }
+                    let binders = pending
+                        .iter()
+                        .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str()));
+                    let children = if owner == self.owned_signature {
+                        program
+                            .symbols
+                            .insert_generated_children_from(owner, binders)
+                    } else {
+                        // An application that retains its signature declaration
+                        // still owns its fresh binders. Append them without
+                        // replacing the declaration's authored child range.
+                        program
+                            .symbols
+                            .append_generated_children_from(owner, binders)
+                    };
                     for (offset, (symbol, _, _)) in (0u32..).zip(pending.iter()) {
                         self.symbols.push((*symbol, children.handle_at(offset)));
-                    }
-                } else {
-                    for (symbol, kind, name) in pending {
-                        let fresh = program
-                            .symbols
-                            .insert_generated_root_from(symbol, kind, &name);
-                        self.symbols.push((symbol, fresh));
                     }
                 }
                 let mut applied = declared.clone();
@@ -5821,6 +6052,14 @@ pub(crate) mod signatures {
                 applied.return_type = self.type_reference(program, declared.return_type)?;
                 applied.contracts = HandleSpan::empty();
                 for mut contract in program.state_signature_contracts(declared).to_vec() {
+                    if let signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data,
+                        result_case,
+                    } = &mut contract.kind
+                    {
+                        *result_data = self.symbol(*result_data);
+                        *result_case = self.symbol(*result_case);
+                    }
                     contract.facts = self.facts(program, contract.facts)?;
                     program
                         .signature_contracts
@@ -6105,6 +6344,107 @@ pub(crate) mod signatures {
                 }
             }
             Ok(facts)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{name::Identifier, types::TypeReferenceNode};
+        use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn applied_signature_binders_keep_their_owner_and_independent_substitutions() {
+            let mut symbols = SymbolTableBuilder::new();
+            let declared_owner =
+                symbols.insert_root(SymbolKind::State, SymbolNameRef::Static("bind"));
+            let children = symbols.insert_children(
+                declared_owner,
+                [
+                    (SymbolKind::TypeParameter, SymbolNameRef::Static("Locator")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("locator")),
+                ],
+            );
+            let locator_type = children.handle_at(0);
+            let locator_value = children.handle_at(1);
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: locator_type,
+                    name: Identifier::generated("Locator"),
+                });
+            let declared = signature::StateSignature {
+                symbol: declared_owner,
+                type_parameters: program
+                    .data_type_parameters
+                    .insert_many([data::TypeParameter {
+                        symbol: locator_type,
+                        name: Identifier::generated("Locator"),
+                        ..Default::default()
+                    }]),
+                parameters: program
+                    .state_parameters
+                    .insert_many([signature::StateParameter {
+                        symbol: locator_value,
+                        name: Identifier::generated("locator"),
+                        type_reference: reference,
+                        is_const: false,
+                        is_mutable: false,
+                        relevance: language_core::BindingRelevance::Relevant,
+                    }]),
+                return_type: reference,
+                ..Default::default()
+            };
+            let mut previous_type = None;
+            for generated_owner in [false, false, true] {
+                let mut application = CallableApplication::default();
+                let owner = if generated_owner {
+                    let owner = program.symbols.insert_generated_root_from(
+                        declared_owner,
+                        SymbolKind::State,
+                        "$applied",
+                    );
+                    application.symbols.push((declared_owner, owner));
+                    application.owned_signature = owner;
+                    owner
+                } else {
+                    declared_owner
+                };
+                let applied = application.signature(&mut program, &declared).unwrap();
+                let applied_type = program.state_signature_type_parameters(&applied)[0].symbol;
+                let applied_value = &program.state_signature_parameters(&applied)[0];
+                assert_eq!(applied.symbol, owner);
+                assert_ne!(applied_type, locator_type);
+                assert_ne!(Some(applied_type), previous_type);
+                previous_type = Some(applied_type);
+                for (fresh, original) in [
+                    (applied_type, locator_type),
+                    (applied_value.symbol, locator_value),
+                ] {
+                    assert_eq!(program.symbols.get(fresh).parent, owner);
+                    assert_eq!(program.symbols.get(fresh).generated_from, original);
+                }
+                for reference in [applied_value.type_reference, applied.return_type] {
+                    assert!(matches!(
+                        program.type_reference_table.type_reference(reference),
+                        TypeReferenceNode::Named { symbol, .. } if *symbol == applied_type
+                    ));
+                }
+                assert_eq!(program.symbols.get(declared_owner).children, children);
+                assert_eq!(program.symbols.get(locator_type).parent, declared_owner);
+            }
+            let invalid = signature::StateSignature {
+                symbol: SymbolHandle::invalid(),
+                ..declared
+            };
+            assert_eq!(
+                CallableApplication::default().signature(&mut program, &invalid),
+                Err("applied callable signature has no retained declaration owner")
+            );
         }
     }
 }
@@ -7515,6 +7855,10 @@ pub(crate) struct CallableApplication {
     declaration_symbols: crate::PreparedSymbolRebinding,
     active_requirements: Vec<(SymbolHandle, SymbolHandle)>,
     source_binders: Vec<(crate::name::Identifier, SymbolHandle)>,
+    active_runtime_contracts: Vec<(
+        crate::callable_values::RuntimeCallableContractHandle,
+        crate::callable_values::RuntimeCallableContractHandle,
+    )>,
 }
 
 struct CallableLifetimeBinding {
@@ -7538,6 +7882,96 @@ struct ScopedCallableLifetime {
 }
 
 impl CallableApplication {
+    fn runtime_contract(
+        &mut self,
+        program: &mut TypedTrees,
+        source: crate::callable_values::RuntimeCallableContractHandle,
+    ) -> Result<crate::callable_values::RuntimeCallableContractHandle, &'static str> {
+        if let Some((_, destination)) = self
+            .active_runtime_contracts
+            .iter()
+            .rev()
+            .find(|(active, _)| *active == source)
+        {
+            return Ok(*destination);
+        }
+        if !program.runtime_callable_contracts.is_valid(source) {
+            return Err("callable application lost its runtime contract");
+        }
+        let declared = program.runtime_callable_contracts.get(source).clone();
+        let own_symbols = std::iter::once(declared.signature.symbol)
+            .chain(
+                program
+                    .state_signature_type_parameters(&declared.signature)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            )
+            .chain(
+                program
+                    .state_signature_parameters(&declared.signature)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            )
+            .collect::<Vec<_>>();
+        // The callable's formals bind inside the surrounding application. Keep
+        // outer substitutions, but give these formals their own fresh frame.
+        let previous_types = std::mem::take(&mut self.types);
+        self.types.extend(
+            previous_types
+                .iter()
+                .copied()
+                .filter(|(symbol, _)| !own_symbols.contains(symbol)),
+        );
+        let previous_static = std::mem::take(&mut self.static_arguments);
+        self.static_arguments.extend(
+            previous_static
+                .iter()
+                .filter(|(symbol, _)| !own_symbols.contains(symbol))
+                .cloned(),
+        );
+        let previous_symbols = std::mem::take(&mut self.symbols);
+        self.symbols.extend(
+            previous_symbols
+                .iter()
+                .copied()
+                .filter(|(symbol, _)| !own_symbols.contains(symbol)),
+        );
+        let previous_runtime = std::mem::take(&mut self.runtime_values);
+        self.runtime_values.extend(
+            previous_runtime
+                .iter()
+                .copied()
+                .filter(|symbol| !own_symbols.contains(symbol)),
+        );
+        let previous_owned = self.owned_signature;
+        let owner = program.symbols.insert_generated_root_from(
+            declared.signature.symbol,
+            symbols::SymbolKind::CallableContract,
+            "$callable",
+        );
+        self.symbols.push((declared.signature.symbol, owner));
+        self.owned_signature = owner;
+        let destination = program.runtime_callable_contracts.insert(
+            crate::callable_values::RuntimeCallableContract {
+                lexical_owner: self.symbol(declared.lexical_owner),
+                ..Default::default()
+            },
+        );
+        self.active_runtime_contracts.push((source, destination));
+        let applied = self.signature(program, &declared.signature);
+        self.active_runtime_contracts.pop();
+        self.types = previous_types;
+        self.static_arguments = previous_static;
+        self.symbols = previous_symbols;
+        self.runtime_values = previous_runtime;
+        self.owned_signature = previous_owned;
+        program
+            .runtime_callable_contracts
+            .get_mut(destination)
+            .signature = applied?;
+        Ok(destination)
+    }
+
     fn invocation_region(
         &self,
         program: &mut TypedTrees,
@@ -7909,18 +8343,51 @@ impl TypedTrees {
         lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        self.apply_callable_type_in_scope(
+            original,
+            substitutions,
+            lifetimes,
+            declaration,
+            declaration,
+            &[],
+        )
+    }
+
+    /// The declaration owns the formal regions; the supplier owns actual
+    /// regions. Supplied type operands retain their independent existing owner.
+    pub fn apply_callable_type_in_scope(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+        lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
+        declaration: SymbolHandle,
+        supplier: SymbolHandle,
+        supplied_regions: &[crate::type_identity::LifetimeParameterIdentity],
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        if !supplied_regions.is_empty() && supplied_regions.len() != lifetimes.len() {
+            return Err("applied callable type has an incomplete supplied region roster");
+        }
+        let lifetimes = lifetimes.iter().enumerate().map(|(ordinal, (parameter, argument))| {
+            let region = if supplied_regions.is_empty() {
+                lifetime_parameter_identity(self, supplier, argument.as_str())
+                    .ok_or("applied callable type region lost its exact supplying declaration")?
+            } else {
+                let region = supplied_regions[ordinal];
+                if crate::type_identity::lifetime_parameter_name(self, region) != Some(argument) {
+                    return Err("applied callable type region differs from its retained declaration ordinal");
+                }
+                region
+            };
+            Ok(CallableLifetimeBinding {
+                parameter: parameter.clone(), argument: argument.clone(), region,
+                origin: CallableLifetimeOrigin::Lexical,
+            })
+        }).collect::<Result<Vec<_>, &'static str>>()?;
         CallableApplication {
             region_scope: declaration,
+            static_argument_owner: supplier,
             types: substitutions.to_vec(),
-            lifetimes: lifetimes
-                .iter()
-                .map(|(parameter, argument)| CallableLifetimeBinding {
-                    parameter: parameter.clone(),
-                    argument: argument.clone(),
-                    region: Default::default(),
-                    origin: CallableLifetimeOrigin::Lexical,
-                })
-                .collect(),
+            lifetimes,
             ..CallableApplication::default()
         }
         .type_reference(self, original)

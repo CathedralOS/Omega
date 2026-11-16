@@ -301,12 +301,25 @@ pub(crate) mod inline_carriers {
                 subject: PlaceId::new(1).unwrap(),
                 proposition: Proposition::Truth,
             });
-            for (domain, expected) in [
-                (pure, true),
-                (complete_truth, true),
-                (incomplete, false),
-                (extra, false),
-                (governed, false),
+            let mut primitive_theory = pure.clone();
+            let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+            predicates.insert(ByteSequencePredicate::AsciiOnly);
+            primitive_theory.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: crate::byte_predicate_requirement(
+                    predicates,
+                    terminal_psi::ByteSequencePredicateSet::EMPTY,
+                    PlaceId::new(1).unwrap(),
+                    &[],
+                ),
+            });
+            for (domain, expected, facts_available) in [
+                (pure, true, true),
+                (complete_truth, true, true),
+                (primitive_theory, true, true),
+                (incomplete, false, true),
+                (extra, false, false),
+                (governed, false, true),
             ] {
                 assert_eq!(
                     crate::byte_literal_qualifications_hold(
@@ -331,9 +344,10 @@ pub(crate) mod inline_carriers {
                 );
                 // Projecting a primitive fact from an already established
                 // domain is separate from establishing the complete domain.
-                assert!(
+                assert_eq!(
                     crate::byte_qualification_predicates_in(std::iter::once(&domain), array, &[id])
-                        .is_some()
+                        .is_some(),
+                    facts_available
                 );
             }
         }
@@ -4800,6 +4814,9 @@ pub(crate) mod structural_effect {
                         ))
                         .collect();
                     let field_term = match result.scalar_type {
+                        // The ordinary storage read retains the code value.
+                        // Opaque code has no mathematical field equation.
+                        ScalarType::Callable(_) => return Ok(None),
                         ScalarType::Integer(integer) => {
                             ScalarTerm::integer_field_path(*source, field_path, integer)
                         }
@@ -6736,6 +6753,85 @@ pub(crate) mod zeroed_structural {
         consumed.iter().all(|consumed| *consumed).then_some(leaves)
     }
 
+    /// Judge the actual default bytes of each selected carrier. A byte view
+    /// starts empty; a fixed array contains its literal count of zero octets.
+    pub(crate) fn zeroed_byte_qualifications_hold<'a, 'path>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        domains: impl Iterator<Item = &'a terminal_psi::StructuralDomainDeclaration> + Clone,
+        root: StructuralTypeId,
+        mut qualifications: impl Iterator<
+            Item = (
+                &'path [StructuralPathSegment],
+                semantic_vocabulary::StructuralDomainId,
+            ),
+        >,
+    ) -> bool {
+        qualifications.all(|(path, domain)| {
+            let Some(domain) = domains.clone().find(|row| row.id == domain) else {
+                return false;
+            };
+            // Default bytes cannot establish extra theories or access rules.
+            if !domain.is_pure_predicate() {
+                return false;
+            }
+            for (index, segment) in path.iter().enumerate() {
+                if let StructuralPathSegment::Case(selected) = segment {
+                    let Some(parent) =
+                        crate::runtime_structural_path_tip(types.clone(), root, &path[..index])
+                    else {
+                        return false;
+                    };
+                    let cases = match &parent.shape {
+                        StructuralTypeShape::Sum { cases }
+                        | StructuralTypeShape::Mixed { cases, .. } => cases,
+                        _ => return false,
+                    };
+                    if cases.first().map(|case| case.id) != Some(*selected) {
+                        return false;
+                    }
+                }
+            }
+            let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, path)
+            else {
+                return false;
+            };
+            let Some(predicates) =
+                crate::byte_qualification_predicates_in(domains.clone(), carrier.id, &[domain.id])
+            else {
+                return false;
+            };
+            match carrier.shape {
+                StructuralTypeShape::ByteSequence(carrier)
+                    if carrier.is_owned_or_shared_byte_carrier() =>
+                {
+                    predicates.holds_for(&[])
+                }
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } => {
+                    if !types.clone().any(|ty| {
+                        ty.id == element
+                            && matches!(ty.shape,
+                                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                                    if integer.sign() == IntegerSign::Unsigned
+                                        && integer.bits() == Some(8)
+                                        && !integer.is_address())
+                    }) {
+                        return false;
+                    }
+                    predicates.predicates().all(|predicate| match predicate {
+                        terminal_psi::ByteSequencePredicate::ValidUtf8
+                        | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
+                        terminal_psi::ByteSequencePredicate::NoNul => length == 0,
+                        terminal_psi::ByteSequencePredicate::NonEmpty => length != 0,
+                    })
+                }
+                _ => false,
+            }
+        })
+    }
+
     pub fn zeroed_projected_byte_qualifications_hold<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         domains: impl Iterator<Item = &'a terminal_psi::StructuralDomainDeclaration> + Clone,
@@ -6743,35 +6839,21 @@ pub(crate) mod zeroed_structural {
         qualifications: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
         qualifications.iter().all(|row| {
-            let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
-            // The structural qualification judgment establishes ordinary
-            // memberships. This check only decides predicates from bytes.
-            let Some(predicate) = domain.byte_predicate else { return true; };
-            if row.path.is_empty() { return false; }
-            for (index, segment) in row.path.iter().enumerate() {
-                if let StructuralPathSegment::Case(selected) = segment {
-                    let Some(parent) = crate::runtime_structural_path_tip(types.clone(), root, &row.path[..index]) else { return false; };
-                    let cases = match &parent.shape {
-                        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
-                        _ => return false,
-                    };
-                    if cases.first().map(|case| case.id) != Some(*selected) { return false; }
-                }
-            }
-            let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, &row.path) else { return false; };
-            let StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } = carrier.shape else { return false; };
-            if !types.clone().any(|ty| ty.id == element && matches!(ty.shape,
-                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())) {
+            if row.path.is_empty() {
                 return false;
             }
-            domain.carrier == carrier.id
-                && domain.pure_byte_predicate() == Some(predicate)
-                && match predicate {
-                    terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
-                    terminal_psi::ByteSequencePredicate::NoNul => length == 0,
-                    terminal_psi::ByteSequencePredicate::NonEmpty => length != 0,
-                }
+            let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else {
+                return false;
+            };
+            // Ordinary projected memberships are judged by the structural
+            // membership owner; this query decides only byte contents.
+            domain.byte_predicate.is_none()
+                || zeroed_byte_qualifications_hold(
+                    types.clone(),
+                    std::iter::once(domain),
+                    root,
+                    std::iter::once((row.path.as_slice(), row.domain)),
+                )
         })
     }
 }

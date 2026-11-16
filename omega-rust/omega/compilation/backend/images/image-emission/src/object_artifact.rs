@@ -48,9 +48,8 @@ mod carriers {
         pub(crate) byte_literal_pool: Option<ObjectByteLiteralPool>,
         pub(crate) native_code_layout_pool:
             Option<crate::object::function_fragments::native_code_layouts::NativeCodeLayoutPool>,
-        pub(crate) implementation_table_pool: Option<
-            crate::object::function_fragments::implementation_tables::ObjectImplementationTablePool,
-        >,
+        pub(crate) code_descriptor_pool:
+            Option<crate::object::function_fragments::code_descriptors::ObjectCodeDescriptorPool>,
     }
 
     /// Retains the exact semantic owner and occurrence coverage of a separately
@@ -3281,6 +3280,7 @@ mod normalized_foreign_calls {
             return Some(Kind::CopyI64);
         }
         match scalar_type {
+            ScalarType::Callable(_) => None,
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
                 Some(Kind::Float32ToBits)
             }

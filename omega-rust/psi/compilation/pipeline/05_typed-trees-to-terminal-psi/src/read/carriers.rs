@@ -226,7 +226,8 @@ impl Program<'_> {
                                 .then_some(CarrierFacts::NOT_INTEGER)
                         }
                     }
-                    TypeReferenceNode::Reference { .. }
+                    TypeReferenceNode::Callable { .. }
+                    | TypeReferenceNode::Reference { .. }
                     | TypeReferenceNode::FixedArray { .. }
                     | TypeReferenceNode::Slice { .. }
                     | TypeReferenceNode::Unit => Some(CarrierFacts::NOT_INTEGER),

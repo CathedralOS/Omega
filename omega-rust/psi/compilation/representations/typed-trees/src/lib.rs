@@ -48,20 +48,53 @@ pub mod boundary_values {
     #[derive(Clone, Default)]
     pub struct BoundaryTypeBinding {
         pub parameter_symbol: symbols::SymbolHandle,
-        pub parameter_name: String,
         pub actual: TypeReferenceHandle,
     }
 }
+pub mod callable_lifetimes;
+pub mod source_names;
 pub(crate) mod source_review {
     use crate::{PlanLaidTargetLayout, types::TypeReferenceHandle};
     use arena::Handle;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
     use symbols::SymbolHandle;
 
+    /// Typed occurrence identity belongs to the frozen source kept beside a
+    /// publication. Spans are diagnostic positions, never this association.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum SourceNode {
+        Expression(crate::expression::ExpressionHandle),
+        Statement(crate::statement::StatementHandle),
+    }
+
+    /// One actual emitted invocation and the typed occurrence that produced it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct SourceCallCorrespondence {
+        /// The lowered machine that executes this invocation.
+        pub machine: semantic_vocabulary::MachineId,
+        /// The original member before call-component folding.
+        pub source_member: semantic_vocabulary::MachineId,
+        pub site: semantic_vocabulary::InvocationSite,
+        /// Combining a call cycle into one loop does not change this original
+        /// source owner or its static argument environment.
+        pub owner: SymbolHandle,
+        pub source: SourceNode,
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct SourceTypeApplication {
         pub reference: TypeReferenceHandle,
         pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    }
+
+    /// The canonical service coordinate paired with its source declaration.
+    /// The lowering owner prepares this association; consumers retain it
+    /// beside the checked module instead of comparing display identities.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SourceServiceCorrespondence {
+        pub service: semantic_vocabulary::ServiceId,
+        pub source: language_semantics::ServiceReachId,
+        pub declaration: SymbolHandle,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -101,8 +134,9 @@ pub(crate) mod source_review {
     }
 }
 pub use source_review::{
-    SourceFieldCorrespondence, SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate,
-    SourceRecordCorrespondence, SourceTypeApplication,
+    SourceCallCorrespondence, SourceFieldCorrespondence, SourceLayoutPlanCoordinate,
+    SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCorrespondence,
+    SourceServiceCorrespondence, SourceTypeApplication,
 };
 macro_rules! typed_tree_table {
     ($( $field:ident => $get:ident ($ty:ty) $( [ $push:ident ] )? $(, $inline:ident)? ;)*) => {
@@ -242,15 +276,21 @@ pub(crate) mod build_selections {
         }
     }
 }
+mod callable_copies;
 pub mod callable_signature_shapes;
+pub mod callable_values;
 pub mod compiler_intrinsics;
+pub mod contract_structure;
 pub mod declaration_projection;
 mod declared_bindings;
 pub mod deferred_refusals;
 mod machine_specializations;
+pub mod native_locators;
 pub use machine_specializations::MachineSpecializations;
 pub mod references;
+pub mod runtime_callable_identity;
 pub mod service_declarations;
+pub mod source_call_occurrences;
 pub use service_declarations::provider_declarations;
 mod access_views_and_commitments;
 pub use access_views_and_commitments::constant_recipes;
@@ -1180,6 +1220,7 @@ pub use access_views::{
     PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
     PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
     PrivateCallbackSlotApplication, ScalarAccessorDeclaration, ScalarAccessorOperation,
+    access_atomic_observing_results,
 };
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
@@ -1386,6 +1427,8 @@ pub struct DesignatedStaticTypeArgument {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
+    pub runtime_callable_contracts: Arena<crate::callable_values::RuntimeCallableContract>,
+    pub runtime_callable_lowering: crate::callable_values::RuntimeCallableLowering,
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
     pub retained_product_application_handles: Arena<Handle<ProductOperandApplication>>,
     pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,

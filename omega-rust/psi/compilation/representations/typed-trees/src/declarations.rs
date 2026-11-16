@@ -942,19 +942,23 @@ pub mod domain {
     }
 
     impl DomainDefinition {
-        /// An empty theory has nothing about contents left to translate.
-        /// Structured predicates and other semantic definitions are not empty
-        /// merely because no proposition was produced for them. The inspection
-        /// token count also includes parsed access/issuer clauses, which are
-        /// independent restrictions rather than facts about contents.
-        pub fn has_complete_empty_theory(&self) -> bool {
-            self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
-                && self.facts.is_empty()
-                && self.operators.is_empty()
+        /// Predicate clauses can be translated in full. Other semantic
+        /// definitions need their own translation before the theory is complete;
+        /// issuer and access rules are checked independently.
+        pub fn has_complete_predicate_theory(&self) -> bool {
+            self.operators.is_empty()
                 && self.alias.is_none()
                 && self.classification.is_none()
                 && self.semantic_roles.is_empty()
                 && self.cleanup_selection.is_none()
+        }
+
+        /// An empty theory has nothing about contents left to translate.
+        /// No proposition alone does not prove the declaration is empty.
+        pub fn has_complete_empty_theory(&self) -> bool {
+            self.has_complete_predicate_theory()
+                && self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+                && self.facts.is_empty()
         }
 
         /// Whether source lowering still lacks the complete selected plan.
@@ -984,11 +988,13 @@ pub mod domain {
         );
         definition.predicate_presence = language_semantics::DomainPredicatePresence::Present;
         assert!(!definition.has_complete_empty_theory());
+        assert!(definition.has_complete_predicate_theory());
         definition.predicate_presence = language_semantics::DomainPredicatePresence::Absent;
         definition.alias = Some(DomainAliasDefinition {
             constituents: Vec::new(),
         });
         assert!(!definition.has_complete_empty_theory());
+        assert!(!definition.has_complete_predicate_theory());
     }
 
     impl Default for DomainDefinition {

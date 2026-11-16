@@ -45,12 +45,16 @@ mod package_build;
 mod prepared_build;
 pub use typed_trees::ProductSourceIdentity;
 mod prepared_source;
+mod program_entry;
 mod provider_instances;
 pub use provider_instances::SelectedProviderSource;
 pub mod publication;
 mod terminal_publication;
 mod test_products;
-pub use terminal_publication::{ProductRoster, ProductTerminalPublication};
+pub use terminal_publication::{
+    ProductRoster, ProductTerminalPublication, SourceCallingContext, SourceCallingInputs,
+    SourceNormalizationInputs, SourceProgramEntryInput,
+};
 pub use test_products::{
     PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };

@@ -57,69 +57,110 @@ pub(crate) fn declare(
         declarations.push((machine.id, id));
     }
     declarations.sort_unstable_by_key(|(machine, _)| *machine);
+    let context = elaboration
+        .module
+        .machines
+        .first()
+        .map(|machine| machine.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
+    let mut boundary_declarations = Vec::with_capacity(elaboration.module.boundary_machines.len());
+    let mut boundary_headers = Vec::with_capacity(elaboration.module.boundary_machines.len());
+    for boundary in &elaboration.module.boundary_machines {
+        let unavailable =
+            |reason| refuse(context, Construct::Machine, Unserved::Declaration(reason));
+        let declaration = match &boundary.declaration {
+            Some(declaration) => ProofScopeDeclaration::Callable(declaration.source.clone()),
+            None if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Operator => {
+                let symbol = elaboration.boundaries.get(boundary.id).ok_or_else(|| {
+                    unavailable("proof operator requirement lost its exact source owner")
+                })?;
+                let overload = elaboration
+                    .module
+                    .identities
+                    .text(boundary.identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        unavailable("proof operator requirement lost its exact overload")
+                    })?;
+                ProofScopeDeclaration::Operator(
+                    terminal_psi::BoundaryOperatorRequirement::new(
+                        boundary.owner.clone(),
+                        overload.to_owned(),
+                        typed.symbols.symbol_package_identity(*symbol),
+                    )
+                    .map_err(unavailable)?,
+                )
+            }
+            None => {
+                return Err(unavailable(
+                    "proof boundary requirement has no exact checked declaration",
+                ));
+            }
+        };
+        let id = u32::try_from(scope.declarations.len())
+            .ok()
+            .and_then(|position| position.checked_add(1))
+            .map(ProofDeclarationId)
+            .ok_or_else(|| unavailable("proof declaration coordinate overflow"))?;
+        scope.declarations.insert(declaration);
+        scope.callables.insert(ProofCallableAssociation::Callable {
+            declaration: id,
+            callable: TargetMachineCallable::Boundary(boundary.id),
+        });
+        // A boundary contributes its declaration, never an executable body
+        // or an invocation root. Actual call edges below activate only the
+        // realization selected for this exact requirement.
+        if let Some(callable) = &boundary.declaration {
+            let symbol = *elaboration
+                .boundaries
+                .get(boundary.id)
+                .ok_or_else(|| unavailable("proof boundary lost its exact source association"))?;
+            boundary_headers.push(
+                boundary_header(typed, &elaboration.module, id, boundary, callable, symbol)
+                    .map_err(unavailable)?,
+            );
+        }
+        boundary_declarations.push((boundary.id, id));
+    }
+    boundary_declarations.sort_unstable_by_key(|(boundary, _)| *boundary);
     let declaration_for = |machine: MachineId| -> Result<ProofDeclarationId, String> {
         let position = declarations
             .binary_search_by_key(&machine, |(machine, _)| *machine)
             .map_err(|_| "proof call has no exact emitted declaration")?;
         Ok(declarations[position].1)
     };
-    // Each boundary requirement the module declares is a declaration of the
-    // scope too, after the machines, so a call of it is an edge of the
-    // caller's summary and a selected provider's body is reached through it
-    // (`ProofApplications::membership`, which follows `provider_candidates`
-    // from the requirement to the body a target installs).
-    let mut boundaries = Vec::with_capacity(elaboration.module.boundary_machines.len());
-    let mut boundary_headers = Vec::new();
-    for boundary in &elaboration.module.boundary_machines {
-        let Some(callable) = &boundary.declaration else {
-            continue;
-        };
-        let id = u32::try_from(declarations.len() + boundaries.len())
-            .ok()
-            .and_then(|position| position.checked_add(1))
-            .map(ProofDeclarationId)
-            .ok_or_else(|| {
-                refuse(
-                    MachineId::new(1).expect("1 is nonzero"),
-                    Construct::Machine,
-                    Unserved::Declaration("proof declaration coordinate overflow"),
-                )
-            })?;
-        scope
-            .declarations
-            .insert(ProofScopeDeclaration::Callable(callable.source.clone()));
-        scope.callables.insert(ProofCallableAssociation::Callable {
-            declaration: id,
-            callable: TargetMachineCallable::Boundary(boundary.id),
-        });
-        if let Some(symbol) = elaboration.boundaries.get(boundary.id).copied()
-            && typed.symbols.symbols().nodes().is_valid(symbol)
-        {
-            let header =
-                boundary_header(typed, &elaboration.module, id, boundary, callable, symbol)
-                    .map_err(|reason| {
-                        refuse(
-                            MachineId::new(1).expect("1 is nonzero"),
-                            Construct::Machine,
-                            Unserved::Declaration(reason),
-                        )
-                    })?;
-            boundary_headers.push(header);
-        }
-        boundaries.push((boundary.id, id));
-    }
-    let boundary_for = |boundary: semantic_vocabulary::BoundaryMachineId| {
-        boundaries
-            .iter()
-            .find_map(|(declared, id)| (*declared == boundary).then_some(*id))
-            .ok_or_else(|| "proof call has no exact emitted boundary declaration".to_owned())
+    let boundary_declaration_for = |boundary| -> Result<ProofDeclarationId, &'static str> {
+        let position = boundary_declarations
+            .binary_search_by_key(&boundary, |(boundary, _)| *boundary)
+            .map_err(|_| "proof call has no exact emitted boundary declaration")?;
+        Ok(boundary_declarations[position].1)
     };
-    for candidate in &elaboration.module.provider_candidates {
-        let requirement = boundary_for(candidate.boundary);
-        let realization = declaration_for(candidate.candidate);
+    let candidate_associations = elaboration
+        .provider_candidate_intents
+        .iter()
+        .map(|candidate| (candidate.boundary, candidate.candidate))
+        .chain(
+            elaboration
+                .static_conformances
+                .iter()
+                .filter_map(|question| {
+                    let provider = question.provider.as_ref()?;
+                    match question.implementation {
+                        terminal_check_tables::contracts::StaticImplementation::Machine(
+                            machine,
+                        ) => Some((provider.boundary, machine)),
+                        terminal_check_tables::contracts::StaticImplementation::Native {
+                            ..
+                        } => None,
+                    }
+                }),
+        );
+    for (boundary, candidate) in candidate_associations {
+        let requirement = boundary_declaration_for(boundary);
+        let realization = declaration_for(candidate);
         let (Ok(requirement), Ok(realization)) = (requirement, realization) else {
             return Err(refuse(
-                candidate.candidate,
+                candidate,
                 Construct::Machine,
                 Unserved::Declaration("provider candidate without its proof declarations"),
             ));
@@ -173,19 +214,19 @@ pub(crate) fn declare(
                     }
                 }
                 if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
-                    match boundary_for(*boundary) {
-                        Ok(callee) => {
-                            boundary_calls.push(ProofApplicationCall {
-                                callee,
-                                ..ProofApplicationCall::default()
-                            });
-                            invocation_refusal = Some(
-                                "proof scope needs the actual selected boundary correspondence"
-                                    .into(),
-                            );
-                        }
-                        Err(reason) => unavailable = Some(reason),
-                    }
+                    let callee = boundary_declaration_for(*boundary).map_err(|reason| {
+                        refuse(
+                            machine.id,
+                            Construct::Operation(operation.id),
+                            Unserved::Declaration(reason),
+                        )
+                    })?;
+                    boundary_calls.push(ProofApplicationCall {
+                        callee,
+                        ..ProofApplicationCall::default()
+                    });
+                    unavailable =
+                        Some("compiler evaluation needs admitted boundary execution".into());
                 }
                 if matches!(operation.kind, OperationKind::CallDynamic { .. }) {
                     unavailable = Some(
@@ -201,10 +242,20 @@ pub(crate) fn declare(
                     }),
                     Err(reason) => unavailable = Some(reason),
                 },
-                Terminator::ExternalCompletion { .. } => {
-                    unavailable = Some(
-                        "proof scope needs the actual external completion correspondence".into(),
-                    )
+                Terminator::ExternalCompletion { boundary, .. } => {
+                    let callee = boundary_declaration_for(*boundary).map_err(|reason| {
+                        refuse(
+                            machine.id,
+                            Construct::Block(block.id),
+                            Unserved::Declaration(reason),
+                        )
+                    })?;
+                    boundary_calls.push(ProofApplicationCall {
+                        callee,
+                        ..ProofApplicationCall::default()
+                    });
+                    unavailable =
+                        Some("compiler evaluation needs admitted external completion".into());
                 }
                 _ => {}
             }
@@ -229,7 +280,16 @@ pub(crate) fn declare(
             );
         }
         let package = typed.symbols.symbol_package_identity(symbol);
-        let custody = declaration_custody(typed, symbol);
+        let custody =
+            crate::selection_questions::declaration_custody(typed, symbol).map_err(|reason| {
+                terminal_check_tables::Refusal {
+                    source_span: None,
+                    reason: terminal_check_tables::RefusalReason::Unsupported,
+                    machine: machine.id,
+                    concerns: Construct::Machine,
+                    detail: reason.to_string(),
+                }
+            })?;
         let evaluation = (|| {
             if let Some(reason) = unavailable {
                 return Err(reason);
@@ -370,10 +430,16 @@ pub(crate) fn declare(
         scope.callable_headers.insert(header);
     }
     scope.calls.index_machines();
-    scope.plan.declarations = scope
-        .plan
-        .symbols
-        .insert_many(declarations.iter().map(|(_, declaration)| *declaration));
+    scope.plan.declarations = scope.plan.symbols.insert_many(
+        declarations
+            .iter()
+            .map(|(_, declaration)| *declaration)
+            .chain(
+                boundary_declarations
+                    .iter()
+                    .map(|(_, declaration)| *declaration),
+            ),
+    );
     scope.plan.obligation_owners = scope
         .plan
         .symbols

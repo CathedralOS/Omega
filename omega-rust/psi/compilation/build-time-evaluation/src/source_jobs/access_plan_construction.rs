@@ -350,6 +350,8 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let main = typed.realized_machine_named("main").unwrap().symbol;
     let entries = [main];
     let request = terminal_production::TerminalSourceCompilation {
+        calling: None,
+        providers: None,
         declaration_metadata: &[],
         entries: &entries,
         subjects: &[],
@@ -659,9 +661,45 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
             continue;
         }
         let accepted = judged.expect("the listed writer delegates to its ordinary helper");
+        terminal_semantics::structural_qualifications::validate_shape(accepted.module())
+            .expect("ordinary lowering checks the same permitted operations");
         let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
         terminal_codec::decode_module(&bytes)
             .expect("the received program enforces the same exact caller and borrowed subject");
+        // Changing only a saved permission list must be refused by both the
+        // ordinary lowered checker and the receiving boundary.
+        for axis in ["read", "write"] {
+            let mut denied = accepted.module().clone();
+            let plan = denied
+                .structural_domains
+                .iter_mut()
+                .filter_map(|domain| domain.access_policy.as_mut())
+                .find(|plan| !plan.readers.is_empty() && !plan.writers.is_empty())
+                .expect("the original program retains both rule lists");
+            let rules = if axis == "read" {
+                &mut plan.readers
+            } else {
+                &mut plan.writers
+            };
+            for (_, callers) in rules {
+                callers.clear();
+            }
+            let reason = format!("this function is not allowed to {axis} this value");
+            for error in [
+                terminal_semantics::structural_qualifications::validate_shape(&denied)
+                    .expect_err("lowered checking must enforce the changed rule"),
+                terminal_semantics::structural_qualifications::validate(&denied)
+                    .expect_err("full checking must enforce the changed rule"),
+            ] {
+                assert!(error.detail.contains(&reason), "{error:?}");
+            }
+            let error = terminal_codec::decode_module(
+                &terminal_codec::encode_module(&denied)
+                    .expect("the changed rule retains the original portable declarations"),
+            )
+            .expect_err("saved deny rules cannot bypass the operation check");
+            assert!(format!("{error:?}").contains(&reason), "{error:?}");
+        }
         let produced = accepted
             .produce(
                 Default::default(),

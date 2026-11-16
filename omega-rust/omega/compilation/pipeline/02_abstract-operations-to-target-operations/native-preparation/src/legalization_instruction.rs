@@ -191,6 +191,26 @@ pub(crate) fn project(
             port: *port,
             value: *value,
         },
+        Operation::SelectMachine {
+            result_home,
+            descriptor,
+        } => {
+            let declared = source.result.as_ref().ok_or_else(Error::custody)?;
+            if result_home.defining_operation != operation
+                || result_home.source_value != declared.value
+                || result_home.scalar_type != declared.scalar_type
+                || !matches!(result_home.scalar_type, ScalarType::Callable(_))
+                || Some(result_home.shape)
+                    != crate::legalization::scalar_graph_input::scalar_shape(
+                        result_home.scalar_type,
+                    )
+            {
+                return Err(Error::custody());
+            }
+            Kind::SelectMachine {
+                descriptor: *descriptor,
+            }
+        }
         Operation::SelectImplementation { table, .. } => {
             Kind::SelectImplementation { table: *table }
         }

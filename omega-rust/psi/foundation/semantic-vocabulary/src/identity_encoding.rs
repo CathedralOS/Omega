@@ -16,6 +16,12 @@ pub fn encode_scalar_type<B>(
             push_u8(bytes, 2);
             encode_integer(bytes, integer);
         }
+        ScalarType::Callable(contract) => {
+            push_u8(bytes, 4);
+            for byte in contract.get().to_le_bytes() {
+                push_u8(bytes, byte);
+            }
+        }
         ScalarType::IeeeFloat(format) => {
             push_u8(bytes, 3);
             push_u8(

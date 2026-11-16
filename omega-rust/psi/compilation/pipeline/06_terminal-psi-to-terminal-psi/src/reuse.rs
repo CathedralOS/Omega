@@ -44,6 +44,7 @@ pub fn reverify(
     machine: MachineId,
     obligation: ObligationId,
     saved: &CertificateEnvelope,
+    _activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Evidence> {
     crate::minted::width_questions_are_minted(scope.source())?;
     let (formed, domains, checking, _, _) = scope.checking();
@@ -64,7 +65,7 @@ pub fn reverify(
         Construct::Obligation(obligation),
     )?;
     let lowered = crate::terminal_machine(&module.machines, machine, machine)?;
-    let references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
         machine,
         lowered,
@@ -73,12 +74,12 @@ pub fn reverify(
         &prepared.graph,
         tables,
         &prepared.types,
-        &references,
+        &mut references,
     )?;
     let goal = crate::goal(
         module,
         lowered,
-        &storage,
+        (&storage, &mut references),
         machine,
         obligation,
         &row.kind,
@@ -119,6 +120,7 @@ pub fn reverify_at_call(
     invocation: InvocationId,
     clause: u32,
     saved: &CertificateEnvelope,
+    _activity: &mut crate::ProofSearchActivity,
 ) -> Checked<AcceptedFact> {
     let elaboration = scope.source();
     crate::minted::width_questions_are_minted(elaboration)?;
@@ -131,14 +133,9 @@ pub fn reverify_at_call(
         Construct::Machine,
     )?;
     let row = terminal_check_tables::row(&tables.invocations, invocation, caller, concerns)?;
-    let terminal_psi::TargetMachineCallable::Machine(callee) =
-        crate::callee(&elaboration.module, caller, invocation, row)?
-    else {
-        return Err(refuse(
-            RefusalReason::Unsupported,
-            "an interface contract has no body proof to reuse",
-        ));
-    };
+    let lowered = crate::terminal_machine(&elaboration.module.machines, caller, caller)?;
+    let call =
+        crate::call_contracts::invocation(&elaboration.module, lowered, tables, invocation, row)?;
     let actuals = crate::scalar_actuals(&row.actuals);
     let verdicts =
         &terminal_check_tables::row(&discharge.machines, caller, caller, Construct::Machine)?
@@ -151,18 +148,10 @@ pub fn reverify_at_call(
             ));
         }
     }
-    let contract = elaboration
-        .module
-        .invocation_machine_contract(callee, row.required_contract)
-        .ok_or_else(|| {
-            refuse(
-                RefusalReason::ForeignIdentity,
-                "call has no exact published contract",
-            )
-        })?;
+    let contract = &call.contract;
     let ensures = usize::try_from(clause)
         .ok()
-        .and_then(|clause| contract.ensures.get(clause))
+        .and_then(|clause| contract.ensures.clause(clause))
         .ok_or_else(|| {
             refuse(
                 RefusalReason::ForeignIdentity,
@@ -199,7 +188,6 @@ pub fn reverify_at_call(
         },
         assumption: &|index, _| Ok(Cited::Index(index)),
         axiom: &|index| Ok(index),
-        refused: std::cell::RefCell::new(None),
     }
     .certificate(&saved.proof)
     .map_err(|refused| {
@@ -281,15 +269,13 @@ struct Transport<'a> {
     /// once moved.
     assumption: &'a dyn Fn(usize, &Proposition) -> Checked<Cited>,
     axiom: &'a dyn Fn(usize) -> Checked<usize>,
-    /// Why a cited hypothesis could not be moved, when that is what failed.
-    refused: std::cell::RefCell<Option<Refusal>>,
 }
 
 impl Transport<'_> {
     /// The moved certificate, or the refusal of a hypothesis it cites;
     /// `None` when a value, term or rule form has no counterpart.
     fn certificate(&self, node: &ProofNode) -> Result<ProofNode, Option<Refusal>> {
-        self.node(node).ok_or_else(|| self.refused.take())
+        self.node(node)
     }
 
     fn value(&self, value: ValueId, scalar_type: ScalarType) -> Option<Moved> {
@@ -307,14 +293,8 @@ impl Transport<'_> {
         self.scalar_type(ScalarType::Integer(integer))?.as_integer()
     }
 
-    fn cited_axiom(&self, index: usize) -> Option<usize> {
-        match (self.axiom)(index) {
-            Ok(index) => Some(index),
-            Err(refused) => {
-                self.refused.replace(Some(refused));
-                None
-            }
-        }
+    fn cited_axiom(&self, index: usize) -> Result<usize, Option<Refusal>> {
+        (self.axiom)(index).map_err(Some)
     }
 
     fn term(&self, term: &ScalarTerm) -> Option<ScalarTerm> {
@@ -491,13 +471,13 @@ impl Transport<'_> {
         })
     }
 
-    fn node(&self, node: &ProofNode) -> Option<ProofNode> {
+    fn node(&self, node: &ProofNode) -> Result<ProofNode, Option<Refusal>> {
         let child = |child: &ProofNode| self.node(child).map(Box::new);
         let children = |children: &[ProofNode]| {
             children
                 .iter()
                 .map(|child| self.node(child))
-                .collect::<Option<Vec<_>>>()
+                .collect::<Result<Vec<_>, _>>()
         };
         let rule = match &node.rule {
             ProofRule::Primitive(_) => node.rule.clone(),
@@ -505,18 +485,18 @@ impl Transport<'_> {
                 index: self.cited_axiom(*index)?,
             },
             ProofRule::Assumption { index } => {
-                match (self.assumption)(*index, &self.proposition(&node.conclusion)?) {
-                    Ok(Cited::Index(index)) => ProofRule::Assumption { index },
+                match (self.assumption)(*index, &self.proposition(&node.conclusion).ok_or(None)?)
+                    .map_err(Some)?
+                {
+                    Cited::Index(index) => ProofRule::Assumption { index },
                     // The destination does not assume this hypothesis; the proof
                     // of it stands where the citation stood, and must conclude
                     // exactly what was cited.
-                    Ok(Cited::Proof(proof)) => {
-                        return (proof.conclusion == self.proposition(&node.conclusion)?)
-                            .then_some(proof);
-                    }
-                    Err(refused) => {
-                        self.refused.replace(Some(refused));
-                        return None;
+                    Cited::Proof(proof) => {
+                        return (proof.conclusion
+                            == self.proposition(&node.conclusion).ok_or(None)?)
+                        .then_some(proof)
+                        .ok_or(None);
                     }
                 }
             }
@@ -603,7 +583,7 @@ impl Transport<'_> {
             ProofRule::IntegerMathOrderTranslation { relation, addend } => {
                 ProofRule::IntegerMathOrderTranslation {
                     relation: child(relation)?,
-                    addend: self.math(addend)?,
+                    addend: self.math(addend).ok_or(None)?,
                 }
             }
             ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
@@ -661,21 +641,21 @@ impl Transport<'_> {
             } => ProofRule::IntegerAffineBound {
                 root_bound: child(root_bound)?,
                 witness: IntegerAffineWitness {
-                    root: self.term(&witness.root)?,
-                    target: self.term(&witness.target)?,
+                    root: self.term(&witness.root).ok_or(None)?,
+                    target: self.term(&witness.target).ok_or(None)?,
                     definition_axioms: witness
                         .definition_axioms
                         .iter()
                         .map(|index| self.cited_axiom(*index))
-                        .collect::<Option<_>>()?,
+                        .collect::<Result<_, _>>()?,
                     literal_axioms: witness
                         .literal_axioms
                         .iter()
                         .map(|index| match index {
                             Some(index) => self.cited_axiom(*index).map(Some),
-                            None => Some(None),
+                            None => Ok(None),
                         })
-                        .collect::<Option<_>>()?,
+                        .collect::<Result<_, _>>()?,
                 },
             },
             ProofRule::IntegerExactAddDefinitionBound {
@@ -698,11 +678,11 @@ impl Transport<'_> {
             },
             ProofRule::IntegerCastBound { .. }
             | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {
-                return None;
+                return Err(None);
             }
         };
-        Some(ProofNode {
-            conclusion: self.proposition(&node.conclusion)?,
+        Ok(ProofNode {
+            conclusion: self.proposition(&node.conclusion).ok_or(None)?,
             rule,
         })
     }
@@ -815,6 +795,7 @@ pub fn reverify_specialization(
     consumer_scope: &mut crate::ReplayScope<'_>,
     specialization: MachineId,
     selections: &[Selection<'_>],
+    _activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Vec<(ObligationId, Checked<Evidence>)>> {
     let generic = generic_scope.source();
     crate::minted::width_questions_are_minted(generic)?;
@@ -832,7 +813,7 @@ pub fn reverify_specialization(
     let prepared = crate::prepare(formed, domains, specialization, tables)?;
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
-    let references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
         specialization,
         lowered,
@@ -841,7 +822,7 @@ pub fn reverify_specialization(
         &prepared.graph,
         tables,
         &prepared.types,
-        &references,
+        &mut references,
     )?;
     let carry = Carry::new(
         generic,
@@ -860,7 +841,7 @@ pub fn reverify_specialization(
         let verdict = crate::goal(
             module,
             lowered,
-            &storage,
+            (&storage, &mut references),
             specialization,
             obligation,
             &row.kind,
@@ -1150,7 +1131,6 @@ impl Instantiation {
             value: &|value, scalar_type| self.moved_as(tables, value, scalar_type),
             assumption: &|index, _| Ok(Cited::Index(index)),
             axiom: &|index| Ok(index),
-            refused: std::cell::RefCell::new(None),
         }
         .proposition(theirs);
         moved.as_ref() == Some(mine)
@@ -1661,7 +1641,6 @@ impl Carry<'_> {
                     concerns,
                 )
             },
-            refused: std::cell::RefCell::new(None),
         }
         .certificate(&evidence.certificate.proof)
         .map_err(|refused| {
@@ -1978,7 +1957,6 @@ impl Carry<'_> {
             // The witness has one operation, its call, which has no result
             // equation; a proof that cites one is not a refinement proof.
             axiom: &|_| Err(unsupported("the refinement proof cites an operation")),
-            refused: std::cell::RefCell::new(None),
         }
         .certificate(&evidence.certificate.proof)
         .map_err(|refused| {
@@ -2057,7 +2035,6 @@ mod width_transport_tests {
             value: &|value, scalar| instance.moved_as(&tables, value, scalar),
             assumption: &|index, _| Ok(Cited::Index(index)),
             axiom: &Ok,
-            refused: std::cell::RefCell::new(None),
         };
         let generic = Proposition::Equal(
             ScalarTerm::value(ValueId::new(3).unwrap(), width(7)),
@@ -2126,7 +2103,6 @@ mod ieee_transport_tests {
                 value: &|id, _| ValueId::new(3 - id.get()).map(Moved::Value),
                 assumption: &|index, _| Ok(Cited::Index(index)),
                 axiom: &Ok,
-                refused: std::cell::RefCell::new(None),
             };
             let [a, b] = [1, 2].map(|id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar));
             for kind in [
@@ -2301,7 +2277,6 @@ mod meaning_unification_tests {
             value: &|id, _| ValueId::new(id.get() + 10).map(Moved::Value),
             assumption: &|index, _| Ok(Cited::Index(index + 1)),
             axiom: &Ok,
-            refused: std::cell::RefCell::new(None),
         };
         let moved = transport.certificate(&proof).unwrap();
         let ProofRule::FloatIntegerConversion { premise, computed } = &moved.rule else {
@@ -2429,7 +2404,6 @@ mod meaning_unification_tests {
             value: &|id, _| ValueId::new(id.get() + 10).map(Moved::Value),
             assumption: &|index, _| Ok(Cited::Index(index + 1)),
             axiom: &Ok,
-            refused: std::cell::RefCell::new(None),
         };
         let moved = transport.certificate(&proof).unwrap();
         let ProofRule::FloatMeaningNormalization(children) = &moved.rule else {
@@ -2483,7 +2457,6 @@ mod integer_float_reuse_tests {
             value: &|id, _| ValueId::new(id.get() + 10).map(Moved::Value),
             assumption: &|index, _| Ok(Cited::Index(index)),
             axiom: &Ok,
-            refused: std::cell::RefCell::new(None),
         };
         let moved = transport.certificate(&proof).unwrap();
         assert_eq!(

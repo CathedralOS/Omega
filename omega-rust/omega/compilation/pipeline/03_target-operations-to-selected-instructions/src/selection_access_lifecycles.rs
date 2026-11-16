@@ -4648,11 +4648,22 @@ pub(crate) mod tests {
             installation_operations: Vec::new(),
             function_abis: Vec::new(),
         };
+        // This single-instruction fixture has no functions or call occurrences.
+        assert!(program.scalar_functions.is_empty());
+        let callable_invocations =
+            terminal_semantics::callable_values::ReachableCallableInvocations {
+                roots: Vec::new(),
+                reached_machines: Vec::new(),
+                invocations: Vec::new(),
+                inputs: Vec::new(),
+            };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
             &program,
             &geometries,
-        );
+            &callable_invocations,
+        )
+        .expect("the instruction fixture has no foreign scalar call backings");
         let installations = bound_installations::BoundInstallations::empty(program.psi);
         let mut builder = Builder {
             installations: &installations,

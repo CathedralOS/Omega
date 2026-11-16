@@ -154,7 +154,8 @@ fn ranked(signed: bool, tuple: bool, stalls: bool) -> typed_trees_to_terminal_ps
 fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
     for (signed, tuple) in [(false, false), (true, false), (false, true)] {
         let mut elaboration = ranked(signed, tuple, false);
-        let discharged = discharge(&mut elaboration).unwrap();
+        let discharged =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let verdicts = &discharged.machines.get(id(1)).unwrap().verdicts;
         for (obligation, row) in tables.obligations.iter() {
@@ -169,8 +170,16 @@ fn finite_integer_rankings_use_real_kernel_checked_edge_goals() {
                     };
                     assert_kernel_checked(&elaboration, 1, obligation, evidence);
                     let mut consumer = elaboration.clone();
-                    let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-                    reverify(&mut replay, id(1), obligation, &evidence.certificate).unwrap();
+                    let mut activity = crate::ProofSearchActivity::default();
+                    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+                    reverify(
+                        &mut replay,
+                        id(1),
+                        obligation,
+                        &evidence.certificate,
+                        &mut activity,
+                    )
+                    .unwrap();
                 }
                 _ => {}
             }
@@ -234,7 +243,7 @@ fn exact_ranking_inventory_rejects_missing_surplus_swapped_and_stale_claims() {
             _ => unreachable!(),
         }
         assert!(
-            discharge(&mut elaboration).is_err(),
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).is_err(),
             "fault {fault} accepted"
         );
     }
@@ -364,7 +373,8 @@ fn borrowed_slice_iterations_keep_their_measure_and_backing() {
 #[test]
 fn every_complete_cycle_must_cross_a_strict_edge() {
     let mut elaboration = ranked(false, false, true);
-    let refusal = discharge(&mut elaboration).unwrap_err();
+    let refusal =
+        discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
     assert!(
         refusal.detail.contains("removing strict rank edges"),
         "{}",
@@ -399,7 +409,8 @@ fn a_forged_successor_cannot_substitute_a_smaller_unrelated_value() {
         .unwrap();
     let old = cycle.edges[last].successor_ranks;
     cycle.observations.get_mut(old.start()).value = zero;
-    let refusal = discharge(&mut elaboration).unwrap_err();
+    let refusal =
+        discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
     assert!(
         refusal.detail.contains("successor rank") || refusal.detail.contains("actual scope"),
         "{}",

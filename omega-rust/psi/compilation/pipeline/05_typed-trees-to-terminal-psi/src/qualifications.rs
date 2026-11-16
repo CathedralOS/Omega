@@ -18,6 +18,14 @@ use terminal_psi::{
 use crate::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
 use crate::{Unserved, refuse};
 
+/// Structural declarations retain the exact source and carrier that produced
+/// each row. The qualification owner extends this catalog during lowering.
+#[derive(Default)]
+pub(crate) struct StructuralDomains {
+    pub declarations: Vec<StructuralDomainDeclaration>,
+    pub source_bindings: Vec<(DomainInstance, StructuralTypeId, StructuralDomainId)>,
+}
+
 pub(crate) fn domain_identity(
     typed: &typed_trees::TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
@@ -53,7 +61,7 @@ pub(crate) fn publish_access_plans(
             Unserved::Declaration(detail),
         )
     };
-    let typed = source.typed();
+    let typed = source.typed;
     let mut identities = std::mem::take(&mut module.identities).into_builder();
     let result = (|| {
         let sources = match source::source_identity::toolchain_source_identities(
@@ -63,11 +71,22 @@ pub(crate) fn publish_access_plans(
             Err(_) if identities.is_invocation_scoped() => Vec::new(),
             Err(_) => return Err(unavailable("access rules lost their source identity")),
         };
-        for declared in &source.declared_domains {
-            let instance = declared.instance;
-            let ValueType::Record(carrier, _, _) = declared.carrier else {
-                continue;
-            };
+        let domains = source
+            .declared_domains
+            .iter()
+            .filter_map(|declared| {
+                let ValueType::Record(carrier, _, _) = declared.carrier else {
+                    return None;
+                };
+                Some((declared.instance, carrier, false))
+            })
+            .chain(
+                source
+                    .byte_domains
+                    .iter()
+                    .map(|declared| (declared.source, declared.carrier, true)),
+            );
+        for (instance, carrier, byte_domain) in domains {
             let definition = source.domain_theory(diagnostic, instance)?;
             let Some(policy) = &definition.access_policy else {
                 continue;
@@ -77,6 +96,20 @@ pub(crate) fn publish_access_plans(
             };
             let identity =
                 domain_identity(typed, &sources, instance, &mut identities).map_err(unavailable)?;
+            let identity = if byte_domain {
+                let carrier_identity = module
+                    .structural_type(carrier)
+                    .ok_or_else(|| unavailable("byte access rules lost their exact carrier"))?
+                    .identity;
+                crate::lower::places::byte_domain_identity(
+                    &mut identities,
+                    identity,
+                    carrier_identity,
+                )
+                .map_err(unavailable)?
+            } else {
+                identity
+            };
             let mut matches = module
                 .structural_domains
                 .iter_mut()
@@ -166,13 +199,14 @@ pub(crate) fn publish_access_plans(
 pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
     pub identities: TerminalIdentityTableBuilder,
+    last_semantic_domain: u64,
     domains: Vec<(DomainInstance, ScalarDomainId)>,
     policies: Vec<(ScalarType, Policy, ScalarDomainId)>,
     issuers: Vec<(MachineId, ScalarDomainId, u32)>,
     /// The module's structural domain catalog, in identity order.
     pub structural: Vec<StructuralDomainDeclaration>,
-    /// Each used record domain by its exact application and catalog identity.
-    structural_domains: Vec<(DomainInstance, StructuralDomainId)>,
+    /// Each used record domain by its declaration, and its catalog identity.
+    structural_domains: Vec<(DomainInstance, StructuralTypeId, StructuralDomainId)>,
     structural_issuers: Vec<(MachineId, StructuralDomainId, u32)>,
     /// Explicit structural casts, in machine and edge order.
     pub structural_changes: Vec<StructuralQualificationChange>,
@@ -319,15 +353,24 @@ impl Qualifications {
         diagnostic: MachineId,
         source: Option<&crate::read::Program<'_>>,
         identities: TerminalIdentityTable,
+        structural: StructuralDomains,
     ) -> Checked<Self> {
         let mut result = Self {
             identities: identities.into_builder(),
+            last_semantic_domain: structural
+                .declarations
+                .iter()
+                .map(|domain| domain.semantic_domain.get())
+                .max()
+                .unwrap_or(0),
+            structural: structural.declarations,
+            structural_domains: structural.source_bindings,
             ..Self::default()
         };
         let Some(source) = source else {
             return Ok(result);
         };
-        let typed = source.typed();
+        let typed = source.typed;
         let sources = match source::source_identity::toolchain_source_identities(
             typed.symbols.source_files(),
         ) {
@@ -364,6 +407,7 @@ impl Qualifications {
                     return Err(unavailable("domain retains an unresolved carrier"));
                 }
             };
+            let semantic_domain = result.next_semantic_domain(&unavailable)?;
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
@@ -428,8 +472,7 @@ impl Qualifications {
                 required_memberships: Some(Vec::new()),
                 predicate,
                 id,
-                semantic_domain: DomainSemanticId::new(id.get())
-                    .expect("a domain identity is nonzero"),
+                semantic_domain,
                 identity,
                 carrier,
                 establishment_routes,
@@ -437,6 +480,18 @@ impl Qualifications {
             result.domains.push((symbol, id));
         }
         Ok(result)
+    }
+
+    fn next_semantic_domain(
+        &mut self,
+        unavailable: &impl Fn(&'static str) -> terminal_check_tables::Refusal,
+    ) -> Checked<DomainSemanticId> {
+        self.last_semantic_domain = self
+            .last_semantic_domain
+            .checked_add(1)
+            .ok_or_else(|| unavailable("semantic domain identity overflow"))?;
+        DomainSemanticId::new(self.last_semantic_domain)
+            .ok_or_else(|| unavailable("semantic domain identity overflow"))
     }
 
     /// A cast's predicate/issuer completion and a result's forwarding retain
@@ -586,7 +641,7 @@ impl Qualifications {
         sources: &[(source::SourceId, [u8; 32])],
         declared: &crate::read::DeclaredDomain,
     ) -> Checked<()> {
-        let typed = source.typed();
+        let typed = source.typed;
         let unavailable = |detail| {
             refuse(
                 diagnostic,
@@ -617,6 +672,7 @@ impl Qualifications {
                 })
             })
             .transpose()?;
+        let semantic_domain = self.next_semantic_domain(&unavailable)?;
         let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
             .ok_or_else(|| unavailable("record domain identity overflow"))?;
         let identity =
@@ -686,14 +742,14 @@ impl Qualifications {
             complete_predicate_theory: declared.complete_predicate_theory,
             predicate,
             id,
-            semantic_domain: DomainSemanticId::new(id.get()).expect("a domain identity is nonzero"),
+            semantic_domain,
             identity,
             carrier,
             content_projection: None,
             byte_predicate: None,
             establishment_routes,
         });
-        self.structural_domains.push((symbol, id));
+        self.structural_domains.push((symbol, carrier, id));
         Ok(())
     }
 
@@ -714,8 +770,10 @@ impl Qualifications {
             let id = self
                 .structural_domains
                 .iter()
-                .find(|(declared, _)| *declared == symbol)
-                .map(|(_, id)| *id)
+                .find(|(declared, actual_carrier, _)| {
+                    *declared == symbol && *actual_carrier == carrier
+                })
+                .map(|(_, _, id)| *id)
                 .ok_or_else(|| {
                     unavailable("data qualification has no retained domain declaration")
                 })?;
@@ -864,12 +922,12 @@ impl Qualifications {
                             arithmetic,
                         )
                         .ok_or_else(|| unavailable("arithmetic policy identity"))?;
+                    let semantic_domain = self.next_semantic_domain(&unavailable)?;
                     self.catalog.domains.push(ScalarDomainDeclaration {
                         required_memberships: Some(Vec::new()),
                         predicate: None,
                         id,
-                        semantic_domain: DomainSemanticId::new(id.get())
-                            .expect("a policy identity is nonzero"),
+                        semantic_domain,
                         identity: self.identities.intern(identity),
                         carrier,
                         establishment_routes: None,

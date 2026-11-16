@@ -9,8 +9,8 @@ use super::original_homes::{exact_layout, rejection};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
 use terminal_interpreter::{
-    TerminalBoundaryStorageValue, TerminalEffectRejection, TerminalProgram,
-    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStorageContents,
+    TerminalAggregateValue, TerminalBoundaryStorageValue, TerminalEffectRejection, TerminalProgram,
+    TerminalStorageContents,
 };
 use terminal_psi::StructuralTypeShape;
 
@@ -270,26 +270,16 @@ impl StorageCodec {
     pub fn aggregate(
         &self,
         bytes: &[u8],
-    ) -> Result<TerminalScalarAggregateValue, TerminalEffectRejection> {
+    ) -> Result<TerminalAggregateValue, TerminalEffectRejection> {
         if !self.references.is_empty() {
             return Err(rejection(
                 "native owned reference result needs its exact value codec",
             ));
         }
-        let fields = self
-            .decode_fields(bytes)?
-            .into_iter()
-            .map(|field| {
-                let TerminalStorageContents::Scalar { value, .. } = field.contents.clone() else {
-                    return Err(rejection("native result lost its scalar payload"));
-                };
-                Ok((field.path, value))
-            })
-            .collect::<Result<Vec<(Vec<Path>, TerminalScalarValue)>, _>>()?;
-        Ok(TerminalScalarAggregateValue {
+        Ok(TerminalAggregateValue {
             structural_type: self.structural_type,
             result_case: None,
-            fields,
+            fields: self.decode_fields(bytes)?,
         })
     }
 }

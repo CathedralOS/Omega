@@ -25,14 +25,15 @@ impl PackageReviewInput<'_> {
         declarations: &AcceptedDeclarations<'_>,
     ) -> Result<Vec<(PackagePolicyNativeBinding, PackagePolicyCallable)>, Vec<Diagnostic>> {
         let checked = self.compilation();
-        let selected = checked.execution().native_bindings();
+        let realization = checked.execution().realization();
+        let selected = realization.evaluated_native_bindings();
         let supplies = checked
             .build()
             .config
             .native_bindings
             .iter()
             .filter(|supply| supply.selection.target.canonical_name() == target.target_name());
-        if supplies.clone().next().is_none() && selected.rows.is_empty() {
+        if supplies.clone().next().is_none() && selected.is_empty() {
             return Ok(Vec::new());
         }
         let publication = checked.terminal_publication();
@@ -179,13 +180,34 @@ impl PackageReviewInput<'_> {
         if normalized_receipts
             .windows(2)
             .any(|pair| pair[0].0 == pair[1].0)
-            || selected.rows.iter().any(|row| {
-                normalized_receipts
-                    .binary_search(&(row.boundary, row.binding.receipt().identity_digest()))
-                    .is_err()
-            })
         {
             return Err(unavailable("the complete selected native supply custody"));
+        }
+        for binding in selected {
+            let origin = binding.receipt().build_origin().ok_or_else(|| {
+                unavailable("the selected native binding's retained Build origin")
+            })?;
+            let requirement = realization
+                .evaluated_binding_identities()
+                .text(origin.requirement_identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    unavailable("the selected native binding's exact requirement identity")
+                })?;
+            if binding.target().target_name() != target.target_name()
+                || !normalized_receipts.iter().any(|(boundary, receipt)| {
+                    *receipt == binding.receipt().identity_digest()
+                        && module
+                            .boundary_machine(*boundary)
+                            .and_then(|boundary| boundary.declaration.as_ref())
+                            .and_then(|declaration| {
+                                module.identities.text(declaration.source.callable)
+                            })
+                            == Some(requirement)
+                })
+            {
+                return Err(unavailable("the complete selected native supply custody"));
+            }
         }
         let program = publication
             .published()
