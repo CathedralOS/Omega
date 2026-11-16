@@ -805,9 +805,51 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
     assert!(!project.join("build/package-manager/proposal").exists());
 }
 
-// Compile a locked project after editing one of its sources and return the
-// refusal with the number of Builds that ran before it.
-fn refused_locked_compile(project: &Path) -> (String, u64) {
+// Publish a lock for the host target, accepting every pending decision.
+fn lock_for_host(project: &Path) {
+    let mut options = PackageCommandOptions {
+        project_root: project.to_path_buf(),
+        targets: vec![TargetProfile::host_if_supported().unwrap()],
+        offline: true,
+        build_inputs: None,
+    };
+    let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
+    let mut outcome = execute_package_command(
+        PackageCommand::Update {
+            packages: Vec::new(),
+            revision: None,
+        },
+        options.clone(),
+        &mut session,
+    )
+    .unwrap();
+    for _ in 0..3 {
+        if outcome.status == PackageCommandStatus::Published {
+            break;
+        }
+        accept_decisions(&outcome.review_paths);
+        options.targets.clear();
+        outcome = execute_package_command(
+            PackageCommand::Resume {
+                kind: PackageCommandKind::Update,
+            },
+            options.clone(),
+            &mut session,
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        outcome.status,
+        PackageCommandStatus::Published,
+        "{}",
+        outcome.report
+    );
+    session.close().unwrap();
+}
+
+// Check a locked project for the host and return the refusal, if any, with
+// the number of Builds that ran.
+fn check_locked_project(project: &Path) -> (Option<String>, u64) {
     let before = counters::source_build_execution_count();
     let result = build(BuildRequest {
         stage_validators: Default::default(),
@@ -823,18 +865,17 @@ fn refused_locked_compile(project: &Path) -> (String, u64) {
         build_snapshot: None,
     });
     let executions = counters::source_build_execution_count() - before;
-    let error = match result {
-        Err(error) => error.to_string(),
-        Ok(outcomes) => outcomes
-            .into_iter()
-            .map(|outcome| match outcome.result {
-                Err(error) => error.to_string(),
-                Ok(_) => panic!("a stale lock must refuse compilation"),
-            })
-            .collect::<Vec<_>>()
-            .join("\n"),
+    let refusal = match result {
+        Err(error) => Some(error.to_string()),
+        Ok(outcomes) => {
+            let errors = outcomes
+                .into_iter()
+                .filter_map(|outcome| outcome.result.err().map(|error| error.to_string()))
+                .collect::<Vec<_>>();
+            (!errors.is_empty()).then(|| errors.join("\n"))
+        }
     };
-    (error, executions)
+    (refusal, executions)
 }
 
 #[test]
@@ -852,14 +893,10 @@ fn stale_lock_refuses_compilation_before_the_changed_build_runs() {
         &["main.omg", "build.omg"],
     );
     let project = root.join("executed_dependency_source_join_exit");
-    command_and_accept(
-        &project,
-        PackageCommand::Update {
-            packages: Vec::new(),
-            revision: None,
-        },
-        2,
-    );
+    lock_for_host(&project);
+    let (refusal, executions) = check_locked_project(&project);
+    assert_eq!(refusal, None);
+    assert_eq!(executions, 2, "the accepted root and dependency Builds run");
 
     // An edited root Build is refused before it runs.
     let declaration = std::fs::read(project.join("build.omg")).unwrap();
@@ -868,10 +905,11 @@ fn stale_lock_refuses_compilation_before_the_changed_build_runs() {
         [declaration.as_slice(), b"\n// root edit\n"].concat(),
     )
     .unwrap();
-    let (error, executions) = refused_locked_compile(&project);
+    let (refusal, executions) = check_locked_project(&project);
+    let refusal = refusal.expect("an edited root must be refused");
     assert!(
-        error.contains("`executed_dependency_source_join_exit` source identity changed"),
-        "{error}"
+        refusal.contains("`executed_dependency_source_join_exit` source identity changed"),
+        "{refusal}"
     );
     assert_eq!(executions, 0, "the edited root Build must not run");
     std::fs::write(project.join("build.omg"), &declaration).unwrap();
@@ -885,14 +923,17 @@ fn stale_lock_refuses_compilation_before_the_changed_build_runs() {
         [contents.as_slice(), b"\n// dependency edit\n"].concat(),
     )
     .unwrap();
-    let (error, executions) = refused_locked_compile(&project);
+    let (refusal, executions) = check_locked_project(&project);
+    let refusal = refusal.expect("an edited dependency must be refused");
     assert!(
-        error.contains("`executed_dependency_source_library` source identity changed"),
-        "{error}"
+        refusal.contains("`executed_dependency_source_library` source identity changed"),
+        "{refusal}"
     );
     assert_eq!(executions, 1, "only the unchanged root Build may run");
     std::fs::write(&dependency, contents).unwrap();
 
-    // The restored sources still compile under the same lock.
-    compile_accepted_project(&project, 2);
+    // The restored sources check again under the same lock.
+    let (refusal, executions) = check_locked_project(&project);
+    assert_eq!(refusal, None);
+    assert_eq!(executions, 2);
 }
