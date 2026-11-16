@@ -841,14 +841,14 @@ fn adding_a_governed_domain_is_refused_by_name() {
     );
 }
 
-/// A record with a governed field is gated: zero is not a value somebody
-/// issued, so the record is constructed with that field supplied.
+/// Zero construction still needs a declared issuer. An unevaluated access
+/// plan establishes no authority to issue the governed field.
 #[test]
 fn zero_establishing_a_record_with_a_governed_field_is_refused_by_name() {
     refused_with(
         "governed_zero",
         "machine wrong() -> i32 {\n    let sealed: Sealed;\n    sealed.count\n}\n",
-        "zero-established value in a domain that must be established",
+        "cast that adds a domain whose issuers are in an access plan",
     );
 }
 
