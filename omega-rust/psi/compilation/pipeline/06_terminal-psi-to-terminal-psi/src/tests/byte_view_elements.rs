@@ -1423,7 +1423,7 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
     );
     let publication = accepted.publish_invocation().unwrap();
     terminal_codec::EvidenceSealValidator::new(
-        publication.artifact.semantic_module(),
+        publication.artifact.view().module(),
         &publication.seals.seals,
     )
     .validate_all()
