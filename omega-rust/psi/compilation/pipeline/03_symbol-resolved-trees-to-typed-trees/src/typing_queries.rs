@@ -855,18 +855,6 @@ pub(crate) fn defer_unbound_calls(
                     .filter(|owner| owner.is_valid())
                 {
                     owned = true;
-                    // This exact fact selects the byte predicate even though
-                    // lexical lookup found no ordinary callable for its name.
-                    if bare == symbols::UnresolvedName::NoVisibleDeclaration
-                        && program
-                            .domain_definition(owner)
-                            .and_then(|domain| {
-                                typed_trees::byte_predicates::byte_domain_predicate(program, domain)
-                            })
-                            .is_some_and(|(predicate, _)| predicate == handle)
-                    {
-                        continue;
-                    }
                     in_declarations.push((owner, request, source_span, bare));
                 }
                 if !owned {

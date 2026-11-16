@@ -334,12 +334,41 @@ machine main() {{ let valid: bool = checked("Room A1"); }}
 "#
         );
         let verdicts = observed_program(&source);
-        assert!(
-            verdicts
-                .iter()
-                .any(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Rejected { .. }))),
-            "neither constant result proves exact membership: {verdicts:?}"
-        );
+        assert!(!verdicts.is_empty(), "the entry needs a checker verdict");
+        for verdict in verdicts {
+            // A symbolic byte predicate can leave the guarantee unproved.
+            // Pin that authored guarantee, including an incomplete derivation.
+            let unproved = match verdict {
+                Ok(crate::RouteVerdict::Incomplete(unproved)) => unproved,
+                Ok(crate::RouteVerdict::Rejected {
+                    formations,
+                    violations,
+                    unproved,
+                    unestablished,
+                    conflicts,
+                    exceeded,
+                }) => {
+                    assert!(formations.is_empty() && violations.is_empty());
+                    assert!(
+                        unestablished.is_empty() && conflicts.is_empty() && exceeded.is_empty()
+                    );
+                    unproved
+                }
+                other => panic!("a constant must not publish the equivalence: {other:?}"),
+            };
+            assert!(!unproved.is_empty());
+            assert!(
+                unproved.iter().all(|failure| {
+                    matches!(
+                        failure.kind,
+                        terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+                    ) && failure
+                        .statement
+                        .contains("result == byte_observation::ascii_only(bytes)")
+                }),
+                "{unproved:?}"
+            );
+        }
     }
 }
 

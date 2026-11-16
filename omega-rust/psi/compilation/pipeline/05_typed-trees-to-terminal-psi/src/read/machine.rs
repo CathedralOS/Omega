@@ -2837,13 +2837,10 @@ impl<'t> Program<'t> {
         // states the domain's predicate of the formal's bytes as an entry
         // requirement (`signature_predicates`), so every call owes it of the
         // view it passes and the body may rely on it.
-        if referent == BorrowedReferent::Slice {
-            let outer = std::mem::replace(&mut self.qualified_views, true);
-            let view = self.view_type_with_formal_access(machine, carrier, true);
-            self.qualified_views = outer;
-            if let Some(value) = view? {
-                return Ok(value);
-            }
+        if referent == BorrowedReferent::Slice
+            && let Some(value) = self.view_type_with_formal_access(machine, carrier, true)?
+        {
+            return Ok(value);
         }
         self.value_type(machine, carrier)
     }

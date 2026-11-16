@@ -370,7 +370,7 @@ impl Program<'_> {
         // variable its use decides, as a literal takes the lifetime its use
         // requires.
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Variables);
-        let result = self.qualified_view_type(id, cast.result_type);
+        let result = self.value_type(id, cast.result_type);
         self.elision = elision;
         let result = result?;
         // A literal lands in the carrier of the type the cast gives it

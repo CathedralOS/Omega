@@ -177,9 +177,9 @@ pub(super) fn mutable_byte_formal_identity(
 /// The type beneath the domains displayed on a view's referent, and those
 /// domains in written order.
 ///
-/// Served: a declared domain whose one `requires` is a primitive byte
-/// predicate of `self` and that holds of the empty view (`valid_utf8`,
-/// `no_nul`, `ascii_only`). Such a domain is decided by the bytes a view
+/// Served: a declared domain whose one `requires` selects a genuine Core
+/// byte observer of an explicit shared whole view of `self`, and that holds
+/// of the empty view (`valid_utf8`, `no_nul`, `ascii_only`). Such a domain is decided by the bytes a view
 /// shows, which the lowered form carries as the field's predicates
 /// (`StructuralFieldType::PredicateByteSequence`) and the checker judges
 /// from the bytes each store supplies (byte_views.md: "Primitive byte
@@ -655,30 +655,18 @@ impl Program<'_> {
                 None => Ok(None),
             };
         };
-        // A view in a domain is served where the checker judges what it
-        // holds: a data field, whose every store it judges from the bytes
-        // supplied; a formal, whose domain's predicates every call owes as
-        // entry requirements (`formal_value_type`); and the cast that makes a
-        // value for either (`QualifiedViews`). A local or result of such a
-        // type would owe its predicates at moves that nothing judges yet.
+        // Keep the domains on the actual view type in every placement.
+        // Signature clauses and checked establishments owe their predicates;
+        // reading this type supplies no proof of those predicates.
         let mut qualification = Qualification::NONE;
-        if !domains.is_empty() {
-            if !self.qualified_views {
-                return Err(refuse(
+        for domain in domains {
+            qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
+                refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Type("byte view in a domain outside a data field"),
-                ));
-            }
-            for domain in domains {
-                qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
-                    refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Type("byte view in more than four domains"),
-                    )
-                })?;
-            }
+                    Unserved::Type("byte view in more than four domains"),
+                )
+            })?;
         }
 
         let region = self.borrowed_view_region(machine, reference, lexical_owner, &identity)?;

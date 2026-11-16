@@ -633,7 +633,7 @@ impl Program<'_> {
         // A field that names lifetime-parameterised data without its
         // lifetime arguments, directly or behind a reference, is refused
         // where its regions are asked for (`regions::Elision::Members`).
-        let value_type = self.qualified_view_type(id, field.type_reference)?;
+        let value_type = self.value_type(id, field.type_reference)?;
         // Stored byte and typed views keep the region of their actual source
         // type (lifetimes.md: "storage that remains valid for its use"). The
         // shared view owner keys the type by that region in this declaration;
