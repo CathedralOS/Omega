@@ -2516,6 +2516,7 @@ pub(crate) mod operator {
     use crate::resolution::lowerer::Lowerer;
     use diagnostics::Diagnostic;
     use language_core::atomic::ATOMIC_FENCE_NAMESPACE;
+    use language_core::byte_predicates::ByteSequencePredicate;
     use language_core::sealed_intrinsics::{
         CollectionPrimitive, CompilerPrimitive, SealedIntrinsic,
     };
@@ -2610,6 +2611,9 @@ pub(crate) mod operator {
             Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence)) => {
                 Some(CatalogFamily::AtomicFence)
             }
+            Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
+                predicate,
+            ))) => Some(CatalogFamily::ByteObservation(predicate)),
             _ => CatalogFamily::naming(namespace, leaf),
         };
         let sealed_source = family.is_some_and(|family| {
@@ -2650,6 +2654,9 @@ pub(crate) mod operator {
             // binder, lifetime relation and contract before a use is served.
             CatalogFamily::Collection(_) => {}
             CatalogFamily::FloatProjection => {}
+            CatalogFamily::ByteObservation(_) => {
+                require_exact_byte_observation_row(syntax_trees, machine, entry)?;
+            }
             CatalogFamily::AtomicFence => {
                 require_exact_atomic_fence_row(syntax_trees, machine, entry)?;
             }
@@ -2672,6 +2679,7 @@ pub(crate) mod operator {
     #[derive(Clone, Copy)]
     enum CatalogFamily {
         Collection(CollectionPrimitive),
+        ByteObservation(ByteSequencePredicate),
         /* Place-free portable fence (`atomic.omg`). */
         AtomicFence,
         /* `Float::meaning32` / `Float::meaning64` (`float_operations.omg`). */
@@ -2710,6 +2718,7 @@ pub(crate) mod operator {
         fn primitive(self) -> CompilerPrimitive {
             match self {
                 Self::Collection(operation) => CompilerPrimitive::Collection(operation),
+                Self::ByteObservation(predicate) => CompilerPrimitive::ByteObservation(predicate),
                 Self::AtomicFence => CompilerPrimitive::AtomicFence,
                 Self::FloatProjection => CompilerPrimitive::FloatProjection,
                 Self::FloatSemantics => CompilerPrimitive::FloatSemantics,
@@ -2865,6 +2874,101 @@ pub(crate) mod operator {
             })
     }
 
+    // Catalog custody selects the operation. Its one ordinary machine header
+    // still has to be the complete pure shared-byte observation declaration.
+    fn require_exact_byte_observation_row(
+        syntax_trees: &SyntaxTrees,
+        machine: &syntax::item::Machine,
+        entry: &syntax::item::State,
+    ) -> Result<(), Diagnostic> {
+        let drift = || {
+            Diagnostic::error(
+            "the sealed byte-observation declaration requires one explicit input lifetime, one relevant shared byte-view input, a bool result, reaches none, crashes none and unconditional terminates, with no additional header or body",
+        ).with_source_span(machine.name.source_span())
+        };
+        if !machine.is_public
+            || !machine.bodyless
+            || machine.boundary
+            || !machine
+                .generic_data_template
+                .as_str(syntax_trees)
+                .is_empty()
+            || !machine.default_body_trait.as_str(syntax_trees).is_empty()
+            || machine.attached_data.is_some()
+            || machine.spelling.is_some()
+            || machine.target_family_interface
+            || machine.target.is_some()
+            || machine.authored_target.is_some()
+            || machine.type_parameters != arena::HandleSpan::empty()
+            || machine.satisfies != arena::HandleSpan::empty()
+            || !machine.conformance_bounds.is_empty()
+            || !machine.terminates_guarantee
+            || machine.ranking_subjects != arena::HandleSpan::empty()
+            || machine.ranking_view != arena::HandleSpan::empty()
+            || machine.ranking_view_arguments != arena::HandleSpan::empty()
+            || machine.ranking_range.is_valid()
+            || machine.service_reach_keyword_source_spans.len() != 1
+            || machine.service_reaches != arena::HandleSpan::empty()
+            || machine.service_reach_is_installation_bound
+            || machine.invokes != arena::HandleSpan::empty()
+            || machine.suspends
+            || machine.blocks
+            || !machine.suspends_keyword_source_spans.is_empty()
+            || !machine.blocks_keyword_source_spans.is_empty()
+            || machine.admitted_same_stack_bytes != 0
+            || !machine.declares_no_crash_route
+            || machine.contracts != arena::HandleSpan::empty()
+            || machine.states.len() != 1
+            || syntax_trees.items.state_handles(machine.states).len() != 1
+            || machine.nested_machines != arena::HandleSpan::empty()
+            || entry.contracts != arena::HandleSpan::empty()
+            || entry.statements != arena::HandleSpan::empty()
+            || entry.parameters.len() != 1
+        {
+            return Err(drift());
+        }
+        let [lifetime] = machine.lifetime_parameters.as_slice() else {
+            return Err(drift());
+        };
+        if lifetime.as_str(syntax_trees).is_empty() {
+            return Err(drift());
+        }
+        let [parameter] = syntax_trees.items.state_parameters(entry.parameters) else {
+            return Err(drift());
+        };
+        let parameter = syntax_trees.items.state_parameter(*parameter);
+        if parameter.is_const
+            || parameter.is_mutable
+            || parameter.relevance != language_core::BindingRelevance::Relevant
+        {
+            return Err(drift());
+        }
+        let types = &syntax_trees.tables.type_references;
+        let TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime: Some(input_lifetime),
+        } = types.type_reference(parameter.type_reference)
+        else {
+            return Err(drift());
+        };
+        if input_lifetime.as_str(syntax_trees) != lifetime.as_str(syntax_trees) {
+            return Err(drift());
+        }
+        let TypeReferenceNode::Slice { element_type } = types.type_reference(*referee) else {
+            return Err(drift());
+        };
+        if !matches!(types.type_reference(*element_type), TypeReferenceNode::Named(name)
+            if name.as_str(syntax_trees) == "u8")
+            || !entry.return_type.is_valid()
+            || !matches!(types.type_reference(entry.return_type), TypeReferenceNode::Named(name)
+                if name.as_str(syntax_trees) == "bool")
+        {
+            return Err(drift());
+        }
+        Ok(())
+    }
+
     fn require_exact_atomic_fence_row(
         syntax_trees: &SyntaxTrees,
         machine: &syntax::item::Machine,
@@ -2990,6 +3094,105 @@ pub(crate) mod operator {
                 trees.operators.is_empty(),
                 "no partial operator header survives"
             );
+        }
+
+        const BYTE_OBSERVATION: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/byte_observation.omg"
+        ));
+
+        #[test]
+        fn bundled_byte_observations_retain_one_complete_machine_header() {
+            let trees = resolved(
+                BYTE_OBSERVATION,
+                "byte_observation.omg",
+                SourceOrigin::Toolchain,
+            )
+            .expect("the exact bundled observations must resolve");
+            assert_eq!(trees.machines.len(), 4);
+            for machine in &trees.machines {
+                assert_eq!(
+                    machine.supply_mode,
+                    language_semantics::MachineSupplyMode::CompilerProvided
+                );
+                assert!(!machine.body_is_present);
+                assert_eq!(machine.lifetime_parameters.len(), 1);
+                assert!(matches!(machine.termination_plan.interface,
+                    language_semantics::TerminationInterface::Published(
+                        language_semantics::TerminationGuarantee::Terminates { ref premises }
+                    ) if premises.is_empty()));
+            }
+            assert!(trees.operators.is_empty());
+        }
+
+        #[test]
+        fn byte_observation_shape_does_not_replace_catalog_custody() {
+            let edited = format!("{BYTE_OBSERVATION}\n// local edit\n");
+            for (text, path, origin) in [
+                (BYTE_OBSERVATION, "byte_observation.omg", SourceOrigin::User),
+                (
+                    BYTE_OBSERVATION,
+                    "copied/byte_observation.omg",
+                    SourceOrigin::Toolchain,
+                ),
+                (
+                    edited.as_str(),
+                    "byte_observation.omg",
+                    SourceOrigin::Toolchain,
+                ),
+            ] {
+                let errors = resolved(text, path, origin).expect_err("no primitive supply");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.message.contains("has no body")),
+                    "{errors:?}"
+                );
+            }
+        }
+
+        #[test]
+        fn byte_observation_header_checker_refuses_each_changed_admission_axis() {
+            const HEADER: &str = "public machine valid_utf8<'input>(bytes: &'input [u8]) -> bool reaches none crashes none terminates;";
+            let check = |text: &str| {
+                // Directly exercise shape checking; these edited bytes receive
+                // no catalog custody, as the separate source-origin test pins.
+                let (syntax, _) = parsed(text, "byte_observation.omg", SourceOrigin::Toolchain);
+                let machine = syntax
+                    .root_items()
+                    .find_map(|item| match item {
+                        syntax_trees::item::Item::Machine(machine) => Some(machine),
+                        _ => None,
+                    })
+                    .unwrap();
+                let [entry] = syntax.items.state_handles(machine.states) else {
+                    panic!("one entry");
+                };
+                super::require_exact_byte_observation_row(
+                    &syntax,
+                    machine,
+                    syntax.items.state(*entry),
+                )
+            };
+            check(HEADER).expect("the exact pure header");
+            for changed in [
+                HEADER.replace("public machine", "machine"),
+                HEADER.replace("&'input [u8]", "&'input mut [u8]"),
+                HEADER.replace("&'input [u8]", "&[u8]"),
+                HEADER.replace("[u8]", "[u16]"),
+                HEADER.replace("-> bool", "-> u64"),
+                HEADER.replace("<'input>", "<'input, 'other>"),
+                HEADER.replace("reaches none ", ""),
+                HEADER.replace("crashes none ", ""),
+                HEADER.replace("terminates;", ";"),
+                HEADER.replace("terminates;", "terminates requires true;"),
+                HEADER.replace("bytes: &'input [u8]", "bytes: &'input [u8], extra: u64"),
+            ] {
+                assert!(
+                    check(&changed).is_err(),
+                    "header unexpectedly admitted: {changed}"
+                );
+            }
         }
 
         #[test]

@@ -241,6 +241,9 @@ impl Lowering<'_> {
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }
+            ExpressionKind::ByteSequencePredicate { base, predicate } => {
+                self.byte_sequence_predicate(base, *predicate, source)
+            }
             ExpressionKind::ScalarApplication { application } => {
                 let scalar_type = self.result_type(expression)?;
                 let operation = self.operation_identity(source);

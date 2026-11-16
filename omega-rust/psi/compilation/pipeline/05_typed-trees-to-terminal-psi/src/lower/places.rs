@@ -683,6 +683,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::ArrayView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
+        | ExpressionKind::ByteSequencePredicate { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
@@ -2184,6 +2185,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
@@ -3529,6 +3531,55 @@ impl<'a> Lowering<'a> {
             },
             None => ByteSequenceOperand::Whole { source, length },
         })
+    }
+
+    /// A primitive observes the ordinary argument loan once. Its descriptor
+    /// capture and access remain the same as at a call; measuring the exact
+    /// view neither grants another loan nor substitutes its whole backing.
+    pub(super) fn byte_sequence_predicate(
+        &mut self,
+        base: &Expression,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let ExpressionKind::Borrow { access, place, .. } = &base.kind else {
+            return Err(self.internal("a byte observation has no formed argument loan"));
+        };
+        if *access != language_core::ReferenceAccess::Shared {
+            return Err(self.internal("a byte observation changed its shared argument access"));
+        }
+        let Some(ValueType::Record(record, _, _)) = place.result else {
+            return Err(self.internal("a byte observation has no structural argument"));
+        };
+        let lent = continuing!(self.lend(place, *access));
+        let before = self.here()?;
+        self.obligation(
+            ObligationKind::Loan {
+                captured: lent.place,
+                access: *access,
+                lender: lent.lender,
+            },
+            before,
+            source,
+        );
+        let at = Located {
+            root: lent.argument.0,
+            place: lent.place,
+            path: lent.argument.1,
+            record,
+            fresh: false,
+        };
+        let operand = self.measured_byte_view(&at, source)?;
+        let operation = self.operation_identity(source);
+        let result = self.emit(
+            operation,
+            Some(ScalarType::Boolean),
+            OperationKind::ByteSequencePredicate { operand, predicate },
+        )?;
+        if let Some(home) = lent.temporary {
+            self.retire_homes(&[home], source)?;
+        }
+        Ok(Reached::Value(result))
     }
 
     pub(super) fn measure_collection(

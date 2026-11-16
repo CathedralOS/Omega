@@ -26,6 +26,7 @@ mod arrays;
 mod atomics;
 mod authority;
 pub(crate) use authority::has_predicates;
+mod byte_observations;
 mod bytes;
 mod calling_abis;
 mod calls;

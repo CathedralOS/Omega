@@ -2075,6 +2075,9 @@ impl<'t> Program<'t> {
         if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
             return Ok(fence);
         }
+        if let Some(observation) = self.byte_observation(id, slots, target, arguments, source)? {
+            return Ok(observation);
+        }
         if boundary_call {
             let boundary = self.boundary_declaration(id, target)?;
             return self.call_of(
@@ -3023,6 +3026,7 @@ fn mentions<'a>(
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::ArrayView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
+        | ExpressionKind::ByteSequencePredicate { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..

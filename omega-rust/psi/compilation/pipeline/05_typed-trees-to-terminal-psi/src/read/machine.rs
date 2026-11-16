@@ -1891,6 +1891,82 @@ impl<'t> Program<'t> {
         Ok((signature, names))
     }
 
+    /// An observation uses the ordinary declaration's full contract. Catalog
+    /// custody fixes its meaning, while its actual formal still owes normal
+    /// shared-loan formation at each call.
+    pub(super) fn byte_observation_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Signature> {
+        use language_core::sealed_intrinsics::CompilerPrimitive;
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        let Some((CompilerPrimitive::ByteObservation(_), _schema)) = self
+            .typed
+            .compiler_primitive_schema(target)
+            .map_err(|_| unavailable("byte observation has no complete authenticated schema"))?
+        else {
+            return Err(unavailable("byte observation has no exact catalog custody"));
+        };
+        self.served(id, target)?;
+        let (machine, state) = self.declaration(id, target)?;
+        let (mut signature, _) = self.contract(
+            id,
+            machine.symbol,
+            state.parameters,
+            state.return_type,
+            machine.contracts,
+            Declarer::Machine {
+                declares_no_crash_route: machine.declares_no_crash_route,
+                is_public: machine.is_public,
+            },
+            &[],
+            &[],
+        )?;
+        signature.termination = self.termination(id, machine)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
+        signature.invokes = self.entry_ceiling(id, self.typed.machine_invokes(machine), false)?;
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: Some(machine.suspends),
+            blocking: Some(machine.blocks),
+        };
+        let valid_parameter = match signature.parameters.as_slice() {
+            [ValueType::Record(record, qualification, _)] if qualification.domains.is_empty() => {
+                matches!(
+                    self.data_type(id, *record)?.shape,
+                    crate::body::StorageShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+            }
+            _ => false,
+        };
+        if !valid_parameter
+            || signature.borrowed.len() != 1
+            || signature.borrowed[0].position != 0
+            || signature.borrowed[0].access != language_core::ReferenceAccess::Shared
+            || signature.borrowed[0].referent != crate::body::BorrowedReferent::Slice
+            || !signature.erased.is_empty()
+            || signature.result != Some(ValueType::plain(semantic_vocabulary::ScalarType::Boolean))
+            || !signature.requires.is_empty()
+            || !signature.ensures.is_empty()
+            || signature.crashes != CrashCeiling::DeclaredNone
+            || signature.reaches != crate::Ceiling::Authored(Vec::new())
+            || signature.invokes != crate::Ceiling::Authored(Vec::new())
+            || signature.termination != Termination::Promised
+            || signature.ranking.is_some()
+            || machine.suspends
+            || machine.blocks
+        {
+            return Err(unavailable(
+                "byte observation differs from its complete pure byte-view contract",
+            ));
+        }
+        Ok(signature)
+    }
+
     /// Core's authenticated numeric catalog supplies its exact pure contract.
     /// The receiver independently checks this same contract and all declared
     /// source coordinates; selecting it here grants no target realization.
@@ -3447,7 +3523,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
         | ExpressionKind::ArrayView { base, .. }
-        | ExpressionKind::CollectionMeasure { base, .. } => {
+        | ExpressionKind::CollectionMeasure { base, .. }
+        | ExpressionKind::ByteSequencePredicate { base, .. } => {
             spans(base, binder, out);
         }
         ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
@@ -3641,7 +3718,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
         | ExpressionKind::ArrayView { base, .. }
-        | ExpressionKind::CollectionMeasure { base, .. } => {
+        | ExpressionKind::CollectionMeasure { base, .. }
+        | ExpressionKind::ByteSequencePredicate { base, .. } => {
             expression_slot_uses(base, uses);
         }
         ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),

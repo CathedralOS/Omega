@@ -13,10 +13,18 @@ fn typed(
     text: &str,
     origin: source::SourceOrigin,
 ) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
+    typed_at(text, "indexing.omg", origin)
+}
+
+fn typed_at(
+    text: &str,
+    path: &str,
+    origin: source::SourceOrigin,
+) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = source::SourceMap::default();
     let source = sources
         .add_checked_instance(
-            "toolchain/indexing.omg".into(),
+            format!("toolchain/{path}").into(),
             text.to_owned(),
             "toolchain".into(),
             None,
@@ -107,6 +115,45 @@ fn actual_generic_catalog_source_produces_complete_typed_schemas() {
 }
 
 #[test]
+fn real_byte_observation_headers_publish_complete_terminating_schemas() {
+    const SOURCE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/byte_observation.omg"
+    ));
+    use language_core::byte_predicates::ByteSequencePredicate;
+    let program = typed_at(
+        SOURCE,
+        "byte_observation.omg",
+        source::SourceOrigin::Toolchain,
+    )
+    .expect("the real observation source must resolve and type");
+    assert_eq!(program.machines().len(), 4);
+    for (name, predicate) in [
+        ("valid_utf8", ByteSequencePredicate::ValidUtf8),
+        ("no_nul", ByteSequencePredicate::NoNul),
+        ("ascii_only", ByteSequencePredicate::AsciiOnly),
+        ("non_empty", ByteSequencePredicate::NonEmpty),
+    ] {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        let (operation, identity) = program
+            .compiler_primitive_schema(machine.symbol)
+            .expect("the complete promise must normalize")
+            .expect("exact compiler custody");
+        assert_eq!(operation, CompilerPrimitive::ByteObservation(predicate));
+        assert_eq!(machine.lifetime_parameters.len(), 1);
+        assert!(matches!(machine.termination_plan.interface,
+            language_semantics::TerminationInterface::Published(
+                language_semantics::TerminationGuarantee::Terminates { ref premises }
+            ) if premises.is_empty()));
+        assert!(program.type_identity_text(identity).is_some());
+    }
+}
+
+#[test]
 fn a_copied_or_locally_edited_generic_catalog_cannot_supply_primitives() {
     let edited = format!("{INDEXING}\n// local edit\n");
     for (text, origin) in [
@@ -165,4 +212,88 @@ ensures result.len == items.len { items }
             MemberSelection::CollectionMeasure(CollectionMeasure::Length)
         ]
     );
+}
+
+fn observed_program(text: &str) -> Vec<Result<crate::RouteVerdict, crate::CompilationRefusal>> {
+    let typed = super::build_purpose::frontier_with_core(
+        text,
+        "machine build_entry() {}",
+        &[(
+            "byte_observation.omg",
+            "byte_observation",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/byte_observation.omg"
+            )),
+        )],
+    );
+    let entry = super::build_purpose::symbol(&typed, "main");
+    crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[Some(super::build_purpose::package())],
+                source::DependencyScope::Product,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    )
+}
+
+#[test]
+fn selected_byte_observation_executes_the_existing_operation_and_proves_equivalence() {
+    let verdicts = observed_program(
+        r#"
+use omega::language::core::byte_observation;
+public machine checked<'input>(bytes: &'input [u8]) -> bool
+reaches none crashes none terminates
+ensures result == byte_observation::ascii_only(bytes)
+{ byte_observation::ascii_only(bytes) }
+machine main() crashes Trap {
+    let valid: bool = checked("Room A1");
+    transition valid { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}
+"#,
+    );
+    for verdict in verdicts {
+        let Ok(crate::RouteVerdict::Accepted(accepted)) = verdict else {
+            panic!(
+                "an authenticated observation and its ordinary equivalence must be checked: {verdict:?}"
+            );
+        };
+        let module = &accepted.elaboration.module;
+        assert!(module.operations().any(|operation| matches!(
+            operation.kind,
+            terminal_psi::OperationKind::ByteSequencePredicate { .. }
+        )));
+        accepted
+            .publish_invocation()
+            .expect("ordinary receiving validation");
+    }
+}
+
+#[test]
+fn a_constant_byte_wrapper_cannot_claim_the_observers_equivalence() {
+    for result in ["true", "false"] {
+        let source = format!(
+            r#"
+use omega::language::core::byte_observation;
+public machine checked<'input>(bytes: &'input [u8]) -> bool
+reaches none crashes none terminates
+ensures result == byte_observation::ascii_only(bytes)
+{{ {result} }}
+machine main() {{ let valid: bool = checked("Room A1"); }}
+"#
+        );
+        let verdicts = observed_program(&source);
+        assert!(
+            verdicts
+                .iter()
+                .any(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Rejected { .. }))),
+            "neither constant result proves exact membership: {verdicts:?}"
+        );
+    }
 }

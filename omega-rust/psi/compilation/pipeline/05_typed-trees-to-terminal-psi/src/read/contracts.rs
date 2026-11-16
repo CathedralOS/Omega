@@ -252,8 +252,8 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }
-        if let Some((predicate, argument)) =
-            typed_trees::byte_predicates::byte_predicate_call(typed, expression)
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
         {
             return self.byte_predicate_clause(id, scope, predicate, argument);
         }
@@ -495,13 +495,9 @@ impl Program<'_> {
         argument: ExpressionHandle,
     ) -> Checked<Proposition> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let Some((root, path, value_type)) = self.projected(id, scope, argument)? else {
-            return Err(unserved("byte predicate of something that is not storage"));
-        };
+        let (root, path, value_type) = self.byte_predicate_subject(id, scope, argument)?;
         let ValueType::Record(row, _, _) = value_type else {
-            return Err(unserved(
-                "byte predicate of something that is not a byte view or a byte array",
-            ));
+            unreachable!("validated byte carrier")
         };
         match self.data_type(id, row)?.shape {
             StorageShape::ByteSequence(_) => {}
@@ -521,6 +517,47 @@ impl Program<'_> {
             ScalarTerm::Boolean(true),
             id,
         )
+    }
+
+    fn byte_predicate_subject(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        argument: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let subject =
+            typed_trees::byte_predicates::whole_byte_observation_subject(self.typed, argument)
+                .ok_or_else(|| {
+                    unserved("logical byte observation requires a shared exact whole view")
+                })?;
+        let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
+            return Err(unserved("byte predicate of something that is not storage"));
+        };
+        let ValueType::Record(row, _, _) = value_type else {
+            return Err(unserved(
+                "byte predicate of something that is not a byte carrier",
+            ));
+        };
+        let valid = match self.data_type(id, row)?.shape {
+            StorageShape::ByteSequence(_) => true,
+            StorageShape::FixedArray { .. } => {
+                let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
+                    return Err(unserved("byte array is not readable"));
+                };
+                let (element, qualification, _) = self.array_element(id, array)?;
+                matches!(self.storage_value_type(id, element, qualification)?,
+                    ValueType::Scalar(ScalarType::Integer(integer), _) if integer.bits() == Some(8)
+                    && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(unserved(
+                "byte predicate requires a byte view or fixed u8 array",
+            ));
+        }
+        Ok((root, path, value_type))
     }
 
     /// A selected pure comparison denotes its canonical IEEE predicate. Its
@@ -699,6 +736,15 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing term");
+        }
+        if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
+            && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
+        {
+            let (root, path, _) = self.byte_predicate_subject(id, scope, argument)?;
+            return Ok((
+                ScalarTerm::byte_sequence_predicate(predicate, root, path),
+                ValueType::plain(ScalarType::Boolean),
+            ));
         }
         if let Some(logical) = &scope.logical
             && let Some((term, scalar)) = logical.term(typed, expression)?

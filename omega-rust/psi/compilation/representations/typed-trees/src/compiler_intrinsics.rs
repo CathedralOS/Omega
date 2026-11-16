@@ -81,6 +81,12 @@ enum Tag {
     Ensures,
     Crash,
     Envelope,
+    Termination,
+    Premises,
+    Premise,
+    Profile,
+    Subject,
+    Projection,
 }
 
 impl Spelled for Tag {
@@ -103,6 +109,12 @@ impl Spelled for Tag {
             Self::Ensures => "ensures",
             Self::Crash => "crash",
             Self::Envelope => "envelope",
+            Self::Termination => "termination",
+            Self::Premises => "premises",
+            Self::Premise => "progress-premise",
+            Self::Profile => "progress-profile",
+            Self::Subject => "progress-subject",
+            Self::Projection => "progress-projection",
         }
     }
 }
@@ -189,13 +201,6 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         // normalization before this query can describe them.
         return None;
     };
-    let termination = match &termination_plan.interface {
-        language_semantics::TerminationInterface::InternalDerived => "inferred",
-        language_semantics::TerminationInterface::Published(
-            language_semantics::TerminationGuarantee::NoGuarantee,
-        ) => "no-guarantee",
-        _ => return None,
-    };
     let [entry] = schema_span(&program.machine_states, machine.states)? else {
         return None;
     };
@@ -244,6 +249,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         encountered_elided_regions: Some(&invalid),
         ..Default::default()
     };
+    let termination = termination_schema(program, &termination_plan.interface, &context)?;
     let type_identity = |reference| {
         program
             .contains_type_reference(reference)
@@ -341,6 +347,69 @@ fn contracts<'a>(
             Some(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
         })
         .collect()
+}
+
+// This is an interface description, never termination evidence. The caller
+// still refuses implementation witnesses and checked body summaries; neither
+// may disappear from a source-only compiler primitive schema.
+fn termination_schema(
+    program: &TypedTrees,
+    interface: &language_semantics::TerminationInterface,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    use language_semantics::{TerminationGuarantee, TerminationInterface};
+    match interface {
+        TerminationInterface::InternalDerived => Some("inferred".to_owned()),
+        TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => {
+            Some("no-guarantee".to_owned())
+        }
+        TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
+            let premises = premises
+                .iter()
+                .map(|premise| {
+                    let language_semantics::ProgressPremise { profile, subject } = premise;
+                    let language_semantics::ProgressSubject { root, projections } = subject;
+                    let profile = program.semantic_domains.name(*profile)?;
+                    let mut roots = context.binders.iter().filter(|(symbol, _)| symbol == root);
+                    let (_, root) = roots.next()?;
+                    if roots.next().is_some() {
+                        return None;
+                    }
+                    let projections = projections
+                        .iter()
+                        .map(|symbol| {
+                            if !program.symbols.symbols().nodes().is_valid(*symbol)
+                                || program.symbols.get(*symbol).kind != symbols::SymbolKind::Field
+                            {
+                                return None;
+                            }
+                            Some(atom(
+                                Tag::Projection,
+                                &context.name(program, *symbol, program.symbols.name(*symbol)),
+                            ))
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(compound(
+                        Tag::Premise,
+                        [
+                            atom(Tag::Profile, profile),
+                            compound(
+                                Tag::Subject,
+                                std::iter::once(atom(Tag::Subject, root)).chain(projections),
+                            ),
+                        ],
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(compound(
+                Tag::Termination,
+                [
+                    atom(Tag::Termination, "terminates"),
+                    compound(Tag::Premises, premises),
+                ],
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -601,6 +670,87 @@ mod tests {
         let mut ceiling = Fixture::ordinary();
         ceiling.program.machines_mut()[0].declares_no_crash_route = true;
         assert_ne!(Some(&original), ceiling.text().as_ref());
+    }
+
+    #[test]
+    fn published_termination_keeps_its_complete_conditional_subjects() {
+        use language_semantics::{
+            ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
+        };
+        let original = Fixture::ordinary().text().unwrap();
+        let mut unconditional = Fixture::ordinary();
+        unconditional.program.machines_mut()[0]
+            .termination_plan
+            .interface =
+            TerminationInterface::Published(TerminationGuarantee::Terminates { premises: vec![] });
+        let terminates = unconditional
+            .text()
+            .expect("published unconditional promise normalizes");
+        assert_ne!(original, terminates);
+        let conditional = |names, profile_name: &str| {
+            let mut fixture = Fixture::new(names);
+            let machine = &fixture.program.machines()[0];
+            let entry = &fixture.program.machine_states(machine)[0];
+            let subject = fixture.program.state_parameters(entry)[0].symbol;
+            let profile = fixture.program.semantic_domains.intern(profile_name);
+            fixture.program.machines_mut()[0].termination_plan.interface =
+                TerminationInterface::Published(TerminationGuarantee::Terminates {
+                    premises: vec![ProgressPremise {
+                        profile,
+                        subject: ProgressSubject {
+                            root: subject,
+                            projections: vec![],
+                        },
+                    }],
+                });
+            fixture
+        };
+        let mut first = conditional(
+            ["Element", "Count", "backing", "other", "items"],
+            "package::Ready",
+        );
+        let first_text = first.text().unwrap();
+        assert_ne!(terminates, first_text);
+        assert_eq!(
+            Some(first_text.clone()),
+            conditional(["T", "N", "scope", "spare", "bytes"], "package::Ready").text()
+        );
+        assert_ne!(
+            Some(first_text),
+            conditional(
+                ["Element", "Count", "backing", "other", "items"],
+                "other::Ready"
+            )
+            .text()
+        );
+        let TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) =
+            &mut first.program.machines_mut()[0].termination_plan.interface
+        else {
+            unreachable!()
+        };
+        premises[0]
+            .subject
+            .projections
+            .push(SymbolHandle::invalid());
+        assert!(
+            first.text().is_none(),
+            "unknown projections cannot disappear"
+        );
+    }
+
+    #[test]
+    fn implementation_rankings_and_checked_summaries_are_not_silently_erased() {
+        let mut ranking = Fixture::ordinary();
+        ranking.program.machines_mut()[0]
+            .termination_plan
+            .implementation_witness = Some(language_semantics::RankingWitness::default());
+        assert!(ranking.text().is_none());
+        let mut checked = Fixture::ordinary();
+        checked.program.machines_mut()[0]
+            .termination_plan
+            .checked_summary =
+            language_semantics::TerminationGuarantee::Terminates { premises: vec![] };
+        assert!(checked.text().is_none());
     }
 
     #[test]

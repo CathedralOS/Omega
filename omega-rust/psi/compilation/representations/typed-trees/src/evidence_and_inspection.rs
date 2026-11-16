@@ -10,7 +10,7 @@ pub mod evidence {
         use crate::domain::DomainDefinition;
         use crate::expression::ExpressionHandle;
         use crate::types::TypeReferenceNode;
-        use symbols::{BuiltinTypeAtom, SymbolHandle, UnresolvedName};
+        use symbols::{BuiltinTypeAtom, SymbolHandle};
 
         pub use language_semantics::byte_predicates::ByteSequencePredicate;
 
@@ -19,16 +19,28 @@ pub mod evidence {
             expression: ExpressionHandle,
         ) -> Option<(ByteSequencePredicate, ExpressionHandle)> {
             let call = program.expression_table.call_node(expression)?;
-            if call.target_symbol.is_valid()
-                || call.receiver.is_valid()
+            if !program.call_has_no_runtime_receiver_for_target(call)
                 || !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
-                || program.expression_table.unresolved_name(expression)
-                    != UnresolvedName::NoVisibleDeclaration
             {
                 return None;
             }
-            let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
+            let declaration = program
+                .machine_by_symbol(call.target_symbol)
+                .or_else(|| program.machine_holding_state(call.target_symbol))?;
+            let Some(language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+                language_core::sealed_intrinsics::CompilerPrimitive::ByteObservation(predicate),
+            )) = program
+                .symbols
+                .sealed_declaration(declaration.symbol, declaration.name.as_str())
+            else {
+                return None;
+            };
+            if declaration.supply_mode != language_semantics::MachineSupplyMode::CompilerProvided
+                || declaration.body_is_present
+            {
+                return None;
+            }
             let arguments = program.expression_table.expression_handles(call.arguments);
             let [argument] = arguments else {
                 return None;
@@ -119,8 +131,34 @@ pub mod evidence {
                 return None;
             };
             let (predicate, argument) = byte_predicate_call(program, *expression)?;
-            crate::domain::domain_subject_reference(program, domain, argument)
+            let subject = whole_byte_observation_subject(program, argument)?;
+            crate::domain::domain_subject_reference(program, domain, subject)
                 .then_some((*expression, predicate))
+        }
+
+        /// A shared loan of an entire range observes the same bytes as its
+        /// backing. Partial ranges remain distinct subjects, including UTF-8
+        /// windows whose endpoints need not be character boundaries.
+        pub fn whole_byte_observation_subject(
+            program: &TypedTrees,
+            argument: ExpressionHandle,
+        ) -> Option<ExpressionHandle> {
+            use crate::expression::ExpressionNode;
+            let table = &program.expression_table;
+            let ExpressionNode::Borrow(borrow) = table.expression(argument) else {
+                return Some(argument);
+            };
+            if borrow.access != language_core::ReferenceAccess::Shared {
+                return None;
+            }
+            let ExpressionNode::Indexed(indexed) = table.expression(borrow.target) else {
+                return Some(borrow.target);
+            };
+            let ExpressionNode::Range(range) = table.expression(indexed.index) else {
+                return Some(borrow.target);
+            };
+            (!range.start.is_valid() && !range.end.is_valid() && !range.end_inclusive)
+                .then_some(indexed.collection)
         }
 
         pub fn literal_bytes(

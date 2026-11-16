@@ -280,40 +280,29 @@ pub(crate) mod statement {
             }
 
             match expressions.expression(initial_value) {
-        ExpressionNode::Call(call)
-            if language_core::data_layout_queries::is_data_layout_query_spelling(
-                call.target.as_str(),
-                call.target_symbol.is_valid(),
-                call.receiver.is_valid(),
-            ) =>
-        {
-            return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::U64, "u64");
-        }
-        ExpressionNode::Call(call)
-            if !call.target_symbol.is_valid()
-                && !call.receiver.is_valid()
-                && expressions.expression_handles(call.arguments).len() == 1
-                && language_semantics::byte_predicates::ByteSequencePredicate::from_name(
-                    call.target.as_str(),
-                )
-                .is_some() =>
-        {
-            return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::Bool, "bool");
-        }
-        ExpressionNode::Call(call) => {
-            let target_symbol = if call.target_symbol.is_valid() {
-                call.target_symbol
-            } else {
-                crate::expressions::expression::declared_receiver_method_target(
-                    lowerer.source_trees,
-                    expressions,
-                    call.receiver,
-                    &call.target,
-                )
-            };
-            let mut machine_substitutions = Vec::new();
-            let declared_return = declared_call_return(lowerer.source_trees, target_symbol);
-            let declared_return = declared_return
+                ExpressionNode::Call(call)
+                    if language_core::data_layout_queries::is_data_layout_query_spelling(
+                        call.target.as_str(),
+                        call.target_symbol.is_valid(),
+                        call.receiver.is_valid(),
+                    ) =>
+                {
+                    return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::U64, "u64");
+                }
+                ExpressionNode::Call(call) => {
+                    let target_symbol = if call.target_symbol.is_valid() {
+                        call.target_symbol
+                    } else {
+                        crate::expressions::expression::declared_receiver_method_target(
+                            lowerer.source_trees,
+                            expressions,
+                            call.receiver,
+                            &call.target,
+                        )
+                    };
+                    let mut machine_substitutions = Vec::new();
+                    let declared_return = declared_call_return(lowerer.source_trees, target_symbol);
+                    let declared_return = declared_return
                     .cloned()
                     .or_else(|| {
                         static_conformance_requirement_return(lowerer, state, call)
@@ -365,37 +354,38 @@ pub(crate) mod statement {
                                     })
                             })
                     });
-            let Some(declared_return) = declared_return else {
-                return Ok(None);
-            };
-            let declared_return = lower_type_reference_into_table(lowerer, &declared_return)?;
-            let machine_substitutions = machine_substitutions
-                .into_iter()
-                .map(|(parameter, symbol, name)| {
-                    let reference = lowerer
-                        .typed_trees
-                        .type_reference_table
-                        .insert(typed::types::TypeReferenceNode::Named { symbol, name });
-                    (parameter, reference)
-                })
-                .collect::<Vec<_>>();
-            substitute_call_type_arguments(
-                &mut lowerer.typed_trees.type_reference_table,
-                declared_return,
-                &machine_substitutions,
-            )?;
-            instantiate_declared_call_result(
-                lowerer,
-                attached_data,
-                state,
-                call,
-                target_symbol,
-                declared_return,
-            )?;
-            return Ok(Some(declared_return));
-        }
-        _ => {}
-    }
+                    let Some(declared_return) = declared_return else {
+                        return Ok(None);
+                    };
+                    let declared_return =
+                        lower_type_reference_into_table(lowerer, &declared_return)?;
+                    let machine_substitutions = machine_substitutions
+                        .into_iter()
+                        .map(|(parameter, symbol, name)| {
+                            let reference = lowerer
+                                .typed_trees
+                                .type_reference_table
+                                .insert(typed::types::TypeReferenceNode::Named { symbol, name });
+                            (parameter, reference)
+                        })
+                        .collect::<Vec<_>>();
+                    substitute_call_type_arguments(
+                        &mut lowerer.typed_trees.type_reference_table,
+                        declared_return,
+                        &machine_substitutions,
+                    )?;
+                    instantiate_declared_call_result(
+                        lowerer,
+                        attached_data,
+                        state,
+                        call,
+                        target_symbol,
+                        declared_return,
+                    )?;
+                    return Ok(Some(declared_return));
+                }
+                _ => {}
+            }
 
             if matches!(
                 expressions.expression(initial_value),
