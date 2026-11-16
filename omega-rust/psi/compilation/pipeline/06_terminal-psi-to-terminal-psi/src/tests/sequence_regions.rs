@@ -281,8 +281,22 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
         "{negative:?}"
     );
 
-    let copied = source.replace("get(&items[0u64].value)", "items[0u64].value");
-    let negative = judge_build(&copied).unwrap();
+    // Reading one field of a non-copy element copies only that field.
+    let field = source.replace("get(&items[0u64].value)", "items[0u64].value");
+    let positive = judge_build(&field).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}")
+    };
+    assert_integer_result(*accepted, 17);
+
+    // Reading the whole non-copy element would copy it out of the view.
+    let whole = source
+        .replace(
+            "machine get(value: &u32) -> u32 { value }",
+            "machine take(cell: Cell) -> u32 { cell.value }",
+        )
+        .replace("get(&items[0u64].value)", "take(items[0u64])");
+    let negative = judge_build(&whole).unwrap();
     assert!(
         format!("{negative:?}")
             .contains("copying a slice element requires a copyable element type"),

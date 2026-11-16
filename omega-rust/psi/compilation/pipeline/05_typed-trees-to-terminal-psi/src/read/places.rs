@@ -1052,7 +1052,22 @@ impl Program<'_> {
         if !member.selection.field_symbol().is_valid() {
             return Err(self.unselected_member(id, slots, member, source));
         }
-        let base = self.place(id, slots, member.receiver, None, access)?;
+        // A read of `items[i].field` copies only the field, so the indexed
+        // element is read as a projection base rather than as a whole value.
+        let base = match self.node(id, member.receiver)? {
+            typed_trees::expression::ExpressionNode::Indexed(indexed) if access == Access::Read => {
+                self.indexed(
+                    id,
+                    slots,
+                    indexed,
+                    member.receiver,
+                    None,
+                    access,
+                    super::arrays::ElementRead::Projected,
+                )?
+            }
+            _ => self.place(id, slots, member.receiver, None, access)?,
+        };
         let Some(record) = self.opened_place(id, &base, access)? else {
             return Err(refuse(
                 id,

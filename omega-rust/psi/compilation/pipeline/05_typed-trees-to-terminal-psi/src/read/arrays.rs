@@ -558,6 +558,7 @@ impl Program<'_> {
         handle: ExpressionHandle,
         expected: Option<ValueType>,
         access: Access,
+        element_read: ElementRead,
     ) -> Checked<Expression> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         // A range preserves the backing region of its operand. Context can
@@ -589,7 +590,15 @@ impl Program<'_> {
         }
         let (element, qualification, extent) = self.array_element(machine, array)?;
         let stored_length = matches!(extent, CollectionExtent::StoredLength);
-        if stored_length && access == Access::Read && !self.data_type(machine, element)?.copyable {
+        // Reading a whole slice element copies it out of the view, so the
+        // element type must be copyable. A field projection reads only the
+        // selected field; the lowering copies that field from the element's
+        // place and still refuses an owned extraction from borrowed storage.
+        if stored_length
+            && access == Access::Read
+            && element_read == ElementRead::Whole
+            && !self.data_type(machine, element)?.copyable
+        {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -1078,4 +1087,12 @@ mod sequence_source_tests {
             "an unrelated retained source cannot relabel the row"
         );
     }
+}
+
+/// How a read uses the element an index selects: as a whole value, or only
+/// as the place a field projection reads from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ElementRead {
+    Whole,
+    Projected,
 }
