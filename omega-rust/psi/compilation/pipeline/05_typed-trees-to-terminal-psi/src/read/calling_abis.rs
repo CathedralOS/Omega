@@ -251,6 +251,7 @@ impl Program<'_> {
             )
             .collect();
         let outer = std::mem::take(&mut self.scope);
+        let previous_owner = self.lifetime_owner;
         let prepared = (|| {
             let mut declarations = Vec::with_capacity(ids.len());
             for id in ids {
@@ -306,6 +307,7 @@ impl Program<'_> {
             })
         })();
         self.scope = outer;
+        self.lifetime_owner = previous_owner;
         prepared
     }
 
@@ -333,18 +335,26 @@ impl Program<'_> {
                 );
             }
             let projection = original.storage.as_ref().map_err(Clone::clone)?;
-            if !projection.substitutions.is_empty() {
-                return Err(
-                    "calling ABI storage requires its retained source substitutions".into(),
-                );
-            }
             if projection.parameters.len() != telescope.parameters.len() {
                 return Err("calling ABI source parameters differ from its telescope".into());
             }
+            let bindings = self
+                .bind_calling_storage_substitutions(
+                    entry,
+                    original.source,
+                    &projection.substitutions,
+                )
+                .map_err(|error| error.detail)?;
             let parameters = projection
                 .parameters
                 .iter()
-                .map(|reference| self.calling_abi_parameter(entry, *reference))
+                .map(|reference| {
+                    let reference =
+                        typed_trees::type_system::source_projections::substituted_type_reference(
+                            typed, *reference, &bindings,
+                        );
+                    self.calling_abi_parameter(entry, reference)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             // An omitted source return annotation is Unit. Verify
             // that custody on this original declaration; a lost
@@ -373,7 +383,13 @@ impl Program<'_> {
                 ) {
                 None
             } else {
-                Some(self.calling_abi_storage(entry, projection.result)?)
+                let reference =
+                    typed_trees::type_system::source_projections::substituted_type_reference(
+                        typed,
+                        projection.result,
+                        &bindings,
+                    );
+                Some(self.calling_abi_storage(entry, reference)?)
             };
             let storage = PreparedStorage {
                 parameters,

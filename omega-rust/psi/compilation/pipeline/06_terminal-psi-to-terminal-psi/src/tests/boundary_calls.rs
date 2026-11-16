@@ -1130,6 +1130,17 @@ machine entry() -> u32 crashes none {
             .expect("each closed boundary retains its complete service schema");
         assert_eq!(schema.surface.as_ref(), surface.declaration.as_ref());
         let abi = module.boundary_calling_abi(boundary.id).unwrap();
+        let storage = abi
+            .storage
+            .as_ref()
+            .expect("the exact closed application must retain its physical storage projection");
+        assert_eq!(storage.parameters.len(), 1);
+        assert_eq!(
+            storage.parameters[0].access,
+            terminal_psi::StructuralAccess::Owned
+        );
+        assert_eq!(storage.result, Some(storage.parameters[0].structural_type));
+
         assert_eq!(
             module.identities.text(abi.requirement_identity),
             Some(

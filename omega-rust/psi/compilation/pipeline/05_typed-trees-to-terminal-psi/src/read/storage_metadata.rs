@@ -33,6 +33,70 @@ pub(crate) struct PreparedCallingDescriptions {
 }
 
 impl Program<'_> {
+    /// Both default and selected policies describe the same retained source
+    /// application. Interpret supplied types before installing its simultaneous
+    /// required frame; const operands remain in the binding list and ABI key.
+    pub(super) fn bind_calling_storage_substitutions(
+        &mut self,
+        context: MachineId,
+        source: symbols::SymbolHandle,
+        substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    ) -> Checked<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>> {
+        self.scope.clear();
+        self.lifetime_owner = source;
+        let mut bound = std::collections::HashSet::<
+            symbols::SymbolHandle,
+            symbols::BuildSymbolHasher,
+        >::default();
+        let bindings = substitutions
+            .iter()
+            .map(|(parameter, actual)| {
+                if !bound.insert(*parameter) {
+                    return Err(services::unavailable(
+                        context,
+                        "calling storage needs its complete repeated-binder application scopes",
+                    ));
+                }
+                if !self.typed.symbols.symbols().nodes().is_valid(*parameter)
+                    || !self
+                        .typed
+                        .type_reference_table
+                        .contains_type_reference(*actual)
+                    || self
+                        .typed
+                        .data_type_parameter_by_symbol(*parameter)
+                        .is_none()
+                {
+                    return Err(services::unavailable(
+                        context,
+                        "calling storage has a stale source application binding",
+                    ));
+                }
+                Ok((*parameter, *actual))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        // Non-type operands remain in the complete ABI key and
+        // original binding list. Reading one as a type is never a
+        // fabricated scalar value or an erased actual.
+        let mut supplied_types = Vec::new();
+        for &(parameter, actual) in &bindings {
+            if self
+                .typed
+                .data_type_parameter_by_symbol(parameter)
+                .is_some_and(|parameter| {
+                    parameter.kind == typed_trees::data::TypeParameterKind::Type
+                })
+            {
+                let value = self.value_type(context, actual)?;
+                supplied_types.push((parameter, value));
+            }
+        }
+        // Actuals are interpreted in their supplier namespace,
+        // before the simultaneous required frame is installed.
+        self.scope = supplied_types;
+        Ok(bindings)
+    }
+
     /// Describe selected ABI storage after the complete body closure. The
     /// reader remains in its storage phase; describing a carrier never admits
     /// it as an executable value or permits discovery of another body.
@@ -100,57 +164,11 @@ impl Program<'_> {
                             "calling storage differs from its exact native formal telescope",
                         ));
                     }
-                    self.scope.clear();
-                    self.lifetime_owner = original.source;
-                    let mut bound = std::collections::HashSet::<
-                        symbols::SymbolHandle,
-                        symbols::BuildSymbolHasher,
-                    >::default();
-                    let bindings = projection
-                        .substitutions
-                        .iter()
-                        .map(|(parameter, actual)| {
-                            if !bound.insert(*parameter) {
-                                return Err(services::unavailable(context,
-                                    "calling storage needs its complete repeated-binder application scopes"));
-                            }
-                            if !self.typed.symbols.symbols().nodes().is_valid(*parameter)
-                                || !self
-                                    .typed
-                                    .type_reference_table
-                                    .contains_type_reference(*actual)
-                                || self
-                                    .typed
-                                    .data_type_parameter_by_symbol(*parameter)
-                                    .is_none()
-                            {
-                                return Err(services::unavailable(
-                                    context,
-                                    "calling storage has a stale source application binding",
-                                ));
-                            }
-                            Ok((*parameter, *actual))
-                        })
-                        .collect::<Checked<Vec<_>>>()?;
-                    // Non-type operands remain in the complete ABI key and
-                    // original binding list. Reading one as a type is never a
-                    // fabricated scalar value or an erased actual.
-                    let mut supplied_types = Vec::new();
-                    for &(parameter, actual) in &bindings {
-                        if self
-                            .typed
-                            .data_type_parameter_by_symbol(parameter)
-                            .is_some_and(|parameter| {
-                                parameter.kind == typed_trees::data::TypeParameterKind::Type
-                            })
-                        {
-                            let value = self.value_type(context, actual)?;
-                            supplied_types.push((parameter, value));
-                        }
-                    }
-                    // Actuals are interpreted in their supplier namespace,
-                    // before the simultaneous required frame is installed.
-                    self.scope = supplied_types;
+                    let bindings = self.bind_calling_storage_substitutions(
+                        context,
+                        original.source,
+                        &projection.substitutions,
+                    )?;
                     let typed = self.typed;
                     let mut parameters = Vec::with_capacity(projection.parameters.len());
                     for &reference in &projection.parameters {
