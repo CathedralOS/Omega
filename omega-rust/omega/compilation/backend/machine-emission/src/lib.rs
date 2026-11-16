@@ -30,6 +30,7 @@ pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 
 pub mod code_layout;
+mod emission_facts;
 mod exit_contract;
 mod fragment_emission;
 mod frame_application;
@@ -41,6 +42,7 @@ pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
 mod text_placement;
 
+pub use emission_facts::{EmissionFacts, OptimizedProgramProjection};
 pub use exit_contract::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
     WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
