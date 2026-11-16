@@ -2049,7 +2049,7 @@ impl CanonicalHandleState {
                         // structural input's dependencies. They cannot become
                         // exact HANDLEs merely because no equation was emitted.
                         let mut dependencies = input_dependencies();
-                        for source in &step.inputs {
+                        for (source, _) in &step.inputs {
                             self.require_active_payload(source, geometry)?;
                             let (range, _, codec, address_dependencies) =
                                 geometry.resolve(source, &self.references)?;

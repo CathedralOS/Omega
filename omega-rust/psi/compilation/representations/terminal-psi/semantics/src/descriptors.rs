@@ -3118,12 +3118,26 @@ pub mod descriptor_results {
                 &self,
                 types: &[StructuralTypeDeclaration],
                 root_type: StructuralTypeId,
-                mut location_type: impl FnMut(
+                location_type: impl FnMut(
                     StructuralTypeId,
                     &[DescriptorPathSegment],
                     bool,
                 ) -> Option<Option<StructuralTypeId>>,
             ) -> Option<()> {
+                self.selected_type_using(types, root_type, location_type)
+                    .map(|_| ())
+            }
+
+            pub(crate) fn selected_type_using(
+                &self,
+                types: &[StructuralTypeDeclaration],
+                root_type: StructuralTypeId,
+                mut location_type: impl FnMut(
+                    StructuralTypeId,
+                    &[DescriptorPathSegment],
+                    bool,
+                ) -> Option<Option<StructuralTypeId>>,
+            ) -> Option<Option<StructuralTypeId>> {
                 let mut tip = root_type;
                 let mut original = true;
                 let mut path = Vec::new();
@@ -3148,7 +3162,7 @@ pub mod descriptor_results {
                         }
                     }
                 }
-                location_type(tip, &path, original).map(|_| ())
+                location_type(tip, &path, original)
             }
 
             pub fn conservative_projection(
@@ -3186,9 +3200,12 @@ pub mod descriptor_results {
             use terminal_psi::StructuralStorageUse;
 
             let (root, query) = match used {
-                StructuralStorageUse::Place(root) => {
-                    return DescriptorFlowSource::Location(DescriptorLocation::whole(root));
-                }
+                StructuralStorageUse::Place(root) => (
+                    root,
+                    Some(DescriptorContentsQuery::from_location(
+                        &DescriptorLocation::whole(root),
+                    )),
+                ),
                 StructuralStorageUse::Projection(source) => (
                     source.root,
                     place_types.get(&source.root).and_then(|ty| {
@@ -3241,7 +3258,13 @@ pub mod descriptor_results {
                         };
                         let mut selected = descriptor.path.to_vec();
                         if let Some(field) = descriptor.field {
-                            selected.push(StructuralPathSegment::Field(field));
+                            let field = crate::projected_field_declaration(
+                                types.iter(),
+                                *place_types.get(&descriptor.root)?,
+                                descriptor.path,
+                                field,
+                            )?;
+                            selected.push(StructuralPathSegment::Field(field.identity));
                         }
                         selected.push(StructuralPathSegment::RuntimeIndex { index, obligation });
                         selected.extend_from_slice(path);
@@ -3258,6 +3281,34 @@ pub mod descriptor_results {
                 }
                 StructuralStorageUse::Type(_) => unreachable!("a type is not an operation operand"),
             };
+            // A byte descriptor's address does not identify the bytes an
+            // instruction observes. Until its index/window and backing are
+            // represented here, neither a header nor a payload query can be
+            // used as an exact byte access. Ordinary liveness is unchanged.
+            let query = query.filter(|query| {
+                let Some(root_type) = place_types.get(&root) else {
+                    return false;
+                };
+                query
+                    .selected_type_using(types, *root_type, |carrier, path, _| {
+                        let source_path = descriptor_path(types, carrier, path)?;
+                        let selected = descriptor_location_type(types, carrier, path);
+                        if selected.is_none()
+                            && crate::primitive_projection_type(types.iter(), carrier, &source_path)
+                                .is_none()
+                        {
+                            return None;
+                        }
+                        Some(selected)
+                    })
+                    .is_some_and(|selected| {
+                        selected.is_none_or(|selected| {
+                            find_structural_type(types, selected).is_some_and(|declaration| {
+                                !matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+                            })
+                        })
+                    })
+            });
             DescriptorFlowSource::from_query(root, query)
         }
 
@@ -11635,6 +11686,39 @@ pub mod descriptor_results {
                     &[],
                 )
                 .unwrap();
+                let mut duplicate_module = module.clone();
+                let duplicate = &mut duplicate_module.machines[0];
+                let duplicate_block = &mut duplicate.blocks[0];
+                let (ordinal, constructor) = duplicate_block
+                    .operations
+                    .iter_mut()
+                    .enumerate()
+                    .find(|(_, operation)| {
+                        matches!(
+                            operation.kind,
+                            OperationKind::EstablishStructuralArray { .. }
+                        )
+                    })
+                    .unwrap();
+                let OperationKind::EstablishStructuralArray { elements } = &mut constructor.kind
+                else {
+                    unreachable!()
+                };
+                elements.push(elements[0].clone());
+                let expected: Vec<_> = elements.iter().map(|element| element.place).collect();
+                let constructor_position = (duplicate_block.id, u32::try_from(ordinal).unwrap());
+                let duplicates =
+                    crate::descriptor_results::terminal_borrowed_storage_graph(&duplicate_module);
+                let duplicate = duplicates.iter().find(|row| row.id == caller).unwrap();
+                assert_eq!(
+                    duplicate.flow[&constructor_position]
+                        .inputs
+                        .iter()
+                        .map(|(input, _)| input.root)
+                        .collect::<Vec<_>>(),
+                    expected,
+                    "captured constructor operands preserve order and duplicate elements"
+                );
                 let mut replay = Replay::with_slot_kind(
                     &module.structural_types,
                     &graph,
@@ -12366,6 +12450,27 @@ pub mod descriptor_results {
                                 .all(|(_, access)| access.is_none()),
                             "moving a whole descriptor does not read its backing"
                         );
+                        if matches!(
+                            module.structural_types[1].shape,
+                            StructuralTypeShape::ByteSequence(_)
+                        ) {
+                            let length = OperationKind::ByteSequenceLength {
+                                source: terminal_psi::StructuralArgument::whole(
+                                    source,
+                                    StructuralAccess::SharedBorrow,
+                                ),
+                            };
+                            let uses = length.storage_uses();
+                            assert!(
+                                matches!(
+                                    crate::descriptor_results::descriptor_storage_use_source(
+                                        &module.structural_types, &graph[0].place_types, &length, uses[0].0, |_| None,
+                                    ),
+                                    crate::descriptor_lifetimes::DescriptorFlowSource::Unavailable(root) if root == source
+                                ),
+                                "a byte descriptor address is not an exact byte-payload footprint"
+                            );
+                        }
                         assert_eq!(
                             graph[0].payload_invalidations[&position],
                             [Some(DescriptorContentsQuery::from_location(

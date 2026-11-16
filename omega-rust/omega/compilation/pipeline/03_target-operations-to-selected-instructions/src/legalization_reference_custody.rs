@@ -1132,6 +1132,7 @@ pub(crate) mod descriptor_backing {
                 for input in step
                     .inputs
                     .iter()
+                    .map(|(input, _)| input)
                     .chain(step.derivations.iter().map(|(source, _)| source))
                     .chain(step.successors.iter().flat_map(|edge| {
                         edge.bindings
@@ -1148,7 +1149,7 @@ pub(crate) mod descriptor_backing {
                     );
                 }
                 let mut slots = BTreeSet::new();
-                for input in &step.inputs {
+                for (input, _) in &step.inputs {
                     let Some(ty) = current.place_types.get(&input.root) else {
                         continue;
                     };
