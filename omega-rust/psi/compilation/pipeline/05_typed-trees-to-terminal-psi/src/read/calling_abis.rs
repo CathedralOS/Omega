@@ -422,7 +422,7 @@ impl Program<'_> {
             .map_err(|error| error.detail)
     }
 
-    fn calling_abi_parameter(
+    pub(super) fn calling_abi_parameter(
         &mut self,
         entry: MachineId,
         reference: TypeReferenceHandle,
@@ -528,6 +528,7 @@ impl PreparedCallingAbis {
         module.calling_abi_signatures = crate::calling_publication::join_abi_declarations(
             self.entry,
             &module.identities,
+            &module.structural_types,
             &module.calling_abi_signatures,
             &rows,
         )?;

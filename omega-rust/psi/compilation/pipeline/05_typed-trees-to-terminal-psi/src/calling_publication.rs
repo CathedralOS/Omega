@@ -24,12 +24,88 @@ pub(crate) struct PreparedCallingStorage {
     pub(crate) physical_owner: semantic_vocabulary::CallingDeclarationOwner,
 }
 
+// A failed join must identify the actual argument difference without dumping
+// an entire schema. Type names are diagnostic text, never matching authority.
+fn parameter_conflict_detail(
+    identities: &terminal_psi::TerminalIdentityTable,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    retained: &CallingAbiDeclaration,
+    selected: &CallingAbiDeclaration,
+) -> Option<String> {
+    fn type_description(
+        identities: &terminal_psi::TerminalIdentityTable,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        id: semantic_vocabulary::StructuralTypeId,
+    ) -> String {
+        use terminal_psi::StructuralTypeShape;
+        let Some(ty) = types.iter().find(|ty| ty.id == id) else {
+            return format!("type {} (declaration unavailable)", id.get());
+        };
+        let text = identities
+            .text(ty.identity)
+            .unwrap_or("identity unavailable");
+        let mut chars = text.chars();
+        let mut name: String = chars.by_ref().take(160).collect();
+        if chars.next().is_some() {
+            name.push('…');
+        }
+        let shape = match &ty.shape {
+            StructuralTypeShape::Opaque => "opaque".into(),
+            StructuralTypeShape::Reference { referent, access } => {
+                format!("reference to type {}, {access:?}", referent.get())
+            }
+            StructuralTypeShape::PrimitiveScalar(scalar) => format!("scalar {scalar:?}"),
+            StructuralTypeShape::ByteSequence(_) => "byte sequence".into(),
+            StructuralTypeShape::ElementView { element, access } => {
+                format!("element view of type {}, {access:?}", element.get())
+            }
+            StructuralTypeShape::Record { fields, .. } => {
+                format!("record with {} fields", fields.len())
+            }
+            StructuralTypeShape::FixedArray { element, .. } => {
+                format!("fixed array of type {}", element.get())
+            }
+            StructuralTypeShape::Sum { cases } => format!("sum with {} cases", cases.len()),
+            StructuralTypeShape::Mixed { fields, cases } => {
+                format!("{} fields and {} cases", fields.len(), cases.len())
+            }
+            StructuralTypeShape::AtomicCell(cell) => format!("atomic cell {cell:?}"),
+        };
+        format!("type {} `{name}` ({shape})", id.get())
+    }
+    let describe = |parameter: Option<&terminal_psi::CallingAbiParameter>| {
+        let Some(parameter) = parameter else {
+            return "argument absent".into();
+        };
+        let backing = parameter.callback_backing.map_or_else(
+            || "absent".into(),
+            |id| type_description(identities, types, id),
+        );
+        format!(
+            "{}, access {:?}, callback carrier {backing}",
+            type_description(identities, types, parameter.structural_type),
+            parameter.access
+        )
+    };
+    let retained = retained.storage.as_ref().ok()?;
+    let selected = selected.storage.as_ref().ok()?;
+    let index = (0..retained.parameters.len().max(selected.parameters.len()))
+        .find(|index| retained.parameters.get(*index) != selected.parameters.get(*index))?;
+    Some(format!(
+        "; argument {}: retained [{}]; selected [{}]",
+        index + 1,
+        describe(retained.parameters.get(index)),
+        describe(selected.parameters.get(index))
+    ))
+}
+
 /// ABI metadata and selected policies may publish the same application.
 /// Join only complete agreeing declarations, keeping every metadata-only row.
 /// Validate both rosters before returning any replacement publication.
 pub(crate) fn join_abi_declarations(
     context: MachineId,
     identities: &terminal_psi::TerminalIdentityTable,
+    types: &[terminal_psi::StructuralTypeDeclaration],
     existing: &[CallingAbiDeclaration],
     incoming: &[CallingAbiDeclaration],
 ) -> Checked<Vec<CallingAbiDeclaration>> {
@@ -108,10 +184,21 @@ pub(crate) fn join_abi_declarations(
                 if existing[left] != incoming[right] {
                     let field =
                         difference(existing[left], incoming[right]).unwrap_or("declaration");
+                    let detail = if field == "storage parameters" {
+                        parameter_conflict_detail(
+                            identities,
+                            types,
+                            existing[left],
+                            incoming[right],
+                        )
+                        .unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
                     return Err(services::unavailable(
                         context,
                         format!(
-                            "calling ABI {} conflicts in {field} between retained metadata and selected policy publication",
+                            "calling ABI {} conflicts in {field} between retained metadata and selected policy publication{detail}",
                             existing[left].id.get(),
                         ),
                     ));
@@ -358,38 +445,13 @@ pub(crate) fn publish(
     // Restoring this table preserves every unrelated declaration even if a
     // selected source question refuses before either row roster publishes.
     elaboration.module.identities = identities.build();
-    let prepared = prepared?;
     let declarations = join_abi_declarations(
         context,
         &elaboration.module.identities,
+        &elaboration.module.structural_types,
         &elaboration.module.calling_abi_signatures,
-        &prepared,
-    ).map_err(|error| {
-        for incoming in &prepared {
-            let Some(existing) = elaboration.module.calling_abi_signatures.iter()
-                .find(|existing| existing.id == incoming.id && *existing != incoming) else { continue; };
-            eprintln!("W2_ABI_STORAGE_DIAGNOSTIC id={} requirement={:?} application={:?} retained={existing:?} selected={incoming:?}", incoming.id.get(),
-                elaboration.module.identities.text(incoming.requirement_identity),
-                elaboration.module.identities.text(incoming.declaring_application));
-            let mut needed = Vec::new();
-            for row in [existing, incoming] {
-                if let Ok(storage) = &row.storage {
-                    for parameter in &storage.parameters {
-                        needed.push(parameter.structural_type);
-                        needed.extend(parameter.callback_backing);
-                    }
-                    needed.extend(storage.result);
-                }
-            }
-            needed.sort_unstable(); needed.dedup();
-            for id in needed {
-                let ty = elaboration.module.structural_type(id);
-                eprintln!("W2_ABI_STORAGE_TYPE id={id:?} identity={:?} declaration={ty:?}",
-                    ty.and_then(|ty| elaboration.module.identities.text(ty.identity)));
-            }
-        }
-        error
-    })?;
+        &prepared?,
+    )?;
     for property in &descriptions.properties {
         let row = elaboration
             .module
@@ -445,10 +507,12 @@ mod tests {
         };
         let selected = declaration("selected-requirement");
         let metadata_only = declaration("metadata-only-requirement");
+        let flag_identity = identities.intern("test::flag");
         let identities = identities.build();
         let existing = vec![selected.clone(), metadata_only.clone()];
         let incoming = vec![selected.clone()];
-        let joined = join_abi_declarations(context, &identities, &existing, &incoming).unwrap();
+        let joined =
+            join_abi_declarations(context, &identities, &[], &existing, &incoming).unwrap();
         assert_eq!(joined.len(), 2);
         assert!(joined.contains(&selected));
         assert!(joined.contains(&metadata_only));
@@ -457,19 +521,70 @@ mod tests {
         let mut conflicting = selected.clone();
         conflicting.storage.as_mut().unwrap().result =
             Some(semantic_vocabulary::StructuralTypeId::new(1).unwrap());
-        let error =
-            join_abi_declarations(context, &identities, &existing, &[conflicting]).unwrap_err();
+        let error = join_abi_declarations(context, &identities, &[], &existing, &[conflicting])
+            .unwrap_err();
         assert!(
             error.detail.contains(&selected.id.get().to_string()),
             "{error:?}"
         );
         assert!(error.detail.contains("storage result"), "{error:?}");
+        // A carrier is required for the callback walk even for a plain scalar.
+        // The join must identify its omission rather than ignoring the field.
+        let flag = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
+        let flag_type = terminal_psi::StructuralTypeDeclaration {
+            declaration_identity: terminal_psi::TerminalIdentityIndex(0),
+            quotient_carrier: None,
+            id: flag,
+            identity: flag_identity,
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                semantic_vocabulary::ScalarType::Boolean,
+            ),
+            scalar_restriction: None,
+            requires: Vec::new(),
+        };
+        let mut complete = selected.clone();
+        let storage = complete.storage.as_mut().unwrap();
+        storage.parameters.push(terminal_psi::CallingAbiParameter {
+            structural_type: flag,
+            callback_backing: Some(flag),
+            access: terminal_psi::StructuralAccess::Owned,
+        });
+        storage
+            .telescope
+            .parameters
+            .push(terminal_psi::CallingRuntimeFormal {
+                identity: semantic_vocabulary::NativeParameterId::new(1).unwrap(),
+                native_ordinal: 0,
+            });
+        let mut missing = complete.clone();
+        missing.storage.as_mut().unwrap().parameters[0].callback_backing = None;
+        let error =
+            join_abi_declarations(context, &identities, &[flag_type], &[complete], &[missing])
+                .unwrap_err();
+        for expected in [
+            "storage parameters",
+            "argument 1",
+            "test::flag",
+            "scalar Boolean",
+            "callback carrier absent",
+        ] {
+            assert!(error.detail.contains(expected), "{error:?}");
+        }
+        assert!(
+            error.detail.len() < 1500,
+            "the error must describe only the first argument"
+        );
         for (retained, selected_rows) in [
             (vec![selected.clone(), selected.clone()], Vec::new()),
             (Vec::new(), vec![selected.clone(), selected.clone()]),
         ] {
-            let error =
-                join_abi_declarations(context, &identities, &retained, &selected_rows).unwrap_err();
+            let error = join_abi_declarations(context, &identities, &[], &retained, &selected_rows)
+                .unwrap_err();
             assert!(error.detail.contains("duplicate calling ABI"), "{error:?}");
         }
         assert_eq!(existing, vec![selected.clone(), metadata_only]);

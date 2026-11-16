@@ -4,10 +4,7 @@
 
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::Checked;
-use terminal_psi::{
-    CallingAbiParameter, CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope,
-    StructuralAccess,
-};
+use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, services};
@@ -161,14 +158,14 @@ impl Program<'_> {
                             typed_trees::type_system::source_projections::substituted_type_reference(
                                 typed, reference, &bindings,
                             );
-                        let (storage_type, access) = self.metadata_parameter(context, reference)?;
-                        parameters.push(CallingAbiParameter {
-                            structural_type: storage_type,
-                            // Callback-bearing source was refused above; no
-                            // retained callback obligation becomes None.
-                            callback_backing: None,
-                            access,
-                        });
+                        // Every complete carrier remains available for the
+                        // callback walk, even when it contains no callback.
+                        // Use the same formal/reference description as the
+                        // retained ABI rather than inferring absence here.
+                        parameters.push(
+                            self.calling_abi_parameter(context, reference)
+                                .map_err(|reason| services::unavailable(context, reason))?,
+                        );
                     }
                     let omitted_unit = !projection.result.is_valid()
                         && {
@@ -345,34 +342,5 @@ impl Program<'_> {
             reference = *base_type;
         }
         reference
-    }
-
-    fn metadata_parameter(
-        &mut self,
-        context: MachineId,
-        reference: TypeReferenceHandle,
-    ) -> Checked<(StructuralTypeId, StructuralAccess)> {
-        let reference = self.metadata_carrier(reference);
-        match self.typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } => {
-                let (referee, access) = (*referee, *access);
-                let storage = self.metadata_storage(context, referee)?;
-                Ok((
-                    storage,
-                    match access {
-                        language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
-                        language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
-                        language_core::ReferenceAccess::WriteOnly => {
-                            StructuralAccess::WriteOnlyBorrow
-                        }
-                    },
-                ))
-            }
-            _ => self
-                .metadata_storage(context, reference)
-                .map(|record| (record, StructuralAccess::Owned)),
-        }
     }
 }
