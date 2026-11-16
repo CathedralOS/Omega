@@ -98,6 +98,7 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
         return false;
     }
     let Some([entry]) = schema_span(|span| program.machine_states.span(span), machine.states)
+        .and_then(|rows| rows.as_array())
     else {
         return false;
     };
@@ -107,6 +108,7 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
         return false;
     }
     let Some([formal]) = schema_span(|span| program.state_parameters.span(span), entry.parameters)
+        .and_then(|rows| rows.as_array())
     else {
         return false;
     };
