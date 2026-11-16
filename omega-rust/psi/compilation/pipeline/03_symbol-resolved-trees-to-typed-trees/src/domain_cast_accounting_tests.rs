@@ -3,6 +3,7 @@
 use super::*;
 use crate::typing_queries::{declared_callable_value_type, declared_place_type};
 use std::sync::Arc;
+use typed_trees::statement::StatementNode;
 
 fn source(text: &str) -> (symbol_resolved_trees::SymbolResolvedTrees, TypedTrees) {
     let mut sources = source::SourceMap::default();
@@ -25,6 +26,69 @@ fn machine(typed: &TypedTrees, name: &str) -> SymbolHandle {
         .find(|machine| machine.name.as_str() == name)
         .unwrap()
         .symbol
+}
+
+#[test]
+fn policy_entries_keep_the_written_domain_and_independent_result_type() {
+    let mut text = String::new();
+    let mut expected = Vec::new();
+    for policy in [
+        ArithmeticDomain::Wrapping,
+        ArithmeticDomain::Saturating,
+        ArithmeticDomain::Trapping,
+    ] {
+        for (verb, kind) in [
+            ("add", CastEntryKind::Add),
+            ("keep", CastEntryKind::Keep),
+            ("remove", CastEntryKind::Remove),
+        ] {
+            let name = format!("{verb}_{}", policy.name());
+            let qualified = format!("u32 in {}", policy.name());
+            let input = if kind == CastEntryKind::Add {
+                "u32"
+            } else {
+                &qualified
+            };
+            let result = if kind == CastEntryKind::Remove {
+                "u32"
+            } else {
+                &qualified
+            };
+            text.push_str(&format!(
+                "machine {name}(value: {input}) -> {result} {{ value as {}{} }}\n",
+                kind.sign(),
+                policy.name()
+            ));
+            expected.push((name, policy, kind));
+        }
+    }
+    let (_, typed) = source(&text);
+    assert!(
+        typed.deferred_refusals.is_empty(),
+        "{:?}",
+        typed.deferred_refusals
+    );
+    for (name, policy, kind) in expected {
+        let owner = typed.machine_by_symbol(machine(&typed, &name)).unwrap();
+        let state = typed.machine_states(owner).first().unwrap();
+        let StatementNode::Expression(expression) = typed
+            .statement_table
+            .statement(state.statement_nodes.start())
+        else {
+            panic!("one authored cast expression");
+        };
+        let ExpressionNode::Cast(cast) = typed.expression_table.expression(*expression) else {
+            panic!("the authored entry survives accounting");
+        };
+        assert_eq!(cast.form.entry().unwrap().kind, kind);
+        assert_eq!(cast.domain, policy, "{name} lost its source policy");
+        assert!(cast.result_type.is_valid());
+        assert_eq!(
+            typed.normalized_type_identity(cast.result_type),
+            typed.normalized_type_identity(state.return_type),
+            "{name} changed the resulting qualification"
+        );
+    }
 }
 
 #[test]
