@@ -219,9 +219,19 @@ impl NativeContext {
             .lock()
             .map_err(|_| poisoned_addresses())?
             .admit_host_address(address)?;
-        Ok(TerminalScalarValue::Integer {
-            scalar_type,
-            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(address)),
+        // Null names no storage and carries no provenance; every other value
+        // keeps its host provenance so the interpreter refuses to mix it with
+        // its own addresses.
+        Ok(if address == 0 {
+            TerminalScalarValue::Integer {
+                scalar_type,
+                value: semantic_vocabulary::IntegerValue::Unsigned(0),
+            }
+        } else {
+            TerminalScalarValue::HostAddress {
+                scalar_type,
+                address,
+            }
         })
     }
 
@@ -738,19 +748,53 @@ fn poisoned_addresses() -> TerminalEffectRejection {
     rejection("host address ledger was poisoned")
 }
 
+// Only a host-provenance address or null may reach a native import: an
+// interpreter address names interpreter storage the host cannot see.
 fn host_address_value(value: TerminalScalarValue) -> Result<u64, TerminalEffectRejection> {
+    let carrier = |scalar_type| {
+        super::super::scalar_codec::is_host_address_carrier(ScalarType::Integer(scalar_type))
+    };
     match value {
+        TerminalScalarValue::HostAddress {
+            scalar_type,
+            address,
+        } if carrier(scalar_type) => Ok(address),
         TerminalScalarValue::Integer {
             scalar_type,
-            value: semantic_vocabulary::IntegerValue::Unsigned(address),
-        } if super::super::scalar_codec::is_host_address_carrier(ScalarType::Integer(
-            scalar_type,
-        )) =>
-        {
-            u64::try_from(address).map_err(|_| rejection("host address exceeds its carrier"))
-        }
+            value: semantic_vocabulary::IntegerValue::Unsigned(0),
+        } if carrier(scalar_type) => Ok(0),
+        TerminalScalarValue::Integer { scalar_type, .. } if carrier(scalar_type) => Err(
+            rejection("native import argument is not an address the host returned"),
+        ),
         _ => Err(rejection(
             "native address argument lost its address carrier",
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerType, IntegerValue};
+
+    #[test]
+    fn only_host_addresses_and_null_return_to_a_native_import() {
+        let address = IntegerType::address(64).unwrap();
+        let host = TerminalScalarValue::HostAddress {
+            scalar_type: address,
+            address: 0x7000,
+        };
+        assert_eq!(host_address_value(host).unwrap(), 0x7000);
+        let null = TerminalScalarValue::Integer {
+            scalar_type: address,
+            value: IntegerValue::Unsigned(0),
+        };
+        assert_eq!(host_address_value(null).unwrap(), 0);
+        // An interpreter address with the same number is not the host's.
+        let interpreter = TerminalScalarValue::Integer {
+            scalar_type: address,
+            value: IntegerValue::Unsigned(0x7000),
+        };
+        assert!(host_address_value(interpreter).is_err());
     }
 }
