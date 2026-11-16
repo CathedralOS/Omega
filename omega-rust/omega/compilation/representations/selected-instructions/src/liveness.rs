@@ -278,11 +278,6 @@ mod identity {
                 liveness_function_digest(&membership),
                 liveness_function_digest(&populated)
             );
-            membership.blocks[0].instructions[0].operands = HandleSpan::from_parts(
-                Handle::from_parts(start.arena_index(), start.generation() + 1),
-                3,
-            );
-            same(&membership);
             membership.blocks[0].instructions[0].operands = HandleSpan::empty();
             same(&membership);
             let mut unspanned = populated.clone();
@@ -290,14 +285,45 @@ mod identity {
                 .operand_positions
                 .insert(OperandPosition::default());
             same(&unspanned);
+            // The whole-arena row stream still covers a vacant slot once no
+            // instruction span reaches it.
+            let mut vacant = vacant_middle_operand(&populated);
+            vacant.blocks[0].instructions[0].operands = HandleSpan::empty();
+            same(&vacant);
+        }
+
+        fn vacant_middle_operand(populated: &FunctionLiveness) -> FunctionLiveness {
             let mut vacant = populated.clone();
+            let start = vacant.blocks[0].instructions[0].operands.start();
             assert!(vacant.operand_positions.free(Handle::from_parts(
                 start.arena_index() + 1,
                 start.generation()
             )));
             assert_eq!(vacant.operand_positions.len(), 2);
             assert_eq!(vacant.operand_positions.storage_slice().len(), 3);
-            same(&vacant);
+            vacant
+        }
+
+        // An instruction whose operand span does not resolve is a broken
+        // liveness table, so the digest refuses it rather than hashing it as
+        // an instruction with no operands (the arena contract since #3336).
+        #[test]
+        #[should_panic(expected = "arena span_or_empty received an unresolved span")]
+        fn liveness_digest_refuses_an_operand_span_from_another_generation() {
+            let mut function = fixture();
+            let start = function.blocks[0].instructions[0].operands.start();
+            function.blocks[0].instructions[0].operands = HandleSpan::from_parts(
+                Handle::from_parts(start.arena_index(), start.generation() + 1),
+                3,
+            );
+            let _ = liveness_function_digest(&function);
+        }
+
+        #[test]
+        #[should_panic(expected = "arena span_or_empty received an unresolved span")]
+        fn liveness_digest_refuses_an_operand_span_over_a_freed_row() {
+            let function = vacant_middle_operand(&fixture());
+            let _ = liveness_function_digest(&function);
         }
 
         fn buffered_original_digest(function: &FunctionLiveness) -> [u8; 32] {
